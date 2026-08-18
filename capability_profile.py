@@ -17,6 +17,7 @@ class CapabilityProfile:
     countries: list[str] = field(default_factory=lambda: ["PRT"])
     regions: list[str] = field(default_factory=list)
     geographic_radius_km: float | None = None
+    profile_coordinates: list[dict] = field(default_factory=list)
     services: list[str] = field(default_factory=list)
     capability_tags: list[str] = field(default_factory=list)
     cpv_prefixes: list[str] = field(default_factory=list)
@@ -46,6 +47,7 @@ class CapabilityProfile:
             "countries": list(self.countries),
             "regions": list(self.regions),
             "geographic_radius_km": self.geographic_radius_km,
+            "profile_coordinates": [dict(point) for point in self.profile_coordinates],
             "services": list(self.services),
             "capability_tags": list(self.capability_tags),
             "cpv_prefixes": list(self.cpv_prefixes),
