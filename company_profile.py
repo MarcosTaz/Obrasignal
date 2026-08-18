@@ -10,7 +10,14 @@ DEFAULT_PROFILE = {
     "activity": "",
     "keywords": [],
     "countries": ["PRT"],
+    "regions": [],
+    "geographic_radius_km": None,
+    "profile_coordinates": [],
     "cpv_prefixes": ["45", "44", "42", "43"],
+    "services": [],
+    "capability_tags": [],
+    "project_scales": [],
+    "certifications": [],
     "min_value": None,
     "max_value": None,
     "economic_min_score": 60,
@@ -19,6 +26,18 @@ DEFAULT_PROFILE = {
     "preferred_procedure_types": [],
     "excluded_procedure_types": [],
     "exclude_keywords": [],
+    "hard_exclusions": [],
+}
+
+LIST_FIELDS = {
+    "keywords", "countries", "regions", "cpv_prefixes", "services", "capability_tags",
+    "project_scales", "certifications", "preferred_procedure_types",
+    "excluded_procedure_types", "exclude_keywords", "hard_exclusions",
+}
+
+NUMBER_FIELDS = {
+    "min_value", "max_value", "economic_min_score", "min_deadline_days",
+    "max_deadline_days", "geographic_radius_km",
 }
 
 ACTIVITY_RULES = [
@@ -34,10 +53,94 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _normalize_list(value):
+    if value is None:
+        return []
+    if isinstance(value, str):
+        value = value.split(",")
+    if not isinstance(value, (list, tuple, set)):
+        raise ValueError("list field must be a string or sequence")
+    result = []
+    for item in value:
+        text = str(item).strip()
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
+def _normalize_number(value, field):
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field} must be numeric") from exc
+    if field == "economic_min_score" and not 0 <= number <= 100:
+        raise ValueError("economic_min_score must be between 0 and 100")
+    if field == "geographic_radius_km" and number < 0:
+        raise ValueError("geographic_radius_km cannot be negative")
+    if field.startswith("min_") or field.startswith("max_"):
+        if number < 0:
+            raise ValueError(f"{field} cannot be negative")
+    return int(number) if number.is_integer() else number
+
+
+def _normalize_coordinates(value):
+    if value in (None, ""):
+        return []
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("profile_coordinates must be a sequence")
+    normalized = []
+    for point in value:
+        if not isinstance(point, dict):
+            raise ValueError("each profile coordinate must be an object")
+        try:
+            latitude = float(point.get("latitude", point.get("lat")))
+            longitude = float(point.get("longitude", point.get("lon", point.get("lng"))))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("profile coordinates must contain numeric latitude and longitude") from exc
+        if not -90 <= latitude <= 90:
+            raise ValueError("latitude must be between -90 and 90")
+        if not -180 <= longitude <= 180:
+            raise ValueError("longitude must be between -180 and 180")
+        item = {"latitude": latitude, "longitude": longitude}
+        if point.get("label") not in (None, ""):
+            item["label"] = str(point["label"]).strip()
+        normalized.append(item)
+    return normalized
+
+
+def normalize_profile(profile: dict | None = None) -> dict:
+    """Validate and normalize profile values without inventing missing data."""
+    incoming = profile or {}
+    if not isinstance(incoming, dict):
+        raise ValueError("profile must be an object")
+
+    normalized = dict(DEFAULT_PROFILE)
+    for key, value in incoming.items():
+        if key not in DEFAULT_PROFILE:
+            continue
+        if key == "profile_coordinates":
+            normalized[key] = _normalize_coordinates(value)
+        elif key in LIST_FIELDS:
+            normalized[key] = _normalize_list(value)
+        elif key in NUMBER_FIELDS:
+            normalized[key] = _normalize_number(value, key)
+        else:
+            normalized[key] = str(value).strip() if value is not None else ""
+
+    if normalized["min_value"] is not None and normalized["max_value"] is not None:
+        if normalized["min_value"] > normalized["max_value"]:
+            raise ValueError("min_value cannot exceed max_value")
+    if normalized["min_deadline_days"] is not None and normalized["max_deadline_days"] is not None:
+        if normalized["min_deadline_days"] > normalized["max_deadline_days"]:
+            raise ValueError("min_deadline_days cannot exceed max_deadline_days")
+
+    return normalized
+
+
 def derive_profile(activity: str, base: dict | None = None) -> dict:
-    profile = dict(DEFAULT_PROFILE)
-    if base:
-        profile.update({k: v for k, v in base.items() if v is not None})
+    profile = normalize_profile(base)
     activity_n = _normalize(activity)
     profile["activity"] = activity or profile.get("activity", "")
     keywords = list(profile.get("keywords") or [])
@@ -60,18 +163,14 @@ def load_profile() -> dict:
     if not raw:
         return dict(DEFAULT_PROFILE)
     try:
-        profile = dict(DEFAULT_PROFILE)
-        profile.update(json.loads(raw))
-        return profile
-    except (TypeError, ValueError):
+        return normalize_profile(json.loads(raw))
+    except (TypeError, ValueError, json.JSONDecodeError):
         return dict(DEFAULT_PROFILE)
 
 
 def save_profile(profile: dict) -> dict:
     path = os.getenv("OBRASIGNAL_PROFILE_FILE", "company_profile.json")
-    normalized = dict(DEFAULT_PROFILE)
-    normalized.update(profile or {})
-    normalized = derive_profile(normalized.get("activity", ""), normalized)
+    normalized = derive_profile(str((profile or {}).get("activity") or ""), profile)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(normalized, fh, ensure_ascii=False, indent=2)
     return normalized
