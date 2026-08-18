@@ -62,6 +62,17 @@ def _hard_capability_checks(lot, capability):
     return blockers
 
 
+def _capability_contribution(evidence):
+    if not evidence.get("matched"):
+        return {"score": 0, "confidence": 30, "reason": evidence["reason"]}
+    count = int(evidence.get("evidence_count") or 0)
+    return {
+        "score": min(10, count * 5),
+        "confidence": 90,
+        "reason": evidence["reason"],
+    }
+
+
 def evaluate_row(row, profile=None):
     profile = profile or load_profile()
     source_row = dict(row)
@@ -71,6 +82,7 @@ def evaluate_row(row, profile=None):
         capability,
         " ".join(str(v) for v in (lot.get("title"), lot.get("description")) if v),
     )
+    capability_contribution = _capability_contribution(capability_evidence)
     hard_blockers = _hard_capability_checks(lot, capability)
     result = match_lot(lot, profile)
     economics = evaluate_economic_fit(
@@ -99,6 +111,14 @@ def evaluate_row(row, profile=None):
     if hard_blockers:
         reason += "; bloqueios=" + ", ".join(hard_blockers)
 
+    contributions = {
+        "profile": {"score": profile_score, "reason": "score comercial personalizado"},
+        "lot": {"score": lot_score, "reason": result["match"]},
+        "geography": {"score": geo.get("score", 0), "confidence": geo.get("confidence", 0), "reason": geo.get("reason")},
+        "capability": capability_contribution,
+        "economic_fit": {"score": economics.get("score", 0), "confidence": economics.get("confidence", 0), "reason": economics.get("reason")},
+    }
+
     return {
         "decision": decision,
         "reason": reason,
@@ -111,7 +131,9 @@ def evaluate_row(row, profile=None):
         "economic_fit": economics,
         "capability": capability,
         "capability_evidence": capability_evidence,
+        "capability_contribution": capability_contribution,
         "hard_capability_blockers": hard_blockers,
+        "contributions": contributions,
     }
 
 
@@ -132,7 +154,9 @@ def evaluate_and_record(conn, row, profile=None):
             "commercial": evaluation["commercial"],
             "economic_fit": evaluation["economic_fit"],
             "capability_evidence": evaluation["capability_evidence"],
+            "capability_contribution": evaluation["capability_contribution"],
             "hard_capability_blockers": evaluation["hard_capability_blockers"],
+            "contributions": evaluation["contributions"],
         },
         rule_version=RULE_VERSION,
     )
