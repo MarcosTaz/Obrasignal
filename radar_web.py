@@ -15,7 +15,13 @@ def _render_layers(layers: list[dict] | None) -> str:
         detail = escape(str(layer.get("detail") or ""))
         if kind == "score":
             score = layer.get("score")
-            value = f"{score}/100" if score is not None else "—"
+            scale = layer.get("scale")
+            if score is None:
+                value = "—"
+            elif scale:
+                value = f"{score}/{scale}"
+            else:
+                value = f"{score}/100"
         elif kind == "evidence":
             value = f"{layer.get('evidence_count', 0)} evidência(s)"
         elif kind == "blocker":
