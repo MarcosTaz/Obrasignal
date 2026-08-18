@@ -19,6 +19,7 @@ from source_health import (
     set_source_cursor,
     source_health_snapshot,
 )
+from latency_metrics import ensure_latency_table, record_stage, latency_snapshot, latency_summary
 from ted_client import post_json
 
 APP = _app.APP
@@ -27,12 +28,7 @@ _original_sync_once = getattr(_app, "sync_once", None)
 
 
 def _ted_since_date():
-    """Return a safe incremental TED watermark with a one-day overlap.
-
-    Publication dates have day-level precision in the search fields, so the
-    overlap protects us from late-arriving notices and clock/time-zone edges.
-    The first run deliberately keeps the existing bounded lookback.
-    """
+    """Return a safe incremental TED watermark with a one-day overlap."""
     conn = _app.db()
     try:
         watermark = get_source_cursor(conn, "TED")
@@ -86,9 +82,11 @@ def _fetch_ted_resilient():
 
 def _fetch_ted_with_health(*args, **kwargs):
     started = time.perf_counter()
+    started_at = datetime.now(timezone.utc).isoformat()
     conn = _app.db()
     try:
         ensure_source_health(conn)
+        ensure_latency_table(conn)
         conn.close()
         rows = _fetch_ted_resilient()
         duration_ms = int((time.perf_counter() - started) * 1000)
@@ -97,12 +95,14 @@ def _fetch_ted_with_health(*args, **kwargs):
         if watermark:
             set_source_cursor(conn, "TED", watermark)
         record_source_result(conn, "TED", success=True, duration_ms=duration_ms, found=len(rows))
+        record_stage(conn, "TED", "fetch", started_at, duration_ms, len(rows))
         conn.close()
         return rows
     except Exception as exc:
         duration_ms = int((time.perf_counter() - started) * 1000)
         conn = _app.db()
         record_source_result(conn, "TED", success=False, duration_ms=duration_ms, error=exc)
+        record_stage(conn, "TED", "fetch_failed", started_at, duration_ms, 0)
         conn.close()
         raise
 
@@ -125,6 +125,16 @@ def api_source_health():
     conn = _app.db()
     try:
         return _app.jsonify(items=source_health_snapshot(conn))
+    finally:
+        conn.close()
+
+
+@APP.get("/api/v1/latency")
+def api_latency():
+    conn = _app.db()
+    try:
+        source = _app.request.args.get("source")
+        return _app.jsonify(summary=latency_summary(conn, source), samples=latency_snapshot(conn, source))
     finally:
         conn.close()
 
@@ -159,11 +169,15 @@ def sync_once_with_events(*args, **kwargs):
     """Run ingestion, personalize rankings, then record new high-value events."""
     if _original_sync_once is None:
         return None
+    started = time.perf_counter()
+    started_at = datetime.now(timezone.utc).isoformat()
     result = _original_sync_once(*args, **kwargs)
     conn = _app.db()
     try:
         _apply_profile_scores(conn)
         events = record_new_opportunities(conn, min_score=75)
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        record_stage(conn, "PIPELINE", "sync_and_events", started_at, duration_ms, len(events))
     finally:
         conn.close()
     return {"sync": result, "new_events": events}
