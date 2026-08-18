@@ -1,6 +1,5 @@
 import base64
-import json
-import os
+import time
 
 import pytest
 from flask import Flask
@@ -21,14 +20,13 @@ def test_provider_mode_requires_bearer_token(monkeypatch):
     app = Flask(__name__)
 
     with app.test_request_context("/api", headers={}):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Bearer token required"):
             auth_context.configured_identity()
 
 
 def test_jwt_verifier_uses_verified_sub(monkeypatch):
     pytest.importorskip("cryptography")
     from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.hazmat.primitives import serialization
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public = key.public_key().public_numbers()
@@ -51,13 +49,14 @@ def test_jwt_verifier_uses_verified_sub(monkeypatch):
 
     import jwt
 
+    now = int(time.time())
     token = jwt.encode(
         {
             "sub": "user-123",
             "iss": "https://issuer.example",
             "aud": "authenticated",
-            "iat": 2000000000,
-            "exp": 2000003600,
+            "iat": now - 10,
+            "exp": now + 3600,
         },
         key,
         algorithm="RS256",
