@@ -2,8 +2,8 @@
   "expo": {
     "name": "ObraSignal",
     "slug": "obrasignal",
-    "version": "0.1.0",
-    "orientation": "portrait",
+    "version": "0.2.0",
+    "orientation": "default",
     "userInterfaceStyle": "dark",
     "scheme": "obrasignal",
     "ios": {
@@ -16,6 +16,7 @@
         "backgroundColor": "#0A1020"
       }
     },
+    "plugins": ["expo-notifications"],
     "web": {
       "bundler": "metro"
     }
