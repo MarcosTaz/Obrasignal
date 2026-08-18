@@ -62,9 +62,10 @@ def score_v2(item):
         "armazém", "armazem", "warehouse", "montagem", "empreitada"
     )
     hits = [term for term in capability_terms if term in text]
-    components["capability_fit"] = min(20, 6 * len(dict.fromkeys(hits))) if hits else 0
-    if hits:
-        reasons.append("atividade compatível: " + ", ".join(dict.fromkeys(hits)[:3]))
+    unique_hits = list(dict.fromkeys(hits))
+    components["capability_fit"] = min(20, 6 * len(unique_hits)) if unique_hits else 0
+    if unique_hits:
+        reasons.append("atividade compatível: " + ", ".join(unique_hits[:3]))
 
     # 0-15: deadline urgency, with expired notices receiving zero.
     days = _deadline_days(item.get("deadline"))
