@@ -1,11 +1,11 @@
-"""Connect opportunity rows to lot matching, economics and the decision log."""
+"""Connect opportunity rows to lot matching, economic fit and the decision log."""
 
 from company_profile import load_profile
 from decision_log import record_decision
 from lot_matcher import match_lot
-from profitability_model import estimate_profitability
+from economic_fit import evaluate_economic_fit
 
-RULE_VERSION = "commercial-v2+lot-v1+profitability-v1"
+RULE_VERSION = "commercial-v2+lot-v1+economic-fit-v2"
 
 
 def _lot_from_row(row):
@@ -29,12 +29,16 @@ def evaluate_row(row, profile=None):
     source_row = dict(row)
     lot = _lot_from_row(source_row)
     result = match_lot(lot, profile)
-    economics = estimate_profitability(lot.get("value_numeric") or lot.get("value"), profile)
+    economics = evaluate_economic_fit(
+        lot.get("value_numeric") or lot.get("value"),
+        profile,
+        opportunity=lot,
+    )
     profile_score = int(source_row.get("profile_score") or source_row.get("score") or 0)
     lot_score = int(result["score"])
     geo = result["geography"]
 
-    if profile_score >= 75 and lot_score >= 65 and economics["status"] in ("ATTRACTIVE", "UNKNOWN"):
+    if profile_score >= 75 and lot_score >= 65 and economics["status"] in ("FAVOURABLE", "REVIEW"):
         decision = "QUALIFIED"
     elif profile_score >= 60 or lot_score >= 65:
         decision = "REVIEW"
@@ -43,7 +47,7 @@ def evaluate_row(row, profile=None):
 
     reason = (
         f"perfil={profile_score}; lote={lot_score}; geografia={geo['reason']}; "
-        f"economia={economics['status']}; {economics['reason']}"
+        f"economic_fit={economics['status']}; {economics['reason']}"
     )
     return {
         "decision": decision,
@@ -54,7 +58,7 @@ def evaluate_row(row, profile=None):
         "match": result.get("match"),
         "geography": geo,
         "commercial": result.get("commercial"),
-        "profitability": economics,
+        "economic_fit": economics,
     }
 
 
@@ -73,7 +77,7 @@ def evaluate_and_record(conn, row, profile=None):
             "match": evaluation["match"],
             "geography": evaluation["geography"],
             "commercial": evaluation["commercial"],
-            "profitability": evaluation["profitability"],
+            "economic_fit": evaluation["economic_fit"],
         },
         rule_version=RULE_VERSION,
     )

@@ -7,10 +7,12 @@ def profile():
         "nuts": set(),
         "cities": {"LEIRIA"},
         "postal_prefixes": {"24"},
+        "min_value": 100000,
+        "max_value": 300000,
     }
 
 
-def test_evaluate_row_uses_lot_geography_profile_score_and_economics():
+def test_evaluate_row_uses_lot_geography_profile_score_and_economic_fit():
     row = {
         "source": "TED",
         "external_id": "123",
@@ -26,8 +28,9 @@ def test_evaluate_row_uses_lot_geography_profile_score_and_economics():
     result = evaluate_row(row, profile())
     assert result["lot_score"] >= 70
     assert result["geography"]["reason"] == "cidade prioritária"
-    assert result["profitability"]["status"] == "ATTRACTIVE"
-    assert result["profitability"]["estimated_gross_profit"] == 22500
+    assert result["economic_fit"]["status"] == "FAVOURABLE"
+    assert result["economic_fit"]["score"] == 100
+    assert "profitability" not in result
     assert result["decision"] == "QUALIFIED"
 
 
