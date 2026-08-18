@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AuthGate from './components/AuthGate';
+import OpportunityExplanation from './components/OpportunityExplanation';
 import { api } from './src/api';
 import { DEFAULT_SETTINGS, storage } from './src/storage';
 import { configureNotifications } from './src/notifications';
@@ -149,6 +150,7 @@ function Detail({ item, saved, onBack, onSave }) {
       <Info label="PAÍS" value={item.country || 'PRT'} /><Info label="CPV" value={item.cpv || '—'} />
     </View>
     {item.match_reason ? <View style={styles.highlight}><Text style={styles.highlightLabel}>{item.priority_label || 'RELEVÂNCIA'}</Text><Text style={styles.highlightText}>{item.match_reason}</Text></View> : null}
+    <OpportunityExplanation item={item} />
     <Section title="Objeto"><Text style={styles.bodyText}>{item.description || 'Descrição não disponível.'}</Text></Section>
     <Section title="Fonte oficial"><Text style={styles.bodyText}>Os dados são apresentados dentro do ObraSignal. A fonte oficial permanece disponível para confirmação documental.</Text>
       <Pressable style={styles.sourceButton} onPress={() => item.url && Linking.openURL(item.url)}><Text style={styles.sourceButtonText}>Abrir fonte oficial</Text></Pressable>
