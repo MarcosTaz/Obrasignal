@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 RULE_VERSION = "commercial-v2"
 
 WORKS_CPVS = ("45",)
-METAL_CPVS = ("45223", "45262", "45261", "45262", "45262")
 
 
 def _text(*values):
@@ -35,7 +34,7 @@ def _deadline_days(value):
 
 
 def score_v2(item):
-    """Return score and a component-by-component explanation."""
+    """Return score, confidence and a component-by-component explanation."""
     title = item.get("title")
     description = item.get("description")
     buyer = item.get("buyer")
@@ -44,6 +43,7 @@ def score_v2(item):
 
     components = {}
     reasons = []
+    missing = []
 
     # 0-35: structured CPV/nature fit.
     if any(code.strip().startswith(WORKS_CPVS) for code in cpv.split("|")):
@@ -52,8 +52,11 @@ def score_v2(item):
     elif any(code.strip().startswith("44") for code in cpv.split("|")):
         components["cpv_fit"] = 25
         reasons.append("CPV de materiais/construção")
-    else:
+    elif cpv:
         components["cpv_fit"] = 8
+    else:
+        components["cpv_fit"] = 0
+        missing.append("cpv")
 
     # 0-20: target capability signals. Text is supplementary, never the only gate.
     capability_terms = (
@@ -66,11 +69,14 @@ def score_v2(item):
     components["capability_fit"] = min(20, 6 * len(unique_hits)) if unique_hits else 0
     if unique_hits:
         reasons.append("atividade compatível: " + ", ".join(unique_hits[:3]))
+    elif not text:
+        missing.append("title/description")
 
     # 0-15: deadline urgency, with expired notices receiving zero.
     days = _deadline_days(item.get("deadline"))
     if days is None:
         components["deadline"] = 5
+        missing.append("deadline")
     elif days < 0:
         components["deadline"] = 0
         reasons.append("prazo terminado")
@@ -93,6 +99,7 @@ def score_v2(item):
         value = None
     if value is None:
         components["size_fit"] = 7
+        missing.append("value")
     elif value <= 250_000:
         components["size_fit"] = 15
         reasons.append("valor compatível com operação pequena/média")
@@ -113,6 +120,7 @@ def score_v2(item):
         reasons.append("procedimento com acesso mais exigente")
     else:
         components["access"] = 7
+        missing.append("procedure_type")
 
     # Hard negative for clearly intellectual-only procurement.
     if any(k in text for k in ("architecture services", "serviços de arquitetura", "servicos de arquitetura", "consultoria", "fiscalização", "fiscalizacao")) and not any(k in text for k in ("obra", "works", "construction", "empreitada", "execução", "execucao")):
@@ -120,7 +128,16 @@ def score_v2(item):
         components["access"] = min(components["access"], 3)
         reasons.append("atividade predominantemente intelectual")
 
-    score = max(0, min(100, sum(components.values())))
+    raw_score = max(0, min(100, sum(components.values())))
+
+    # Confidence is deliberately separate from commercial attractiveness. A high
+    # score based on sparse data must never masquerade as a high-confidence lead.
+    known = 5 - len(set(missing))
+    confidence = round(known / 5 * 100)
+    if confidence < 60 and raw_score > 60:
+        reasons.append("dados insuficientes para confiança elevada")
+    score = raw_score
+
     if score >= 80:
         priority = "PRIORIDADE MÁXIMA"
     elif score >= 65:
@@ -137,4 +154,6 @@ def score_v2(item):
         "reasons": reasons[:6],
         "rule_version": RULE_VERSION,
         "deadline_days": days,
+        "confidence": confidence,
+        "missing_fields": sorted(set(missing)),
     }
