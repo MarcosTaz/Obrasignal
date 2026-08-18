@@ -55,20 +55,36 @@ def derive_profile(activity: str, base: dict | None = None) -> dict:
     return profile
 
 
+def _profile_path() -> str:
+    return (
+        os.getenv("OBRASIGNAL_PROFILE")
+        or os.getenv("OBRASIGNAL_PROFILE_FILE")
+        or "company_profile.json"
+    )
+
+
 def load_profile() -> dict:
-    raw = os.getenv("OBRASIGNAL_PROFILE_JSON", "").strip()
-    if not raw:
-        return dict(DEFAULT_PROFILE)
+    path = _profile_path()
     try:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
         profile = dict(DEFAULT_PROFILE)
-        profile.update(json.loads(raw))
-        return profile
-    except (TypeError, ValueError):
+        profile.update(raw or {})
+        return derive_profile(profile.get("activity", ""), profile)
+    except (FileNotFoundError, OSError, TypeError, ValueError):
+        raw = os.getenv("OBRASIGNAL_PROFILE_JSON", "").strip()
+        if raw:
+            try:
+                profile = dict(DEFAULT_PROFILE)
+                profile.update(json.loads(raw))
+                return derive_profile(profile.get("activity", ""), profile)
+            except (TypeError, ValueError):
+                pass
         return dict(DEFAULT_PROFILE)
 
 
 def save_profile(profile: dict) -> dict:
-    path = os.getenv("OBRASIGNAL_PROFILE_FILE", "company_profile.json")
+    path = _profile_path()
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(profile or {})
     normalized = derive_profile(normalized.get("activity", ""), normalized)
