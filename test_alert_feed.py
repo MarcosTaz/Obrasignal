@@ -11,9 +11,13 @@ def test_event_feed_is_idempotent_and_has_delivery_state():
         country TEXT, url TEXT, deadline TEXT, profile_reason TEXT,
         profile_score INTEGER, score INTEGER, first_seen TEXT
     )""")
-    conn.execute("""INSERT INTO tenders VALUES
-        (1,'TED','2026/S-1','Pavilhão industrial','ES','https://example.invalid/1',
-         '2099-01-01','perfil: pavilhões',94,'2026-08-18 17:00:00')""")
+    conn.execute("""INSERT INTO tenders
+        (id, source, external_id, title, country, url, deadline,
+         profile_reason, profile_score, score, first_seen)
+        VALUES (1,'TED','2026/S-1','Pavilhão industrial','ES',
+                'https://example.invalid/1','2099-01-01','perfil: pavilhões',
+                94,94,'2026-08-18 17:00:00')""")
+    ensure_event_table(conn)
     first = record_new_opportunities(conn, min_score=75)
     second = record_new_opportunities(conn, min_score=75)
     assert len(first) == 1
