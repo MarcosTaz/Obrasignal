@@ -10,6 +10,7 @@ from source_health import ensure_source_health, get_source_cursor, record_source
 from latency_metrics import ensure_latency_table, record_stage, latency_snapshot, latency_summary
 from latency_health import latency_health
 from ted_client import post_json
+from decision_dashboard import get_presented_decision
 
 APP = _app.APP
 _original_fetch_base = _app.fetch_base
@@ -170,6 +171,28 @@ def sync_once_with_events(*args, **kwargs):
     finally:
         conn.close()
     return {"sync": result, "new_events": events}
+
+
+@APP.get("/opportunity/<int:tender_id>")
+def opportunity_detail(tender_id):
+    conn = _app.db()
+    row = conn.execute("SELECT * FROM tenders WHERE id=?", (tender_id,)).fetchone()
+    if row is None:
+        conn.close()
+        return _app.Response("Oportunidade não encontrada", status=404)
+
+    item = dict(row)
+    decision = get_presented_decision(conn, item.get("source"), item.get("external_id"))
+    conn.close()
+
+    lines = "".join(
+        f'<div style="display:grid;grid-template-columns:180px 120px 1fr;gap:8px;padding:10px 0;border-top:1px solid #293553">'
+        f'<strong>{line["label"]}</strong><span>{line["value"]}</span><span class="muted">{line["detail"]}</span></div>'
+        for line in decision["lines"]
+    ) or '<div class="muted">Ainda não existe avaliação auditável para esta oportunidade.</div>'
+
+    html = f'''<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Decisão · ObraSignal</title><style>body{{font-family:Arial,sans-serif;background:#0b1020;color:#eef2ff;margin:0}}.wrap{{max-width:1000px;margin:auto;padding:24px}}.card{{background:#151d33;border:1px solid #293553;border-radius:14px;padding:18px;margin:14px 0}}.muted{{color:#9aa5bd}}.pill{{display:inline-block;padding:6px 10px;border-radius:999px;background:#22304e}}.ok{{color:#7ee787}}.warn{{color:#ffd479}}.bad{{color:#ff8c9c}}a{{color:#8db4ff}}</style></head><body><div class="wrap"><p><a href="/">← Voltar ao radar</a></p><div class="card"><div class="muted">DECISÃO COMERCIAL</div><h1>{item.get("title") or "Sem título"}</h1><p>{item.get("buyer") or "Entidade não identificada"}</p><span class="pill">{decision["status"]}</span><p>{decision["reason"]}</p><div>{lines}</div><p class="muted">Regra: {decision["rule_version"] or "—"} · Decidido: {decision["decided_at"] or "—"}</p></div><div class="card"><h2>Dados da oportunidade</h2><p>Fonte: {item.get("source") or "—"} · País: {item.get("country") or "—"} · Score: {item.get("score") or 0}/100</p><p>Valor: {item.get("value") or "não indicado"} · Prazo: {item.get("deadline") or "não indicado"}</p><p><a href="{item.get("url") or "#"}" target="_blank">Abrir fonte original →</a></p></div></div></body></html>'''
+    return html
 
 
 if _original_sync_once is not None:
