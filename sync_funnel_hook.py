@@ -1,17 +1,21 @@
 import sqlite3
 import threading
 
-from auth_context import get_account_id
+from auth_context import configured_identity
 from account_registry import list_active_accounts
 from decision_log import latest_decision
 from funnel_integration import persist_and_classify
+
+
+def _fallback_account_id():
+    return configured_identity().account_id
 
 
 def record_sync_decisions(conn, rows, account_id=None):
     """Record sync decisions under an explicit account or for all active accounts."""
     accounts = [account_id] if account_id else list_active_accounts(conn)
     if not accounts:
-        accounts = [get_account_id()]
+        accounts = [_fallback_account_id()]
 
     recorded = 0
     for current_account in accounts:
