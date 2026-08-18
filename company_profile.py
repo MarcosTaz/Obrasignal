@@ -5,6 +5,7 @@ import json
 import os
 import re
 
+from company_profile_validation import validate_company_profile
 from unified_company_profile import normalize_company_profile
 
 DEFAULT_PROFILE = {
@@ -37,10 +38,29 @@ ACTIVITY_RULES = [
     ("armazens", ["armazém", "armazem", "warehouse", "pavilhão", "pavilhao", "industrial"], ["45", "44"]),
 ]
 
+_COUNTRY_ALIASES = {
+    "PT": "PRT", "ES": "ESP", "FR": "FRA", "DE": "DEU", "IT": "ITA",
+    "BE": "BEL", "NL": "NLD", "LU": "LUX", "IE": "IRL", "AT": "AUT",
+    "PL": "POL", "CZ": "CZE", "DK": "DNK", "SE": "SWE", "FI": "FIN",
+    "NO": "NOR", "GB": "GBR",
+}
+
 
 def _normalize(text: str) -> str:
     text = (text or "").lower()
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _normalize_countries(values) -> list[str]:
+    normalized = []
+    for value in values or []:
+        code = str(value).strip().upper()
+        if not code:
+            continue
+        code = _COUNTRY_ALIASES.get(code, code)
+        if code not in normalized:
+            normalized.append(code)
+    return normalized
 
 
 def derive_profile(activity: str, base: dict | None = None) -> dict:
@@ -97,6 +117,12 @@ def save_profile(profile: dict) -> dict:
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(profile or {})
     normalized = derive_profile(normalized.get("activity", ""), normalized)
+    validation_profile = dict(normalized)
+    validation_profile["countries"] = _normalize_countries(validation_profile.get("countries"))
+    errors = validate_company_profile(validation_profile)
+    if errors:
+        raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": errors})
+    normalized["countries"] = list(normalized.get("countries") or [])
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(normalized, fh, ensure_ascii=False, indent=2)
     return normalized
