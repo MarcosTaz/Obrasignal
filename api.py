@@ -1,5 +1,6 @@
 """Native API facade for the ObraSignal mobile clients."""
 from datetime import datetime, timezone
+import os
 from flask import Blueprint, jsonify, request
 from jwt import InvalidTokenError
 
@@ -25,10 +26,19 @@ def _identity():
     return configured_identity()
 
 
+def _cors_origin():
+    origin = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "").strip()
+    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
+    if auth_mode == "development":
+        return origin or "*"
+    if not origin or origin == "*":
+        raise RuntimeError("OBRASIGNAL_CORS_ORIGIN must be configured for provider mode")
+    return origin
+
+
 @bp.before_request
 def _require_identity():
-    # Health stays public so infrastructure can probe liveness without a token.
-    if request.endpoint == "mobile_api.health":
+    if request.method == "OPTIONS" or request.endpoint == "mobile_api.health":
         return None
     try:
         identity = _identity()
@@ -61,7 +71,13 @@ def _row(row):
 
 @bp.after_request
 def _headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    try:
+        origin = _cors_origin()
+    except RuntimeError:
+        origin = None
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-ObraSignal-Version, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Cache-Control"] = "no-store"
