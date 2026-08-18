@@ -14,6 +14,10 @@ from decision_dashboard import get_presented_decision
 from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
 from opportunity_web import render_opportunity_detail
+from company_profile import load_profile
+from profile_ui import save_profile_from_form
+from profile_web import render_profile_page
+from flask import redirect, request
 
 APP = _app.APP
 _original_fetch_base = _app.fetch_base
@@ -175,6 +179,17 @@ def radar_page():
         return render_radar_page(items, minscore=minscore)
     finally:
         conn.close()
+
+
+@APP.get("/profile")
+def profile_page():
+    return render_profile_page(load_profile())
+
+
+@APP.post("/profile")
+def profile_page_save():
+    save_profile_from_form(request.form)
+    return redirect("/profile", code=303)
 
 
 def _ensure_profile_columns(conn):
