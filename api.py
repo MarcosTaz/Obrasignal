@@ -7,9 +7,14 @@ inside the app.
 from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
 
+import preload as _preload
 from preload import APP, _deadline_dt
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
+
+
+def _db():
+    return _preload._app.db()
 
 
 def _iso_now():
@@ -52,11 +57,9 @@ def health():
 
 @bp.route("/stats", methods=["GET"])
 def stats():
-    c = APP.view_functions["index"].__globals__["db"]()
+    c = _db()
     total = c.execute("SELECT COUNT(*) FROM tenders").fetchone()[0]
     high = c.execute("SELECT COUNT(*) FROM tenders WHERE score >= 75").fetchone()[0]
-    cutoff = datetime.now(timezone.utc).timestamp() - 86400
-    # first_seen is ISO text; use SQLite's date comparison for the dashboard metric.
     new24 = c.execute("SELECT COUNT(*) FROM tenders WHERE first_seen >= datetime('now','-1 day')").fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
     c.close()
@@ -69,14 +72,16 @@ def opportunities():
     source = (request.args.get("source") or "").strip().upper()
     minscore = max(0, min(100, int(request.args.get("minscore", 0) or 0)))
     limit = max(1, min(100, int(request.args.get("limit", 30) or 30)))
-    c = APP.view_functions["index"].__globals__["db"]()
+    c = _db()
     clauses = ["score >= ?"]
     params = [minscore]
     if source:
-        clauses.append("source = ?"); params.append(source)
+        clauses.append("source = ?")
+        params.append(source)
     if q:
         clauses.append("(lower(title) LIKE ? OR lower(description) LIKE ? OR lower(buyer) LIKE ?)")
-        needle = f"%{q}%"; params.extend([needle, needle, needle])
+        needle = f"%{q}%"
+        params.extend([needle, needle, needle])
     sql = "SELECT * FROM tenders WHERE " + " AND ".join(clauses) + " ORDER BY score DESC, publication_date DESC LIMIT ?"
     params.append(limit)
     rows = [_row(r) for r in c.execute(sql, params).fetchall()]
@@ -86,7 +91,7 @@ def opportunities():
 
 @bp.route("/opportunities/<int:tender_id>", methods=["GET"])
 def opportunity(tender_id):
-    c = APP.view_functions["index"].__globals__["db"]()
+    c = _db()
     row = c.execute("SELECT * FROM tenders WHERE id = ?", (tender_id,)).fetchone()
     c.close()
     if not row:
