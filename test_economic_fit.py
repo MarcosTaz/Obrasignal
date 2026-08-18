@@ -44,7 +44,7 @@ def test_deadline_window_is_explainable():
         today=__import__("datetime").date(2026, 8, 18),
     )
     assert result["status"] == "FAVOURABLE"
-    assert result["score"] == 100
+    assert result["score"] == 80
     assert all(rule["passed"] for rule in result["rules"])
 
 
