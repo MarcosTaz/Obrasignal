@@ -51,7 +51,9 @@ def estimate_profitability(value, profile=None):
 
     estimated_cost = amount * (cost_ratio + risk)
     estimated_profit = amount - estimated_cost
-    estimated_margin = estimated_profit / amount
+    # Round the comparison value so boundary cases such as exactly 15% are
+    # classified deterministically despite binary floating-point representation.
+    estimated_margin = round(estimated_profit / amount, 4)
 
     # Status is an economic attractiveness band; target_margin remains the
     # user's desired hurdle and is exposed in the explanation.
@@ -78,7 +80,7 @@ def estimate_profitability(value, profile=None):
         "estimated_revenue": round(amount, 2),
         "estimated_cost": round(estimated_cost, 2),
         "estimated_gross_profit": round(estimated_profit, 2),
-        "estimated_margin": round(estimated_margin, 4),
+        "estimated_margin": estimated_margin,
         "assumptions": {
             "target_margin": margin,
             "delivery_cost_ratio": cost_ratio,
