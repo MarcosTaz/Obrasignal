@@ -98,9 +98,9 @@ def save_profile(profile: dict) -> dict:
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(profile or {})
     normalized = derive_profile(normalized.get("activity", ""), normalized)
-    validation = validate_company_profile(normalized)
-    if not validation["valid"]:
-        raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": validation["errors"]})
+    errors = validate_company_profile(normalized)
+    if errors:
+        raise ValueError("; ".join(errors))
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(normalized, fh, ensure_ascii=False, indent=2)
     return normalized
