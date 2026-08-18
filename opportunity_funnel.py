@@ -22,7 +22,7 @@ def classify(item, is_new, rule_version=None):
     return "RELEVANT", "COMMERCIAL_SCORE", features
 
 
-def record_funnel_decision(conn, item, is_new):
+def record_funnel_decision(conn, item, is_new, account_id="default"):
     decision, reason, features = classify(item, is_new)
     record_decision(
         conn,
@@ -32,5 +32,6 @@ def record_funnel_decision(conn, item, is_new):
         reason,
         item.get("score"),
         features,
+        account_id=account_id,
     )
     return decision, reason
