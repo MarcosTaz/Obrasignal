@@ -34,3 +34,26 @@ def test_above_company_maximum_is_unfavourable():
     result = evaluate_economic_fit(500000, {"max_value": 300000})
     assert result["status"] == "UNFAVOURABLE"
     assert result["score"] == 40
+
+
+def test_deadline_window_is_explainable():
+    result = evaluate_economic_fit(
+        150000,
+        {"min_deadline_days": 10, "max_deadline_days": 30},
+        {"deadline": "2026-09-07"},
+        today=__import__("datetime").date(2026, 8, 18),
+    )
+    assert result["status"] == "FAVOURABLE"
+    assert result["score"] == 100
+    assert all(rule["passed"] for rule in result["rules"])
+
+
+def test_excluded_procedure_is_unfavourable():
+    result = evaluate_economic_fit(
+        150000,
+        {"excluded_procedure_types": ["OPEN"]},
+        {"procedure_type": "OPEN"},
+    )
+    assert result["status"] == "UNFAVOURABLE"
+    assert result["score"] == 20
+    assert result["rules"][-1]["passed"] is False
