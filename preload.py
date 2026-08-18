@@ -19,6 +19,11 @@ _original_fetch_base = _app.fetch_base
 _original_sync_once = getattr(_app, "sync_once", None)
 
 
+def _deadline_dt(value):
+    """Compatibility wrapper for API consumers using preload's public surface."""
+    return _app.deadline_dt(value)
+
+
 def _ted_since_date():
     conn = _app.db()
     try:
