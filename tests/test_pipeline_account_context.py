@@ -10,6 +10,7 @@ def _conn():
 def test_pipeline_decisions_are_isolated_by_account():
     from funnel_integration import persist_and_classify
     from decision_log import latest_decision, funnel_counts
+    from opportunity_match_pipeline import evaluate_row
 
     item = {
         "source": "TED",
@@ -20,6 +21,13 @@ def test_pipeline_decisions_are_isolated_by_account():
         "cpv": "45213200",
         "market": "PT",
         "deadline": None,
+    }
+
+    evaluation = evaluate_row(item)
+    assert "explanation" in evaluation
+    assert evaluation["explanation"]["factors"]
+    assert {factor["key"] for factor in evaluation["explanation"]["factors"]} >= {
+        "profile", "lot", "geography", "capability", "economic_fit"
     }
 
     conn = _conn()
