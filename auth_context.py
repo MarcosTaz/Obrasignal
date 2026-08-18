@@ -5,7 +5,7 @@ import os
 import re
 from dataclasses import dataclass
 
-from flask import request
+from flask import has_request_context, request
 from jwt import InvalidTokenError
 
 from auth_context_jwt import production_verifier
@@ -26,19 +26,24 @@ class RequestIdentity:
 def _valid_account(account_id: str) -> str:
     account_id = (account_id or "").strip()
     if not _ACCOUNT_RE.fullmatch(account_id):
-        raise RuntimeError("Invalid account identity")
+        raise RuntimeError("Invalid OBRASIGNAL_ACCOUNT_ID")
     return account_id
 
 
 def configured_identity() -> RequestIdentity:
-    """Resolve the request identity from development config or a verified JWT."""
+    """Resolve identity from development configuration or a verified JWT."""
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
     if auth_mode not in _ALLOWED_AUTH_MODES:
         raise RuntimeError("Invalid OBRASIGNAL_AUTH_MODE")
 
     if auth_mode == "development":
-        account_id = _valid_account(os.getenv("OBRASIGNAL_ACCOUNT_ID") or "default")
-        return RequestIdentity(account_id=account_id, authenticated=False)
+        return RequestIdentity(
+            account_id=_valid_account(os.getenv("OBRASIGNAL_ACCOUNT_ID") or "default"),
+            authenticated=False,
+        )
+
+    if not has_request_context():
+        raise RuntimeError("Production authentication provider is not configured")
 
     authorization = request.headers.get("Authorization", "")
     scheme, _, token = authorization.partition(" ")
