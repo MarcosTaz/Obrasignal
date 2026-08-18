@@ -13,6 +13,8 @@ from ted_client import post_json
 from decision_dashboard import get_presented_decision
 from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
+from company_profile import load_profile, save_profile
+from profile_web import render_profile_page
 
 APP = _app.APP
 _original_fetch_base = _app.fetch_base
@@ -169,6 +171,43 @@ def radar_page():
         return render_radar_page(items, minscore=minscore)
     finally:
         conn.close()
+
+
+@APP.route("/profile", methods=["GET", "POST"])
+def profile_page():
+    if _app.request.method == "GET":
+        return render_profile_page(load_profile())
+
+    payload = _app.request.form.to_dict(flat=True)
+    current = load_profile()
+    merged = dict(current)
+    merged.update({
+        "name": payload.get("name"),
+        "activity": payload.get("activity"),
+        "countries": [x.strip() for x in payload.get("countries", "").split(";") if x.strip()],
+        "regions": [x.strip() for x in payload.get("regions", "").split(",") if x.strip()],
+        "services": [x.strip() for x in payload.get("services", "").split(",") if x.strip()],
+        "capability_tags": [x.strip() for x in payload.get("capability_tags", "").split(",") if x.strip()],
+        "project_scales": [x.strip() for x in payload.get("project_scales", "").split(",") if x.strip()],
+        "certifications": [x.strip() for x in payload.get("certifications", "").split(",") if x.strip()],
+        "preferred_procedure_types": [x.strip() for x in payload.get("preferred_procedure_types", "").split(",") if x.strip()],
+        "excluded_procedure_types": [x.strip() for x in payload.get("excluded_procedure_types", "").split(",") if x.strip()],
+        "exclude_keywords": [x.strip() for x in payload.get("exclude_keywords", "").split(",") if x.strip()],
+        "hard_exclusions": [x.strip() for x in payload.get("hard_exclusions", "").split(",") if x.strip()],
+        "geographic_radius_km": payload.get("geographic_radius_km"),
+        "min_value": payload.get("min_value"),
+        "max_value": payload.get("max_value"),
+        "economic_min_score": payload.get("economic_min_score"),
+        "min_deadline_days": payload.get("min_deadline_days"),
+        "max_deadline_days": payload.get("max_deadline_days"),
+    })
+    coordinates = [x.strip() for x in payload.get("profile_coordinates", "").split(",") if x.strip()]
+    if len(coordinates) == 2:
+        merged["profile_coordinates"] = {"lat": coordinates[0], "lon": coordinates[1]}
+    elif not coordinates:
+        merged["profile_coordinates"] = None
+    saved = save_profile(merged)
+    return render_profile_page(saved)
 
 
 def _ensure_profile_columns(conn):
