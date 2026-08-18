@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 import preload as _preload
 from preload import APP, _deadline_dt
 from company_profile import load_profile, save_profile, derive_profile
+from decision_log import latest_decision
 from notification_events import ensure_event_table
 from source_registry import SOURCES
 
@@ -34,6 +35,11 @@ def _row(row):
     d["deadline_status"] = _deadline_state(d.get("deadline"))
     d["is_open"] = d["deadline_status"]["state"] in ("open", "urgent")
     return d
+
+def _decision(conn, source, external_id):
+    if not source or not external_id:
+        return None
+    return latest_decision(conn, source, external_id)
 
 @bp.after_request
 def _headers(response):
@@ -111,13 +117,36 @@ def opportunities():
     if q:
         clauses.append("(lower(title) LIKE ? OR lower(description) LIKE ? OR lower(buyer) LIKE ? OR lower(cpv) LIKE ?)"); needle = f"%{q}%"; params.extend([needle, needle, needle, needle])
     sql = "SELECT * FROM tenders WHERE " + " AND ".join(clauses) + " ORDER BY score DESC, publication_date DESC LIMIT ?"; params.append(limit)
-    rows = [_row(r) for r in c.execute(sql, params).fetchall()]; c.close()
+    rows = []
+    for raw in c.execute(sql, params).fetchall():
+        item = _row(raw)
+        item["decision"] = _decision(c, item.get("source"), item.get("external_id"))
+        rows.append(item)
+    c.close()
     return jsonify({"items": rows, "count": len(rows), "generated_at": _iso_now(), "filters": {"q": q, "minscore": minscore, "source": source, "open_only": open_only}})
 
 @bp.route("/opportunities/<int:tender_id>", methods=["GET"])
 def opportunity(tender_id):
-    c = _db(); row = c.execute("SELECT * FROM tenders WHERE id = ?", (tender_id,)).fetchone(); c.close()
-    if not row: return jsonify({"error": "not_found"}), 404
-    return jsonify(_row(row))
+    c = _db(); row = c.execute("SELECT * FROM tenders WHERE id = ?", (tender_id,)).fetchone()
+    if not row:
+        c.close()
+        return jsonify({"error": "not_found"}), 404
+    item = _row(row)
+    item["decision"] = _decision(c, item.get("source"), item.get("external_id"))
+    c.close()
+    return jsonify(item)
+
+@bp.route("/opportunities/<int:tender_id>/decision", methods=["GET"])
+def opportunity_decision(tender_id):
+    c = _db()
+    row = c.execute("SELECT source, external_id FROM tenders WHERE id = ?", (tender_id,)).fetchone()
+    if not row:
+        c.close()
+        return jsonify({"error": "not_found"}), 404
+    decision = _decision(c, row["source"], row["external_id"])
+    c.close()
+    if not decision:
+        return jsonify({"error": "decision_not_found", "tender_id": tender_id}), 404
+    return jsonify({"tender_id": tender_id, "decision": decision, "generated_at": _iso_now()})
 
 APP.register_blueprint(bp)
