@@ -2,28 +2,29 @@ from __future__ import annotations
 
 from company_profile import save_profile
 
-LIST_FIELDS = {
-    "countries",
-    "regions",
-    "services",
-    "capability_tags",
-    "project_scales",
-    "certifications",
-    "cpv_prefixes",
-    "preferred_procedure_types",
-    "excluded_procedure_types",
-    "exclude_keywords",
-    "hard_exclusions",
+FIELD_ALIASES = {
+    "countries": "countries",
+    "regions": "regions",
+    "radius": "geographic_radius_km",
+    "services": "services",
+    "capabilities": "capability_tags",
+    "scales": "project_scales",
+    "certifications": "certifications",
+    "cpvs": "cpv_prefixes",
+    "preferred": "preferred_procedure_types",
+    "excluded": "excluded_procedure_types",
+    "excluded_keywords": "exclude_keywords",
+    "hard_exclusions": "hard_exclusions",
 }
+TEXT_FIELDS = {"name", "activity", "keywords"}
 NUMERIC_FIELDS = {
-    "geographic_radius_km": float,
+    "radius": float,
     "min_value": float,
     "max_value": float,
     "economic_min_score": int,
     "min_deadline_days": int,
     "max_deadline_days": int,
 }
-TEXT_FIELDS = {"name", "activity", "keywords"}
 
 
 def _split(value: str | None) -> list[str]:
@@ -36,14 +37,17 @@ def profile_payload_from_form(form) -> dict:
         value = str(form.get(key, "")).strip()
         if value:
             payload[key] = value
-    for key in LIST_FIELDS:
-        values = _split(form.get(key))
+
+    for form_key, profile_key in FIELD_ALIASES.items():
+        values = _split(form.get(form_key))
         if values:
-            payload[key] = values
-    for key, caster in NUMERIC_FIELDS.items():
-        raw = str(form.get(key, "")).strip()
+            payload[profile_key] = values
+
+    for form_key, caster in NUMERIC_FIELDS.items():
+        raw = str(form.get(form_key, "")).strip()
         if raw:
-            payload[key] = caster(raw)
+            payload[FIELD_ALIASES.get(form_key, form_key)] = caster(raw)
+
     return payload
 
 
