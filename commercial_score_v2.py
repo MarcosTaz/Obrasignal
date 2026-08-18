@@ -45,7 +45,6 @@ def score_v2(item):
     reasons = []
     missing = []
 
-    # 0-35: structured CPV/nature fit.
     if any(code.strip().startswith(WORKS_CPVS) for code in cpv.split("|")):
         components["cpv_fit"] = 35
         reasons.append("CPV de obras")
@@ -58,7 +57,6 @@ def score_v2(item):
         components["cpv_fit"] = 0
         missing.append("cpv")
 
-    # 0-20: target capability signals. Text is supplementary, never the only gate.
     capability_terms = (
         "metalomecânica", "metalomecanica", "estrutura metálica", "estruturas metálicas",
         "serralharia", "steel", "aço", "aco", "metal", "cobertura", "fachada",
@@ -72,7 +70,6 @@ def score_v2(item):
     elif not text:
         missing.append("title/description")
 
-    # 0-15: deadline urgency, with expired notices receiving zero.
     days = _deadline_days(item.get("deadline"))
     if days is None:
         components["deadline"] = 5
@@ -91,7 +88,6 @@ def score_v2(item):
     else:
         components["deadline"] = 4
 
-    # 0-15: size fit. Keep unknown values neutral rather than inventing a value.
     value = item.get("value_numeric")
     try:
         value = float(value) if value not in (None, "") else None
@@ -111,7 +107,6 @@ def score_v2(item):
         components["size_fit"] = 2
         reasons.append("valor elevado")
 
-    # 0-10: procedure/accessibility. Prefer structured procedure_type when present.
     procedure = _text(item.get("procedure_type"), item.get("notice_type"), buyer)
     if any(k in procedure for k in ("open", "aberto", "open procedure")):
         components["access"] = 10
@@ -122,19 +117,15 @@ def score_v2(item):
         components["access"] = 7
         missing.append("procedure_type")
 
-    # Hard negative for clearly intellectual-only procurement.
     if any(k in text for k in ("architecture services", "serviços de arquitetura", "servicos de arquitetura", "consultoria", "fiscalização", "fiscalizacao")) and not any(k in text for k in ("obra", "works", "construction", "empreitada", "execução", "execucao")):
         components["capability_fit"] = 0
         components["access"] = min(components["access"], 3)
         reasons.append("atividade predominantemente intelectual")
 
     raw_score = max(0, min(100, sum(components.values())))
-
-    # Confidence is deliberately separate from commercial attractiveness. A high
-    # score based on sparse data must never masquerade as a high-confidence lead.
     known = 5 - len(set(missing))
     confidence = round(known / 5 * 100)
-    if confidence < 60 and raw_score > 60:
+    if confidence < 60:
         reasons.append("dados insuficientes para confiança elevada")
     score = raw_score
 
