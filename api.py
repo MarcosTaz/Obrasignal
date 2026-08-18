@@ -8,6 +8,7 @@ from preload import APP, _deadline_dt
 from company_profile import load_profile, save_profile, derive_profile
 from notification_events import ensure_event_table
 from source_registry import SOURCES
+from company_profile_validation import validate_company_profile
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
@@ -93,9 +94,16 @@ def profile():
     payload = request.get_json(silent=True)
     if payload is None or not isinstance(payload, dict):
         return jsonify({"error": "invalid_json", "message": "O corpo deve ser um objeto JSON."}), 400
+
+    supplied = {k: payload[k] for k in _PROFILE_FIELDS if k in payload}
+    supplied_normalized = derive_profile(str(supplied.get("activity") or ""), supplied)
+    supplied_errors = validate_company_profile(supplied_normalized)
+    if supplied_errors:
+        return jsonify({"error": "INVALID_COMPANY_PROFILE", "errors": supplied_errors}), 400
+
     current = load_profile()
     merged = dict(current)
-    merged.update({k: payload[k] for k in _PROFILE_FIELDS if k in payload})
+    merged.update(supplied)
     normalized = derive_profile(str(merged.get("activity") or ""), merged)
     try:
         saved = save_profile(normalized)
