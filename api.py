@@ -1,5 +1,6 @@
 """Native API facade for the ObraSignal mobile clients."""
 from datetime import datetime, timezone
+import os
 from flask import Blueprint, jsonify, request
 from jwt import InvalidTokenError
 
@@ -9,6 +10,7 @@ from auth_context import configured_identity
 from company_profile import load_profile, save_profile, derive_profile
 from notification_events import ensure_event_table
 from source_registry import SOURCES
+from account_registry import ensure_account
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
@@ -27,15 +29,29 @@ def _identity():
 
 @bp.before_request
 def _require_identity():
-    # Health stays public so infrastructure can probe liveness without a token.
-    if request.endpoint == "mobile_api.health":
+    if request.method == "OPTIONS" or request.endpoint == "mobile_api.health":
         return None
     try:
         identity = _identity()
     except (RuntimeError, InvalidTokenError):
         return jsonify({"error": "authentication_required"}), 401
     request.obrasignal_identity = identity
+    conn = _db()
+    try:
+        ensure_account(conn, identity.account_id)
+    finally:
+        conn.close()
     return None
+
+
+def _cors_origin():
+    origin = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "").strip()
+    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
+    if auth_mode == "development":
+        return origin or "*"
+    if not origin or origin == "*":
+        raise RuntimeError("OBRASIGNAL_CORS_ORIGIN must be configured for provider mode")
+    return origin
 
 
 def _deadline_state(value):
@@ -61,7 +77,13 @@ def _row(row):
 
 @bp.after_request
 def _headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    try:
+        origin = _cors_origin()
+    except RuntimeError:
+        origin = None
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-ObraSignal-Version, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Cache-Control"] = "no-store"
