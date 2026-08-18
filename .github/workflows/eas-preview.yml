@@ -1,0 +1,32 @@
+name: ObraSignal Mobile Preview
+
+on:
+  workflow_dispatch:
+
+jobs:
+  android-preview:
+    name: Android preview build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build Android preview
+        run: eas build --platform android --profile preview --non-interactive --no-wait
