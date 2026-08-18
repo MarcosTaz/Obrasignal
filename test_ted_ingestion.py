@@ -4,8 +4,9 @@ import preload  # noqa: F401 - installs the production TED transport
 
 
 class FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload, status=200):
         self.payload = payload
+        self.status_code = status
 
     def raise_for_status(self):
         return None
