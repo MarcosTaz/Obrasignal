@@ -2,7 +2,7 @@ from opportunity_funnel import record_funnel_decision
 from opportunity_match_pipeline import evaluate_row
 
 
-def persist_and_classify(conn, item, is_new):
+def persist_and_classify(conn, item, is_new, account_id='default'):
     """Persist the normal funnel decision enriched with lot/geography evidence."""
     enriched = dict(item)
     evaluation = evaluate_row(enriched)
@@ -15,4 +15,4 @@ def persist_and_classify(conn, item, is_new):
         "decision": evaluation["decision"],
         "match_reason": f"{item.get('match_reason') or ''}; lote={evaluation['lot_score']}/100; {evaluation['geography']['reason']}",
     })
-    return record_funnel_decision(conn, enriched, is_new)
+    return record_funnel_decision(conn, enriched, is_new, account_id=account_id)
