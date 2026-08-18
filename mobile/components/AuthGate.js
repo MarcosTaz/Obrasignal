@@ -1,23 +1,48 @@
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { supabase } from '../lib/supabase'
+import { api } from '../src/api'
 import AuthScreen from './AuthScreen'
+import ProfileOnboarding from './ProfileOnboarding'
+
+function needsOnboarding(profile) {
+  if (!profile) return true
+  return !profile.name || !profile.activity
+}
 
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(null)
+  const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState('')
+
+  const loadProfile = async () => {
+    setProfileLoading(true)
+    setProfileError('')
+    try {
+      const result = await api.profile()
+      setProfile(result?.profile || null)
+    } catch (error) {
+      setProfileError(error?.message || 'Não foi possível carregar o perfil.')
+    } finally {
+      setProfileLoading(false)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
     supabase.auth.getSession().then(({ data }) => {
-      if (mounted) {
-        setSession(data.session)
-        setLoading(false)
-      }
+      if (!mounted) return
+      setSession(data.session)
+      setLoading(false)
+      if (data.session) loadProfile()
     })
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession)
+      if (nextSession) loadProfile()
+      else setProfile(null)
       setLoading(false)
     })
 
@@ -27,11 +52,23 @@ export default function AuthGate({ children }) {
     }
   }, [])
 
-  if (loading) {
+  if (loading || (session && profileLoading)) {
     return <View style={styles.loading}><ActivityIndicator size="large" color="#315ea8" /></View>
   }
 
-  return session ? children : <AuthScreen />
+  if (!session) return <AuthScreen />
+
+  if (profileError && !profile) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#315ea8" />
+      </View>
+    )
+  }
+
+  return needsOnboarding(profile)
+    ? <ProfileOnboarding initialProfile={profile || {}} onComplete={setProfile} />
+    : children
 }
 
 const styles = StyleSheet.create({
