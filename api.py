@@ -10,11 +10,14 @@ from source_registry import SOURCES
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
+
 def _db():
     return _preload._app.db()
 
+
 def _iso_now():
     return datetime.now(timezone.utc).isoformat()
+
 
 def _deadline_state(value):
     dt = _deadline_dt(value)
@@ -29,11 +32,13 @@ def _deadline_state(value):
         return {"state": "urgent", "label": "Prazo curto", "days_remaining": int(days)}
     return {"state": "open", "label": "Aberto", "days_remaining": int(days)}
 
+
 def _row(row):
     d = dict(row)
     d["deadline_status"] = _deadline_state(d.get("deadline"))
     d["is_open"] = d["deadline_status"]["state"] in ("open", "urgent")
     return d
+
 
 @bp.after_request
 def _headers(response):
@@ -44,30 +49,41 @@ def _headers(response):
     response.headers["X-ObraSignal-API"] = "v1"
     return response
 
+
 @bp.route("/health", methods=["GET"])
 def health():
     c = _db(); c.execute("SELECT 1").fetchone(); c.close()
     return jsonify({"ok": True, "service": "obrasignal-api", "version": "1", "time": _iso_now()})
 
+
 @bp.route("/sources", methods=["GET"])
 def sources():
-    """Expose the verified European source catalogue to clients."""
     items = []
     for name, meta in sorted(SOURCES.items(), key=lambda pair: (pair[1].get("priority", 99), pair[0])):
         items.append({"name": name, **meta})
     return jsonify({"items": items, "count": len(items), "generated_at": _iso_now()})
+
+
+_PROFILE_FIELDS = {
+    "name", "activity", "keywords", "countries", "cpv_prefixes", "min_value", "max_value",
+    "economic_min_score", "min_deadline_days", "max_deadline_days", "preferred_procedure_types",
+    "excluded_procedure_types", "exclude_keywords", "regions", "geographic_radius_km", "services",
+    "capability_tags", "project_scales", "certifications", "hard_exclusions",
+}
+
 
 @bp.route("/profile", methods=["GET", "POST"])
 def profile():
     if request.method == "GET":
         return jsonify({"profile": load_profile(), "generated_at": _iso_now()})
     payload = request.get_json(silent=True) or {}
-    current = load_profile(); merged = dict(current)
-    allowed = {"name", "activity", "keywords", "countries", "cpv_prefixes", "min_value", "max_value", "exclude_keywords"}
-    merged.update({k: payload[k] for k in allowed if k in payload})
+    current = load_profile()
+    merged = dict(current)
+    merged.update({k: payload[k] for k in _PROFILE_FIELDS if k in payload})
     normalized = derive_profile(str(merged.get("activity") or ""), merged)
     saved = save_profile(normalized)
     return jsonify({"ok": True, "profile": saved, "generated_at": _iso_now()})
+
 
 @bp.route("/alerts", methods=["GET"])
 def alerts():
@@ -85,12 +101,14 @@ def alerts():
         d = dict(r); d["deadline_status"] = _deadline_state(d.get("deadline")); d["delivery_state"] = "delivered" if d.get("delivered_at") else "new"; items.append(d)
     c.close(); return jsonify({"items": items, "count": len(items), "generated_at": _iso_now()})
 
+
 @bp.route("/alerts/<int:event_id>/delivered", methods=["POST"])
 def alert_delivered(event_id):
     c = _db(); ensure_event_table(c); now = _iso_now()
     cur = c.execute("UPDATE opportunity_events SET delivered_at=? WHERE id=?", (now, event_id)); c.commit(); c.close()
     if not cur.rowcount: return jsonify({"error": "not_found"}), 404
     return jsonify({"ok": True, "event_id": event_id, "delivered_at": now})
+
 
 @bp.route("/stats", methods=["GET"])
 def stats():
@@ -99,6 +117,7 @@ def stats():
     new24 = c.execute("SELECT COUNT(*) FROM tenders WHERE julianday(first_seen) >= julianday('now','-1 day')").fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone(); c.close()
     return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None})
+
 
 @bp.route("/opportunities", methods=["GET"])
 def opportunities():
@@ -114,10 +133,12 @@ def opportunities():
     rows = [_row(r) for r in c.execute(sql, params).fetchall()]; c.close()
     return jsonify({"items": rows, "count": len(rows), "generated_at": _iso_now(), "filters": {"q": q, "minscore": minscore, "source": source, "open_only": open_only}})
 
+
 @bp.route("/opportunities/<int:tender_id>", methods=["GET"])
 def opportunity(tender_id):
     c = _db(); row = c.execute("SELECT * FROM tenders WHERE id = ?", (tender_id,)).fetchone(); c.close()
     if not row: return jsonify({"error": "not_found"}), 404
     return jsonify(_row(row))
+
 
 APP.register_blueprint(bp)

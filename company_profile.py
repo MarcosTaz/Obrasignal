@@ -5,6 +5,8 @@ import json
 import os
 import re
 
+from unified_company_profile import normalize_company_profile
+
 DEFAULT_PROFILE = {
     "name": "",
     "activity": "",
@@ -19,6 +21,13 @@ DEFAULT_PROFILE = {
     "preferred_procedure_types": [],
     "excluded_procedure_types": [],
     "exclude_keywords": [],
+    "regions": [],
+    "geographic_radius_km": None,
+    "services": [],
+    "capability_tags": [],
+    "project_scales": [],
+    "certifications": [],
+    "hard_exclusions": [],
 }
 
 ACTIVITY_RULES = [
@@ -52,7 +61,7 @@ def derive_profile(activity: str, base: dict | None = None) -> dict:
                     cpvs.append(prefix)
     profile["keywords"] = keywords
     profile["cpv_prefixes"] = cpvs
-    return profile
+    return normalize_company_profile(profile)
 
 
 def _profile_path() -> str:
