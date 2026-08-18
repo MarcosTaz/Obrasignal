@@ -38,16 +38,36 @@ ACTIVITY_RULES = [
     ("armazens", ["armazém", "armazem", "warehouse", "pavilhão", "pavilhao", "industrial"], ["45", "44"]),
 ]
 
+_COUNTRY_ALIASES = {
+    "PT": "PRT", "ES": "ESP", "FR": "FRA", "DE": "DEU", "IT": "ITA",
+    "BE": "BEL", "NL": "NLD", "LU": "LUX", "IE": "IRL", "AT": "AUT",
+    "PL": "POL", "CZ": "CZE", "DK": "DNK", "SE": "SWE", "FI": "FIN",
+    "NO": "NOR", "GB": "GBR",
+}
+
 
 def _normalize(text: str) -> str:
     text = (text or "").lower()
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _normalize_countries(values) -> list[str]:
+    normalized = []
+    for value in values or []:
+        code = str(value).strip().upper()
+        if not code:
+            continue
+        code = _COUNTRY_ALIASES.get(code, code)
+        if code not in normalized:
+            normalized.append(code)
+    return normalized
+
+
 def derive_profile(activity: str, base: dict | None = None) -> dict:
     profile = dict(DEFAULT_PROFILE)
     if base:
         profile.update({k: v for k, v in base.items() if v is not None})
+    profile["countries"] = _normalize_countries(profile.get("countries"))
     activity_n = _normalize(activity)
     profile["activity"] = activity or profile.get("activity", "")
     keywords = list(profile.get("keywords") or [])
