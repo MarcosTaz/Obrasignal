@@ -10,6 +10,10 @@ def _location_result(location, profile):
         "nuts_codes": ([location.get("nuts3")] if location.get("nuts3") else location.get("nuts_codes") or []),
         "city": location.get("city"),
         "postal_code": location.get("postcode") or location.get("postal_code"),
+        "regions": location.get("regions") or location.get("region_codes") or [],
+        "region": location.get("region") or location.get("subdivision") or location.get("nuts_region"),
+        "latitude": location.get("latitude", location.get("lat")),
+        "longitude": location.get("longitude", location.get("lon", location.get("lng"))),
     }
     result = geographic_fit(item, profile)
     if location.get("broad") and result["reason"] == "localização insuficiente":
