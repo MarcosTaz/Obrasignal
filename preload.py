@@ -12,7 +12,13 @@ import app as _app
 from national_sources import fetch_national_sources
 from notification_events import record_new_opportunities
 from profile_scoring import personalized_score
-from source_health import ensure_source_health, record_source_result, source_health_snapshot
+from source_health import (
+    ensure_source_health,
+    get_source_cursor,
+    record_source_result,
+    set_source_cursor,
+    source_health_snapshot,
+)
 from ted_client import post_json
 
 APP = _app.APP
@@ -20,21 +26,61 @@ _original_fetch_base = _app.fetch_base
 _original_sync_once = getattr(_app, "sync_once", None)
 
 
+def _ted_since_date():
+    """Return a safe incremental TED watermark with a one-day overlap.
+
+    Publication dates have day-level precision in the search fields, so the
+    overlap protects us from late-arriving notices and clock/time-zone edges.
+    The first run deliberately keeps the existing bounded lookback.
+    """
+    conn = _app.db()
+    try:
+        watermark = get_source_cursor(conn, "TED")
+    finally:
+        conn.close()
+    if watermark:
+        try:
+            dt = datetime.strptime(watermark, "%Y%m%d")
+            return (dt - timedelta(days=1)).strftime("%Y%m%d")
+        except ValueError:
+            pass
+    return (datetime.now(timezone.utc) - timedelta(days=_app.TED_DAYS)).strftime("%Y%m%d")
+
+
+def _max_ted_publication_date(rows):
+    dates = []
+    for row in rows:
+        value = row.get("publication-date") if isinstance(row, dict) else None
+        if not value:
+            continue
+        text = str(value)
+        if len(text) >= 10 and text[:10].count("-") == 2:
+            text = text[:10].replace("-", "")
+        elif len(text) >= 8:
+            text = text[:8]
+        if len(text) == 8 and text.isdigit():
+            dates.append(text)
+    return max(dates) if dates else None
+
+
 def _fetch_ted_resilient():
-    """Run the existing TED query through the bounded retry transport."""
-    since=(datetime.now(timezone.utc)-timedelta(days=_app.TED_DAYS)).strftime('%Y%m%d')
-    query=f'publication-date>={since} AND (notice-type=cn-standard OR notice-type=cn-social OR notice-type=cn-desg OR notice-type=subco OR notice-type=qu-sy)'
-    fields=['publication-number','notice-title','description-proc','buyer-name','buyer-country','classification-cpv','estimated-value-proc','estimated-value-cur-proc','deadline-receipt-tender-date-lot','deadline-receipt-tender-time-lot','deadline-date-lot','deadline-time-lot','publication-date','notice-type','form-type','main-classification-type-proc','place-of-performance-country-proc','place-of-performance-city-proc','place-of-performance-subdiv-proc','place-of-performance-post-code-proc','place-of-performance-country-lot','place-of-performance-city-lot','place-of-performance-subdiv-lot']
-    payload={'query':query,'fields':fields,'limit':250,'scope':'ACTIVE','checkQuerySyntax':False,'paginationMode':'ITERATION'}
-    rows=[]; token=None
+    """Run the TED query through bounded retry transport and an incremental cursor."""
+    since = _ted_since_date()
+    query = f'publication-date>={since} AND (notice-type=cn-standard OR notice-type=cn-social OR notice-type=cn-desg OR notice-type=subco OR notice-type=qu-sy)'
+    fields = ['publication-number','notice-title','description-proc','buyer-name','buyer-country','classification-cpv','estimated-value-proc','estimated-value-cur-proc','deadline-receipt-tender-date-lot','deadline-receipt-tender-time-lot','deadline-date-lot','deadline-time-lot','publication-date','notice-type','form-type','main-classification-type-proc','place-of-performance-country-proc','place-of-performance-city-proc','place-of-performance-subdiv-proc','place-of-performance-post-code-proc','place-of-performance-country-lot','place-of-performance-city-lot','place-of-performance-subdiv-lot']
+    payload = {'query': query, 'fields': fields, 'limit': 250, 'scope': 'ACTIVE', 'checkQuerySyntax': False, 'paginationMode': 'ITERATION'}
+    rows = []
+    token = None
     for _ in range(_app.TED_MAX_PAGES):
-        body=dict(payload)
-        if token: body['iterationNextToken']=token
-        data=post_json(_app.TED_URL,json=body,timeout=45)
-        batch=data.get('notices') or data.get('results') or data.get('content') or []
+        body = dict(payload)
+        if token:
+            body['iterationNextToken'] = token
+        data = post_json(_app.TED_URL, json=body, timeout=45)
+        batch = data.get('notices') or data.get('results') or data.get('content') or []
         rows += batch
-        token=data.get('iterationNextToken') or data.get('nextToken') or data.get('nextIterationToken')
-        if not token or not batch: break
+        token = data.get('iterationNextToken') or data.get('nextToken') or data.get('nextIterationToken')
+        if not token or not batch:
+            break
     return rows
 
 
@@ -46,7 +92,10 @@ def _fetch_ted_with_health(*args, **kwargs):
         conn.close()
         rows = _fetch_ted_resilient()
         duration_ms = int((time.perf_counter() - started) * 1000)
+        watermark = _max_ted_publication_date(rows)
         conn = _app.db()
+        if watermark:
+            set_source_cursor(conn, "TED", watermark)
         record_source_result(conn, "TED", success=True, duration_ms=duration_ms, found=len(rows))
         conn.close()
         return rows
