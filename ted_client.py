@@ -9,7 +9,9 @@ import requests
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
-def post_json(url, *, json, timeout=45, session=requests, retries=3, backoff=1.0):
+def post_json(url, *, json, timeout=45, session=None, retries=3, backoff=1.0):
+    """POST JSON with bounded retries for transient transport/API failures."""
+    session = session or requests
     last = None
     for attempt in range(retries + 1):
         try:
