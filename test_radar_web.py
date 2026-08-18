@@ -34,11 +34,11 @@ def test_radar_page_shows_explainable_layers():
                 "reason": "cumpre regras",
                 "score": 91,
                 "layers": [
-                    {"label": "Perfil", "kind": "score", "score": 86, "detail": "compatibilidade com perfil"},
-                    {"label": "Lote", "kind": "score", "score": 78, "detail": "lote LOT-1"},
-                    {"label": "Geografia", "kind": "score", "score": 5, "detail": "cidade prioritária"},
+                    {"label": "Perfil", "kind": "score", "score": 86, "scale": 100, "detail": "compatibilidade com perfil"},
+                    {"label": "Lote", "kind": "score", "score": 78, "scale": 100, "detail": "lote LOT-1"},
+                    {"label": "Geografia", "kind": "score", "score": 5, "scale": 5, "detail": "cidade prioritária"},
                     {"label": "Capacidade", "kind": "evidence", "score": None, "evidence_count": 2, "detail": "capacidades encontradas"},
-                    {"label": "Economic Fit", "kind": "score", "score": 100, "detail": "valor dentro do intervalo"},
+                    {"label": "Economic Fit", "kind": "score", "score": 100, "scale": 100, "detail": "valor dentro do intervalo"},
                 ],
             },
         }
@@ -49,7 +49,7 @@ def test_radar_page_shows_explainable_layers():
     assert "Lote" in html
     assert "78/100" in html
     assert "Geografia" in html
-    assert "5/100" in html
+    assert "5/5" in html
     assert "Capacidade" in html
     assert "2 evidência(s)" in html
     assert "Economic Fit" in html
