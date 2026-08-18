@@ -67,7 +67,6 @@ def derive_profile(activity: str, base: dict | None = None) -> dict:
     profile = dict(DEFAULT_PROFILE)
     if base:
         profile.update({k: v for k, v in base.items() if v is not None})
-    profile["countries"] = _normalize_countries(profile.get("countries"))
     activity_n = _normalize(activity)
     profile["activity"] = activity or profile.get("activity", "")
     keywords = list(profile.get("keywords") or [])
@@ -118,9 +117,12 @@ def save_profile(profile: dict) -> dict:
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(profile or {})
     normalized = derive_profile(normalized.get("activity", ""), normalized)
-    errors = validate_company_profile(normalized)
+    validation_profile = dict(normalized)
+    validation_profile["countries"] = _normalize_countries(validation_profile.get("countries"))
+    errors = validate_company_profile(validation_profile)
     if errors:
         raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": errors})
+    normalized["countries"] = list(normalized.get("countries") or [])
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(normalized, fh, ensure_ascii=False, indent=2)
     return normalized
