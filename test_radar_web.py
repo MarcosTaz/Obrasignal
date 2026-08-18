@@ -23,6 +23,39 @@ def test_radar_page_shows_decision_summary():
     assert "Estrutura metálica" in html
 
 
+def test_radar_page_shows_explainable_layers():
+    html = render_radar_page([
+        {
+            "source": "TED",
+            "country": "PRT",
+            "title": "Estrutura metálica",
+            "decision_summary": {
+                "status": "QUALIFIED",
+                "reason": "cumpre regras",
+                "score": 91,
+                "layers": [
+                    {"label": "Perfil", "kind": "score", "score": 86, "scale": 100, "detail": "compatibilidade com perfil"},
+                    {"label": "Lote", "kind": "score", "score": 78, "scale": 100, "detail": "lote LOT-1"},
+                    {"label": "Geografia", "kind": "score", "score": 5, "scale": 5, "detail": "cidade prioritária"},
+                    {"label": "Capacidade", "kind": "evidence", "score": None, "evidence_count": 2, "detail": "capacidades encontradas"},
+                    {"label": "Economic Fit", "kind": "score", "score": 100, "scale": 100, "detail": "valor dentro do intervalo"},
+                ],
+            },
+        }
+    ])
+
+    assert "Perfil" in html
+    assert "86/100" in html
+    assert "Lote" in html
+    assert "78/100" in html
+    assert "Geografia" in html
+    assert "5/5" in html
+    assert "Capacidade" in html
+    assert "2 evidência(s)" in html
+    assert "Economic Fit" in html
+    assert "100/100" in html
+
+
 def test_radar_page_has_explicit_empty_state():
     html = render_radar_page([])
     assert "Nenhuma oportunidade encontrada." in html

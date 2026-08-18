@@ -4,6 +4,36 @@ from __future__ import annotations
 from html import escape
 
 
+def _render_layers(layers: list[dict] | None) -> str:
+    if not layers:
+        return '<div class="layers-empty">Sem detalhe de decisão registado.</div>'
+
+    items = []
+    for layer in layers:
+        label = escape(str(layer.get("label") or "Camada"))
+        kind = layer.get("kind") or "score"
+        detail = escape(str(layer.get("detail") or ""))
+        if kind == "score":
+            score = layer.get("score")
+            scale = layer.get("scale")
+            if score is None:
+                value = "—"
+            elif scale:
+                value = f"{score}/{scale}"
+            else:
+                value = f"{score}/100"
+        elif kind == "evidence":
+            value = f"{layer.get('evidence_count', 0)} evidência(s)"
+        elif kind == "blocker":
+            value = f"{layer.get('evidence_count', 0)} bloqueio(s)"
+        else:
+            value = "—"
+        items.append(
+            f'<div class="layer"><strong>{label}</strong><span>{escape(value)}</span><small>{detail}</small></div>'
+        )
+    return "".join(items)
+
+
 def render_radar_page(items: list[dict], minscore: int = 0) -> str:
     cards = []
     for item in items:
@@ -17,6 +47,7 @@ def render_radar_page(items: list[dict], minscore: int = 0) -> str:
         source = escape(str(item.get("source") or "—"))
         country = escape(str(item.get("country") or "—"))
         url = escape(str(item.get("url") or "#"), quote=True)
+        layers = _render_layers(summary.get("layers"))
         cards.append(
             f'<article class="card">'
             f'<div class="meta"><span class="tag">{source}</span><span class="tag">{country}</span>'
@@ -24,6 +55,7 @@ def render_radar_page(items: list[dict], minscore: int = 0) -> str:
             f'<h2>{title}</h2><div class="buyer">{buyer}</div>'
             f'<div class="score">Score comercial: {score_text}</div>'
             f'<div class="reason">{reason}</div>'
+            f'<div class="layers">{layers}</div>'
             f'<a href="{url}" target="_blank" rel="noopener">Abrir oportunidade →</a>'
             f'</article>'
         )
@@ -44,11 +76,15 @@ h1,h2{{margin:8px 0}}
 .muted,.buyer{{color:#9aa5bd}}
 .score{{margin-top:12px;font-weight:700}}
 .reason{{margin:12px 0;padding:10px;border-radius:9px;background:#10182b;color:#b9c6df}}
+.layers{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}}
+.layer{{display:grid;grid-template-columns:1fr auto;gap:4px;padding:9px;border-radius:9px;background:#111a2d;border:1px solid #24314e}}
+.layer small{{grid-column:1/-1;color:#9aa5bd}}
+.layers-empty{{color:#9aa5bd;font-size:13px;margin:12px 0}}
 a{{color:#8db4ff}}
 form{{display:flex;gap:8px;flex-wrap:wrap}}
 input,button{{background:#0f1629;color:#eef2ff;border:1px solid #354364;border-radius:9px;padding:10px}}
 button{{cursor:pointer;background:#2a5bd7;border:0}}
-@media(max-width:760px){{.grid{{grid-template-columns:1fr}}}}
+@media(max-width:760px){{.grid,.layers{{grid-template-columns:1fr}}}}
 </style></head>
 <body><div class="wrap">
 <div class="top"><div><div class="muted">OBRASIGNAL</div><h1>Radar comercial</h1><div class="muted">Oportunidades explicadas pela decisão real da empresa.</div></div>
