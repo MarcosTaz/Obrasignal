@@ -16,7 +16,7 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pip install pytest
       - run: python -m py_compile app.py preload.py api.py sitecustomize.py
-      - run: pytest -q test_profile_matching.py test_deduplication.py
+      - run: pytest -q test_profile_matching.py test_deduplication.py test_sync_pipeline.py
 
   mobile:
     runs-on: ubuntu-latest
