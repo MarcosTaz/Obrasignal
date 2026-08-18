@@ -1,8 +1,4 @@
-"""Company profile configuration for ObraSignal.
-
-The profile is intentionally human-readable: a company can describe what it
-actually does, while the system derives matching keywords and CPV families.
-"""
+"""Company profile configuration for ObraSignal."""
 from __future__ import annotations
 
 import json
@@ -17,6 +13,11 @@ DEFAULT_PROFILE = {
     "cpv_prefixes": ["45", "44", "42", "43"],
     "min_value": None,
     "max_value": None,
+    "economic_min_score": 60,
+    "min_deadline_days": None,
+    "max_deadline_days": None,
+    "preferred_procedure_types": [],
+    "excluded_procedure_types": [],
     "exclude_keywords": [],
 }
 
@@ -34,7 +35,6 @@ def _normalize(text: str) -> str:
 
 
 def derive_profile(activity: str, base: dict | None = None) -> dict:
-    """Derive keywords/CPV families from a natural-language activity."""
     profile = dict(DEFAULT_PROFILE)
     if base:
         profile.update({k: v for k, v in base.items() if v is not None})
@@ -68,7 +68,6 @@ def load_profile() -> dict:
 
 
 def save_profile(profile: dict) -> dict:
-    """Persist profile in a local JSON file and return normalized data."""
     path = os.getenv("OBRASIGNAL_PROFILE_FILE", "company_profile.json")
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(profile or {})
