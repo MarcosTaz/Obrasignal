@@ -1,3 +1,4 @@
+import preload  # noqa: F401 - installs the production TED transport
 import app
 
 
@@ -19,9 +20,12 @@ def test_fetch_ted_retries_transient_http_failure(monkeypatch):
             return Response(503)
         return Response()
 
-    monkeypatch.setattr(app.requests, "post", fake_post)
+    # Patch the underlying transport used by ted_client without bypassing
+    # the retry wrapper installed by preload.
+    import ted_client
+    monkeypatch.setattr(ted_client.requests, "post", fake_post)
     monkeypatch.setattr(app, "TED_MAX_PAGES", 1)
-    monkeypatch.setattr(app.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(ted_client.time, "sleep", lambda *_: None)
 
     rows = app.fetch_ted()
     assert rows == [{"publication-number": "1-2026"}]
@@ -47,8 +51,8 @@ def test_fetch_ted_stops_when_iteration_token_disappears(monkeypatch):
         seen_bodies.append(kwargs["json"])
         return Response(next(responses))
 
-    monkeypatch.setattr(app.requests, "post", fake_post)
-    monkeypatch.setattr(app, "TED_MAX_PAGES", 10)
+    import ted_client
+    monkeypatch.setattr(ted_client.requests, "post", fake_post)
 
     rows = app.fetch_ted()
     assert [r["publication-number"] for r in rows] == ["1-2026", "2-2026"]
