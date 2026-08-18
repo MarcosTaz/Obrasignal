@@ -3,7 +3,7 @@ services:
     name: obrasignal
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:APP
+    startCommand: gunicorn preload:APP
     envVars:
       - key: POLL_SECONDS
         value: "300"
