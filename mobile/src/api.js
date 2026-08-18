@@ -1,12 +1,23 @@
-const API_BASE = 'https://obrasignal.onrender.com/api/v1';
+import { supabase } from '../lib/supabase';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrender.com/api/v1';
 
 async function request(path, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeout ?? 15000);
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const authHeaders = session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : {};
+
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
-      headers: { Accept: 'application/json', ...(options.headers || {}) },
+      headers: {
+        Accept: 'application/json',
+        ...authHeaders,
+        ...(options.headers || {}),
+      },
       signal: controller.signal,
     });
     const text = await response.text();
@@ -14,7 +25,9 @@ async function request(path, options = {}) {
     try { data = text ? JSON.parse(text) : null; } catch (_) {}
     if (!response.ok) {
       const message = data?.error || `HTTP ${response.status}`;
-      throw new Error(message);
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
     }
     return data;
   } finally {
