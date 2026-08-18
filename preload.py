@@ -20,6 +20,7 @@ from source_health import (
     source_health_snapshot,
 )
 from latency_metrics import ensure_latency_table, record_stage, latency_snapshot, latency_summary
+from latency_health import latency_health
 from ted_client import post_json
 
 APP = _app.APP
@@ -135,6 +136,16 @@ def api_latency():
     try:
         source = _app.request.args.get("source")
         return _app.jsonify(summary=latency_summary(conn, source), samples=latency_snapshot(conn, source))
+    finally:
+        conn.close()
+
+
+@APP.get("/api/v1/latency-health")
+def api_latency_health():
+    conn = _app.db()
+    try:
+        source = _app.request.args.get("source")
+        return _app.jsonify(items=latency_health(conn, source))
     finally:
         conn.close()
 
