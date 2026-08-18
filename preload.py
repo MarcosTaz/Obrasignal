@@ -2,22 +2,50 @@
 
 The application owns TED retrieval, normalization, scoring and dashboard
 behaviour directly. This module augments synchronization with validated
-national sources, company-specific ranking and deduplicated opportunity events.
+national sources, company-specific ranking, source health and deduplicated
+opportunity events.
 """
+import time
+
 import app as _app
 from national_sources import fetch_national_sources
 from notification_events import record_new_opportunities
 from profile_scoring import personalized_score
+from source_health import ensure_source_health, record_source_result, source_health_snapshot
 from ted_client import post_json
 
 APP = _app.APP
 _original_fetch_base = _app.fetch_base
+_original_fetch_ted = _app.fetch_ted
 _original_sync_once = getattr(_app, "sync_once", None)
 
 # app.fetch_ted uses requests.post exclusively for TED Search API calls. Replace
 # that transport with the bounded retry/backoff client while leaving GET-based
 # national source connectors untouched.
 _app.requests.post = post_json
+
+
+def _fetch_ted_with_health(*args, **kwargs):
+    started = time.perf_counter()
+    conn = _app.db()
+    try:
+        ensure_source_health(conn)
+        conn.close()
+        rows = _original_fetch_ted(*args, **kwargs)
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        conn = _app.db()
+        record_source_result(conn, "TED", success=True, duration_ms=duration_ms, found=len(rows))
+        conn.close()
+        return rows
+    except Exception as exc:
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        conn = _app.db()
+        record_source_result(conn, "TED", success=False, duration_ms=duration_ms, error=exc)
+        conn.close()
+        raise
+
+
+_app.fetch_ted = _fetch_ted_with_health
 
 
 def fetch_base_with_national_sources():
@@ -28,6 +56,15 @@ def fetch_base_with_national_sources():
 
 
 _app.fetch_base = fetch_base_with_national_sources
+
+
+@APP.get("/api/v1/source-health")
+def api_source_health():
+    conn = _app.db()
+    try:
+        return _app.jsonify(items=source_health_snapshot(conn))
+    finally:
+        conn.close()
 
 
 def _ensure_profile_columns(conn):
