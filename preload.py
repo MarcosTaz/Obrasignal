@@ -12,6 +12,7 @@ from latency_health import latency_health
 from ted_client import post_json
 from decision_dashboard import get_presented_decision
 from radar_decision_feed import enrich_rows
+from radar_web import render_radar_page
 
 APP = _app.APP
 _original_fetch_base = _app.fetch_base
@@ -147,6 +148,25 @@ def api_radar():
         ).fetchall()
         items = enrich_rows(conn, rows)
         return _app.jsonify(items=items, count=len(items), minscore=minscore, limit=limit)
+    finally:
+        conn.close()
+
+
+@APP.get("/radar")
+def radar_page():
+    try:
+        minscore = max(0, min(100, int(_app.request.args.get("minscore", 0) or 0)))
+    except (TypeError, ValueError):
+        minscore = 0
+
+    conn = _app.db()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT 100",
+            (minscore,),
+        ).fetchall()
+        items = enrich_rows(conn, rows)
+        return render_radar_page(items, minscore=minscore)
     finally:
         conn.close()
 
