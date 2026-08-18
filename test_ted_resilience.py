@@ -20,8 +20,6 @@ def test_fetch_ted_retries_transient_http_failure(monkeypatch):
             return Response(503)
         return Response()
 
-    # Patch the underlying transport used by ted_client without bypassing
-    # the retry wrapper installed by preload.
     import ted_client
     monkeypatch.setattr(ted_client.requests, "post", fake_post)
     monkeypatch.setattr(app, "TED_MAX_PAGES", 1)
@@ -42,6 +40,7 @@ def test_fetch_ted_stops_when_iteration_token_disappears(monkeypatch):
     class Response:
         def __init__(self, payload):
             self.payload = payload
+            self.status_code = 200
         def raise_for_status(self):
             pass
         def json(self):
