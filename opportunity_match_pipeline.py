@@ -1,11 +1,12 @@
-"""Connect opportunity rows to lot matching, economic fit and the decision log."""
+"""Connect capability, lot matching, economic fit and the decision log."""
 
 from company_profile import load_profile
+from capability_profile import build_capability_profile, capability_matches_text
 from decision_log import record_decision
 from lot_matcher import match_lot
 from economic_fit import evaluate_economic_fit
 
-RULE_VERSION = "commercial-v2+lot-v1+economic-fit-v2"
+RULE_VERSION = "commercial-v2+lot-v1+capability-v1+economic-fit-v2"
 
 
 def _lot_from_row(row):
@@ -24,10 +25,53 @@ def _lot_from_row(row):
     }
 
 
+def _hard_capability_checks(lot, capability):
+    """Return deterministic blockers; missing data stays UNKNOWN, not PASS."""
+    blockers = []
+    amount = lot.get("value_numeric")
+    try:
+        amount = float(amount) if amount not in (None, "") else None
+    except (TypeError, ValueError):
+        amount = None
+
+    if amount is not None:
+        if capability.get("min_value") is not None and amount < float(capability["min_value"]):
+            blockers.append("valor abaixo do mínimo da empresa")
+        if capability.get("max_value") is not None and amount > float(capability["max_value"]):
+            blockers.append("valor acima do máximo da empresa")
+
+    procedure = str(lot.get("procedure_type") or "").strip().upper()
+    excluded = {str(v).strip().upper() for v in capability.get("excluded_procedure_types", [])}
+    if procedure and procedure in excluded:
+        blockers.append(f"procedimento excluído: {procedure}")
+
+    cpv = str(lot.get("cpv") or "")
+    prefixes = [str(v).strip() for v in capability.get("cpv_prefixes", []) if str(v).strip()]
+    if cpv and prefixes:
+        codes = [part.strip() for part in cpv.split("|") if part.strip()]
+        if codes and not any(any(code.startswith(prefix) for prefix in prefixes) for code in codes):
+            blockers.append("CPV fora das famílias aceites pela empresa")
+
+    text = " ".join(str(v) for v in (lot.get("title"), lot.get("description")) if v)
+    text_folded = text.casefold()
+    for exclusion in capability.get("hard_exclusions", []):
+        term = str(exclusion).strip()
+        if term and term.casefold() in text_folded:
+            blockers.append(f"exclusão da empresa encontrada: {term}")
+
+    return blockers
+
+
 def evaluate_row(row, profile=None):
     profile = profile or load_profile()
     source_row = dict(row)
     lot = _lot_from_row(source_row)
+    capability = build_capability_profile(profile)
+    capability_evidence = capability_matches_text(
+        capability,
+        " ".join(str(v) for v in (lot.get("title"), lot.get("description")) if v),
+    )
+    hard_blockers = _hard_capability_checks(lot, capability)
     result = match_lot(lot, profile)
     economics = evaluate_economic_fit(
         lot.get("value_numeric") or lot.get("value"),
@@ -38,7 +82,9 @@ def evaluate_row(row, profile=None):
     lot_score = int(result["score"])
     geo = result["geography"]
 
-    if profile_score >= 75 and lot_score >= 65 and economics["status"] in ("FAVOURABLE", "REVIEW"):
+    if hard_blockers:
+        decision = "REJECT"
+    elif profile_score >= 75 and lot_score >= 65 and economics["status"] in ("FAVOURABLE", "REVIEW"):
         decision = "QUALIFIED"
     elif profile_score >= 60 or lot_score >= 65:
         decision = "REVIEW"
@@ -47,8 +93,12 @@ def evaluate_row(row, profile=None):
 
     reason = (
         f"perfil={profile_score}; lote={lot_score}; geografia={geo['reason']}; "
+        f"capacidade={capability_evidence['reason']}; "
         f"economic_fit={economics['status']}; {economics['reason']}"
     )
+    if hard_blockers:
+        reason += "; bloqueios=" + ", ".join(hard_blockers)
+
     return {
         "decision": decision,
         "reason": reason,
@@ -59,6 +109,9 @@ def evaluate_row(row, profile=None):
         "geography": geo,
         "commercial": result.get("commercial"),
         "economic_fit": economics,
+        "capability": capability,
+        "capability_evidence": capability_evidence,
+        "hard_capability_blockers": hard_blockers,
     }
 
 
@@ -78,6 +131,8 @@ def evaluate_and_record(conn, row, profile=None):
             "geography": evaluation["geography"],
             "commercial": evaluation["commercial"],
             "economic_fit": evaluation["economic_fit"],
+            "capability_evidence": evaluation["capability_evidence"],
+            "hard_capability_blockers": evaluation["hard_capability_blockers"],
         },
         rule_version=RULE_VERSION,
     )
