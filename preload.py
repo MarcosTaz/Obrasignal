@@ -10,8 +10,10 @@ from source_health import ensure_source_health, get_source_cursor, record_source
 from latency_metrics import ensure_latency_table, record_stage, latency_snapshot, latency_summary
 from latency_health import latency_health
 from ted_client import post_json
+from profile_ui import PROFILE_UI
 
 APP = _app.APP
+APP.register_blueprint(PROFILE_UI)
 _original_fetch_base = _app.fetch_base
 _original_sync_once = getattr(_app, "sync_once", None)
 
