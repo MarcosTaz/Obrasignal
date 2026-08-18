@@ -14,7 +14,9 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+      - run: pip install pytest
       - run: python -m py_compile app.py preload.py api.py sitecustomize.py
+      - run: pytest -q test_profile_matching.py test_deduplication.py
 
   mobile:
     runs-on: ubuntu-latest
