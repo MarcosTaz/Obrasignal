@@ -1,14 +1,13 @@
-"""Economic fit for procurement opportunities.
+"""Explainable economic fit for procurement opportunities.
 
-ObraSignal does not attempt to predict a company's profit. A company knows its
-own labour, materials, subcontracting, financing and capacity costs better
-than an external scoring engine can. This module therefore scores whether an
-opportunity deserves economic review, using objective tender data and optional
-company-defined rules.
+ObraSignal does not predict profit. It scores whether an opportunity deserves
+commercial/economic review using tender facts and rules defined by the company.
 """
 from __future__ import annotations
 
-RULE_VERSION = "economic-fit-v1"
+from datetime import date, datetime
+
+RULE_VERSION = "economic-fit-v2"
 
 
 def _num(value):
@@ -24,33 +23,47 @@ def _norm_set(values):
     return {str(v).strip().upper() for v in (values or []) if str(v).strip()}
 
 
-def evaluate_economic_fit(value, profile=None):
-    """Return an economic-fit score, never a claimed profit estimate.
+def _days_to_deadline(deadline, today=None):
+    if not deadline:
+        return None
+    try:
+        if isinstance(deadline, datetime):
+            target = deadline.date()
+        elif isinstance(deadline, date):
+            target = deadline
+        else:
+            target = datetime.fromisoformat(str(deadline).replace("Z", "+00:00")).date()
+        base = today or date.today()
+        return (target - base).days
+    except (TypeError, ValueError):
+        return None
 
-    Supported company rules:
+
+def evaluate_economic_fit(value, profile=None, opportunity=None, today=None):
+    """Score economic fit without claiming a profit estimate.
+
+    Company rules are optional and fully explainable:
       min_value / max_value: preferred contract-value band
-      economic_min_score: minimum fit score (default 60)
-      economic_penalties: optional mapping for review rules
+      min_deadline_days / max_deadline_days: preferred preparation window
+      preferred_procedure_types / excluded_procedure_types
+      economic_min_score: threshold for FAVOURABLE (default 60)
 
-    The result explains which company rules were satisfied or violated. If no
-    company-specific economic rules exist, the score is based only on whether
-    contract value is known and remains explicitly low-confidence.
+    Unknown data is never silently treated as a pass.
     """
     profile = profile or {}
+    opportunity = opportunity or {}
     amount = _num(value)
     min_value = _num(profile.get("min_value"))
     max_value = _num(profile.get("max_value"))
+    min_days = _num(profile.get("min_deadline_days"))
+    max_days = _num(profile.get("max_deadline_days"))
     threshold = _num(profile.get("economic_min_score"))
     threshold = 60.0 if threshold is None else max(0.0, min(100.0, threshold))
 
     if amount is None or amount <= 0:
         return {
-            "status": "UNKNOWN",
-            "score": 0,
-            "confidence": 0,
-            "value": None,
-            "rules": [],
-            "reason": "valor do contrato inexistente ou inválido",
+            "status": "UNKNOWN", "score": 0, "confidence": 0, "value": None,
+            "rules": [], "reason": "valor do contrato inexistente ou inválido",
             "rule_version": RULE_VERSION,
         }
 
@@ -58,37 +71,48 @@ def evaluate_economic_fit(value, profile=None):
     score = 60.0
     company_rules = False
 
-    if min_value is not None:
+    def add_rule(name, passed, points_pass, points_fail, **details):
+        nonlocal score, company_rules
         company_rules = True
-        if amount >= min_value:
-            score += 20
-            rules.append({"rule": "min_value", "passed": True, "value": min_value})
-        else:
-            score -= 30
-            rules.append({"rule": "min_value", "passed": False, "value": min_value})
+        score += points_pass if passed else points_fail
+        rules.append({"rule": name, "passed": passed, **details})
 
+    if min_value is not None:
+        add_rule("min_value", amount >= min_value, 20, -30, value=min_value)
     if max_value is not None:
-        company_rules = True
-        if amount <= max_value:
-            score += 20
-            rules.append({"rule": "max_value", "passed": True, "value": max_value})
-        else:
-            score -= 20
-            rules.append({"rule": "max_value", "passed": False, "value": max_value})
+        add_rule("max_value", amount <= max_value, 20, -20, value=max_value)
+
+    deadline_days = _days_to_deadline(opportunity.get("deadline"), today=today)
+    if min_days is not None:
+        add_rule("min_deadline_days", deadline_days is not None and deadline_days >= min_days,
+                 10, -15, value=min_days, observed=deadline_days)
+    if max_days is not None:
+        add_rule("max_deadline_days", deadline_days is not None and deadline_days <= max_days,
+                 10, -10, value=max_days, observed=deadline_days)
+
+    procedure = str(opportunity.get("procedure_type") or "").strip().upper()
+    preferred_procedures = _norm_set(profile.get("preferred_procedure_types"))
+    excluded_procedures = _norm_set(profile.get("excluded_procedure_types"))
+    if preferred_procedures:
+        add_rule("preferred_procedure_type", procedure in preferred_procedures, 10, -10,
+                 value=sorted(preferred_procedures), observed=procedure or None)
+    if excluded_procedures:
+        add_rule("excluded_procedure_type", not procedure or procedure not in excluded_procedures,
+                 0, -40, value=sorted(excluded_procedures), observed=procedure or None)
 
     score = max(0.0, min(100.0, score))
     if not company_rules:
         status = "REVIEW"
         confidence = 25
-        reason = "valor conhecido, mas a empresa ainda não definiu regras económicas"
+        reason = "dados conhecidos, mas a empresa ainda não definiu regras económicas"
     elif score >= threshold:
         status = "FAVOURABLE"
         confidence = 80
-        reason = "o valor do contrato está dentro das regras económicas definidas pela empresa"
+        reason = "a oportunidade cumpre as regras económicas definidas pela empresa"
     else:
         status = "UNFAVOURABLE"
         confidence = 80
-        reason = "o valor do contrato não cumpre as regras económicas definidas pela empresa"
+        reason = "a oportunidade não cumpre as regras económicas definidas pela empresa"
 
     return {
         "status": status,
