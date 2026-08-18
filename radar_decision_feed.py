@@ -16,6 +16,7 @@ def _layers(decision: dict | None) -> list[dict]:
             "label": "Perfil",
             "kind": "score",
             "score": profile_score,
+            "scale": 100,
             "detail": "compatibilidade geral com o perfil da empresa",
         })
 
@@ -26,6 +27,7 @@ def _layers(decision: dict | None) -> list[dict]:
             "label": "Lote",
             "kind": "score",
             "score": lot_score,
+            "scale": 100,
             "detail": f"lote {features.get('lot_id') or 'não identificado'}",
         })
 
@@ -36,6 +38,7 @@ def _layers(decision: dict | None) -> list[dict]:
             "label": "Geografia",
             "kind": "score",
             "score": geography.get("score"),
+            "scale": 5,
             "detail": geography.get("reason") or "localização sem detalhe",
         })
 
@@ -61,6 +64,7 @@ def _layers(decision: dict | None) -> list[dict]:
             "label": "Economic Fit",
             "kind": "score",
             "score": economics.get("score"),
+            "scale": 100,
             "status": economics.get("status") or "UNKNOWN",
             "detail": economics.get("reason") or economics.get("status") or "sem detalhe",
         })
