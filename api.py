@@ -1,6 +1,7 @@
 """Native API facade for the ObraSignal mobile clients."""
 from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
+from jwt import InvalidTokenError
 
 import preload as _preload
 from preload import APP, _deadline_dt
@@ -18,6 +19,23 @@ def _db():
 
 def _iso_now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _identity():
+    return configured_identity()
+
+
+@bp.before_request
+def _require_identity():
+    # Health stays public so infrastructure can probe liveness without a token.
+    if request.endpoint == "mobile_api.health":
+        return None
+    try:
+        identity = _identity()
+    except (RuntimeError, InvalidTokenError):
+        return jsonify({"error": "authentication_required"}), 401
+    request.obrasignal_identity = identity
+    return None
 
 
 def _deadline_state(value):
@@ -44,7 +62,7 @@ def _row(row):
 @bp.after_request
 def _headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-ObraSignal-Version"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-ObraSignal-Version, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
@@ -59,10 +77,11 @@ def health():
 
 @bp.route("/sources", methods=["GET"])
 def sources():
+    identity = request.obrasignal_identity
     items = []
     for name, meta in sorted(SOURCES.items(), key=lambda pair: (pair[1].get("priority", 99), pair[0])):
         items.append({"name": name, **meta})
-    return jsonify({"items": items, "count": len(items), "generated_at": _iso_now()})
+    return jsonify({"items": items, "count": len(items), "generated_at": _iso_now(), "account_id": identity.account_id})
 
 
 _PROFILE_FIELDS = {
@@ -75,7 +94,7 @@ _PROFILE_FIELDS = {
 
 @bp.route("/profile", methods=["GET", "POST"])
 def profile():
-    identity = configured_identity()
+    identity = request.obrasignal_identity
     if request.method == "GET":
         current = load_profile(identity.account_id)
         return jsonify({
