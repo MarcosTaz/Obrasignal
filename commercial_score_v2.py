@@ -11,7 +11,7 @@ WORKS_CPVS = ("45",)
 
 
 def _text(*values):
-    return " ".join(str(v or "") for v in values).lower()
+    return " ".join(str(v).strip() for v in values if v not in (None, "") and str(v).strip()).lower()
 
 
 def _deadline_days(value):
