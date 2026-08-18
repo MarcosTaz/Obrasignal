@@ -12,6 +12,11 @@ def ensure_source_health(conn):
         last_new_items INTEGER DEFAULT 0,
         status TEXT DEFAULT 'unknown'
     )''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS source_cursor (
+        source TEXT PRIMARY KEY,
+        watermark TEXT,
+        updated_at TEXT
+    )''')
     conn.commit()
 
 
@@ -34,6 +39,24 @@ def record_source_result(conn, source, *, success, duration_ms, found=0, new_ite
     conn.commit()
 
 
+def get_source_cursor(conn, source):
+    ensure_source_health(conn)
+    row = conn.execute('SELECT watermark FROM source_cursor WHERE source=?', (source,)).fetchone()
+    return row['watermark'] if row else None
+
+
+def set_source_cursor(conn, source, watermark):
+    ensure_source_health(conn)
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute('''INSERT INTO source_cursor(source,watermark,updated_at)
+                    VALUES(?,?,?)
+                    ON CONFLICT(source) DO UPDATE SET
+                      watermark=excluded.watermark,
+                      updated_at=excluded.updated_at''',
+                 (source, watermark, now))
+    conn.commit()
+
+
 def source_health_snapshot(conn, stale_after_minutes=15):
     ensure_source_health(conn)
     rows = conn.execute('SELECT * FROM source_health ORDER BY source').fetchall()
@@ -52,5 +75,7 @@ def source_health_snapshot(conn, stale_after_minutes=15):
         if item['status'] == 'healthy' and age is not None and age > stale_after_minutes:
             item['status'] = 'stale'
         item['age_minutes'] = round(age, 1) if age is not None else None
+        cursor = conn.execute('SELECT watermark FROM source_cursor WHERE source=?', (item['source'],)).fetchone()
+        item['watermark'] = cursor['watermark'] if cursor else None
         out.append(item)
     return out
