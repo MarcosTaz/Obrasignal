@@ -62,6 +62,47 @@ def _hard_capability_checks(lot, capability):
     return blockers
 
 
+def _explain_evaluation(profile_score, lot_score, geo, capability_evidence, economics, hard_blockers):
+    """Return structured evidence for UI/API while preserving the decision model."""
+    factors = [
+        {
+            "key": "profile",
+            "label": "Perfil comercial",
+            "score": profile_score,
+            "reason": "Compatibilidade com o perfil da empresa",
+        },
+        {
+            "key": "lot",
+            "label": "Lote",
+            "score": lot_score,
+            "reason": "Compatibilidade do lote",
+        },
+        {
+            "key": "geography",
+            "label": "Geografia",
+            "score": None,
+            "reason": geo.get("reason") or "Geografia não determinada",
+        },
+        {
+            "key": "capability",
+            "label": "Capacidade",
+            "score": None,
+            "reason": capability_evidence.get("reason") or "Capacidade não determinada",
+        },
+        {
+            "key": "economic_fit",
+            "label": "Economic Fit",
+            "score": economics.get("score"),
+            "reason": economics.get("reason") or economics.get("status"),
+        },
+    ]
+    negatives = [
+        {"key": "blocker", "label": "Bloqueio", "reason": blocker}
+        for blocker in hard_blockers
+    ]
+    return {"factors": factors, "negative_factors": negatives}
+
+
 def evaluate_row(row, profile=None):
     profile = profile or load_profile()
     source_row = dict(row)
@@ -99,6 +140,15 @@ def evaluate_row(row, profile=None):
     if hard_blockers:
         reason += "; bloqueios=" + ", ".join(hard_blockers)
 
+    explanation = _explain_evaluation(
+        profile_score,
+        lot_score,
+        geo,
+        capability_evidence,
+        economics,
+        hard_blockers,
+    )
+
     return {
         "decision": decision,
         "reason": reason,
@@ -112,10 +162,11 @@ def evaluate_row(row, profile=None):
         "capability": capability,
         "capability_evidence": capability_evidence,
         "hard_capability_blockers": hard_blockers,
+        "explanation": explanation,
     }
 
 
-def evaluate_and_record(conn, row, profile=None):
+def evaluate_and_record(conn, row, profile=None, account_id="default"):
     evaluation = evaluate_row(row, profile)
     record_decision(
         conn,
@@ -134,7 +185,9 @@ def evaluate_and_record(conn, row, profile=None):
             "economic_fit": evaluation["economic_fit"],
             "capability_evidence": evaluation["capability_evidence"],
             "hard_capability_blockers": evaluation["hard_capability_blockers"],
+            "explanation": evaluation["explanation"],
         },
         rule_version=RULE_VERSION,
+        account_id=account_id,
     )
     return evaluation
