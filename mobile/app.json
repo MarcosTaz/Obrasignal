@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "ObraSignal",
+    "slug": "obrasignal",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "obrasignal",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "pt.obrasignal.app"
+    },
+    "android": {
+      "package": "pt.obrasignal.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A1020"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
