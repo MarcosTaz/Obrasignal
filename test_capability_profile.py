@@ -24,6 +24,16 @@ def test_build_capability_profile_maps_existing_profile_fields():
     assert result["excluded_procedure_types"] == ["AJUSTE_DIRETO"]
 
 
+def test_capability_profile_preserves_geographic_reference_points():
+    result = build_capability_profile({
+        "profile_coordinates": [{"latitude": 39.748, "longitude": -8.807, "label": "sede"}],
+        "geographic_radius_km": 50,
+    })
+    assert result["geographic_radius_km"] == 50
+    assert result["profile_coordinates"][0]["label"] == "sede"
+    assert result["profile_coordinates"][0]["latitude"] == 39.748
+
+
 def test_capability_match_returns_explainable_evidence():
     profile = build_capability_profile({
         "services": ["reabilitação", "coberturas"],
