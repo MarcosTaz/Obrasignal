@@ -1,13 +1,10 @@
-"""Native API facade for the ObraSignal mobile clients.
-
-The web dashboard remains separate. Mobile clients talk to this JSON API and
-never need to render the dashboard HTML.
-"""
+"""Native API facade for the ObraSignal mobile clients."""
 from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
 
 import preload as _preload
 from preload import APP, _deadline_dt
+from company_profile import load_profile, save_profile, derive_profile
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
@@ -45,7 +42,7 @@ def _row(row):
 def _headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-ObraSignal-Version"
-    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
     return response
@@ -57,6 +54,20 @@ def health():
     c.execute("SELECT 1").fetchone()
     c.close()
     return jsonify({"ok": True, "service": "obrasignal-api", "version": "1", "time": _iso_now()})
+
+
+@bp.route("/profile", methods=["GET", "POST"])
+def profile():
+    if request.method == "GET":
+        return jsonify({"profile": load_profile(), "generated_at": _iso_now()})
+    payload = request.get_json(silent=True) or {}
+    current = load_profile()
+    merged = dict(current)
+    allowed = {"name", "activity", "keywords", "countries", "cpv_prefixes", "min_value", "max_value", "exclude_keywords"}
+    merged.update({k: payload[k] for k in allowed if k in payload})
+    normalized = derive_profile(str(merged.get("activity") or ""), merged)
+    saved = save_profile(normalized)
+    return jsonify({"ok": True, "profile": saved, "generated_at": _iso_now()})
 
 
 @bp.route("/stats", methods=["GET"])
