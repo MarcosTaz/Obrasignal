@@ -8,10 +8,16 @@ import app as _app
 from national_sources import fetch_national_sources
 from notification_events import record_new_opportunities
 from profile_scoring import personalized_score
+from ted_client import post_json
 
 APP = _app.APP
 _original_fetch_base = _app.fetch_base
 _original_sync_once = getattr(_app, "sync_once", None)
+
+# app.fetch_ted uses requests.post exclusively for TED Search API calls. Replace
+# that transport with the bounded retry/backoff client while leaving GET-based
+# national source connectors untouched.
+_app.requests.post = post_json
 
 
 def fetch_base_with_national_sources():
