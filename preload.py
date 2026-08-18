@@ -6,6 +6,7 @@ national sources, company-specific ranking, source health and deduplicated
 opportunity events.
 """
 import time
+from datetime import datetime, timezone, timedelta
 
 import app as _app
 from national_sources import fetch_national_sources
@@ -16,13 +17,25 @@ from ted_client import post_json
 
 APP = _app.APP
 _original_fetch_base = _app.fetch_base
-_original_fetch_ted = _app.fetch_ted
 _original_sync_once = getattr(_app, "sync_once", None)
 
-# app.fetch_ted uses requests.post exclusively for TED Search API calls. Replace
-# that transport with the bounded retry/backoff client while leaving GET-based
-# national source connectors untouched.
-_app.requests.post = post_json
+
+def _fetch_ted_resilient():
+    """Run the existing TED query through the bounded retry transport."""
+    since=(datetime.now(timezone.utc)-timedelta(days=_app.TED_DAYS)).strftime('%Y%m%d')
+    query=f'publication-date>={since} AND (notice-type=cn-standard OR notice-type=cn-social OR notice-type=cn-desg OR notice-type=subco OR notice-type=qu-sy)'
+    fields=['publication-number','notice-title','description-proc','buyer-name','buyer-country','classification-cpv','estimated-value-proc','estimated-value-cur-proc','deadline-receipt-tender-date-lot','deadline-receipt-tender-time-lot','deadline-date-lot','deadline-time-lot','publication-date','notice-type','form-type','main-classification-type-proc','place-of-performance-country-proc','place-of-performance-city-proc','place-of-performance-subdiv-proc','place-of-performance-post-code-proc','place-of-performance-country-lot','place-of-performance-city-lot','place-of-performance-subdiv-lot']
+    payload={'query':query,'fields':fields,'limit':250,'scope':'ACTIVE','checkQuerySyntax':False,'paginationMode':'ITERATION'}
+    rows=[]; token=None
+    for _ in range(_app.TED_MAX_PAGES):
+        body=dict(payload)
+        if token: body['iterationNextToken']=token
+        data=post_json(_app.TED_URL,json=body,timeout=45)
+        batch=data.get('notices') or data.get('results') or data.get('content') or []
+        rows += batch
+        token=data.get('iterationNextToken') or data.get('nextToken') or data.get('nextIterationToken')
+        if not token or not batch: break
+    return rows
 
 
 def _fetch_ted_with_health(*args, **kwargs):
@@ -31,7 +44,7 @@ def _fetch_ted_with_health(*args, **kwargs):
     try:
         ensure_source_health(conn)
         conn.close()
-        rows = _original_fetch_ted(*args, **kwargs)
+        rows = _fetch_ted_resilient()
         duration_ms = int((time.perf_counter() - started) * 1000)
         conn = _app.db()
         record_source_result(conn, "TED", success=True, duration_ms=duration_ms, found=len(rows))
@@ -107,6 +120,5 @@ def sync_once_with_events(*args, **kwargs):
     return {"sync": result, "new_events": events}
 
 
-# The background scheduler and manual sync both resolve this module-level name.
 if _original_sync_once is not None:
     _app.sync_once = sync_once_with_events
