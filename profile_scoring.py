@@ -4,6 +4,13 @@ from __future__ import annotations
 import re
 from company_profile import load_profile, derive_profile
 
+_COUNTRY_ALIASES = {
+    "PT": "PRT", "PRT": "PRT",
+    "ES": "ESP", "ESP": "ESP",
+    "FR": "FRA", "FRA": "FRA",
+    "DE": "DEU", "DEU": "DEU",
+}
+
 
 def _text(row):
     return re.sub(r"\s+", " ", " ".join(str(row.get(k) or "") for k in ("title", "description", "buyer")).lower())
@@ -25,6 +32,10 @@ def _value(row):
         return None
 
 
+def _country_code(value):
+    return _COUNTRY_ALIASES.get(str(value or "").upper(), str(value or "").upper())
+
+
 def personalized_score(row, base_score=None):
     profile = derive_profile(load_profile().get("activity", ""), load_profile())
     base = int(row.get("score") if base_score is None else base_score or 0)
@@ -43,11 +54,10 @@ def personalized_score(row, base_score=None):
             score -= 12
             excludes.append(k)
 
-    countries = {str(x).upper() for x in profile.get("countries", []) if x}
-    country = str(row.get("country") or "").upper()
-    preferred_country = False
+    countries = {_country_code(x) for x in profile.get("countries", []) if x}
+    country = _country_code(row.get("country"))
+    preferred_country = bool(countries and country and country in countries)
     if countries and country:
-        preferred_country = country in countries
         score += 10 if preferred_country else -4
 
     prefixes = tuple(str(x) for x in profile.get("cpv_prefixes", []) if x)
