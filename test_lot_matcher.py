@@ -54,3 +54,31 @@ def test_notice_ranks_best_lot_and_runner_up():
     ], profile())
     assert result["best_lot"]["lot_id"] == "LOT-B"
     assert result["second_best_lot"]["lot_id"] == "LOT-A"
+
+
+def test_lot_match_uses_company_radius_when_coordinates_are_available():
+    company = {
+        "countries": {"PRT"},
+        "geographic_radius_km": 20,
+        "profile_coordinates": [{"latitude": 39.7480, "longitude": -8.8070}],
+    }
+    result = match_lot(
+        lot("LOT-RADIUS", {"country": "PRT", "latitude": 39.7444, "longitude": -8.8073}),
+        company,
+    )
+    assert result["geography"]["score"] == 5
+    assert "raio geográfico" in result["geography"]["reason"]
+
+
+def test_lot_match_penalizes_location_outside_company_radius():
+    company = {
+        "countries": {"PRT"},
+        "geographic_radius_km": 20,
+        "profile_coordinates": [{"latitude": 39.7480, "longitude": -8.8070}],
+    }
+    result = match_lot(
+        lot("LOT-FAR", {"country": "PRT", "latitude": 38.7223, "longitude": -9.1393}),
+        company,
+    )
+    assert result["geography"]["score"] == 1
+    assert "fora do raio geográfico" in result["geography"]["reason"]
