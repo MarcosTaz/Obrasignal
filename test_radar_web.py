@@ -56,6 +56,14 @@ def test_radar_page_shows_explainable_layers():
     assert "100/100" in html
 
 
+def test_radar_page_uses_open_future_visual_system():
+    html = render_radar_page([])
+    assert "#F5F8FC" in html
+    assert "#FFFFFF" in html
+    assert "#2166F3" in html
+    assert "Oportunidades explicadas pela decisão real da empresa." in html
+
+
 def test_radar_page_has_explicit_empty_state():
     html = render_radar_page([])
     assert "Nenhuma oportunidade encontrada." in html
