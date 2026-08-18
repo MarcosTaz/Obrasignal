@@ -1,10 +1,11 @@
-"""Connect opportunity rows to lot matching and the decision log."""
+"""Connect opportunity rows to lot matching, economics and the decision log."""
 
 from company_profile import load_profile
 from decision_log import record_decision
 from lot_matcher import match_lot
+from profitability_model import estimate_profitability
 
-RULE_VERSION = "commercial-v2+lot-v1"
+RULE_VERSION = "commercial-v2+lot-v1+profitability-v1"
 
 
 def _lot_from_row(row):
@@ -25,17 +26,25 @@ def _lot_from_row(row):
 
 def evaluate_row(row, profile=None):
     profile = profile or load_profile()
-    result = match_lot(_lot_from_row(dict(row)), profile)
-    profile_score = int(row.get("profile_score") or row.get("score") or 0)
+    source_row = dict(row)
+    lot = _lot_from_row(source_row)
+    result = match_lot(lot, profile)
+    economics = estimate_profitability(lot.get("value_numeric") or lot.get("value"), profile)
+    profile_score = int(source_row.get("profile_score") or source_row.get("score") or 0)
     lot_score = int(result["score"])
     geo = result["geography"]
-    if profile_score >= 75 and lot_score >= 65:
+
+    if profile_score >= 75 and lot_score >= 65 and economics["status"] in ("ATTRACTIVE", "UNKNOWN"):
         decision = "QUALIFIED"
     elif profile_score >= 60 or lot_score >= 65:
         decision = "REVIEW"
     else:
         decision = "REJECT"
-    reason = f"perfil={profile_score}; lote={lot_score}; geografia={geo['reason']}"
+
+    reason = (
+        f"perfil={profile_score}; lote={lot_score}; geografia={geo['reason']}; "
+        f"economia={economics['status']}; {economics['reason']}"
+    )
     return {
         "decision": decision,
         "reason": reason,
@@ -45,6 +54,7 @@ def evaluate_row(row, profile=None):
         "match": result.get("match"),
         "geography": geo,
         "commercial": result.get("commercial"),
+        "profitability": economics,
     }
 
 
@@ -63,6 +73,7 @@ def evaluate_and_record(conn, row, profile=None):
             "match": evaluation["match"],
             "geography": evaluation["geography"],
             "commercial": evaluation["commercial"],
+            "profitability": evaluation["profitability"],
         },
         rule_version=RULE_VERSION,
     )
