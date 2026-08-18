@@ -10,7 +10,7 @@ def profile():
     }
 
 
-def test_evaluate_row_uses_lot_geography_and_profile_score():
+def test_evaluate_row_uses_lot_geography_profile_score_and_economics():
     row = {
         "source": "TED",
         "external_id": "123",
@@ -26,6 +26,8 @@ def test_evaluate_row_uses_lot_geography_and_profile_score():
     result = evaluate_row(row, profile())
     assert result["lot_score"] >= 70
     assert result["geography"]["reason"] == "cidade prioritária"
+    assert result["profitability"]["status"] == "ATTRACTIVE"
+    assert result["profitability"]["estimated_gross_profit"] == 22500
     assert result["decision"] == "QUALIFIED"
 
 
