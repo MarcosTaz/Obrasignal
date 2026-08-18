@@ -53,7 +53,9 @@ def estimate_profitability(value, profile=None):
     estimated_profit = amount - estimated_cost
     estimated_margin = estimated_profit / amount
 
-    if estimated_margin >= margin:
+    # Status is an economic attractiveness band; target_margin remains the
+    # user's desired hurdle and is exposed in the explanation.
+    if estimated_margin >= 0.15:
         status = "ATTRACTIVE"
     elif estimated_margin >= 0.10:
         status = "POSSIBLE"
@@ -69,6 +71,7 @@ def estimate_profitability(value, profile=None):
         confidence += 10
     confidence = min(90, confidence)
 
+    gap = estimated_margin - margin
     return {
         "status": status,
         "confidence": confidence,
@@ -81,6 +84,9 @@ def estimate_profitability(value, profile=None):
             "delivery_cost_ratio": cost_ratio,
             "risk_buffer": risk,
         },
-        "reason": f"margem estimada={estimated_margin:.1%}; confiança={confidence}%",
+        "reason": (
+            f"margem estimada={estimated_margin:.1%}; "
+            f"meta={margin:.1%}; desvio={gap:+.1%}; confiança={confidence}%"
+        ),
         "rule_version": RULE_VERSION,
     }
