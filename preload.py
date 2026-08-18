@@ -52,6 +52,11 @@ def _normalize_ted(n):
     x=_ORIGINAL_NORMALIZE_TED(n)
     deadline=_deadline_from_notice(n)
     if deadline: x["deadline"]=deadline
+    # TED /html is the downloadable HTML representation. The notice-view URL
+    # is the browser page intended for normal human navigation.
+    ext=x.get("external_id")
+    if ext:
+        x["url"]=f"https://ted.europa.eu/en/notice/-/detail/{ext}"
     return x
 
 _app.fetch_ted=_fetch_ted
