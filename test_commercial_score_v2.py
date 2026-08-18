@@ -12,6 +12,8 @@ def test_structured_works_cpv_scores_strongly():
     })
     assert result["score"] >= 70
     assert result["components"]["cpv_fit"] == 35
+    assert result["confidence"] == 100
+    assert result["missing_fields"] == []
     assert result["rule_version"] == RULE_VERSION
 
 
@@ -52,3 +54,23 @@ def test_intellectual_only_work_is_penalized():
     })
     assert result["components"]["capability_fit"] == 0
     assert result["components"]["access"] <= 3
+
+
+def test_sparse_notice_exposes_missing_data():
+    result = score_v2({"cpv": "45000000-7"})
+    assert result["confidence"] == 20
+    assert set(result["missing_fields"]) == {"title/description", "deadline", "value", "procedure_type"}
+    assert "dados insuficientes para confiança elevada" in result["reasons"]
+
+
+def test_non_works_cpv_is_not_promoted_without_evidence():
+    result = score_v2({
+        "title": "Fornecimento genérico",
+        "description": "aquisição de bens",
+        "cpv": "30000000-9",
+        "deadline": "2099-12-31",
+        "value_numeric": 100000,
+        "procedure_type": "open procedure",
+    })
+    assert result["components"]["cpv_fit"] == 8
+    assert result["score"] < 65
