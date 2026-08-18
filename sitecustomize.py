@@ -63,4 +63,10 @@ def _render_template_string(template, **context):
 
 
 flask.render_template_string = _render_template_string
-''
+
+# Install the funnel hook after the existing UI compatibility patch. The hook
+# wraps the existing sync function at worker startup, preserving the pipeline.
+try:
+    import sync_funnel_hook  # noqa: F401
+except Exception:
+    pass

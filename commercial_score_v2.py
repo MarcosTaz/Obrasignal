@@ -1,0 +1,150 @@
+"""Explainable commercial Opportunity Score v2.
+
+Uses structured procurement fields when available, while remaining backward
+compatible with the existing tender dictionaries.
+"""
+from datetime import datetime, timezone
+
+RULE_VERSION = "commercial-v2"
+
+WORKS_CPVS = ("45",)
+
+
+def _text(*values):
+    return " ".join(str(v).strip() for v in values if v not in (None, "") and str(v).strip()).lower()
+
+
+def _deadline_days(value):
+    if not value:
+        return None
+    s = str(value).strip().replace("Z", "+00:00")
+    for parser in (
+        lambda: datetime.fromisoformat(s),
+        lambda: datetime.strptime(s[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc),
+        lambda: datetime.strptime(s[:8], "%Y%m%d").replace(tzinfo=timezone.utc),
+    ):
+        try:
+            dt = parser()
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return (dt.astimezone(timezone.utc) - datetime.now(timezone.utc)).total_seconds() / 86400
+        except Exception:
+            pass
+    return None
+
+
+def score_v2(item):
+    """Return score, confidence and a component-by-component explanation."""
+    title = item.get("title")
+    description = item.get("description")
+    buyer = item.get("buyer")
+    cpv = str(item.get("cpv") or "")
+    text = _text(title, description)
+
+    components = {}
+    reasons = []
+    missing = []
+
+    if any(code.strip().startswith(WORKS_CPVS) for code in cpv.split("|")):
+        components["cpv_fit"] = 35
+        reasons.append("CPV de obras")
+    elif any(code.strip().startswith("44") for code in cpv.split("|")):
+        components["cpv_fit"] = 25
+        reasons.append("CPV de materiais/construção")
+    elif cpv:
+        components["cpv_fit"] = 8
+    else:
+        components["cpv_fit"] = 0
+        missing.append("cpv")
+
+    capability_terms = (
+        "metalomecânica", "metalomecanica", "estrutura metálica", "estruturas metálicas",
+        "serralharia", "steel", "aço", "aco", "metal", "cobertura", "fachada",
+        "armazém", "armazem", "warehouse", "montagem", "empreitada"
+    )
+    hits = [term for term in capability_terms if term in text]
+    unique_hits = list(dict.fromkeys(hits))
+    components["capability_fit"] = min(20, 6 * len(unique_hits)) if unique_hits else 0
+    if unique_hits:
+        reasons.append("atividade compatível: " + ", ".join(unique_hits[:3]))
+    elif not text:
+        missing.append("title/description")
+
+    days = _deadline_days(item.get("deadline"))
+    if days is None:
+        components["deadline"] = 5
+        missing.append("deadline")
+    elif days < 0:
+        components["deadline"] = 0
+        reasons.append("prazo terminado")
+    elif days <= 3:
+        components["deadline"] = 15
+        reasons.append("prazo muito próximo")
+    elif days <= 14:
+        components["deadline"] = 12
+        reasons.append("prazo curto")
+    elif days <= 45:
+        components["deadline"] = 8
+    else:
+        components["deadline"] = 4
+
+    value = item.get("value_numeric")
+    try:
+        value = float(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        value = None
+    if value is None:
+        components["size_fit"] = 7
+        missing.append("value")
+    elif value <= 250_000:
+        components["size_fit"] = 15
+        reasons.append("valor compatível com operação pequena/média")
+    elif value <= 1_000_000:
+        components["size_fit"] = 11
+    elif value <= 5_000_000:
+        components["size_fit"] = 6
+    else:
+        components["size_fit"] = 2
+        reasons.append("valor elevado")
+
+    procedure = _text(item.get("procedure_type"), item.get("notice_type"), buyer)
+    if any(k in procedure for k in ("open", "aberto", "open procedure")):
+        components["access"] = 10
+    elif any(k in procedure for k in ("restricted", "negociat", "dialogue")):
+        components["access"] = 6
+        reasons.append("procedimento com acesso mais exigente")
+    else:
+        components["access"] = 7
+        missing.append("procedure_type")
+
+    if any(k in text for k in ("architecture services", "serviços de arquitetura", "servicos de arquitetura", "consultoria", "fiscalização", "fiscalizacao")) and not any(k in text for k in ("obra", "works", "construction", "empreitada", "execução", "execucao")):
+        components["capability_fit"] = 0
+        components["access"] = min(components["access"], 3)
+        reasons.append("atividade predominantemente intelectual")
+
+    raw_score = max(0, min(100, sum(components.values())))
+    known = 5 - len(set(missing))
+    confidence = round(known / 5 * 100)
+    if confidence < 60:
+        reasons.append("dados insuficientes para confiança elevada")
+    score = raw_score
+
+    if score >= 80:
+        priority = "PRIORIDADE MÁXIMA"
+    elif score >= 65:
+        priority = "ALTA PRIORIDADE"
+    elif score >= 50:
+        priority = "BOA OPORTUNIDADE"
+    else:
+        priority = "BAIXA PRIORIDADE"
+
+    return {
+        "score": score,
+        "priority_label": priority,
+        "components": components,
+        "reasons": reasons[:6],
+        "rule_version": RULE_VERSION,
+        "deadline_days": days,
+        "confidence": confidence,
+        "missing_fields": sorted(set(missing)),
+    }
