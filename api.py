@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 
 import preload as _preload
 from preload import APP, _deadline_dt
+from auth_context import configured_identity
 from company_profile import load_profile, save_profile, derive_profile
 from notification_events import ensure_event_table
 from source_registry import SOURCES
@@ -74,15 +75,29 @@ _PROFILE_FIELDS = {
 
 @bp.route("/profile", methods=["GET", "POST"])
 def profile():
+    identity = configured_identity()
     if request.method == "GET":
-        return jsonify({"profile": load_profile(), "generated_at": _iso_now()})
+        current = load_profile(identity.account_id)
+        return jsonify({
+            "profile": current,
+            "account_id": identity.account_id,
+            "authenticated": identity.authenticated,
+            "generated_at": _iso_now(),
+        })
     payload = request.get_json(silent=True) or {}
-    current = load_profile()
+    current = load_profile(identity.account_id)
     merged = dict(current)
     merged.update({k: payload[k] for k in _PROFILE_FIELDS if k in payload})
     normalized = derive_profile(str(merged.get("activity") or ""), merged)
-    saved = save_profile(normalized)
-    return jsonify({"ok": True, "profile": saved, "generated_at": _iso_now()})
+    normalized["account_id"] = identity.account_id
+    saved = save_profile(normalized, account_id=identity.account_id)
+    return jsonify({
+        "ok": True,
+        "profile": saved,
+        "account_id": identity.account_id,
+        "authenticated": identity.authenticated,
+        "generated_at": _iso_now(),
+    })
 
 
 @bp.route("/alerts", methods=["GET"])
