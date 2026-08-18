@@ -2,18 +2,13 @@ import json
 
 import pytest
 
+import preload
+
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     profile_path = tmp_path / "company_profile.json"
     monkeypatch.setenv("OBRASIGNAL_PROFILE_FILE", str(profile_path))
-
-    import importlib
-    import app
-    import preload
-
-    importlib.reload(app)
-    importlib.reload(preload)
     preload.APP.config.update(TESTING=True)
     return preload.APP.test_client()
 
@@ -25,7 +20,7 @@ def test_profile_page_reads_saved_profile(client):
     assert "Critérios económicos" in response.get_data(as_text=True)
 
 
-def test_profile_page_persists_complete_profile(client, monkeypatch, tmp_path):
+def test_profile_page_persists_complete_profile(client, tmp_path):
     response = client.post("/profile", data={
         "name": "Empresa X",
         "activity": "metalomecânica e coberturas",
@@ -51,8 +46,7 @@ def test_profile_page_persists_complete_profile(client, monkeypatch, tmp_path):
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/profile?saved=1")
 
-    path = tmp_path / "company_profile.json"
-    saved = json.loads(path.read_text(encoding="utf-8"))
+    saved = json.loads((tmp_path / "company_profile.json").read_text(encoding="utf-8"))
     assert saved["name"] == "Empresa X"
     assert saved["regions"] == ["Leiria", "Pombal"]
     assert saved["services"] == ["estruturas metálicas", "coberturas"]
