@@ -8,7 +8,10 @@
     "scheme": "obrasignal",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "pt.obrasignal.app"
+      "bundleIdentifier": "pt.obrasignal.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "pt.obrasignal.app",
