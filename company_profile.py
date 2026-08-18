@@ -9,6 +9,7 @@ from company_profile_validation import validate_company_profile
 from unified_company_profile import normalize_company_profile
 
 DEFAULT_PROFILE = {
+    "account_id": "default",
     "name": "",
     "activity": "",
     "keywords": [],
@@ -84,45 +85,60 @@ def derive_profile(activity: str, base: dict | None = None) -> dict:
     return normalize_company_profile(profile)
 
 
-def _profile_path() -> str:
-    return (
-        os.getenv("OBRASIGNAL_PROFILE")
-        or os.getenv("OBRASIGNAL_PROFILE_FILE")
-        or "company_profile.json"
-    )
+def _profile_path(account_id: str | None = None) -> str:
+    account = str(account_id or "default").strip() or "default"
+    if account == "default":
+        return (
+            os.getenv("OBRASIGNAL_PROFILE")
+            or os.getenv("OBRASIGNAL_PROFILE_FILE")
+            or "company_profile.json"
+        )
+    root = os.getenv("OBRASIGNAL_PROFILE_DIR", "profiles")
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", account)
+    os.makedirs(root, exist_ok=True)
+    return os.path.join(root, f"{safe}.json")
 
 
-def load_profile() -> dict:
-    path = _profile_path()
+def load_profile(account_id: str | None = None) -> dict:
+    account = str(account_id or "default").strip() or "default"
+    path = _profile_path(account)
     try:
         with open(path, "r", encoding="utf-8") as fh:
             raw = json.load(fh)
         profile = dict(DEFAULT_PROFILE)
         profile.update(raw or {})
+        profile["account_id"] = account
         return derive_profile(profile.get("activity", ""), profile)
     except (FileNotFoundError, OSError, TypeError, ValueError):
+        if account != "default":
+            profile = dict(DEFAULT_PROFILE)
+            profile["account_id"] = account
+            return profile
         raw = os.getenv("OBRASIGNAL_PROFILE_JSON", "").strip()
         if raw:
             try:
                 profile = dict(DEFAULT_PROFILE)
                 profile.update(json.loads(raw))
+                profile["account_id"] = account
                 return derive_profile(profile.get("activity", ""), profile)
             except (TypeError, ValueError):
                 pass
         return dict(DEFAULT_PROFILE)
 
 
-def save_profile(profile: dict) -> dict:
-    path = _profile_path()
+def save_profile(profile: dict, account_id: str | None = None) -> dict:
+    requested_account = account_id or (profile or {}).get("account_id") or "default"
+    account = str(requested_account).strip() or "default"
+    path = _profile_path(account)
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(profile or {})
+    normalized["account_id"] = account
     normalized = derive_profile(normalized.get("activity", ""), normalized)
     validation_profile = dict(normalized)
     validation_profile["countries"] = _normalize_countries(validation_profile.get("countries"))
     errors = validate_company_profile(validation_profile)
     if errors:
         raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": errors})
-    normalized["countries"] = list(normalized.get("countries") or [])
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(normalized, fh, ensure_ascii=False, indent=2)
     return normalized
