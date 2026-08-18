@@ -79,7 +79,7 @@ h1{{font-size:clamp(28px,4vw,46px);line-height:1.05;margin:8px 0 12px;letter-spa
 .empty{{color:var(--muted);padding:12px 0}}
 .source{{display:inline-flex;margin-top:16px;padding:10px 14px;border-radius:12px;background:var(--accent);color:white;font-weight:750;text-decoration:none}}
 .source:hover{{text-decoration:none;filter:brightness(.97)}}
-@media(max-width:760px){{.hero-grid{{grid-template-columns:1fr}}.score{{width:100%}.meta{{grid-template-columns:1fr 1fr}}.evidence-row{{grid-template-columns:1fr;gap:6px}}}}
+@media(max-width:760px){{.hero-grid{{grid-template-columns:1fr}}.score{{width:100%}}.meta{{grid-template-columns:1fr 1fr}}.evidence-row{{grid-template-columns:1fr;gap:6px}}}}
 @media(max-width:480px){{.wrap{{padding:18px 14px 40px}}.hero,.section{{padding:18px;border-radius:18px}}.meta{{grid-template-columns:1fr}}}}
 </style>
 </head>
