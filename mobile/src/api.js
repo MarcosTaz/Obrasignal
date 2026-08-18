@@ -15,6 +15,7 @@ async function request(path, options = {}) {
       ...options,
       headers: {
         Accept: 'application/json',
+        'Content-Type': 'application/json',
         ...authHeaders,
         ...(options.headers || {}),
       },
@@ -37,6 +38,11 @@ async function request(path, options = {}) {
 
 export const api = {
   health: () => request('/health'),
+  profile: () => request('/profile'),
+  saveProfile: (profile) => request('/profile', {
+    method: 'POST',
+    body: JSON.stringify(profile || {}),
+  }),
   stats: () => request('/stats'),
   opportunities: ({ q = '', minscore = 0, source = '', limit = 60, openOnly = false } = {}) => {
     const p = new URLSearchParams({ limit: String(limit), minscore: String(minscore) });
