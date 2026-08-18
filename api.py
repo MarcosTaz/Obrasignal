@@ -1,8 +1,7 @@
-"""Native-app API facade for ObraSignal.
+"""Native API facade for the ObraSignal mobile clients.
 
-The web dashboard remains in app.py/preload.py. This module exposes a small,
-stable JSON API for the future iOS/Android client without putting a browser
-inside the app.
+The web dashboard remains separate. Mobile clients talk to this JSON API and
+never need to render the dashboard HTML.
 """
 from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
@@ -45,14 +44,19 @@ def _row(row):
 @bp.after_request
 def _headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-ObraSignal-Version"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-ObraSignal-API"] = "v1"
     return response
 
 
 @bp.route("/health", methods=["GET"])
 def health():
-    return jsonify({"ok": True, "service": "obrasignal-api", "time": _iso_now()})
+    c = _db()
+    c.execute("SELECT 1").fetchone()
+    c.close()
+    return jsonify({"ok": True, "service": "obrasignal-api", "version": "1", "time": _iso_now()})
 
 
 @bp.route("/stats", methods=["GET"])
@@ -60,10 +64,11 @@ def stats():
     c = _db()
     total = c.execute("SELECT COUNT(*) FROM tenders").fetchone()[0]
     high = c.execute("SELECT COUNT(*) FROM tenders WHERE score >= 75").fetchone()[0]
+    open_count = c.execute("SELECT COUNT(*) FROM tenders WHERE deadline IS NULL OR deadline = '' OR datetime(deadline) >= datetime('now')").fetchone()[0]
     new24 = c.execute("SELECT COUNT(*) FROM tenders WHERE julianday(first_seen) >= julianday('now','-1 day')").fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
     c.close()
-    return jsonify({"total": total, "high": high, "new24": new24, "last_sync": last[0] if last else None})
+    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None})
 
 
 @bp.route("/opportunities", methods=["GET"])
@@ -72,21 +77,24 @@ def opportunities():
     source = (request.args.get("source") or "").strip().upper()
     minscore = max(0, min(100, int(request.args.get("minscore", 0) or 0)))
     limit = max(1, min(100, int(request.args.get("limit", 30) or 30)))
+    open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
     c = _db()
     clauses = ["score >= ?"]
     params = [minscore]
     if source:
         clauses.append("source = ?")
         params.append(source)
+    if open_only:
+        clauses.append("(deadline IS NULL OR deadline = '' OR datetime(deadline) >= datetime('now'))")
     if q:
-        clauses.append("(lower(title) LIKE ? OR lower(description) LIKE ? OR lower(buyer) LIKE ?)")
+        clauses.append("(lower(title) LIKE ? OR lower(description) LIKE ? OR lower(buyer) LIKE ? OR lower(cpv) LIKE ?)")
         needle = f"%{q}%"
-        params.extend([needle, needle, needle])
+        params.extend([needle, needle, needle, needle])
     sql = "SELECT * FROM tenders WHERE " + " AND ".join(clauses) + " ORDER BY score DESC, publication_date DESC LIMIT ?"
     params.append(limit)
     rows = [_row(r) for r in c.execute(sql, params).fetchall()]
     c.close()
-    return jsonify({"items": rows, "count": len(rows), "generated_at": _iso_now()})
+    return jsonify({"items": rows, "count": len(rows), "generated_at": _iso_now(), "filters": {"q": q, "minscore": minscore, "source": source, "open_only": open_only}})
 
 
 @bp.route("/opportunities/<int:tender_id>", methods=["GET"])
