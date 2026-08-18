@@ -23,6 +23,11 @@ def canonical_key(record):
     return None
 
 
+def opportunity_key(record):
+    """Backward-compatible identity helper for callers and tests."""
+    return canonical_key(record)
+
+
 def similarity_key(record):
     """Build a conservative cross-source fingerprint.
 
@@ -43,12 +48,7 @@ def similarity_key(record):
 
 
 def dedupe_records(records):
-    """Deduplicate exact source IDs while preserving cross-source records.
-
-    Cross-source records are intentionally retained: TED and a national portal
-    are different provenance records and may expose different documents/fields.
-    A future resolver can merge them only after high-confidence matching.
-    """
+    """Deduplicate exact source IDs while preserving cross-source records."""
     seen = set()
     out = []
     for record in records or []:

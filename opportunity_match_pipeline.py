@@ -125,6 +125,7 @@ def evaluate_and_record(conn, row, profile=None):
         evaluation["reason"],
         score=evaluation["profile_score"],
         features={
+            "profile_score": evaluation["profile_score"],
             "lot_score": evaluation["lot_score"],
             "lot_id": evaluation["lot_id"],
             "match": evaluation["match"],
