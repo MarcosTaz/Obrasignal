@@ -12,41 +12,61 @@ const COLORS = {
   red: '#FF8998',
 };
 
-function Factor({ title, text, tone = COLORS.blue }) {
-  if (!text) return null;
+function toneForFactor(key) {
+  if (key === 'economic_fit') return COLORS.green;
+  if (key === 'geography' || key === 'capability') return COLORS.green;
+  return COLORS.blue;
+}
+
+function Factor({ title, text, score, tone = COLORS.blue }) {
+  if (!text && score == null) return null;
   return <View style={styles.row}>
     <View style={[styles.icon, { backgroundColor: `${tone}18` }]}><View style={[styles.dot, { backgroundColor: tone }]} /></View>
     <View style={styles.body}>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.text}>{text}</Text>
+      <View style={styles.factorHeader}>
+        <Text style={styles.title}>{title}</Text>
+        {score != null ? <Text style={[styles.factorScore, { color: tone }]}>{score}/100</Text> : null}
+      </View>
+      {text ? <Text style={styles.text}>{text}</Text> : null}
     </View>
   </View>;
 }
 
 export default function OpportunityExplanation({ item }) {
   const blockers = item?.hard_capability_blockers || [];
-  const economics = item?.economic_fit;
-  const capability = item?.capability_evidence?.reason;
-  const geography = item?.geography?.reason;
   const explanation = item?.explanation;
-  const hasStructured = item?.profile_score !== undefined || item?.lot_score !== undefined || geography || capability || economics?.reason;
+  const factors = explanation?.factors || [];
+  const negativeFactors = explanation?.negative_factors || [];
 
-  if (!hasStructured && !blockers.length) return null;
+  const fallbackFactors = [
+    { key: 'profile', label: 'Perfil comercial', score: item?.profile_score, reason: 'Compatibilidade com o perfil da empresa' },
+    { key: 'lot', label: 'Adequação do lote', score: item?.lot_score, reason: 'Compatibilidade do lote' },
+    { key: 'geography', label: 'Geografia', score: null, reason: item?.geography?.reason },
+    { key: 'capability', label: 'Capacidade', score: null, reason: item?.capability_evidence?.reason },
+    { key: 'economic_fit', label: 'Economic Fit', score: item?.economic_fit?.score, reason: item?.economic_fit?.reason || item?.economic_fit?.status },
+  ].filter((factor) => factor.reason || factor.score != null);
+
+  const visibleFactors = factors.length ? factors : fallbackFactors;
+  if (!visibleFactors.length && !blockers.length && !negativeFactors.length) return null;
 
   return <View style={styles.card}>
     <Text style={styles.heading}>Porque esta oportunidade</Text>
-    <Factor title="Perfil comercial" text={item?.profile_score != null ? `${item.profile_score}/100` : null} />
-    <Factor title="Adequação do lote" text={item?.lot_score != null ? `${item.lot_score}/100` : null} />
-    <Factor title="Geografia" text={geography} tone={COLORS.green} />
-    <Factor title="Capacidade" text={capability} tone={COLORS.green} />
-    <Factor title="Economic Fit" text={economics?.reason ? `${economics.status}: ${economics.reason}` : null} tone={economics?.status === 'UNFAVOURABLE' ? COLORS.red : COLORS.green} />
+    {visibleFactors.map((factor) => (
+      <Factor
+        key={factor.key}
+        title={factor.label}
+        text={factor.reason}
+        score={factor.score}
+        tone={toneForFactor(factor.key)}
+      />
+    ))}
     {blockers.length ? <View style={styles.risk}>
       <Text style={styles.riskTitle}>Atenção</Text>
       {blockers.map((blocker, index) => <Text key={`${blocker}-${index}`} style={styles.riskText}>• {blocker}</Text>)}
     </View> : null}
-    {explanation?.negative_factors?.length ? <View style={styles.risk}>
+    {negativeFactors.length ? <View style={styles.risk}>
       <Text style={styles.riskTitle}>Factores negativos</Text>
-      {explanation.negative_factors.map((factor, index) => <Text key={`${factor.reason}-${index}`} style={styles.riskText}>• {factor.reason}</Text>)}
+      {negativeFactors.map((factor, index) => <Text key={`${factor.reason}-${index}`} style={styles.riskText}>• {factor.reason}</Text>)}
     </View> : null}
   </View>;
 }
@@ -58,7 +78,9 @@ const styles = StyleSheet.create({
   icon: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   body: { flex: 1 },
+  factorHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   title: { color: COLORS.text, fontSize: 12, fontWeight: '800' },
+  factorScore: { fontSize: 11, fontWeight: '900' },
   text: { color: COLORS.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
   risk: { marginTop: 14, borderRadius: 10, borderWidth: 1, borderColor: '#5A4526', backgroundColor: '#241D10', padding: 10 },
   riskTitle: { color: COLORS.amber, fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.6 },
