@@ -1,5 +1,6 @@
 """Contract tests for the European TED ingestion layer."""
 import app
+import preload  # noqa: F401 - installs the production TED transport
 
 
 class FakeResponse:
@@ -24,7 +25,8 @@ def test_fetch_ted_paginates_with_iteration_token(monkeypatch):
         calls.append((url, json, timeout))
         return FakeResponse(pages[len(calls) - 1])
 
-    monkeypatch.setattr(app.requests, "post", fake_post)
+    import ted_client
+    monkeypatch.setattr(ted_client.requests, "post", fake_post)
     monkeypatch.setattr(app, "TED_MAX_PAGES", 5)
     rows = app.fetch_ted()
 
