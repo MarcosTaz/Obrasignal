@@ -11,6 +11,8 @@ from latency_metrics import ensure_latency_table, record_stage, latency_snapshot
 from latency_health import latency_health
 from ted_client import post_json
 from decision_dashboard import get_presented_decision
+from radar_decision_feed import enrich_rows
+from radar_web import render_radar_page
 
 APP = _app.APP
 _original_fetch_base = _app.fetch_base
@@ -50,7 +52,7 @@ def _max_ted_publication_date(rows):
 def _fetch_ted_resilient():
     since = _ted_since_date()
     query = f'publication-date>={since} AND (notice-type=cn-standard OR notice-type=cn-social OR notice-type=cn-desg OR notice-type=subco OR notice-type=qu-sy)'
-    fields = ['publication-number','notice-title','description-proc','buyer-name','buyer-country','classification-cpv','estimated-value-proc','estimated-value-cur-proc','deadline-receipt-tender-date-lot','deadline-receipt-tender-time-lot','deadline-date-lot','deadline-time-lot','publication-date','notice-type','form-type','main-classification-type-proc','place-of-performance-country-proc','place-of-performance-city-proc','place-of-performance-subdiv-proc','place-of-performance-post-code-proc','place-of-performance-country-lot','place-of-performance-city-lot','place-of-performance-subdiv-lot']
+    fields = ['publication-number','notice-title','description-proc','buyer-name','buyer-country','classification-cpv','estimated-value-proc','estimated-value-cur-proc','deadline-receipt-tender-date-lot','deadline-receipt-tender-time-lot','deadline-date-lot','deadline-time-lot','publication-date','notice-type','form-type','main-classification-type-proc','place-of-performance-country-proc','place-of-performance-city-proc','place-of-performance-subdiv-proc','place-of-performance-post-code-proc','place-of-performance-country-lot','place-of-performance-city-lot','place-of-performance-subdiv-proc']
     payload = {'query': query, 'fields': fields, 'limit': 250, 'scope': 'ACTIVE', 'checkQuerySyntax': False, 'paginationMode': 'ITERATION'}
     rows, token = [], None
     for _ in range(_app.TED_MAX_PAGES):
@@ -130,6 +132,41 @@ def api_latency_health():
     try:
         source = _app.request.args.get("source")
         return _app.jsonify(items=latency_health(conn, source))
+    finally:
+        conn.close()
+
+
+@APP.get("/api/v1/radar")
+def api_radar():
+    limit = max(1, min(100, int(_app.request.args.get("limit", 20) or 20)))
+    minscore = max(0, min(100, int(_app.request.args.get("minscore", 0) or 0)))
+    conn = _app.db()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT ?",
+            (minscore, limit),
+        ).fetchall()
+        items = enrich_rows(conn, rows)
+        return _app.jsonify(items=items, count=len(items), minscore=minscore, limit=limit)
+    finally:
+        conn.close()
+
+
+@APP.get("/radar")
+def radar_page():
+    try:
+        minscore = max(0, min(100, int(_app.request.args.get("minscore", 0) or 0)))
+    except (TypeError, ValueError):
+        minscore = 0
+
+    conn = _app.db()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT 100",
+            (minscore,),
+        ).fetchall()
+        items = enrich_rows(conn, rows)
+        return render_radar_page(items, minscore=minscore)
     finally:
         conn.close()
 
