@@ -1,14 +1,13 @@
 {
   "name": "obrasignal-mobile",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "private": true,
   "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web",
-    "doctor": "expo-doctor"
+    "web": "expo start --web"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
