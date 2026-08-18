@@ -38,16 +38,25 @@ ACTIVITY_RULES = [
     ("armazens", ["armazém", "armazem", "warehouse", "pavilhão", "pavilhao", "industrial"], ["45", "44"]),
 ]
 
+_COUNTRY_ALIASES = {"PT": "PRT", "ES": "ESP", "FR": "FRA"}
+
 
 def _normalize(text: str) -> str:
     text = (text or "").lower()
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _normalize_countries(values):
+    if not isinstance(values, list):
+        return values
+    return [_COUNTRY_ALIASES.get(str(value).upper(), value) for value in values]
+
+
 def derive_profile(activity: str, base: dict | None = None) -> dict:
     profile = dict(DEFAULT_PROFILE)
     if base:
         profile.update({k: v for k, v in base.items() if v is not None})
+    profile["countries"] = _normalize_countries(profile.get("countries"))
     activity_n = _normalize(activity)
     profile["activity"] = activity or profile.get("activity", "")
     keywords = list(profile.get("keywords") or [])
@@ -100,7 +109,7 @@ def save_profile(profile: dict) -> dict:
     normalized = derive_profile(normalized.get("activity", ""), normalized)
     errors = validate_company_profile(normalized)
     if errors:
-        raise ValueError("; ".join(errors))
+        raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": errors})
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(normalized, fh, ensure_ascii=False, indent=2)
     return normalized
