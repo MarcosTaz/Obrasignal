@@ -1,5 +1,6 @@
 """Native API facade for the ObraSignal mobile clients."""
 from datetime import datetime, timezone
+
 from flask import Blueprint, jsonify, request
 
 import preload as _preload
@@ -40,6 +41,19 @@ def _row(row):
     return d
 
 
+def _parse_int_arg(name: str, default: int, minimum: int, maximum: int):
+    raw = request.args.get(name)
+    if raw in (None, ""):
+        return default, None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None, jsonify({"error": "invalid_parameter", "parameter": name, "message": f"{name} deve ser inteiro."})
+    if not minimum <= value <= maximum:
+        return None, jsonify({"error": "invalid_parameter", "parameter": name, "message": f"{name} deve estar entre {minimum} e {maximum}."})
+    return value, None
+
+
 @bp.after_request
 def _headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -76,18 +90,28 @@ _PROFILE_FIELDS = {
 def profile():
     if request.method == "GET":
         return jsonify({"profile": load_profile(), "generated_at": _iso_now()})
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if payload is None or not isinstance(payload, dict):
+        return jsonify({"error": "invalid_json", "message": "O corpo deve ser um objeto JSON."}), 400
     current = load_profile()
     merged = dict(current)
     merged.update({k: payload[k] for k in _PROFILE_FIELDS if k in payload})
     normalized = derive_profile(str(merged.get("activity") or ""), merged)
-    saved = save_profile(normalized)
+    try:
+        saved = save_profile(normalized)
+    except ValueError as exc:
+        details = exc.args[0] if exc.args else None
+        if isinstance(details, dict) and details.get("code") == "INVALID_COMPANY_PROFILE":
+            return jsonify({"error": details["code"], "errors": details.get("errors", [])}), 400
+        return jsonify({"error": "invalid_profile", "message": str(exc)}), 400
     return jsonify({"ok": True, "profile": saved, "generated_at": _iso_now()})
 
 
 @bp.route("/alerts", methods=["GET"])
 def alerts():
-    limit = max(1, min(50, int(request.args.get("limit", 20) or 20)))
+    limit, error = _parse_int_arg("limit", 20, 1, 50)
+    if error:
+        return error, 400
     unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
     c = _db(); ensure_event_table(c)
     where = "WHERE e.event_type = 'new_high_match'"
@@ -122,7 +146,12 @@ def stats():
 @bp.route("/opportunities", methods=["GET"])
 def opportunities():
     q = (request.args.get("q") or "").strip().lower(); source = (request.args.get("source") or "").strip().upper()
-    minscore = max(0, min(100, int(request.args.get("minscore", 0) or 0))); limit = max(1, min(100, int(request.args.get("limit", 30) or 30)))
+    minscore, error = _parse_int_arg("minscore", 0, 0, 100)
+    if error:
+        return error, 400
+    limit, error = _parse_int_arg("limit", 30, 1, 100)
+    if error:
+        return error, 400
     open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
     c = _db(); clauses = ["score >= ?"]; params = [minscore]
     if source: clauses.append("source = ?"); params.append(source)
