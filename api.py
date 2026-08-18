@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 import preload as _preload
 from preload import APP, _deadline_dt
 from company_profile import load_profile, save_profile, derive_profile
+from notification_events import ensure_event_table
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
@@ -68,6 +69,54 @@ def profile():
     normalized = derive_profile(str(merged.get("activity") or ""), merged)
     saved = save_profile(normalized)
     return jsonify({"ok": True, "profile": saved, "generated_at": _iso_now()})
+
+
+@bp.route("/alerts", methods=["GET"])
+def alerts():
+    """Return the user's high-match alert feed, newest first.
+
+    Detection is performed by the sync pipeline; this endpoint is deliberately
+    read-only so a mobile refresh can never create or duplicate an alert.
+    """
+    limit = max(1, min(50, int(request.args.get("limit", 20) or 20)))
+    unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
+    c = _db()
+    ensure_event_table(c)
+    where = "WHERE e.event_type = 'new_high_match'"
+    if unread_only:
+        where += " AND e.delivered_at IS NULL"
+    rows = c.execute(
+        f"""SELECT e.id AS event_id, e.event_key, e.score, e.created_at,
+                   e.delivered_at, t.id, t.title, t.country, t.source,
+                   t.url, t.deadline, t.profile_reason, t.profile_score
+            FROM opportunity_events e
+            LEFT JOIN tenders t ON t.id = e.tender_id
+            {where}
+            ORDER BY e.created_at DESC LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    items = []
+    for r in rows:
+        d = dict(r)
+        d["deadline_status"] = _deadline_state(d.get("deadline"))
+        d["delivery_state"] = "delivered" if d.get("delivered_at") else "new"
+        items.append(d)
+    c.close()
+    return jsonify({"items": items, "count": len(items), "generated_at": _iso_now()})
+
+
+@bp.route("/alerts/<int:event_id>/delivered", methods=["POST"])
+def alert_delivered(event_id):
+    """Mark an alert as delivered/read by a client after successful display."""
+    c = _db()
+    ensure_event_table(c)
+    now = _iso_now()
+    cur = c.execute("UPDATE opportunity_events SET delivered_at=? WHERE id=?", (now, event_id))
+    c.commit()
+    c.close()
+    if not cur.rowcount:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify({"ok": True, "event_id": event_id, "delivered_at": now})
 
 
 @bp.route("/stats", methods=["GET"])
