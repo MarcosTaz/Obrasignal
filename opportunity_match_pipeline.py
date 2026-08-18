@@ -5,7 +5,7 @@ from decision_log import record_decision
 from lot_matcher import match_lot
 from economic_fit import evaluate_economic_fit
 
-RULE_VERSION = "commercial-v2+lot-v1+economic-fit-v1"
+RULE_VERSION = "commercial-v2+lot-v1+economic-fit-v2"
 
 
 def _lot_from_row(row):
@@ -29,7 +29,11 @@ def evaluate_row(row, profile=None):
     source_row = dict(row)
     lot = _lot_from_row(source_row)
     result = match_lot(lot, profile)
-    economics = evaluate_economic_fit(lot.get("value_numeric") or lot.get("value"), profile)
+    economics = evaluate_economic_fit(
+        lot.get("value_numeric") or lot.get("value"),
+        profile,
+        opportunity=lot,
+    )
     profile_score = int(source_row.get("profile_score") or source_row.get("score") or 0)
     lot_score = int(result["score"])
     geo = result["geography"]
