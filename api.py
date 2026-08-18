@@ -96,15 +96,14 @@ def profile():
         return jsonify({"error": "invalid_json", "message": "O corpo deve ser um objeto JSON."}), 400
 
     supplied = {k: payload[k] for k in _PROFILE_FIELDS if k in payload}
-    supplied_normalized = derive_profile(str(supplied.get("activity") or ""), supplied)
-    supplied_errors = validate_company_profile(supplied_normalized)
+    current = load_profile()
+    candidate = dict(current)
+    candidate.update(supplied)
+    normalized = derive_profile(str(candidate.get("activity") or ""), candidate)
+    supplied_errors = validate_company_profile(normalized)
     if supplied_errors:
         return jsonify({"error": "INVALID_COMPANY_PROFILE", "errors": supplied_errors}), 400
 
-    current = load_profile()
-    merged = dict(current)
-    merged.update(supplied)
-    normalized = derive_profile(str(merged.get("activity") or ""), merged)
     try:
         saved = save_profile(normalized)
     except ValueError as exc:
