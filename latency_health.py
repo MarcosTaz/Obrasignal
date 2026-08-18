@@ -2,15 +2,18 @@
 
 
 def latency_health(conn, source=None, recent_limit=20, baseline_limit=100):
-    """Compare recent stage latency with a historical baseline.
+    """Compare recent stage latency with an older historical baseline.
 
+    The baseline deliberately excludes the samples used for the recent window;
+    otherwise a degradation can dilute its own baseline and hide a problem.
     Returns only observed metrics; no synthetic latency is introduced.
     """
     from latency_metrics import latency_snapshot
 
     recent = latency_snapshot(conn, source, recent_limit)
-    history = latency_snapshot(conn, source, baseline_limit)
-    stages = sorted({r["stage"] for r in history})
+    all_samples = latency_snapshot(conn, source, recent_limit + baseline_limit)
+    history = all_samples[recent_limit:]
+    stages = sorted({r["stage"] for r in all_samples})
     out = []
     for stage in stages:
         hist = [r["duration_ms"] for r in history if r["stage"] == stage]
