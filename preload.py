@@ -14,6 +14,7 @@ from decision_dashboard import get_presented_decision
 from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
 from opportunity_web import render_opportunity_detail
+from profile_page import register_profile_page
 
 APP = _app.APP
 _original_fetch_base = _app.fetch_base
@@ -228,6 +229,9 @@ def opportunity_detail(tender_id):
     decision = get_presented_decision(conn, item.get("source"), item.get("external_id"))
     conn.close()
     return render_opportunity_detail(item, decision)
+
+
+register_profile_page(APP)
 
 
 if _original_sync_once is not None:
