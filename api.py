@@ -60,7 +60,7 @@ def stats():
     c = _db()
     total = c.execute("SELECT COUNT(*) FROM tenders").fetchone()[0]
     high = c.execute("SELECT COUNT(*) FROM tenders WHERE score >= 75").fetchone()[0]
-    new24 = c.execute("SELECT COUNT(*) FROM tenders WHERE first_seen >= datetime('now','-1 day')").fetchone()[0]
+    new24 = c.execute("SELECT COUNT(*) FROM tenders WHERE julianday(first_seen) >= julianday('now','-1 day')").fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
     c.close()
     return jsonify({"total": total, "high": high, "new24": new24, "last_sync": last[0] if last else None})
