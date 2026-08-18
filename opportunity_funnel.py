@@ -5,16 +5,19 @@ def classify(item, is_new, rule_version=None):
     """Return an auditable funnel decision without mutating the tender."""
     score = int(item.get("score") or 0)
     deadline = item.get("deadline")
-    features = {
+    features = dict(item.get("decision_features") or {})
+    features.update({
         "score": score,
         "has_deadline": bool(deadline),
         "is_new": bool(is_new),
         "market": item.get("market"),
         "source": item.get("source"),
-    }
+    })
 
     if not item.get("external_id"):
         return "REJECTED", "MISSING_EXTERNAL_ID", features
+    if item.get("hard_capability_blockers"):
+        return "REJECTED", "CAPABILITY_BLOCKER", features
     if score < 55:
         return "LOW_SCORE", "SCORE_BELOW_55", features
     if score >= 75:
