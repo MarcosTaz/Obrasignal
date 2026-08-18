@@ -26,6 +26,25 @@ NUMERIC_RANGES = {
     "max_deadline_days": (0, None),
 }
 
+COUNTRY_ALIASES = {
+    "PT": "PRT",
+    "ES": "ESP",
+    "FR": "FRA",
+    "DE": "DEU",
+    "IT": "ITA",
+    "BE": "BEL",
+    "NL": "NLD",
+    "LU": "LUX",
+    "IE": "IRL",
+    "AT": "AUT",
+    "PL": "POL",
+    "CZ": "CZE",
+    "DK": "DNK",
+    "SE": "SWE",
+    "FI": "FIN",
+    "GR": "GRC",
+}
+
 
 def validate_company_profile(profile: dict[str, Any] | None) -> list[str]:
     """Return explicit, user-facing configuration errors without mutating input."""
@@ -63,8 +82,11 @@ def validate_company_profile(profile: dict[str, Any] | None) -> list[str]:
 
     countries = data.get("countries") or []
     for country in countries:
-        if len(country.strip()) != 3:
-            errors.append(f"countries: código inválido '{country}'. Use ISO-3.")
+        code = country.strip().upper()
+        if len(code) == 2:
+            code = COUNTRY_ALIASES.get(code, "")
+        if len(code) != 3:
+            errors.append(f"countries: código inválido '{country}'. Use ISO-2 ou ISO-3 reconhecido.")
 
     for cpv in data.get("cpv_prefixes") or []:
         value = cpv.strip()
