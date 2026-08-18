@@ -16,8 +16,8 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - run: python -m py_compile app.py preload.py api.py sitecustomize.py source_registry.py source_health.py
-      - run: pytest -q test_profile_matching.py test_deduplication.py test_sync_pipeline.py test_alert_feed.py test_source_registry.py test_ted_ingestion.py test_ted_resilience.py test_source_health.py test_ted_incremental.py
+      - run: python -m py_compile app.py preload.py api.py sitecustomize.py source_registry.py source_health.py latency_metrics.py
+      - run: pytest -q test_profile_matching.py test_deduplication.py test_sync_pipeline.py test_alert_feed.py test_source_registry.py test_ted_ingestion.py test_ted_resilience.py test_source_health.py test_ted_incremental.py test_latency_metrics.py
 
   mobile:
     runs-on: ubuntu-latest
