@@ -13,7 +13,7 @@
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@supabase/supabase-js": "^2.54.0",
     "expo": "~57.0.1",
-    "expo-dev-client": "~57.0.20",
+    "expo-dev-client": "~57.0.10",
     "expo-notifications": "~57.0.6",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
