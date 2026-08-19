@@ -16,14 +16,18 @@ from opportunity_workflow import get_workflow, set_workflow, workflow_counts
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
+
 def _db():
     return _preload._app.db()
+
 
 def _iso_now():
     return datetime.now(timezone.utc).isoformat()
 
+
 def _identity():
     return configured_identity()
+
 
 @bp.before_request
 def _require_identity():
@@ -41,6 +45,7 @@ def _require_identity():
         conn.close()
     return None
 
+
 def _cors_origin():
     origin = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "").strip()
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
@@ -49,6 +54,7 @@ def _cors_origin():
     if not origin or origin == "*":
         raise RuntimeError("OBRASIGNAL_CORS_ORIGIN must be configured for provider mode")
     return origin
+
 
 def _deadline_state(value):
     dt = _deadline_dt(value)
@@ -62,6 +68,7 @@ def _deadline_state(value):
     if days <= 7:
         return {"state": "urgent", "label": "Prazo curto", "days_remaining": int(days)}
     return {"state": "open", "label": "Aberto", "days_remaining": int(days)}
+
 
 def _row(row, decision=None, workflow=None):
     d = dict(row)
@@ -89,8 +96,10 @@ def _row(row, decision=None, workflow=None):
     d["workflow"] = workflow or {"status": "NEW", "note": None, "updated_at": None}
     return d
 
+
 def _decision_priority(decision):
     return {"QUALIFIED": 0, "RELEVANT": 0, "REVIEW": 1, "UNKNOWN": 2, "REJECT": 3}.get(decision or "UNKNOWN", 2)
+
 
 def _latest_decisions(conn, account_id, external_ids):
     ensure_decision_table(conn)
@@ -111,6 +120,7 @@ def _latest_decisions(conn, account_id, external_ids):
         result[(item["source"], item["external_id"])] = item
     return result
 
+
 @bp.after_request
 def _headers(response):
     try:
@@ -126,10 +136,12 @@ def _headers(response):
     response.headers["X-ObraSignal-API"] = "v1"
     return response
 
+
 @bp.route("/health", methods=["GET"])
 def health():
     c = _db(); c.execute("SELECT 1").fetchone(); c.close()
     return jsonify({"ok": True, "service": "obrasignal-api", "version": "1", "time": _iso_now()})
+
 
 @bp.route("/sources", methods=["GET"])
 def sources():
@@ -137,7 +149,9 @@ def sources():
     items = [{"name": name, **meta} for name, meta in sorted(SOURCES.items(), key=lambda pair: (pair[1].get("priority", 99), pair[0]))]
     return jsonify({"items": items, "count": len(items), "generated_at": _iso_now(), "account_id": identity.account_id})
 
+
 _PROFILE_FIELDS = {"name", "activity", "keywords", "countries", "cpv_prefixes", "min_value", "max_value", "economic_min_score", "min_deadline_days", "max_deadline_days", "preferred_procedure_types", "excluded_procedure_types", "exclude_keywords", "regions", "geographic_radius_km", "services", "capability_tags", "project_scales", "certifications", "hard_exclusions"}
+
 
 @bp.route("/profile", methods=["GET", "POST"])
 def profile():
@@ -151,6 +165,7 @@ def profile():
     normalized = derive_profile(str(merged.get("activity") or ""), merged); normalized["account_id"] = identity.account_id
     saved = save_profile(normalized, account_id=identity.account_id)
     return jsonify({"ok": True, "profile": saved, "account_id": identity.account_id, "authenticated": identity.authenticated, "generated_at": _iso_now()})
+
 
 @bp.route("/alerts", methods=["GET"])
 def alerts():
@@ -171,7 +186,8 @@ def alerts():
         d.update({"event_id": r["event_id"], "event_key": r["event_key"], "score": r["score"], "created_at": r["created_at"], "delivered_at": r["delivered_at"], "delivery_state": "delivered" if r["delivered_at"] else "new"})
         items.append(d)
     c.close(); items.sort(key=lambda item: (_decision_priority(item.get("account_decision")), -(item.get("account_score") or item.get("score") or 0), item.get("created_at") or ""))
-    return jsonify({"items": items[:limit], "count": len(items[:limit],), "generated_at": _iso_now(), "account_id": identity.account_id})
+    return jsonify({"items": items[:limit], "count": len(items[:limit]), "generated_at": _iso_now(), "account_id": identity.account_id})
+
 
 @bp.route("/alerts/<int:event_id>/delivered", methods=["POST"])
 def alert_delivered(event_id):
@@ -180,6 +196,7 @@ def alert_delivered(event_id):
     cur = c.execute("UPDATE opportunity_events SET delivered_at=? WHERE id=? AND account_id=?", (now, event_id, identity.account_id)); c.commit(); c.close()
     if not cur.rowcount: return jsonify({"error": "not_found"}), 404
     return jsonify({"ok": True, "event_id": event_id, "delivered_at": now})
+
 
 @bp.route("/stats", methods=["GET"])
 def stats():
@@ -194,10 +211,12 @@ def stats():
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone(); c.close()
     return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None, "account_id": identity.account_id})
 
+
 @bp.route("/workflow/stats", methods=["GET"])
 def workflow_stats():
     identity = request.obrasignal_identity; c = _db(); counts = workflow_counts(c, identity.account_id); c.close()
     return jsonify({"counts": counts, "account_id": identity.account_id, "generated_at": _iso_now()})
+
 
 @bp.route("/opportunities", methods=["GET"])
 def opportunities():
@@ -218,6 +237,7 @@ def opportunities():
         rows.append(_row(item,decision,get_workflow(c,identity.account_id,item.get("source"),item.get("external_id"))))
     c.close(); return jsonify({"items":rows,"count":len(rows),"generated_at":_iso_now(),"account_id":identity.account_id,"filters":{"q":q,"minscore":minscore,"source":source,"open_only":open_only}})
 
+
 @bp.route("/opportunities/<int:tender_id>", methods=["GET"])
 def opportunity(tender_id):
     identity=request.obrasignal_identity; c=_db(); ensure_decision_table(c)
@@ -231,6 +251,7 @@ def opportunity(tender_id):
     workflow=get_workflow(c,identity.account_id,row["source"],row["external_id"]); c.close()
     return jsonify(_row(row,decision,workflow))
 
+
 @bp.route("/opportunities/<int:tender_id>/workflow", methods=["GET","POST"])
 def opportunity_workflow(tender_id):
     identity=request.obrasignal_identity; c=_db(); row=c.execute("SELECT source,external_id FROM tenders WHERE id=?",(tender_id,)).fetchone()
@@ -243,5 +264,6 @@ def opportunity_workflow(tender_id):
     except ValueError as exc:
         c.close(); return jsonify({"error":"invalid_workflow_status","detail":str(exc)}),400
     c.close(); return jsonify(result)
+
 
 APP.register_blueprint(bp)
