@@ -70,4 +70,15 @@ jobs:
         if: ${{ secrets.EXPO_TOKEN != '' }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli@latest build --platform android --profile production --non-interactive --wait
+        run: |
+          set -euo pipefail
+          npx eas-cli@latest build --platform android --profile production --non-interactive --wait --json > eas-build.json
+          node -e "const fs=require('fs'); const v=JSON.parse(fs.readFileSync('eas-build.json','utf8')); fs.writeFileSync('eas-build-report.json', JSON.stringify(v, null, 2)); console.log(JSON.stringify(v, null, 2))"
+
+      - name: Upload EAS build report
+        if: ${{ secrets.EXPO_TOKEN != '' && always() && hashFiles('mobile/eas-build-report.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-eas-android-build-report
+          path: mobile/eas-build-report.json
+          if-no-files-found: error
