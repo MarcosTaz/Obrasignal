@@ -26,10 +26,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.13.1'
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
 
-      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-audit --no-fund
 
       - name: Validate native release configuration
         shell: bash
