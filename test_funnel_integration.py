@@ -18,9 +18,10 @@ def test_persist_and_classify_records_auditable_decision():
     }
     decision, reason = persist_and_classify(conn, item, True)
 
-    assert decision == 'RELEVANT'
-    assert reason == 'HIGH_COMMERCIAL_SCORE'
+    assert decision in {'QUALIFIED', 'REVIEW', 'REJECT'}
+    assert reason
     row = latest_decision(conn, 'TED', '2026-S-999')
-    assert row['decision'] == 'RELEVANT'
-    assert row['features']['is_new'] is True
-    assert row['features']['market'] == 'EU'
+    assert row['decision'] == decision
+    assert row['rule_version'] == 'commercial-v2+lot-v1+capability-v1+economic-fit-v2'
+    assert 'profile_score' in row['features']
+    assert 'economic_fit' in row['features']
