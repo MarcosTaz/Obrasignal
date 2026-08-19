@@ -19,9 +19,11 @@ def test_workflow_stats_uses_authenticated_account(monkeypatch):
         authenticated = True
 
     monkeypatch.setattr(api._preload, "_app", FakeApp())
-    monkeypatch.setattr(api.request, "obrasignal_identity", Identity(), raising=False)
 
-    response = api.workflow_stats()
+    with api.APP.test_request_context("/api/v1/workflow/stats"):
+        api.request.obrasignal_identity = Identity()
+        response = api.workflow_stats()
+
     payload = response.get_json()
 
     assert payload["account_id"] == "empresa-a"
