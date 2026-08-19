@@ -76,7 +76,7 @@ jobs:
           test -n "$EXPO_TOKEN" || { echo 'EXPO_TOKEN GitHub secret is required for a manual production release.'; exit 1; }
 
       - name: Authenticated EAS production build
-        if: ${{ github.event_name == 'workflow_dispatch' && secrets.EXPO_TOKEN != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
