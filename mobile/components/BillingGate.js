@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { api } from '../src/api';
 import {
   activeEntitlement,
+  BILLING_SUPPORTED,
   configureBilling,
   getCurrentOffering,
   hasProEntitlement,
@@ -45,7 +46,7 @@ export default function BillingGate({ children }) {
 
   const openPaywall = async () => {
     setError(''); setModal(true);
-    if (!billing.configured) return;
+    if (!billing.configured || !BILLING_SUPPORTED) return;
     try { setOffering(await getCurrentOffering()); } catch (e) { setError(e?.message || 'Não foi possível carregar o plano.'); }
   };
 
@@ -82,8 +83,8 @@ export default function BillingGate({ children }) {
         <Text style={styles.body}>A subscrição desbloqueia o acesso contínuo ao radar personalizado, scoring por empresa, alertas e workflow comercial.</Text>
         <View style={styles.priceBox}><Text style={styles.price}>{packagePrice}</Text><Text style={styles.priceNote}>Subscrição recorrente · cobrança pela {Platform.OS === 'android' ? 'Google Play' : 'App Store'}</Text></View>
         <Text style={styles.terms}>A subscrição renova automaticamente até ser cancelada. O preço, período e condições apresentados pelo sistema de compra da loja aplicam-se à compra. Podes gerir ou cancelar a subscrição na loja.</Text>
-        {billing.configured ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Subscrever</Text>}</Pressable> : <Text style={styles.setup}>Billing ainda não está configurado neste build. Define a chave pública RevenueCat antes do teste real.</Text>}
-        <Pressable disabled={busy} onPress={restore} style={styles.secondary}><Text style={styles.secondaryText}>Restaurar compra</Text></Pressable>
+        {BILLING_SUPPORTED && billing.configured ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Subscrever</Text>}</Pressable> : <Text style={styles.setup}>{BILLING_SUPPORTED ? 'Billing ainda não está configurado neste build. Define a chave pública RevenueCat antes do teste real.' : 'A subscrição é activada através da Google Play/App Store na aplicação nativa. A versão Web permite consultar o estado do plano, mas não processa compras.'}</Text>}
+        {BILLING_SUPPORTED ? <Pressable disabled={busy} onPress={restore} style={styles.secondary}><Text style={styles.secondaryText}>Restaurar compra</Text></Pressable> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Pressable disabled={busy} onPress={() => setModal(false)} style={styles.close}><Text style={styles.secondaryText}>Fechar</Text></Pressable>
       </View></View>
