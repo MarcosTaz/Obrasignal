@@ -36,6 +36,15 @@ async function request(path, options = {}) {
   }
 }
 
+function normalizeOpportunity(item) {
+  if (!item || typeof item !== 'object') return item;
+  return {
+    ...item,
+    decision_score: item.decision_score ?? item.account_score ?? null,
+    decision_reason: item.decision_reason ?? item.account_reason ?? null,
+  };
+}
+
 export const api = {
   health: () => request('/health'),
   profile: () => request('/profile'),
@@ -45,14 +54,15 @@ export const api = {
   }),
   stats: () => request('/stats'),
   workflowStats: () => request('/workflow/stats'),
-  opportunities: ({ q = '', minscore = 0, source = '', limit = 60, openOnly = false } = {}) => {
+  opportunities: async ({ q = '', minscore = 0, source = '', limit = 60, openOnly = false } = {}) => {
     const p = new URLSearchParams({ limit: String(limit), minscore: String(minscore) });
     if (q.trim()) p.set('q', q.trim());
     if (source) p.set('source', source);
     if (openOnly) p.set('open', '1');
-    return request(`/opportunities?${p.toString()}`);
+    const data = await request(`/opportunities?${p.toString()}`);
+    return data ? { ...data, items: (data.items || []).map(normalizeOpportunity) } : data;
   },
-  opportunity: (id) => request(`/opportunities/${encodeURIComponent(id)}`),
+  opportunity: async (id) => normalizeOpportunity(await request(`/opportunities/${encodeURIComponent(id)}`)),
   workflow: (id) => request(`/opportunities/${encodeURIComponent(id)}/workflow`),
   setWorkflow: (id, status, note) => request(`/opportunities/${encodeURIComponent(id)}/workflow`, {
     method: 'POST',
