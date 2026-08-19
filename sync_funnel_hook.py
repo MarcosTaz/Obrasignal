@@ -3,8 +3,10 @@ import threading
 
 from auth_context import configured_identity
 from account_registry import list_active_accounts
+from company_profile import load_profile
 from decision_log import latest_decision
 from funnel_integration import persist_and_classify
+from opportunity_match_pipeline import evaluate_row
 
 
 def _fallback_account_id():
@@ -12,19 +14,25 @@ def _fallback_account_id():
 
 
 def record_sync_decisions(conn, rows, account_id=None):
-    """Record sync decisions under an explicit account or for all active accounts."""
+    """Record only new/changed canonical commercial decisions."""
     accounts = [account_id] if account_id else list_active_accounts(conn)
     if not accounts:
         accounts = [_fallback_account_id()]
 
     recorded = 0
     for current_account in accounts:
+        profile = load_profile(current_account)
         for row in rows:
             item = dict(row)
             source = item.get('source', '')
             external_id = item.get('external_id', '')
+            evaluation = evaluate_row(item, profile=profile)
             previous = latest_decision(conn, source, external_id, account_id=current_account)
-            if previous and previous.get('score') == item.get('score') and previous.get('reason') == item.get('match_reason'):
+            if previous and (
+                previous.get('decision') == evaluation.get('decision')
+                and previous.get('score') == evaluation.get('profile_score')
+                and previous.get('reason') == evaluation.get('reason')
+            ):
                 continue
             persist_and_classify(
                 conn,
