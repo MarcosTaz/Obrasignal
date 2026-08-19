@@ -1,4 +1,8 @@
+import time
+
+import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 
 @pytest.fixture()
@@ -51,3 +55,44 @@ def test_invalid_account_id_fails(clear_auth_env, monkeypatch):
 
     with pytest.raises(RuntimeError, match="Invalid OBRASIGNAL_ACCOUNT_ID"):
         configured_identity()
+
+
+def _signed_test_token(private_key, *, issuer="https://example.supabase.co", audience="authenticated"):
+    now = int(time.time())
+    return jwt.encode(
+        {"sub": "user-123", "iss": issuer, "aud": audience, "iat": now, "exp": now + 300},
+        private_key,
+        algorithm="RS256",
+        headers={"kid": "test-key"},
+    )
+
+
+def test_jwt_verifier_accepts_valid_rs256_token():
+    from auth_context_jwt import JwtVerifier
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    jwk = jwt.algorithms.RSAAlgorithm.to_jwk(public_key)
+
+    verifier = JwtVerifier("https://example.supabase.co")
+    verifier._jwks = lambda: {"test-key": jwt.PyJWK.from_json(jwk).to_dict()}
+
+    identity = verifier.verify(_signed_test_token(private_key))
+
+    assert identity.account_id == "user-123"
+    assert identity.subject == "user-123"
+    assert identity.claims["aud"] == "authenticated"
+
+
+def test_jwt_verifier_rejects_wrong_audience():
+    from auth_context_jwt import JwtVerifier
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    jwk = jwt.algorithms.RSAAlgorithm.to_jwk(public_key)
+
+    verifier = JwtVerifier("https://example.supabase.co")
+    verifier._jwks = lambda: {"test-key": jwt.PyJWK.from_json(jwk).to_dict()}
+
+    with pytest.raises(jwt.InvalidTokenError):
+        verifier.verify(_signed_test_token(private_key, audience="wrong-audience"))
