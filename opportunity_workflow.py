@@ -55,3 +55,17 @@ def set_workflow(conn, account_id, source, external_id, status, note=None):
     )
     conn.commit()
     return get_workflow(conn, account_id, source, external_id)
+
+
+def workflow_counts(conn, account_id):
+    ensure_workflow_table(conn)
+    rows = conn.execute(
+        '''SELECT status, COUNT(*) AS count
+           FROM opportunity_workflow
+           WHERE account_id=?
+           GROUP BY status''',
+        (str(account_id or "default"),),
+    ).fetchall()
+    counts = {status: 0 for status in STATUSES}
+    counts.update({row["status"]: row["count"] for row in rows})
+    return counts
