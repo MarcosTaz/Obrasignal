@@ -1,39 +1,79 @@
 import { supabase } from '../lib/supabase';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrender.com/api/v1';
+const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrender.com/api/v1').replace(/\/$/, '');
+
+const DEFAULT_TIMEOUT = 120000;
+const PROFILE_TIMEOUT = 150000;
+const MAX_ATTEMPTS = 2;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableNetworkError(error) {
+  if (!error) return false;
+  if (error.name === 'AbortError') return true;
+  if (typeof error.status === 'number') return [502, 503, 504].includes(error.status);
+  return !error.status;
+}
 
 async function request(path, options = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeout ?? 60000);
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const authHeaders = session?.access_token
-      ? { Authorization: `Bearer ${session.access_token}` }
-      : {};
+  const timeout = options.timeout ?? DEFAULT_TIMEOUT;
+  const maxAttempts = options.maxAttempts ?? MAX_ATTEMPTS;
+  const fetchOptions = { ...options };
+  delete fetchOptions.timeout;
+  delete fetchOptions.maxAttempts;
 
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        ...authHeaders,
-        ...(options.headers || {}),
-      },
-      signal: controller.signal,
-    });
-    const text = await response.text();
-    let data = null;
-    try { data = text ? JSON.parse(text) : null; } catch (_) {}
-    if (!response.ok) {
-      const message = data?.error || `HTTP ${response.status}`;
-      const error = new Error(message);
-      error.status = response.status;
-      throw error;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeaders = session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+
+      const response = await fetch(`${API_BASE}${path}`, {
+        ...fetchOptions,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...authHeaders,
+          ...(fetchOptions.headers || {}),
+        },
+        signal: controller.signal,
+      });
+
+      const text = await response.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) {}
+
+      if (!response.ok) {
+        const message = data?.error || `HTTP ${response.status}`;
+        const error = new Error(message);
+        error.status = response.status;
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableNetworkError(error) || attempt >= maxAttempts) {
+        if (error?.name === 'AbortError') {
+          throw new Error('O servidor demorou demasiado tempo a responder. O Render pode estar a acordar; tenta novamente em alguns segundos.');
+        }
+        throw error;
+      }
+      await sleep(1500 * attempt);
+    } finally {
+      clearTimeout(timer);
     }
-    return data;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw lastError || new Error('Não foi possível ligar ao ObraSignal.');
 }
 
 function normalizeOpportunity(item) {
@@ -46,11 +86,12 @@ function normalizeOpportunity(item) {
 }
 
 export const api = {
-  health: () => request('/health'),
-  profile: () => request('/profile'),
+  health: () => request('/health', { timeout: 90000 }),
+  profile: () => request('/profile', { timeout: PROFILE_TIMEOUT }),
   saveProfile: (profile) => request('/profile', {
     method: 'POST',
     body: JSON.stringify(profile || {}),
+    timeout: PROFILE_TIMEOUT,
   }),
   billingStatus: () => request('/billing/status'),
   stats: () => request('/stats'),
