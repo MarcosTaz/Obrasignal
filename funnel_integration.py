@@ -1,11 +1,13 @@
+from company_profile import load_profile
 from decision_log import record_decision
 from opportunity_match_pipeline import evaluate_row
 
 
 def persist_and_classify(conn, item, is_new, account_id='default'):
-    """Persist the canonical commercial decision with full audit evidence."""
+    """Persist the canonical commercial decision with full account-scoped evidence."""
     enriched = dict(item)
-    evaluation = evaluate_row(enriched)
+    profile = load_profile(account_id)
+    evaluation = evaluate_row(enriched, profile=profile)
     enriched.update({
         "lot_score": evaluation["lot_score"],
         "lot_match": evaluation["match"],

@@ -5,6 +5,7 @@ from capability_profile import build_capability_profile, capability_matches_text
 from decision_log import record_decision
 from lot_matcher import match_lot
 from economic_fit import evaluate_economic_fit
+from profile_scoring import personalized_score
 
 RULE_VERSION = "commercial-v2+lot-v1+capability-v1+economic-fit-v2"
 
@@ -65,41 +66,13 @@ def _hard_capability_checks(lot, capability):
 def _explain_evaluation(profile_score, lot_score, geo, capability_evidence, economics, hard_blockers):
     """Return structured evidence for UI/API while preserving the decision model."""
     factors = [
-        {
-            "key": "profile",
-            "label": "Perfil comercial",
-            "score": profile_score,
-            "reason": "Compatibilidade com o perfil da empresa",
-        },
-        {
-            "key": "lot",
-            "label": "Lote",
-            "score": lot_score,
-            "reason": "Compatibilidade do lote",
-        },
-        {
-            "key": "geography",
-            "label": "Geografia",
-            "score": None,
-            "reason": geo.get("reason") or "Geografia não determinada",
-        },
-        {
-            "key": "capability",
-            "label": "Capacidade",
-            "score": None,
-            "reason": capability_evidence.get("reason") or "Capacidade não determinada",
-        },
-        {
-            "key": "economic_fit",
-            "label": "Economic Fit",
-            "score": economics.get("score"),
-            "reason": economics.get("reason") or economics.get("status"),
-        },
+        {"key": "profile", "label": "Perfil comercial", "score": profile_score, "reason": "Compatibilidade com o perfil da empresa"},
+        {"key": "lot", "label": "Lote", "score": lot_score, "reason": "Compatibilidade do lote"},
+        {"key": "geography", "label": "Geografia", "score": None, "reason": geo.get("reason") or "Geografia não determinada"},
+        {"key": "capability", "label": "Capacidade", "score": None, "reason": capability_evidence.get("reason") or "Capacidade não determinada"},
+        {"key": "economic_fit", "label": "Economic Fit", "score": economics.get("score"), "reason": economics.get("reason") or economics.get("status")},
     ]
-    negatives = [
-        {"key": "blocker", "label": "Bloqueio", "reason": blocker}
-        for blocker in hard_blockers
-    ]
+    negatives = [{"key": "blocker", "label": "Bloqueio", "reason": blocker} for blocker in hard_blockers]
     return {"factors": factors, "negative_factors": negatives}
 
 
@@ -119,7 +92,11 @@ def evaluate_row(row, profile=None):
         profile,
         opportunity=lot,
     )
-    profile_score = int(source_row.get("profile_score") or source_row.get("score") or 0)
+
+    global_score = source_row.get("global_score")
+    if global_score is None:
+        global_score = source_row.get("score") or 0
+    profile_score = personalized_score(source_row, base_score=global_score, profile=profile)[0]
     lot_score = int(result["score"])
     geo = result["geography"]
 
@@ -140,14 +117,7 @@ def evaluate_row(row, profile=None):
     if hard_blockers:
         reason += "; bloqueios=" + ", ".join(hard_blockers)
 
-    explanation = _explain_evaluation(
-        profile_score,
-        lot_score,
-        geo,
-        capability_evidence,
-        economics,
-        hard_blockers,
-    )
+    explanation = _explain_evaluation(profile_score, lot_score, geo, capability_evidence, economics, hard_blockers)
 
     return {
         "decision": decision,

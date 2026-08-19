@@ -5,11 +5,13 @@ from datetime import datetime, timezone, timedelta
 import app as _app
 from national_sources import fetch_national_sources
 from notification_events import record_new_opportunities
-from profile_scoring import personalized_score
 from source_health import ensure_source_health, get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
 from latency_metrics import ensure_latency_table, record_stage, latency_snapshot, latency_summary
 from latency_health import latency_health
 from ted_client import post_json
+from auth_context import configured_identity, InvalidTokenError
+from account_registry import list_active_accounts
+from funnel_integration import persist_and_classify
 from decision_dashboard import get_presented_decision
 from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
@@ -20,8 +22,24 @@ _original_fetch_base = _app.fetch_base
 _original_sync_once = getattr(_app, "sync_once", None)
 
 
+@APP.before_request
+def _protect_legacy_routes():
+    path = _app.request.path
+    metric_paths = ("/api/v1/source-health", "/api/v1/latency", "/api/v1/latency-health")
+    protected = path == "/radar" or path.startswith("/opportunity/") or path in metric_paths
+    if not protected:
+        return None
+    if path.startswith("/api/v1/") and path not in metric_paths:
+        return None
+    try:
+        identity = configured_identity()
+    except (RuntimeError, InvalidTokenError):
+        return _app.jsonify({"error": "authentication_required"}), 401
+    _app.request.obrasignal_identity = identity
+    return None
+
+
 def _deadline_dt(value):
-    """Compatibility wrapper for API consumers using preload's public surface."""
     return _app.deadline_dt(value)
 
 
@@ -144,59 +162,55 @@ def api_latency_health():
 
 @APP.get("/api/v1/radar")
 def api_radar():
+    identity = getattr(_app.request, "obrasignal_identity", None) or configured_identity()
     limit = max(1, min(100, int(_app.request.args.get("limit", 20) or 20)))
     minscore = max(0, min(100, int(_app.request.args.get("minscore", 0) or 0)))
     conn = _app.db()
     try:
-        rows = conn.execute(
-            "SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT ?",
-            (minscore, limit),
-        ).fetchall()
-        items = enrich_rows(conn, rows)
-        return _app.jsonify(items=items, count=len(items), minscore=minscore, limit=limit)
+        rows = conn.execute("SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT ?", (minscore, limit)).fetchall()
+        items = enrich_rows(conn, rows, account_id=identity.account_id)
+        return _app.jsonify(items=items, count=len(items), minscore=minscore, limit=limit, account_id=identity.account_id)
     finally:
         conn.close()
 
 
 @APP.get("/radar")
 def radar_page():
+    identity = getattr(_app.request, "obrasignal_identity", None) or configured_identity()
     try:
         minscore = max(0, min(100, int(_app.request.args.get("minscore", 0) or 0)))
     except (TypeError, ValueError):
         minscore = 0
-
     conn = _app.db()
     try:
-        rows = conn.execute(
-            "SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT 100",
-            (minscore,),
-        ).fetchall()
-        items = enrich_rows(conn, rows)
+        rows = conn.execute("SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT 100", (minscore,)).fetchall()
+        items = enrich_rows(conn, rows, account_id=identity.account_id)
         return render_radar_page(items, minscore=minscore)
     finally:
         conn.close()
 
 
-def _ensure_profile_columns(conn):
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(tenders)").fetchall()}
-    if "global_score" not in cols:
-        conn.execute("ALTER TABLE tenders ADD COLUMN global_score INTEGER")
-    if "profile_score" not in cols:
-        conn.execute("ALTER TABLE tenders ADD COLUMN profile_score INTEGER")
-    if "profile_reason" not in cols:
-        conn.execute("ALTER TABLE tenders ADD COLUMN profile_reason TEXT")
-    conn.commit()
+def _record_account_decisions(conn):
+    """Evaluate the just-synced tenders for every active account."""
+    run = conn.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
+    if not run or not run["finished_at"]:
+        return 0
+    rows = conn.execute("SELECT * FROM tenders WHERE last_seen=?", (run["finished_at"],)).fetchall()
+    accounts = list_active_accounts(conn) or [configured_identity().account_id]
+    recorded = 0
+    for account_id in accounts:
+        for row in rows:
+            persist_and_classify(conn, dict(row), True, account_id=account_id)
+            recorded += 1
+    return recorded
 
 
-def _apply_profile_scores(conn):
-    _ensure_profile_columns(conn)
-    rows = conn.execute("SELECT * FROM tenders").fetchall()
-    for row in rows:
-        d = dict(row)
-        base = int(d.get("global_score") if d.get("global_score") is not None else d.get("score") or 0)
-        score, label, cls, reason = personalized_score(d, base)
-        conn.execute("UPDATE tenders SET global_score=?, profile_score=?, score=?, priority_label=?, priority_class=?, profile_reason=?, match_reason=? WHERE id=?", (base, score, score, label, cls, reason, reason, d["id"]))
-    conn.commit()
+def _record_account_events(conn):
+    accounts = list_active_accounts(conn) or [configured_identity().account_id]
+    events = []
+    for account_id in accounts:
+        events.extend(record_new_opportunities(conn, account_id=account_id, min_score=75))
+    return events
 
 
 def sync_once_with_events(*args, **kwargs):
@@ -207,25 +221,25 @@ def sync_once_with_events(*args, **kwargs):
     result = _original_sync_once(*args, **kwargs)
     conn = _app.db()
     try:
-        _apply_profile_scores(conn)
-        events = record_new_opportunities(conn, min_score=75)
+        decisions = _record_account_decisions(conn)
+        events = _record_account_events(conn)
         duration_ms = int((time.perf_counter() - started) * 1000)
         record_stage(conn, "PIPELINE", "sync_and_events", started_at, duration_ms, len(events))
     finally:
         conn.close()
-    return {"sync": result, "new_events": events}
+    return {"sync": result, "decisions": decisions, "new_events": events}
 
 
 @APP.get("/opportunity/<int:tender_id>")
 def opportunity_detail(tender_id):
+    identity = getattr(_app.request, "obrasignal_identity", None) or configured_identity()
     conn = _app.db()
     row = conn.execute("SELECT * FROM tenders WHERE id=?", (tender_id,)).fetchone()
     if row is None:
         conn.close()
         return _app.Response("Oportunidade não encontrada", status=404)
-
     item = dict(row)
-    decision = get_presented_decision(conn, item.get("source"), item.get("external_id"))
+    decision = get_presented_decision(conn, item.get("source"), item.get("external_id"), account_id=identity.account_id)
     conn.close()
     return render_opportunity_detail(item, decision)
 
