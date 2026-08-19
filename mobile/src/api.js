@@ -52,6 +52,7 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(profile || {}),
   }),
+  billingStatus: () => request('/billing/status'),
   stats: () => request('/stats'),
   workflowStats: () => request('/workflow/stats'),
   opportunities: async ({ q = '', minscore = 0, source = '', limit = 60, openOnly = false } = {}) => {

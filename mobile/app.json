@@ -2,7 +2,7 @@
   "expo": {
     "name": "ObraSignal",
     "slug": "obrasignal",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "default",
     "userInterfaceStyle": "dark",
     "scheme": "obrasignal",
