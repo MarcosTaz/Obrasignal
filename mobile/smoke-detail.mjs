@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 
-const source = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
+const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
+const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
+const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
+const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 
 const checks = [
   ['detail receives selected opportunity', /<Detail\s+initialItem=\{selected\}/],
@@ -9,10 +12,23 @@ const checks = [
   ['official source action is rendered', /Abrir fonte oficial/],
 ];
 
-const failures = checks.filter(([, pattern]) => !pattern.test(source));
-if (failures.length) {
-  for (const [name] of failures) console.error(`FAIL: ${name}`);
+const crossFileChecks = [
+  ['authenticated startup syncs alerts', /syncUnreadOpportunityAlerts/],
+  ['notification sync reads unread server alerts', /api\.alerts\(\{ unreadOnly: true/],
+  ['notification sync acknowledges delivered events', /api\.markAlertDelivered\(item\.event_id\)/],
+  ['API exposes alerts endpoint', /alerts:\s*\(\{ limit = 20, unreadOnly = false \}/],
+];
+
+const failures = checks.filter(([, pattern]) => !pattern.test(app));
+const crossFailures = [
+  ...crossFileChecks.slice(0, 1).filter(([, pattern]) => !pattern.test(authGate)),
+  ...crossFileChecks.slice(1, 3).filter(([, pattern]) => !pattern.test(notifications)),
+  ...crossFileChecks.slice(3).filter(([, pattern]) => !pattern.test(api)),
+];
+
+if (failures.length || crossFailures.length) {
+  for (const [name] of [...failures, ...crossFailures]) console.error(`FAIL: ${name}`);
   process.exit(1);
 }
 
-for (const [name] of checks) console.log(`PASS: ${name}`);
+for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
