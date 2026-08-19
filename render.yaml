@@ -3,6 +3,7 @@ services:
     name: obrasignal
     runtime: python
     buildCommand: pip install -r requirements.txt
+    # Explicitly launch the native API facade so /api/v1 routes and JWT auth are served.
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 api:APP
     healthCheckPath: /api/v1/health
     envVars:
