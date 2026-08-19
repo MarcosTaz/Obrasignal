@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { api } from '../src/api'
 import { syncUnreadOpportunityAlerts } from '../src/notifications'
@@ -34,6 +34,17 @@ export default function AuthGate({ children }) {
       setProfileLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    if (!session) return undefined
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        // Re-check unread events whenever the app returns to the foreground.
+        syncUnreadOpportunityAlerts().catch(() => {})
+      }
+    })
+    return () => subscription.remove()
+  }, [session])
 
   useEffect(() => {
     let mounted = true
