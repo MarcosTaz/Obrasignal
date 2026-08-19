@@ -68,6 +68,24 @@ def _signed_test_token(private_key, *, issuer="https://example.supabase.co", aud
     )
 
 
+def test_supabase_project_url_is_normalized_to_auth_issuer():
+    from auth_context_jwt import JwtVerifier
+
+    verifier = JwtVerifier("https://example.supabase.co")
+
+    assert verifier.issuer == "https://example.supabase.co/auth/v1"
+    assert verifier.jwks_url == "https://example.supabase.co/auth/v1/.well-known/jwks.json"
+
+
+def test_existing_supabase_auth_issuer_is_preserved():
+    from auth_context_jwt import JwtVerifier
+
+    verifier = JwtVerifier("https://example.supabase.co/auth/v1")
+
+    assert verifier.issuer == "https://example.supabase.co/auth/v1"
+    assert verifier.jwks_url == "https://example.supabase.co/auth/v1/.well-known/jwks.json"
+
+
 def test_jwt_verifier_accepts_valid_rs256_token():
     from auth_context_jwt import JwtVerifier
 
@@ -75,10 +93,10 @@ def test_jwt_verifier_accepts_valid_rs256_token():
     public_key = private_key.public_key()
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(public_key))
 
-    verifier = JwtVerifier("https://example.supabase.co")
+    verifier = JwtVerifier("https://example.supabase.co/auth/v1")
     verifier._jwks = lambda: {"test-key": jwk}
 
-    identity = verifier.verify(_signed_test_token(private_key))
+    identity = verifier.verify(_signed_test_token(private_key, issuer="https://example.supabase.co/auth/v1"))
 
     assert identity.account_id == "user-123"
     assert identity.subject == "user-123"
@@ -92,8 +110,8 @@ def test_jwt_verifier_rejects_wrong_audience():
     public_key = private_key.public_key()
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(public_key))
 
-    verifier = JwtVerifier("https://example.supabase.co")
+    verifier = JwtVerifier("https://example.supabase.co/auth/v1")
     verifier._jwks = lambda: {"test-key": jwk}
 
     with pytest.raises(jwt.InvalidTokenError):
-        verifier.verify(_signed_test_token(private_key, audience="wrong-audience"))
+        verifier.verify(_signed_test_token(private_key, issuer="https://example.supabase.co/auth/v1", audience="wrong-audience"))
