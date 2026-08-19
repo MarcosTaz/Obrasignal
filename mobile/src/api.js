@@ -17,6 +17,20 @@ function isRetryableNetworkError(error) {
   return !error.status;
 }
 
+function describeNetworkError(error, path) {
+  const name = error?.name || 'NetworkError';
+  const message = error?.message || String(error || 'unknown error');
+  const hint = /load failed|failed to fetch|networkerror/i.test(message)
+    ? 'O navegador não recebeu uma resposta HTTP. Verifica CORS, TLS, DNS ou se o endpoint está acessível.'
+    : message;
+  const diagnostic = new Error(`API ${path}: ${hint} [${name}]`);
+  diagnostic.code = 'API_NETWORK_ERROR';
+  diagnostic.causeMessage = message;
+  diagnostic.path = path;
+  diagnostic.apiBase = API_BASE;
+  return diagnostic;
+}
+
 async function request(path, options = {}) {
   const timeout = options.timeout ?? DEFAULT_TIMEOUT;
   const maxAttempts = options.maxAttempts ?? MAX_ATTEMPTS;
@@ -55,17 +69,18 @@ async function request(path, options = {}) {
         const message = data?.error || `HTTP ${response.status}`;
         const error = new Error(message);
         error.status = response.status;
+        error.responseBody = data;
         throw error;
       }
 
       return data;
     } catch (error) {
-      lastError = error;
+      lastError = isRetryableNetworkError(error) ? describeNetworkError(error, path) : error;
       if (!isRetryableNetworkError(error) || attempt >= maxAttempts) {
         if (error?.name === 'AbortError') {
-          throw new Error('O servidor demorou demasiado tempo a responder. O Render pode estar a acordar; tenta novamente em alguns segundos.');
+          throw new Error(`API ${path}: o servidor demorou demasiado tempo a responder. O Render pode estar a acordar.`);
         }
-        throw error;
+        throw lastError;
       }
       await sleep(1500 * attempt);
     } finally {
@@ -73,7 +88,7 @@ async function request(path, options = {}) {
     }
   }
 
-  throw lastError || new Error('Não foi possível ligar ao ObraSignal.');
+  throw lastError || new Error(`API ${path}: não foi possível concluir o pedido.`);
 }
 
 function normalizeOpportunity(item) {
