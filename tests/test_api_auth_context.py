@@ -38,3 +38,22 @@ def test_profiles_are_selected_from_request_identity(monkeypatch, tmp_path):
 
     assert a["name"] == "A"
     assert b["name"] == "B"
+
+
+def test_provider_cors_normalizes_github_pages_project_path(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "https://marcostaz.github.io/Obrasignal/")
+
+    response = api.APP.test_client().options(
+        "/api/v1/profile",
+        headers={
+            "Origin": "https://marcostaz.github.io",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["Access-Control-Allow-Origin"] == "https://marcostaz.github.io"
+    assert "Authorization" in response.headers["Access-Control-Allow-Headers"]
+    assert "GET" in response.headers["Access-Control-Allow-Methods"]
