@@ -61,6 +61,8 @@ def _apply_cors(response):
 
 @bp.before_request
 def _require_identity():
+    # Handle browser CORS preflight explicitly. Do not let Flask's automatic
+    # OPTIONS handling or JWT authentication get in front of the preflight.
     if request.method == "OPTIONS":
         return _apply_cors(APP.response_class("", status=204, mimetype="text/plain"))
     if request.endpoint == "mobile_api.health":
