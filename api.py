@@ -61,8 +61,6 @@ def _apply_cors(response):
 
 @bp.before_request
 def _require_identity():
-    # Handle browser CORS preflight explicitly. Do not let Flask's automatic
-    # OPTIONS handling or JWT authentication get in front of the preflight.
     if request.method == "OPTIONS":
         return _apply_cors(APP.response_class("", status=204, mimetype="text/plain"))
     if request.endpoint == "mobile_api.health":
@@ -231,8 +229,14 @@ def stats():
     identity = request.obrasignal_identity
     c = _db()
     ensure_decision_table(c)
-    base = "FROM tenders t JOIN opportunity_decisions d ON d.source=t.source AND d.external_id=t.external_id WHERE d.account_id=?"
-    params = [identity.account_id]
+    latest = """JOIN (
+        SELECT od.source, od.external_id, MAX(od.id) AS max_id
+        FROM opportunity_decisions od
+        WHERE od.account_id=?
+        GROUP BY od.source, od.external_id
+    ) latest ON latest.max_id=d.id"""
+    base = f"FROM tenders t JOIN opportunity_decisions d ON d.source=t.source AND d.external_id=t.external_id {latest} WHERE d.account_id=?"
+    params = [identity.account_id, identity.account_id]
     total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
     high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 75", params).fetchone()[0]
     open_count = c.execute(f"SELECT COUNT(*) {base} AND (t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline)>=datetime('now'))", params).fetchone()[0]
