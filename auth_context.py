@@ -16,12 +16,12 @@ _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ALLOWED_AUTH_MODES = {"development", "provider"}
 _DEFAULT_WEB_ORIGIN = "https://marcostaz.github.io"
 
-# Normalize the configured browser origin once at process startup. A browser
-# Origin never contains a path, so a value such as
-# https://marcostaz.github.io/Obrasignal/ would otherwise break CORS on the
-# GitHub Pages client.
+# A browser Origin never contains a path. GitHub Pages serves the project under
+# /Obrasignal/, but the API must receive only the origin (scheme + host).
 _configured_cors = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "").strip()
-if _configured_cors and _configured_cors != "*":
+if not _configured_cors:
+    os.environ["OBRASIGNAL_CORS_ORIGIN"] = _DEFAULT_WEB_ORIGIN
+elif _configured_cors != "*":
     _parsed_cors = urlsplit(_configured_cors)
     if _parsed_cors.scheme and _parsed_cors.netloc:
         os.environ["OBRASIGNAL_CORS_ORIGIN"] = urlunsplit(
