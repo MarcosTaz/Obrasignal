@@ -200,11 +200,16 @@ def alert_delivered(event_id):
 
 @bp.route("/stats", methods=["GET"])
 def stats():
-    c = _db(); total = c.execute("SELECT COUNT(*) FROM tenders").fetchone()[0]; high = c.execute("SELECT COUNT(*) FROM tenders WHERE score>=75").fetchone()[0]
-    open_count = c.execute("SELECT COUNT(*) FROM tenders WHERE deadline IS NULL OR deadline='' OR datetime(deadline)>=datetime('now')").fetchone()[0]
-    new24 = c.execute("SELECT COUNT(*) FROM tenders WHERE julianday(first_seen)>=julianday('now','-1 day')").fetchone()[0]
+    identity = request.obrasignal_identity
+    c = _db(); ensure_decision_table(c)
+    base = "FROM tenders t JOIN opportunity_decisions d ON d.source=t.source AND d.external_id=t.external_id WHERE d.account_id=?"
+    params = [identity.account_id]
+    total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
+    high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 75", params).fetchone()[0]
+    open_count = c.execute(f"SELECT COUNT(*) {base} AND (t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline)>=datetime('now'))", params).fetchone()[0]
+    new24 = c.execute(f"SELECT COUNT(*) {base} AND julianday(t.first_seen)>=julianday('now','-1 day')", params).fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone(); c.close()
-    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None})
+    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None, "account_id": identity.account_id})
 
 
 @bp.route("/workflow/stats", methods=["GET"])
