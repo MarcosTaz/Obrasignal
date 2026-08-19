@@ -38,6 +38,7 @@ jobs:
       - name: Authenticate against Supabase
         run: |
           set -euo pipefail
+          echo "Running current authenticated E2E workflow revision."
           BASE_URL="${SUPABASE_URL%/}"
           BASE_URL="${BASE_URL%/rest/v1}"
           AUTH_URL="${BASE_URL}/auth/v1/token?grant_type=password"
