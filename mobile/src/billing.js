@@ -15,10 +15,13 @@ function publicKey() {
 export async function configureBilling(appUserId) {
   const key = publicKey();
   if (!key || !appUserId) return { configured: false, customerInfo: null };
-  if (configuredUserId !== appUserId) {
-    try { await Purchases.logOut(); } catch (_) {}
-    await Purchases.configure({ apiKey: key, appUserID: String(appUserId) });
-    configuredUserId = String(appUserId);
+  const userId = String(appUserId);
+  if (!configuredUserId) {
+    await Purchases.configure({ apiKey: key, appUserID: userId });
+    configuredUserId = userId;
+  } else if (configuredUserId !== userId) {
+    await Purchases.logIn(userId);
+    configuredUserId = userId;
   }
   const customerInfo = await Purchases.getCustomerInfo();
   return { configured: true, customerInfo };
@@ -53,8 +56,4 @@ export async function restoreBilling() {
 
 export async function refreshBilling() {
   return Purchases.getCustomerInfo();
-}
-
-export async function managementUrl(customerInfo) {
-  return customerInfo?.managementURL || null;
 }
