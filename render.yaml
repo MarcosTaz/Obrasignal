@@ -15,6 +15,9 @@ services:
         sync: false
       - key: OBRASIGNAL_JWKS_URL
         sync: false
+      # Production web client origin. This is not a secret.
+      - key: OBRASIGNAL_CORS_ORIGIN
+        value: "https://marcostaz.github.io"
       # Poll frequently enough to make the radar near-real-time without
       # pretending that upstream procurement portals publish instantaneously.
       - key: POLL_SECONDS
