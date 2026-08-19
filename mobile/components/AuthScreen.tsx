@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { supabase } from '../lib/supabase'
 
 export default function AuthScreen() {
@@ -16,9 +16,16 @@ export default function AuthScreen() {
 
     setLoading(true)
     try {
+      const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
+        ? `${window.location.origin}${window.location.pathname}`
+        : undefined
       const result = mode === 'signIn'
         ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
-        : await supabase.auth.signUp({ email: email.trim(), password })
+        : await supabase.auth.signUp({
+            email: email.trim(),
+            password,
+            options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+          })
 
       if (result.error) throw result.error
       if (mode === 'signUp' && !result.data.session) {
