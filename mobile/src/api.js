@@ -52,6 +52,11 @@ export const api = {
     return request(`/opportunities?${p.toString()}`);
   },
   opportunity: (id) => request(`/opportunities/${encodeURIComponent(id)}`),
+  workflow: (id) => request(`/opportunities/${encodeURIComponent(id)}/workflow`),
+  setWorkflow: (id, status, note) => request(`/opportunities/${encodeURIComponent(id)}/workflow`, {
+    method: 'POST',
+    body: JSON.stringify({ status, note: note || null }),
+  }),
 };
 
 export { API_BASE };
