@@ -20,12 +20,14 @@ class JwtIdentity:
 
 
 class JwtVerifier:
-    def __init__(self, issuer: str, audience: str, jwks_url: str, cache_seconds: int = 300):
-        if not issuer or not audience or not jwks_url:
-            raise RuntimeError("JWT provider configuration is incomplete")
+    def __init__(self, issuer: str, audience: str = "authenticated", jwks_url: str = "", cache_seconds: int = 300):
+        if not issuer:
+            raise RuntimeError("JWT provider issuer is not configured")
         self.issuer = issuer.rstrip("/")
-        self.audience = audience
-        self.jwks_url = jwks_url
+        self.audience = (audience or "authenticated").strip()
+        # Supabase's canonical JWKS endpoint is derived directly from the JWT issuer.
+        # Keep an explicit override for other OIDC-compatible providers.
+        self.jwks_url = (jwks_url or f"{self.issuer}/.well-known/jwks.json").strip()
         self.cache_seconds = max(30, int(cache_seconds))
         self._keys = None
         self._expires_at = 0.0
@@ -55,6 +57,9 @@ class JwtVerifier:
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
         alg = header.get("alg")
+        # Production verification intentionally accepts only asymmetric Supabase/OIDC
+        # signing algorithms. Legacy HS256 requires a private shared secret and is not
+        # accepted by this public-key verifier.
         if not kid or alg not in {"RS256", "ES256"}:
             raise InvalidTokenError("unsupported JWT header")
         jwk = self._jwks().get(str(kid))
@@ -74,9 +79,10 @@ class JwtVerifier:
 
 
 def production_verifier() -> JwtVerifier:
+    issuer = os.getenv("OBRASIGNAL_JWT_ISSUER", "").strip()
     return JwtVerifier(
-        issuer=os.getenv("OBRASIGNAL_JWT_ISSUER", ""),
-        audience=os.getenv("OBRASIGNAL_JWT_AUDIENCE", ""),
+        issuer=issuer,
+        audience=os.getenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated"),
         jwks_url=os.getenv("OBRASIGNAL_JWKS_URL", ""),
         cache_seconds=int(os.getenv("OBRASIGNAL_JWKS_CACHE_SECONDS", "300")),
     )
