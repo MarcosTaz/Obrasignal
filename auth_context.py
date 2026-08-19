@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from urllib.parse import urlsplit, urlunsplit
 
 from flask import has_request_context, request
 from jwt import InvalidTokenError
@@ -13,6 +14,18 @@ from auth_context_jwt import production_verifier
 
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ALLOWED_AUTH_MODES = {"development", "provider"}
+
+# Normalize the configured browser origin once at process startup.  A browser
+# Origin never contains a path, so a value such as
+# https://marcostaz.github.io/Obrasignal/ would otherwise break CORS on the
+# GitHub Pages client.
+_configured_cors = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "").strip()
+if _configured_cors and _configured_cors != "*":
+    _parsed_cors = urlsplit(_configured_cors)
+    if _parsed_cors.scheme and _parsed_cors.netloc:
+        os.environ["OBRASIGNAL_CORS_ORIGIN"] = urlunsplit(
+            (_parsed_cors.scheme, _parsed_cors.netloc, "", "", "")
+        )
 
 
 @dataclass(frozen=True)
