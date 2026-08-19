@@ -33,23 +33,56 @@ export default function AuthGate({ children }) {
 
   useEffect(() => {
     let mounted = true
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return
-      setSession(data.session)
-      setLoading(false)
-      if (data.session) loadProfile()
-    })
+    let subscription = null
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession)
-      if (nextSession) loadProfile()
-      else setProfile(null)
-      setLoading(false)
-    })
+    const scheduleProfileLoad = () => {
+      // Never call Supabase APIs synchronously from onAuthStateChange.
+      // Supabase auth uses an internal lock and doing so can deadlock the
+      // next getSession()/getUser() call, especially in the web client.
+      setTimeout(() => {
+        if (mounted) loadProfile()
+      }, 0)
+    }
+
+    const bootstrap = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession()
+        if (!mounted) return
+        if (error) throw error
+
+        setSession(data.session)
+        setLoading(false)
+        if (data.session) scheduleProfileLoad()
+
+        const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
+          if (!mounted) return
+          setSession(nextSession)
+
+          if (!nextSession) {
+            setProfile(null)
+            setProfileError('')
+            setProfileLoading(false)
+            return
+          }
+
+          // INITIAL_SESSION is already handled by bootstrap above.
+          if (event !== 'INITIAL_SESSION') scheduleProfileLoad()
+        })
+        subscription = listener?.subscription || null
+      } catch (error) {
+        if (!mounted) return
+        setSession(null)
+        setProfile(null)
+        setProfileError(error?.message || 'Não foi possível iniciar a autenticação.')
+        setLoading(false)
+      }
+    }
+
+    bootstrap()
 
     return () => {
       mounted = false
-      subscription.subscription.unsubscribe()
+      subscription?.unsubscribe()
     }
   }, [loadProfile])
 
