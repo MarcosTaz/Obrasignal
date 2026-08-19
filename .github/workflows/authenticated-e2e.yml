@@ -1,0 +1,77 @@
+name: ObraSignal Authenticated E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "47 2 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  authenticated-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      API_URL: https://obrasignal.onrender.com/api/v1
+    steps:
+      - name: Require E2E credentials
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_URL SUPABASE_KEY E2E_EMAIL E2E_PASSWORD; do
+            test -n "${!name}" || { echo "Missing required E2E secret: $name"; exit 1; }
+          done
+
+      - name: Authenticate against Supabase
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
+            -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H 'Content-Type: application/json' \
+            --data "$(python - <<'PY'
+import json, os
+print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
+PY
+            )" > /tmp/auth.json
+          python - <<'PY'
+import json
+payload=json.load(open('/tmp/auth.json'))
+token=payload.get('access_token')
+assert token, 'Supabase did not return an access token'
+open('/tmp/access_token','w').write(token)
+print('Supabase authentication succeeded.')
+PY
+
+      - name: Verify authenticated API identity
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            "$API_URL/profile" > /tmp/profile.json
+          python - <<'PY'
+import json
+payload=json.load(open('/tmp/profile.json'))
+assert payload.get('authenticated') is True
+assert payload.get('account_id')
+assert isinstance(payload.get('profile'), dict)
+print('Authenticated API identity verified for account:', payload['account_id'])
+PY
+
+      - name: Verify authenticated opportunity access
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            "$API_URL/opportunities?limit=1" > /tmp/opportunities.json
+          python - <<'PY'
+import json
+payload=json.load(open('/tmp/opportunities.json'))
+assert isinstance(payload.get('items'), list)
+assert payload.get('account_id')
+print('Authenticated opportunity access verified.')
+PY
