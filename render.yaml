@@ -5,6 +5,16 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 api:APP
     envVars:
+      # Production authentication MUST be explicit; secret JWT provider values
+      # are configured in the Render dashboard/environment, never committed here.
+      - key: OBRASIGNAL_AUTH_MODE
+        value: "provider"
+      - key: OBRASIGNAL_JWT_ISSUER
+        sync: false
+      - key: OBRASIGNAL_JWT_AUDIENCE
+        sync: false
+      - key: OBRASIGNAL_JWKS_URL
+        sync: false
       # Poll frequently enough to make the radar near-real-time without
       # pretending that upstream procurement portals publish instantaneously.
       - key: POLL_SECONDS
