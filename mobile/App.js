@@ -123,13 +123,15 @@ function Score({ value }) {
 }
 
 function OpportunityCard({ item, saved, onOpen, onSave }) {
+  const accountScore = item?.decision_score;
+  const displayScore = accountScore != null ? accountScore : (item?.score || 0);
   return <Pressable onPress={() => onOpen(item)} style={({ pressed }) => [styles.card, pressed && { opacity: 0.86 }]}>
-    <View style={styles.cardTop}><View style={styles.sourcePill}><Text style={styles.sourceText}>{item.source}</Text></View><Score value={item.score || 0} /></View>
+    <View style={styles.cardTop}><View style={styles.sourcePill}><Text style={styles.sourceText}>{item.source}</Text></View><Score value={displayScore} /></View>
     <Text style={styles.cardTitle} numberOfLines={4}>{item.title || 'Sem título'}</Text>
     <Text style={styles.buyer} numberOfLines={2}>{item.buyer || 'Entidade não identificada'}</Text>
     <Deadline item={item} />
     {item.value ? <Text style={styles.meta}>Valor: {item.value}</Text> : null}
-    <Text style={styles.reason} numberOfLines={2}>{item.match_reason || 'Correspondência com obra'}</Text>
+    <Text style={styles.reason} numberOfLines={2}>{item.decision_reason || item.match_reason || 'Correspondência com obra'}</Text>
     <View style={styles.cardBottom}><Text style={styles.openText}>Ver oportunidade →</Text>
       <Pressable hitSlop={12} onPress={(e) => { e.stopPropagation?.(); onSave(item.id); }}><Text style={[styles.saveIcon, saved && { color: COLORS.amber }]}>{saved ? '★' : '☆'}</Text></Pressable>
     </View>
@@ -137,11 +139,12 @@ function OpportunityCard({ item, saved, onOpen, onSave }) {
 }
 
 function Detail({ item, saved, onBack, onSave }) {
+  const displayScore = item?.decision_score != null ? item.decision_score : (item?.score || 0);
   return <SafeAreaView style={styles.safe}><StatusBar style="light" /><ScrollView contentContainerStyle={styles.detailWrap}>
     <View style={styles.detailHeader}><Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>‹  Voltar</Text></Pressable>
       <Pressable onPress={() => onSave(item.id)}><Text style={[styles.saveIcon, saved && { color: COLORS.amber }]}>{saved ? '★' : '☆'}</Text></Pressable>
     </View>
-    <View style={styles.cardTop}><View style={styles.sourcePill}><Text style={styles.sourceText}>{item.source}</Text></View><Score value={item.score || 0} /></View>
+    <View style={styles.cardTop}><View style={styles.sourcePill}><Text style={styles.sourceText}>{item.source}</Text></View><Score value={displayScore} /></View>
     <Text style={styles.detailTitle}>{item.title || 'Sem título'}</Text>
     <Text style={styles.detailBuyer}>{item.buyer || 'Entidade não identificada'}</Text>
     <Deadline item={item} large />
@@ -149,7 +152,7 @@ function Detail({ item, saved, onBack, onSave }) {
       <Info label="PUBLICAÇÃO" value={item.publication_date || '—'} /><Info label="VALOR" value={item.value || 'Não indicado'} />
       <Info label="PAÍS" value={item.country || 'PRT'} /><Info label="CPV" value={item.cpv || '—'} />
     </View>
-    {item.match_reason ? <View style={styles.highlight}><Text style={styles.highlightLabel}>{item.priority_label || 'RELEVÂNCIA'}</Text><Text style={styles.highlightText}>{item.match_reason}</Text></View> : null}
+    {item.match_reason ? <View style={styles.highlight}><Text style={styles.highlightLabel}>{item.priority_label || 'RELEVÂNCIA'}</Text><Text style={styles.highlightText}>{item.decision_reason || item.match_reason}</Text></View> : null}
     <OpportunityExplanation item={item} />
     <Section title="Objeto"><Text style={styles.bodyText}>{item.description || 'Descrição não disponível.'}</Text></Section>
     <Section title="Fonte oficial"><Text style={styles.bodyText}>Os dados são apresentados dentro do ObraSignal. A fonte oficial permanece disponível para confirmação documental.</Text>
