@@ -1,18 +1,24 @@
 import sqlite3
 
 
-def test_stats_counts_only_authenticated_account(monkeypatch):
+def test_stats_counts_only_authenticated_account(monkeypatch, tmp_path):
     import api
 
     class Identity:
         account_id = "company-a"
         authenticated = True
 
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
+    db_path = tmp_path / "stats.db"
+
+    def connect():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    conn = connect()
     try:
         monkeypatch.setattr(api, "configured_identity", lambda: Identity())
-        monkeypatch.setattr(api._preload._app, "db", lambda: conn)
+        monkeypatch.setattr(api._preload._app, "db", connect)
 
         conn.execute(
             "CREATE TABLE tenders(id INTEGER PRIMARY KEY, source TEXT, external_id TEXT, deadline TEXT, first_seen TEXT, score INTEGER)"
