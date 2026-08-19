@@ -39,3 +39,5 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Report deployment URL
+        run: echo "Web preview deployed at ${{ steps.deployment.outputs.page_url }}"
