@@ -31,8 +31,8 @@ def test_pipeline_decisions_are_isolated_by_account():
     }
 
     conn = _conn()
-    persist_and_classify(conn, item, True, account_id="empresa-a")
-    persist_and_classify(conn, item, True, account_id="empresa-b")
+    decision_a, reason_a = persist_and_classify(conn, item, True, account_id="empresa-a")
+    decision_b, reason_b = persist_and_classify(conn, item, True, account_id="empresa-b")
 
     a = latest_decision(conn, "TED", "X-1", account_id="empresa-a")
     b = latest_decision(conn, "TED", "X-1", account_id="empresa-b")
@@ -40,8 +40,11 @@ def test_pipeline_decisions_are_isolated_by_account():
     assert b is not None
     assert a["account_id"] == "empresa-a"
     assert b["account_id"] == "empresa-b"
-    assert funnel_counts(conn, "empresa-a") == {"RELEVANT": 1}
-    assert funnel_counts(conn, "empresa-b") == {"RELEVANT": 1}
+    assert decision_a == decision_b
+    assert reason_a == reason_b
+    assert funnel_counts(conn, "empresa-a") == {decision_a: 1}
+    assert funnel_counts(conn, "empresa-b") == {decision_b: 1}
+    assert decision_a in {"QUALIFIED", "REVIEW", "REJECT"}
     conn.close()
 
 
@@ -69,6 +72,10 @@ def test_sync_without_explicit_account_evaluates_all_active_accounts():
     recorded = record_sync_decisions(conn, [item])
 
     assert recorded == 2
-    assert latest_decision(conn, "TED", "X-2", account_id="empresa-a") is not None
-    assert latest_decision(conn, "TED", "X-2", account_id="empresa-b") is not None
+    a = latest_decision(conn, "TED", "X-2", account_id="empresa-a")
+    b = latest_decision(conn, "TED", "X-2", account_id="empresa-b")
+    assert a is not None
+    assert b is not None
+    assert a["decision"] == b["decision"]
+    assert a["reason"] == b["reason"]
     conn.close()
