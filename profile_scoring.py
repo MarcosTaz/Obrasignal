@@ -36,8 +36,14 @@ def _country_code(value):
     return _COUNTRY_ALIASES.get(str(value or "").upper(), str(value or "").upper())
 
 
-def personalized_score(row, base_score=None):
-    profile = derive_profile(load_profile().get("activity", ""), load_profile())
+def personalized_score(row, base_score=None, profile=None):
+    """Score a tender against one explicit company profile.
+
+    `profile` is deliberately injectable so multi-account sync never falls back
+    to the shared/default profile. The old call shape remains supported.
+    """
+    if profile is None:
+        profile = derive_profile(load_profile().get("activity", ""), load_profile())
     base = int(row.get("score") if base_score is None else base_score or 0)
     score = base
     text = _text(row)
