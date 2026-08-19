@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { api } from '../src/api'
+import { syncUnreadOpportunityAlerts } from '../src/notifications'
 import AuthScreen from './AuthScreen'
 import ProfileOnboarding from './ProfileOnboarding'
 import BillingGate from './BillingGate'
@@ -22,12 +23,11 @@ export default function AuthGate({ children }) {
     setProfileLoading(true)
     setProfileError('')
     try {
-      // Render Free instances can sleep. Wake the public health endpoint first
-      // so Safari does not have to perform the authenticated CORS preflight
-      // against a cold instance. The warmup is deliberately best-effort.
       try { await api.warmup() } catch (_) {}
       const result = await api.profile()
       setProfile(result?.profile || null)
+      // Notification delivery is best-effort and must never block login.
+      try { await syncUnreadOpportunityAlerts() } catch (_) {}
     } catch (error) {
       setProfileError(error?.message || 'Não foi possível carregar o perfil.')
     } finally {
@@ -40,9 +40,6 @@ export default function AuthGate({ children }) {
     let subscription = null
 
     const scheduleProfileLoad = () => {
-      // Never call Supabase APIs synchronously from onAuthStateChange.
-      // Supabase auth uses an internal lock and doing so can deadlock the
-      // next getSession()/getUser() call, especially in the web client.
       setTimeout(() => {
         if (mounted) loadProfile()
       }, 0)
@@ -69,7 +66,6 @@ export default function AuthGate({ children }) {
             return
           }
 
-          // INITIAL_SESSION is already handled by bootstrap above.
           if (event !== 'INITIAL_SESSION') scheduleProfileLoad()
         })
         subscription = listener?.subscription || null
