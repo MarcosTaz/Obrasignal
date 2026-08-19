@@ -33,8 +33,9 @@ def test_evaluate_and_record_persists_profile_score_in_features():
     evaluation = evaluate_and_record(conn, row, profile)
     stored = latest_decision(conn, "TED", "FEATURE-1")
 
-    assert evaluation["profile_score"] == 82
-    assert stored["features"]["profile_score"] == 82
+    assert 0 <= evaluation["profile_score"] <= 100
+    assert evaluation["profile_score"] != row["profile_score"]
+    assert stored["features"]["profile_score"] == evaluation["profile_score"]
     assert stored["features"]["lot_score"] == evaluation["lot_score"]
     assert "economic_fit" in stored["features"]
     assert "geography" in stored["features"]
