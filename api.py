@@ -243,7 +243,7 @@ def stats():
 
 @bp.route("/workflow/stats", methods=["GET"])
 def workflow_stats():
-    identity = request.obra_signal_identity if hasattr(request, "obra_signal_identity") else request.obrasignal_identity
+    identity = request.obrasignal_identity
     c = _db()
     counts = workflow_counts(c, identity.account_id)
     c.close()
