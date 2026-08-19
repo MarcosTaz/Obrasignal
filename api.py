@@ -12,7 +12,7 @@ from notification_events import ensure_event_table
 from source_registry import SOURCES
 from account_registry import ensure_account
 from decision_log import ensure_decision_table
-from opportunity_workflow import get_workflow, set_workflow
+from opportunity_workflow import get_workflow, set_workflow, workflow_counts
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
@@ -91,14 +91,7 @@ def _row(row, decision=None, workflow=None):
         d["account_decision"] = None
         d["account_reason"] = None
         d["account_score"] = None
-    d["workflow"] = workflow or {
-        "account_id": d.get("account_id"),
-        "source": d.get("source"),
-        "external_id": d.get("external_id"),
-        "status": "NEW",
-        "note": None,
-        "updated_at": None,
-    }
+    d["workflow"] = workflow or {"status": "NEW", "note": None, "updated_at": None}
     return d
 
 
@@ -248,6 +241,15 @@ def stats():
     return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None})
 
 
+@bp.route("/workflow/stats", methods=["GET"])
+def workflow_stats():
+    identity = request.obra_signal_identity if hasattr(request, "obra_signal_identity") else request.obrasignal_identity
+    c = _db()
+    counts = workflow_counts(c, identity.account_id)
+    c.close()
+    return jsonify({"counts": counts, "account_id": identity.account_id, "generated_at": _iso_now()})
+
+
 @bp.route("/opportunities", methods=["GET"])
 def opportunities():
     identity = request.obrasignal_identity
@@ -319,19 +321,12 @@ def opportunity_workflow(tender_id):
         return jsonify(result)
     payload = request.get_json(silent=True) or {}
     try:
-        result = set_workflow(
-            c,
-            identity.account_id,
-            source,
-            external_id,
-            payload.get("status"),
-            payload.get("note"),
-        )
+        result = set_workflow(c, identity.account_id, source, external_id, payload.get("status"), payload.get("note"))
     except ValueError as exc:
         c.close()
-        return jsonify({"error": "invalid_workflow_status", "message": str(exc)}), 400
+        return jsonify({"error": "invalid_workflow_status", "detail": str(exc)}), 400
     c.close()
-    return jsonify({"ok": True, "workflow": result, "account_id": identity.account_id})
+    return jsonify(result)
 
 
 APP.register_blueprint(bp)
