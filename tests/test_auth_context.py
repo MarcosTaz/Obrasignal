@@ -1,3 +1,4 @@
+import json
 import time
 
 import jwt
@@ -72,10 +73,10 @@ def test_jwt_verifier_accepts_valid_rs256_token():
 
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_key = private_key.public_key()
-    jwk = jwt.algorithms.RSAAlgorithm.to_jwk(public_key)
+    jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(public_key))
 
     verifier = JwtVerifier("https://example.supabase.co")
-    verifier._jwks = lambda: {"test-key": jwt.PyJWK.from_json(jwk).to_dict()}
+    verifier._jwks = lambda: {"test-key": jwk}
 
     identity = verifier.verify(_signed_test_token(private_key))
 
@@ -89,10 +90,10 @@ def test_jwt_verifier_rejects_wrong_audience():
 
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_key = private_key.public_key()
-    jwk = jwt.algorithms.RSAAlgorithm.to_jwk(public_key)
+    jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(public_key))
 
     verifier = JwtVerifier("https://example.supabase.co")
-    verifier._jwks = lambda: {"test-key": jwt.PyJWK.from_json(jwk).to_dict()}
+    verifier._jwks = lambda: {"test-key": jwk}
 
     with pytest.raises(jwt.InvalidTokenError):
         verifier.verify(_signed_test_token(private_key, audience="wrong-audience"))
