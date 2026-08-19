@@ -22,7 +22,6 @@ _original_fetch_base = _app.fetch_base
 _original_sync_once = getattr(_app, "sync_once", None)
 
 
-# Legacy/direct routes must use the same authentication boundary as /api/v1.
 @APP.before_request
 def _protect_legacy_routes():
     path = _app.request.path
@@ -30,7 +29,6 @@ def _protect_legacy_routes():
     protected = path == "/radar" or path.startswith("/opportunity/") or path in metric_paths
     if not protected:
         return None
-    # The mobile blueprint owns the rest of /api/v1 authentication itself.
     if path.startswith("/api/v1/") and path not in metric_paths:
         return None
     try:
@@ -207,6 +205,14 @@ def _record_account_decisions(conn):
     return recorded
 
 
+def _record_account_events(conn):
+    accounts = list_active_accounts(conn) or [configured_identity().account_id]
+    events = []
+    for account_id in accounts:
+        events.extend(record_new_opportunities(conn, account_id=account_id, min_score=75))
+    return events
+
+
 def sync_once_with_events(*args, **kwargs):
     if _original_sync_once is None:
         return None
@@ -216,7 +222,7 @@ def sync_once_with_events(*args, **kwargs):
     conn = _app.db()
     try:
         decisions = _record_account_decisions(conn)
-        events = record_new_opportunities(conn, min_score=75)
+        events = _record_account_events(conn)
         duration_ms = int((time.perf_counter() - started) * 1000)
         record_stage(conn, "PIPELINE", "sync_and_events", started_at, duration_ms, len(events))
     finally:
