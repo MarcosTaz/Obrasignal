@@ -3,6 +3,7 @@ import Purchases from 'react-native-purchases';
 
 export const BILLING_ENTITLEMENT = 'pro';
 export const BILLING_PRODUCT = 'obrasignal_pro_monthly';
+export const BILLING_SUPPORTED = Platform.OS === 'android' || Platform.OS === 'ios';
 
 let configuredUserId = null;
 
@@ -13,6 +14,7 @@ function publicKey() {
 }
 
 export async function configureBilling(appUserId) {
+  if (!BILLING_SUPPORTED) return { configured: false, customerInfo: null };
   const key = publicKey();
   if (!key || !appUserId) return { configured: false, customerInfo: null };
   const userId = String(appUserId);
@@ -36,11 +38,13 @@ export function activeEntitlement(customerInfo) {
 }
 
 export async function getCurrentOffering() {
+  if (!BILLING_SUPPORTED) return null;
   const offerings = await Purchases.getOfferings();
   return offerings?.current || null;
 }
 
 export async function purchasePro() {
+  if (!BILLING_SUPPORTED) throw new Error('billing_not_available_on_web');
   const offering = await getCurrentOffering();
   const pkg = offering?.availablePackages?.find(p =>
     p?.product?.identifier === BILLING_PRODUCT || p?.packageType === 'MONTHLY'
@@ -51,9 +55,11 @@ export async function purchasePro() {
 }
 
 export async function restoreBilling() {
+  if (!BILLING_SUPPORTED) throw new Error('billing_not_available_on_web');
   return Purchases.restorePurchases();
 }
 
 export async function refreshBilling() {
+  if (!BILLING_SUPPORTED) return null;
   return Purchases.getCustomerInfo();
 }
