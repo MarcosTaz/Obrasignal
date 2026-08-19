@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { api } from '../src/api'
 import AuthScreen from './AuthScreen'
 import ProfileOnboarding from './ProfileOnboarding'
+import BillingGate from './BillingGate'
 
 function needsOnboarding(profile) {
   if (!profile) return true
@@ -66,9 +67,11 @@ export default function AuthGate({ children }) {
     )
   }
 
-  return needsOnboarding(profile)
-    ? <ProfileOnboarding initialProfile={profile || {}} onComplete={setProfile} />
-    : children
+  if (needsOnboarding(profile)) {
+    return <ProfileOnboarding initialProfile={profile || {}} onComplete={setProfile} />
+  }
+
+  return <BillingGate>{children}</BillingGate>
 }
 
 const styles = StyleSheet.create({
