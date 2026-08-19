@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Main pushes are intentionally covered so the exact post-merge tree is tested,
+# not only the pre-merge pull-request commit.
+
 jobs:
   python:
     runs-on: ubuntu-latest
