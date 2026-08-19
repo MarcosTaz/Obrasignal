@@ -1,0 +1,55 @@
+name: ObraSignal Production Smoke
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: true
+
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check API health
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
+            https://obrasignal.onrender.com/api/v1/health \
+            | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("ok") is True and d.get("service") == "obrasignal-api"; print(d)'
+
+      - name: Check protected API boundary
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --output /tmp/body --write-out '%{http_code}' --max-time 30 \
+            https://obrasignal.onrender.com/api/v1/profile)"
+          test "$status" = "401"
+          grep -q 'authentication_required' /tmp/body
+
+      - name: Check browser CORS preflight
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
+            -X OPTIONS \
+            -H 'Origin: https://marcostaz.github.io' \
+            -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: Authorization' \
+            -D /tmp/headers -o /dev/null \
+            https://obrasignal.onrender.com/api/v1/profile
+          grep -qi '^Access-Control-Allow-Origin: https://marcostaz.github.io' /tmp/headers
+          grep -qi '^Access-Control-Allow-Headers: .*Authorization' /tmp/headers
+
+      - name: Check deployed Web shell
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 30 \
+            https://marcostaz.github.io/Obrasignal/ \
+            | grep -q 'ObraSignal'
