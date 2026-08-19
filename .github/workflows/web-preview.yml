@@ -15,7 +15,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mobile-config:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Validate native release configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8')).expo;
+          const eas = JSON.parse(fs.readFileSync('eas.json', 'utf8'));
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const envExample = fs.readFileSync('.env.example', 'utf8');
+
+          const failures = [];
+          if (app?.android?.package !== 'pt.obrasignal.app') failures.push('android.package');
+          if (app?.ios?.bundleIdentifier !== 'pt.obrasignal.app') failures.push('ios.bundleIdentifier');
+          if (!app?.extra?.eas?.projectId) failures.push('expo.extra.eas.projectId');
+          if (!eas?.build?.production) failures.push('eas.build.production');
+          if (pkg?.dependencies?.['react-native-purchases'] !== '10.7.0') failures.push('react-native-purchases dependency');
+          if (pkg?.dependencies?.['expo-notifications'] !== '~57.0.6') failures.push('expo-notifications dependency');
+          for (const key of [
+            'EXPO_PUBLIC_SUPABASE_URL',
+            'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+            'EXPO_PUBLIC_API_URL',
+            'EXPO_PUBLIC_REVENUECAT_ANDROID_KEY',
+            'EXPO_PUBLIC_REVENUECAT_IOS_KEY',
+          ]) {
+            if (!envExample.includes(`${key}=`)) failures.push(`.env.example:${key}`);
+          }
+          if (failures.length) {
+            console.error('Native release configuration failures:', failures.join(', '));
+            process.exit(1);
+          }
+          console.log('Native release configuration is structurally valid.');
+          NODE
+
+      - name: Expo doctor
+        run: npx expo-doctor@latest
+
   deploy:
+    needs: mobile-config
     runs-on: ubuntu-latest
     environment:
       name: github-pages
