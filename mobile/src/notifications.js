@@ -1,16 +1,19 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: true,
-  }),
-});
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: true,
+    }),
+  });
+}
 
 export async function configureNotifications() {
+  if (Platform.OS === 'web') return false;
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('opportunities', {
       name: 'Oportunidades',
@@ -26,6 +29,7 @@ export async function configureNotifications() {
 }
 
 export async function showLocalOpportunityAlert(item) {
+  if (Platform.OS === 'web') return null;
   return Notifications.scheduleNotificationAsync({
     content: {
       title: 'Nova oportunidade ObraSignal',
