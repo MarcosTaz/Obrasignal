@@ -1,6 +1,7 @@
 """Native API facade for the ObraSignal mobile clients."""
 from datetime import datetime, timezone
 import os
+import json
 from flask import Blueprint, jsonify, request
 from jwt import InvalidTokenError
 
@@ -11,6 +12,7 @@ from company_profile import load_profile, save_profile, derive_profile
 from notification_events import ensure_event_table
 from source_registry import SOURCES
 from account_registry import ensure_account
+from decision_log import ensure_decision_table
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
@@ -68,11 +70,63 @@ def _deadline_state(value):
     return {"state": "open", "label": "Aberto", "days_remaining": int(days)}
 
 
-def _row(row):
+def _row(row, decision=None):
     d = dict(row)
     d["deadline_status"] = _deadline_state(d.get("deadline"))
     d["is_open"] = d["deadline_status"]["state"] in ("open", "urgent")
+    decision = decision or {}
+    features = decision.get("features") or {}
+    d["decision"] = decision.get("decision")
+    d["decision_score"] = decision.get("score")
+    d["decision_reason"] = decision.get("reason")
+    d["decision_rule_version"] = decision.get("rule_version")
+    d["explanation"] = features.get("explanation")
+    d["economic_fit"] = features.get("economic_fit")
+    d["capability_evidence"] = features.get("capability_evidence")
+    d["hard_capability_blockers"] = features.get("hard_capability_blockers") or []
     return d
+
+
+def _decision_rank(decision):
+    order = {
+        "QUALIFIED": 4,
+        "RELEVANT": 4,
+        "REVIEW": 3,
+        "UNFAVOURABLE": 1,
+        "REJECT": 0,
+    }
+    return order.get((decision or {}).get("decision"), 2)
+
+
+def _decision_map(conn, rows, account_id):
+    ensure_decision_table(conn)
+    if not rows:
+        return {}
+    external_ids = [str(dict(row).get("external_id") or "") for row in rows]
+    external_ids = [value for value in external_ids if value]
+    if not external_ids:
+        return {}
+    placeholders = ",".join("?" for _ in external_ids)
+    query = f"""
+        SELECT d.*
+        FROM opportunity_decisions d
+        JOIN (
+            SELECT source, external_id, MAX(id) AS latest_id
+            FROM opportunity_decisions
+            WHERE account_id=? AND external_id IN ({placeholders})
+            GROUP BY source, external_id
+        ) latest ON latest.latest_id = d.id
+    """
+    params = [str(account_id or "default"), *external_ids]
+    result = {}
+    for row in conn.execute(query, params).fetchall():
+        item = dict(row)
+        try:
+            item["features"] = json.loads(item.pop("features_json") or "{}")
+        except (TypeError, ValueError):
+            item["features"] = {}
+        result[(item.get("source"), item.get("external_id"))] = item
+    return result
 
 
 @bp.after_request
@@ -145,17 +199,28 @@ def profile():
 def alerts():
     limit = max(1, min(50, int(request.args.get("limit", 20) or 20)))
     unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
+    identity = request.obrasignal_identity
     c = _db(); ensure_event_table(c)
     where = "WHERE e.event_type = 'new_high_match'"
     if unread_only: where += " AND e.delivered_at IS NULL"
     rows = c.execute(f"""SELECT e.id AS event_id, e.event_key, e.score, e.created_at, e.delivered_at,
-                   t.id, t.title, t.country, t.source, t.url, t.deadline, t.profile_reason, t.profile_score
+                   t.id, t.title, t.country, t.source, t.url, t.deadline, t.profile_reason, t.profile_score, t.external_id
             FROM opportunity_events e LEFT JOIN tenders t ON t.id = e.tender_id
             {where} ORDER BY e.created_at DESC LIMIT ?""", (limit,)).fetchall()
+    decisions = _decision_map(c, rows, identity.account_id)
     items = []
     for r in rows:
-        d = dict(r); d["deadline_status"] = _deadline_state(d.get("deadline")); d["delivery_state"] = "delivered" if d.get("delivered_at") else "new"; items.append(d)
-    c.close(); return jsonify({"items": items, "count": len(items), "generated_at": _iso_now()})
+        d = dict(r)
+        decision = decisions.get((d.get("source"), d.get("external_id")), {})
+        d["deadline_status"] = _deadline_state(d.get("deadline"))
+        d["delivery_state"] = "delivered" if d.get("delivered_at") else "new"
+        d["decision"] = decision.get("decision")
+        d["decision_score"] = decision.get("score")
+        d["decision_reason"] = decision.get("reason")
+        d["explanation"] = decision.get("features", {}).get("explanation")
+        items.append(d)
+    c.close()
+    return jsonify({"items": items, "count": len(items), "generated_at": _iso_now(), "account_id": identity.account_id})
 
 
 @bp.route("/alerts/<int:event_id>/delivered", methods=["POST"])
@@ -168,33 +233,73 @@ def alert_delivered(event_id):
 
 @bp.route("/stats", methods=["GET"])
 def stats():
-    c = _db(); total = c.execute("SELECT COUNT(*) FROM tenders").fetchone()[0]; high = c.execute("SELECT COUNT(*) FROM tenders WHERE score >= 75").fetchone()[0]
+    identity = request.obrasignal_identity
+    c = _db()
+    total = c.execute("SELECT COUNT(*) FROM tenders").fetchone()[0]
+    high = c.execute("SELECT COUNT(*) FROM tenders WHERE score >= 75").fetchone()[0]
     open_count = c.execute("SELECT COUNT(*) FROM tenders WHERE deadline IS NULL OR deadline = '' OR datetime(deadline) >= datetime('now')").fetchone()[0]
     new24 = c.execute("SELECT COUNT(*) FROM tenders WHERE julianday(first_seen) >= julianday('now','-1 day')").fetchone()[0]
-    last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone(); c.close()
-    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None})
+    last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
+    c.close()
+    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None, "account_id": identity.account_id})
 
 
 @bp.route("/opportunities", methods=["GET"])
 def opportunities():
-    q = (request.args.get("q") or "").strip().lower(); source = (request.args.get("source") or "").strip().upper()
-    minscore = max(0, min(100, int(request.args.get("minscore", 0) or 0))); limit = max(1, min(100, int(request.args.get("limit", 30) or 30)))
+    identity = request.obrasignal_identity
+    q = (request.args.get("q") or "").strip().lower()
+    source = (request.args.get("source") or "").strip().upper()
+    minscore = max(0, min(100, int(request.args.get("minscore", 0) or 0)))
+    limit = max(1, min(100, int(request.args.get("limit", 30) or 30)))
     open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
-    c = _db(); clauses = ["score >= ?"]; params = [minscore]
-    if source: clauses.append("source = ?"); params.append(source)
-    if open_only: clauses.append("(deadline IS NULL OR deadline = '' OR datetime(deadline) >= datetime('now'))")
+    c = _db()
+    clauses = ["score >= ?"]
+    params = [minscore]
+    if source:
+        clauses.append("source = ?")
+        params.append(source)
+    if open_only:
+        clauses.append("(deadline IS NULL OR deadline = '' OR datetime(deadline) >= datetime('now'))")
     if q:
-        clauses.append("(lower(title) LIKE ? OR lower(description) LIKE ? OR lower(buyer) LIKE ? OR lower(cpv) LIKE ?)"); needle = f"%{q}%"; params.extend([needle, needle, needle, needle])
-    sql = "SELECT * FROM tenders WHERE " + " AND ".join(clauses) + " ORDER BY score DESC, publication_date DESC LIMIT ?"; params.append(limit)
-    rows = [_row(r) for r in c.execute(sql, params).fetchall()]; c.close()
-    return jsonify({"items": rows, "count": len(rows), "generated_at": _iso_now(), "filters": {"q": q, "minscore": minscore, "source": source, "open_only": open_only}})
+        clauses.append("(lower(title) LIKE ? OR lower(description) LIKE ? OR lower(buyer) LIKE ? OR lower(cpv) LIKE ?)")
+        needle = f"%{q}%"
+        params.extend([needle, needle, needle, needle])
+    sql = "SELECT * FROM tenders WHERE " + " AND ".join(clauses) + " ORDER BY score DESC, publication_date DESC LIMIT ?"
+    params.append(max(limit, 100))
+    rows = c.execute(sql, params).fetchall()
+    decisions = _decision_map(c, rows, identity.account_id)
+    items = [_row(row, decisions.get((row["source"], row["external_id"]), {})) for row in rows]
+    items.sort(
+        key=lambda item: (
+            _decision_rank({"decision": item.get("decision")}),
+            item.get("decision_score") if item.get("decision_score") is not None else -1,
+            item.get("score") or 0,
+            item.get("publication_date") or "",
+        ),
+        reverse=True,
+    )
+    items = items[:limit]
+    c.close()
+    return jsonify({
+        "items": items,
+        "count": len(items),
+        "generated_at": _iso_now(),
+        "account_id": identity.account_id,
+        "filters": {"q": q, "minscore": minscore, "source": source, "open_only": open_only},
+    })
 
 
 @bp.route("/opportunities/<int:tender_id>", methods=["GET"])
 def opportunity(tender_id):
-    c = _db(); row = c.execute("SELECT * FROM tenders WHERE id = ?", (tender_id,)).fetchone(); c.close()
-    if not row: return jsonify({"error": "not_found"}), 404
-    return jsonify(_row(row))
+    identity = request.obrasignal_identity
+    c = _db(); row = c.execute("SELECT * FROM tenders WHERE id = ?", (tender_id,)).fetchone()
+    if not row:
+        c.close()
+        return jsonify({"error": "not_found"}), 404
+    decision = _decision_map(c, [row], identity.account_id).get((row["source"], row["external_id"]), {})
+    result = _row(row, decision)
+    c.close()
+    return jsonify(result)
 
 
 APP.register_blueprint(bp)
