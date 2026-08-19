@@ -30,6 +30,10 @@ Render must run the API in provider-authentication mode:
 
 The production verifier accepts only `RS256` or `ES256` bearer JWTs and validates issuer, audience, expiry, issued-at time, subject and signing key. Anonymous and malformed bearer requests must remain `401`.
 
+## Verification policy
+
+A green pull-request run is not sufficient to claim production verification. The `main` branch must produce a fresh run for the quality, production-smoke, and authenticated-E2E workflows after changes land. Production E2E is considered verified only when the authenticated workflow completes successfully with the configured repository secrets.
+
 ## Scope
 
 The E2E flow is Web/API authentication coverage. Android and iOS release/build work is deliberately excluded from this gate.
