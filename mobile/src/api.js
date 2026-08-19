@@ -123,6 +123,15 @@ export const api = {
   billingStatus: () => request('/billing/status'),
   stats: () => request('/stats'),
   workflowStats: () => request('/workflow/stats'),
+  alerts: ({ limit = 20, unreadOnly = false } = {}) => {
+    const p = new URLSearchParams({ limit: String(limit) });
+    if (unreadOnly) p.set('unread', '1');
+    return request(`/alerts?${p.toString()}`);
+  },
+  markAlertDelivered: (eventId) => request(`/alerts/${encodeURIComponent(eventId)}/delivered`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  }),
   opportunities: async ({ q = '', minscore = 0, source = '', limit = 60, openOnly = false } = {}) => {
     const p = new URLSearchParams({ limit: String(limit), minscore: String(minscore) });
     if (q.trim()) p.set('q', q.trim());
