@@ -65,3 +65,9 @@ jobs:
 
       - name: Verify production profile
         run: node -e "const e=require('./eas.json'); if(!e.build?.production) process.exit(1); console.log(JSON.stringify(e.build.production))"
+
+      - name: Authenticated EAS production build
+        if: ${{ secrets.EXPO_TOKEN != '' }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli@latest build --platform android --profile production --non-interactive --wait
