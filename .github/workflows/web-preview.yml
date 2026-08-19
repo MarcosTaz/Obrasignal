@@ -26,6 +26,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.13.1'
+          cache: npm
+          cache-dependency-path: mobile/package.json
 
       - run: npm install --no-audit --no-fund
 
@@ -85,6 +87,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.13.1'
+          cache: npm
+          cache-dependency-path: mobile/package.json
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Validate web runtime configuration
         shell: bash
@@ -98,7 +105,12 @@ jobs:
       - run: npm run smoke:web
 
       - name: Verify generated web bundle
-        run: test -s .smoke-dist/index.html
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s .smoke-dist/index.html
+          grep -q "ObraSignal" .smoke-dist/index.html
+          test -n "$(find .smoke-dist -type f | wc -l)"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -112,7 +124,20 @@ jobs:
       - name: Verify deployment URL
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
-        run: test -n "$PAGE_URL"
+        run: |
+          set -euo pipefail
+          test -n "$PAGE_URL"
+          echo "Web preview deployed at $PAGE_URL"
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error --location --max-time 20 "$PAGE_URL" | grep -q "ObraSignal"; then
+              echo "GitHub Pages smoke check passed."
+              exit 0
+            fi
+            echo "Waiting for Pages to become reachable (attempt $attempt/5)…"
+            sleep 8
+          done
+          echo "GitHub Pages deployment did not return the expected ObraSignal page."
+          exit 1
 
       - name: Report deployment URL
         env:
