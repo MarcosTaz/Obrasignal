@@ -2,7 +2,7 @@ name: ObraSignal Web Preview
 
 on:
   push:
-    branches: [rc1/mobile-real-smoke-gate]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
