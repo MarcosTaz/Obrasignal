@@ -22,6 +22,10 @@ export default function AuthGate({ children }) {
     setProfileLoading(true)
     setProfileError('')
     try {
+      // Render Free instances can sleep. Wake the public health endpoint first
+      // so Safari does not have to perform the authenticated CORS preflight
+      // against a cold instance. The warmup is deliberately best-effort.
+      try { await api.warmup() } catch (_) {}
       const result = await api.profile()
       setProfile(result?.profile || null)
     } catch (error) {

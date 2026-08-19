@@ -34,9 +34,11 @@ function describeNetworkError(error, path) {
 async function request(path, options = {}) {
   const timeout = options.timeout ?? DEFAULT_TIMEOUT;
   const maxAttempts = options.maxAttempts ?? MAX_ATTEMPTS;
+  const skipAuth = options.skipAuth === true;
   const fetchOptions = { ...options };
   delete fetchOptions.timeout;
   delete fetchOptions.maxAttempts;
+  delete fetchOptions.skipAuth;
 
   let lastError = null;
 
@@ -45,16 +47,23 @@ async function request(path, options = {}) {
     const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = skipAuth
+        ? { data: { session: null } }
+        : await supabase.auth.getSession();
       const authHeaders = session?.access_token
         ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+      const method = String(fetchOptions.method || 'GET').toUpperCase();
+      const hasBody = fetchOptions.body != null;
+      const contentHeaders = hasBody || !['GET', 'HEAD'].includes(method)
+        ? { 'Content-Type': 'application/json' }
         : {};
 
       const response = await fetch(`${API_BASE}${path}`, {
         ...fetchOptions,
         headers: {
           Accept: 'application/json',
-          'Content-Type': 'application/json',
+          ...contentHeaders,
           ...authHeaders,
           ...(fetchOptions.headers || {}),
         },
@@ -101,7 +110,11 @@ function normalizeOpportunity(item) {
 }
 
 export const api = {
-  health: () => request('/health', { timeout: 90000 }),
+  // Public, authentication-free request used to wake the Render free instance
+  // before the authenticated request. Keeping it a simple GET avoids a CORS
+  // preflight during the cold-start phase.
+  warmup: () => request('/health', { timeout: 90000, maxAttempts: 1, skipAuth: true }),
+  health: () => request('/health', { timeout: 90000, skipAuth: true }),
   profile: () => request('/profile', { timeout: PROFILE_TIMEOUT }),
   saveProfile: (profile) => request('/profile', {
     method: 'POST',

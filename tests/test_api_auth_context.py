@@ -53,7 +53,9 @@ def test_provider_cors_normalizes_github_pages_project_path(monkeypatch):
         },
     )
 
-    assert response.status_code == 200
+    # 204 No Content is the normal preflight response and is explicitly
+    # supported by the CORS protocol.
+    assert response.status_code == 204
     assert response.headers["Access-Control-Allow-Origin"] == "https://marcostaz.github.io"
     assert "Authorization" in response.headers["Access-Control-Allow-Headers"]
     assert "GET" in response.headers["Access-Control-Allow-Methods"]
