@@ -14,8 +14,9 @@ from auth_context_jwt import production_verifier
 
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ALLOWED_AUTH_MODES = {"development", "provider"}
+_DEFAULT_WEB_ORIGIN = "https://marcostaz.github.io"
 
-# Normalize the configured browser origin once at process startup.  A browser
+# Normalize the configured browser origin once at process startup. A browser
 # Origin never contains a path, so a value such as
 # https://marcostaz.github.io/Obrasignal/ would otherwise break CORS on the
 # GitHub Pages client.
