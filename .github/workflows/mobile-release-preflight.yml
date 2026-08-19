@@ -66,8 +66,17 @@ jobs:
       - name: Verify production profile
         run: node -e "const e=require('./eas.json'); if(!e.build?.production) process.exit(1); console.log(JSON.stringify(e.build.production))"
 
+      - name: Require EAS token for manual release
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$EXPO_TOKEN" || { echo 'EXPO_TOKEN GitHub secret is required for a manual production release.'; exit 1; }
+
       - name: Authenticated EAS production build
-        if: ${{ secrets.EXPO_TOKEN != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && secrets.EXPO_TOKEN != '' }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
@@ -76,7 +85,7 @@ jobs:
           node -e "const fs=require('fs'); const v=JSON.parse(fs.readFileSync('eas-build.json','utf8')); fs.writeFileSync('eas-build-report.json', JSON.stringify(v, null, 2)); console.log(JSON.stringify(v, null, 2))"
 
       - name: Upload EAS build report
-        if: ${{ secrets.EXPO_TOKEN != '' && always() && hashFiles('mobile/eas-build-report.json') != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && always() && hashFiles('mobile/eas-build-report.json') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: obrasignal-eas-android-build-report
