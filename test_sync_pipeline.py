@@ -1,8 +1,8 @@
-"""Regression coverage for ingestion -> commercial-v2 decision -> events."""
+"""Regression coverage for ingestion -> commercial-v2 decision."""
 import sqlite3
 from datetime import datetime, timezone
 
-from decision_log import ensure_decision_table, evaluate_and_record if False else None
+from decision_log import ensure_decision_table, latest_decision
 
 
 def _profile():
@@ -20,7 +20,6 @@ def _profile():
 
 def test_pipeline_scores_and_records_canonical_decision():
     from opportunity_match_pipeline import evaluate_and_record
-    from decision_log import latest_decision
 
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
