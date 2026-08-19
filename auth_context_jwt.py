@@ -6,6 +6,7 @@ import os
 import time
 from dataclasses import dataclass
 from threading import Lock
+from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request as UrlRequest, urlopen
 
 import jwt
@@ -19,15 +20,34 @@ class JwtIdentity:
     claims: dict
 
 
+def _normalize_supabase_issuer(issuer: str) -> str:
+    """Accept the common Supabase project URL and normalize it to the JWT issuer."""
+    value = (issuer or "").strip().rstrip("/")
+    if not value:
+        return value
+    parsed = urlsplit(value)
+    if parsed.scheme in {"http", "https"} and parsed.netloc.endswith(".supabase.co"):
+        path = parsed.path.rstrip("/")
+        if not path:
+            return urlunsplit((parsed.scheme, parsed.netloc, "/auth/v1", "", ""))
+    return value
+
+
+def _default_jwks_url(issuer: str) -> str:
+    """Return the provider's public-key discovery URL."""
+    return f"{issuer.rstrip('/')}/.well-known/jwks.json"
+
+
 class JwtVerifier:
     def __init__(self, issuer: str, audience: str = "authenticated", jwks_url: str = "", cache_seconds: int = 300):
         if not issuer:
             raise RuntimeError("JWT provider issuer is not configured")
-        self.issuer = issuer.rstrip("/")
+        self.issuer = _normalize_supabase_issuer(issuer)
         self.audience = (audience or "authenticated").strip()
-        # Supabase's canonical JWKS endpoint is derived directly from the JWT issuer.
+        # Supabase's JWT issuer is https://<project>.supabase.co/auth/v1 and its
+        # asymmetric signing keys are published at the corresponding discovery URL.
         # Keep an explicit override for other OIDC-compatible providers.
-        self.jwks_url = (jwks_url or f"{self.issuer}/.well-known/jwks.json").strip()
+        self.jwks_url = (jwks_url or _default_jwks_url(self.issuer)).strip()
         self.cache_seconds = max(30, int(cache_seconds))
         self._keys = None
         self._expires_at = 0.0
