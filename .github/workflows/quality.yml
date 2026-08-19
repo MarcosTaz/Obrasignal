@@ -19,7 +19,7 @@ jobs:
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
       - name: Run repository tests
-        run: PYTHONPATH=. pytest -q tests
+        run: PYTHONPATH=. pytest -q --import-mode=importlib tests test_*.py
 
   mobile:
     runs-on: ubuntu-latest
