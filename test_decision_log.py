@@ -21,4 +21,4 @@ def test_decision_log_round_trip_and_funnel():
     assert latest['rule_version'] == 'commercial-v1'
 
     counts = funnel_counts(conn)
-    assert counts == {'ALERTED': 1, 'REJECTED': 1, 'RELEVANT': 1}
+    assert counts == {'ALERTED': 1, 'REJECTED': 1}

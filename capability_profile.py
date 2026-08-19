@@ -6,6 +6,8 @@ new capability layer can be introduced without breaking current ingestion.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
+import unicodedata
 
 
 @dataclass
@@ -65,13 +67,43 @@ def build_capability_profile(profile: dict | None = None) -> dict:
     return capability.to_dict()
 
 
+def _normalize_term(value: str) -> str:
+    """Normalize Portuguese text enough for deterministic inflection matching."""
+    value = unicodedata.normalize("NFKD", str(value or ""))
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", value.casefold()).strip()
+
+
+def _term_variants(value: str) -> set[str]:
+    """Return conservative singular/plural variants for service labels."""
+    term = _normalize_term(value)
+    if not term:
+        return set()
+    variants = {term}
+    words = term.split()
+    last = words[-1]
+    if len(last) > 3 and last.endswith("s"):
+        variants.add(" ".join(words[:-1] + [last[:-1]]))
+    elif len(last) > 3 and not last.endswith(("s", "x", "z")):
+        variants.add(" ".join(words[:-1] + [last + "s"]))
+    return variants
+
+
+def _contains_term(text: str, term: str) -> bool:
+    """Match a capability as a phrase rather than as an arbitrary substring."""
+    normalized_text = _normalize_term(text)
+    for variant in _term_variants(term):
+        if re.search(rf"(?<!\w){re.escape(variant)}(?!\w)", normalized_text):
+            return True
+    return False
+
+
 def capability_matches_text(profile: dict, text: str) -> dict:
     """Explain service/capability evidence found in an opportunity description."""
-    haystack = (text or "").casefold()
     services = [str(item) for item in profile.get("services", [])]
     tags = [str(item) for item in profile.get("capability_tags", [])]
-    matched_services = [item for item in services if item.casefold() in haystack]
-    matched_tags = [item for item in tags if item.casefold() in haystack]
+    matched_services = [item for item in services if _contains_term(text, item)]
+    matched_tags = [item for item in tags if _contains_term(text, item)]
     evidence = matched_services + matched_tags
     return {
         "matched": bool(evidence),

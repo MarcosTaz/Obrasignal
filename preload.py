@@ -25,21 +25,10 @@ _original_sync_once = getattr(_app, "sync_once", None)
 @APP.before_request
 def _protect_legacy_routes():
     path = _app.request.path
-
-    # The old server-rendered dashboard is not the authenticated product UI.
-    # Never expose it as the default public entry point: send users to the
-    # GitHub Pages client, where Supabase authentication is handled in-browser.
     if path == "/":
         return _app.redirect("https://marcostaz.github.io/Obrasignal/", code=302)
-
     metric_paths = ("/api/v1/source-health", "/api/v1/latency", "/api/v1/latency-health")
-    protected = (
-        path == "/sync"
-        or path == "/radar"
-        or path.startswith("/opportunity/")
-        or path == "/api/v1/tenders"
-        or path in metric_paths
-    )
+    protected = (path == "/sync" or path == "/radar" or path.startswith("/opportunity/") or path == "/api/v1/tenders" or path in metric_paths)
     if not protected:
         return None
     if path.startswith("/api/v1/") and path not in metric_paths and path != "/api/v1/tenders":
@@ -250,7 +239,7 @@ def opportunity_detail(tender_id):
     row = conn.execute("SELECT * FROM tenders WHERE id=?", (tender_id,)).fetchone()
     if row is None:
         conn.close()
-        return _app.Response("Oportunidade não encontrada", status=404)
+        return "Oportunidade não encontrada", 404
     item = dict(row)
     decision = get_presented_decision(conn, item.get("source"), item.get("external_id"), account_id=identity.account_id)
     conn.close()

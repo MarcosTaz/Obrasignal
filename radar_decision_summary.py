@@ -8,7 +8,9 @@ def summarize_decision(decision: dict | None) -> dict:
             "status": "SEM DECISÃO",
             "class_name": "low",
             "reason": "Ainda não existe uma decisão comercial auditável.",
+            "score": None,
             "detail_url": None,
+            "rule_version": None,
         }
 
     status = str(decision.get("decision") or "SEM DECISÃO")
