@@ -12,6 +12,7 @@ from notification_events import ensure_event_table
 from source_registry import SOURCES
 from account_registry import ensure_account
 from decision_log import ensure_decision_table
+from opportunity_workflow import get_workflow, set_workflow
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
@@ -69,7 +70,7 @@ def _deadline_state(value):
     return {"state": "open", "label": "Aberto", "days_remaining": int(days)}
 
 
-def _row(row, decision=None):
+def _row(row, decision=None, workflow=None):
     d = dict(row)
     d["deadline_status"] = _deadline_state(d.get("deadline"))
     d["is_open"] = d["deadline_status"]["state"] in ("open", "urgent")
@@ -90,6 +91,14 @@ def _row(row, decision=None):
         d["account_decision"] = None
         d["account_reason"] = None
         d["account_score"] = None
+    d["workflow"] = workflow or {
+        "account_id": d.get("account_id"),
+        "source": d.get("source"),
+        "external_id": d.get("external_id"),
+        "status": "NEW",
+        "note": None,
+        "updated_at": None,
+    }
     return d
 
 
@@ -208,7 +217,8 @@ def alerts():
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = []
     for r in rows:
-        d = _row(r, decisions.get((r["source"], r["external_id"])))
+        workflow = get_workflow(c, identity.account_id, r["source"], r["external_id"])
+        d = _row(r, decisions.get((r["source"], r["external_id"])), workflow)
         d["event_id"] = r["event_id"]
         d["event_key"] = r["event_key"]
         d["score"] = r["score"]
@@ -264,7 +274,8 @@ def opportunities():
             "decided_at": item.get("account_decided_at"),
             "features": features,
         }
-        rows.append(_row(item, decision))
+        workflow = get_workflow(c, identity.account_id, item.get("source"), item.get("external_id"))
+        rows.append(_row(item, decision, workflow))
     c.close()
     return jsonify({"items": rows, "count": len(rows), "generated_at": _iso_now(), "account_id": identity.account_id, "filters": {"q": q, "minscore": minscore, "source": source, "open_only": open_only}})
 
@@ -288,8 +299,39 @@ def opportunity(tender_id):
         import json
         decision = dict(decision_row)
         decision["features"] = json.loads(decision.pop("features_json") or "{}")
+    workflow = get_workflow(c, identity.account_id, row["source"], row["external_id"])
     c.close()
-    return jsonify(_row(row, decision))
+    return jsonify(_row(row, decision, workflow))
+
+
+@bp.route("/opportunities/<int:tender_id>/workflow", methods=["GET", "POST"])
+def opportunity_workflow(tender_id):
+    identity = request.obrasignal_identity
+    c = _db()
+    row = c.execute("SELECT source, external_id FROM tenders WHERE id=?", (tender_id,)).fetchone()
+    if not row:
+        c.close()
+        return jsonify({"error": "not_found"}), 404
+    source, external_id = row["source"], row["external_id"]
+    if request.method == "GET":
+        result = get_workflow(c, identity.account_id, source, external_id)
+        c.close()
+        return jsonify(result)
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = set_workflow(
+            c,
+            identity.account_id,
+            source,
+            external_id,
+            payload.get("status"),
+            payload.get("note"),
+        )
+    except ValueError as exc:
+        c.close()
+        return jsonify({"error": "invalid_workflow_status", "message": str(exc)}), 400
+    c.close()
+    return jsonify({"ok": True, "workflow": result, "account_id": identity.account_id})
 
 
 APP.register_blueprint(bp)
