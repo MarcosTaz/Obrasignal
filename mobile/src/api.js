@@ -4,7 +4,7 @@ const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrender
 
 async function request(path, options = {}) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeout ?? 15000);
+  const timeout = setTimeout(() => controller.abort(), options.timeout ?? 60000);
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const authHeaders = session?.access_token
