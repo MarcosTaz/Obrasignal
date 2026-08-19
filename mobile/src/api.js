@@ -44,6 +44,7 @@ export const api = {
     body: JSON.stringify(profile || {}),
   }),
   stats: () => request('/stats'),
+  workflowStats: () => request('/workflow/stats'),
   opportunities: ({ q = '', minscore = 0, source = '', limit = 60, openOnly = false } = {}) => {
     const p = new URLSearchParams({ limit: String(limit), minscore: String(minscore) });
     if (q.trim()) p.set('q', q.trim());
