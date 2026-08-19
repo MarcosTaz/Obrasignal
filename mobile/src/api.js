@@ -61,6 +61,8 @@ async function request(path, options = {}) {
 
       const response = await fetch(`${API_BASE}${path}`, {
         ...fetchOptions,
+        mode: 'cors',
+        cache: 'no-store',
         headers: {
           Accept: 'application/json',
           ...contentHeaders,
@@ -110,9 +112,6 @@ function normalizeOpportunity(item) {
 }
 
 export const api = {
-  // Public, authentication-free request used to wake the Render free instance
-  // before the authenticated request. Keeping it a simple GET avoids a CORS
-  // preflight during the cold-start phase.
   warmup: () => request('/health', { timeout: 90000, maxAttempts: 1, skipAuth: true }),
   health: () => request('/health', { timeout: 90000, skipAuth: true }),
   profile: () => request('/profile', { timeout: PROFILE_TIMEOUT }),
