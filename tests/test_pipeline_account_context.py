@@ -43,3 +43,32 @@ def test_pipeline_decisions_are_isolated_by_account():
     assert funnel_counts(conn, "empresa-a") == {"RELEVANT": 1}
     assert funnel_counts(conn, "empresa-b") == {"RELEVANT": 1}
     conn.close()
+
+
+def test_sync_without_explicit_account_evaluates_all_active_accounts():
+    from account_registry import ensure_account
+    from decision_log import latest_decision
+    from sync_funnel_hook import record_sync_decisions
+
+    item = {
+        "source": "TED",
+        "external_id": "X-2",
+        "score": 85,
+        "title": "Cobertura industrial",
+        "description": "Cobertura e estrutura metálica.",
+        "cpv": "45261210",
+        "market": "PT",
+        "deadline": None,
+        "first_seen": "same",
+        "last_seen": "same",
+    }
+
+    conn = _conn()
+    ensure_account(conn, "empresa-a")
+    ensure_account(conn, "empresa-b")
+    recorded = record_sync_decisions(conn, [item])
+
+    assert recorded == 2
+    assert latest_decision(conn, "TED", "X-2", account_id="empresa-a") is not None
+    assert latest_decision(conn, "TED", "X-2", account_id="empresa-b") is not None
+    conn.close()
