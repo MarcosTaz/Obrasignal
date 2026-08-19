@@ -24,7 +24,7 @@
       "bundler": "metro"
     },
     "experiments": {
-      "baseUrl": "/Obrasignal"
+      "baseUrl": "/"
     },
     "extra": {
       "eas": {
