@@ -80,7 +80,8 @@ def update_subscription(conn, account_id, *, plan, subscription_status,
                         original_transaction_id=None):
     ensure_account_table(conn)
     conn.execute(
-        """UPDATE accounts SET plan=?, subscription_status=?, entitlement_expires_at=?, billing_synced_at=?,
+        """UPDATE accounts SET plan=?, subscription_status=?,
+           entitlement_expires_at=COALESCE(?, entitlement_expires_at), billing_synced_at=?,
            store=COALESCE(?, store), product_id=COALESCE(?, product_id),
            original_transaction_id=COALESCE(?, original_transaction_id)
            WHERE account_id=?""",
@@ -142,15 +143,7 @@ def _sync_revenuecat_if_due(conn, account_id, force=False):
     if entitlement and entitlement.get('expires_date'):
         expires = entitlement.get('expires_date')
         active = _parse_iso(expires) > datetime.now(timezone.utc)
-        update_subscription(
-            conn, account_id,
-            plan='pro' if active else 'expired',
-            subscription_status='active' if active else 'expired',
-            entitlement_expires_at=expires,
-            store=entitlement.get('store') or subscriber.get('store'),
-            product_id=entitlement.get('product_identifier'),
-            original_transaction_id=subscriber.get('original_app_user_id'),
-        )
+        update_subscription(conn, account_id, plan='pro' if active else 'expired', subscription_status='active' if active else 'expired', entitlement_expires_at=expires, store=entitlement.get('store') or subscriber.get('store'), product_id=entitlement.get('product_identifier'), original_transaction_id=subscriber.get('original_app_user_id'))
     elif entitlement and entitlement.get('is_active') is True:
         update_subscription(conn, account_id, plan='pro', subscription_status='active', entitlement_expires_at=None, store=entitlement.get('store'), product_id=entitlement.get('product_identifier'))
     else:
@@ -176,7 +169,6 @@ def _sync_account_from_webhook(conn, event):
     elif event_type == 'EXPIRATION':
         update_subscription(conn, app_user_id, plan='expired', subscription_status='expired', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
     elif event_type in {'CANCELLATION', 'BILLING_ISSUE'}:
-        # Keep access until the store/RevenueCat expiration date; do not revoke early.
         update_subscription(conn, app_user_id, plan='pro', subscription_status='cancelled' if event_type == 'CANCELLATION' else 'grace_period', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
 
 
@@ -204,7 +196,7 @@ def _billing_guard():
     try:
         identity = configured_identity()
     except (RuntimeError, InvalidTokenError):
-        return None  # The canonical API auth guard returns the 401 response.
+        return None
     conn = _db_from_app()
     try:
         ensure_account(conn, identity.account_id)
@@ -212,11 +204,7 @@ def _billing_guard():
     finally:
         conn.close()
     if not state['active']:
-        return jsonify({
-            'error': 'subscription_required',
-            'plan': state['plan'],
-            'message': 'O período de acesso terminou. Ativa o ObraSignal Pro para continuar.'
-        }), 402
+        return jsonify({'error': 'subscription_required', 'plan': state['plan'], 'message': 'O período de acesso terminou. Ativa o ObraSignal Pro para continuar.'}), 402
     return None
 
 
@@ -262,7 +250,6 @@ def billing_webhook():
 
 
 def _db_from_app():
-    # app.db() is the canonical SQLite connection factory.
     return __import__('app').db()
 
 
