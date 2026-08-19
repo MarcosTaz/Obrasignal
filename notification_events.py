@@ -1,10 +1,4 @@
-"""Near-real-time opportunity eventing for ObraSignal.
-
-This module deliberately separates detection from delivery. A new opportunity
-is recorded once, with a stable dedupe key, so push/email delivery can be
-attached later without creating duplicate alerts when the same notice is seen
-again or arrives from multiple sources.
-"""
+"""Account-scoped opportunity eventing for ObraSignal."""
 from datetime import datetime, timezone
 import hashlib
 import re
@@ -27,6 +21,7 @@ def ensure_event_table(conn):
     conn.execute(
         """CREATE TABLE IF NOT EXISTS opportunity_events(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id TEXT NOT NULL DEFAULT 'default',
             event_key TEXT NOT NULL UNIQUE,
             tender_id INTEGER,
             source TEXT,
@@ -36,16 +31,16 @@ def ensure_event_table(conn):
             delivered_at TEXT
         )"""
     )
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_events)").fetchall()}
+    if "account_id" not in cols:
+        conn.execute("ALTER TABLE opportunity_events ADD COLUMN account_id TEXT NOT NULL DEFAULT 'default'")
     conn.commit()
 
 
-def record_new_opportunities(conn, min_score=75):
-    """Record high-value opportunities first seen since the previous sync.
-
-    Returns event dictionaries ready for a future push/email adapter.
-    No external notification service is called here, keeping ingestion safe.
-    """
+def record_new_opportunities(conn, account_id="default", min_score=75):
+    """Record high-value opportunities for exactly one account."""
     ensure_event_table(conn)
+    account_id = str(account_id or "default")
     rows = conn.execute(
         """SELECT * FROM tenders
            WHERE first_seen IS NOT NULL
@@ -58,16 +53,18 @@ def record_new_opportunities(conn, min_score=75):
     now = datetime.now(timezone.utc).isoformat()
     for row in rows:
         d = dict(row)
-        key = _key(d)
+        base_key = _key(d)
+        event_key = f"{account_id}:{base_key}"
         cur = conn.execute(
             """INSERT OR IGNORE INTO opportunity_events
-               (event_key,tender_id,source,event_type,score,created_at)
-               VALUES (?,?,?,?,?,?)""",
-            (key, d.get("id"), d.get("source"), "new_high_match", d.get("score", 0), now),
+               (account_id,event_key,tender_id,source,event_type,score,created_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (account_id, event_key, d.get("id"), d.get("source"), "new_high_match", d.get("score", 0), now),
         )
         if cur.rowcount:
             events.append({
-                "event_key": key,
+                "event_key": event_key,
+                "account_id": account_id,
                 "tender_id": d.get("id"),
                 "source": d.get("source"),
                 "score": d.get("score", 0),
