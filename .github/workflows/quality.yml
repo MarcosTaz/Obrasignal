@@ -33,5 +33,7 @@ jobs:
           node-version: '22.13.1'
       - run: npm install --no-audit --no-fund
       - run: npx expo-doctor
+      - name: Verify critical detail wiring
+        run: npm run smoke:detail
       - name: Smoke-test Expo bundle
         run: npm run smoke:web
