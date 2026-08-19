@@ -93,9 +93,11 @@ def evaluate_row(row, profile=None):
         opportunity=lot,
     )
 
-    global_score = source_row.get("global_score")
-    if global_score is None:
-        global_score = source_row.get("score") or 0
+    # The source `tenders.score` field is legacy presentation state from the
+    # original root application. The canonical product score is produced by
+    # commercial-v2 inside match_lot(). Never let stale source scoring alter
+    # the account-specific decision pipeline.
+    global_score = result["commercial"]["score"]
     profile_score = personalized_score(source_row, base_score=global_score, profile=profile)[0]
     lot_score = int(result["score"])
     geo = result["geography"]
