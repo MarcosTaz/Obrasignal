@@ -82,7 +82,7 @@ function AppContent() {
 
   const visible = useMemo(() => tab === 'saved' ? items.filter(x => saved.includes(x.id)) : items, [items, saved, tab]);
 
-  if (selected) return <Detail item={selected} saved={saved.includes(selected.id)} onBack={() => setSelected(null)} onSave={toggleSave} />;
+  if (selected) return <Detail initialItem={selected} saved={saved.includes(selected.id)} onBack={() => setSelected(null)} onSave={toggleSave} />;
 
   return <SafeAreaView style={styles.safe}><StatusBar style="light" /><View style={styles.container}>
     <View style={styles.header}><View><Text style={styles.logo}>OBRA<Text style={styles.logoAccent}>SIGNAL</Text></Text><Text style={styles.subtitle}>O radar de obras que trabalha por ti.</Text></View>
