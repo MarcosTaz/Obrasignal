@@ -30,6 +30,8 @@ jobs:
           node-version: '22.13.1'
       - run: npm install --no-audit --no-fund
       - run: npm run smoke:web
+      - name: Verify generated web bundle
+        run: test -f .smoke-dist/index.html && test -s .smoke-dist/index.html
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
@@ -39,5 +41,11 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify deployment URL
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: test -n "$PAGE_URL"
       - name: Report deployment URL
-        run: echo "Web preview deployed at ${{ steps.deployment.outputs.page_url }}"
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: echo "Web preview deployed at $PAGE_URL"
