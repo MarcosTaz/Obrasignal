@@ -23,6 +23,9 @@
     "web": {
       "bundler": "metro"
     },
+    "experiments": {
+      "baseUrl": "/Obrasignal"
+    },
     "extra": {
       "eas": {
         "projectId": "c277466b-a418-45f7-b070-4fc3f96386b7"
