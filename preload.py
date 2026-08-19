@@ -26,15 +26,12 @@ _original_sync_once = getattr(_app, "sync_once", None)
 @APP.before_request
 def _protect_legacy_routes():
     path = _app.request.path
-    protected = (
-        path == "/radar"
-        or path.startswith("/opportunity/")
-        or path in ("/api/v1/source-health", "/api/v1/latency", "/api/v1/latency-health")
-    )
+    metric_paths = ("/api/v1/source-health", "/api/v1/latency", "/api/v1/latency-health")
+    protected = path == "/radar" or path.startswith("/opportunity/") or path in metric_paths
     if not protected:
         return None
-    # The mobile blueprint owns /api/v1 authentication itself.
-    if path.startswith("/api/v1/"):
+    # The mobile blueprint owns the rest of /api/v1 authentication itself.
+    if path.startswith("/api/v1/") and path not in metric_paths:
         return None
     try:
         identity = configured_identity()
@@ -45,7 +42,6 @@ def _protect_legacy_routes():
 
 
 def _deadline_dt(value):
-    """Compatibility wrapper for API consumers using preload's public surface."""
     return _app.deadline_dt(value)
 
 
@@ -173,10 +169,7 @@ def api_radar():
     minscore = max(0, min(100, int(_app.request.args.get("minscore", 0) or 0)))
     conn = _app.db()
     try:
-        rows = conn.execute(
-            "SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT ?",
-            (minscore, limit),
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT ?", (minscore, limit)).fetchall()
         items = enrich_rows(conn, rows, account_id=identity.account_id)
         return _app.jsonify(items=items, count=len(items), minscore=minscore, limit=limit, account_id=identity.account_id)
     finally:
@@ -190,13 +183,9 @@ def radar_page():
         minscore = max(0, min(100, int(_app.request.args.get("minscore", 0) or 0)))
     except (TypeError, ValueError):
         minscore = 0
-
     conn = _app.db()
     try:
-        rows = conn.execute(
-            "SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT 100",
-            (minscore,),
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM tenders WHERE score >= ? ORDER BY score DESC, publication_date DESC LIMIT 100", (minscore,)).fetchall()
         items = enrich_rows(conn, rows, account_id=identity.account_id)
         return render_radar_page(items, minscore=minscore)
     finally:
@@ -209,9 +198,7 @@ def _record_account_decisions(conn):
     if not run or not run["finished_at"]:
         return 0
     rows = conn.execute("SELECT * FROM tenders WHERE last_seen=?", (run["finished_at"],)).fetchall()
-    accounts = list_active_accounts(conn)
-    if not accounts:
-        accounts = [configured_identity().account_id]
+    accounts = list_active_accounts(conn) or [configured_identity().account_id]
     recorded = 0
     for account_id in accounts:
         for row in rows:
@@ -245,7 +232,6 @@ def opportunity_detail(tender_id):
     if row is None:
         conn.close()
         return _app.Response("Oportunidade não encontrada", status=404)
-
     item = dict(row)
     decision = get_presented_decision(conn, item.get("source"), item.get("external_id"), account_id=identity.account_id)
     conn.close()
