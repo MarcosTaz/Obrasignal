@@ -1,6 +1,7 @@
 """Native API facade for the ObraSignal mobile clients."""
 from datetime import datetime, timezone
 import os
+from urllib.parse import urlsplit, urlunsplit
 from flask import Blueprint, jsonify, request
 from jwt import InvalidTokenError
 
@@ -47,13 +48,16 @@ def _require_identity():
 
 
 def _cors_origin():
-    origin = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "").strip()
+    origin = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
     if auth_mode == "development":
-        return origin or "*"
+        return "*" if origin == "*" else origin
     if not origin or origin == "*":
         raise RuntimeError("OBRASIGNAL_CORS_ORIGIN must be configured for provider mode")
-    return origin
+    parsed = urlsplit(origin)
+    if not parsed.scheme or not parsed.netloc:
+        raise RuntimeError("OBRASIGNAL_CORS_ORIGIN must be a valid browser origin")
+    return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
 
 
 def _deadline_state(value):
@@ -216,54 +220,3 @@ def stats():
 def workflow_stats():
     identity = request.obrasignal_identity; c = _db(); counts = workflow_counts(c, identity.account_id); c.close()
     return jsonify({"counts": counts, "account_id": identity.account_id, "generated_at": _iso_now()})
-
-
-@bp.route("/opportunities", methods=["GET"])
-def opportunities():
-    identity = request.obrasignal_identity
-    q = (request.args.get("q") or "").strip().lower(); source = (request.args.get("source") or "").strip().upper()
-    minscore = max(0, min(100, int(request.args.get("minscore", 0) or 0))); limit = max(1, min(100, int(request.args.get("limit", 30) or 30)))
-    open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
-    c = _db(); clauses = ["t.score>=?"]; params = [minscore]
-    if source: clauses.append("t.source=?"); params.append(source)
-    if open_only: clauses.append("(t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline)>=datetime('now'))")
-    if q:
-        clauses.append("(lower(t.title) LIKE ? OR lower(t.description) LIKE ? OR lower(t.buyer) LIKE ? OR lower(t.cpv) LIKE ?)"); needle=f"%{q}%"; params.extend([needle]*4)
-    sql = "SELECT t.*, d.account_id, d.decision AS account_decision, d.reason AS account_reason, d.score AS account_score, d.rule_version AS account_rule_version, d.decided_at AS account_decided_at, d.features_json FROM tenders t LEFT JOIN (SELECT od.* FROM opportunity_decisions od JOIN (SELECT source, external_id, MAX(id) AS max_id FROM opportunity_decisions WHERE account_id=? GROUP BY source, external_id) latest ON latest.max_id=od.id) d ON d.source=t.source AND d.external_id=t.external_id WHERE " + " AND ".join(clauses) + " ORDER BY CASE d.decision WHEN 'QUALIFIED' THEN 0 WHEN 'RELEVANT' THEN 0 WHEN 'REVIEW' THEN 1 WHEN 'UNKNOWN' THEN 2 WHEN 'REJECT' THEN 3 ELSE 2 END, COALESCE(d.score,t.score) DESC, t.publication_date DESC LIMIT ?"
-    params=[identity.account_id,*params,limit]; rows=[]; import json
-    for r in c.execute(sql,params).fetchall():
-        item=dict(r); features=json.loads(item.pop("features_json") or "{}") if item.get("features_json") else {}
-        decision=None if not item.get("account_decision") else {"decision":item.get("account_decision"),"reason":item.get("account_reason"),"score":item.get("account_score"),"rule_version":item.get("account_rule_version"),"decided_at":item.get("account_decided_at"),"features":features}
-        rows.append(_row(item,decision,get_workflow(c,identity.account_id,item.get("source"),item.get("external_id"))))
-    c.close(); return jsonify({"items":rows,"count":len(rows),"generated_at":_iso_now(),"account_id":identity.account_id,"filters":{"q":q,"minscore":minscore,"source":source,"open_only":open_only}})
-
-
-@bp.route("/opportunities/<int:tender_id>", methods=["GET"])
-def opportunity(tender_id):
-    identity=request.obrasignal_identity; c=_db(); ensure_decision_table(c)
-    row=c.execute("SELECT * FROM tenders WHERE id=?",(tender_id,)).fetchone()
-    if not row: c.close(); return jsonify({"error":"not_found"}),404
-    decision_row=c.execute("SELECT * FROM opportunity_decisions WHERE account_id=? AND source=? AND external_id=? ORDER BY id DESC LIMIT 1",(identity.account_id,row["source"],row["external_id"])).fetchone()
-    decision=None
-    if decision_row:
-        import json
-        decision=dict(decision_row); decision["features"]=json.loads(decision.pop("features_json") or "{}")
-    workflow=get_workflow(c,identity.account_id,row["source"],row["external_id"]); c.close()
-    return jsonify(_row(row,decision,workflow))
-
-
-@bp.route("/opportunities/<int:tender_id>/workflow", methods=["GET","POST"])
-def opportunity_workflow(tender_id):
-    identity=request.obrasignal_identity; c=_db(); row=c.execute("SELECT source,external_id FROM tenders WHERE id=?",(tender_id,)).fetchone()
-    if not row: c.close(); return jsonify({"error":"not_found"}),404
-    source,external_id=row["source"],row["external_id"]
-    if request.method=="GET":
-        result=get_workflow(c,identity.account_id,source,external_id); c.close(); return jsonify(result)
-    payload=request.get_json(silent=True) or {}
-    try: result=set_workflow(c,identity.account_id,source,external_id,payload.get("status"),payload.get("note"))
-    except ValueError as exc:
-        c.close(); return jsonify({"error":"invalid_workflow_status","detail":str(exc)}),400
-    c.close(); return jsonify(result)
-
-
-APP.register_blueprint(bp)
