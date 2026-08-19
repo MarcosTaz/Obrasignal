@@ -57,3 +57,25 @@ def test_provider_cors_normalizes_github_pages_project_path(monkeypatch):
     assert response.headers["Access-Control-Allow-Origin"] == "https://marcostaz.github.io"
     assert "Authorization" in response.headers["Access-Control-Allow-Headers"]
     assert "GET" in response.headers["Access-Control-Allow-Methods"]
+
+
+def test_provider_mode_rejects_missing_bearer_on_protected_route(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", "https://example.supabase.co")
+    monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "https://marcostaz.github.io")
+
+    response = api.APP.test_client().get("/api/v1/profile")
+
+    assert response.status_code == 401
+    assert response.get_json()["error"] == "authentication_required"
+
+
+def test_provider_mode_keeps_health_public(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", "https://example.supabase.co")
+    monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "https://marcostaz.github.io")
+
+    response = api.APP.test_client().get("/api/v1/health")
+
+    assert response.status_code == 200
+    assert response.get_json()["ok"] is True
