@@ -25,28 +25,31 @@ jobs:
         working-directory: mobile
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22.13.1'
+
       - run: npm install --no-audit --no-fund
       - run: npm run smoke:web
+
       - name: Verify generated web bundle
-        run: test -f .smoke-dist/index.html && test -s .smoke-dist/index.html
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          static_site_generator: none
+        run: test -s .smoke-dist/index.html
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: mobile/.smoke-dist
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
       - name: Verify deployment URL
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: test -n "$PAGE_URL"
+
       - name: Report deployment URL
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
