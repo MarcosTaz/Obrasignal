@@ -59,13 +59,20 @@ def latest_decision(conn, source, external_id, account_id='default'):
 
 
 def funnel_counts(conn, account_id='default'):
+    """Return current funnel state, counting only the latest decision per opportunity."""
     ensure_decision_table(conn)
     rows = conn.execute(
-        '''SELECT decision, COUNT(*) AS count
-           FROM opportunity_decisions
-           WHERE account_id=?
-           GROUP BY decision
-           ORDER BY decision''',
-        (str(account_id or 'default'),),
+        '''SELECT d.decision, COUNT(*) AS count
+           FROM opportunity_decisions d
+           JOIN (
+               SELECT source, external_id, MAX(id) AS max_id
+               FROM opportunity_decisions
+               WHERE account_id=?
+               GROUP BY source, external_id
+           ) latest ON latest.max_id=d.id
+           WHERE d.account_id=?
+           GROUP BY d.decision
+           ORDER BY d.decision''',
+        (str(account_id or 'default'), str(account_id or 'default')),
     ).fetchall()
     return {row['decision']: row['count'] for row in rows}
