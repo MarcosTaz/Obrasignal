@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import React, { useCallback, useEffect, useState } from 'react'
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { api } from '../src/api'
 import AuthScreen from './AuthScreen'
@@ -18,7 +18,7 @@ export default function AuthGate({ children }) {
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
 
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     setProfileLoading(true)
     setProfileError('')
     try {
@@ -29,7 +29,7 @@ export default function AuthGate({ children }) {
     } finally {
       setProfileLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -51,7 +51,7 @@ export default function AuthGate({ children }) {
       mounted = false
       subscription.subscription.unsubscribe()
     }
-  }, [])
+  }, [loadProfile])
 
   if (loading || (session && profileLoading)) {
     return <View style={styles.loading}><ActivityIndicator size="large" color="#315ea8" /></View>
@@ -61,8 +61,15 @@ export default function AuthGate({ children }) {
 
   if (profileError && !profile) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#315ea8" />
+      <View style={styles.errorScreen}>
+        <Text style={styles.errorTitle}>Não foi possível ligar ao ObraSignal</Text>
+        <Text style={styles.errorText}>{profileError}</Text>
+        <Pressable onPress={loadProfile} style={styles.retryButton}>
+          <Text style={styles.retryText}>Tentar novamente</Text>
+        </Pressable>
+        <Pressable onPress={() => supabase.auth.signOut()} style={styles.signOutButton}>
+          <Text style={styles.signOutText}>Terminar sessão</Text>
+        </Pressable>
       </View>
     )
   }
@@ -76,4 +83,11 @@ export default function AuthGate({ children }) {
 
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fbff' },
+  errorScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#f8fbff' },
+  errorTitle: { fontSize: 22, fontWeight: '800', color: '#17233a', textAlign: 'center' },
+  errorText: { marginTop: 10, fontSize: 14, lineHeight: 21, color: '#64718a', textAlign: 'center' },
+  retryButton: { marginTop: 22, minHeight: 48, paddingHorizontal: 22, borderRadius: 12, backgroundColor: '#315ea8', alignItems: 'center', justifyContent: 'center' },
+  retryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  signOutButton: { marginTop: 10, minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  signOutText: { color: '#315ea8', fontSize: 13, fontWeight: '700' },
 })
