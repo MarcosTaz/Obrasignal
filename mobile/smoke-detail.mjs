@@ -14,6 +14,7 @@ const checks = [
 
 const crossFileChecks = [
   ['authenticated startup syncs alerts', /syncUnreadOpportunityAlerts/],
+  ['foreground resumes alert sync', /AppState\.addEventListener\('change'/],
   ['notification sync reads unread server alerts', /api\.alerts\(\{ unreadOnly: true/],
   ['notification sync acknowledges delivered events', /api\.markAlertDelivered\(item\.event_id\)/],
   ['API exposes alerts endpoint', /alerts:\s*\(\{ limit = 20, unreadOnly = false \}/],
@@ -21,9 +22,9 @@ const crossFileChecks = [
 
 const failures = checks.filter(([, pattern]) => !pattern.test(app));
 const crossFailures = [
-  ...crossFileChecks.slice(0, 1).filter(([, pattern]) => !pattern.test(authGate)),
-  ...crossFileChecks.slice(1, 3).filter(([, pattern]) => !pattern.test(notifications)),
-  ...crossFileChecks.slice(3).filter(([, pattern]) => !pattern.test(api)),
+  ...crossFileChecks.slice(0, 2).filter(([, pattern]) => !pattern.test(authGate)),
+  ...crossFileChecks.slice(2, 4).filter(([, pattern]) => !pattern.test(notifications)),
+  ...crossFileChecks.slice(4).filter(([, pattern]) => !pattern.test(api)),
 ];
 
 if (failures.length || crossFailures.length) {
