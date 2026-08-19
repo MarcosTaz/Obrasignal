@@ -33,3 +33,5 @@ jobs:
           node-version: '22.13.1'
       - run: npm install --no-audit --no-fund
       - run: npx expo-doctor
+      - name: Smoke-test Expo bundle
+        run: npm run smoke:web
