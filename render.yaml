@@ -13,8 +13,9 @@ services:
         value: "provider"
       - key: OBRASIGNAL_JWT_ISSUER
         sync: false
+      # Supabase user access tokens use the authenticated audience.
       - key: OBRASIGNAL_JWT_AUDIENCE
-        sync: false
+        value: "authenticated"
       - key: OBRASIGNAL_JWKS_URL
         sync: false
       # Production web client origin. This is not a secret.
