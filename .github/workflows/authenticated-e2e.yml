@@ -1,6 +1,8 @@
 name: ObraSignal Authenticated E2E
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: "47 2 * * *"
@@ -8,17 +10,24 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: authenticated-e2e
+  cancel-in-progress: true
+
+env:
+  SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+  E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+  E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+  API_URL: https://obrasignal.onrender.com/api/v1
+
 jobs:
   authenticated-api:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
-      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
-      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-      API_URL: https://obrasignal.onrender.com/api/v1
     steps:
+      - uses: actions/checkout@v4
+
       - name: Require E2E credentials
         run: |
           set -euo pipefail
@@ -34,18 +43,33 @@ jobs:
             -H "apikey: $SUPABASE_KEY" \
             -H 'Content-Type: application/json' \
             --data "$(python - <<'PY'
-import json, os
-print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
-PY
-            )" > /tmp/auth.json
+          import json, os
+          print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
+          PY
+          )" > /tmp/auth.json
           python - <<'PY'
-import json
-payload=json.load(open('/tmp/auth.json'))
-token=payload.get('access_token')
-assert token, 'Supabase did not return an access token'
-open('/tmp/access_token','w').write(token)
-print('Supabase authentication succeeded.')
-PY
+          import json
+          payload=json.load(open('/tmp/auth.json'))
+          token=payload.get('access_token')
+          assert token, 'Supabase did not return an access token'
+          open('/tmp/access_token','w').write(token)
+          print('Supabase authentication succeeded.')
+          PY
+
+      - name: Verify unauthenticated boundary
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --output /tmp/unauth-body --write-out '%{http_code}' --max-time 30 "$API_URL/profile")"
+          test "$status" = "401"
+          grep -q 'authentication_required' /tmp/unauth-body
+
+      - name: Verify malformed bearer boundary
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --output /tmp/bad-token-body --write-out '%{http_code}' --max-time 30 \
+            -H 'Authorization: Bearer definitely-not-a-jwt' "$API_URL/profile")"
+          test "$status" = "401"
+          grep -q 'authentication_required' /tmp/bad-token-body
 
       - name: Verify authenticated API identity
         run: |
@@ -54,24 +78,75 @@ PY
             -H "Authorization: Bearer $(cat /tmp/access_token)" \
             "$API_URL/profile" > /tmp/profile.json
           python - <<'PY'
-import json
-payload=json.load(open('/tmp/profile.json'))
-assert payload.get('authenticated') is True
-assert payload.get('account_id')
-assert isinstance(payload.get('profile'), dict)
-print('Authenticated API identity verified for account:', payload['account_id'])
-PY
+          import json
+          payload=json.load(open('/tmp/profile.json'))
+          assert payload.get('authenticated') is True
+          assert payload.get('account_id')
+          assert isinstance(payload.get('profile'), dict)
+          print('Authenticated API identity verified for account:', payload['account_id'])
+          PY
 
-      - name: Verify authenticated opportunity access
+      - name: Verify authenticated opportunity access and account scoping
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 30 \
             -H "Authorization: Bearer $(cat /tmp/access_token)" \
             "$API_URL/opportunities?limit=1" > /tmp/opportunities.json
           python - <<'PY'
-import json
-payload=json.load(open('/tmp/opportunities.json'))
-assert isinstance(payload.get('items'), list)
-assert payload.get('account_id')
-print('Authenticated opportunity access verified.')
-PY
+          import json
+          payload=json.load(open('/tmp/opportunities.json'))
+          assert isinstance(payload.get('items'), list)
+          assert payload.get('account_id')
+          assert payload['account_id'] != ''
+          print('Authenticated opportunity access verified.')
+          PY
+
+      - name: Verify authenticated stats and workflow stats
+        run: |
+          set -euo pipefail
+          for endpoint in stats workflow/stats; do
+            curl --fail --silent --show-error --max-time 30 \
+              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+              "$API_URL/$endpoint" > "/tmp/$(echo "$endpoint" | tr / /_).json"
+          done
+          python - <<'PY'
+          import json
+          stats=json.load(open('/tmp/stats.json'))
+          workflow=json.load(open('/tmp/workflow_stats.json'))
+          assert stats.get('account_id')
+          assert workflow.get('account_id') == stats['account_id']
+          assert isinstance(workflow.get('counts'), dict)
+          print('Account-scoped stats verified.')
+          PY
+
+      - name: Verify detail and workflow round-trip when data exists
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          items=json.load(open('/tmp/opportunities.json')).get('items') or []
+          if not items:
+              print('No opportunity available; detail/workflow round-trip skipped without treating empty data as failure.')
+              open('/tmp/tender_id','w').write('')
+          else:
+              tender_id=str(items[0]['id'])
+              open('/tmp/tender_id','w').write(tender_id)
+          PY
+          if test -s /tmp/tender_id; then
+            ID="$(cat /tmp/tender_id)"
+            curl --fail --silent --show-error --max-time 30 \
+              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+              "$API_URL/opportunities/$ID" > /tmp/detail.json
+            curl --fail --silent --show-error --max-time 30 \
+              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+              "$API_URL/opportunities/$ID/workflow" > /tmp/workflow.json
+            python - <<'PY'
+          import json
+          detail=json.load(open('/tmp/detail.json'))
+          workflow=json.load(open('/tmp/workflow.json'))
+          assert detail.get('id')
+          assert isinstance(detail.get('workflow'), dict)
+          assert workflow.get('status') in {'NEW','REVIEWING','PREPARING','SUBMITTED','WON','LOST'}
+          print('Authenticated detail and workflow read verified.')
+          PY
+          fi
