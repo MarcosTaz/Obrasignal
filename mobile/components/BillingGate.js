@@ -75,7 +75,7 @@ export default function BillingGate({ children }) {
 
   return <View style={{ flex: 1 }}>
     {expired ? <View style={styles.blocked}><Text style={styles.blockedTitle}>O período de teste terminou</Text><Text style={styles.blockedText}>Para continuar a receber oportunidades personalizadas, ativa o ObraSignal Pro.</Text><Pressable style={styles.primary} onPress={openPaywall}><Text style={styles.primaryText}>Ver subscrição</Text></Pressable></View> : children}
-    {!expired && <Pressable style={styles.planPill} onPress={openPaywall}><Text style={styles.planText}>{billing.pro ? 'PRO' : billing.plan === 'pilot' ? 'PILOT' : 'PLANO'}</Text></Pressable>}
+    {!expired && <Pressable style={styles.planPill} onPress={openPaywall} accessibilityRole="button" accessibilityLabel="Plano ObraSignal"><Text style={styles.planText}>{billing.pro ? 'PRO' : billing.plan === 'pilot' ? 'PILOT' : 'PLANO'}</Text></Pressable>}
     <Modal visible={modal} transparent animationType="slide" onRequestClose={() => !busy && setModal(false)}>
       <View style={styles.overlay}><View style={styles.sheet}>
         <Text style={styles.eyebrow}>OBRASIGNAL PRO</Text>
@@ -93,7 +93,7 @@ export default function BillingGate({ children }) {
 }
 
 const styles = StyleSheet.create({
-  planPill:{position:'absolute',right:18,top:8,paddingHorizontal:10,paddingVertical:6,borderRadius:999,backgroundColor:'#15295A',borderWidth:1,borderColor:'#315EA8'},
+  planPill:{position:'absolute',right:72,top:14,paddingHorizontal:10,paddingVertical:6,borderRadius:999,backgroundColor:'#15295A',borderWidth:1,borderColor:'#315EA8'},
   planText:{fontSize:9,fontWeight:'900',letterSpacing:1,color:COLORS.text},
   blocked:{flex:1,alignItems:'center',justifyContent:'center',padding:28,backgroundColor:COLORS.bg},
   blockedTitle:{fontSize:24,fontWeight:'900',color:COLORS.text,textAlign:'center'},
