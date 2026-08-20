@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase';
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrender.com/api/v1').replace(/\/$/, '');
 const DEFAULT_TIMEOUT = 120000;
-const PROFILE_TIMEOUT = 150000;
+const PROFILE_TIMEOUT = 30000;
 const MAX_ATTEMPTS = 2;
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
@@ -57,7 +57,9 @@ function unwrapProfile(data){return data?.profile||data||null;}
 export const api={
   health:()=>request('/health',{timeout:60000,skipAuth:true}),
   profile:async()=>unwrapProfile(await request('/profile',{timeout:PROFILE_TIMEOUT})),
-  saveProfile:async(profile)=>unwrapProfile(await request('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
+  // POST is intentionally single-attempt: retrying an authenticated write can
+  // duplicate work and makes a stuck Save button look like a UI failure.
+  saveProfile:async(profile)=>unwrapProfile(await request('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT,maxAttempts:1})),
   billingStatus:()=>request('/billing/status'),
   stats:()=>request('/stats'),
   workflowStats:()=>request('/workflow/stats'),
