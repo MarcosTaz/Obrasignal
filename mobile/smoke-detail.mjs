@@ -6,9 +6,10 @@ const notifications = fs.readFileSync(new URL('./src/notifications.js', import.m
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 
 const checks = [
-  ['detail receives selected opportunity', /<Detail\s+initialItem=\{selected\}/],
-  ['detail owns local opportunity state', /function Detail\(\{ initialItem,/],
-  ['workflow is rendered in detail', /<WorkflowPanel item=\{item\}/],
+  ['detail receives selected opportunity', /<Detail\s+item=\{selected\}/],
+  ['detail owns local opportunity state', /function Detail\(\{item,/],
+  ['workflow is rendered in detail', /const status=current\.workflow\?\.status\|\|'NEW'/],
+  ['workflow action calls API', /api\.setWorkflow\(current\.id,next/],
   ['official source action is rendered', /Abrir fonte oficial/],
 ];
 
@@ -32,4 +33,4 @@ if (failures.length || crossFailures.length) {
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
+for (const [name] of [...checks, ...crossChecks]) console.log(`PASS: ${name}`);
