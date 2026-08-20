@@ -50,52 +50,31 @@ jobs:
           PY
 
       - name: Test exact credentials
-        id: exact
-        continue-on-error: true
         run: |
           set -euo pipefail
           BASE_URL="${SUPABASE_URL%/}"
           BASE_URL="${BASE_URL%/rest/v1}"
           python - <<'PY'
           import json, os
-          body={'email':os.environ['E2E_EMAIL'],'password':os.environ['E2E_PASSWORD']}
-          open('/tmp/body.json','w').write(json.dumps(body))
+          open('/tmp/body.json','w').write(json.dumps({
+              'email': os.environ['E2E_EMAIL'],
+              'password': os.environ['E2E_PASSWORD']
+          }))
           PY
           status="$(curl --silent --show-error --output /tmp/auth.json --write-out '%{http_code}' --max-time 30 \
             -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
-            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' -H 'Accept: application/json' \
+            -H "apikey: $SUPABASE_KEY" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
             --data-binary @/tmp/body.json)"
           echo "exact_http_status=$status"
-          if [ "$status" = "200" ]; then echo 'EXACT_AUTH_OK'; exit 0; fi
-          cat /tmp/auth.json
-          exit 1
-
-      - name: Test normalized credential variants
-        if: steps.exact.outcome == 'failure'
-        run: |
-          set -euo pipefail
+          if [ "$status" != "200" ]; then
+            cat /tmp/auth.json
+            exit 1
+          fi
           python - <<'PY'
-          import json, os, subprocess
-          base=os.environ['SUPABASE_URL'].rstrip('/')
-          if base.endswith('/rest/v1'):
-              base=base[:-len('/rest/v1')]
-          email=os.environ['E2E_EMAIL'].strip()
-          password=os.environ['E2E_PASSWORD']
-          variants=[('trim_email',email,password),('strip_trailing_newline',email,password.rstrip('\r\n'))]
-          seen=set()
-          for name,e,p in variants:
-              if (e,p) in seen: continue
-              seen.add((e,p))
-              open('/tmp/variant.json','w').write(json.dumps({'email':e,'password':p}))
-              r=subprocess.run([
-                  'curl','--silent','--show-error','--output','/tmp/variant-response.json','--write-out','%{http_code}',
-                  '--max-time','30','-X','POST',f'{base}/auth/v1/token?grant_type=password',
-                  '-H',f'apikey: {os.environ["SUPABASE_KEY"]}','-H','Content-Type: application/json','-H','Accept: application/json',
-                  '--data-binary','@/tmp/variant.json'],capture_output=True,text=True)
-              status=r.stdout.strip()
-              print(f'{name}_http_status={status}')
-              if status == '200':
-                  print(f'NORMALIZED_AUTH_OK={name}')
-                  raise SystemExit(0)
-          raise SystemExit(1)
+          import json
+          p=json.load(open('/tmp/auth.json'))
+          assert p.get('access_token'), 'HTTP 200 without access token'
+          print('EXACT_AUTH_OK')
           PY
