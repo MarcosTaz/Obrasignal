@@ -131,6 +131,49 @@ jobs:
           print('Authenticated API identity verified for account:', payload['account_id'])
           PY
 
+      - name: Verify authenticated profile persistence round-trip
+        run: |
+          set -euo pipefail
+          cp /tmp/profile.json /tmp/profile-original-response.json
+          python - <<'PY'
+          import json, uuid
+          payload=json.load(open('/tmp/profile.json'))
+          profile=payload['profile']
+          marker=f"__e2e_{uuid.uuid4().hex[:12]}"
+          profile['keywords']=list(profile.get('keywords') or [])+[marker]
+          json.dump(profile, open('/tmp/profile-write.json','w'), ensure_ascii=False)
+          json.dump({'marker':marker}, open('/tmp/profile-marker.json','w'))
+          PY
+          restore_profile() {
+            python - <<'PY'
+          import json
+          payload=json.load(open('/tmp/profile-original-response.json'))
+          json.dump(payload.get('profile') or {}, open('/tmp/profile-restore.json','w'), ensure_ascii=False)
+          PY
+            curl --fail --silent --show-error --max-time 30 \
+              -X POST "$API_URL/profile" \
+              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+              -H 'Content-Type: application/json' \
+              --data-binary @/tmp/profile-restore.json >/tmp/profile-restore-response.json
+          }
+          trap restore_profile EXIT
+          curl --fail --silent --show-error --max-time 30 \
+            -X POST "$API_URL/profile" \
+            -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/profile-write.json >/tmp/profile-write-response.json
+          curl --fail --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            "$API_URL/profile" >/tmp/profile-after-write.json
+          python - <<'PY'
+          import json
+          marker=json.load(open('/tmp/profile-marker.json'))['marker']
+          payload=json.load(open('/tmp/profile-after-write.json'))
+          assert marker in (payload.get('profile') or {}).get('keywords', [])
+          assert payload.get('authenticated') is True
+          print('Authenticated profile write/read persistence verified.')
+          PY
+
       - name: Verify authenticated opportunity access and account scoping
         run: |
           set -euo pipefail
@@ -193,5 +236,45 @@ jobs:
           assert isinstance(detail.get('workflow'), dict)
           assert workflow.get('status') in {'NEW','REVIEWING','PREPARING','SUBMITTED','WON','LOST'}
           print('Authenticated detail and workflow read verified.')
+          PY
+            python - <<'PY'
+          import json
+          workflow=json.load(open('/tmp/workflow.json'))
+          json.dump(workflow, open('/tmp/workflow-original.json','w'))
+          PY
+            restore_workflow() {
+              python - <<'PY'
+          import json
+          w=json.load(open('/tmp/workflow-original.json'))
+          json.dump({'status':w.get('status','NEW'),'note':w.get('note')}, open('/tmp/workflow-restore.json','w'))
+          PY
+              curl --fail --silent --show-error --max-time 30 \
+                -X POST "$API_URL/opportunities/$ID/workflow" \
+                -H "Authorization: Bearer $(cat /tmp/access_token)" \
+                -H 'Content-Type: application/json' \
+                --data-binary @/tmp/workflow-restore.json >/tmp/workflow-restore-response.json
+            }
+            trap restore_workflow EXIT
+            python - <<'PY'
+          import json
+          w=json.load(open('/tmp/workflow-original.json'))
+          next_status='REVIEWING' if w.get('status') != 'REVIEWING' else 'PREPARING'
+          json.dump({'status':next_status,'note':'__e2e_roundtrip__'}, open('/tmp/workflow-write.json','w'))
+          PY
+            curl --fail --silent --show-error --max-time 30 \
+              -X POST "$API_URL/opportunities/$ID/workflow" \
+              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+              -H 'Content-Type: application/json' \
+              --data-binary @/tmp/workflow-write.json >/tmp/workflow-write-response.json
+            curl --fail --silent --show-error --max-time 30 \
+              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+              "$API_URL/opportunities/$ID/workflow" >/tmp/workflow-after-write.json
+            python - <<'PY'
+          import json
+          expected=json.load(open('/tmp/workflow-write.json'))
+          actual=json.load(open('/tmp/workflow-after-write.json'))
+          assert actual.get('status') == expected['status']
+          assert actual.get('note') == expected['note']
+          print('Authenticated workflow write/read persistence verified.')
           PY
           fi
