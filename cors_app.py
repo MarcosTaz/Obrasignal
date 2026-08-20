@@ -32,6 +32,7 @@ def _cors(response):
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
+    response.headers["X-ObraSignal-Build"] = os.getenv("OBRASIGNAL_BUILD", "unversioned")
     return response
 
 
