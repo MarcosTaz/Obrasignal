@@ -9,7 +9,7 @@ permissions:
 env:
   SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
   SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-  E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+  E2E_EMAIL: obrasignal.pt@gmail.com
   E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
 
 jobs:
@@ -17,20 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check secret formatting without exposing secrets
+      - name: Check credential input without exposing secrets
         run: |
           set -euo pipefail
           python - <<'PY'
-          import os
+          import os, hashlib
           email=os.environ['E2E_EMAIL']
           password=os.environ['E2E_PASSWORD']
           print('email_exact_expected:', email == 'obrasignal.pt@gmail.com')
           print('email_byte_length:', len(email.encode()))
-          print('email_has_outer_whitespace:', email != email.strip())
           print('password_byte_length:', len(password.encode()))
-          print('password_has_leading_whitespace:', password != password.lstrip())
-          print('password_has_trailing_whitespace:', password != password.rstrip())
+          print('password_has_outer_whitespace:', password != password.strip())
           print('password_has_cr_or_lf:', '\r' in password or '\n' in password)
+          print('password_sha256:', hashlib.sha256(password.encode()).hexdigest())
           PY
 
       - name: Probe Auth configuration
@@ -47,6 +46,7 @@ jobs:
           ext=p.get('external') or {}
           print('email_provider_enabled:', ext.get('email'))
           print('disable_signup:', p.get('disable_signup'))
+          print('autoconfirm:', p.get('autoconfirm'))
           PY
 
       - name: Test exact credentials
