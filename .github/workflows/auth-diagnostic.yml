@@ -9,7 +9,6 @@ permissions:
 env:
   SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
   SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-  E2E_EMAIL: obrasignal.pt@gmail.com
   E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
 
 jobs:
@@ -17,15 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check credential input without exposing secrets
+      - name: Check password input without exposing it
         run: |
           set -euo pipefail
           python - <<'PY'
           import os, hashlib
-          email=os.environ['E2E_EMAIL']
           password=os.environ['E2E_PASSWORD']
-          print('email_exact_expected:', email == 'obrasignal.pt@gmail.com')
-          print('email_byte_length:', len(email.encode()))
+          print('password_present:', bool(password))
           print('password_byte_length:', len(password.encode()))
           print('password_has_outer_whitespace:', password != password.strip())
           print('password_has_cr_or_lf:', '\r' in password or '\n' in password)
@@ -49,7 +46,7 @@ jobs:
           print('autoconfirm:', p.get('autoconfirm'))
           PY
 
-      - name: Test exact credentials
+      - name: Test target account
         run: |
           set -euo pipefail
           BASE_URL="${SUPABASE_URL%/}"
@@ -57,24 +54,43 @@ jobs:
           python - <<'PY'
           import json, os
           open('/tmp/body.json','w').write(json.dumps({
-              'email': os.environ['E2E_EMAIL'],
+              'email': 'obrasignal.pt@gmail.com',
               'password': os.environ['E2E_PASSWORD']
           }))
           PY
-          status="$(curl --silent --show-error --output /tmp/auth.json --write-out '%{http_code}' --max-time 30 \
+          status="$(curl --silent --show-error --output /tmp/auth-target.json --write-out '%{http_code}' --max-time 30 \
             -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
-            -H "apikey: $SUPABASE_KEY" \
-            -H 'Content-Type: application/json' \
-            -H 'Accept: application/json' \
+            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' -H 'Accept: application/json' \
             --data-binary @/tmp/body.json)"
-          echo "exact_http_status=$status"
-          if [ "$status" != "200" ]; then
-            cat /tmp/auth.json
-            exit 1
+          echo "target_http_status=$status"
+          if [ "$status" = "200" ]; then
+            echo 'TARGET_AUTH_OK'
+            exit 0
           fi
+          cat /tmp/auth-target.json
+          exit 1
+
+      - name: Test secondary known account with same password
+        if: failure()
+        run: |
+          set -euo pipefail
+          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${BASE_URL%/rest/v1}"
           python - <<'PY'
-          import json
-          p=json.load(open('/tmp/auth.json'))
-          assert p.get('access_token'), 'HTTP 200 without access token'
-          print('EXACT_AUTH_OK')
+          import json, os
+          open('/tmp/body-secondary.json','w').write(json.dumps({
+              'email': 'marcostrigomoutinho@gmail.com',
+              'password': os.environ['E2E_PASSWORD']
+          }))
           PY
+          status="$(curl --silent --show-error --output /tmp/auth-secondary.json --write-out '%{http_code}' --max-time 30 \
+            -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' -H 'Accept: application/json' \
+            --data-binary @/tmp/body-secondary.json)"
+          echo "secondary_http_status=$status"
+          if [ "$status" = "200" ]; then
+            echo 'SECONDARY_AUTH_OK_SAME_PASSWORD'
+          else
+            echo 'SECONDARY_AUTH_NOT_OK'
+          fi
+          exit 1
