@@ -12,7 +12,6 @@ export default function AuthGate({ children }) {
 
   const loadProfileInBackground = useCallback(async () => {
     try {
-      try { await api.warmup() } catch (_) {}
       await api.profile()
       try { await syncUnreadOpportunityAlerts() } catch (_) {}
     } catch (_) {
