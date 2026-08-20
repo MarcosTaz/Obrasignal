@@ -1,0 +1,5 @@
+ObraSignal web deployment marker
+
+This file intentionally triggers the GitHub Pages production build after the authenticated profile persistence fix.
+Source commit: e1765f9a0bc22fa3b6a9fe26c0a10de42c0cb244
+Date: 2026-08-20
