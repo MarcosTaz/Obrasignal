@@ -25,6 +25,7 @@ async function request(path, options={}) {
   const fetchOptions={...options};
   delete fetchOptions.timeout; delete fetchOptions.maxAttempts; delete fetchOptions.skipAuth;
   let lastError=null;
+  let authRefreshes=0;
   for(let attempt=1;attempt<=maxAttempts;attempt+=1){
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),timeout);
@@ -32,7 +33,7 @@ async function request(path, options={}) {
       // Do not race authenticated calls against a sleeping Render instance.
       // Health is public and is deliberately requested before the first protected call.
       if (!skipAuth && path !== '/health') await ensureReady();
-      const {data:{session}}=skipAuth?{data:{session:null}}:await supabase.auth.getSession();
+      let {data:{session}}=skipAuth?{data:{session:null}}:await supabase.auth.getSession();
       const authHeaders=session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{ };
       const method=String(fetchOptions.method||'GET').toUpperCase();
       const hasBody=fetchOptions.body!=null;
@@ -40,7 +41,17 @@ async function request(path, options={}) {
       const response=await fetch(`${API_BASE}${path}`,{...fetchOptions,mode:'cors',cache:'no-store',headers:{Accept:'application/json',...contentHeaders,...authHeaders,...(fetchOptions.headers||{})},signal:controller.signal});
       const text=await response.text();
       let data=null; try{data=text?JSON.parse(text):null;}catch(_){}
-      if(!response.ok){const error=new Error(data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;}
+      if(!response.ok){
+        // A browser can hold an expired Supabase access token even though the
+        // local session still exists. Refresh it once before surfacing 401.
+        if(response.status===401 && !skipAuth && authRefreshes===0){
+          authRefreshes+=1;
+          const refreshed=await supabase.auth.refreshSession();
+          session=refreshed?.data?.session || null;
+          if(session?.access_token){ continue; }
+        }
+        const error=new Error(data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;
+      }
       return data;
     }catch(error){
       lastError=isRetryableNetworkError(error)?describeNetworkError(error,path):error;
