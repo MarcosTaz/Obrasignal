@@ -293,3 +293,30 @@ def opportunities():
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
     c.close()
     return jsonify({"items": items, "count": len(items), "market": market, "generated_at": _iso_now(), "account_id": identity.account_id})
+
+
+@bp.route("/opportunities/<int:opportunity_id>/workflow", methods=["GET", "POST"])
+def opportunity_workflow(opportunity_id):
+    identity = request.obrasignal_identity
+    payload = request.get_json(silent=True) or {}
+    c = _db()
+    try:
+        row = c.execute("SELECT source, external_id FROM tenders WHERE id=?", (opportunity_id,)).fetchone()
+        if row is None:
+            return jsonify({"error": "not_found"}), 404
+        if request.method == "GET":
+            workflow = get_workflow(c, identity.account_id, row["source"], row["external_id"])
+            return jsonify({"workflow": workflow, "account_id": identity.account_id, "generated_at": _iso_now()})
+        workflow = set_workflow(
+            c,
+            identity.account_id,
+            row["source"],
+            row["external_id"],
+            payload.get("status"),
+            payload.get("note"),
+        )
+        return jsonify({"ok": True, "workflow": workflow, "account_id": identity.account_id, "generated_at": _iso_now()})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    finally:
+        c.close()
