@@ -20,8 +20,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.13.1'
+          cache: npm
+          cache-dependency-path: mobile/package.json
 
-      - run: npm ci --no-audit --no-fund
+      # This repository intentionally does not commit a package-lock.json.
+      # npm ci therefore cannot work here; use npm install to resolve the
+      # declared Expo/RN dependency graph reproducibly enough for preflight.
+      - run: npm install --no-audit --no-fund
 
       - name: Validate native release contract
         shell: bash
