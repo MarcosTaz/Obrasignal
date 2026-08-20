@@ -2,6 +2,12 @@
 import os
 from urllib.parse import urlsplit, urlunsplit
 from flask import request
+
+# Install the sync-funnel thread hook BEFORE importing api/preload/app. The
+# latter imports app, which starts its worker during module initialization.
+# Loading the hook first guarantees that the worker is wrapped with the
+# account-scoped decision pipeline before its thread starts.
+import sync_funnel_hook  # noqa: F401
 from api import APP
 
 def _origin():
