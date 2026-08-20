@@ -12,8 +12,6 @@ function describeNetworkError(error, path) { const name=error?.name||'NetworkErr
 
 async function ensureReady() {
   if (!readinessPromise) {
-    // Render may cold-start after inactivity. Give the public health endpoint
-    // enough time to wake the service and retry transient gateway/network errors.
     readinessPromise = request('/health', { timeout: 60000, maxAttempts: 2, skipAuth: true })
       .catch((error) => { readinessPromise = null; throw error; });
   }
@@ -32,7 +30,10 @@ async function request(path, options={}) {
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),timeout);
     try{
-      if (!skipAuth && path !== '/health') await ensureReady();
+      // Do not make every authenticated request depend on /health. A health
+      // probe can be temporarily unavailable while the actual API is able to
+      // wake up and serve the request. The API call itself is the authoritative
+      // connectivity test and Render can cold-start from it.
       let {data:{session}}=skipAuth?{data:{session:null}}:await supabase.auth.getSession();
       const authHeaders=session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{ };
       const method=String(fetchOptions.method||'GET').toUpperCase();
