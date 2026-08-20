@@ -14,6 +14,9 @@ concurrency:
   group: pages-preview
   cancel-in-progress: true
 
+env:
+  EXPO_PUBLIC_API_URL: https://obrasignal.onrender.com/api/v1
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -55,12 +58,37 @@ jobs:
       - name: Build web bundle
         run: npm run smoke:web
 
+      - name: Stamp deployed build into page
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          p = Path('.smoke-dist/index.html')
+          s = p.read_text(encoding='utf-8')
+          build = os.environ['GITHUB_SHA'][:7]
+          marker = f'<meta name="obrasignal-build" content="{build}">'
+          if '<meta name="obrasignal-build"' in s:
+              s = re.sub(r'<meta name="obrasignal-build"[^>]*>', marker, s, count=1)
+          elif '</head>' in s:
+              s = s.replace('</head>', f'  {marker}</head>', 1)
+          else:
+              s = marker + s
+          if re.search(r'<title>.*?</title>', s, flags=re.S):
+              s = re.sub(r'<title>.*?</title>', f'<title>ObraSignal • {build}</title>', s, count=1, flags=re.S)
+          p.write_text(s, encoding='utf-8')
+          PY
+
       - name: Verify generated web bundle
         shell: bash
         run: |
           set -euo pipefail
           test -s .smoke-dist/index.html
           grep -q "ObraSignal" .smoke-dist/index.html
+          grep -q "obrasignal-build" .smoke-dist/index.html
+          grep -q "${GITHUB_SHA:0:7}" .smoke-dist/index.html
           test -n "$(find .smoke-dist -type f | wc -l)"
 
       - name: Upload Pages artifact
@@ -79,15 +107,15 @@ jobs:
           set -euo pipefail
           test -n "$PAGE_URL"
           echo "Web preview deployed at $PAGE_URL"
-          for attempt in 1 2 3 4 5; do
-            if curl --fail --silent --show-error --location --max-time 20 "$PAGE_URL" | grep -q "ObraSignal"; then
-              echo "GitHub Pages smoke check passed."
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if curl --fail --silent --show-error --location --max-time 20 "$PAGE_URL" | grep -q "${GITHUB_SHA:0:7}"; then
+              echo "GitHub Pages deployment is serving build ${GITHUB_SHA:0:7}."
               exit 0
             fi
-            echo "Waiting for Pages to become reachable (attempt $attempt/5)…"
-            sleep 8
+            echo "Waiting for Pages to serve build ${GITHUB_SHA:0:7} (attempt $attempt/8)…"
+            sleep 10
           done
-          echo "GitHub Pages deployment did not return the expected ObraSignal page."
+          echo "GitHub Pages is not serving the newly deployed build marker."
           exit 1
 
       - name: Report deployment URL
