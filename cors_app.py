@@ -1,9 +1,4 @@
-"""Production WSGI entrypoint with a global CORS safety net.
-
-The API blueprint already handles CORS, but browser preflight must be answered
-before authentication and before any blueprint-specific hook can interfere.
-This wrapper makes that guarantee at the application boundary.
-"""
+"""Production WSGI entrypoint with a global CORS safety net."""
 import os
 from urllib.parse import urlsplit, urlunsplit
 
