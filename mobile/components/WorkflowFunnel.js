@@ -22,17 +22,18 @@ const STEPS = [
   ['LOST', 'Perdido', COLORS.red],
 ];
 
-export default function WorkflowFunnel() {
+export default function WorkflowFunnel({ refreshKey }) {
   const [counts, setCounts] = useState(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     let active = true;
+    setError(false);
     api.workflowStats()
       .then((data) => { if (active) setCounts(data?.counts || {}); })
       .catch(() => { if (active) setError(true); });
     return () => { active = false; };
-  }, []);
+  }, [refreshKey]);
 
   const totalActive = useMemo(() => {
     if (!counts) return 0;
