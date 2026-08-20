@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { api } from '../src/api'
 import { syncUnreadOpportunityAlerts } from '../src/notifications'
@@ -26,9 +26,11 @@ export default function AuthGate({ children }) {
       try { await api.warmup() } catch (_) {}
       const result = await api.profile()
       setProfile(result?.profile || null)
-      // Notification delivery is best-effort and must never block login.
       try { await syncUnreadOpportunityAlerts() } catch (_) {}
     } catch (error) {
+      // A temporary API outage must never lock an already authenticated user
+      // outside the application. The app shell can open and retry API calls
+      // independently while the backend recovers.
       setProfileError(error?.message || 'Não foi possível carregar o perfil.')
     } finally {
       setProfileLoading(false)
@@ -39,12 +41,12 @@ export default function AuthGate({ children }) {
     if (!session) return undefined
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        // Re-check unread events whenever the app returns to the foreground.
         syncUnreadOpportunityAlerts().catch(() => {})
+        loadProfile()
       }
     })
     return () => subscription.remove()
-  }, [session])
+  }, [session, loadProfile])
 
   useEffect(() => {
     let mounted = true
@@ -97,25 +99,22 @@ export default function AuthGate({ children }) {
     }
   }, [loadProfile])
 
-  if (loading || (session && profileLoading)) {
+  if (loading) {
     return <View style={styles.loading}><ActivityIndicator size="large" color="#315ea8" /></View>
   }
 
   if (!session) return <AuthScreen />
 
+  // Do not make the entire application depend on the API being awake.
+  // Supabase has already authenticated the user, so let the app open even
+  // when /profile is temporarily unreachable. Once the API recovers,
+  // loadProfile() above will restore the normal profile flow automatically.
   if (profileError && !profile) {
-    return (
-      <View style={styles.errorScreen}>
-        <Text style={styles.errorTitle}>Não foi possível ligar ao ObraSignal</Text>
-        <Text style={styles.errorText}>{profileError}</Text>
-        <Pressable onPress={loadProfile} style={styles.retryButton}>
-          <Text style={styles.retryText}>Tentar novamente</Text>
-        </Pressable>
-        <Pressable onPress={() => supabase.auth.signOut()} style={styles.signOutButton}>
-          <Text style={styles.signOutText}>Terminar sessão</Text>
-        </Pressable>
-      </View>
-    )
+    return <BillingGate>{children}</BillingGate>
+  }
+
+  if (profileLoading) {
+    return <View style={styles.loading}><ActivityIndicator size="large" color="#315ea8" /></View>
   }
 
   if (needsOnboarding(profile)) {
@@ -127,11 +126,4 @@ export default function AuthGate({ children }) {
 
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fbff' },
-  errorScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#f8fbff' },
-  errorTitle: { fontSize: 22, fontWeight: '800', color: '#17233a', textAlign: 'center' },
-  errorText: { marginTop: 10, fontSize: 14, lineHeight: 21, color: '#64718a', textAlign: 'center' },
-  retryButton: { marginTop: 22, minHeight: 48, paddingHorizontal: 22, borderRadius: 12, backgroundColor: '#315ea8', alignItems: 'center', justifyContent: 'center' },
-  retryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  signOutButton: { marginTop: 10, minHeight: 42, alignItems: 'center', justifyContent: 'center' },
-  signOutText: { color: '#315ea8', fontSize: 13, fontWeight: '700' },
 })
