@@ -33,4 +33,4 @@ if (failures.length || crossFailures.length) {
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossChecks]) console.log(`PASS: ${name}`);
+for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
