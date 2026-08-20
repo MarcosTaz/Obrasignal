@@ -35,6 +35,27 @@ jobs:
             test -n "${!name}" || { echo "Missing required E2E secret: $name"; exit 1; }
           done
 
+      - name: Preflight Supabase Auth configuration
+        run: |
+          set -euo pipefail
+          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${BASE_URL%/rest/v1}"
+          status="$(curl --silent --show-error --output /tmp/settings.json --write-out '%{http_code}' --max-time 30 \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            "$BASE_URL/auth/v1/settings")"
+          test "$status" = "200" || { echo "Supabase Auth settings probe failed with HTTP $status."; exit 1; }
+          python - <<'PY'
+          import json
+          payload=json.load(open('/tmp/settings.json'))
+          external=payload.get('external') or {}
+          print(json.dumps({
+              'email_provider_enabled': external.get('email'),
+              'autoconfirm': payload.get('autoconfirm'),
+              'disable_signup': payload.get('disable_signup'),
+          }, ensure_ascii=False))
+          PY
+
       - name: Authenticate against Supabase
         run: |
           set -euo pipefail
@@ -45,7 +66,9 @@ jobs:
           status="$(curl --silent --show-error --output /tmp/auth.json --write-out '%{http_code}' --max-time 30 \
             -X POST "$AUTH_URL" \
             -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
             -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
             --data "$(python - <<'PY'
           import json, os
           print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
