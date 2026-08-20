@@ -141,4 +141,11 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
         raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": errors})
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(normalized, fh, ensure_ascii=False, indent=2)
+    try:
+        from account_onboarding import bootstrap_account
+        bootstrap_account(account)
+    except Exception:
+        # Profile persistence must remain successful even if the optional
+        # bootstrap is unavailable; the regular sync worker will classify it.
+        pass
     return normalized
