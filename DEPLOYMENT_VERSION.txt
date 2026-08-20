@@ -1,5 +1,4 @@
 ObraSignal web deployment marker
 
-This file intentionally triggers the GitHub Pages production build after the authenticated profile persistence fix.
-Source commit: f219a4b0aa58e85aafb03c98adcc651a119c3ccf
-Deployment trigger: 2026-08-20T15:00Z
+This file intentionally triggers the GitHub Pages production build.
+The deployed page is stamped by the workflow with the exact source commit SHA; this marker is not the source-of-truth for the deployed version.
