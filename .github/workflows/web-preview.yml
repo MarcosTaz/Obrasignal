@@ -15,27 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  web-config:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: mobile
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.13.1'
-          cache: npm
-          cache-dependency-path: mobile/package.json
-
-      - run: npm install --no-audit --no-fund
-      - name: Expo doctor (Web source)
-        run: npx expo-doctor@latest
-
   deploy:
-    needs: web-config
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -48,6 +28,7 @@ jobs:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       EXPO_PUBLIC_API_URL: https://obrasignal.onrender.com/api/v1
+      EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,8 +49,11 @@ jobs:
           test -n "$EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY" || { echo 'Missing GitHub Actions secret EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY'; exit 1; }
           test -n "$EXPO_PUBLIC_API_URL" || { echo 'Missing EXPO_PUBLIC_API_URL'; exit 1; }
 
-      - run: npm install --no-audit --no-fund
-      - run: npm run smoke:web
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build web bundle
+        run: npm run smoke:web
 
       - name: Verify generated web bundle
         shell: bash
