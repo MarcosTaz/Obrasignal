@@ -1,0 +1,104 @@
+name: ObraSignal Auth Diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+  E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check secret formatting without exposing secrets
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          email=os.environ['E2E_EMAIL']
+          password=os.environ['E2E_PASSWORD']
+          print('email_exact_expected:', email == 'obrasignal.pt@gmail.com')
+          print('email_byte_length:', len(email.encode()))
+          print('email_has_outer_whitespace:', email != email.strip())
+          print('password_byte_length:', len(password.encode()))
+          print('password_has_leading_whitespace:', password != password.lstrip())
+          print('password_has_trailing_whitespace:', password != password.rstrip())
+          print('password_has_cr_or_lf:', '\r' in password or '\n' in password)
+          PY
+
+      - name: Probe Auth configuration
+        run: |
+          set -euo pipefail
+          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${BASE_URL%/rest/v1}"
+          status="$(curl --silent --show-error --output /tmp/settings.json --write-out '%{http_code}' --max-time 30 \
+            -H "apikey: $SUPABASE_KEY" "$BASE_URL/auth/v1/settings")"
+          test "$status" = "200"
+          python - <<'PY'
+          import json
+          p=json.load(open('/tmp/settings.json'))
+          ext=p.get('external') or {}
+          print('email_provider_enabled:', ext.get('email'))
+          print('disable_signup:', p.get('disable_signup'))
+          PY
+
+      - name: Test exact credentials
+        id: exact
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${BASE_URL%/rest/v1}"
+          python - <<'PY'
+          import json, os
+          body={'email':os.environ['E2E_EMAIL'],'password':os.environ['E2E_PASSWORD']}
+          open('/tmp/body.json','w').write(json.dumps(body))
+          PY
+          status="$(curl --silent --show-error --output /tmp/auth.json --write-out '%{http_code}' --max-time 30 \
+            -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' -H 'Accept: application/json' \
+            --data-binary @/tmp/body.json)"
+          echo "exact_http_status=$status"
+          if [ "$status" = "200" ]; then echo 'EXACT_AUTH_OK'; exit 0; fi
+          cat /tmp/auth.json
+          exit 1
+
+      - name: Test normalized credential variants
+        if: steps.exact.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${BASE_URL%/rest/v1}"
+          python - <<'PY'
+          import json, os
+          email=os.environ['E2E_EMAIL'].strip()
+          password=os.environ['E2E_PASSWORD']
+          variants=[('trim_email',email,password),('strip_one_trailing_newline',email,password.rstrip('\r\n'))]
+          seen=set()
+          for name,e,p in variants:
+              if (e,p) in seen: continue
+              seen.add((e,p))
+              open('/tmp/variant.json','w').write(json.dumps({'email':e,'password':p}))
+              import subprocess
+              r=subprocess.run([
+                  'curl','--silent','--show-error','--output','/tmp/variant-response.json','--write-out','%{http_code}',
+                  '--max-time','30','-X','POST',f'{os.environ["BASE_URL"]}/auth/v1/token?grant_type=password',
+                  '-H',f'apikey: {os.environ["SUPABASE_KEY"]}','-H','Content-Type: application/json','-H','Accept: application/json',
+                  '--data-binary','@/tmp/variant.json'],capture_output=True,text=True)
+              status=r.stdout.strip()
+              print(f'{name}_http_status={status}')
+              if status == '200':
+                  print(f'NORMALIZED_AUTH_OK={name}')
+                  raise SystemExit(0)
+          raise SystemExit(1)
+          PY
+        env:
+          BASE_URL: ${{ env.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ env.SUPABASE_KEY }}
