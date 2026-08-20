@@ -3,13 +3,14 @@ import os
 from urllib.parse import urlsplit, urlunsplit
 from flask import request
 
-# Install the sync-funnel thread hook BEFORE importing api/preload/app. The
-# latter imports app, which starts its worker during module initialization.
-# Loading the hook first guarantees that the worker is wrapped with the
-# account-scoped decision pipeline before its thread starts.
 import sync_funnel_hook  # noqa: F401
-from api import APP
+from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
+
+# api.py owns the mobile API blueprint; register it here because this is the
+# production WSGI entrypoint and keeps registration explicit at the boundary.
+if "mobile_api" not in APP.blueprints:
+    APP.register_blueprint(MOBILE_API_BP)
 
 
 def _origin():
@@ -93,7 +94,6 @@ def _stats_safety_net():
         response = APP.jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last_sync, "account_id": account_id})
         return _cors(response)
     except Exception:
-        # Do not take the whole Radar down because dashboard counters failed.
         response = APP.jsonify({"total": 0, "high": 0, "open": 0, "new24": 0, "last_sync": None, "account_id": getattr(getattr(request, "obrasignal_identity", None), "account_id", None), "degraded": True})
         return _cors(response)
 
