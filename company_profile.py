@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 
 from company_profile_validation import validate_company_profile
 from unified_company_profile import normalize_company_profile
@@ -126,6 +127,16 @@ def load_profile(account_id: str | None = None) -> dict:
         return dict(DEFAULT_PROFILE)
 
 
+def _bootstrap_saved_profile(account: str) -> None:
+    try:
+        from account_onboarding import bootstrap_account
+        bootstrap_account(account)
+    except Exception:
+        # Profile persistence must remain successful even if the optional
+        # bootstrap is unavailable; the regular sync worker will classify it.
+        pass
+
+
 def save_profile(profile: dict, account_id: str | None = None) -> dict:
     requested_account = account_id or (profile or {}).get("account_id") or "default"
     account = str(requested_account).strip() or "default"
@@ -141,11 +152,15 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
         raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": errors})
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(normalized, fh, ensure_ascii=False, indent=2)
-    try:
-        from account_onboarding import bootstrap_account
-        bootstrap_account(account)
-    except Exception:
-        # Profile persistence must remain successful even if the optional
-        # bootstrap is unavailable; the regular sync worker will classify it.
-        pass
+
+    # Never make the authenticated profile POST wait for the potentially
+    # expensive first-value classification pass. Persistence is the critical
+    # operation; onboarding runs asynchronously so the client can immediately
+    # return to the Radar and refresh when the account-scoped decisions exist.
+    threading.Thread(
+        target=_bootstrap_saved_profile,
+        args=(account,),
+        name="obrasignal-profile-bootstrap",
+        daemon=True,
+    ).start()
     return normalized
