@@ -43,7 +43,7 @@ function AppContent() {
   const [items, setItems] = useState([]);
   const [stats, setStats] = useState({ total: 0, high: 0, new24: 0, open: 0 });
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
@@ -54,7 +54,7 @@ function AppContent() {
   useEffect(() => { (async () => {
     const [s, prefs, cache] = await Promise.all([storage.getSaved(), storage.getSettings(), storage.getCache()]);
     setSaved(s); setSettings(prefs);
-    if (cache?.items?.length) { setItems(cache.items); setStats(cache.stats || stats); setLoading(false); }
+    if (cache?.items?.length) { setItems(cache.items); setStats(cache.stats || stats); }
   })(); }, []);
 
   useEffect(() => { storage.setSettings(settings).catch(() => {}); }, [settings]);
@@ -74,7 +74,10 @@ function AppContent() {
     } finally { setLoading(false); setRefreshing(false); }
   }, [search, settings.minScore, settings.openOnly, tab]);
 
-  useEffect(() => { load(); }, [load]);
+  // Never block the first render on the API. This is especially important for
+  // Render cold starts: the authenticated application opens immediately and
+  // the radar refreshes in the background.
+  useEffect(() => { load(true); }, [load]);
 
   const toggleSave = useCallback(async (id) => {
     setSaved(prev => { const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]; storage.setSaved(next).catch(() => {}); return next; });
