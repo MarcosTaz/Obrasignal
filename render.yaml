@@ -25,5 +25,6 @@ services:
         value: "60"
       - key: TED_DAYS
         value: "30"
+      # Keep the first production sync bounded; subsequent 60s polls keep it fresh.
       - key: TED_MAX_PAGES
-        value: "60"
+        value: "4"
