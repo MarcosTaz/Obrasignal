@@ -52,11 +52,12 @@ async function request(path, options={}) {
 }
 
 function normalizeOpportunity(item){if(!item||typeof item!=='object')return item;return {...item,decision_score:item.decision_score??item.account_score??null,decision_reason:item.decision_reason??item.account_reason??null};}
+function unwrapProfile(data){return data?.profile||data||null;}
 
 export const api={
   health:()=>request('/health',{timeout:60000,skipAuth:true}),
-  profile:()=>request('/profile',{timeout:PROFILE_TIMEOUT}),
-  saveProfile:(profile)=>request('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT}),
+  profile:async()=>unwrapProfile(await request('/profile',{timeout:PROFILE_TIMEOUT})),
+  saveProfile:async(profile)=>unwrapProfile(await request('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
   billingStatus:()=>request('/billing/status'),
   stats:()=>request('/stats'),
   workflowStats:()=>request('/workflow/stats'),
