@@ -16,11 +16,9 @@ export default function AuthGate({ children }) {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
 
   const loadProfile = useCallback(async () => {
-    setProfileLoading(true)
     setProfileError('')
     try {
       try { await api.warmup() } catch (_) {}
@@ -28,12 +26,9 @@ export default function AuthGate({ children }) {
       setProfile(result?.profile || null)
       try { await syncUnreadOpportunityAlerts() } catch (_) {}
     } catch (error) {
-      // A temporary API outage must never lock an already authenticated user
-      // outside the application. The app shell can open and retry API calls
-      // independently while the backend recovers.
+      // The authenticated app must not be blocked by a cold or temporarily
+      // unavailable API. Supabase already established the user session.
       setProfileError(error?.message || 'Não foi possível carregar o perfil.')
-    } finally {
-      setProfileLoading(false)
     }
   }, [])
 
@@ -75,7 +70,6 @@ export default function AuthGate({ children }) {
           if (!nextSession) {
             setProfile(null)
             setProfileError('')
-            setProfileLoading(false)
             return
           }
 
@@ -105,16 +99,16 @@ export default function AuthGate({ children }) {
 
   if (!session) return <AuthScreen />
 
-  // Do not make the entire application depend on the API being awake.
-  // Supabase has already authenticated the user, so let the app open even
-  // when /profile is temporarily unreachable. Once the API recovers,
-  // loadProfile() above will restore the normal profile flow automatically.
+  // The app shell opens as soon as Supabase authenticates the user. Profile
+  // retrieval continues in the background and automatically upgrades the
+  // session to the normal onboarding/profile flow when the API is available.
   if (profileError && !profile) {
     return <BillingGate>{children}</BillingGate>
   }
 
-  if (profileLoading) {
-    return <View style={styles.loading}><ActivityIndicator size="large" color="#315ea8" /></View>
+  if (!profile && !profileError) {
+    // Keep the application usable while the API request is in flight.
+    return <BillingGate>{children}</BillingGate>
   }
 
   if (needsOnboarding(profile)) {
