@@ -74,22 +74,22 @@ jobs:
         if: steps.exact.outcome == 'failure'
         run: |
           set -euo pipefail
-          BASE_URL="${SUPABASE_URL%/}"
-          BASE_URL="${BASE_URL%/rest/v1}"
           python - <<'PY'
-          import json, os
+          import json, os, subprocess
+          base=os.environ['SUPABASE_URL'].rstrip('/')
+          if base.endswith('/rest/v1'):
+              base=base[:-len('/rest/v1')]
           email=os.environ['E2E_EMAIL'].strip()
           password=os.environ['E2E_PASSWORD']
-          variants=[('trim_email',email,password),('strip_one_trailing_newline',email,password.rstrip('\r\n'))]
+          variants=[('trim_email',email,password),('strip_trailing_newline',email,password.rstrip('\r\n'))]
           seen=set()
           for name,e,p in variants:
               if (e,p) in seen: continue
               seen.add((e,p))
               open('/tmp/variant.json','w').write(json.dumps({'email':e,'password':p}))
-              import subprocess
               r=subprocess.run([
                   'curl','--silent','--show-error','--output','/tmp/variant-response.json','--write-out','%{http_code}',
-                  '--max-time','30','-X','POST',f'{os.environ["BASE_URL"]}/auth/v1/token?grant_type=password',
+                  '--max-time','30','-X','POST',f'{base}/auth/v1/token?grant_type=password',
                   '-H',f'apikey: {os.environ["SUPABASE_KEY"]}','-H','Content-Type: application/json','-H','Accept: application/json',
                   '--data-binary','@/tmp/variant.json'],capture_output=True,text=True)
               status=r.stdout.strip()
@@ -99,6 +99,3 @@ jobs:
                   raise SystemExit(0)
           raise SystemExit(1)
           PY
-        env:
-          BASE_URL: ${{ env.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ env.SUPABASE_KEY }}
