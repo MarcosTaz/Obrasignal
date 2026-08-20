@@ -98,6 +98,36 @@ def _stats_safety_net():
         return _cors(response)
 
 
+def _opportunity_detail(opportunity_id):
+    """Serve the authenticated detail shape consumed by the mobile/web client."""
+    identity = configured_identity()
+    from api import _db, _latest_decisions, _row
+    from opportunity_workflow import get_workflow
+
+    c = _db()
+    try:
+        row = c.execute("SELECT * FROM tenders WHERE id=?", (opportunity_id,)).fetchone()
+        if row is None:
+            return APP.jsonify({"error": "not_found"}), 404
+        decision = _latest_decisions(c, identity.account_id, [row["external_id"]]).get((row["source"], row["external_id"]))
+        item = _row(row, decision, get_workflow(c, identity.account_id, row["source"], row["external_id"]))
+        return APP.jsonify(item)
+    finally:
+        c.close()
+
+
+# Keep this route at the production WSGI boundary because the API blueprint
+# predates the detail endpoint. It is still protected by the same verified
+# provider identity and uses the same account-scoped decision/workflow helpers.
+if not any(rule.rule == "/api/v1/opportunities/<int:opportunity_id>" for rule in APP.url_map.iter_rules()):
+    APP.add_url_rule(
+        "/api/v1/opportunities/<int:opportunity_id>",
+        endpoint="mobile_api.opportunity_detail",
+        view_func=_opportunity_detail,
+        methods=["GET"],
+    )
+
+
 @APP.after_request
 def _global_api_cors(response):
     if request.path.startswith("/api/v1/"):
