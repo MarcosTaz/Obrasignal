@@ -4,6 +4,7 @@ const KEYS = {
   saved: '@obrasignal/v1/saved',
   settings: '@obrasignal/v1/settings',
   cache: '@obrasignal/v1/opportunities-cache',
+  profile: '@obrasignal/v1/profile',
 };
 
 const DEFAULT_SETTINGS = {
@@ -27,6 +28,8 @@ export const storage = {
   setSettings: (settings) => AsyncStorage.setItem(KEYS.settings, JSON.stringify(settings)),
   getCache: () => readJson(KEYS.cache, null),
   setCache: (payload) => AsyncStorage.setItem(KEYS.cache, JSON.stringify({ ...payload, cachedAt: new Date().toISOString() })),
+  getProfile: () => readJson(KEYS.profile, null),
+  setProfile: (profile) => AsyncStorage.setItem(KEYS.profile, JSON.stringify(profile)),
 };
 
 export { KEYS, DEFAULT_SETTINGS };
