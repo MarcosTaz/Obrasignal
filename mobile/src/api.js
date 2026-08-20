@@ -12,7 +12,9 @@ function describeNetworkError(error, path) { const name=error?.name||'NetworkErr
 
 async function ensureReady() {
   if (!readinessPromise) {
-    readinessPromise = request('/health', { timeout: 90000, maxAttempts: 1, skipAuth: true })
+    // Render may cold-start after inactivity. Give the public health endpoint
+    // enough time to wake the service and retry transient gateway/network errors.
+    readinessPromise = request('/health', { timeout: 60000, maxAttempts: 2, skipAuth: true })
       .catch((error) => { readinessPromise = null; throw error; });
   }
   return readinessPromise;
@@ -30,8 +32,6 @@ async function request(path, options={}) {
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),timeout);
     try{
-      // Do not race authenticated calls against a sleeping Render instance.
-      // Health is public and is deliberately requested before the first protected call.
       if (!skipAuth && path !== '/health') await ensureReady();
       let {data:{session}}=skipAuth?{data:{session:null}}:await supabase.auth.getSession();
       const authHeaders=session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{ };
@@ -42,8 +42,6 @@ async function request(path, options={}) {
       const text=await response.text();
       let data=null; try{data=text?JSON.parse(text):null;}catch(_){}
       if(!response.ok){
-        // A browser can hold an expired Supabase access token even though the
-        // local session still exists. Refresh it once before surfacing 401.
         if(response.status===401 && !skipAuth && authRefreshes===0){
           authRefreshes+=1;
           const refreshed=await supabase.auth.refreshSession();
@@ -69,7 +67,7 @@ function normalizeOpportunity(item){if(!item||typeof item!=='object')return item
 
 export const api={
   warmup:()=>{ readinessPromise=null; return ensureReady(); },
-  health:()=>request('/health',{timeout:90000,skipAuth:true}),
+  health:()=>request('/health',{timeout:60000,skipAuth:true}),
   profile:()=>request('/profile',{timeout:PROFILE_TIMEOUT}),
   saveProfile:(profile)=>request('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT}),
   billingStatus:()=>request('/billing/status'),
