@@ -4,7 +4,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import sqlite3
 import threading
+from pathlib import Path
 
 from company_profile_validation import validate_company_profile
 from unified_company_profile import normalize_company_profile
@@ -47,6 +49,26 @@ _COUNTRY_ALIASES = {
     "NO": "NOR", "GB": "GBR",
 }
 
+PROFILE_TABLE = """
+CREATE TABLE IF NOT EXISTS company_profiles (
+    account_id TEXT PRIMARY KEY,
+    profile_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+"""
+
+
+def _db_path() -> str:
+    return os.getenv("OBRASIGNAL_DB", str(Path(__file__).with_name("obrasignal.db")))
+
+
+def _profile_db():
+    conn = sqlite3.connect(_db_path(), timeout=15)
+    conn.row_factory = sqlite3.Row
+    conn.execute(PROFILE_TABLE)
+    conn.commit()
+    return conn
+
 
 def _normalize(text: str) -> str:
     text = (text or "").lower()
@@ -86,7 +108,7 @@ def derive_profile(activity: str, base: dict | None = None) -> dict:
     return normalize_company_profile(profile)
 
 
-def _profile_path(account_id: str | None = None) -> str:
+def _legacy_profile_path(account_id: str | None = None) -> str:
     account = str(account_id or "default").strip() or "default"
     if account == "default":
         return (
@@ -96,13 +118,11 @@ def _profile_path(account_id: str | None = None) -> str:
         )
     root = os.getenv("OBRASIGNAL_PROFILE_DIR", "profiles")
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", account)
-    os.makedirs(root, exist_ok=True)
     return os.path.join(root, f"{safe}.json")
 
 
-def load_profile(account_id: str | None = None) -> dict:
-    account = str(account_id or "default").strip() or "default"
-    path = _profile_path(account)
+def _load_legacy_profile(account: str) -> dict | None:
+    path = _legacy_profile_path(account)
     try:
         with open(path, "r", encoding="utf-8") as fh:
             raw = json.load(fh)
@@ -111,20 +131,62 @@ def load_profile(account_id: str | None = None) -> dict:
         profile["account_id"] = account
         return derive_profile(profile.get("activity", ""), profile)
     except (FileNotFoundError, OSError, TypeError, ValueError):
-        if account != "default":
+        if account == "default":
+            raw = os.getenv("OBRASIGNAL_PROFILE_JSON", "").strip()
+            if raw:
+                try:
+                    profile = dict(DEFAULT_PROFILE)
+                    profile.update(json.loads(raw))
+                    profile["account_id"] = account
+                    return derive_profile(profile.get("activity", ""), profile)
+                except (TypeError, ValueError):
+                    pass
+        return None
+
+
+def load_profile(account_id: str | None = None) -> dict:
+    account = str(account_id or "default").strip() or "default"
+    conn = _profile_db()
+    try:
+        row = conn.execute("SELECT profile_json FROM company_profiles WHERE account_id=?", (account,)).fetchone()
+    finally:
+        conn.close()
+
+    if row:
+        try:
+            raw = json.loads(row["profile_json"])
             profile = dict(DEFAULT_PROFILE)
+            profile.update(raw or {})
             profile["account_id"] = account
-            return profile
-        raw = os.getenv("OBRASIGNAL_PROFILE_JSON", "").strip()
-        if raw:
-            try:
-                profile = dict(DEFAULT_PROFILE)
-                profile.update(json.loads(raw))
-                profile["account_id"] = account
-                return derive_profile(profile.get("activity", ""), profile)
-            except (TypeError, ValueError):
-                pass
-        return dict(DEFAULT_PROFILE)
+            return derive_profile(profile.get("activity", ""), profile)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+
+    # Backward compatibility for any profile written by an older deployment.
+    # Import it once into durable storage instead of continuing to depend on
+    # the Render filesystem.
+    legacy = _load_legacy_profile(account)
+    if legacy is not None:
+        _persist_profile_db(legacy, account)
+        return legacy
+    profile = dict(DEFAULT_PROFILE)
+    profile["account_id"] = account
+    return profile
+
+
+def _persist_profile_db(profile: dict, account: str) -> None:
+    from datetime import datetime, timezone
+    conn = _profile_db()
+    try:
+        conn.execute(
+            """INSERT INTO company_profiles(account_id, profile_json, updated_at)
+               VALUES(?, ?, ?)
+               ON CONFLICT(account_id) DO UPDATE SET profile_json=excluded.profile_json, updated_at=excluded.updated_at""",
+            (account, json.dumps(profile, ensure_ascii=False, separators=(",", ":")), datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _bootstrap_saved_profile(account: str) -> None:
@@ -140,7 +202,6 @@ def _bootstrap_saved_profile(account: str) -> None:
 def save_profile(profile: dict, account_id: str | None = None) -> dict:
     requested_account = account_id or (profile or {}).get("account_id") or "default"
     account = str(requested_account).strip() or "default"
-    path = _profile_path(account)
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(profile or {})
     normalized["account_id"] = account
@@ -150,8 +211,10 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
     errors = validate_company_profile(validation_profile)
     if errors:
         raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": errors})
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(normalized, fh, ensure_ascii=False, indent=2)
+
+    # Durable persistence is the critical operation. Do not write authenticated
+    # account profiles to Render's ephemeral filesystem.
+    _persist_profile_db(normalized, account)
 
     # Never make the authenticated profile POST wait for the potentially
     # expensive first-value classification pass. Persistence is the critical
