@@ -100,7 +100,11 @@ def _stats_safety_net():
 
 def _opportunity_detail(opportunity_id):
     """Serve the authenticated detail shape consumed by the mobile/web client."""
-    identity = configured_identity()
+    try:
+        identity = configured_identity()
+    except (RuntimeError, InvalidTokenError):
+        return APP.jsonify({"error": "authentication_required"}), 401
+
     from api import _db, _latest_decisions, _row
     from opportunity_workflow import get_workflow
 
