@@ -4,19 +4,10 @@ const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrende
 const DEFAULT_TIMEOUT = 120000;
 const PROFILE_TIMEOUT = 150000;
 const MAX_ATTEMPTS = 2;
-let readinessPromise = null;
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 function isRetryableNetworkError(error) { if (!error) return false; if (error.name === 'AbortError') return true; if (typeof error.status === 'number') return [502,503,504].includes(error.status); return !error.status; }
 function describeNetworkError(error, path) { const name=error?.name||'NetworkError'; const message=error?.message||String(error||'unknown error'); const hint=/load failed|failed to fetch|networkerror/i.test(message)?'O navegador não recebeu uma resposta HTTP. Verifica CORS, TLS, DNS ou se o endpoint está acessível.':message; const diagnostic=new Error(`API ${path}: ${hint} [${name}]`); diagnostic.code='API_NETWORK_ERROR'; diagnostic.causeMessage=message; diagnostic.path=path; diagnostic.apiBase=API_BASE; return diagnostic; }
-
-async function ensureReady() {
-  if (!readinessPromise) {
-    readinessPromise = request('/health', { timeout: 60000, maxAttempts: 2, skipAuth: true })
-      .catch((error) => { readinessPromise = null; throw error; });
-  }
-  return readinessPromise;
-}
 
 async function request(path, options={}) {
   const timeout=options.timeout??DEFAULT_TIMEOUT;
@@ -30,10 +21,6 @@ async function request(path, options={}) {
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),timeout);
     try{
-      // Do not make every authenticated request depend on /health. A health
-      // probe can be temporarily unavailable while the actual API is able to
-      // wake up and serve the request. The API call itself is the authoritative
-      // connectivity test and Render can cold-start from it.
       let {data:{session}}=skipAuth?{data:{session:null}}:await supabase.auth.getSession();
       const authHeaders=session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{ };
       const method=String(fetchOptions.method||'GET').toUpperCase();
@@ -67,7 +54,6 @@ async function request(path, options={}) {
 function normalizeOpportunity(item){if(!item||typeof item!=='object')return item;return {...item,decision_score:item.decision_score??item.account_score??null,decision_reason:item.decision_reason??item.account_reason??null};}
 
 export const api={
-  warmup:()=>{ readinessPromise=null; return ensureReady(); },
   health:()=>request('/health',{timeout:60000,skipAuth:true}),
   profile:()=>request('/profile',{timeout:PROFILE_TIMEOUT}),
   saveProfile:(profile)=>request('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT}),
