@@ -52,6 +52,13 @@ def ensure_account_table(conn):
 
 
 def ensure_account(conn, account_id, status='active', plan='pilot'):
+    """Ensure the tenant exists without performing network I/O.
+
+    This function is intentionally on the critical path of authenticated API
+    requests, including profile persistence. RevenueCat synchronization is
+    performed by billing/status or webhooks instead of blocking ordinary API
+    operations.
+    """
     ensure_account_table(conn)
     account_id = str(account_id)
     now = datetime.now(timezone.utc)
@@ -66,7 +73,6 @@ def ensure_account(conn, account_id, status='active', plan='pilot'):
             (account_id, status, plan, now.isoformat(), trial_ends_at),
         )
     conn.commit()
-    _sync_revenuecat_if_due(conn, account_id)
 
 
 def get_account(conn, account_id):
@@ -217,6 +223,7 @@ def billing_status():
     conn = _db_from_app()
     try:
         ensure_account(conn, identity.account_id)
+        _sync_revenuecat_if_due(conn, identity.account_id, force=False)
         account = get_account(conn, identity.account_id)
         state = subscription_state(account)
         return jsonify({**state, 'account_id': identity.account_id, 'trial_ends_at': account.get('trial_ends_at'), 'management_url': None})
