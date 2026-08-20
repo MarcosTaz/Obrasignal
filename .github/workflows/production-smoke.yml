@@ -22,14 +22,16 @@ jobs:
       - name: Wake and check API health
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 8); do
+          # Render services can cold-start. Allow up to ~3 minutes before
+          # declaring production unavailable.
+          for attempt in $(seq 1 18); do
             if curl --fail --silent --show-error --max-time 30 \
               https://obrasignal.onrender.com/api/v1/health \
               | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("ok") is True and d.get("service") == "obrasignal-api"; print(d)'; then
-              echo "API healthy on attempt $attempt/8."
+              echo "API healthy on attempt $attempt/18."
               exit 0
             fi
-            echo "API not ready yet; waiting 10s (attempt $attempt/8)…"
+            echo "API not ready yet; waiting 10s (attempt $attempt/18)…"
             sleep 10
           done
           echo "Production API did not become healthy after warm-up retries."
