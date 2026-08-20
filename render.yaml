@@ -6,6 +6,13 @@ services:
     # Global WSGI boundary guarantees browser preflight/CORS before auth hooks.
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 cors_app:APP
     healthCheckPath: /api/v1/health
+    # SQLite is currently the application's datastore. Keep it on a Render
+    # persistent disk so authenticated profiles and opportunity state survive
+    # deploys/restarts. This is intentionally single-instance for now.
+    disk:
+      name: obrasignal-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       # Production authentication MUST be explicit; secret JWT provider values
       # are configured in the Render dashboard/environment, never committed here.
@@ -21,6 +28,8 @@ services:
       # Production web client origin. This is not a secret.
       - key: OBRASIGNAL_CORS_ORIGIN
         value: "https://marcostaz.github.io"
+      - key: OBRASIGNAL_DB
+        value: "/var/data/obrasignal.db"
       - key: POLL_SECONDS
         value: "60"
       - key: TED_DAYS
