@@ -19,12 +19,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check API health
+      - name: Wake and check API health
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 \
-            https://obrasignal.onrender.com/api/v1/health \
-            | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("ok") is True and d.get("service") == "obrasignal-api"; print(d)'
+          for attempt in $(seq 1 8); do
+            if curl --fail --silent --show-error --max-time 30 \
+              https://obrasignal.onrender.com/api/v1/health \
+              | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("ok") is True and d.get("service") == "obrasignal-api"; print(d)'; then
+              echo "API healthy on attempt $attempt/8."
+              exit 0
+            fi
+            echo "API not ready yet; waiting 10s (attempt $attempt/8)…"
+            sleep 10
+          done
+          echo "Production API did not become healthy after warm-up retries."
+          exit 1
 
       - name: Check protected API boundary
         run: |
