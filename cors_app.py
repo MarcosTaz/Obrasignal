@@ -9,6 +9,7 @@ from flask import request
 # account-scoped decision pipeline before its thread starts.
 import sync_funnel_hook  # noqa: F401
 from api import APP
+from auth_context import configured_identity, InvalidTokenError
 
 def _origin():
     value = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
@@ -33,6 +34,17 @@ def _cors(response):
 def _global_api_preflight():
     if request.path.startswith("/api/v1/") and request.method == "OPTIONS":
         return _cors(APP.response_class("", status=204, mimetype="text/plain"))
+    return None
+
+@APP.before_request
+def _protect_radar_api():
+    if request.path != "/api/v1/radar":
+        return None
+    try:
+        identity = configured_identity()
+    except (RuntimeError, InvalidTokenError):
+        return _cors(APP.jsonify({"error": "authentication_required"}), 401)
+    request.obrasignal_identity = identity
     return None
 
 @APP.after_request
