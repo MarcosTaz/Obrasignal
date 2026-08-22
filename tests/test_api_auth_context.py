@@ -1,8 +1,10 @@
+import sqlite3
+
 import api
 
 
 def test_profile_api_uses_request_identity_not_payload(monkeypatch, tmp_path):
-    monkeypatch.setenv("OBRASIGNAL_PROFILE_DIR", str(tmp_path / "profiles"))
+    monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "profiles.db"))
     monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "account-a")
 
     client = api.APP.test_client()
@@ -22,7 +24,7 @@ def test_profile_api_uses_request_identity_not_payload(monkeypatch, tmp_path):
 
 
 def test_profiles_are_selected_from_request_identity(monkeypatch, tmp_path):
-    monkeypatch.setenv("OBRASIGNAL_PROFILE_DIR", str(tmp_path / "profiles"))
+    monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "profiles.db"))
     client = api.APP.test_client()
 
     monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "account-a")
@@ -38,6 +40,43 @@ def test_profiles_are_selected_from_request_identity(monkeypatch, tmp_path):
 
     assert a["name"] == "A"
     assert b["name"] == "B"
+
+
+def test_authenticated_profile_read_survives_concurrent_sync_writer(monkeypatch, tmp_path):
+    from account_registry import ensure_account
+    from company_profile import load_profile
+
+    class Identity:
+        account_id = "account-a"
+        authenticated = True
+
+    db_path = tmp_path / "production.db"
+    monkeypatch.setenv("OBRASIGNAL_DB", str(db_path))
+
+    def connect():
+        conn = sqlite3.connect(db_path, timeout=0.001)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=1")
+        return conn
+
+    bootstrap = connect()
+    ensure_account(bootstrap, Identity.account_id)
+    bootstrap.close()
+    load_profile(Identity.account_id)
+
+    locker = connect()
+    locker.execute("BEGIN IMMEDIATE")
+    monkeypatch.setattr(api, "configured_identity", lambda: Identity())
+    monkeypatch.setattr(api._preload._app, "db", connect)
+    try:
+        response = api.APP.test_client().get("/api/v1/profile")
+    finally:
+        locker.rollback()
+        locker.close()
+
+    assert response.status_code == 200
+    assert response.get_json()["account_id"] == Identity.account_id
+    assert response.get_json()["authenticated"] is True
 
 
 def test_provider_cors_normalizes_github_pages_project_path(monkeypatch):

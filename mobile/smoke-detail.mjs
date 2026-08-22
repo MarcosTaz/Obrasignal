@@ -18,7 +18,7 @@ const crossFileChecks = [
   ['foreground resumes alert sync', /AppState\.addEventListener\('change'/],
   ['notification sync reads unread server alerts', /api\.alerts\(\{ unreadOnly: true/],
   ['notification sync acknowledges delivered events', /api\.markAlertDelivered\(item\.event_id\)/],
-  ['API exposes alerts endpoint', /alerts:\s*\(\{ limit = 20, unreadOnly = false \}/],
+  ['API exposes alerts endpoint', /alerts:\s*\(\{\s*limit\s*=\s*20,\s*unreadOnly\s*=\s*false\s*\}/],
 ];
 
 const failures = checks.filter(([, pattern]) => !pattern.test(app));
