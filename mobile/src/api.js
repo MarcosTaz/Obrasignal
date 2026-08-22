@@ -41,7 +41,10 @@ async function request(path, options={}) {
           authRefreshes+=1;
           const refreshed=await supabase.auth.refreshSession();
           session=refreshed?.data?.session || null;
-          if(session?.access_token){ continue; }
+          // A token refresh is authentication recovery, not a network retry.
+          // Repeat this attempt so MAX_ATTEMPTS=1 still sends the request with
+          // the newly issued access token.
+          if(session?.access_token){ attempt-=1; continue; }
         }
         const error=new Error(data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;
       }
