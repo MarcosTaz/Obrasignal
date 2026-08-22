@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+obrasignal.db
+
+mobile/.expo/
+mobile/.smoke-dist/
+mobile/node_modules/
+# CI intentionally uses npm install because this repository does not commit a lockfile.
+mobile/package-lock.json

@@ -2,8 +2,7 @@ import api
 
 
 def test_profile_api_round_trip(monkeypatch, tmp_path):
-    profile_path = tmp_path / "profile.json"
-    monkeypatch.setenv("OBRASIGNAL_PROFILE", str(profile_path))
+    monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "profiles.db"))
 
     client = api.APP.test_client()
     payload = {
