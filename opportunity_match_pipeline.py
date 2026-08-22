@@ -1,5 +1,7 @@
 """Connect capability, lot matching, economic fit and the decision log."""
 
+from datetime import datetime, timezone
+
 from company_profile import load_profile
 from capability_profile import build_capability_profile, capability_matches_text
 from decision_log import record_decision
@@ -29,6 +31,17 @@ def _lot_from_row(row):
 def _hard_capability_checks(lot, capability):
     """Return deterministic blockers; missing data stays UNKNOWN, not PASS."""
     blockers = []
+    deadline = lot.get("deadline")
+    if deadline:
+        try:
+            parsed = datetime.fromisoformat(str(deadline).strip().replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            if parsed.astimezone(timezone.utc) < datetime.now(timezone.utc):
+                blockers.append("prazo de apresentação terminado")
+        except (TypeError, ValueError):
+            # An invalid deadline remains UNKNOWN rather than being guessed.
+            pass
     amount = lot.get("value_numeric")
     try:
         amount = float(amount) if amount not in (None, "") else None
@@ -99,6 +112,11 @@ def evaluate_row(row, profile=None):
     # the account-specific decision pipeline.
     global_score = result["commercial"]["score"]
     profile_score = personalized_score(source_row, base_score=global_score, profile=profile)[0]
+    # A score shown to a customer must agree with deterministic eligibility
+    # rules.  Previously a CPV/value/deadline blocker could say REJECT while
+    # the same card still displayed e.g. 90/100.
+    if hard_blockers:
+        profile_score = min(profile_score, 35)
     lot_score = int(result["score"])
     geo = result["geography"]
 

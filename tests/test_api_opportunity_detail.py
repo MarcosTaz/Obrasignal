@@ -21,6 +21,13 @@ def _seed(monkeypatch, tmp_path):
            '45400000','90000 EUR','2020-01-01','2020-01-01','https://example.test/closed',70,
            '2020-01-01','2020-01-01','PT')"""
     )
+    conn.execute(
+        """INSERT INTO tenders(source, external_id, title, description, buyer, country,
+           cpv, value, deadline, publication_date, url, score, first_seen, last_seen, market)
+           VALUES ('TED','UNKNOWN-DEADLINE','Obra sem prazo','Informação incompleta','Câmara','PRT',
+           NULL,NULL,NULL,'2026-08-20','https://example.test/unknown',95,
+           '2026-08-20','2026-08-20','PT')"""
+    )
     conn.commit()
     open_id = conn.execute("SELECT id FROM tenders WHERE external_id='OPEN-1'").fetchone()[0]
     conn.close()
@@ -51,6 +58,7 @@ def test_feed_applies_open_source_and_buyer_search_filters(monkeypatch, tmp_path
     _seed(monkeypatch, tmp_path)
     client = api.APP.test_client()
 
-    assert client.get("/api/v1/opportunities?open=1").get_json()["count"] == 1
+    open_items = client.get("/api/v1/opportunities?open=1").get_json()["items"]
+    assert [item["external_id"] for item in open_items] == ["OPEN-1"]
     assert client.get("/api/v1/opportunities?source=BASE").get_json()["items"][0]["external_id"] == "CLOSED-1"
     assert client.get("/api/v1/opportunities?q=munic%C3%ADpio").get_json()["items"][0]["external_id"] == "OPEN-1"

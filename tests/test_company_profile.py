@@ -5,7 +5,7 @@ def test_metalomecanica_activity_derives_terms_and_cpv():
     profile = derive_profile("Fazemos estruturas metálicas, pavilhões e serralharia industrial")
     assert "estrutura metálica" in profile["keywords"]
     assert "serralharia" in profile["keywords"]
-    assert "45" in profile["cpv_prefixes"]
+    assert "4522" in profile["cpv_prefixes"]
 
 
 def test_custom_values_are_preserved():
