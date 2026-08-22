@@ -16,6 +16,11 @@ test('profile GET cannot disguise cache fallback as a fresh response', () => {
   assert.doesNotMatch(api, /profile:async\(\)=>\{try[\s\S]*storage\.getProfile/);
 });
 
+test('a successful session refresh retries the original request once', () => {
+  assert.match(api, /response\.status===401[\s\S]*supabase\.auth\.refreshSession\(\)/);
+  assert.match(api, /session\?\.access_token\)\{ attempt-=1; continue; \}/);
+});
+
 test('startup hydrates cache first but refreshes using hydrated criteria', () => {
   assert.match(app, /Promise\.allSettled\(\[storage\.getSettings\(\),storage\.getCache\(\),storage\.getProfile\(\)\]\)/);
   assert.match(app, /load\(\{preserve:true,criteria:savedSettings\}\)/);
