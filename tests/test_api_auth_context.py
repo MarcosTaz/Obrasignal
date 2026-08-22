@@ -62,7 +62,7 @@ def test_authenticated_profile_read_survives_concurrent_sync_writer(monkeypatch,
     bootstrap = connect()
     ensure_account(bootstrap, Identity.account_id)
     bootstrap.close()
-    load_profile(Identity.account_id)  # Initialize durable profile storage.
+    load_profile(Identity.account_id)
 
     locker = connect()
     locker.execute("BEGIN IMMEDIATE")

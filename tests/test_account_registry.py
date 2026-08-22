@@ -21,9 +21,6 @@ def test_existing_account_initialization_is_read_only_during_sync_writer(tmp_pat
     ensure_account(locker, "empresa-a")
     locker.execute("BEGIN IMMEDIATE")
 
-    # Fail immediately if account initialization tries to acquire the writer
-    # lock held by the sync transaction.  The existing-account path needs only
-    # a concurrent read and must not alter lifecycle or billing state.
     reader = sqlite3.connect(db_path, timeout=0.001)
     reader.execute("PRAGMA busy_timeout=1")
     ensure_account(reader, "empresa-a", status="inactive", plan="pro")
