@@ -6,6 +6,7 @@ import requests
 
 APP=Flask(__name__)
 DB=os.getenv('OBRASIGNAL_DB',str(Path(__file__).with_name('obrasignal.db')))
+SQLITE_BUSY_TIMEOUT_SECONDS=15
 TED_URL='https://api.ted.europa.eu/v3/notices/search'
 BASE_URL='https://www.base.gov.pt/APIBase2'
 POLL_SECONDS=int(os.getenv('POLL_SECONDS','300')); TED_DAYS=int(os.getenv('TED_DAYS','30')); TED_MAX_PAGES=int(os.getenv('TED_MAX_PAGES','60'))
@@ -20,7 +21,12 @@ body{font-family:Arial,sans-serif;background:#0b1020;color:#eef2ff;margin:0}.wra
 {% for t in tenders %}<div class="card"><div class="row" style="justify-content:space-between"><div><span class="tag">{{t.source}}</span><span class="tag">{{t.publication_date or 'sem data'}}</span>{% if t.country %}<span class="tag">{{t.country}}</span>{% endif %}</div><div class="score">{{t.score}}/100</div></div><h2 class="title">{{t.title or 'Sem título'}}</h2><div>{{t.buyer or 'Entidade não identificada'}}</div><div class="muted small">{{t.value or 'Valor não indicado'}} · {{t.deadline or 'Prazo não indicado'}}</div><p class="small">{{t.description[:900] if t.description else ''}}</p>{% if t.match_reason %}<div class="reason"><span class="{{t.priority_class}}">{{t.priority_label}}</span> — {{t.match_reason}}</div>{% endif %}{% if t.cpv %}<div>{% for x in t.cpv.split('|')[:10] %}<span class="tag">{{x}}</span>{% endfor %}</div>{% endif %}<p><a href="{{t.url}}" target="_blank">Abrir fonte</a></p></div>{% endfor %}</div></body></html>'''
 
 def db():
- c=sqlite3.connect(DB,check_same_thread=False);c.row_factory=sqlite3.Row
+ # Profile saves start an account-scoped classification worker which can be
+ # writing to the same SQLite database as a following API request.  SQLite's
+ # five-second default busy timeout is too short for that bounded bootstrap
+ # pass and used to surface transient lock contention as an HTTP 500.
+ c=sqlite3.connect(DB,check_same_thread=False,timeout=SQLITE_BUSY_TIMEOUT_SECONDS);c.row_factory=sqlite3.Row
+ c.execute(f'PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_SECONDS * 1000}')
  c.execute('''CREATE TABLE IF NOT EXISTS tenders(id INTEGER PRIMARY KEY AUTOINCREMENT,source TEXT NOT NULL,external_id TEXT NOT NULL,title TEXT,description TEXT,buyer TEXT,country TEXT,cpv TEXT,value TEXT,deadline TEXT,publication_date TEXT,url TEXT,score INTEGER DEFAULT 0,first_seen TEXT,last_seen TEXT,UNIQUE(source,external_id))''')
  c.execute('''CREATE TABLE IF NOT EXISTS sync_runs(id INTEGER PRIMARY KEY AUTOINCREMENT,started_at TEXT NOT NULL,finished_at TEXT,found INTEGER DEFAULT 0,new_items INTEGER DEFAULT 0)''')
  cols=[r['name'] for r in c.execute('PRAGMA table_info(tenders)').fetchall()]
