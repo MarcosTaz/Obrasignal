@@ -64,14 +64,17 @@ def ensure_account(conn, account_id, status='active', plan='pilot'):
     now = datetime.now(timezone.utc)
     existing = conn.execute("SELECT account_id FROM accounts WHERE account_id=?", (account_id,)).fetchone()
     if existing:
-        conn.execute("UPDATE accounts SET status=? WHERE account_id=?", (status, account_id))
-    else:
-        trial_ends_at = (now + timedelta(days=14)).isoformat()
-        conn.execute(
-            """INSERT INTO accounts(account_id, status, plan, created_at, trial_ends_at, subscription_status)
-               VALUES(?, ?, ?, ?, ?, 'trial')""",
-            (account_id, status, plan, now.isoformat(), trial_ends_at),
-        )
+        # Authentication establishes identity, but it must not mutate tenant or
+        # billing state on every request.  Apart from preserving inactive/paid
+        # state, returning here keeps authenticated reads on SQLite's read path
+        # while the sync worker owns the writer lock.
+        return
+    trial_ends_at = (now + timedelta(days=14)).isoformat()
+    conn.execute(
+        """INSERT INTO accounts(account_id, status, plan, created_at, trial_ends_at, subscription_status)
+           VALUES(?, ?, ?, ?, ?, 'trial')""",
+        (account_id, status, plan, now.isoformat(), trial_ends_at),
+    )
     conn.commit()
 
 

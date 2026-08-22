@@ -64,8 +64,6 @@ def _apply_cors(response):
 def _require_identity():
     if request.method == "OPTIONS":
         return _apply_cors(APP.response_class("", status=204, mimetype="text/plain"))
-    if request.endpoint == "mobile_api.health":
-        return None
     try:
         identity = _identity()
     except (RuntimeError, InvalidTokenError):
@@ -148,14 +146,6 @@ def _latest_decisions(conn, account_id, external_ids):
         item["features"] = json.loads(item.pop("features_json") or "{}")
         result[(item["source"], item["external_id"])] = item
     return result
-
-
-@bp.route("/health", methods=["GET"])
-def health():
-    c = _db()
-    c.execute("SELECT 1").fetchone()
-    c.close()
-    return jsonify({"ok": True, "service": "obrasignal-api", "version": "1", "build": os.getenv("OBRASIGNAL_BUILD", "unversioned"), "time": _iso_now()})
 
 
 @bp.route("/sources", methods=["GET"])
@@ -320,3 +310,10 @@ def opportunity_workflow(opportunity_id):
         return jsonify({"error": str(exc)}), 400
     finally:
         c.close()
+
+
+# Keep the native API usable when this module is imported directly (tests and
+# development), while cors_app remains the production WSGI boundary.  Register
+# only once because both entrypoints share the same Flask application object.
+if "mobile_api" not in APP.blueprints:
+    APP.register_blueprint(bp)
