@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api } from '../src/api';
 
 const COLORS = {
@@ -53,6 +53,14 @@ export default function ProfileOnboarding({ initialProfile, onComplete }) {
   }), [initialProfile, name, activity, cpv, regions, minValue, maxValue, economicMinScore]);
 
   const save = async () => {
+    if (!draft.name || !draft.activity) {
+      setError('Indica o nome e a actividade principal da empresa.');
+      return;
+    }
+    if ([draft.min_value, draft.max_value, draft.economic_min_score].some((value) => value != null && !Number.isFinite(value))) {
+      setError('Revê os valores numéricos indicados.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -68,7 +76,7 @@ export default function ProfileOnboarding({ initialProfile, onComplete }) {
   const score = readiness(draft);
 
   return (
-    <View style={styles.safe}>
+    <ScrollView style={styles.safe} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>PRIMEIRO PASSO</Text>
         <Text style={styles.title}>Vamos ensinar o ObraSignal sobre a tua empresa.</Text>
@@ -97,12 +105,13 @@ export default function ProfileOnboarding({ initialProfile, onComplete }) {
           {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Guardar e abrir o Radar</Text>}
         </Pressable>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.bg, padding: 20 },
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  content: { padding: 20, paddingBottom: 44 },
   hero: { marginBottom: 18, paddingTop: 12 },
   eyebrow: { color: COLORS.blue, fontSize: 12, fontWeight: '800', letterSpacing: 1.1 },
   title: { color: COLORS.text, fontSize: 28, fontWeight: '900', lineHeight: 34, marginTop: 6 },
