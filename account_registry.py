@@ -5,7 +5,6 @@ import hashlib
 import hmac
 import json
 import os
-import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -31,6 +30,7 @@ CREATE TABLE IF NOT EXISTS accounts (
 """
 PROTECTED_PATHS = ('/api/v1/opportunities', '/api/v1/stats', '/api/v1/alerts', '/api/v1/workflow')
 PRO_ENTITLEMENT = 'pro'
+PRO_PRODUCT = 'obrasignal_pro_monthly'
 
 
 def ensure_account_table(conn):
@@ -162,12 +162,17 @@ def _sync_account_from_webhook(conn, event):
     app_user_id = event.get('app_user_id') or event.get('original_app_user_id')
     if not app_user_id:
         return
-    ensure_account(conn, app_user_id)
     event_type = (event.get('type') or '').upper()
     expires_ms = event.get('expiration_at_ms')
     expires = datetime.fromtimestamp(int(expires_ms) / 1000, tz=timezone.utc).isoformat() if expires_ms else None
     store = str(event.get('store') or '').lower() or None
     product_id = event.get('product_id')
+    entitlement_ids = event.get('entitlement_ids') or []
+    # RevenueCat projects can gain additional products over time.  A webhook
+    # for an unrelated product must never unlock ObraSignal Pro.
+    if product_id != PRO_PRODUCT and PRO_ENTITLEMENT not in entitlement_ids:
+        return
+    ensure_account(conn, app_user_id)
     tx = event.get('original_transaction_id') or event.get('transaction_id')
     active_events = {'INITIAL_PURCHASE', 'RENEWAL', 'UNCANCELLATION', 'PRODUCT_CHANGE', 'SUBSCRIPTION_EXTENDED', 'TRIAL_STARTED', 'TRIAL_CONVERTED'}
     if event_type in active_events:
@@ -179,20 +184,18 @@ def _sync_account_from_webhook(conn, event):
         update_subscription(conn, app_user_id, plan='pro', subscription_status='cancelled' if event_type == 'CANCELLATION' else 'grace_period', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
 
 
-def _verify_webhook(raw_body, signature):
+def _verify_webhook(authorization):
+    """Validate RevenueCat's configured webhook Authorization header.
+
+    RevenueCat does not sign webhook bodies.  It sends the exact authorization
+    value configured for the integration, so compare the complete value rather
+    than accepting a custom, non-existent signature scheme.
+    """
     secret = (os.getenv('REVENUECAT_WEBHOOK_SECRET') or '').strip()
-    if not secret or not signature:
+    if not secret or not authorization:
         return False
-    try:
-        parts = dict(item.split('=', 1) for item in signature.split(',') if '=' in item)
-        timestamp = parts['t']
-        received = parts['v1']
-        if abs(time.time() - int(timestamp)) > 300:
-            return False
-        expected = hmac.new(secret.encode(), f'{timestamp}.'.encode() + raw_body, hashlib.sha256).hexdigest()
-        return hmac.compare_digest(expected, received)
-    except (KeyError, ValueError, TypeError):
-        return False
+    expected = secret if secret.lower().startswith('bearer ') else f'Bearer {secret}'
+    return hmac.compare_digest(expected.encode(), authorization.strip().encode())
 
 
 @APP.before_request
@@ -235,7 +238,7 @@ def billing_status():
 @APP.post('/api/v1/billing/webhook')
 def billing_webhook():
     raw = request.get_data(cache=True)
-    if not _verify_webhook(raw, request.headers.get('X-RevenueCat-Webhook-Signature', '')):
+    if not _verify_webhook(request.headers.get('Authorization', '')):
         return jsonify({'error': 'invalid_signature'}), 401
     try:
         body = json.loads(raw.decode('utf-8'))

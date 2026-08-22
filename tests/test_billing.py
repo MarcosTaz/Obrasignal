@@ -1,8 +1,14 @@
 from datetime import datetime, timedelta, timezone
-import os
 import sqlite3
 
-from account_registry import ensure_account, get_account, subscription_state, update_subscription
+from account_registry import (
+    _sync_account_from_webhook,
+    _verify_webhook,
+    ensure_account,
+    get_account,
+    subscription_state,
+    update_subscription,
+)
 
 
 def db():
@@ -40,3 +46,34 @@ def test_expired_trial_is_blocked():
     state = subscription_state(get_account(conn, 'acct-expired'))
     assert state['active'] is False
     assert state['plan'] == 'expired'
+
+
+def test_revenuecat_webhook_uses_configured_authorization_header(monkeypatch):
+    monkeypatch.setenv('REVENUECAT_WEBHOOK_SECRET', 'webhook-secret')
+
+    assert _verify_webhook('Bearer webhook-secret') is True
+    assert _verify_webhook('Bearer wrong-secret') is False
+    assert _verify_webhook('') is False
+
+
+def test_revenuecat_webhook_only_grants_configured_pro_entitlement():
+    conn = db()
+    expires = int((datetime.now(timezone.utc) + timedelta(days=30)).timestamp() * 1000)
+
+    _sync_account_from_webhook(conn, {
+        'app_user_id': 'acct-unrelated',
+        'type': 'INITIAL_PURCHASE',
+        'product_id': 'another_product',
+        'entitlement_ids': ['another_entitlement'],
+        'expiration_at_ms': expires,
+    })
+    assert get_account(conn, 'acct-unrelated') is None
+
+    _sync_account_from_webhook(conn, {
+        'app_user_id': 'acct-pro',
+        'type': 'INITIAL_PURCHASE',
+        'product_id': 'obrasignal_pro_monthly',
+        'entitlement_ids': ['pro'],
+        'expiration_at_ms': expires,
+    })
+    assert subscription_state(get_account(conn, 'acct-pro'))['plan'] == 'pro'
