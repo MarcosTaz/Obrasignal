@@ -230,7 +230,7 @@ def stats():
     params = [identity.account_id, identity.account_id]
     total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
     high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 75", params).fetchone()[0]
-    open_count = c.execute(f"SELECT COUNT(*) {base} AND (t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline)>=datetime('now'))", params).fetchone()[0]
+    open_count = c.execute(f"SELECT COUNT(*) {base} AND t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')", params).fetchone()[0]
     new24 = c.execute(f"SELECT COUNT(*) {base} AND julianday(t.first_seen)>=julianday('now','-1 day')", params).fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
     c.close()
@@ -274,7 +274,7 @@ def opportunities():
         where.append("UPPER(t.source)=?")
         params.append(source)
     if open_only:
-        where.append("(t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline)>=datetime('now'))")
+        where.append("t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')")
     if minscore is not None:
         where.append("COALESCE(d.score,t.score)>=?")
         params.append(minscore)

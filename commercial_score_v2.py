@@ -72,7 +72,8 @@ def score_v2(item):
 
     days = _deadline_days(item.get("deadline"))
     if days is None:
-        components["deadline"] = 5
+        # Missing information is uncertainty, never positive evidence.
+        components["deadline"] = 0
         missing.append("deadline")
     elif days < 0:
         components["deadline"] = 0
@@ -94,7 +95,7 @@ def score_v2(item):
     except (TypeError, ValueError):
         value = None
     if value is None:
-        components["size_fit"] = 7
+        components["size_fit"] = 0
         missing.append("value")
     elif value <= 250_000:
         components["size_fit"] = 15
@@ -114,7 +115,7 @@ def score_v2(item):
         components["access"] = 6
         reasons.append("procedimento com acesso mais exigente")
     else:
-        components["access"] = 7
+        components["access"] = 0
         missing.append("procedure_type")
 
     if any(k in text for k in ("architecture services", "serviços de arquitetura", "servicos de arquitetura", "consultoria", "fiscalização", "fiscalizacao")) and not any(k in text for k in ("obra", "works", "construction", "empreitada", "execução", "execucao")):
