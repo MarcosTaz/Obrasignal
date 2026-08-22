@@ -172,7 +172,14 @@ def sync_route():
  sync_once();return redirect(url_for('home',market=request.args.get('market','PT')))
 
 @APP.get('/api/v1/health')
-def health():return jsonify(ok=True,service='obrasignal')
+def health():
+ return jsonify(
+  ok=True,
+  service='obrasignal-api',
+  version='1',
+  build=os.getenv('OBRASIGNAL_BUILD') or os.getenv('RENDER_GIT_COMMIT') or 'unversioned',
+  time=datetime.now(timezone.utc).isoformat(),
+ )
 
 @APP.get('/api/v1/tenders')
 def api_tenders():

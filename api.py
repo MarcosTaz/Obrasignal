@@ -64,8 +64,6 @@ def _apply_cors(response):
 def _require_identity():
     if request.method == "OPTIONS":
         return _apply_cors(APP.response_class("", status=204, mimetype="text/plain"))
-    if request.endpoint == "mobile_api.health":
-        return None
     try:
         identity = _identity()
     except (RuntimeError, InvalidTokenError):
@@ -148,14 +146,6 @@ def _latest_decisions(conn, account_id, external_ids):
         item["features"] = json.loads(item.pop("features_json") or "{}")
         result[(item["source"], item["external_id"])] = item
     return result
-
-
-@bp.route("/health", methods=["GET"])
-def health():
-    c = _db()
-    c.execute("SELECT 1").fetchone()
-    c.close()
-    return jsonify({"ok": True, "service": "obrasignal-api", "version": "1", "build": os.getenv("OBRASIGNAL_BUILD", "unversioned"), "time": _iso_now()})
 
 
 @bp.route("/sources", methods=["GET"])
