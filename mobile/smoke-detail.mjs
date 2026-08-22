@@ -18,8 +18,8 @@ const checks = [
 ];
 
 const crossFileChecks = [
-  ['startup hydrates local cache before remote data', /Promise\.all\(\[storage\.getSettings\(\),storage\.getCache\(\),storage\.getProfile\(\)\]\)/],
-  ['startup loads independent API data concurrently', /Promise\.allSettled\(\[api\.opportunities/],
+  ['startup hydrates local cache before remote data', /Promise\.allSettled\(\[storage\.getSettings\(\),storage\.getCache\(\),storage\.getProfile\(\)\]\)/],
+  ['startup loads independent API data concurrently', /Promise\.allSettled\(\[api\.profile\(\),api\.opportunities/],
   ['notification sync reads unread server alerts', /api\.alerts\(\{ unreadOnly: true/],
   ['notification sync acknowledges delivered events', /api\.markAlertDelivered\(item\.event_id\)/],
   ['API exposes alerts endpoint', /alerts:\s*\(\{\s*limit\s*=\s*20,\s*unreadOnly\s*=\s*false\s*\}/],
