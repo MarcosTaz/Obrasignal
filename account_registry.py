@@ -64,9 +64,8 @@ def ensure_account(conn, account_id, status='active', plan='pilot'):
     now = datetime.now(timezone.utc)
     existing = conn.execute("SELECT account_id FROM accounts WHERE account_id=?", (account_id,)).fetchone()
     if existing:
-        # Authentication establishes identity, but it must not mutate tenant or
-        # billing state on every request. Returning here also keeps authenticated
-        # reads on SQLite's read path while the sync worker owns the writer lock.
+        # Authentication establishes identity; it must not mutate lifecycle or
+        # billing state, nor acquire a writer lock, on every request.
         return
     trial_ends_at = (now + timedelta(days=14)).isoformat()
     conn.execute(

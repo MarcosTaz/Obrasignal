@@ -13,7 +13,6 @@ def test_account_registry_creates_and_lists_active_accounts():
 
 
 def test_existing_account_initialization_is_read_only_during_sync_writer(tmp_path):
-    """Authenticated reads must not compete with the sync worker's write lock."""
     from account_registry import ensure_account
 
     db_path = tmp_path / "accounts.db"

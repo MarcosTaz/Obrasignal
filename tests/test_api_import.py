@@ -11,11 +11,8 @@ def test_production_health_has_one_public_canonical_route(monkeypatch):
     monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
     monkeypatch.setenv("RENDER_GIT_COMMIT", "deploy-sha")
 
-    rules = [
-        rule
-        for rule in cors_app.APP.url_map.iter_rules()
-        if rule.rule == "/api/v1/health"
-    ]
+    rules = [rule for rule in cors_app.APP.url_map.iter_rules()
+             if rule.rule == "/api/v1/health"]
     response = cors_app.APP.test_client().get("/api/v1/health")
 
     assert len(rules) == 1
