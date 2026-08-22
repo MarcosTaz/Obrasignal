@@ -15,6 +15,8 @@ DEFAULT_PROFILE = {
     "account_id": "default",
     "name": "",
     "activity": "",
+    "contract_interests": [],
+    "coverage_mode": "portugal",
     "keywords": [],
     "countries": ["PRT"],
     "cpv_prefixes": ["45", "44", "42", "43"],
@@ -40,6 +42,12 @@ ACTIVITY_RULES = [
     ("construcao", ["construção", "construcao", "empreitada", "obras", "construction", "reabilitação", "reabilitacao"], ["45"]),
     ("coberturas", ["cobertura", "coberturas", "telhado", "roof", "fachada", "pavilhão", "pavilhao"], ["45", "44"]),
     ("armazens", ["armazém", "armazem", "warehouse", "pavilhão", "pavilhao", "industrial"], ["45", "44"]),
+    ("eletricidade", ["instalação elétrica", "instalações elétricas", "eletricidade", "iluminação", "electricidade"], ["4531", "315"]),
+    ("climatizacao", ["climatização", "avac", "aquecimento", "ventilação", "ar condicionado"], ["4533", "425"]),
+    ("canalizacao", ["canalização", "redes de água", "saneamento", "tubagens"], ["4533", "4416"]),
+    ("manutencao", ["manutenção de edifícios", "manutenção industrial", "reparação", "conservação"], ["50", "45"]),
+    ("limpeza", ["limpeza de edifícios", "serviços de limpeza", "higienização"], ["9091"]),
+    ("tecnologia", ["software", "desenvolvimento de aplicações", "serviços informáticos", "cibersegurança"], ["48", "72"]),
 ]
 
 _COUNTRY_ALIASES = {
@@ -91,7 +99,12 @@ def derive_profile(activity: str, base: dict | None = None) -> dict:
     profile = dict(DEFAULT_PROFILE)
     if base:
         profile.update({k: v for k, v in base.items() if v is not None})
-    activity_n = _normalize(activity)
+    interests = profile.get("contract_interests") or []
+    if isinstance(interests, str):
+        interests = [interests]
+    interests = [str(value).strip() for value in interests if str(value).strip()]
+    profile["contract_interests"] = interests
+    activity_n = _normalize(" ".join([activity or "", *interests]))
     profile["activity"] = activity or profile.get("activity", "")
     keywords = list(profile.get("keywords") or [])
     cpvs = list(profile.get("cpv_prefixes") or [])
