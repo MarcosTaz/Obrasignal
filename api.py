@@ -320,3 +320,10 @@ def opportunity_workflow(opportunity_id):
         return jsonify({"error": str(exc)}), 400
     finally:
         c.close()
+
+
+# Keep the native API usable when this module is imported directly (tests and
+# development), while cors_app remains the production WSGI boundary.  Register
+# only once because both entrypoints share the same Flask application object.
+if "mobile_api" not in APP.blueprints:
+    APP.register_blueprint(bp)

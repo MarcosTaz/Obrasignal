@@ -1,7 +1,7 @@
 """Production WSGI entrypoint with a global CORS safety net."""
 import os
 from urllib.parse import urlsplit, urlunsplit
-from flask import request
+from flask import jsonify, request
 
 import sync_funnel_hook  # noqa: F401
 from api import APP, bp as MOBILE_API_BP
@@ -51,51 +51,10 @@ def _protect_radar_api():
     try:
         identity = configured_identity()
     except (RuntimeError, InvalidTokenError):
-        response = APP.jsonify({"error": "authentication_required"})
+        response = jsonify({"error": "authentication_required"})
         return _cors(response), 401
     request.obrasignal_identity = identity
     return None
-
-
-@APP.before_request
-def _stats_safety_net():
-    """Keep the dashboard counters available even if an optional stats query fails."""
-    if request.path != "/api/v1/stats" or request.method != "GET":
-        return None
-    try:
-        identity = getattr(request, "obrasignal_identity", None) or configured_identity()
-        from api import _db, _iso_now
-        from decision_log import ensure_decision_table
-        c = _db()
-        ensure_decision_table(c)
-        account_id = identity.account_id
-        latest = """LEFT JOIN (
-            SELECT od.source, od.external_id, od.decision, od.score, od.id
-            FROM opportunity_decisions od
-            JOIN (
-                SELECT source, external_id, MAX(id) AS max_id
-                FROM opportunity_decisions
-                WHERE account_id=?
-                GROUP BY source, external_id
-            ) x ON x.max_id=od.id
-            WHERE od.account_id=?
-        ) d ON d.source=t.source AND d.external_id=t.external_id"""
-        base = f"FROM tenders t {latest}"
-        total = c.execute(f"SELECT COUNT(*) {base} WHERE COALESCE(d.decision,'RELEVANT') != 'REJECT'", (account_id, account_id)).fetchone()[0]
-        high = c.execute(f"SELECT COUNT(*) {base} WHERE COALESCE(d.score,t.score) >= 75 AND COALESCE(d.decision,'RELEVANT') != 'REJECT'", (account_id, account_id)).fetchone()[0]
-        open_count = c.execute(f"SELECT COUNT(*) {base} WHERE COALESCE(d.decision,'RELEVANT') != 'REJECT' AND (t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline)>=datetime('now'))", (account_id, account_id)).fetchone()[0]
-        new24 = c.execute(f"SELECT COUNT(*) {base} WHERE COALESCE(d.decision,'RELEVANT') != 'REJECT' AND julianday(t.first_seen)>=julianday('now','-1 day')", (account_id, account_id)).fetchone()[0]
-        try:
-            last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
-            last_sync = last[0] if last else None
-        except Exception:
-            last_sync = None
-        c.close()
-        response = APP.jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last_sync, "account_id": account_id})
-        return _cors(response)
-    except Exception:
-        response = APP.jsonify({"total": 0, "high": 0, "open": 0, "new24": 0, "last_sync": None, "account_id": getattr(getattr(request, "obrasignal_identity", None), "account_id", None), "degraded": True})
-        return _cors(response)
 
 
 def _opportunity_detail(opportunity_id):
@@ -103,7 +62,7 @@ def _opportunity_detail(opportunity_id):
     try:
         identity = configured_identity()
     except (RuntimeError, InvalidTokenError):
-        return APP.jsonify({"error": "authentication_required"}), 401
+        return jsonify({"error": "authentication_required"}), 401
 
     from api import _db, _latest_decisions, _row
     from opportunity_workflow import get_workflow
@@ -112,10 +71,10 @@ def _opportunity_detail(opportunity_id):
     try:
         row = c.execute("SELECT * FROM tenders WHERE id=?", (opportunity_id,)).fetchone()
         if row is None:
-            return APP.jsonify({"error": "not_found"}), 404
+            return jsonify({"error": "not_found"}), 404
         decision = _latest_decisions(c, identity.account_id, [row["external_id"]]).get((row["source"], row["external_id"]))
         item = _row(row, decision, get_workflow(c, identity.account_id, row["source"], row["external_id"]))
-        return APP.jsonify(item)
+        return jsonify(item)
     finally:
         c.close()
 

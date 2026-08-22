@@ -2,7 +2,7 @@ import api
 
 
 def test_profile_api_uses_request_identity_not_payload(monkeypatch, tmp_path):
-    monkeypatch.setenv("OBRASIGNAL_PROFILE_DIR", str(tmp_path / "profiles"))
+    monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "profiles.db"))
     monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "account-a")
 
     client = api.APP.test_client()
@@ -22,7 +22,7 @@ def test_profile_api_uses_request_identity_not_payload(monkeypatch, tmp_path):
 
 
 def test_profiles_are_selected_from_request_identity(monkeypatch, tmp_path):
-    monkeypatch.setenv("OBRASIGNAL_PROFILE_DIR", str(tmp_path / "profiles"))
+    monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "profiles.db"))
     client = api.APP.test_client()
 
     monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "account-a")
