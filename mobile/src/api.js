@@ -2,11 +2,16 @@ import { supabase } from '../lib/supabase';
 import { storage } from './storage';
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrender.com/api/v1').replace(/\/$/, '');
-const DEFAULT_TIMEOUT = 120000;
-const PROFILE_TIMEOUT = 30000;
-const MAX_ATTEMPTS = 2;
+const DEFAULT_TIMEOUT = 20000;
+const PROFILE_TIMEOUT = 20000;
+const MAX_ATTEMPTS = 1;
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+function reportTiming(path, startedAt, status) {
+  const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt);
+  if (typeof console !== 'undefined' && console.info) console.info('[ObraSignal startup]', { path, durationMs, status });
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new CustomEvent('obrasignal:api-timing', { detail: { path, durationMs, status } }));
+}
 function isRetryableNetworkError(error) { if (!error) return false; if (error.name === 'AbortError') return true; if (typeof error.status === 'number') return [502,503,504].includes(error.status); return !error.status; }
 function describeNetworkError(error, path) { const name=error?.name||'NetworkError'; const message=error?.message||String(error||'unknown error'); const hint=/load failed|failed to fetch|networkerror/i.test(message)?'O navegador não recebeu uma resposta HTTP. Verifica CORS, TLS, DNS ou se o endpoint está acessível.':message; const diagnostic=new Error(`API ${path}: ${hint} [${name}]`); diagnostic.code='API_NETWORK_ERROR'; diagnostic.causeMessage=message; diagnostic.path=path; diagnostic.apiBase=API_BASE; return diagnostic; }
 
@@ -18,6 +23,7 @@ async function request(path, options={}) {
   delete fetchOptions.timeout; delete fetchOptions.maxAttempts; delete fetchOptions.skipAuth;
   let lastError=null;
   let authRefreshes=0;
+  const startedAt=typeof performance !== 'undefined'?performance.now():Date.now();
   for(let attempt=1;attempt<=maxAttempts;attempt+=1){
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),timeout);
@@ -39,10 +45,12 @@ async function request(path, options={}) {
         }
         const error=new Error(data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;
       }
+      reportTiming(path,startedAt,response.status);
       return data;
     }catch(error){
       lastError=isRetryableNetworkError(error)?describeNetworkError(error,path):error;
       if(!isRetryableNetworkError(error)||attempt>=maxAttempts){
+        reportTiming(path,startedAt,error?.name==='AbortError'?'timeout':(error?.status||'network-error'));
         if(error?.name==='AbortError')throw new Error(`API ${path}: o servidor demorou demasiado tempo a responder. O Render pode estar a acordar.`);
         throw lastError;
       }

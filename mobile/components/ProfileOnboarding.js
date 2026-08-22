@@ -2,129 +2,35 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api } from '../src/api';
 
-const COLORS = {
-  bg: '#F7FAFF',
-  card: '#FFFFFF',
-  line: '#DCE5F2',
-  text: '#15253D',
-  muted: '#6C7A91',
-  blue: '#315EA8',
-  blueSoft: '#EAF1FF',
-  red: '#B53A4A',
-};
+const COLORS={bg:'#F7FAFF',card:'#FFFFFF',line:'#DCE5F2',text:'#15253D',muted:'#6C7A91',blue:'#315EA8',blueSoft:'#EAF1FF',red:'#B53A4A'};
+const MARKETS=[['PRT','Portugal'],['ESP','Espanha'],['FRA','França']];
+const MODES=[['portugal','Todo o Portugal'],['regions','Zonas específicas'],['europe','Portugal e outros mercados']];
+const parseList=value=>value.split(/[,\n]/).map(item=>item.trim()).filter(Boolean);
+const parseCurrency=value=>{const clean=String(value||'').replace(/[^\d,.-]/g,'').replace(',','.');return clean===''?null:Number(clean)};
+const displayCurrency=value=>value==null?'':new Intl.NumberFormat('pt-PT',{maximumFractionDigits:0}).format(value);
+function readiness(profile){let done=0;if(profile.name)done++;if(profile.activity)done++;if(profile.contract_interests?.length)done++;if(profile.countries?.length)done++;if(profile.min_value!=null||profile.max_value!=null)done++;return Math.round(done/5*100)}
 
-function parseList(value) {
-  return value
-    .split(/[,\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+export default function ProfileOnboarding({initialProfile,onComplete}){
+  const[name,setName]=useState(initialProfile?.name||'');
+  const[activity,setActivity]=useState(initialProfile?.activity||'');
+  const[interests,setInterests]=useState((initialProfile?.contract_interests||initialProfile?.keywords||[]).join('\n'));
+  const[coverageMode,setCoverageMode]=useState(initialProfile?.coverage_mode||(initialProfile?.regions?.length?'regions':'portugal'));
+  const[regions,setRegions]=useState((initialProfile?.regions||[]).join(', '));
+  const[countries,setCountries]=useState(initialProfile?.countries?.length?initialProfile.countries:['PRT']);
+  const[minValue,setMinValue]=useState(displayCurrency(initialProfile?.min_value));
+  const[maxValue,setMaxValue]=useState(displayCurrency(initialProfile?.max_value));
+  const[advanced,setAdvanced]=useState(false);const[cpv,setCpv]=useState((initialProfile?.cpv_prefixes||[]).join(', '));
+  const[saving,setSaving]=useState(false);const[error,setError]=useState('');
+  const draft=useMemo(()=>({...initialProfile,name:name.trim(),activity:activity.trim(),contract_interests:parseList(interests),coverage_mode:coverageMode,countries:coverageMode==='europe'?countries:['PRT'],regions:coverageMode==='regions'?parseList(regions):[],cpv_prefixes:parseList(cpv),min_value:parseCurrency(minValue),max_value:parseCurrency(maxValue)}),[initialProfile,name,activity,interests,coverageMode,countries,regions,cpv,minValue,maxValue]);
+  const toggleCountry=code=>setCountries(current=>current.includes(code)?(code==='PRT'?current:current.filter(x=>x!==code)):[...current,code]);
+  const save=async()=>{if(!draft.name||!draft.activity){setError('Indica o nome e a actividade principal da empresa.');return}if(!draft.contract_interests.length){setError('Descreve pelo menos um tipo de trabalho ou contrato que procuras.');return}if([draft.min_value,draft.max_value].some(v=>v!=null&&!Number.isFinite(v))||(draft.min_value!=null&&draft.max_value!=null&&draft.min_value>draft.max_value)){setError('Revê o intervalo de valor dos contratos.');return}setSaving(true);setError('');try{const result=await api.saveProfile(draft);onComplete(result.profile||draft)}catch(err){setError(err?.responseBody?.error||err?.message||'Não foi possível guardar o perfil.')}finally{setSaving(false)}};
+  return <ScrollView style={styles.safe} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><View style={styles.hero}><Text style={styles.eyebrow}>PRIMEIRO PASSO</Text><Text style={styles.title}>Conta-nos o que a tua empresa faz.</Text><Text style={styles.subtitle}>Descreve o negócio em linguagem normal. O ObraSignal trata dos códigos, concursos e ranking.</Text><View style={styles.readiness}><Text style={styles.readinessLabel}>Perfil inicial</Text><Text style={styles.readinessValue}>{readiness(draft)}%</Text></View></View><View style={styles.card}>
+    <Text style={styles.section}>A tua empresa</Text><TextInput value={name} onChangeText={setName} placeholder="Nome da empresa" placeholderTextColor={COLORS.muted} style={styles.input}/><TextInput value={activity} onChangeText={setActivity} placeholder="Actividade principal — ex.: instalações eléctricas" placeholderTextColor={COLORS.muted} style={styles.input}/>
+    <Text style={styles.section}>Que trabalhos ou contratos procuras?</Text><Text style={styles.help}>Sê específico. Por exemplo: “montagem de estruturas metálicas”, “manutenção de escolas” ou “instalação de painéis solares”. Um interesse por linha.</Text><TextInput value={interests} onChangeText={setInterests} multiline numberOfLines={4} placeholder={'Construção de pavilhões industriais\nReabilitação de coberturas'} placeholderTextColor={COLORS.muted} style={[styles.input,styles.multiline]}/>
+    <Pressable onPress={()=>setAdvanced(x=>!x)}><Text style={styles.advanced}>{advanced?'Ocultar critérios CPV avançados':'Opção avançada: rever códigos CPV'}</Text></Pressable>{advanced?<><Text style={styles.help}>Opcional. O ObraSignal sugere famílias a partir da descrição; edita apenas se já trabalhas com CPV.</Text><TextInput value={cpv} onChangeText={setCpv} placeholder="Ex.: 45, 4531" placeholderTextColor={COLORS.muted} style={styles.input}/></>:null}
+    <Text style={styles.section}>Onde aceitas trabalhar?</Text><Text style={styles.help}>A cobertura actual combina concursos portugueses (BASE), europeus (TED) e fontes activas de Espanha e França.</Text><View style={styles.choices}>{MODES.map(([key,label])=><Pressable key={key} onPress={()=>setCoverageMode(key)} style={[styles.choice,coverageMode===key&&styles.choiceOn]}><Text style={[styles.choiceText,coverageMode===key&&styles.choiceTextOn]}>{label}</Text></Pressable>)}</View>{coverageMode==='regions'?<><Text style={styles.help}>Indica distritos, regiões ou cidades em Portugal onde tens capacidade para executar trabalhos.</Text><TextInput value={regions} onChangeText={setRegions} placeholder="Ex.: Lisboa, Setúbal, Leiria" placeholderTextColor={COLORS.muted} style={styles.input}/></>:null}{coverageMode==='europe'?<View style={styles.choices}>{MARKETS.map(([code,label])=><Pressable key={code} onPress={()=>toggleCountry(code)} style={[styles.choice,countries.includes(code)&&styles.choiceOn]}><Text style={[styles.choiceText,countries.includes(code)&&styles.choiceTextOn]}>{label}</Text></Pressable>)}</View>:null}
+    <Text style={styles.section}>Dimensão habitual dos contratos</Text><Text style={styles.help}>Opcional. Indica o intervalo comercial em euros; o ObraSignal continua responsável pelo ranking.</Text><View style={styles.row}><View style={styles.half}><Text style={styles.moneyLabel}>A partir de</Text><View style={styles.money}><Text style={styles.euro}>€</Text><TextInput value={minValue} onChangeText={setMinValue} placeholder="50 000" keyboardType="numeric" placeholderTextColor={COLORS.muted} style={styles.moneyInput}/></View></View><View style={styles.half}><Text style={styles.moneyLabel}>Até</Text><View style={styles.money}><Text style={styles.euro}>€</Text><TextInput value={maxValue} onChangeText={setMaxValue} placeholder="1 000 000" keyboardType="numeric" placeholderTextColor={COLORS.muted} style={styles.moneyInput}/></View></View></View>
+    {error?<Text style={styles.error}>{error}</Text>:null}<Pressable onPress={save} disabled={saving} style={({pressed})=>[styles.button,pressed&&{opacity:.86},saving&&{opacity:.6}]}>{saving?<ActivityIndicator color="#fff"/>:<Text style={styles.buttonText}>Criar o meu Radar</Text>}</Pressable>
+  </View></ScrollView>
 }
-
-function readiness(profile) {
-  let done = 0;
-  if (profile.name) done += 1;
-  if (profile.activity) done += 1;
-  if (profile.keywords?.length || profile.cpv_prefixes?.length) done += 1;
-  if (profile.countries?.length || profile.regions?.length) done += 1;
-  if (profile.min_value != null || profile.max_value != null || profile.economic_min_score != null) done += 1;
-  return Math.round((done / 5) * 100);
-}
-
-export default function ProfileOnboarding({ initialProfile, onComplete }) {
-  const [name, setName] = useState(initialProfile?.name || '');
-  const [activity, setActivity] = useState(initialProfile?.activity || '');
-  const [cpv, setCpv] = useState((initialProfile?.cpv_prefixes || []).join(', '));
-  const [regions, setRegions] = useState((initialProfile?.regions || []).join(', '));
-  const [minValue, setMinValue] = useState(initialProfile?.min_value == null ? '' : String(initialProfile.min_value));
-  const [maxValue, setMaxValue] = useState(initialProfile?.max_value == null ? '' : String(initialProfile.max_value));
-  const [economicMinScore, setEconomicMinScore] = useState(initialProfile?.economic_min_score == null ? '' : String(initialProfile.economic_min_score));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const draft = useMemo(() => ({
-    ...initialProfile,
-    name: name.trim(),
-    activity: activity.trim(),
-    cpv_prefixes: parseList(cpv),
-    regions: parseList(regions),
-    min_value: minValue === '' ? initialProfile?.min_value : Number(minValue),
-    max_value: maxValue === '' ? initialProfile?.max_value : Number(maxValue),
-    economic_min_score: economicMinScore === '' ? initialProfile?.economic_min_score : Number(economicMinScore),
-  }), [initialProfile, name, activity, cpv, regions, minValue, maxValue, economicMinScore]);
-
-  const save = async () => {
-    if (!draft.name || !draft.activity) {
-      setError('Indica o nome e a actividade principal da empresa.');
-      return;
-    }
-    if ([draft.min_value, draft.max_value, draft.economic_min_score].some((value) => value != null && !Number.isFinite(value))) {
-      setError('Revê os valores numéricos indicados.');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      const result = await api.saveProfile(draft);
-      onComplete(result.profile || draft);
-    } catch (err) {
-      setError(err?.message || 'Não foi possível guardar o perfil.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const score = readiness(draft);
-
-  return (
-    <ScrollView style={styles.safe} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>PRIMEIRO PASSO</Text>
-        <Text style={styles.title}>Vamos ensinar o ObraSignal sobre a tua empresa.</Text>
-        <Text style={styles.subtitle}>Estas regras determinam quais oportunidades entram no teu radar. Nada é inventado.</Text>
-        <View style={styles.readiness}><Text style={styles.readinessLabel}>Perfil inicial</Text><Text style={styles.readinessValue}>{score}%</Text></View>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.section}>Empresa</Text>
-        <TextInput value={name} onChangeText={setName} placeholder="Nome da empresa" placeholderTextColor={COLORS.muted} style={styles.input} />
-        <TextInput value={activity} onChangeText={setActivity} placeholder="Actividade principal (ex.: metalomecânica)" placeholderTextColor={COLORS.muted} style={styles.input} />
-
-        <Text style={styles.section}>O que procurar</Text>
-        <TextInput value={cpv} onChangeText={setCpv} placeholder="CPVs / famílias, separados por vírgula" placeholderTextColor={COLORS.muted} style={styles.input} />
-        <TextInput value={regions} onChangeText={setRegions} placeholder="Regiões / cidades prioritárias" placeholderTextColor={COLORS.muted} style={styles.input} />
-
-        <Text style={styles.section}>Regras económicas</Text>
-        <View style={styles.row}>
-          <TextInput value={minValue} onChangeText={setMinValue} placeholder="Valor mín." keyboardType="numeric" placeholderTextColor={COLORS.muted} style={[styles.input, styles.half]} />
-          <TextInput value={maxValue} onChangeText={setMaxValue} placeholder="Valor máx." keyboardType="numeric" placeholderTextColor={COLORS.muted} style={[styles.input, styles.half]} />
-        </View>
-        <TextInput value={economicMinScore} onChangeText={setEconomicMinScore} placeholder="Economic Fit mínimo (0–100)" keyboardType="numeric" placeholderTextColor={COLORS.muted} style={styles.input} />
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable onPress={save} disabled={saving} style={({ pressed }) => [styles.button, pressed && { opacity: 0.86 }, saving && { opacity: 0.6 }]}>
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Guardar e abrir o Radar</Text>}
-        </Pressable>
-      </View>
-    </ScrollView>
-  );
-}
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.bg },
-  content: { padding: 20, paddingBottom: 44 },
-  hero: { marginBottom: 18, paddingTop: 12 },
-  eyebrow: { color: COLORS.blue, fontSize: 12, fontWeight: '800', letterSpacing: 1.1 },
-  title: { color: COLORS.text, fontSize: 28, fontWeight: '900', lineHeight: 34, marginTop: 6 },
-  subtitle: { color: COLORS.muted, fontSize: 14, lineHeight: 20, marginTop: 8 },
-  readiness: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, backgroundColor: COLORS.blueSoft, borderRadius: 12 },
-  readinessLabel: { color: COLORS.text, fontWeight: '700' },
-  readinessValue: { color: COLORS.blue, fontWeight: '900', fontSize: 22 },
-  card: { backgroundColor: COLORS.card, borderRadius: 18, padding: 18, borderWidth: 1, borderColor: COLORS.line },
-  section: { color: COLORS.text, fontSize: 15, fontWeight: '800', marginTop: 10, marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, backgroundColor: '#FBFCFF', marginBottom: 10 },
-  row: { flexDirection: 'row', gap: 10 },
-  half: { flex: 1 },
-  error: { color: COLORS.red, marginVertical: 4, lineHeight: 18 },
-  button: { minHeight: 50, borderRadius: 14, backgroundColor: COLORS.blue, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  buttonText: { color: '#fff', fontWeight: '900', fontSize: 15 },
-});
+const styles=StyleSheet.create({safe:{flex:1,backgroundColor:COLORS.bg},content:{padding:20,paddingBottom:44},hero:{marginBottom:18,paddingTop:12},eyebrow:{color:COLORS.blue,fontSize:12,fontWeight:'800',letterSpacing:1.1},title:{color:COLORS.text,fontSize:28,fontWeight:'900',lineHeight:34,marginTop:6},subtitle:{color:COLORS.muted,fontSize:14,lineHeight:20,marginTop:8},readiness:{marginTop:14,flexDirection:'row',alignItems:'center',justifyContent:'space-between',padding:14,backgroundColor:COLORS.blueSoft,borderRadius:12},readinessLabel:{color:COLORS.text,fontWeight:'700'},readinessValue:{color:COLORS.blue,fontWeight:'900',fontSize:22},card:{backgroundColor:COLORS.card,borderRadius:18,padding:18,borderWidth:1,borderColor:COLORS.line},section:{color:COLORS.text,fontSize:15,fontWeight:'800',marginTop:14,marginBottom:8},help:{color:COLORS.muted,fontSize:12,lineHeight:18,marginBottom:9},input:{borderWidth:1,borderColor:COLORS.line,borderRadius:12,paddingHorizontal:14,paddingVertical:12,color:COLORS.text,backgroundColor:'#FBFCFF',marginBottom:10},multiline:{minHeight:112,textAlignVertical:'top'},advanced:{color:COLORS.blue,fontWeight:'800',fontSize:12,marginBottom:12},choices:{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:12},choice:{borderWidth:1,borderColor:COLORS.line,borderRadius:999,paddingHorizontal:12,paddingVertical:9},choiceOn:{borderColor:COLORS.blue,backgroundColor:COLORS.blueSoft},choiceText:{color:COLORS.muted,fontSize:12,fontWeight:'700'},choiceTextOn:{color:COLORS.blue},row:{flexDirection:'row',gap:10},half:{flex:1},moneyLabel:{color:COLORS.muted,fontSize:11,marginBottom:5},money:{flexDirection:'row',alignItems:'center',borderWidth:1,borderColor:COLORS.line,borderRadius:12,backgroundColor:'#FBFCFF'},euro:{color:COLORS.text,paddingLeft:12,fontWeight:'800'},moneyInput:{flex:1,color:COLORS.text,padding:12},error:{color:COLORS.red,marginVertical:8,lineHeight:18},button:{minHeight:50,borderRadius:14,backgroundColor:COLORS.blue,alignItems:'center',justifyContent:'center',marginTop:12},buttonText:{color:'#fff',fontWeight:'900',fontSize:15}});
