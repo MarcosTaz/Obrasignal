@@ -43,3 +43,8 @@ test('overlapping refreshes cannot let stale responses win and flags always term
 test('saving Profile awaits a server-backed Radar refresh before completing', () => {
   assert.match(app, /api\.saveProfile[\s\S]*setTab\('radar'\);await load\(\{manual:true\}\)/);
 });
+
+test('changing the Radar score criterion immediately requests matching server data', () => {
+  assert.match(app, /applyMinScore=value=>\{const criteria=\{\.\.\.settings,minScore:value\};setSettings\(criteria\);load\(\{manual:true,criteria\}\)\}/);
+  assert.match(app, /onPress=\{\(\)=>applyMinScore\(v\)\}/);
+});

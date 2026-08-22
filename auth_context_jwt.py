@@ -98,11 +98,26 @@ class JwtVerifier:
         return JwtIdentity(account_id=subject, subject=subject, claims=claims)
 
 
+_verifier = None
+_verifier_config = None
+_verifier_lock = Lock()
+
+
 def production_verifier() -> JwtVerifier:
+    global _verifier, _verifier_config
     issuer = os.getenv("OBRASIGNAL_JWT_ISSUER", "").strip()
-    return JwtVerifier(
-        issuer=issuer,
-        audience=os.getenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated"),
-        jwks_url=os.getenv("OBRASIGNAL_JWKS_URL", ""),
-        cache_seconds=int(os.getenv("OBRASIGNAL_JWKS_CACHE_SECONDS", "300")),
+    config = (
+        issuer,
+        os.getenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated"),
+        os.getenv("OBRASIGNAL_JWKS_URL", ""),
+        int(os.getenv("OBRASIGNAL_JWKS_CACHE_SECONDS", "300")),
     )
+    if _verifier is not None and _verifier_config == config:
+        return _verifier
+    with _verifier_lock:
+        if _verifier is None or _verifier_config != config:
+            _verifier = JwtVerifier(
+                issuer=config[0], audience=config[1], jwks_url=config[2], cache_seconds=config[3]
+            )
+            _verifier_config = config
+        return _verifier

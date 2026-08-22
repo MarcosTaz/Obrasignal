@@ -5,6 +5,7 @@ import pytest
 from flask import Flask
 
 import auth_context
+import auth_context_jwt
 from auth_context_jwt import JwtVerifier
 
 
@@ -67,3 +68,17 @@ def test_jwt_verifier_uses_verified_sub(monkeypatch):
     assert identity.account_id == "user-123"
     assert identity.subject == "user-123"
     assert identity.claims["aud"] == "authenticated"
+
+
+def test_production_verifier_reuses_jwks_cache(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", "https://cache.supabase.co")
+    monkeypatch.setenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated")
+    monkeypatch.delenv("OBRASIGNAL_JWKS_URL", raising=False)
+    monkeypatch.setattr(auth_context_jwt, "_verifier", None)
+    monkeypatch.setattr(auth_context_jwt, "_verifier_config", None)
+
+    first = auth_context_jwt.production_verifier()
+    second = auth_context_jwt.production_verifier()
+
+    assert second is first
+    assert first.issuer == "https://cache.supabase.co/auth/v1"
