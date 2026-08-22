@@ -14,6 +14,7 @@ from source_registry import SOURCES
 from account_registry import ensure_account
 from decision_log import ensure_decision_table
 from opportunity_workflow import get_workflow, set_workflow, workflow_counts
+from account_onboarding import bootstrap_account
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
@@ -170,8 +171,18 @@ def profile():
     merged.update({k: payload[k] for k in _PROFILE_FIELDS if k in payload})
     normalized = derive_profile(str(merged.get("activity") or ""), merged)
     normalized["account_id"] = identity.account_id
-    saved = save_profile(normalized, account_id=identity.account_id)
-    return jsonify({"ok": True, "profile": saved, "account_id": identity.account_id, "authenticated": identity.authenticated, "generated_at": _iso_now()})
+    try:
+        saved = save_profile(normalized, account_id=identity.account_id)
+    except ValueError as exc:
+        detail = exc.args[0] if exc.args else {"code": "INVALID_COMPANY_PROFILE"}
+        return jsonify({"error": "invalid_profile", "detail": detail}), 400
+
+    # A successful save means both durable profile persistence and a Radar
+    # classified from that exact profile.  Returning before this bounded pass
+    # completed created a race in which the immediate refresh served decisions
+    # made with the previous criteria.
+    recalculated = bootstrap_account(identity.account_id)
+    return jsonify({"ok": True, "profile": saved, "radar_recalculated": recalculated, "account_id": identity.account_id, "authenticated": identity.authenticated, "generated_at": _iso_now()})
 
 
 @bp.route("/alerts", methods=["GET"])

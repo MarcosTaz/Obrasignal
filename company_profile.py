@@ -5,7 +5,6 @@ import json
 import os
 import re
 import sqlite3
-import threading
 from pathlib import Path
 
 from company_profile_validation import validate_company_profile
@@ -204,16 +203,6 @@ def _persist_profile_db(profile: dict, account: str) -> None:
         conn.close()
 
 
-def _bootstrap_saved_profile(account: str) -> None:
-    try:
-        from account_onboarding import bootstrap_account
-        bootstrap_account(account)
-    except Exception:
-        # Profile persistence must remain successful even if the optional
-        # bootstrap is unavailable; the regular sync worker will classify it.
-        pass
-
-
 def save_profile(profile: dict, account_id: str | None = None) -> dict:
     requested_account = account_id or (profile or {}).get("account_id") or "default"
     account = str(requested_account).strip() or "default"
@@ -231,14 +220,4 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
     # account profiles to Render's ephemeral filesystem.
     _persist_profile_db(normalized, account)
 
-    # Never make the authenticated profile POST wait for the potentially
-    # expensive first-value classification pass. Persistence is the critical
-    # operation; onboarding runs asynchronously so the client can immediately
-    # return to the Radar and refresh when the account-scoped decisions exist.
-    threading.Thread(
-        target=_bootstrap_saved_profile,
-        args=(account,),
-        name="obrasignal-profile-bootstrap",
-        daemon=True,
-    ).start()
     return normalized
