@@ -47,7 +47,8 @@ Configure a RevenueCat webhook to:
 
 `https://obrasignal.onrender.com/api/v1/billing/webhook`
 
-Enable HMAC signing and set the generated signing secret as:
+Configure RevenueCat's webhook authorization header as `Bearer <random-secret>`
+and set the same random secret (without the `Bearer ` prefix) on the backend as:
 
 - `REVENUECAT_WEBHOOK_SECRET`
 
