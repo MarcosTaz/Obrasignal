@@ -253,6 +253,8 @@ def opportunities():
     market = (request.args.get("market") or "PT").upper()
     country = (request.args.get("country") or "").upper().strip()
     q = (request.args.get("q") or "").strip().lower()
+    source = (request.args.get("source") or "").strip().upper()
+    open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
     minscore = request.args.get("minscore")
     minscore = int(minscore) if minscore not in (None, "") else None
     c = _db()
@@ -266,8 +268,13 @@ def opportunities():
         where.append("t.country=?")
         params.append(country)
     if q:
-        where.append("LOWER(COALESCE(t.title,'') || ' ' || COALESCE(t.description,'')) LIKE ?")
+        where.append("LOWER(COALESCE(t.title,'') || ' ' || COALESCE(t.description,'') || ' ' || COALESCE(t.buyer,'') || ' ' || COALESCE(t.cpv,'')) LIKE ?")
         params.append(f"%{q}%")
+    if source:
+        where.append("UPPER(t.source)=?")
+        params.append(source)
+    if open_only:
+        where.append("(t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline)>=datetime('now'))")
     if minscore is not None:
         where.append("COALESCE(d.score,t.score)>=?")
         params.append(minscore)
@@ -283,6 +290,23 @@ def opportunities():
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
     c.close()
     return jsonify({"items": items, "count": len(items), "market": market, "generated_at": _iso_now(), "account_id": identity.account_id})
+
+
+@bp.route("/opportunities/<int:opportunity_id>", methods=["GET"])
+def opportunity_detail(opportunity_id):
+    """Return the canonical tender plus this account's decision and workflow."""
+    identity = request.obrasignal_identity
+    c = _db()
+    try:
+        row = c.execute("SELECT * FROM tenders WHERE id=?", (opportunity_id,)).fetchone()
+        if row is None:
+            return jsonify({"error": "not_found"}), 404
+        decisions = _latest_decisions(c, identity.account_id, [row["external_id"]])
+        decision = decisions.get((row["source"], row["external_id"]))
+        workflow = get_workflow(c, identity.account_id, row["source"], row["external_id"])
+        return jsonify(_row(row, decision, workflow))
+    finally:
+        c.close()
 
 
 @bp.route("/opportunities/<int:opportunity_id>/workflow", methods=["GET", "POST"])

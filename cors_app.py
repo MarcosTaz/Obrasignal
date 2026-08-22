@@ -46,7 +46,8 @@ def _global_api_preflight():
 
 @APP.before_request
 def _protect_radar_api():
-    if request.path != "/api/v1/radar":
+    is_detail = request.path.startswith("/api/v1/opportunities/") and not request.path.endswith("/workflow")
+    if request.path != "/api/v1/radar" and not is_detail:
         return None
     try:
         identity = configured_identity()
