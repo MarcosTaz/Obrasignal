@@ -28,6 +28,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Wait for target production deployment
+        env:
+          TARGET_BUILD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Push workflows start while Render is still replacing the previous
+          # instance. Do not send identity traffic until health proves that the
+          # exact commit under test is the instance currently serving requests.
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --show-error --max-time 10 \
+              "$API_URL/health" > /tmp/e2e-health.json \
+              && python - <<'PY'
+          import json
+          import os
+
+          with open('/tmp/e2e-health.json', encoding='utf-8') as stream:
+              health = json.load(stream)
+          assert health.get('ok') is True
+          assert health.get('service') == 'obrasignal-api'
+          assert health.get('build') == os.environ['TARGET_BUILD']
+          PY
+            then
+              echo "Target production build is ready on attempt $attempt/24."
+              break
+            fi
+            if [ "$attempt" = 24 ]; then
+              echo "Production never served target build ${TARGET_BUILD:0:7}."
+              exit 1
+            fi
+            echo "Waiting for target production build ${TARGET_BUILD:0:7} (attempt $attempt/24)…"
+            sleep 10
+          done
+
       - name: Require E2E credentials
         run: |
           set -euo pipefail
