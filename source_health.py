@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from source_registry import SOURCES, stale_after_minutes_for
 
 
-def ensure_source_health(conn):
+def ensure_source_health(conn, *, commit=True):
     health_exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_health'").fetchone()
     if not health_exists:
         conn.execute('''CREATE TABLE IF NOT EXISTS source_health (
@@ -23,7 +23,8 @@ def ensure_source_health(conn):
         watermark TEXT,
         updated_at TEXT
     )''')
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def record_source_result(conn, source, *, success, duration_ms, found=0, new_items=0, error=None):
@@ -51,8 +52,8 @@ def get_source_cursor(conn, source):
     return row['watermark'] if row else None
 
 
-def set_source_cursor(conn, source, watermark):
-    ensure_source_health(conn)
+def set_source_cursor(conn, source, watermark, *, commit=True):
+    ensure_source_health(conn, commit=False)
     now = datetime.now(timezone.utc).isoformat()
     conn.execute('''INSERT INTO source_cursor(source,watermark,updated_at)
                     VALUES(?,?,?)
@@ -60,7 +61,8 @@ def set_source_cursor(conn, source, watermark):
                       watermark=excluded.watermark,
                       updated_at=excluded.updated_at''',
                  (source, watermark, now))
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def _source_freshness_metadata(source, default_stale_after_minutes):
