@@ -165,7 +165,6 @@ def test_profile_get_and_post_share_warm_jwks_cache(monkeypatch, tmp_path):
 
 
 def test_all_authenticated_hot_paths_share_one_jwks_fetch(monkeypatch):
-    api._preload._app.init_db()
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
     jwk.update({"kid": "hot-path-key", "use": "sig", "alg": "RS256"})
@@ -189,7 +188,6 @@ def test_all_authenticated_hot_paths_share_one_jwks_fetch(monkeypatch):
         return {"hot-path-key": jwk}
 
     monkeypatch.setattr(auth_context_jwt.JwtVerifier, "_fetch_jwks", fetch)
-    monkeypatch.setattr(api, "bootstrap_account", lambda account_id: 0)
     headers = {"Authorization": f"Bearer {token}"}
     client = api.APP.test_client()
 
