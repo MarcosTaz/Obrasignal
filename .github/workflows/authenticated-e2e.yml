@@ -134,6 +134,66 @@ jobs:
           print('Supabase authentication succeeded.')
           PY
 
+      - name: Report safe JWT and provider JWKS metadata
+        run: |
+          set -euo pipefail
+          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${BASE_URL%/rest/v1}"
+          curl --fail --silent --show-error --max-time 30 \
+            -H "apikey: $SUPABASE_KEY" \
+            "$BASE_URL/auth/v1/.well-known/jwks.json" > /tmp/provider-jwks.json
+          EXPECTED_ISSUER="$BASE_URL/auth/v1" python - <<'PY'
+          import base64
+          import json
+          import os
+
+          def decode_segment(value):
+              padding = '=' * (-len(value) % 4)
+              return json.loads(base64.urlsafe_b64decode(value + padding))
+
+          token = open('/tmp/access_token', encoding='utf-8').read().strip()
+          segments = token.split('.')
+          if len(segments) != 3:
+              raise RuntimeError('Supabase access token is not a three-segment JWT')
+          header = decode_segment(segments[0])
+          payload = decode_segment(segments[1])
+          provider = json.load(open('/tmp/provider-jwks.json', encoding='utf-8'))
+          keys = provider.get('keys') or []
+
+          alg = header.get('alg')
+          kid = header.get('kid')
+          typ = header.get('typ')
+          issuer = payload.get('iss')
+          audience = payload.get('aud')
+          role = payload.get('role')
+
+          print('JWT_DIAGNOSTIC')
+          print(f'alg={alg if alg is not None else "none"}')
+          print(f'kid={kid if kid is not None else "none"}')
+          print(f'typ={typ if typ is not None else "none"}')
+          print(f'iss={issuer if issuer is not None else "none"}')
+          print(f'aud={json.dumps(audience, separators=(",", ":")) if isinstance(audience, (list, dict)) else audience if audience is not None else "none"}')
+          print(f'sub_present={str(bool(payload.get("sub"))).lower()}')
+          print(f'role={role if role is not None else "none"}')
+          print(f'iat={payload.get("iat") if payload.get("iat") is not None else "none"}')
+          print(f'exp={payload.get("exp") if payload.get("exp") is not None else "none"}')
+
+          provider_kids = set()
+          for key in keys:
+              public_metadata = {name: key.get(name) for name in ('kid', 'alg', 'kty', 'use')}
+              if public_metadata['kid'] is not None:
+                  provider_kids.add(str(public_metadata['kid']))
+              print('PROVIDER_JWKS')
+              for name, value in public_metadata.items():
+                  print(f'{name}={value if value is not None else "none"}')
+
+          audiences = audience if isinstance(audience, list) else [audience]
+          print(f'TOKEN_ALG_ALLOWED={str(alg in {"RS256", "ES256"}).lower()}')
+          print(f'TOKEN_KID_PRESENT_IN_PROVIDER_JWKS={str(kid is not None and str(kid) in provider_kids).lower()}')
+          print(f'TOKEN_ISSUER_MATCHES_SUPABASE_PROJECT={str(issuer == os.environ["EXPECTED_ISSUER"]).lower()}')
+          print(f'TOKEN_AUDIENCE_AUTHENTICATED={str("authenticated" in audiences).lower()}')
+          PY
+
       - name: Verify unauthenticated boundary
         run: |
           set -euo pipefail
@@ -152,9 +212,25 @@ jobs:
       - name: Verify authenticated API identity
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 \
+          status="$(curl --silent --show-error --max-time 30 \
+            --output /tmp/profile.json --write-out '%{http_code}' \
             -H "Authorization: Bearer $(cat /tmp/access_token)" \
-            "$API_URL/profile" > /tmp/profile.json
+            "$API_URL/profile")"
+          echo "API_AUTH_STATUS=$status"
+          if [ "$status" != "200" ]; then
+            python - <<'PY'
+          import json
+          try:
+              payload=json.load(open('/tmp/profile.json', encoding='utf-8'))
+          except Exception:
+              payload={}
+          print('API_AUTH_BODY=' + json.dumps(
+              {'error': payload.get('error')} if payload.get('error') else {},
+              separators=(',', ':'),
+          ))
+          PY
+            exit 1
+          fi
           python - <<'PY'
           import json
           payload=json.load(open('/tmp/profile.json'))

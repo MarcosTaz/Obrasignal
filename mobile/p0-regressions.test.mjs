@@ -5,6 +5,88 @@ import fs from 'node:fs';
 const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 
+async function loadSessionCoordinator() {
+  const source = fs.readFileSync(new URL('./src/sessionCoordinator.js', import.meta.url), 'utf8');
+  return import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+}
+
+function fakeAuth(initialSession = null) {
+  let session = initialSession;
+  let listener = () => {};
+  let refreshSession = null;
+  return {
+    auth: {
+      getSession: async () => ({ data: { session }, error: null }),
+      onAuthStateChange: (callback) => {
+        listener = callback;
+        return { data: { subscription: { unsubscribe() {} } } };
+      },
+      refreshSession: async () => ({ data: { session: refreshSession }, error: null }),
+    },
+    change(nextSession, event = 'SIGNED_IN') {
+      session = nextSession;
+      listener(event, nextSession);
+    },
+    refreshesTo(nextSession) { refreshSession = nextSession; },
+  };
+}
+
+test('fresh login sends the current token to every protected GET without reload', async () => {
+  const { createSessionCoordinator } = await loadSessionCoordinator();
+  const supabase = fakeAuth(null);
+  const coordinator = createSessionCoordinator(supabase.auth);
+  await coordinator.start();
+  supabase.change({ access_token: 'TOKEN_A' });
+
+  for (const path of ['/profile', '/opportunities', '/stats', '/opportunities/42']) {
+    assert.deepEqual(await coordinator.authorizationHeader(path), { Authorization: 'Bearer TOKEN_A' });
+  }
+});
+
+test('logout clears auth and a subsequent login cannot reuse the old token', async () => {
+  const { createSessionCoordinator } = await loadSessionCoordinator();
+  const supabase = fakeAuth({ access_token: 'TOKEN_A' });
+  const coordinator = createSessionCoordinator(supabase.auth);
+  await coordinator.start();
+  supabase.change(null, 'SIGNED_OUT');
+  assert.deepEqual(await coordinator.authorizationHeader(), {});
+  supabase.change({ access_token: 'TOKEN_C' });
+  assert.deepEqual(await coordinator.authorizationHeader(), { Authorization: 'Bearer TOKEN_C' });
+});
+
+test('refresh atomically replaces TOKEN_A with TOKEN_B', async () => {
+  const { createSessionCoordinator } = await loadSessionCoordinator();
+  const supabase = fakeAuth({ access_token: 'TOKEN_A' });
+  supabase.refreshesTo({ access_token: 'TOKEN_B' });
+  const coordinator = createSessionCoordinator(supabase.auth);
+  await coordinator.start();
+  assert.equal(await coordinator.refresh(), 'TOKEN_B');
+  assert.deepEqual(await coordinator.authorizationHeader(), { Authorization: 'Bearer TOKEN_B' });
+});
+
+test('session recovery blocks token reads and cannot overwrite a newer login event', async () => {
+  const { createSessionCoordinator } = await loadSessionCoordinator();
+  let resolveSession;
+  let listener = () => {};
+  const auth = {
+    getSession: () => new Promise((resolve) => { resolveSession = resolve; }),
+    onAuthStateChange: (callback) => { listener = callback; return { data: {} }; },
+    refreshSession: async () => ({ data: { session: null }, error: null }),
+  };
+  const coordinator = createSessionCoordinator(auth);
+  const pendingHeader = coordinator.authorizationHeader();
+  listener('SIGNED_IN', { access_token: 'TOKEN_NEW' });
+  resolveSession({ data: { session: null }, error: null });
+  assert.deepEqual(await pendingHeader, { Authorization: 'Bearer TOKEN_NEW' });
+});
+
+test('API refreshes only one failed idempotent GET and never retries a write or a 503', () => {
+  assert.match(api, /response\.status===401 && method==='GET' && !skipAuth && authRefreshes===0/);
+  assert.match(api, /refreshedToken=await authSession\.refresh\(\)/);
+  assert.match(api, /if\(refreshedToken\)\{ attempt-=1; continue; \}/);
+  assert.doesNotMatch(api, /response\.status===503[\s\S]*authSession\.refresh/);
+});
+
 test('Profile tab renders its own loading/error state while Render is cold', () => {
   assert.match(app, /tab==='profile'\?<>{profile\?<Profile/);
   assert.match(app, /A carregar o perfil/);
@@ -17,8 +99,8 @@ test('profile GET cannot disguise cache fallback as a fresh response', () => {
 });
 
 test('a successful session refresh retries the original request once', () => {
-  assert.match(api, /response\.status===401[\s\S]*supabase\.auth\.refreshSession\(\)/);
-  assert.match(api, /session\?\.access_token\)\{ attempt-=1; continue; \}/);
+  assert.match(api, /response\.status===401[\s\S]*authSession\.refresh\(\)/);
+  assert.match(api, /if\(refreshedToken\)\{ attempt-=1; continue; \}/);
 });
 
 test('startup hydrates cache first but refreshes using hydrated criteria', () => {
@@ -59,7 +141,7 @@ test('changing open-only immediately refreshes Radar from the server with the ne
 
 test('authenticated session starts one non-blocking backend warm-up', () => {
   const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
-  assert.match(authGate, /setLoading\(false\)\n\s*if \(data\.session\) ensureBackendReady\(\)\.catch/);
+  assert.match(authGate, /nextState\.status === 'signed-in'\) ensureBackendReady\(\)\.catch/);
   assert.match(api, /if\(backendReadyPromise\)return backendReadyPromise/);
   assert.match(api, /BACKEND_READY_TIMEOUT = 75000/);
 });

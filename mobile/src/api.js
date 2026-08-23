@@ -1,5 +1,5 @@
-import { supabase } from '../lib/supabase';
 import { storage } from './storage';
+import { authSession } from './authSession';
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrender.com/api/v1').replace(/\/$/, '');
 const DEFAULT_TIMEOUT = 20000;
@@ -31,23 +31,22 @@ async function request(path, options={}) {
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),timeout);
     try{
-      let {data:{session}}=skipAuth?{data:{session:null}}:await supabase.auth.getSession();
-      const authHeaders=session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{ };
       const method=String(fetchOptions.method||'GET').toUpperCase();
+      const authHeaders=skipAuth?{}:await authSession.authorizationHeader();
       const hasBody=fetchOptions.body!=null;
       const contentHeaders=hasBody||!['GET','HEAD'].includes(method)?{'Content-Type':'application/json'}:{};
-      const response=await fetch(`${API_BASE}${path}`,{...fetchOptions,mode:'cors',cache:'no-store',headers:{Accept:'application/json',...contentHeaders,...authHeaders,...(fetchOptions.headers||{})},signal:controller.signal});
+      const response=await fetch(`${API_BASE}${path}`,{...fetchOptions,mode:'cors',cache:'no-store',headers:{Accept:'application/json',...contentHeaders,...(fetchOptions.headers||{}),...authHeaders},signal:controller.signal});
       const text=await response.text();
       let data=null; try{data=text?JSON.parse(text):null;}catch(_){}
       if(!response.ok){
-        if(response.status===401 && !skipAuth && authRefreshes===0){
+        if(response.status===401 && method==='GET' && !skipAuth && authRefreshes===0){
           authRefreshes+=1;
-          const refreshed=await supabase.auth.refreshSession();
-          session=refreshed?.data?.session || null;
+          let refreshedToken=null;
+          try{refreshedToken=await authSession.refresh();}catch(_){}
           // A token refresh is authentication recovery, not a network retry.
           // Repeat this attempt so MAX_ATTEMPTS=1 still sends the request with
           // the newly issued access token.
-          if(session?.access_token){ attempt-=1; continue; }
+          if(refreshedToken){ attempt-=1; continue; }
         }
         const error=new Error(data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;
       }
