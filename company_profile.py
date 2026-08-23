@@ -104,6 +104,21 @@ def _normalize_countries(values) -> list[str]:
     return normalized
 
 
+def _normalize_optional_number(value):
+    """Accept JSON/form numeric strings without persisting a second type."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, str):
+        token = value.strip().replace(" ", "")
+        if "," in token and "." not in token:
+            token = token.replace(",", ".")
+        try:
+            return float(token)
+        except ValueError:
+            return value  # validation returns the existing field-specific error
+    return value
+
+
 def derive_profile(activity: str, base: dict | None = None) -> dict:
     profile = dict(DEFAULT_PROFILE)
     if base:
@@ -217,6 +232,8 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(profile or {})
     normalized["account_id"] = account
+    normalized["min_value"] = _normalize_optional_number(normalized.get("min_value"))
+    normalized["max_value"] = _normalize_optional_number(normalized.get("max_value"))
     normalized = derive_profile(normalized.get("activity", ""), normalized)
     validation_profile = dict(normalized)
     validation_profile["countries"] = _normalize_countries(validation_profile.get("countries"))

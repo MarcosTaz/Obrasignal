@@ -108,6 +108,7 @@ def _row(row, decision=None, workflow=None):
         d["explanation"] = decision.get("features", {}).get("explanation")
         d["economic_fit"] = decision.get("features", {}).get("economic_fit")
         d["capability_evidence"] = decision.get("features", {}).get("capability_evidence")
+        d["cpv_evidence"] = decision.get("features", {}).get("cpv_evidence")
         d["hard_capability_blockers"] = decision.get("features", {}).get("hard_capability_blockers", [])
         d["profile_score"] = decision.get("features", {}).get("profile_score", d.get("profile_score"))
         d["lot_score"] = decision.get("features", {}).get("lot_score", d.get("lot_score"))
