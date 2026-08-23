@@ -1,54 +1,31 @@
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
-import { supabase } from '../lib/supabase'
 import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
 import { ensureBackendReady } from '../src/api'
+import { authSession } from '../src/authSession'
 
 export default function AuthGate({ children }) {
-  const [session, setSession] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [authState, setAuthState] = useState(authSession.getState())
 
 
   useEffect(() => {
-    let mounted = true
-    let subscription = null
-
-    const bootstrap = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession()
-        if (!mounted) return
-        if (error) throw error
-
-        setSession(data.session)
-        setLoading(false)
-        if (data.session) ensureBackendReady().catch(() => {})
-
-        const { data: listener } = supabase.auth.onAuthStateChange((_, nextSession) => {
-          if (!mounted) return
-          setSession(nextSession)
-          if (nextSession) ensureBackendReady().catch(() => {})
-        })
-        subscription = listener?.subscription || null
-      } catch (_) {
-        if (!mounted) return
-        setSession(null)
-        setLoading(false)
-      }
+    let active = true
+    const update = (nextState) => {
+      if (!active) return
+      setAuthState(nextState)
+      if (nextState.status === 'signed-in') ensureBackendReady().catch(() => {})
     }
-
-    bootstrap()
-    return () => {
-      mounted = false
-      subscription?.unsubscribe()
-    }
+    const unsubscribe = authSession.subscribe(update)
+    authSession.start().then(update)
+    return () => { active = false; unsubscribe() }
   }, [])
 
-  if (loading) {
+  if (authState.status === 'loading') {
     return <View style={styles.loading}><Text style={styles.brand}>OBRA<Text style={styles.blue}>SIGNAL</Text></Text><ActivityIndicator size="small" color="#5E8BFF" /><Text style={styles.message}>A recuperar a sessão…</Text></View>
   }
 
-  if (!session) return <AuthScreen />
+  if (authState.status !== 'signed-in') return <AuthScreen />
 
   // Hard rule: once Supabase has authenticated the user, the application
   // shell opens immediately. Profile, billing and API availability are
