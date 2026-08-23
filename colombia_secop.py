@@ -39,15 +39,14 @@ SECOP_PROCESS_FIELDS = (
     "urlproceso",
 )
 
-# Construction-first acquisition. ``tipo_de_contrato = 'Obra'`` captures
-# explicit works contracts while UNSPSC segment 72 captures building,
-# construction and maintenance services. The open-state condition keeps this
-# source focused on actionable discovery; awards/contracts will be separate
-# lifecycle sources rather than overloading one dataset.
+# First production slice: explicit open works only. SECOP also exposes UNSPSC,
+# but widening discovery through source taxonomy belongs in a tested taxonomy
+# adapter. Starting with the source's explicit ``Obra`` contract type maximises
+# precision and avoids silently treating unfamiliar source categories as CPV.
+# Awards/contracts are separate lifecycle sources rather than overloaded here.
 SECOP_CONSTRUCTION_WHERE = (
     "estado_de_apertura_del_proceso = 'Abierto' AND "
-    "(tipo_de_contrato = 'Obra' OR "
-    "starts_with(codigo_principal_de_categoria, 'V1.72'))"
+    "tipo_de_contrato = 'Obra'"
 )
 
 SECOP_CONFIG = SocrataSourceConfig(
