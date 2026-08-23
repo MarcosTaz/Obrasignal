@@ -124,7 +124,12 @@ def evaluate_economic_fit(value, profile=None, opportunity=None, today=None):
     elif any(not rule["passed"] for rule in rules if rule["rule"] in ("min_value", "max_value")):
         status = "UNFAVOURABLE"
         confidence = 80
-        reason = "o valor está fora do intervalo definido pela empresa"
+        if max_value is not None and amount > max_value:
+            reason = f"valor acima do máximo definido pela empresa (€{max_value:,.0f})"
+        elif min_value is not None and amount < min_value:
+            reason = f"valor abaixo do mínimo definido pela empresa (€{min_value:,.0f})"
+        else:
+            reason = "o valor está fora do intervalo definido pela empresa"
     elif score >= threshold:
         status = "FAVOURABLE"
         confidence = 80

@@ -22,6 +22,6 @@ def test_persist_and_classify_records_auditable_decision():
     assert reason
     row = latest_decision(conn, 'TED', '2026-S-999')
     assert row['decision'] == decision
-    assert row['rule_version'] == 'commercial-v2+lot-v1+capability-v1+economic-fit-v2'
+    assert row['rule_version'] == 'commercial-v2+lot-v1+capability-v2+economic-fit-v3'
     assert 'profile_score' in row['features']
     assert 'economic_fit' in row['features']
