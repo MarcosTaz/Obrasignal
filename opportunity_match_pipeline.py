@@ -6,7 +6,7 @@ from company_profile import load_profile
 from capability_profile import build_capability_profile, capability_matches_text
 from decision_log import record_decision
 from lot_matcher import match_lot
-from economic_fit import evaluate_economic_fit
+from economic_fit import evaluate_economic_fit, parse_contract_value
 from profile_scoring import personalized_score
 
 RULE_VERSION = "commercial-v2+lot-v1+capability-v1+economic-fit-v2"
@@ -21,7 +21,7 @@ def _lot_from_row(row):
         "country": row.get("country"),
         "cpv": row.get("cpv"),
         "value": row.get("value"),
-        "value_numeric": row.get("value_numeric"),
+        "value_numeric": row.get("value_numeric") or parse_contract_value(row.get("value")),
         "deadline": row.get("deadline"),
         "procedure_type": row.get("procedure_type") or row.get("notice_type"),
         "locations": row.get("locations") or [{"country": row.get("country")}],
@@ -99,12 +99,23 @@ def evaluate_row(row, profile=None):
         " ".join(str(v) for v in (lot.get("title"), lot.get("description")) if v),
     )
     hard_blockers = _hard_capability_checks(lot, capability)
+    countries = {str(value).strip().upper() for value in capability.get("countries", []) if str(value).strip()}
+    country = str(lot.get("country") or "").strip().upper()
+    if countries and country and country not in countries:
+        hard_blockers.append("país fora da cobertura da empresa")
     result = match_lot(lot, profile)
     economics = evaluate_economic_fit(
         lot.get("value_numeric") or lot.get("value"),
         profile,
         opportunity=lot,
     )
+    failed_economic_rules = {rule["rule"] for rule in economics.get("rules", []) if not rule.get("passed")}
+    if "min_value" in failed_economic_rules and "valor abaixo do mínimo da empresa" not in hard_blockers:
+        hard_blockers.append("valor abaixo do mínimo da empresa")
+    if "max_value" in failed_economic_rules and "valor acima do máximo da empresa" not in hard_blockers:
+        hard_blockers.append("valor acima do máximo da empresa")
+    if result["geography"].get("reason") == "região fora do perfil":
+        hard_blockers.append("região fora da cobertura da empresa")
 
     # The source `tenders.score` field is legacy presentation state from the
     # original root application. The canonical product score is produced by

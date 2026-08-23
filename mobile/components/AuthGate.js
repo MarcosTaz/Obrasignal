@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { supabase } from '../lib/supabase'
 import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
+import { ensureBackendReady } from '../src/api'
 
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(null)
@@ -21,10 +22,12 @@ export default function AuthGate({ children }) {
 
         setSession(data.session)
         setLoading(false)
+        if (data.session) ensureBackendReady().catch(() => {})
 
         const { data: listener } = supabase.auth.onAuthStateChange((_, nextSession) => {
           if (!mounted) return
           setSession(nextSession)
+          if (nextSession) ensureBackendReady().catch(() => {})
         })
         subscription = listener?.subscription || null
       } catch (_) {

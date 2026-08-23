@@ -1,9 +1,11 @@
 """Production compatibility layer for ObraSignal."""
 import time
+import os
 from datetime import datetime, timezone, timedelta
 
 import app as _app
-from national_sources import fetch_national_sources
+import national_sources as _national_sources
+from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
 from source_health import ensure_source_health, get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
 from latency_metrics import ensure_latency_table, record_stage, latency_snapshot, latency_summary
@@ -103,6 +105,8 @@ def _fetch_ted_with_health(*args, **kwargs):
         ensure_latency_table(conn)
         conn.close()
         rows = _fetch_ted_resilient()
+        if not rows:
+            raise RuntimeError("TED returned an unexpected empty result set")
         duration_ms = int((time.perf_counter() - started) * 1000)
         watermark = _max_ted_publication_date(rows)
         conn = _app.db()
@@ -125,9 +129,31 @@ _app.fetch_ted = _fetch_ted_with_health
 
 
 def fetch_base_with_national_sources():
-    rows = _original_fetch_base()
-    rows.extend(fetch_national_sources())
-    return rows
+    rows = []
+    connectors = [("BASE", _original_fetch_base)]
+    if os.getenv("BASE_ACCESS_TOKEN", "").strip() == "":
+        connectors = []
+        conn = _app.db()
+        record_source_result(conn, "BASE", success=False, duration_ms=0, error="BASE_ACCESS_TOKEN is not configured")
+        conn.close()
+    connectors.extend((("BOAMP", _national_sources.fetch_boamp), ("PLACSP", _national_sources.fetch_placsp)))
+    if _national_sources.LUXEMBOURG_RSS_URL:
+        connectors.append(("PMP-LU", _national_sources.fetch_luxembourg_rss))
+    for source, fetcher in connectors:
+        started = time.perf_counter()
+        try:
+            found = fetcher()
+            if not found:
+                raise RuntimeError(f"{source} returned an unexpected empty result set")
+            rows.extend(found)
+            conn = _app.db()
+            record_source_result(conn, source, success=True, duration_ms=int((time.perf_counter() - started) * 1000), found=len(found))
+            conn.close()
+        except Exception as exc:
+            conn = _app.db()
+            record_source_result(conn, source, success=False, duration_ms=int((time.perf_counter() - started) * 1000), error=exc)
+            conn.close()
+    return dedupe_records(rows)
 
 
 _app.fetch_base = fetch_base_with_national_sources

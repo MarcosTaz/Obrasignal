@@ -63,7 +63,10 @@ class CapabilityProfile:
 
 def build_capability_profile(profile: dict | None = None) -> dict:
     """Normalize an existing company profile into the capability contract."""
-    capability = CapabilityProfile.from_dict(profile)
+    values = dict(profile or {})
+    if not values.get("services") and values.get("contract_interests"):
+        values["services"] = values["contract_interests"]
+    capability = CapabilityProfile.from_dict(values)
     return capability.to_dict()
 
 

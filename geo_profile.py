@@ -15,8 +15,9 @@ def _norm(value):
 def geographic_fit(item, profile=None):
     profile = profile or DEFAULT_PROFILE
     countries = {_norm(x) for x in profile.get("countries", set())}
-    nuts = {_norm(x) for x in profile.get("nuts", set())}
-    cities = {_norm(x) for x in profile.get("cities", set())}
+    declared_regions = {_norm(x) for x in profile.get("regions", set())}
+    nuts = {_norm(x) for x in profile.get("nuts", set())} | declared_regions
+    cities = {_norm(x) for x in profile.get("cities", set())} | declared_regions
     prefixes = {_norm(x) for x in profile.get("postal_prefixes", set())}
 
     item_country = _norm(item.get("country_code") or item.get("place_country"))
@@ -31,6 +32,10 @@ def geographic_fit(item, profile=None):
             return {"score": 5, "confidence": 100, "reason": "cidade prioritária"}
         if prefixes and any(postcode.startswith(p) for p in prefixes):
             return {"score": 5, "confidence": 100, "reason": "código postal prioritário"}
+        if declared_regions and (item_nuts or item_city):
+            return {"score": 0, "confidence": 100, "reason": "região fora do perfil"}
+        if declared_regions:
+            return {"score": 2, "confidence": 20, "reason": "localização regional insuficiente"}
         return {"score": 3, "confidence": 80, "reason": "país compatível"}
 
     if item_country and countries:

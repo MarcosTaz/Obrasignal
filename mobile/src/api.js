@@ -4,7 +4,10 @@ import { storage } from './storage';
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrender.com/api/v1').replace(/\/$/, '');
 const DEFAULT_TIMEOUT = 20000;
 const PROFILE_TIMEOUT = 20000;
+const BACKEND_READY_TIMEOUT = 75000;
 const MAX_ATTEMPTS = 1;
+
+let backendReadyPromise = null;
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 function reportTiming(path, startedAt, status) {
@@ -63,23 +66,51 @@ async function request(path, options={}) {
   throw lastError||new Error(`API ${path}: não foi possível concluir o pedido.`);
 }
 
+
+// One health probe is shared by every caller. It has a deliberately separate
+// cold-start budget, while normal business requests keep their 20 s budget.
+// A completed probe is cleared so only an in-flight warm-up is shared. A later
+// recoverable GET can therefore wake the backend again if it has gone to sleep.
+export function ensureBackendReady(){
+  if(backendReadyPromise)return backendReadyPromise;
+  const warmup=request('/health',{timeout:BACKEND_READY_TIMEOUT,skipAuth:true})
+    .then(data=>{if(data?.ok!==true)throw new Error('API /health: resposta inválida.');return true})
+    .finally(()=>{if(backendReadyPromise===warmup)backendReadyPromise=null});
+  backendReadyPromise=warmup;
+  return warmup;
+}
+
+async function readWhenReady(path,options={}){
+  try{return await request(path,{...options,maxAttempts:1})}
+  catch(error){
+    if(!isRetryableNetworkError(error)&&error?.code!=='API_NETWORK_ERROR')throw error;
+    await ensureBackendReady();
+    return request(path,{...options,maxAttempts:1});
+  }
+}
+
+async function writeWhenReady(path,options={}){
+  await ensureBackendReady();
+  return request(path,{...options,maxAttempts:1});
+}
+
 function normalizeOpportunity(item){if(!item||typeof item!=='object')return item;return {...item,decision_score:item.decision_score??item.account_score??null,decision_reason:item.decision_reason??item.account_reason??null};}
 function unwrapProfile(data){return data?.profile||data||null;}
 
 export const api={
-  health:()=>request('/health',{timeout:60000,skipAuth:true}),
-  profile:async()=>unwrapProfile(await request('/profile',{timeout:PROFILE_TIMEOUT})),
+  health:()=>ensureBackendReady(),
+  profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
   // POST is intentionally single-attempt: retrying an authenticated write can
   // duplicate work and makes a stuck Save button look like a UI failure.
-  saveProfile:async(profile)=>unwrapProfile(await request('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT,maxAttempts:1})),
-  billingStatus:()=>request('/billing/status'),
-  stats:()=>request('/stats'),
-  workflowStats:()=>request('/workflow/stats'),
-  alerts:({limit=20,unreadOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit)});if(unreadOnly)p.set('unread','1');return request(`/alerts?${p.toString()}`);},
-  markAlertDelivered:(eventId)=>request(`/alerts/${encodeURIComponent(eventId)}/delivered`,{method:'POST',body:JSON.stringify({})}),
-  opportunities:async({q='',minscore=0,source='',limit=60,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await request(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
-  opportunity:async(id)=>normalizeOpportunity(await request(`/opportunities/${encodeURIComponent(id)}`)),
-  workflow:(id)=>request(`/opportunities/${encodeURIComponent(id)}/workflow`),
-  setWorkflow:(id,status,note)=>request(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})})
+  saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
+  billingStatus:()=>readWhenReady('/billing/status'),
+  stats:()=>readWhenReady('/stats'),
+  workflowStats:()=>readWhenReady('/workflow/stats'),
+  alerts:({limit=20,unreadOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit)});if(unreadOnly)p.set('unread','1');return readWhenReady(`/alerts?${p.toString()}`);},
+  markAlertDelivered:(eventId)=>writeWhenReady(`/alerts/${encodeURIComponent(eventId)}/delivered`,{method:'POST',body:JSON.stringify({})}),
+  opportunities:async({q='',minscore=0,source='',limit=60,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await readWhenReady(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
+  opportunity:async(id)=>normalizeOpportunity(await readWhenReady(`/opportunities/${encodeURIComponent(id)}`)),
+  workflow:(id)=>readWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`),
+  setWorkflow:(id,status,note)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})})
 };
 export { API_BASE };
