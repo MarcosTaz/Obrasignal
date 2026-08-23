@@ -17,7 +17,9 @@ CREATE TABLE IF NOT EXISTS opportunity_workflow (
 
 
 def ensure_workflow_table(conn):
-    conn.execute(SCHEMA)
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='opportunity_workflow'").fetchone()
+    if not exists:
+        conn.execute(SCHEMA)
     conn.commit()
 
 

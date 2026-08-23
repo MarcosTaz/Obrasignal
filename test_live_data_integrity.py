@@ -52,6 +52,7 @@ def test_national_source_failures_are_isolated_and_recorded(monkeypatch, tmp_pat
 
 def test_source_failure_does_not_delete_previously_ingested_opportunities(monkeypatch, tmp_path):
     monkeypatch.setattr(app, "DB", str(tmp_path / "preserve.db"))
+    app.init_db()
     conn = app.db()
     conn.execute("INSERT INTO tenders(source,external_id,title,first_seen,last_seen) VALUES('TED','KEEP-1','Existing','2026-01-01','2026-01-01')")
     conn.commit()

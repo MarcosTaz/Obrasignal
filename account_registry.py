@@ -34,7 +34,9 @@ PRO_ENTITLEMENT = 'pro'
 
 
 def ensure_account_table(conn):
-    conn.execute(SCHEMA)
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='accounts'").fetchone()
+    if not exists:
+        conn.execute(SCHEMA)
     columns = {row[1] for row in conn.execute("PRAGMA table_info(accounts)").fetchall()}
     migrations = {
         "trial_ends_at": "ALTER TABLE accounts ADD COLUMN trial_ends_at TEXT",
@@ -242,9 +244,7 @@ def billing_webhook():
         event = body.get('event') or body
         conn = _db_from_app()
         try:
-            ensure_account_table(conn)
             event_id = event.get('id') or hashlib.sha256(raw).hexdigest()
-            conn.execute('CREATE TABLE IF NOT EXISTS billing_webhook_events(event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL)')
             exists = conn.execute('SELECT 1 FROM billing_webhook_events WHERE event_id=?', (event_id,)).fetchone()
             if not exists:
                 _sync_account_from_webhook(conn, event)

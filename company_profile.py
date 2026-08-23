@@ -75,9 +75,16 @@ def _db_path() -> str:
 def _profile_db():
     conn = sqlite3.connect(_db_path(), timeout=15)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=15000")
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_profiles'").fetchone()
+    if not exists:
+        ensure_profile_table(conn)
+    return conn
+
+
+def ensure_profile_table(conn):
     conn.execute(PROFILE_TABLE)
     conn.commit()
-    return conn
 
 
 def _normalize(text: str) -> str:

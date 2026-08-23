@@ -9,10 +9,8 @@ import preload as _preload
 from preload import APP, _deadline_dt
 from auth_context import configured_identity
 from company_profile import load_profile, save_profile, derive_profile
-from notification_events import ensure_event_table
 from source_registry import SOURCES
 from account_registry import ensure_account
-from decision_log import ensure_decision_table
 from opportunity_workflow import get_workflow, set_workflow, workflow_counts
 from account_onboarding import bootstrap_account
 
@@ -129,7 +127,6 @@ def _decision_priority(decision):
 
 
 def _latest_decisions(conn, account_id, external_ids):
-    ensure_decision_table(conn)
     if not external_ids:
         return {}
     placeholders = ",".join("?" for _ in external_ids)
@@ -191,7 +188,6 @@ def alerts():
     limit = max(1, min(50, int(request.args.get("limit", 20) or 20)))
     unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
     c = _db()
-    ensure_event_table(c)
     where = "WHERE e.account_id=? AND e.event_type='new_high_match'"
     params = [identity.account_id]
     if unread_only:
@@ -216,7 +212,6 @@ def alerts():
 def alert_delivered(event_id):
     identity = request.obrasignal_identity
     c = _db()
-    ensure_event_table(c)
     now = _iso_now()
     cur = c.execute("UPDATE opportunity_events SET delivered_at=? WHERE id=? AND account_id=?", (now, event_id, identity.account_id))
     c.commit()
@@ -230,7 +225,6 @@ def alert_delivered(event_id):
 def stats():
     identity = request.obrasignal_identity
     c = _db()
-    ensure_decision_table(c)
     latest = """JOIN (
         SELECT od.source, od.external_id, MAX(od.id) AS max_id
         FROM opportunity_decisions od
@@ -269,7 +263,6 @@ def opportunities():
     minscore = request.args.get("minscore")
     minscore = int(minscore) if minscore not in (None, "") else None
     c = _db()
-    ensure_decision_table(c)
     where = ["1=1"]
     params = []
     if market in ("PT", "EU"):

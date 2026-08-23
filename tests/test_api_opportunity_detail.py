@@ -6,6 +6,7 @@ def _seed(monkeypatch, tmp_path):
     monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "opportunities.db"))
     monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "customer-a")
     monkeypatch.setattr(app, "DB", str(tmp_path / "opportunities.db"))
+    app.init_db()
     conn = app.db()
     conn.execute(
         """INSERT INTO tenders(source, external_id, title, description, buyer, country,
