@@ -1,6 +1,14 @@
 import sqlite3
+import json
+import time
+
+import jwt
+import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 import api
+import account_registry
+import auth_context_jwt
 
 
 def test_profile_api_uses_request_identity_not_payload(monkeypatch, tmp_path):
@@ -120,3 +128,146 @@ def test_provider_mode_keeps_health_public(monkeypatch):
 
     assert response.status_code == 200
     assert response.get_json()["ok"] is True
+
+
+def test_profile_get_and_post_share_warm_jwks_cache(monkeypatch, tmp_path):
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
+    jwk.update({"kid": "profile-key", "use": "sig", "alg": "RS256"})
+    issuer = "https://profile.example/auth/v1"
+    now = int(time.time())
+    token = jwt.encode(
+        {"sub": "profile-user", "iss": issuer, "aud": "authenticated", "iat": now, "exp": now + 300},
+        private_key,
+        algorithm="RS256",
+        headers={"kid": "profile-key"},
+    )
+    monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "profiles.db"))
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", issuer)
+    monkeypatch.setattr(auth_context_jwt, "_verifier", None)
+    monkeypatch.setattr(auth_context_jwt, "_verifier_config", None)
+    calls = 0
+
+    def fetch(_self):
+        nonlocal calls
+        calls += 1
+        return {"profile-key": jwk}
+
+    monkeypatch.setattr(auth_context_jwt.JwtVerifier, "_fetch_jwks", fetch)
+    monkeypatch.setattr(api, "bootstrap_account", lambda account_id: 0)
+    headers = {"Authorization": f"Bearer {token}"}
+    client = api.APP.test_client()
+
+    assert client.get("/api/v1/profile", headers=headers).status_code == 200
+    assert client.post("/api/v1/profile", headers=headers, json={"name": "Empresa"}).status_code == 200
+    assert calls == 1
+
+
+def test_all_authenticated_hot_paths_share_one_jwks_fetch(monkeypatch):
+    api._preload._app.init_db()
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
+    jwk.update({"kid": "hot-path-key", "use": "sig", "alg": "RS256"})
+    issuer = "https://hot-path.example/auth/v1"
+    now = int(time.time())
+    token = jwt.encode(
+        {"sub": "jwks-hot-path-test", "iss": issuer, "aud": "authenticated", "iat": now, "exp": now + 300},
+        private_key,
+        algorithm="RS256",
+        headers={"kid": "hot-path-key"},
+    )
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", issuer)
+    monkeypatch.setattr(auth_context_jwt, "_verifier", None)
+    monkeypatch.setattr(auth_context_jwt, "_verifier_config", None)
+    calls = 0
+
+    def fetch(_self):
+        nonlocal calls
+        calls += 1
+        return {"hot-path-key": jwk}
+
+    monkeypatch.setattr(auth_context_jwt.JwtVerifier, "_fetch_jwks", fetch)
+    monkeypatch.setattr(api, "bootstrap_account", lambda account_id: 0)
+    headers = {"Authorization": f"Bearer {token}"}
+    client = api.APP.test_client()
+
+    assert client.get("/api/v1/profile", headers=headers).status_code == 200
+    assert client.post("/api/v1/profile", headers=headers, json={}).status_code == 200
+    assert client.get("/api/v1/opportunities", headers=headers).status_code == 200
+    assert client.get("/api/v1/stats", headers=headers).status_code == 200
+    assert client.get("/api/v1/billing/status", headers=headers).status_code == 200
+    assert calls == 1
+
+
+def test_authenticated_hot_paths_work_from_bootstrap_during_remote_outage(monkeypatch):
+    api._preload._app.init_db()
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
+    jwk.update({"kid": "bootstrap-key", "use": "sig", "alg": "RS256"})
+    issuer = "https://bootstrap.example/auth/v1"
+    now = int(time.time())
+    token = jwt.encode(
+        {"sub": "jwks-bootstrap-test", "iss": issuer, "aud": "authenticated", "iat": now, "exp": now + 300},
+        private_key,
+        algorithm="RS256",
+        headers={"kid": "bootstrap-key"},
+    )
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", issuer)
+    monkeypatch.setenv("OBRASIGNAL_JWKS_BOOTSTRAP_JSON", json.dumps({"keys": [jwk]}))
+    monkeypatch.setattr(auth_context_jwt, "_verifier", None)
+    monkeypatch.setattr(auth_context_jwt, "_verifier_config", None)
+    calls = 0
+
+    def unavailable(_self):
+        nonlocal calls
+        calls += 1
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(auth_context_jwt.JwtVerifier, "_fetch_jwks", unavailable)
+    monkeypatch.setattr(api, "bootstrap_account", lambda account_id: 0)
+    headers = {"Authorization": f"Bearer {token}"}
+    client = api.APP.test_client()
+
+    assert client.get("/api/v1/profile", headers=headers).status_code == 200
+    assert client.post("/api/v1/profile", headers=headers, json={}).status_code == 200
+    assert client.get("/api/v1/opportunities", headers=headers).status_code == 200
+    assert client.get("/api/v1/stats", headers=headers).status_code == 200
+    assert client.get("/api/v1/billing/status", headers=headers).status_code == 200
+    assert calls == 0
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("get", "/api/v1/profile"),
+        ("post", "/api/v1/profile"),
+        ("get", "/api/v1/opportunities"),
+        ("get", "/api/v1/stats"),
+        ("get", "/api/v1/billing/status"),
+    ],
+)
+def test_authenticated_endpoints_return_503_when_jwks_unavailable(monkeypatch, method, path):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    unavailable = lambda: (_ for _ in ()).throw(auth_context_jwt.JwksUnavailableError())
+    monkeypatch.setattr(api, "configured_identity", unavailable)
+    monkeypatch.setattr(account_registry, "configured_identity", unavailable)
+
+    response = getattr(api.APP.test_client(), method)(path)
+
+    assert response.status_code == 503
+    assert response.get_json()["error"] == "authentication_service_unavailable"
+
+
+def test_invalid_token_still_returns_401(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", "https://invalid-token.example/auth/v1")
+
+    response = api.APP.test_client().get(
+        "/api/v1/profile", headers={"Authorization": "Bearer not-a-jwt"}
+    )
+
+    assert response.status_code == 401
+    assert response.get_json()["error"] == "authentication_required"

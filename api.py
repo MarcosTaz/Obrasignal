@@ -8,6 +8,7 @@ from jwt import InvalidTokenError
 import preload as _preload
 from preload import APP, _deadline_dt
 from auth_context import configured_identity
+from auth_context_jwt import JwksUnavailableError
 from company_profile import load_profile, save_profile, derive_profile
 from source_registry import SOURCES
 from account_registry import ensure_account
@@ -15,6 +16,11 @@ from opportunity_workflow import get_workflow, set_workflow, workflow_counts
 from account_onboarding import bootstrap_account
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
+
+
+@APP.errorhandler(JwksUnavailableError)
+def _jwks_unavailable(_error):
+    return jsonify({"error": "authentication_service_unavailable"}), 503
 
 
 def _db():
