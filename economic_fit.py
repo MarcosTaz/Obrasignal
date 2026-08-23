@@ -6,15 +6,31 @@ commercial/economic review using tender facts and rules defined by the company.
 from __future__ import annotations
 
 from datetime import date, datetime
+import re
 
 RULE_VERSION = "economic-fit-v2"
 
 
-def _num(value):
+def parse_contract_value(value):
     try:
         if value is None or value == "":
             return None
-        return float(value)
+        if isinstance(value, (int, float)):
+            return float(value)
+        token = re.search(r"[-+]?\d[\d\s.,]*", str(value))
+        if not token:
+            return None
+        token = token.group(0).replace(" ", "")
+        if "," in token and "." in token:
+            decimal = "," if token.rfind(",") > token.rfind(".") else "."
+            thousands = "." if decimal == "," else ","
+            token = token.replace(thousands, "").replace(decimal, ".")
+        elif "," in token:
+            parts = token.split(",")
+            token = "".join(parts) if len(parts) > 2 or len(parts[-1]) == 3 else ".".join(parts)
+        elif token.count(".") > 1:
+            token = token.replace(".", "")
+        return float(token)
     except (TypeError, ValueError):
         return None
 
@@ -52,12 +68,12 @@ def evaluate_economic_fit(value, profile=None, opportunity=None, today=None):
     """
     profile = profile or {}
     opportunity = opportunity or {}
-    amount = _num(value)
-    min_value = _num(profile.get("min_value"))
-    max_value = _num(profile.get("max_value"))
-    min_days = _num(profile.get("min_deadline_days"))
-    max_days = _num(profile.get("max_deadline_days"))
-    threshold = _num(profile.get("economic_min_score"))
+    amount = parse_contract_value(value)
+    min_value = parse_contract_value(profile.get("min_value"))
+    max_value = parse_contract_value(profile.get("max_value"))
+    min_days = parse_contract_value(profile.get("min_deadline_days"))
+    max_days = parse_contract_value(profile.get("max_deadline_days"))
+    threshold = parse_contract_value(profile.get("economic_min_score"))
     threshold = 60.0 if threshold is None else max(0.0, min(100.0, threshold))
 
     if amount is None or amount <= 0:
@@ -105,6 +121,10 @@ def evaluate_economic_fit(value, profile=None, opportunity=None, today=None):
         status = "REVIEW"
         confidence = 25
         reason = "dados conhecidos, mas a empresa ainda não definiu regras económicas"
+    elif any(not rule["passed"] for rule in rules if rule["rule"] in ("min_value", "max_value")):
+        status = "UNFAVOURABLE"
+        confidence = 80
+        reason = "o valor está fora do intervalo definido pela empresa"
     elif score >= threshold:
         status = "FAVOURABLE"
         confidence = 80

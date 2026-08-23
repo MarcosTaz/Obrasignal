@@ -188,7 +188,7 @@ def api_tenders():
 def worker():
  while True:
   try:sync_once()
-  except Exception:pass
+  except Exception as exc:print('sync worker error:',exc)
   time.sleep(POLL_SECONDS)
 
 threading.Thread(target=worker,daemon=True).start()

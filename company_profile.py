@@ -44,6 +44,7 @@ ACTIVITY_RULES = [
     ("coberturas", ["cobertura", "coberturas", "telhado", "roof", "fachada", "pavilhão", "pavilhao"], ["45", "44"]),
     ("armazens", ["armazém", "armazem", "warehouse", "pavilhão", "pavilhao", "industrial"], ["45", "44"]),
     ("eletricidade", ["instalação elétrica", "instalações elétricas", "eletricidade", "iluminação", "electricidade"], ["4531", "315"]),
+    ("pintura", ["pintura", "pinturas", "acabamento", "acabamentos"], ["4544"]),
     ("climatizacao", ["climatização", "avac", "aquecimento", "ventilação", "ar condicionado"], ["4533", "425"]),
     ("canalizacao", ["canalização", "redes de água", "saneamento", "tubagens"], ["4533", "4416"]),
     ("manutencao", ["manutenção de edifícios", "manutenção industrial", "reparação", "conservação"], ["50", "45"]),
