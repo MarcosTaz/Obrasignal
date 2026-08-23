@@ -5,9 +5,12 @@ from datetime import datetime, timezone, timedelta
 
 import app as _app
 import national_sources as _national_sources
+import colombia_secop as _colombia_secop
 from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
 from source_health import get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
+from source_registry import production_gate_reasons
+from source_runtime import commit_staged_source_syncs, discard_staged_source_syncs, stage_source_sync
 from latency_metrics import record_stage, latency_snapshot, latency_summary
 from latency_health import latency_health
 from ted_client import post_json
@@ -45,6 +48,49 @@ def _protect_legacy_routes():
 
 def _deadline_dt(value):
     return _app.deadline_dt(value)
+
+
+def _requested_global_sources():
+    raw = os.getenv("OBRASIGNAL_GLOBAL_SOURCES", "")
+    return {item.strip().upper() for item in raw.split(",") if item.strip()}
+
+
+def _global_source_enabled(source):
+    source = str(source or "").upper()
+    if source not in _requested_global_sources():
+        return False
+    return not production_gate_reasons(source)
+
+
+def _record_blocked_global_source(source):
+    source = str(source or "").upper()
+    if source not in _requested_global_sources():
+        return
+    reasons = production_gate_reasons(source)
+    if not reasons:
+        return
+    conn = _app.db()
+    try:
+        record_source_result(
+            conn,
+            source,
+            success=False,
+            duration_ms=0,
+            error="production gate blocked: " + ",".join(reasons),
+        )
+    finally:
+        conn.close()
+
+
+def _fetch_secop_staged():
+    conn = _app.db()
+    try:
+        watermark = get_source_cursor(conn, "CO_SECOP")
+    finally:
+        conn.close()
+    records, cursor = _colombia_secop.fetch_secop_processes(watermark=watermark)
+    stage_source_sync("CO_SECOP", records, cursor)
+    return records
 
 
 def _ted_since_date():
@@ -135,6 +181,12 @@ def fetch_base_with_national_sources():
     connectors.extend((("BOAMP", _national_sources.fetch_boamp), ("PLACSP", _national_sources.fetch_placsp)))
     if _national_sources.LUXEMBOURG_RSS_URL:
         connectors.append(("PMP-LU", _national_sources.fetch_luxembourg_rss))
+
+    if _global_source_enabled("CO_SECOP"):
+        connectors.append(("CO_SECOP", _fetch_secop_staged))
+    else:
+        _record_blocked_global_source("CO_SECOP")
+
     for source, fetcher in connectors:
         started = time.perf_counter()
         try:
@@ -242,16 +294,23 @@ def sync_once_with_events(*args, **kwargs):
         return None
     started = time.perf_counter()
     started_at = datetime.now(timezone.utc).isoformat()
-    result = _original_sync_once(*args, **kwargs)
+    discard_staged_source_syncs()
+    try:
+        result = _original_sync_once(*args, **kwargs)
+    except Exception:
+        discard_staged_source_syncs()
+        raise
+
     conn = _app.db()
     try:
+        source_runtime = commit_staged_source_syncs(conn)
         decisions = _record_account_decisions(conn)
         events = _record_account_events(conn)
         duration_ms = int((time.perf_counter() - started) * 1000)
         record_stage(conn, "PIPELINE", "sync_and_events", started_at, duration_ms, len(events))
     finally:
         conn.close()
-    return {"sync": result, "decisions": decisions, "new_events": events}
+    return {"sync": result, "source_runtime": source_runtime, "decisions": decisions, "new_events": events}
 
 
 @APP.get("/opportunity/<int:tender_id>")
