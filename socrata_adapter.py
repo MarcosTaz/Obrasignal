@@ -31,6 +31,7 @@ class SocrataSourceConfig:
     overlap_minutes: int = 1440
     app_token_env: str | None = None
     market: str = "GLOBAL"
+    base_where: str = ""
 
     @property
     def resource_url(self):
@@ -110,7 +111,7 @@ class SocrataProcurementAdapter:
         anchor = now or datetime.now(timezone.utc)
         return _socrata_timestamp(anchor - timedelta(days=self.config.initial_lookback_days))
 
-    def _where(self, start_timestamp, after=None):
+    def _incremental_where(self, start_timestamp, after=None):
         updated = self.config.updated_field
         identifier = self.config.id_field
         if after:
@@ -121,6 +122,13 @@ class SocrataProcurementAdapter:
                 f"({updated} = '{stamp}' AND {identifier} > '{ext}'))"
             )
         return f"{updated} >= '{_escape_soql(start_timestamp)}'"
+
+    def _where(self, start_timestamp, after=None):
+        incremental = self._incremental_where(start_timestamp, after)
+        base = str(self.config.base_where or "").strip()
+        if not base:
+            return incremental
+        return f"({base}) AND ({incremental})"
 
     def _params(self, start_timestamp, after=None):
         return {
