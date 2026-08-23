@@ -127,6 +127,81 @@ def test_jwks_first_verify_fetches_and_warm_cache_does_not(signing_material, mon
     assert calls == 1
 
 
+def test_bootstrap_verifies_immediately_without_remote_fetch(signing_material, monkeypatch):
+    private_key, jwk = signing_material
+    verifier = JwtVerifier(
+        "https://issuer.example",
+        bootstrap_json=json.dumps({"keys": [jwk]}),
+    )
+    calls = 0
+
+    def unavailable():
+        nonlocal calls
+        calls += 1
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(verifier, "_fetch_jwks", unavailable)
+    token = _token(private_key)
+
+    assert verifier.verify(token).subject == "user-123"
+    assert verifier.verify(token).subject == "user-123"
+    assert verifier._keys_source == "bootstrap"
+    assert calls == 0
+
+
+def test_bootstrap_is_replaced_by_later_remote_refresh(signing_material, monkeypatch):
+    _, bootstrap_jwk = signing_material
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    rotated_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    rotated_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(rotated_key.public_key()))
+    rotated_jwk.update({"kid": "rotated-key", "use": "sig", "alg": "RS256"})
+    verifier = JwtVerifier(
+        "https://issuer.example",
+        bootstrap_json=json.dumps({"keys": [bootstrap_jwk]}),
+    )
+    verifier._expires_at = 0
+    monkeypatch.setattr(verifier, "_fetch_jwks", lambda: {"rotated-key": rotated_jwk})
+
+    assert verifier.verify(_token(rotated_key, kid="rotated-key")).subject == "user-123"
+    assert verifier._keys == {"rotated-key": rotated_jwk}
+    assert verifier._keys_source == "remote"
+
+
+def test_unknown_bootstrap_kid_refresh_failure_does_not_accept_token(signing_material, monkeypatch):
+    private_key, bootstrap_jwk = signing_material
+    verifier = JwtVerifier(
+        "https://issuer.example",
+        bootstrap_json=json.dumps({"keys": [bootstrap_jwk]}),
+    )
+    calls = 0
+
+    def unavailable():
+        nonlocal calls
+        calls += 1
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(verifier, "_fetch_jwks", unavailable)
+    with pytest.raises(JwksUnavailableError):
+        verifier.verify(_token(private_key, kid="unknown-key"))
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    "bootstrap_json",
+    [
+        "not-json",
+        "{}",
+        '{"keys":[]}',
+        '{"keys":[{"kid":"bad","kty":"EC","crv":"P-256"}]}',
+        '{"keys":[{"kid":"secret","kty":"oct","k":"c2VjcmV0"}]}',
+    ],
+)
+def test_invalid_bootstrap_configuration_fails_closed(bootstrap_json):
+    with pytest.raises(RuntimeError, match="OBRASIGNAL_JWKS_BOOTSTRAP_JSON"):
+        JwtVerifier("https://issuer.example", bootstrap_json=bootstrap_json)
+
+
 def test_expired_cache_uses_stale_key_when_refresh_times_out(signing_material, monkeypatch):
     private_key, jwk = signing_material
     verifier = JwtVerifier("https://issuer.example")

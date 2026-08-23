@@ -199,6 +199,44 @@ def test_all_authenticated_hot_paths_share_one_jwks_fetch(monkeypatch):
     assert calls == 1
 
 
+def test_authenticated_hot_paths_work_from_bootstrap_during_remote_outage(monkeypatch):
+    api._preload._app.init_db()
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
+    jwk.update({"kid": "bootstrap-key", "use": "sig", "alg": "RS256"})
+    issuer = "https://bootstrap.example/auth/v1"
+    now = int(time.time())
+    token = jwt.encode(
+        {"sub": "jwks-bootstrap-test", "iss": issuer, "aud": "authenticated", "iat": now, "exp": now + 300},
+        private_key,
+        algorithm="RS256",
+        headers={"kid": "bootstrap-key"},
+    )
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", issuer)
+    monkeypatch.setenv("OBRASIGNAL_JWKS_BOOTSTRAP_JSON", json.dumps({"keys": [jwk]}))
+    monkeypatch.setattr(auth_context_jwt, "_verifier", None)
+    monkeypatch.setattr(auth_context_jwt, "_verifier_config", None)
+    calls = 0
+
+    def unavailable(_self):
+        nonlocal calls
+        calls += 1
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(auth_context_jwt.JwtVerifier, "_fetch_jwks", unavailable)
+    monkeypatch.setattr(api, "bootstrap_account", lambda account_id: 0)
+    headers = {"Authorization": f"Bearer {token}"}
+    client = api.APP.test_client()
+
+    assert client.get("/api/v1/profile", headers=headers).status_code == 200
+    assert client.post("/api/v1/profile", headers=headers, json={}).status_code == 200
+    assert client.get("/api/v1/opportunities", headers=headers).status_code == 200
+    assert client.get("/api/v1/stats", headers=headers).status_code == 200
+    assert client.get("/api/v1/billing/status", headers=headers).status_code == 200
+    assert calls == 0
+
+
 @pytest.mark.parametrize(
     ("method", "path"),
     [

@@ -50,6 +50,7 @@ class JwtVerifier:
         jwks_url: str = "",
         cache_seconds: int = 300,
         stale_max_seconds: int = 3600,
+        bootstrap_json: str = "",
     ):
         if not issuer:
             raise RuntimeError("JWT provider issuer is not configured")
@@ -67,15 +68,42 @@ class JwtVerifier:
         self._retry_at = 0.0
         self._generation = 0
         self._lock = Lock()
+        self._keys_source = None
+        if bootstrap_json:
+            try:
+                payload = json.loads(bootstrap_json)
+                self._keys = self._validated_keys(payload)
+            except (TypeError, ValueError, KeyError, jwt.PyJWTError) as exc:
+                raise RuntimeError("OBRASIGNAL_JWKS_BOOTSTRAP_JSON is not a valid public JWKS") from exc
+            self._fetched_at = time.time()
+            self._expires_at = self._fetched_at + self.cache_seconds
+            self._keys_source = "bootstrap"
+
+    @staticmethod
+    def _validated_keys(payload):
+        if not isinstance(payload, dict) or not isinstance(payload.get("keys"), list) or not payload["keys"]:
+            raise ValueError("JWKS must contain a non-empty keys list")
+        keys = {}
+        private_fields = {"d", "p", "q", "dp", "dq", "qi", "oth", "k"}
+        for item in payload["keys"]:
+            if not isinstance(item, dict) or not item.get("kid"):
+                raise ValueError("each JWK must have a kid")
+            if private_fields.intersection(item) or item.get("kty") not in {"RSA", "EC"}:
+                raise ValueError("bootstrap JWKs must be asymmetric public keys")
+            if item.get("alg") and item["alg"] not in {"RS256", "ES256"}:
+                raise ValueError("bootstrap JWK uses an unsupported algorithm")
+            jwt.PyJWK(item)
+            kid = str(item["kid"])
+            if kid in keys:
+                raise ValueError("duplicate JWK kid")
+            keys[kid] = item
+        return keys
 
     def _fetch_jwks(self):
         req = UrlRequest(self.jwks_url, headers={"Accept": "application/json"})
         with urlopen(req, timeout=10) as response:
             payload = json.load(response)
-        keys = {str(item["kid"]): item for item in (payload.get("keys") or []) if item.get("kid")}
-        if not keys:
-            raise ValueError("JWT JWKS returned no keys")
-        return keys
+        return self._validated_keys(payload)
 
     def _key_for(self, kid: str):
         """Return a cached public JWK, refreshing once when stale or unknown.
@@ -119,6 +147,7 @@ class JwtVerifier:
             self._expires_at = self._fetched_at + self.cache_seconds
             self._retry_at = 0.0
             self._generation += 1
+            self._keys_source = "remote"
             if kid not in refreshed:
                 raise InvalidTokenError("unknown JWT key id")
             return refreshed[kid]
@@ -162,6 +191,7 @@ def production_verifier() -> JwtVerifier:
         os.getenv("OBRASIGNAL_JWKS_URL", ""),
         int(os.getenv("OBRASIGNAL_JWKS_CACHE_SECONDS", "300")),
         int(os.getenv("OBRASIGNAL_JWKS_STALE_MAX_SECONDS", "3600")),
+        os.getenv("OBRASIGNAL_JWKS_BOOTSTRAP_JSON", ""),
     )
     if _verifier is not None and _verifier_config == config:
         return _verifier
@@ -173,6 +203,7 @@ def production_verifier() -> JwtVerifier:
                 jwks_url=config[2],
                 cache_seconds=config[3],
                 stale_max_seconds=config[4],
+                bootstrap_json=config[5],
             )
             _verifier_config = config
         return _verifier
