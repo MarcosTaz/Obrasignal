@@ -7,7 +7,7 @@ def test_secop_config_is_official_construction_first_dataset():
     assert SECOP_CONFIG.id_field == "id_del_proceso"
     assert SECOP_CONFIG.updated_field == "fecha_de_ultima_publicaci"
     assert "tipo_de_contrato = 'Obra'" in SECOP_CONFIG.base_where
-    assert "V1.72" in SECOP_CONFIG.base_where
+    assert "V1.72" not in SECOP_CONFIG.base_where
     assert "estado_de_apertura_del_proceso = 'Abierto'" in SECOP_CONFIG.base_where
 
 
