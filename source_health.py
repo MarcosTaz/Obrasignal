@@ -2,7 +2,9 @@ from datetime import datetime, timezone
 
 
 def ensure_source_health(conn):
-    conn.execute('''CREATE TABLE IF NOT EXISTS source_health (
+    health_exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_health'").fetchone()
+    if not health_exists:
+        conn.execute('''CREATE TABLE IF NOT EXISTS source_health (
         source TEXT PRIMARY KEY,
         last_attempt TEXT,
         last_success TEXT,
@@ -12,7 +14,9 @@ def ensure_source_health(conn):
         last_new_items INTEGER DEFAULT 0,
         status TEXT DEFAULT 'unknown'
     )''')
-    conn.execute('''CREATE TABLE IF NOT EXISTS source_cursor (
+    cursor_exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_cursor'").fetchone()
+    if not cursor_exists:
+        conn.execute('''CREATE TABLE IF NOT EXISTS source_cursor (
         source TEXT PRIMARY KEY,
         watermark TEXT,
         updated_at TEXT

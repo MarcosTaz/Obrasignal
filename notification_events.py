@@ -18,7 +18,9 @@ def _key(row):
 
 
 def ensure_event_table(conn):
-    conn.execute(
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='opportunity_events'").fetchone()
+    if not exists:
+        conn.execute(
         """CREATE TABLE IF NOT EXISTS opportunity_events(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account_id TEXT NOT NULL DEFAULT 'default',
@@ -39,7 +41,6 @@ def ensure_event_table(conn):
 
 def record_new_opportunities(conn, account_id="default", min_score=75):
     """Record high-value opportunities for exactly one account."""
-    ensure_event_table(conn)
     account_id = str(account_id or "default")
     rows = conn.execute(
         """SELECT * FROM tenders
@@ -74,3 +75,4 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
             })
     conn.commit()
     return events
+    ensure_event_table(conn)

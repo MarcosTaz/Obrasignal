@@ -7,8 +7,8 @@ import app as _app
 import national_sources as _national_sources
 from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
-from source_health import ensure_source_health, get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
-from latency_metrics import ensure_latency_table, record_stage, latency_snapshot, latency_summary
+from source_health import get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
+from latency_metrics import record_stage, latency_snapshot, latency_summary
 from latency_health import latency_health
 from ted_client import post_json
 from auth_context import configured_identity, InvalidTokenError
@@ -99,11 +99,7 @@ def _fetch_ted_resilient():
 def _fetch_ted_with_health(*args, **kwargs):
     started = time.perf_counter()
     started_at = datetime.now(timezone.utc).isoformat()
-    conn = _app.db()
     try:
-        ensure_source_health(conn)
-        ensure_latency_table(conn)
-        conn.close()
         rows = _fetch_ted_resilient()
         if not rows:
             raise RuntimeError("TED returned an unexpected empty result set")

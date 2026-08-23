@@ -104,6 +104,7 @@ def test_reprocessing_existing_tender_preserves_first_seen_and_does_not_inflate_
     monkeypatch.setattr(app, "fetch_ted", lambda: [{"id": "raw"}])
     monkeypatch.setattr(app, "normalize_ted", lambda _: dict(normalized))
     monkeypatch.setattr(app, "fetch_base", lambda: [])
+    app.init_db()
 
     app.sync_once()
     old = "2020-01-01T00:00:00+00:00"

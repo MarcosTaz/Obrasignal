@@ -8,15 +8,12 @@ saved and emits high-match events for the same account.
 from __future__ import annotations
 
 from app import db
-from decision_log import ensure_decision_table
 from funnel_integration import persist_and_classify
-from notification_events import ensure_event_table
 
 MAX_BOOTSTRAP_ROWS = 250
 
 
 def _emit_bootstrap_events(conn, account_id: str) -> int:
-    ensure_event_table(conn)
     rows = conn.execute(
         """SELECT t.*, d.score AS account_score
            FROM tenders t
@@ -55,8 +52,6 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
         return 0
     conn = db()
     try:
-        ensure_decision_table(conn)
-        ensure_event_table(conn)
         rows = conn.execute(
             """SELECT t.*
                FROM tenders t

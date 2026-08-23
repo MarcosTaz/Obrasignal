@@ -3,7 +3,6 @@ import os
 from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
-import sync_funnel_hook  # noqa: F401
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 
@@ -97,3 +96,11 @@ def _global_api_cors(response):
     if request.path.startswith("/api/v1/"):
         return _cors(response)
     return response
+
+
+# Gunicorn imports this module before it starts accepting requests. Complete all
+# idempotent schema work first, then allow the ingestion worker to run.
+from app import init_db, start_background_worker
+
+init_db()
+start_background_worker()
