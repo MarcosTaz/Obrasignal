@@ -19,205 +19,31 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP PNCP PCA national discovery probe
+      - name: TEMP PNCP PCA OpenAPI contract probe
         run: |
           python - <<'PY'
-          from datetime import datetime, timedelta, timezone
-          import re
-          import time
           import requests
-
-          BASE = "https://pncp.gov.br/api/consulta"
-          SPEC_URL = BASE + "/v3/api-docs"
-          S = requests.Session()
-          S.headers.update({"Accept": "application/json", "User-Agent": "ObraSignal PNCP-PCA source evaluation/1.0"})
-
-          def get(url, params=None, tries=3, timeout=30):
-              last = ""
-              for attempt in range(tries):
-                  try:
-                      r = S.get(url, params=params, timeout=timeout)
-                      if r.status_code in (429, 500, 502, 503, 504):
-                          last = f"HTTP {r.status_code}"
-                          time.sleep(attempt + 1)
-                          continue
-                      text = r.text or ""
-                      if r.status_code >= 400:
-                          return None, r.status_code, text[:300]
-                      try:
-                          return r.json(), r.status_code, ""
-                      except Exception:
-                          return None, r.status_code, "NON_JSON:" + text[:200]
-                  except Exception as exc:
-                      last = f"{type(exc).__name__}:{exc}"
-                      time.sleep(attempt + 1)
-              return None, 0, last
-
-          def rows(payload):
-              if isinstance(payload, list):
-                  return payload
-              if isinstance(payload, dict):
-                  for key in ("data", "resultado", "content", "items"):
-                      value = payload.get(key)
-                      if isinstance(value, list):
-                          return value
-              return []
-
-          def meta(payload):
-              if not isinstance(payload, dict):
-                  return {}
-              return {k: payload.get(k) for k in ("numeroPagina", "paginasRestantes", "totalPaginas", "totalRegistros", "empty") if k in payload}
-
-          spec, status, err = get(SPEC_URL, tries=2, timeout=25)
-          print(f"PNCP_PCA_SPEC_HTTP={status}|ERR={err!r}")
-          if not isinstance(spec, dict):
-              raise SystemExit("PNCP consultation OpenAPI unavailable")
-
+          url = "https://pncp.gov.br/api/consulta/v3/api-docs"
+          r = requests.get(url, headers={"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA contract probe/1.0"}, timeout=20)
+          print(f"PNCP_SPEC_HTTP={r.status_code}")
+          r.raise_for_status()
+          spec = r.json()
           paths = spec.get("paths") or {}
-          pca_ops = []
+          found = 0
           for path, methods in sorted(paths.items()):
               if "pca" not in path.lower():
                   continue
-              for method, op in (methods or {}).items():
-                  if method.lower() != "get" or not isinstance(op, dict):
-                      continue
-                  params = []
-                  for p in op.get("parameters", []):
-                      if not isinstance(p, dict):
-                          continue
-                      schema = p.get("schema") or {}
-                      params.append({
-                          "name": p.get("name"),
-                          "in": p.get("in"),
-                          "required": p.get("required", False),
-                          "type": schema.get("type"),
-                          "format": schema.get("format"),
-                          "example": p.get("example", schema.get("example")),
-                      })
-                  pca_ops.append((path, params, op.get("summary") or op.get("operationId")))
-                  print(f"PNCP_PCA_OPENAPI={path}|SUMMARY={op.get('summary') or op.get('operationId')!r}|PARAMS={params!r}")
-
-          print("PNCP_PCA_GET_OPERATIONS=" + str(len(pca_ops)))
-          now = datetime.now(timezone.utc)
-          start = now - timedelta(days=7)
-
-          def date_value(name, example=None):
-              n = name.lower()
-              # Respect common PNCP compact date form when parameter examples are 8 digits.
-              if example is not None and re.fullmatch(r"\d{8}", str(example)):
-                  target = start if any(x in n for x in ("inicial", "inicio", "start")) else now
-                  return target.strftime("%Y%m%d")
-              target = start if any(x in n for x in ("inicial", "inicio", "start")) else now
-              return target.strftime("%Y%m%d") if "data" in n else None
-
-          def build_params(params):
-              out = {}
-              unsupported_required = []
-              for p in params:
-                  if p.get("in") != "query":
-                      if p.get("required"):
-                          unsupported_required.append(p.get("name"))
-                      continue
-                  name = p.get("name") or ""
-                  n = name.lower()
-                  value = None
-                  if n in ("pagina", "pageno", "page", "numeroPagina".lower()):
-                      value = 1
-                  elif n in ("tamanhopagina", "numofrows", "pagesize", "size"):
-                      value = 50
-                  elif "anopca" in n or n == "ano":
-                      value = 2026
-                  elif "data" in n and any(x in n for x in ("atual", "inicio", "inicial", "fim", "final", "start", "end")):
-                      value = date_value(name, p.get("example"))
-                  elif n in ("categoriaitempcaid", "categoriaitemid"):
-                      # Leave optional category unfiltered to measure all categories; if required, use Obras.
-                      if p.get("required"):
-                          value = 3
-                  elif "classificacaosuperior" in n:
-                      if p.get("required"):
-                          unsupported_required.append(name)
-                  elif "idusuario" in n or n == "usuario":
-                      if p.get("required"):
-                          unsupported_required.append(name)
-                  elif p.get("required"):
-                      unsupported_required.append(name)
-                  if value is not None:
-                      out[name] = value
-              return out, unsupported_required
-
-          attempted = []
-          useful_rows = []
-          for path, params, summary in pca_ops:
-              if "{" in path:
+              op = (methods or {}).get("get") or {}
+              if not op:
                   continue
-              query, unsupported = build_params(params)
-              if unsupported:
-                  print(f"PNCP_PCA_SKIP={path}|UNSUPPORTED_REQUIRED={unsupported!r}")
-                  continue
-              # Do not hit broad metadata/category-domain endpoints as discovery candidates.
-              if "categoria" in path.lower() and "/pca" not in path.lower():
-                  continue
-              payload, st, er = get(BASE + path, query, tries=2, timeout=35)
-              result = rows(payload)
-              attempted.append((path, st, len(result), query, er))
-              print(f"PNCP_PCA_CALL={path}|HTTP={st}|ROWS={len(result)}|META={meta(payload)!r}|PARAMS={query!r}|ERR={er!r}")
-              if result:
-                  first = result[0]
-                  if isinstance(first, dict):
-                      print("PNCP_PCA_KEYS=" + path + "|" + ",".join(sorted(first.keys())))
-                  for row in result[:50]:
-                      if isinstance(row, dict):
-                          useful_rows.append((path, row))
-
-          print("PNCP_PCA_ATTEMPTED=" + repr([(p,s,n) for p,s,n,_,_ in attempted]))
-
-          category_counts = {}
-          works = []
-          update_times = []
-          future = 0
-          for path, row in useful_rows:
-              cid = row.get("categoriaItemPcaId")
-              cname = row.get("categoriaItemPcaNome") or row.get("categoriaItemNome")
-              key = (cid, cname)
-              category_counts[key] = category_counts.get(key, 0) + 1
-              if str(cid) in {"3", "4", "8"} or str(cname or "").strip().lower() in {
-                  "obras", "serviços de engenharia", "servicos de engenharia", "obras e serviços de engenharia", "obras e servicos de engenharia"
-              }:
-                  works.append((path, row))
-              for k in ("dataAtualizacao", "dataInclusao", "dataPublicacaoPncp"):
-                  v = row.get(k)
-                  if v:
-                      try:
-                          d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
-                          if d.tzinfo is None:
-                              d = d.replace(tzinfo=timezone.utc)
-                          update_times.append((d.astimezone(timezone.utc), k))
-                      except Exception:
-                          pass
-              desired = row.get("dataDesejada")
-              if desired:
-                  try:
-                      d = datetime.fromisoformat(str(desired)[:10]).replace(tzinfo=timezone.utc)
-                      if d >= now.replace(hour=0, minute=0, second=0, microsecond=0):
-                          future += 1
-                  except Exception:
-                      pass
-
-          print("PNCP_PCA_CATEGORY_COUNTS=" + repr(category_counts))
-          print(f"PNCP_PCA_WORKS_ROWS={len(works)}|FUTURE_DATED_ROWS={future}")
-          if update_times:
-              update_times.sort(reverse=True)
-              print("PNCP_PCA_MAX_TIMESTAMP=" + repr((update_times[0][0].isoformat(), update_times[0][1])))
-
-          for path, row in works[:12]:
-              sample = {k: row.get(k) for k in (
-                  "cnpj", "razaoSocial", "codigoUnidade", "nomeUnidade", "anoPca", "sequencialPca",
-                  "numeroItem", "categoriaItemPcaId", "categoriaItemPcaNome", "classificacaoSuperiorCodigo",
-                  "classificacaoSuperiorNome", "codigoItem", "descricao", "quantidade", "valorUnitario", "valorTotal",
-                  "valorOrcamentoExercicio", "dataDesejada", "unidadeRequisitante", "grupoContratacaoCodigo",
-                  "grupoContratacaoNome", "dataPublicacaoPncp", "dataInclusao", "dataAtualizacao"
-              ) if k in row}
-              print(f"PNCP_PCA_WORK_SAMPLE={path}|{sample!r}")
+              params=[]
+              for p in op.get("parameters",[]):
+                  if not isinstance(p,dict): continue
+                  s=p.get("schema") or {}
+                  params.append({"name":p.get("name"),"in":p.get("in"),"required":p.get("required",False),"type":s.get("type"),"format":s.get("format"),"example":p.get("example",s.get("example"))})
+              print(f"PNCP_PCA_OPENAPI={path}|SUMMARY={op.get('summary') or op.get('operationId')!r}|PARAMS={params!r}")
+              found += 1
+          print(f"PNCP_PCA_GET_OPERATIONS={found}")
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
