@@ -108,8 +108,8 @@ def test_title_uses_publisher_fields_not_keyword_classification():
 def test_category_item_filter_accepts_only_requested_publisher_category(monkeypatch):
     calls = []
 
-    def fake(url, *, params=None):
-        calls.append((url, dict(params or {})))
+    def fake(url, *, params=None, **kwargs):
+        calls.append((url, dict(params or {}), dict(kwargs)))
         return [_item(category="4", numeroItem=1)]
 
     monkeypatch.setattr(br, "_request_json", fake)
@@ -117,10 +117,11 @@ def test_category_item_filter_accepts_only_requested_publisher_category(monkeypa
     assert len(rows) == 1
     assert calls[0][1]["categoria"] == "4"
     assert calls[0][1]["pagina"] == 1
+    assert calls[0][2]["allow_empty"] is True
 
 
 def test_text_that_says_obra_cannot_turn_material_or_generic_service_into_works(monkeypatch):
-    def fake(url, *, params=None):
+    def fake(url, *, params=None, **kwargs):
         return [_item(category="1", descricao="Material para obra", numeroItem=2)]
 
     monkeypatch.setattr(br, "_request_json", fake)
