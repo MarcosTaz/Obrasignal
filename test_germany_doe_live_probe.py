@@ -1,108 +1,130 @@
-"""TEMPORARY German Public Procurement Data Service OpenData probe.
-
-Only official public surfaces are tested. The probe intentionally fails after
-printing bounded evidence. Delete before any production merge.
-"""
+"""TEMPORARY Germany DOE OpenData semantic probe. Delete before merge."""
 from __future__ import annotations
 
+from io import BytesIO
 import json
 import re
-from urllib.parse import urljoin
+import zipfile
 
 import requests
 
 BASE = "https://oeffentlichevergabe.de"
-SWAGGER = f"{BASE}/documentation/swagger-ui/opendata/index.html"
+SPEC = f"{BASE}/documentation/api/opendata"
 EXPORTS = f"{BASE}/api/notice-exports"
-UA = "ObraSignal Germany DOE forensic probe/1.0"
+UA = "ObraSignal Germany DOE forensic probe/2.0"
+EFORMS = "application/vnd.bekanntmachungsservice.eforms.zip+zip"
+OCDS2 = "application/vnd.bekanntmachungsservice.ocds2.zip+zip"
+DAY = "2026-08-23"
+MAX_ZIP = 32 * 1024 * 1024
 
 
-def _summary(response, limit=120000):
-    raw = response.content[:limit]
-    ctype = response.headers.get("content-type") or ""
-    text = raw.decode("utf-8", errors="replace") if any(x in ctype.lower() for x in ("text", "json", "xml", "javascript", "html", "yaml")) else ""
-    return {
-        "status": response.status_code,
-        "url": response.url,
-        "content_type": ctype,
-        "content_length": response.headers.get("content-length"),
-        "content_disposition": response.headers.get("content-disposition"),
-        "bytes": len(raw),
-        "prefix": text[:20000],
-    }
+def _download(session, accept):
+    response = session.get(EXPORTS, params={"pubDay": DAY}, headers={"Accept": accept}, timeout=90, stream=True)
+    data = bytearray()
+    try:
+        for chunk in response.iter_content(65536):
+            data.extend(chunk)
+            if len(data) > MAX_ZIP:
+                raise AssertionError(f"export exceeds bounded probe limit {MAX_ZIP}")
+    finally:
+        response.close()
+    return response, bytes(data)
 
 
-def _candidate_docs(html):
-    values = []
-    for pattern in (
-        r"configUrl\s*[:=]\s*[\"']([^\"']+)",
-        r"url\s*[:=]\s*[\"']([^\"']+(?:api-docs|openapi)[^\"']*)",
-        r"[\"']([^\"']*(?:v3/api-docs|openapi[^\"']*\.(?:json|yaml|yml)))[\"']",
-        r"src=[\"']([^\"']+\.js[^\"']*)[\"']",
-    ):
-        for value in re.findall(pattern, html, flags=re.I):
-            absolute = urljoin(SWAGGER, value)
-            if absolute not in values:
-                values.append(absolute)
-    return values[:40]
+def _xml_evidence(data):
+    zf = zipfile.ZipFile(BytesIO(data))
+    names = zf.namelist()
+    samples, works = [], []
+    for name in names[:400]:
+        raw = zf.read(name)
+        text = raw.decode("utf-8", errors="replace")
+        root = re.search(r"<([A-Za-z0-9_:.-]+)(?:\s|>)", text)
+        notice_id = re.search(r"<(?:cbc:)?ID(?:\s[^>]*)?>([^<]+)</", text)
+        folder = re.search(r"<(?:cbc:)?ContractFolderID(?:\s[^>]*)?>([^<]+)</", text)
+        issue_date = re.search(r"<(?:cbc:)?IssueDate(?:\s[^>]*)?>([^<]+)</", text)
+        proc_type = re.findall(r"<(?:cbc:)?ProcurementTypeCode(?:\s[^>]*)?>([^<]+)</", text)
+        deadlines = re.findall(r"<(?:cbc:)?EndDate(?:\s[^>]*)?>([^<]+)</", text)
+        cpvs = re.findall(r"<(?:cbc:)?ItemClassificationCode[^>]*listName=[\"']cpv[\"'][^>]*>([^<]+)</", text, flags=re.I)
+        row = {
+            "name": name,
+            "root": root.group(1) if root else "",
+            "notice_id": notice_id.group(1).strip() if notice_id else "",
+            "contract_folder_id": folder.group(1).strip() if folder else "",
+            "issue_date": issue_date.group(1).strip() if issue_date else "",
+            "procurement_types": proc_type[:8],
+            "deadlines": deadlines[:8],
+            "cpvs": cpvs[:12],
+            "bytes": len(raw),
+        }
+        if len(samples) < 12:
+            samples.append(row)
+        if any(value.strip().lower() == "works" for value in proc_type):
+            works.append(row)
+            if len(works) >= 8:
+                break
+    return {"entry_count": len(names), "first_names": names[:25], "samples": samples, "works": works}
 
 
-def test_germany_doe_opendata_contract_live():
+def _ocds_evidence(data):
+    zf = zipfile.ZipFile(BytesIO(data))
+    names = zf.namelist()
+    docs = []
+    for name in names[:30]:
+        raw = zf.read(name)
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except Exception:
+            docs.append({"name": name, "bytes": len(raw), "json": False, "prefix": raw[:300].decode("utf-8", errors="replace")})
+            continue
+        info = {"name": name, "bytes": len(raw), "json": True, "top_keys": sorted(payload.keys())[:30] if isinstance(payload, dict) else []}
+        if isinstance(payload, dict):
+            releases = payload.get("releases") if isinstance(payload.get("releases"), list) else []
+            info["release_count"] = len(releases)
+            sample = []
+            for release in releases[:5]:
+                if not isinstance(release, dict):
+                    continue
+                tender = release.get("tender") if isinstance(release.get("tender"), dict) else {}
+                sample.append({
+                    "ocid": release.get("ocid"), "id": release.get("id"), "date": release.get("date"),
+                    "tag": release.get("tag"), "tender_status": tender.get("status"),
+                    "mainProcurementCategory": tender.get("mainProcurementCategory"),
+                    "title": tender.get("title"),
+                })
+            info["sample_releases"] = sample
+        docs.append(info)
+    return {"entry_count": len(names), "first_names": names[:25], "docs": docs}
+
+
+def test_germany_doe_semantics_live():
     session = requests.Session()
     session.headers.update({"User-Agent": UA})
     evidence = {}
 
-    swagger = session.get(SWAGGER, timeout=45)
-    swagger_text = swagger.text[:200000] if swagger.status_code == 200 else ""
-    evidence["swagger"] = _summary(swagger)
-    candidates = _candidate_docs(swagger_text)
-    evidence["swagger_candidates"] = candidates
+    spec_response = session.get(SPEC, headers={"Accept": "application/json"}, timeout=45)
+    spec = spec_response.json() if spec_response.status_code == 200 else {}
+    operation = (((spec.get("paths") or {}).get("/api/notice-exports") or {}).get("get") or {}) if isinstance(spec, dict) else {}
+    evidence["spec"] = {
+        "status": spec_response.status_code,
+        "openapi": spec.get("openapi") if isinstance(spec, dict) else None,
+        "title": ((spec.get("info") or {}).get("title")) if isinstance(spec, dict) else None,
+        "parameters": operation.get("parameters"),
+        "responses": operation.get("responses"),
+    }
 
-    docs = {}
-    for candidate in candidates[:12]:
-        try:
-            response = session.get(candidate, timeout=30)
-            info = _summary(response, 180000)
-            if response.status_code == 200 or "api-docs" in candidate or "openapi" in candidate:
-                docs[candidate] = info
-        except requests.RequestException as exc:
-            docs[candidate] = {"error": type(exc).__name__, "message": str(exc)[:300]}
-    evidence["candidate_responses"] = docs
+    for label, accept, parser in (("eforms", EFORMS, _xml_evidence), ("ocds2", OCDS2, _ocds_evidence)):
+        response, data = _download(session, accept)
+        info = {
+            "status": response.status_code,
+            "content_type": response.headers.get("content-type"),
+            "content_disposition": response.headers.get("content-disposition"),
+            "bytes": len(data),
+            "magic": data[:8].hex(),
+        }
+        if response.status_code == 200 and data.startswith(b"PK"):
+            info["archive"] = parser(data)
+        else:
+            info["prefix"] = data[:5000].decode("utf-8", errors="replace")
+        evidence[label] = info
 
-    # Probe the official export endpoint conservatively. pubDay/pubMonth are
-    # documented by the official Open Data policy; response details reveal the
-    # exact format/validation contract without inventing production behavior.
-    attempts = {}
-    for name, params, accept in (
-        ("no_params", {}, "*/*"),
-        ("pub_day", {"pubDay": "2026-08-24"}, "*/*"),
-        ("pub_day_json", {"pubDay": "2026-08-24"}, "application/json"),
-        ("pub_month", {"pubMonth": "2026-08"}, "*/*"),
-    ):
-        try:
-            response = session.get(EXPORTS, params=params, headers={"Accept": accept}, timeout=60, stream=True)
-            data = b""
-            try:
-                for chunk in response.iter_content(65536):
-                    data += chunk
-                    if len(data) >= 262144:
-                        break
-            finally:
-                response.close()
-            ctype = response.headers.get("content-type") or ""
-            text = data.decode("utf-8", errors="replace") if any(x in ctype.lower() for x in ("text", "json", "xml", "html", "yaml")) else ""
-            attempts[name] = {
-                "status": response.status_code,
-                "url": response.url,
-                "content_type": ctype,
-                "content_length": response.headers.get("content-length"),
-                "content_disposition": response.headers.get("content-disposition"),
-                "sample_bytes": len(data),
-                "magic_hex": data[:16].hex(),
-                "prefix": text[:15000],
-            }
-        except requests.RequestException as exc:
-            attempts[name] = {"error": type(exc).__name__, "message": str(exc)[:500]}
-    evidence["exports"] = attempts
-
-    raise AssertionError("GERMANY_DOE_EVIDENCE " + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:180000])
+    raise AssertionError("GERMANY_DOE_SEMANTIC_EVIDENCE " + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:220000])
