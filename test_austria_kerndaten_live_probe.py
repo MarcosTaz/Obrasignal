@@ -1,166 +1,129 @@
-"""TEMPORARY live discovery probe for Austria BVergG Kerndaten.
+"""TEMPORARY live contract probe for Austria BVergG Kerndaten.
 
-Previous probes proved that data.gv.at is a Piveau SPA and that its catalogue
-service uses a runtime ``api.baseUrl``. This probe discovers only the runtime
-configuration bootstrap and follows same-host config paths literally exposed by
-the official HTML/bundle. Remove before merge.
+The official portal is a Piveau SPA. Official OpenAPI is exposed under the
+quality-system hub, and public dataset pages provide real BVergG dataset IDs.
+This probe tests the corresponding read-only Piveau search/resource contracts
+on production and QS, then records the exact machine-readable metadata shape.
+Remove before merge.
 """
-from urllib.parse import urljoin, urlparse
 import json
-import re
 
 import requests
 
-ROOT = "https://www.data.gv.at/"
 HEADERS = {
-    "Accept": "text/html,application/javascript,application/json;q=0.9,*/*;q=0.8",
+    "Accept": "application/json,application/ld+json;q=0.9,*/*;q=0.5",
     "User-Agent": "ObraSignal temporary Austria Kerndaten forensic probe/1.0",
 }
-TOKENS = (
-    "fetchjsonconfig", "fetchjson(", "glueconfig", "config.json", ".json",
-    "window.location", "api.baseurl", "baseurl", "huburl", "$env", "env:",
-)
+HOSTS = ("https://www.data.gv.at", "https://qs.data.gv.at")
+KNOWN_BVERGG_DATASET = "78b227dc-78f6-4085-b4fb-772e040a14e0"  # AUSSCHREIBUNG.AT public dataset page
 
 
-def _scripts(html_text, base_url):
-    found = []
-    for match in re.finditer(r"<script([^>]*)>(.*?)</script>", html_text or "", re.I | re.S):
-        attrs, body = match.groups()
-        src = re.search(r"\bsrc=[\"']([^\"']+)[\"']", attrs, re.I)
-        if src:
-            found.append({"src": urljoin(base_url, src.group(1)), "inline": None})
-        elif body.strip():
-            found.append({"src": None, "inline": body.strip()[:4000]})
-    return found
-
-
-def _contexts(text, token, *, radius=450, limit=20):
-    lowered = (text or "").lower()
-    needle = token.lower()
-    found = []
-    start = 0
-    while True:
-        pos = lowered.find(needle, start)
-        if pos < 0:
-            break
-        value = text[max(0, pos - radius):min(len(text), pos + len(token) + radius)]
-        value = value.replace("\n", " ").replace("\r", " ")
-        if value not in found:
-            found.append(value)
-        start = pos + len(needle)
-        if len(found) >= limit:
-            break
-    return found
-
-
-def _quoted_config_literals(text):
-    found = []
-    for match in re.finditer(r"[\"']([^\"'\\\n\r]{1,300})[\"']", text or ""):
-        value = match.group(1).strip()
-        low = value.lower()
-        if not value:
-            continue
-        if not ("config" in low or "env" in low or low.endswith(".json") or "settings" in low):
-            continue
-        # Keep route/file-like literals only; discard prose and library messages.
-        if len(value) > 180 or " " in value and not low.startswith(("http://", "https://")):
-            continue
-        if value not in found:
-            found.append(value)
-        if len(found) >= 80:
-            break
-    return found
-
-
-def _same_host_config_urls(literals, base_url):
-    host = urlparse(base_url).hostname
-    urls = []
-    for literal in literals:
-        if not literal:
-            continue
-        low = literal.lower()
-        if not ("config" in low or "env" in low or low.endswith(".json") or "settings" in low):
-            continue
-        candidate = urljoin(base_url, literal)
-        parsed = urlparse(candidate)
-        if parsed.scheme not in ("http", "https") or parsed.hostname != host:
-            continue
-        if candidate not in urls:
-            urls.append(candidate)
-    return urls[:12]
-
-
-def _response_summary(response):
-    payload = None
+def _safe_json(response):
     try:
-        payload = response.json()
+        return response.json()
     except Exception:
-        pass
+        return None
+
+
+def _shape(value, depth=0):
+    if depth > 3:
+        return type(value).__name__
+    if isinstance(value, dict):
+        return {str(k): _shape(v, depth + 1) for k, v in list(value.items())[:50]}
+    if isinstance(value, list):
+        return [_shape(value[0], depth + 1)] if value else []
+    return type(value).__name__
+
+
+def _interesting(value, path="", out=None):
+    if out is None:
+        out = []
+    if len(out) >= 120:
+        return out
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            low = str(key).lower()
+            if any(token in low for token in (
+                "title", "description", "label", "distribution", "access", "download",
+                "license", "format", "media", "resource", "publisher", "modified",
+                "issued", "identifier", "id", "url",
+            )) and not isinstance(child, (dict, list)):
+                out.append((child_path, child))
+            _interesting(child, child_path, out)
+    elif isinstance(value, list):
+        for index, child in enumerate(value[:10]):
+            _interesting(child, f"{path}[{index}]", out)
+    return out
+
+
+def _record(response):
+    payload = _safe_json(response)
     return {
         "status": response.status_code,
         "final_url": response.url,
         "content_type": response.headers.get("content-type"),
         "bytes": len(response.content),
-        "json": payload if isinstance(payload, (dict, list)) else None,
+        "shape": _shape(payload) if payload is not None else None,
+        "interesting": _interesting(payload) if payload is not None else [],
         "body_prefix": None if payload is not None else response.text[:2500],
     }
 
 
-def test_austria_official_runtime_config_discovery_live():
+def test_austria_piveau_read_contract_live():
     session = requests.Session()
     session.headers.update(HEADERS)
+    evidence = {}
 
-    page = session.get(ROOT, timeout=45, allow_redirects=True)
-    scripts = _scripts(page.text, page.url)
-    bundle_urls = [entry["src"] for entry in scripts if entry.get("src")]
+    for host in HOSTS:
+        host_evidence = {}
 
-    evidence = {
-        "page": {
-            **_response_summary(page),
-            "scripts": scripts,
-            "config_contexts": {
-                token: _contexts(page.text, token, radius=350, limit=8)
-                for token in TOKENS if token.lower() in page.text.lower()
-            },
-        },
-        "bundles": [],
-        "discovered_config_requests": [],
-    }
+        # Frontend dataset service contract observed in the official SPA bundle:
+        # baseUrl + "search" with result/count/results.
+        for search_base in (f"{host}/api/hub/search/", f"{host}/api/hub/search"):
+            try:
+                response = session.get(
+                    search_base.rstrip("/") + "/search",
+                    params={"q": "Kerndaten", "limit": 10},
+                    timeout=45,
+                    allow_redirects=True,
+                )
+                host_evidence[f"search:{search_base}"] = _record(response)
+            except requests.RequestException as exc:
+                host_evidence[f"search:{search_base}"] = {"error": type(exc).__name__}
 
-    literals = []
-    for url in bundle_urls[:3]:
-        response = session.get(url, timeout=45)
-        text = response.text
-        bundle_literals = _quoted_config_literals(text)
-        for value in bundle_literals:
-            if value not in literals:
-                literals.append(value)
-        evidence["bundles"].append({
-            "url": url,
-            "status": response.status_code,
-            "bytes": len(response.content),
-            "config_literals": bundle_literals,
-            "contexts": {
-                token: _contexts(text, token, radius=500, limit=12)
-                for token in TOKENS if token.lower() in text.lower()
-            },
-        })
-
-    for entry in scripts:
-        inline = entry.get("inline")
-        if inline:
-            for value in _quoted_config_literals(inline):
-                if value not in literals:
-                    literals.append(value)
-
-    for url in _same_host_config_urls(literals, page.url):
+        # hub-repo OpenAPI exposes resources/{type}/{id}; the SPA uses
+        # resources/datasets/{datasetId} with application/ld+json.
+        resource_url = f"{host}/api/hub/repo/resources/datasets/{KNOWN_BVERGG_DATASET}"
         try:
-            response = session.get(url, timeout=45, allow_redirects=True)
-            evidence["discovered_config_requests"].append({"requested": url, **_response_summary(response)})
+            response = session.get(
+                resource_url,
+                params={"useNormalizedId": "true", "locale": "de"},
+                headers={**HEADERS, "Accept": "application/ld+json"},
+                timeout=45,
+                allow_redirects=True,
+            )
+            host_evidence["dataset_resource"] = _record(response)
         except requests.RequestException as exc:
-            evidence["discovered_config_requests"].append({"requested": url, "error": type(exc).__name__})
+            host_evidence["dataset_resource"] = {"error": type(exc).__name__}
+
+        # Also test direct dataset metadata endpoint from the same official
+        # OpenAPI; this is read-only and useful if resource JSON-LD differs.
+        dataset_url = f"{host}/api/hub/repo/datasets/{KNOWN_BVERGG_DATASET}"
+        try:
+            response = session.get(
+                dataset_url,
+                headers={**HEADERS, "Accept": "application/ld+json"},
+                timeout=45,
+                allow_redirects=True,
+            )
+            host_evidence["dataset"] = _record(response)
+        except requests.RequestException as exc:
+            host_evidence["dataset"] = {"error": type(exc).__name__}
+
+        evidence[host] = host_evidence
 
     raise AssertionError(
-        "AT_KERNDATEN_RUNTIME_CONFIG_EVIDENCE "
+        "AT_KERNDATEN_PIVEAU_CONTRACT_EVIDENCE "
         + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:60000]
     )
