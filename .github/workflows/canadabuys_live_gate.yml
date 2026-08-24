@@ -1,0 +1,31 @@
+name: CanadaBuys Live Gate
+
+on:
+  push:
+    branches:
+      - codex/canadabuys-production
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -q -r requirements.txt pytest
+      - name: Exercise live production path
+        env:
+          OBRASIGNAL_LIVE_CANADABUYS: '1'
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q test_canada_buys_live_contract.py 2>&1 | tee canadabuys-live.txt
+      - name: Upload live evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canadabuys-live-gate
+          path: canadabuys-live.txt
+          retention-days: 1
