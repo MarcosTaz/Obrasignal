@@ -22,19 +22,35 @@ jobs:
       - name: TEMP live-smoke production Brazil PNCP PCA connector
         run: |
           python - <<'PY'
-          from brazil_pncp_pca import SOURCE, SIGNAL_TYPE, WORK_CATEGORY_IDS, fetch_brazil_pncp_pca_plans
+          from datetime import timedelta
+          from brazil_pncp_pca import (
+              OVERLAP_MINUTES,
+              SOURCE,
+              SIGNAL_TYPE,
+              WORK_CATEGORY_IDS,
+              _cursor_text,
+              _search_identity,
+              _search_page,
+              fetch_brazil_pncp_pca_plans,
+          )
 
-          # Use the most recently live-proven publisher cursor. The connector's
-          # own 30-minute overlap keeps this bounded while exercising the exact
-          # production discovery -> consolidated PCA -> category-item path.
-          rows, cursor = fetch_brazil_pncp_pca_plans(watermark="2026-08-24T18:41:08.470092")
+          # Derive the publisher clock from PNCP itself. Advancing the test
+          # watermark exactly one overlap window makes the production cutoff
+          # equal to the latest observed PCA update, so the full connector path
+          # is exercised without hydrating an arbitrary historical backlog.
+          top, _ = _search_page(1)
+          assert top
+          newest = _search_identity(top[0])[3]
+          smoke_watermark = _cursor_text(newest + timedelta(minutes=OVERLAP_MINUTES))
+          rows, cursor = fetch_brazil_pncp_pca_plans(watermark=smoke_watermark)
+
           assert cursor
           assert all(row.get("source") == SOURCE for row in rows)
           assert all(row.get("signal_type") == SIGNAL_TYPE for row in rows)
           assert all(str(row.get("category_code")) in WORK_CATEGORY_IDS for row in rows)
           assert all(row.get("external_id") and row.get("source_updated_at") for row in rows)
           assert all(not row.get("deadline") for row in rows)
-          print(f"PNCP_PRODUCTION_SMOKE|signals={len(rows)}|cursor={cursor}")
+          print(f"PNCP_PRODUCTION_SMOKE|signals={len(rows)}|cursor={cursor}|watermark={smoke_watermark}")
           if rows:
               sample = rows[0]
               print("PNCP_SAMPLE|" + repr({
