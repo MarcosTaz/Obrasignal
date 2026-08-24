@@ -226,4 +226,19 @@ def evaluate_and_record(conn, row, profile=None, account_id="default"):
         rule_version=RULE_VERSION,
         account_id=account_id,
     )
+    # Real normalized market data has reached the account-specific decision path.
+    # Only QUALIFIED/REVIEW produces the first relevant shortlist activation event.
+    try:
+        from account_registry import ensure_account
+        from evaluation_policy import record_evaluation_event
+        ensure_account(conn, account_id)
+        record_evaluation_event(conn, account_id, 'market_data_available', metadata={'source': row.get('source')})
+        if evaluation['decision'] in {'QUALIFIED', 'REVIEW'}:
+            record_evaluation_event(conn, account_id, 'first_shortlist_generated', metadata={
+                'source': row.get('source'),
+                'external_id': row.get('external_id') or str(row.get('id')),
+            })
+    except Exception:
+        # Decisioning remains primary; evaluation telemetry must degrade gracefully.
+        pass
     return evaluation
