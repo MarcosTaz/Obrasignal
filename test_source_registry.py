@@ -276,12 +276,11 @@ def test_korea_planned_registry_records_real_credential_block_without_fake_capab
     assert source["machine_access"] == "CREDENTIAL_REQUIRED"
     assert source["signal_types"] == ("TENDER",)
     assert source["capabilities"] == ()
-    assert source["adapter"] is None
+    assert source["adapter"] == "KONEPSConstructionBidConnector"
     assert source["realtime_capable"] is True
     assert production_gate_reasons("KR_KONEPS") == (
         "machine_access_not_verified",
         "runtime_not_enabled",
-        "adapter_not_configured",
     )
     assert "KR_KONEPS" not in production_ready_sources()
 
