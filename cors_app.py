@@ -58,18 +58,30 @@ def _protect_radar_api():
 
 
 def _opportunity_detail(opportunity_id):
-    """Serve the authenticated detail shape consumed by the mobile/web client."""
+    """Fallback authenticated detail including current source lifecycle."""
     try:
         identity = configured_identity()
     except (RuntimeError, InvalidTokenError):
         return jsonify({"error": "authentication_required"}), 401
 
     from api import _db, _latest_decisions, _row
+    from opportunity_lifecycle import ensure_lifecycle_table
     from opportunity_workflow import get_workflow
 
     c = _db()
     try:
-        row = c.execute("SELECT * FROM tenders WHERE id=?", (opportunity_id,)).fetchone()
+        ensure_lifecycle_table(c)
+        row = c.execute(
+            """SELECT t.*, COALESCE(lc.is_actionable,1) AS is_actionable,
+                      lc.lifecycle_status, lc.lifecycle_reason,
+                      lc.source_updated_at AS lifecycle_source_updated_at,
+                      lc.last_observed AS lifecycle_last_observed
+               FROM tenders t
+               LEFT JOIN opportunity_lifecycle lc
+                 ON lc.source=t.source AND lc.external_id=t.external_id
+               WHERE t.id=?""",
+            (opportunity_id,),
+        ).fetchone()
         if row is None:
             return jsonify({"error": "not_found"}), 404
         decision = _latest_decisions(c, identity.account_id, [row["external_id"]]).get((row["source"], row["external_id"]))
@@ -99,12 +111,14 @@ def _global_api_cors(response):
 
 
 # Gunicorn imports this module before it starts accepting requests. Complete all
-# idempotent schema work and install additive global-source runtime plugins before
-# allowing the ingestion worker to run.
+# idempotent schema/read-model work and install additive global-source runtimes
+# before allowing the ingestion worker to run.
 from app import db, init_db, start_background_worker
 from opportunity_lifecycle import ensure_lifecycle_table
+from lifecycle_read_model import install as install_lifecycle_read_model
 from latvia_runtime import install as install_latvia_runtime
 from uk_runtime import install as install_uk_runtime
+import preload as _preload
 
 init_db()
 _lifecycle_conn = db()
@@ -113,6 +127,7 @@ try:
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
+install_lifecycle_read_model(_preload)
 install_latvia_runtime()
 install_uk_runtime()
 start_background_worker()
