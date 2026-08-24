@@ -122,10 +122,13 @@ def _item_event(item):
     notice_no = _text(item.get("bidNtceNo"))
     notice_ord = _text(item.get("bidNtceOrd"))
     kind = _text(item.get("ntceKindNm"))
-    updated = _utc(item.get("chgDt") or item.get("rgstDt") or item.get("bidNtceDt"))
+    # Incremental discovery is explicitly inqryDiv=3 (change datetime), so the
+    # publisher's chgDt is part of the ordering contract. Falling back to a
+    # registration/publication timestamp could advance past a change incorrectly.
+    updated = _utc(item.get("chgDt"))
     if not external_id or not updated or not kind:
         raise RuntimeError(
-            f"{SOURCE} construction item missing bidNtceNo/bidNtceOrd/ntceKindNm/change timestamp; cursor not advanced"
+            f"{SOURCE} construction item missing bidNtceNo/bidNtceOrd/ntceKindNm/chgDt; cursor not advanced"
         )
     if kind not in _ACTIVE_NOTICE_KINDS and kind != _CANCELLED_NOTICE_KIND:
         raise RuntimeError(f"{SOURCE} construction item has unsupported ntceKindNm={kind!r}; cursor not advanced")
@@ -347,8 +350,11 @@ class KONEPSConstructionConnector:
             raise RuntimeError(f"{SOURCE} response has unsupported envelope; cursor not advanced")
         result_code = _text(header.get("resultCode"))
         if result_code != "00":
-            message = _text(header.get("resultMsg")) or "unknown Public Data Portal error"
-            raise RuntimeError(f"{SOURCE} API rejected request resultCode={result_code!r}: {message}")
+            # The publisher's diagnostic text is deliberately not propagated:
+            # a remote error must never be able to echo the project service key.
+            raise RuntimeError(
+                f"{SOURCE} API rejected request resultCode={result_code!r}; cursor not advanced"
+            )
         try:
             response_page = int(body.get("pageNo"))
             response_rows = int(body.get("numOfRows"))
