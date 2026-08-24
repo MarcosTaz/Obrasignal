@@ -205,7 +205,6 @@ SOURCES = {
         stale_after_minutes=2880,
         capabilities=("incremental_sync", "amendments", "lifecycle"),
         signal_types=("TENDER",),
-        wave=1,
         adapter="CanadaBuysConnector",
         realtime_capable=False,
     ),
