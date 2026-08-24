@@ -43,10 +43,17 @@ SECOP_PROCESS_FIELDS = (
 # but widening discovery through source taxonomy belongs in a tested taxonomy
 # adapter. Starting with the source's explicit ``Obra`` contract type maximises
 # precision and avoids silently treating unfamiliar source categories as CPV.
-# Awards/contracts are separate lifecycle sources rather than overloaded here.
 SECOP_CONSTRUCTION_WHERE = (
     "estado_de_apertura_del_proceso = 'Abierto' AND "
     "tipo_de_contrato = 'Obra'"
+)
+
+# Some live open-work rows omit ``fecha_de_ultima_publicaci``. SoQL's
+# ``greatest`` ignores NULL values and gives us the latest available source
+# timestamp without losing those rows. The alias is returned with every page and
+# becomes the durable keyset cursor.
+SECOP_CURSOR_EXPRESSION = (
+    "greatest(fecha_de_ultima_publicaci, fecha_de_publicacion_del)"
 )
 
 SECOP_CONFIG = SocrataSourceConfig(
@@ -59,11 +66,15 @@ SECOP_CONFIG = SocrataSourceConfig(
     selected_fields=SECOP_PROCESS_FIELDS,
     page_size=1000,
     max_pages=50,
-    initial_lookback_days=7,
+    # Open works can remain actionable well beyond one week. The first sync
+    # therefore scans 90 days; later runs use the durable cursor plus 24h overlap.
+    initial_lookback_days=90,
     overlap_minutes=1440,
     app_token_env="SOCRATA_APP_TOKEN",
     market="GLOBAL",
     base_where=SECOP_CONSTRUCTION_WHERE,
+    cursor_expression=SECOP_CURSOR_EXPRESSION,
+    cursor_alias="source_cursor_at",
 )
 
 
@@ -85,16 +96,32 @@ def _unspsc_code(value):
     return code
 
 
+def _public_process_url(value):
+    """Return only a useful public SECOP process URL.
+
+    Some official rows contain the SECOP login URL rather than a public process
+    detail. We retain that raw value in sidecar metadata but never present a
+    login page to the customer as if it were the opportunity itself.
+    """
+    raw = _text(value)
+    lowered = raw.lower()
+    if raw and "/sts/users/login/index" not in lowered:
+        return raw
+    return "https://www.datos.gov.co/d/p6dx-8zbt"
+
+
 def normalize_secop_process(row):
     external_id = _text(row.get("id_del_proceso"))
     if not external_id:
         return None
     publication = _text(row.get("fecha_de_publicacion_del"))
-    updated = _text(row.get("fecha_de_ultima_publicaci"))
+    last_publication = _text(row.get("fecha_de_ultima_publicaci"))
+    effective_update = _text(row.get("source_cursor_at")) or last_publication or publication
     city = _text(row.get("ciudad_de_la_unidad_de")) or _text(row.get("ciudad_entidad"))
     department = _text(row.get("departamento_entidad"))
     place = " | ".join(x for x in (city, department, "Colombia") if x)
     category_code = _unspsc_code(row.get("codigo_principal_de_categoria"))
+    raw_url = _text(row.get("urlproceso"))
     return {
         "source": "CO_SECOP",
         "external_id": external_id,
@@ -110,8 +137,11 @@ def normalize_secop_process(row):
         "deadline": _text(row.get("fecha_de_recepcion_de")),
         "publication_date": publication[:10] if publication else "",
         "published_at": publication or None,
-        "source_updated_at": updated or None,
-        "url": _text(row.get("urlproceso")) or "https://www.datos.gov.co/d/p6dx-8zbt",
+        "source_updated_at": effective_update or None,
+        "source_last_publication_at": last_publication or None,
+        "source_initial_publication_at": publication or None,
+        "url": _public_process_url(row.get("urlproceso")),
+        "source_url_raw": raw_url or None,
         "market": "GLOBAL",
         "place": place,
         "source_status": _text(row.get("estado_del_procedimiento")),
