@@ -27,6 +27,10 @@ SERCOP_PUBLICATION_POLICY = (
 SERCOP_ATTRIBUTION = "Servicio Nacional de Contratación Pública (SERCOP), Ecuador"
 
 
+class SERCOPBulkRecordConnector(OCDSMonthlyBulkConnector):
+    """Source-specific type over the reusable monthly OCDS bulk transport."""
+
+
 def _parse_dt(value):
     if isinstance(value, datetime):
         parsed = value
@@ -144,7 +148,7 @@ def build_sercop_connector(*, session=None, overlap_months=1):
         timeout=90,
         user_agent="ObraSignal SERCOP connector/1.0 (+official open-data ingestion)",
     )
-    return OCDSMonthlyBulkConnector(
+    return SERCOPBulkRecordConnector(
         config,
         candidate_selector=_is_works_candidate,
         normalizer=normalize_sercop_record,
