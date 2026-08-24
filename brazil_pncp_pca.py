@@ -41,7 +41,7 @@ ITEM_MAX_PAGES_PER_CATEGORY = 30
 INITIAL_LOOKBACK_HOURS = 12
 OVERLAP_MINUTES = 30
 HTTP_TIMEOUT_SECONDS = 40
-HTTP_MAX_ATTEMPTS = 4
+HTTP_MAX_ATTEMPTS = 5
 _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
 HEADERS = {
@@ -80,7 +80,18 @@ def _cursor_text(value: datetime) -> str:
     return value.isoformat(timespec="microseconds")
 
 
-def _request_json(url, *, params=None):
+def _retry_delay(attempt: int) -> int:
+    """Return bounded exponential backoff seconds after a failed attempt."""
+    return min(2 ** int(attempt), 8)
+
+
+def _request_json(url, *, params=None, allow_empty=False):
+    """Fetch JSON with bounded retries.
+
+    ``allow_empty`` exists only for publisher contracts where a successful empty
+    body has been live-proven to mean an empty result set. Callers must opt in
+    explicitly; discovery and identity endpoints remain strict.
+    """
     last_error = None
     for attempt in range(HTTP_MAX_ATTEMPTS):
         try:
@@ -93,10 +104,12 @@ def _request_json(url, *, params=None):
             if response.status_code in _RETRYABLE_STATUS:
                 last_error = RuntimeError(f"HTTP {response.status_code}")
                 if attempt + 1 < HTTP_MAX_ATTEMPTS:
-                    time.sleep(attempt + 1)
+                    time.sleep(_retry_delay(attempt))
                     continue
             response.raise_for_status()
             if not response.content:
+                if allow_empty:
+                    return None
                 raise RuntimeError(f"{SOURCE} returned an empty response for {url}")
             try:
                 return response.json()
@@ -105,7 +118,7 @@ def _request_json(url, *, params=None):
         except (requests.RequestException, RuntimeError) as exc:
             last_error = exc
             if attempt + 1 < HTTP_MAX_ATTEMPTS:
-                time.sleep(attempt + 1)
+                time.sleep(_retry_delay(attempt))
                 continue
     raise RuntimeError(f"{SOURCE} request failed after bounded retries: {last_error}")
 
@@ -296,7 +309,13 @@ def _category_items(cnpj: str, year: str, sequence: str, category: str):
                 "pagina": page,
                 "tamanhoPagina": ITEM_PAGE_SIZE,
             },
+            # Live PNCP validation on 2026-08-24 proved this filtered endpoint
+            # may return HTTP 200 with an empty body when the category has zero
+            # matches. This exception is deliberately scoped to category items.
+            allow_empty=True,
         )
+        if payload is None:
+            return out
         rows = _list_payload(payload, context="PCA items")
         if not rows:
             return out
