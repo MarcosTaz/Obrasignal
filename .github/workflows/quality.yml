@@ -19,6 +19,105 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
+      - name: TEMP PNCP PCA production identity probe
+        run: |
+          python - <<'PY'
+          import time
+          from datetime import datetime
+          import requests
+
+          SEARCH="https://pncp.gov.br/api/search/"
+          API="https://pncp.gov.br/api/pncp/v1"
+          S=requests.Session()
+          S.headers.update({
+              "Accept":"application/json, text/plain, */*",
+              "User-Agent":"ObraSignal PNCP production-contract probe/1.0",
+              "Referer":"https://pncp.gov.br/app/pca",
+          })
+
+          def get(url, params=None, tries=4, timeout=30):
+              last=None
+              for n in range(tries):
+                  try:
+                      r=S.get(url,params=params,timeout=timeout)
+                      if r.status_code in (429,500,502,503,504):
+                          last=f"HTTP {r.status_code}"; time.sleep(n+1); continue
+                      return r
+                  except Exception as exc:
+                      last=exc; time.sleep(n+1)
+              raise RuntimeError(f"bounded fetch failed {url}: {last!r}")
+
+          def search(size, page=1):
+              r=get(SEARCH,{
+                  "q":"",
+                  "tipos_documento":"pcaorgao",
+                  "ordenacao":"-data",
+                  "pagina":page,
+                  "tam_pagina":size,
+              })
+              print(f"SEARCH_SIZE={size}|PAGE={page}|HTTP={r.status_code}|BYTES={len(r.content)}|CTYPE={r.headers.get('content-type')!r}")
+              r.raise_for_status(); data=r.json()
+              assert isinstance(data,dict) and isinstance(data.get("items"),list)
+              print(f"SEARCH_TOTAL={data.get('total')}|ROWS={len(data['items'])}")
+              return data
+
+          for size in (10,50,100):
+              data=search(size)
+              assert 0 < len(data["items"]) <= size
+
+          data=search(10)
+          rows=data["items"]
+          updates=[str(x.get("data_atualizacao_pncp") or "") for x in rows]
+          print("RECENT_UPDATES="+repr(updates))
+          assert all(updates[i] >= updates[i+1] for i in range(len(updates)-1))
+
+          for row in rows[:3]:
+              print("SEARCH_IDENTITY="+repr({
+                  "id":row.get("id"),
+                  "orgao_cnpj":row.get("orgao_cnpj"),
+                  "ano":row.get("ano"),
+                  "numero":row.get("numero"),
+                  "numero_sequencial":row.get("numero_sequencial"),
+                  "item_url":row.get("item_url"),
+                  "cancelado":row.get("cancelado"),
+                  "data_publicacao_pncp":row.get("data_publicacao_pncp"),
+                  "data_atualizacao_pncp":row.get("data_atualizacao_pncp"),
+                  "orgao_nome":row.get("orgao_nome"),
+                  "unidade_codigo":row.get("unidade_codigo"),
+                  "unidade_nome":row.get("unidade_nome"),
+                  "municipio_nome":row.get("municipio_nome"),
+                  "uf":row.get("uf"),
+                  "valor_global":row.get("valor_global"),
+              }))
+
+          control=rows[0]
+          cnpj=str(control.get("orgao_cnpj") or "").strip()
+          ano=str(control.get("ano") or "").strip()
+          seq=str(control.get("numero_sequencial") or "").strip()
+          assert cnpj and ano and seq, "search row lacks PCA hydration identity"
+          detail_url=f"{API}/orgaos/{cnpj}/pca/{ano}/{seq}/itens"
+          dr=get(detail_url,tries=3,timeout=40)
+          print(f"DETAIL_URL={detail_url}|HTTP={dr.status_code}|BYTES={len(dr.content)}|CTYPE={dr.headers.get('content-type')!r}")
+          dr.raise_for_status(); items=dr.json()
+          assert isinstance(items,list)
+          print(f"DETAIL_ROWS={len(items)}")
+          if items:
+              print("DETAIL_KEYS="+repr(sorted(items[0].keys())))
+              print("DETAIL_IDENTITY="+repr({k:items[0].get(k) for k in (
+                  "cnpj","anoPca","sequencialPca","numeroItem","categoriaItemPcaid",
+                  "categoriaItemPcaNome","dataDesejada","dataAtualizacao","valorTotal",
+                  "grupoContratacaoCodigo","grupoContratacaoNome","nomeUnidade","codigoUnidade"
+              )}))
+              assert str(items[0].get("cnpj") or "") == cnpj
+              assert str(items[0].get("anoPca") or "") == ano
+              assert str(items[0].get("sequencialPca") or "") == seq
+
+          # Detect obvious offset drift while a bounded detail hydration occurs.
+          end=search(10)
+          start_anchor=(rows[0].get("data_atualizacao_pncp"),rows[0].get("id"))
+          end_anchor=(end["items"][0].get("data_atualizacao_pncp"),end["items"][0].get("id"))
+          print(f"ANCHOR_START={start_anchor!r}|ANCHOR_END={end_anchor!r}|DRIFT={start_anchor != end_anchor}")
+          PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
       - name: Run repository tests
