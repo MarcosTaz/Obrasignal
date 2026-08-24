@@ -26,7 +26,7 @@ jobs:
           import requests
 
           S = requests.Session()
-          S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP source-evaluation probe/1.2"})
+          S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP source-evaluation probe/1.3"})
 
           def get(url, params=None):
               r = S.get(url, params=params, timeout=20)
@@ -58,9 +58,9 @@ jobs:
               }
 
           end = (date.today() + timedelta(days=30)).strftime("%Y%m%d")
-          payload, status = get("https://pncp.gov.br/api/consulta/v1/contratacoes/proposta", {"dataFinal":end,"pagina":1,"tamanhoPagina":3})
-          open_rows = records(payload)
-          print(f"PNCP_OPEN_HTTP={status}|ROWS={len(open_rows)}")
+          payload, status = get("https://pncp.gov.br/api/consulta/v1/contratacoes/proposta", {"dataFinal":end,"pagina":1,"tamanhoPagina":10})
+          open_rows = records(payload)[:3]
+          print(f"PNCP_OPEN_HTTP={status}|ROWS_ANALYZED={len(open_rows)}")
           for row in open_rows:
               org = row.get("orgaoEntidade") or {}
               cnpj = org.get("cnpj")
