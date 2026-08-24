@@ -2,8 +2,10 @@
 
 Designed for official publishers that expose month-partitioned ZIP/JSON release
 packages plus an OCID record endpoint. Bulk files discover changed OCIDs; record
-hydration provides the publisher's current compiled state. The transport never
-uses keyword search as a substitute for complete discovery.
+hydration provides the publisher's current compiled state. The cursor also keeps
+currently actionable OCIDs under observation, so a tender cannot remain falsely
+open merely because it receives no newer bulk release after its deadline passes.
+The transport never uses keyword search as a substitute for complete discovery.
 """
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -32,10 +34,15 @@ class OCDSMonthlyBulkConfig:
 class OCDSMonthlyBulkCursor:
     observed_through: str
     periods: tuple[str, ...]
+    tracked_ocids: tuple[str, ...] = ()
 
     def encode(self):
         return json.dumps(
-            {"observed_through": self.observed_through, "periods": list(self.periods)},
+            {
+                "observed_through": self.observed_through,
+                "periods": list(self.periods),
+                "tracked_ocids": list(self.tracked_ocids),
+            },
             separators=(",", ":"),
             sort_keys=True,
         )
@@ -50,9 +57,14 @@ class OCDSMonthlyBulkCursor:
             return None
         observed = str(payload.get("observed_through") or "").strip()
         periods = payload.get("periods")
-        if not observed or not isinstance(periods, list):
+        tracked = payload.get("tracked_ocids", [])
+        if not observed or not isinstance(periods, list) or not isinstance(tracked, list):
             return None
-        return cls(observed, tuple(str(period) for period in periods if period))
+        return cls(
+            observed,
+            tuple(str(period) for period in periods if period),
+            tuple(str(ocid) for ocid in tracked if str(ocid).strip()),
+        )
 
 
 def _month_start(value):
@@ -128,6 +140,18 @@ def record_from_payload(payload, requested_ocid=None):
     raise RuntimeError("Unsupported OCDS record response shape")
 
 
+def _unique(values):
+    out = []
+    seen = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
 class OCDSMonthlyBulkConnector:
     def __init__(self, config, *, candidate_selector, normalizer, session=None):
         self.config = config
@@ -174,17 +198,12 @@ class OCDSMonthlyBulkConnector:
 
     def _candidate_ocids(self, packages):
         ocids = []
-        seen = set()
         for package in packages:
             release = _release_from_package(package)
             if not release or not self.candidate_selector(package, release):
                 continue
-            ocid = str(release.get("ocid") or "").strip()
-            if not ocid or ocid in seen:
-                continue
-            seen.add(ocid)
-            ocids.append(ocid)
-        return ocids
+            ocids.append(release.get("ocid"))
+        return _unique(ocids)
 
     def _hydrate(self, ocid):
         response = self.session.get(
@@ -202,11 +221,14 @@ class OCDSMonthlyBulkConnector:
             current = current.replace(tzinfo=timezone.utc)
         current = current.astimezone(timezone.utc)
         periods = _periods(current, self.config.overlap_months)
+        previous_cursor = OCDSMonthlyBulkCursor.decode(watermark)
 
         packages = []
         for period in periods:
             packages.extend(self._download_packages(period))
-        ocids = self._candidate_ocids(packages)
+        discovered = self._candidate_ocids(packages)
+        tracked = list(previous_cursor.tracked_ocids) if previous_cursor else []
+        ocids = _unique([*discovered, *tracked])
         if len(ocids) > int(self.config.max_hydrations_per_sync):
             raise RuntimeError(
                 f"{self.config.source} requires {len(ocids)} record hydrations, above "
@@ -214,14 +236,19 @@ class OCDSMonthlyBulkConnector:
             )
 
         observations = []
+        next_tracked = []
         for ocid in ocids:
             record = self._hydrate(ocid)
             item = self.normalizer(record, now=current)
-            if item and item.get("external_id"):
-                observations.append(item)
+            if not item or not item.get("external_id"):
+                continue
+            observations.append(item)
+            if bool(item.get("is_actionable")):
+                next_tracked.append(item.get("ocid") or ocid)
 
         cursor = OCDSMonthlyBulkCursor(
             observed_through=current.date().isoformat(),
             periods=tuple(period.strftime("%Y-%m") for period in periods),
+            tracked_ocids=tuple(_unique(next_tracked)),
         ).encode()
         return observations, cursor
