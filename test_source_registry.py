@@ -34,7 +34,7 @@ def test_wave_1_contains_only_machine_verified_green_sources():
     assert all(meta["official"] for meta in wave_1.values())
     assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
-    assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
+    assert {meta["status"] for meta in wave_1.values()) <= {"planned", "ready"}
     assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 7
 
 
@@ -63,7 +63,7 @@ def test_ecuador_registry_declares_only_proven_bulk_record_tender_contract():
     source = SOURCES["EC_SERCOP"]
     assert source["kind"] == "OCDS_MONTHLY_BULK_RECORD_API"
     assert source["access"] == "public_monthly_bulk_record_api"
-    assert source["adapter"] == "SERCOPBulkRecordConnector"
+    assert source["adapter"] == "OCDSMonthlyBulkConnector"
     assert source["signal_types"] == ("TENDER",)
     assert set(source["capabilities"]) == {"incremental_sync", "detail"}
     assert source["realtime_capable"] is False
