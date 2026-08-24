@@ -15,6 +15,11 @@ def test_ready_global_source_still_requires_explicit_request(monkeypatch):
     assert preload._global_source_enabled('CO_SECOP') is True
 
 
+def test_planned_dncp_cannot_run_even_when_explicitly_requested(monkeypatch):
+    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'PY_DNCP')
+    assert preload._global_source_enabled('PY_DNCP') is False
+
+
 def test_explicit_request_cannot_bypass_a_failing_production_gate(monkeypatch):
     monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP')
     monkeypatch.setattr(preload, 'production_gate_reasons', lambda source: ('commercial_reuse_not_green',))
@@ -39,6 +44,27 @@ def test_secop_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
     assert len(staged) == 1
     assert staged[0].source == 'CO_SECOP'
     assert staged[0].cursor == 'new-cursor'
+    discard_staged_source_syncs()
+
+
+def test_dncp_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
+    discard_staged_source_syncs()
+    monkeypatch.setattr(preload._app, 'db', lambda: FakeConn())
+    monkeypatch.setattr(preload, 'get_source_cursor', lambda conn, source: 'py-old')
+    record = {'source': 'PY_DNCP', 'external_id': 'ocds-03ad3f-500001-1', 'taxonomy': 'DNCP'}
+
+    def fake_fetch(*, watermark=None):
+        assert watermark == 'py-old'
+        return [record], 'py-new'
+
+    monkeypatch.setattr(preload._paraguay_dncp, 'fetch_dncp_processes', fake_fetch)
+    rows = preload._fetch_dncp_staged()
+
+    assert rows == [record]
+    staged = staged_source_syncs()
+    assert len(staged) == 1
+    assert staged[0].source == 'PY_DNCP'
+    assert staged[0].cursor == 'py-new'
     discard_staged_source_syncs()
 
 
