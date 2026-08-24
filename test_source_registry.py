@@ -34,7 +34,14 @@ def test_wave_1_contains_only_machine_verified_green_sources():
     assert all(meta["official"] for meta in wave_1.values())
     assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
-    assert all(meta["status"] == "planned" for meta in wave_1.values())
+    assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
+    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 1
+
+
+def test_secop_is_the_only_ready_wave_1_source_after_live_validation():
+    assert SOURCES["CO_SECOP"]["status"] == "ready"
+    assert production_gate_reasons("CO_SECOP") == ()
+    assert "CO_SECOP" in production_ready_sources()
 
 
 def test_germany_does_not_pass_production_gate_until_legal_closure():
