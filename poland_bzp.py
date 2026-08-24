@@ -301,7 +301,7 @@ class PolandBZPConnector:
         self,
         *,
         session=None,
-        max_page_size=400,
+        max_page_size=250,
         initial_lookback_days=30,
         overlap_minutes=5,
         max_window_days=1,
@@ -449,7 +449,7 @@ class PolandBZPConnector:
 
     def _finalize(self, tracked, closed, *, now):
         observations = []
-        active = {}
+        survivors = {}
         for tender_id, state in closed.items():
             if state.get("was_actionable"):
                 observations.append(_observation(
@@ -464,18 +464,44 @@ class PolandBZPConnector:
             deadline = _dt(state.get("deadline"))
             if deadline is not None and deadline > now:
                 state["was_actionable"] = True
-                active[tender_id] = state
-                observations.append(_observation(state, now=now, actionable=True, lifecycle_status="active", lifecycle_reason="publisher reports Works procedure with future submission deadline"))
-            elif state.get("was_actionable"):
+                survivors[tender_id] = state
+                observations.append(_observation(
+                    state,
+                    now=now,
+                    actionable=True,
+                    lifecycle_status="active",
+                    lifecycle_reason="publisher reports Works procedure with future submission deadline",
+                ))
+                continue
+
+            if deadline is None:
+                # Keep a source-native Works procedure pending even when its summary
+                # has no deadline. A later NoticeUpdateNotice may supply section 8.1;
+                # discarding it here would lose the construction provenance needed
+                # to apply that update safely.
+                if state.get("was_actionable"):
+                    observations.append(_observation(
+                        state,
+                        now=now,
+                        actionable=False,
+                        lifecycle_status="deadline_missing",
+                        lifecycle_reason="Works procedure no longer has a valid submission deadline",
+                        lifecycle_only=True,
+                    ))
+                    state["was_actionable"] = False
+                survivors[tender_id] = state
+                continue
+
+            if state.get("was_actionable"):
                 observations.append(_observation(
                     state,
                     now=now,
                     actionable=False,
-                    lifecycle_status="deadline_missing" if deadline is None else "deadline_elapsed",
-                    lifecycle_reason="Works procedure has no valid submission deadline" if deadline is None else "submission deadline has elapsed",
+                    lifecycle_status="deadline_elapsed",
+                    lifecycle_reason="submission deadline has elapsed",
                     lifecycle_only=True,
                 ))
-        return observations, active
+        return observations, survivors
 
     def fetch_incremental(self, *, watermark=None, now=None):
         self._requests = 0
@@ -484,9 +510,10 @@ class PolandBZPConnector:
         tracked = json.loads(json.dumps(cursor.tracked, ensure_ascii=False)) if cursor else {}
         closed = json.loads(json.dumps(cursor.closed, ensure_ascii=False)) if cursor else {}
         if cursor:
-            for state in tracked.values():
-                if isinstance(state, dict):
-                    state["was_actionable"] = True
+            # Preserve the publisher state exactly as persisted. In particular,
+            # an incomplete historical catch-up may contain Works procedures that
+            # were never emitted to users and therefore must remain
+            # ``was_actionable=False`` rather than turning into fake tombstones.
             start = _dt(cursor.completed_through) - timedelta(minutes=self.overlap_minutes)
         else:
             start = current - timedelta(days=self.initial_lookback_days)
