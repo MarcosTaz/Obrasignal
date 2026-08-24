@@ -11,10 +11,12 @@ def test_ready_global_sources_still_require_explicit_request(monkeypatch):
     monkeypatch.delenv('OBRASIGNAL_GLOBAL_SOURCES', raising=False)
     assert preload._global_source_enabled('CO_SECOP') is False
     assert preload._global_source_enabled('PY_DNCP') is False
+    assert preload._global_source_enabled('UY_ARCE') is False
 
-    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP,PY_DNCP')
+    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP,PY_DNCP,UY_ARCE')
     assert preload._global_source_enabled('CO_SECOP') is True
     assert preload._global_source_enabled('PY_DNCP') is True
+    assert preload._global_source_enabled('UY_ARCE') is True
 
 
 def test_explicit_request_cannot_bypass_a_failing_production_gate(monkeypatch):
@@ -65,6 +67,27 @@ def test_dncp_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
     discard_staged_source_syncs()
 
 
+def test_arce_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
+    discard_staged_source_syncs()
+    monkeypatch.setattr(preload._app, 'db', lambda: FakeConn())
+    monkeypatch.setattr(preload, 'get_source_cursor', lambda conn, source: 'uy-old')
+    record = {'source': 'UY_ARCE', 'external_id': 'ocds-yfs5dr-100', 'taxonomy': 'UNSPSC'}
+
+    def fake_fetch(*, watermark=None):
+        assert watermark == 'uy-old'
+        return [record], 'uy-new'
+
+    monkeypatch.setattr(preload._uruguay_arce, 'fetch_arce_tenders', fake_fetch)
+    rows = preload._fetch_arce_staged()
+
+    assert rows == [record]
+    staged = staged_source_syncs()
+    assert len(staged) == 1
+    assert staged[0].source == 'UY_ARCE'
+    assert staged[0].cursor == 'uy-new'
+    discard_staged_source_syncs()
+
+
 def test_empty_incremental_dncp_window_is_healthy_not_source_failure(monkeypatch):
     events = []
     monkeypatch.setenv('BASE_ACCESS_TOKEN', 'configured')
@@ -89,6 +112,32 @@ def test_empty_incremental_dncp_window_is_healthy_not_source_failure(monkeypatch
     assert len(dncp) == 1
     assert dncp[0]['success'] is True
     assert dncp[0]['found'] == 0
+
+
+def test_empty_incremental_arce_window_is_healthy_not_source_failure(monkeypatch):
+    events = []
+    monkeypatch.setenv('BASE_ACCESS_TOKEN', 'configured')
+    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'UY_ARCE')
+    monkeypatch.setattr(preload._app, 'db', lambda: FakeConn())
+    monkeypatch.setattr(preload, '_original_fetch_base', lambda: [{'source': 'BASE', 'external_id': 'base-1'}])
+    monkeypatch.setattr(preload._national_sources, 'fetch_boamp', lambda: [{'source': 'BOAMP', 'external_id': 'boamp-1'}])
+    monkeypatch.setattr(preload._national_sources, 'fetch_placsp', lambda: [{'source': 'PLACSP', 'external_id': 'placsp-1'}])
+    monkeypatch.setattr(preload._national_sources, 'LUXEMBOURG_RSS_URL', '')
+    monkeypatch.setattr(preload, '_fetch_arce_staged', lambda: [])
+    monkeypatch.setattr(preload, 'dedupe_records', lambda rows: rows)
+    monkeypatch.setattr(
+        preload,
+        'record_source_result',
+        lambda conn, source, **kwargs: events.append((source, kwargs)),
+    )
+
+    rows = preload.fetch_base_with_national_sources()
+
+    assert len(rows) == 3
+    arce = [payload for source, payload in events if source == 'UY_ARCE']
+    assert len(arce) == 1
+    assert arce[0]['success'] is True
+    assert arce[0]['found'] == 0
 
 
 def test_sync_failure_discards_staged_global_cursor(monkeypatch):
