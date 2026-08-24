@@ -8,11 +8,15 @@ class FakeConn:
         pass
 
 
-def test_ecuador_registry_remains_planned_and_env_cannot_bypass_gate(monkeypatch):
-    assert SOURCES["EC_SERCOP"]["status"] == "planned"
-    assert "runtime_not_enabled" in production_gate_reasons("EC_SERCOP")
-    monkeypatch.setenv("OBRASIGNAL_GLOBAL_SOURCES", "EC_SERCOP")
+def test_ecuador_ready_still_requires_explicit_runtime_opt_in(monkeypatch):
+    assert SOURCES["EC_SERCOP"]["status"] == "ready"
+    assert production_gate_reasons("EC_SERCOP") == ()
+
+    monkeypatch.delenv("OBRASIGNAL_GLOBAL_SOURCES", raising=False)
     assert ecuador_runtime._preload._global_source_enabled("EC_SERCOP") is False
+
+    monkeypatch.setenv("OBRASIGNAL_GLOBAL_SOURCES", "EC_SERCOP")
+    assert ecuador_runtime._preload._global_source_enabled("EC_SERCOP") is True
 
 
 def test_ecuador_runtime_stages_tombstones_but_emits_only_live_rows(monkeypatch):
