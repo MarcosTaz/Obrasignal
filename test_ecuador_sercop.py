@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
 
-from ecuador_sercop import normalize_sercop_record
+from ecuador_sercop import (
+    SERCOPBulkRecordConnector,
+    build_sercop_connector,
+    normalize_sercop_record,
+)
 
 
 NOW = datetime(2026, 8, 24, 12, 0, tzinfo=timezone.utc)
@@ -42,6 +46,10 @@ def _record(*, status="active", deadline="2026-09-01T15:00:00-05:00", category="
             },
         }],
     }
+
+
+def test_builder_uses_registry_declared_sercop_adapter_type():
+    assert isinstance(build_sercop_connector(), SERCOPBulkRecordConnector)
 
 
 def test_active_future_works_becomes_actionable_cpc_opportunity():
