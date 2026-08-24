@@ -159,8 +159,8 @@ def test_estonia_registry_declares_only_proven_monthly_tender_lifecycle_contract
     assert source["signal_types"] == ("TENDER",)
     assert set(source["capabilities"]) == {"incremental_sync", "lots", "lifecycle"}
     assert source["realtime_capable"] is False
-    assert source["expected_refresh_minutes"] == 43200
-    assert source["stale_after_minutes"] == 64800
+    assert source["expected_refresh_minutes"] == 1440
+    assert source["stale_after_minutes"] == 4320
     assert "search" not in source["capabilities"]
     assert "awards" not in source["capabilities"]
     assert "contracts" not in source["capabilities"]
@@ -190,5 +190,5 @@ def test_registered_source_freshness_is_source_specific():
     assert stale_after_minutes_for("EC_SERCOP") == 4320
     assert stale_after_minutes_for("ZA_ETENDERS") == 4320
     assert stale_after_minutes_for("LV_IUB") == 4320
-    assert stale_after_minutes_for("EE_RHR") == 64800
+    assert stale_after_minutes_for("EE_RHR") == 4320
     assert stale_after_minutes_for("UNKNOWN_SOURCE", default=17) == 17
