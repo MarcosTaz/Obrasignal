@@ -77,34 +77,64 @@ def test_incremental_fetch_uses_keyset_pagination_not_offset():
     assert decoded == SocrataCursor("2026-08-23T11:00:00.000", "C")
 
 
-def test_effective_cursor_expression_is_used_for_select_where_order_and_cursor():
-    expression = "greatest(updated_at, published_at)"
+def test_system_field_cursor_is_independent_from_publisher_business_fields():
     session = FakeSession([[
         {
-            "id": "A",
-            "updated_at": None,
-            "published_at": "2026-08-23T09:00:00.000",
-            "effective_at": "2026-08-23T09:00:00.000",
+            "external_id": "PROC-1",
+            "business_updated": None,
+            "source_cursor_at": "2026-08-23T09:00:00.000",
+            "source_cursor_id": "row-abcd",
             "title": "one",
         }
     ]])
     adapter = SocrataProcurementAdapter(
         _config(
             page_size=10,
-            selected_fields=("id", "updated_at", "published_at", "title"),
-            cursor_expression=expression,
-            cursor_alias="effective_at",
+            id_field="external_id",
+            updated_field="business_updated",
+            selected_fields=("external_id", "business_updated", "title"),
+            cursor_expression=":updated_at",
+            cursor_alias="source_cursor_at",
+            cursor_id_expression=":id",
+            cursor_id_alias="source_cursor_id",
         ),
         session=session,
     )
     rows, cursor = adapter.fetch_raw_incremental(now=datetime(2026, 8, 24, tzinfo=timezone.utc))
 
     params = session.calls[0]["params"]
-    assert f"{expression} AS effective_at" in params["$select"]
-    assert f"{expression} >= '2026-08-22T00:00:00.000'" in params["$where"]
-    assert params["$order"] == f"{expression} ASC, id ASC"
-    assert rows[0]["updated_at"] is None
-    assert SocrataCursor.decode(cursor) == SocrataCursor("2026-08-23T09:00:00.000", "A")
+    assert ":updated_at AS source_cursor_at" in params["$select"]
+    assert ":id AS source_cursor_id" in params["$select"]
+    assert ":updated_at >= '2026-08-22T00:00:00.000'" in params["$where"]
+    assert params["$order"] == ":updated_at ASC, :id ASC"
+    assert rows[0]["business_updated"] is None
+    assert SocrataCursor.decode(cursor) == SocrataCursor("2026-08-23T09:00:00.000", "row-abcd")
+
+
+def test_system_field_keyset_uses_internal_row_id_not_external_business_id():
+    session = FakeSession([
+        [
+            {"external_id": "PROC-Z", "source_cursor_at": "2026-08-23T10:00:00.000", "source_cursor_id": "row-001"},
+            {"external_id": "PROC-A", "source_cursor_at": "2026-08-23T10:00:00.000", "source_cursor_id": "row-002"},
+        ],
+        [],
+    ])
+    adapter = SocrataProcurementAdapter(
+        _config(
+            page_size=2,
+            id_field="external_id",
+            selected_fields=("external_id",),
+            cursor_expression=":updated_at",
+            cursor_alias="source_cursor_at",
+            cursor_id_expression=":id",
+            cursor_id_alias="source_cursor_id",
+        ),
+        session=session,
+    )
+    adapter.fetch_raw_incremental(now=datetime(2026, 8, 24, tzinfo=timezone.utc))
+    second_where = session.calls[1]["params"]["$where"]
+    assert ":updated_at = '2026-08-23T10:00:00.000' AND :id > 'row-002'" in second_where
+    assert "external_id >" not in second_where
 
 
 def test_existing_watermark_is_replayed_with_overlap():
