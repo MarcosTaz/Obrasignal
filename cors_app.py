@@ -113,6 +113,7 @@ def _global_api_cors(response):
 # Gunicorn imports this module before it starts accepting requests. Complete all
 # idempotent schema/read-model work and install additive global-source runtimes
 # before allowing the ingestion worker to run.
+import app as _app
 from app import db, init_db, start_background_worker
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
