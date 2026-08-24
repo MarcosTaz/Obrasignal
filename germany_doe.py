@@ -13,7 +13,7 @@ Only ``ProcurementTypeCode=works`` ContractNotice records can create opportuniti
 Commercial identity is lot-level: ContractFolderID + real lot ID. ContractAwardNotice
 records only close tracked tenders when the publisher-native winner-selection status
 is terminal (``selec-w`` or ``clos-nw``); ``open-nw`` explicitly remains open and a
-later publisher version can reopen a previously terminal tracked lot. Contract
+later publisher version can reopen a recently terminal known lot. Contract
 modification notices (``can-modif``) belong to post-award contract execution and are
 intentionally outside this TENDER-only lifecycle connector.
 """
@@ -449,6 +449,7 @@ def _merge_event(current, incoming):
             "closed": True,
             "url": _human_url(incoming.get("notice_id")) or current.get("url"),
             "was_visible": visible,
+            "closure_emitted": False,
         })
         return closed
     updated = deepcopy(incoming)
@@ -465,7 +466,7 @@ def _merge_event(current, incoming):
 
 def _reopen_known_state(current, incoming):
     """Apply a later open-nw result without inventing a tender from a result notice."""
-    if current is None or _event_key(incoming) < _event_key(current):
+    if current is None or _event_key(incoming) <= _event_key(current):
         return None
     reopened = deepcopy(current)
     for key in (
@@ -482,6 +483,7 @@ def _reopen_known_state(current, incoming):
     })
     reopened.pop("closure_status", None)
     reopened.pop("closure_reason", None)
+    reopened.pop("closure_emitted", None)
     reopened.pop("reopen", None)
     return reopened
 
@@ -541,10 +543,17 @@ class GermanDOECursor:
     completed_through: str
     tracked: dict
     closed: dict
+    recently_closed: dict | None = None
 
     def encode(self):
+        recently_closed = self.recently_closed if isinstance(self.recently_closed, dict) else {}
         return json.dumps(
-            {"completed_through": self.completed_through, "tracked": self.tracked, "closed": self.closed},
+            {
+                "completed_through": self.completed_through,
+                "tracked": self.tracked,
+                "closed": self.closed,
+                "recently_closed": recently_closed,
+            },
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,
@@ -563,12 +572,14 @@ class GermanDOECursor:
         completed = str(payload.get("completed_through") or "").strip()
         tracked_raw = payload.get("tracked")
         closed_raw = payload.get("closed")
+        recently_closed_raw = payload.get("recently_closed")
         tracked = {} if tracked_raw is None else tracked_raw
         closed = {} if closed_raw is None else closed_raw
+        recently_closed = {} if recently_closed_raw is None else recently_closed_raw
         _parse_day(completed, label="completed_through")
-        if not isinstance(tracked, dict) or not isinstance(closed, dict):
+        if not isinstance(tracked, dict) or not isinstance(closed, dict) or not isinstance(recently_closed, dict):
             raise RuntimeError(f"invalid {SOURCE} cursor state")
-        return cls(completed, tracked, closed)
+        return cls(completed, tracked, closed, recently_closed)
 
 
 class GermanDOEOpenDataConnector:
@@ -583,6 +594,8 @@ class GermanDOEOpenDataConnector:
         max_entries=5000,
         max_entry_bytes=4 * 1024 * 1024,
         max_uncompressed_bytes=256 * 1024 * 1024,
+        closed_retention_days=None,
+        max_recently_closed=20000,
         timeout=120,
     ):
         self.session = session or requests.Session()
@@ -593,12 +606,33 @@ class GermanDOEOpenDataConnector:
         self.max_entries = max(1, int(max_entries))
         self.max_entry_bytes = max(1024, int(max_entry_bytes))
         self.max_uncompressed_bytes = max(self.max_entry_bytes, int(max_uncompressed_bytes))
+        retention = self.initial_lookback_days if closed_retention_days is None else int(closed_retention_days)
+        self.closed_retention_days = max(1, retention)
+        self.max_recently_closed = max(1, int(max_recently_closed))
         self.timeout = max(1, int(timeout))
 
     @staticmethod
     def _target_day(now):
         current = _parse_source_datetime(now) or datetime.now(timezone.utc)
         return current.astimezone(BERLIN).date() - timedelta(days=1)
+
+    def _validate_recently_closed(self, recently_closed):
+        if len(recently_closed) > self.max_recently_closed:
+            raise RuntimeError(f"{SOURCE} cursor recently_closed exceeds max_recently_closed; cursor not advanced")
+        for external_id, state in recently_closed.items():
+            if not isinstance(state, dict) or str(state.get("external_id") or "") != str(external_id):
+                raise RuntimeError(f"invalid {SOURCE} recently_closed cursor state")
+            _parse_day(state.get("publication_day"), label="recently_closed publication_day")
+
+    def _prune_recently_closed(self, recently_closed, *, target):
+        cutoff = target - timedelta(days=self.closed_retention_days)
+        for external_id, state in list(recently_closed.items()):
+            if not isinstance(state, dict):
+                raise RuntimeError(f"invalid {SOURCE} recently_closed cursor state")
+            publication_day = _parse_day(state.get("publication_day"), label="recently_closed publication_day")
+            if publication_day < cutoff:
+                recently_closed.pop(external_id, None)
+        self._validate_recently_closed(recently_closed)
 
     def _download_day(self, day):
         response = self.session.get(
@@ -627,7 +661,7 @@ class GermanDOEOpenDataConnector:
             raise RuntimeError(f"{SOURCE} daily export is not a ZIP archive; cursor not advanced")
         return data
 
-    def _archive_events(self, day, data, *, tracked, closed):
+    def _archive_events(self, day, data, *, tracked, closed, recently_closed):
         try:
             zf = zipfile.ZipFile(BytesIO(data))
         except (zipfile.BadZipFile, OSError) as exc:
@@ -653,7 +687,7 @@ class GermanDOEOpenDataConnector:
 
             known_folders = {
                 str(state.get("procedure_id") or "")
-                for states in (tracked, closed)
+                for states in (tracked, closed, recently_closed)
                 for state in states.values()
                 if isinstance(state, dict) and str(state.get("procedure_id") or "")
             }
@@ -685,29 +719,40 @@ class GermanDOEOpenDataConnector:
             return sorted(events, key=_event_key)
 
     @staticmethod
-    def _apply_events(events, tracked, closed):
+    def _apply_events(events, tracked, closed, recently_closed):
         for event in events:
             external_id = str(event.get("external_id") or "").strip()
             if not external_id:
                 raise RuntimeError(f"{SOURCE} event missing external identity; cursor not advanced")
+
+            current = tracked.get(external_id)
+            if current is None:
+                current = closed.get(external_id)
+            if current is None:
+                current = recently_closed.get(external_id)
+
             if event.get("reopen"):
-                current = tracked.get(external_id)
-                if current is None:
-                    current = closed.get(external_id)
                 reopened = _reopen_known_state(current, event)
                 if reopened is None:
                     continue
                 tracked[external_id] = reopened
                 closed.pop(external_id, None)
+                recently_closed.pop(external_id, None)
                 continue
+
             if event.get("closed"):
-                current = tracked.pop(external_id, None)
-                if current is None:
+                if current is None or _event_key(event) <= _event_key(current):
                     continue
+                tracked.pop(external_id, None)
                 closed[external_id] = _merge_event(current, event)
+                recently_closed.pop(external_id, None)
                 continue
-            tracked[external_id] = _merge_event(tracked.get(external_id), event)
+
+            if current is not None and _event_key(event) <= _event_key(current):
+                continue
+            tracked[external_id] = _merge_event(current, event)
             closed.pop(external_id, None)
+            recently_closed.pop(external_id, None)
 
     @staticmethod
     def _finalize(tracked, closed, *, now):
@@ -715,7 +760,7 @@ class GermanDOEOpenDataConnector:
         current = _parse_source_datetime(now) or datetime.now(timezone.utc)
 
         for state in closed.values():
-            if state.get("was_visible"):
+            if state.get("was_visible") and not state.get("closure_emitted"):
                 status = str(state.get("closure_status") or "closed")
                 reason = str(state.get("closure_reason") or "publisher result closes the tender opportunity")
                 observations.append(_observation(
@@ -725,6 +770,7 @@ class GermanDOEOpenDataConnector:
                     lifecycle_reason=reason,
                     lifecycle_only=True,
                 ))
+                state["closure_emitted"] = True
 
         for external_id, state in tracked.items():
             deadline = _parse_source_datetime(state.get("deadline"))
@@ -768,6 +814,8 @@ class GermanDOEOpenDataConnector:
         cursor = GermanDOECursor.decode(watermark) if watermark else None
         tracked = deepcopy(cursor.tracked) if cursor else {}
         closed = deepcopy(cursor.closed) if cursor else {}
+        recently_closed = deepcopy(cursor.recently_closed or {}) if cursor else {}
+        self._validate_recently_closed(recently_closed)
 
         if cursor:
             completed = _parse_day(cursor.completed_through, label="completed_through")
@@ -786,17 +834,29 @@ class GermanDOEOpenDataConnector:
 
         for pub_day in days:
             data = self._download_day(pub_day)
-            self._apply_events(self._archive_events(pub_day, data, tracked=tracked, closed=closed), tracked, closed)
+            events = self._archive_events(
+                pub_day,
+                data,
+                tracked=tracked,
+                closed=closed,
+                recently_closed=recently_closed,
+            )
+            self._apply_events(events, tracked, closed, recently_closed)
             if pub_day > completed:
                 completed = pub_day
 
         if completed >= target:
             observations, tracked = self._finalize(tracked, closed, now=current)
+            for external_id, state in closed.items():
+                recently_closed[external_id] = deepcopy(state)
             closed = {}
         else:
             observations = []
 
-        return observations, GermanDOECursor(completed.isoformat(), tracked, closed).encode()
+        self._prune_recently_closed(recently_closed, target=target)
+        return observations, GermanDOECursor(
+            completed.isoformat(), tracked, closed, recently_closed
+        ).encode()
 
 
 def build_germany_doe_connector(*, session=None, **kwargs):
