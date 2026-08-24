@@ -1,20 +1,17 @@
 """Germany DOE/Bekanntmachungsservice public eForms daily-bulk connector.
 
 The German Public Procurement Data Service exposes the official Open Data API
-without authentication.  Its ``/api/notice-exports`` endpoint exports notices
-by *publication archive day* (``pubDay``) and does not allow the current day.
-Live validation on 2026-08-24 established that archive-day and eForms
+without authentication. Its ``/api/notice-exports`` endpoint exports notices by
+publisher publication archive day (``pubDay``) and does not allow the current
+day. Live validation on 2026-08-24 proved that archive day and eForms
 ``IssueDate`` are not interchangeable: the 2026-08-23 archive contained notices
-with IssueDate 2026-08-21.  Therefore durable progress is keyed only by the
-publisher's closed ``pubDay`` partitions; IssueDate/IssueTime remain document
-metadata and an intra-day tie-breaker.
+with IssueDate 2026-08-21. Durable progress therefore uses only closed pubDay
+partitions; IssueDate/IssueTime remain source metadata and an intra-day tie-break.
 
-Production consumes the publisher-original eForms ZIP, not HTML/PDF scraping or
-the transformed OCDS export.  Only publisher-native
+Production consumes the publisher-original eForms ZIP. Only publisher-native
 ``ProcurementTypeCode=works`` ContractNotice records can create opportunities.
-Identity is lot-level (ContractFolderID + lot ID), because deadlines and CPVs can
-differ by lot.  ContractAwardNotice records are used only to close tracked
-opportunities; they are not exposed as an AWARD product signal.
+Identity is lot-level (ContractFolderID + lot ID). ContractAwardNotice records
+only close tracked tender opportunities; they are not exposed as an AWARD signal.
 """
 from __future__ import annotations
 
@@ -29,7 +26,6 @@ from xml.etree.ElementTree import ParseError, fromstring
 from zoneinfo import ZoneInfo
 
 import requests
-
 
 SOURCE = "SERVICE_BUND_DE"
 COUNTRY = "DEU"
@@ -120,9 +116,7 @@ def _parse_issue(date_value, time_value):
     date_core = date_text[:10]
     if len(date_core) != 10:
         return None
-    if time_text.endswith("Z") or (
-        len(time_text) >= 6 and time_text[-6] in "+-" and time_text[-3] == ":"
-    ):
+    if time_text.endswith("Z") or (len(time_text) >= 6 and time_text[-6] in "+-" and time_text[-3] == ":"):
         stamp = f"{date_core}T{time_text}"
     else:
         stamp = f"{date_core}T{time_text}{date_text[10:]}"
@@ -137,15 +131,12 @@ def _parse_issue(date_value, time_value):
 
 def _utc(value):
     parsed = _parse_source_datetime(value)
-    if parsed is None:
-        return None
-    return parsed.isoformat(timespec="seconds").replace("+00:00", "Z")
+    return None if parsed is None else parsed.isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _parse_day(value, *, label="day"):
-    text = str(value or "").strip()
     try:
-        return date.fromisoformat(text)
+        return date.fromisoformat(str(value or "").strip())
     except ValueError as exc:
         raise RuntimeError(f"invalid {SOURCE} cursor {label}") from exc
 
@@ -205,10 +196,12 @@ def _project_place(project, buyer_info):
     location = _direct(project, "RealizedLocation") if project is not None else None
     description = _direct_text(location, "Description")
     address = _direct(location, "Address") if location is not None else None
-    nuts = _direct_text(address, "CountrySubentityCode")
-    country = _path_text(address, "Country", "IdentificationCode")
     values = []
-    for value in (description, nuts, country):
+    for value in (
+        description,
+        _direct_text(address, "CountrySubentityCode"),
+        _path_text(address, "Country", "IdentificationCode"),
+    ):
         if value and value not in values:
             values.append(value)
     if not values:
@@ -257,7 +250,6 @@ def _notice_events(root, *, publication_day, filename_notice_id, file_version):
     project = _project(root)
     if _direct_text(project, "ProcurementTypeCode").lower() != "works":
         return []
-
     folder_id = _direct_text(root, "ContractFolderID")
     notice_id = _direct_text(root, "ID")
     issued = _issue_timestamp(root)
@@ -265,7 +257,6 @@ def _notice_events(root, *, publication_day, filename_notice_id, file_version):
         raise RuntimeError(f"{SOURCE} Works notice missing ContractFolderID/ID/IssueDate+IssueTime; cursor not advanced")
     if notice_id != filename_notice_id:
         raise RuntimeError(f"{SOURCE} eForms filename/root notice ID mismatch; cursor not advanced")
-
     lots = _notice_lots(root)
     if not lots:
         raise RuntimeError(f"{SOURCE} Works notice contains no ProcurementProjectLot; cursor not advanced")
@@ -345,7 +336,6 @@ def _award_events(root, *, publication_day, filename_notice_id, file_version, tr
     project_type = _direct_text(project, "ProcurementTypeCode").lower()
     if project_type != "works" and folder_id not in set(tracked_folders):
         return []
-
     notice_id = _direct_text(root, "ID")
     issued = _issue_timestamp(root)
     if not folder_id or not notice_id or issued is None:
@@ -355,7 +345,6 @@ def _award_events(root, *, publication_day, filename_notice_id, file_version, tr
     lot_ids = _award_lot_ids(root)
     if not lot_ids:
         raise RuntimeError(f"{SOURCE} relevant award contains no lot identities; cursor not advanced")
-
     return [{
         "external_id": f"{folder_id}::{lot_id}",
         "procedure_id": folder_id,
@@ -399,11 +388,7 @@ def _merge_event(current, incoming):
         return closed
     updated = deepcopy(incoming)
     updated["was_visible"] = visible
-    first_values = [
-        str(value or "").strip()
-        for value in (current.get("first_published_at"), incoming.get("first_published_at"))
-        if str(value or "").strip()
-    ]
+    first_values = [str(value or "").strip() for value in (current.get("first_published_at"), incoming.get("first_published_at")) if str(value or "").strip()]
     if first_values:
         updated["first_published_at"] = min(first_values)
     return updated
@@ -465,11 +450,7 @@ class GermanDOECursor:
     closed: dict
 
     def encode(self):
-        return json.dumps({
-            "completed_through": self.completed_through,
-            "tracked": self.tracked,
-            "closed": self.closed,
-        }, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        return json.dumps({"completed_through": self.completed_through, "tracked": self.tracked, "closed": self.closed}, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
     @classmethod
     def decode(cls, value):
@@ -479,9 +460,13 @@ class GermanDOECursor:
             payload = json.loads(str(value))
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
             raise RuntimeError(f"invalid {SOURCE} cursor JSON") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"invalid {SOURCE} cursor state")
         completed = str(payload.get("completed_through") or "").strip()
-        tracked = payload.get("tracked") or {}
-        closed = payload.get("closed") or {}
+        tracked_raw = payload.get("tracked")
+        closed_raw = payload.get("closed")
+        tracked = {} if tracked_raw is None else tracked_raw
+        closed = {} if closed_raw is None else closed_raw
         _parse_day(completed, label="completed_through")
         if not isinstance(tracked, dict) or not isinstance(closed, dict):
             raise RuntimeError(f"invalid {SOURCE} cursor state")
@@ -504,8 +489,9 @@ class GermanDOEOpenDataConnector:
     ):
         self.session = session or requests.Session()
         self.initial_lookback_days = max(1, int(initial_lookback_days))
-        self.overlap_days = max(0, int(overlap_days))
         self.max_days_per_sync = max(1, int(max_days_per_sync))
+        # Always preserve at least one new day of progress per bounded run.
+        self.overlap_days = min(max(0, int(overlap_days)), max(0, self.max_days_per_sync - 1))
         self.max_archive_bytes = max(1024, int(max_archive_bytes))
         self.max_entries = max(1, int(max_entries))
         self.max_entry_bytes = max(1024, int(max_entry_bytes))
@@ -518,14 +504,7 @@ class GermanDOEOpenDataConnector:
         return current.astimezone(BERLIN).date() - timedelta(days=1)
 
     def _download_day(self, day):
-        response = self.session.get(
-            DOE_EXPORTS,
-            params={"pubDay": day.isoformat()},
-            headers=DOE_HEADERS,
-            timeout=self.timeout,
-            stream=True,
-            allow_redirects=True,
-        )
+        response = self.session.get(DOE_EXPORTS, params={"pubDay": day.isoformat()}, headers=DOE_HEADERS, timeout=self.timeout, stream=True, allow_redirects=True)
         response.raise_for_status()
         body = bytearray()
         try:
@@ -566,11 +545,7 @@ class GermanDOEOpenDataConnector:
                 if total > self.max_uncompressed_bytes:
                     raise RuntimeError(f"{SOURCE} daily ZIP exceeds max_uncompressed_bytes; cursor not advanced")
 
-            tracked_folders = {
-                str(state.get("procedure_id") or "")
-                for state in tracked.values()
-                if isinstance(state, dict) and str(state.get("procedure_id") or "")
-            }
+            tracked_folders = {str(state.get("procedure_id") or "") for state in tracked.values() if isinstance(state, dict) and str(state.get("procedure_id") or "")}
             events = []
             for info in infos:
                 if info.is_dir():
@@ -582,26 +557,10 @@ class GermanDOEOpenDataConnector:
                     raise RuntimeError(f"{SOURCE} malformed eForms XML; cursor not advanced") from exc
                 root_name = _local(root.tag)
                 if root_name == "ContractNotice":
-                    events.extend(_notice_events(
-                        root,
-                        publication_day=day.isoformat(),
-                        filename_notice_id=filename_notice_id,
-                        file_version=file_version,
-                    ))
+                    events.extend(_notice_events(root, publication_day=day.isoformat(), filename_notice_id=filename_notice_id, file_version=file_version))
                 elif root_name == "ContractAwardNotice":
-                    events.extend(_award_events(
-                        root,
-                        publication_day=day.isoformat(),
-                        filename_notice_id=filename_notice_id,
-                        file_version=file_version,
-                        tracked_folders=tracked_folders,
-                    ))
+                    events.extend(_award_events(root, publication_day=day.isoformat(), filename_notice_id=filename_notice_id, file_version=file_version, tracked_folders=tracked_folders))
                 else:
-                    # The eForms export includes several notice families. Only
-                    # ContractNotice can create a tender opportunity and only
-                    # ContractAwardNotice is required for the lifecycle contract
-                    # implemented here. Other source-native families are not
-                    # converted via text heuristics.
                     continue
             return sorted(events, key=_event_key)
 
@@ -617,60 +576,31 @@ class GermanDOEOpenDataConnector:
                     continue
                 closed[external_id] = _merge_event(current, event)
                 continue
-            current = tracked.get(external_id)
-            tracked[external_id] = _merge_event(current, event)
+            tracked[external_id] = _merge_event(tracked.get(external_id), event)
             closed.pop(external_id, None)
 
     @staticmethod
     def _finalize(tracked, closed, *, now):
-        observations = []
-        survivors = {}
+        observations, survivors = [], {}
         current = _parse_source_datetime(now) or datetime.now(timezone.utc)
-
-        for external_id, state in closed.items():
+        for state in closed.values():
             if state.get("was_visible"):
-                observations.append(_observation(
-                    state,
-                    actionable=False,
-                    lifecycle_status="awarded_or_completed",
-                    lifecycle_reason="publisher ContractAwardNotice closes the tender opportunity",
-                    lifecycle_only=True,
-                ))
-
+                observations.append(_observation(state, actionable=False, lifecycle_status="awarded_or_completed", lifecycle_reason="publisher ContractAwardNotice closes the tender opportunity", lifecycle_only=True))
         for external_id, state in tracked.items():
             deadline = _parse_source_datetime(state.get("deadline"))
             if deadline is not None and deadline > current:
                 state["was_visible"] = True
                 survivors[external_id] = state
-                observations.append(_observation(
-                    state,
-                    actionable=True,
-                    lifecycle_status="active",
-                    lifecycle_reason="publisher reports Works ContractNotice with future lot submission deadline",
-                ))
+                observations.append(_observation(state, actionable=True, lifecycle_status="active", lifecycle_reason="publisher reports Works ContractNotice with future lot submission deadline"))
                 continue
-
             if deadline is None:
                 if state.get("was_visible"):
-                    observations.append(_observation(
-                        state,
-                        actionable=False,
-                        lifecycle_status="deadline_missing",
-                        lifecycle_reason="tracked Works lot no longer has a valid structured submission deadline",
-                        lifecycle_only=True,
-                    ))
+                    observations.append(_observation(state, actionable=False, lifecycle_status="deadline_missing", lifecycle_reason="tracked Works lot no longer has a valid structured submission deadline", lifecycle_only=True))
                     state["was_visible"] = False
                 survivors[external_id] = state
                 continue
-
             if state.get("was_visible"):
-                observations.append(_observation(
-                    state,
-                    actionable=False,
-                    lifecycle_status="deadline_elapsed",
-                    lifecycle_reason="lot submission deadline has elapsed",
-                    lifecycle_only=True,
-                ))
+                observations.append(_observation(state, actionable=False, lifecycle_status="deadline_elapsed", lifecycle_reason="lot submission deadline has elapsed", lifecycle_only=True))
         return observations, survivors
 
     def fetch_incremental(self, *, watermark=None, now=None):
@@ -684,23 +614,20 @@ class GermanDOEOpenDataConnector:
             completed = _parse_day(cursor.completed_through, label="completed_through")
             if completed > target:
                 raise RuntimeError(f"{SOURCE} cursor is ahead of latest closed pubDay; cursor not advanced")
-            start = completed + timedelta(days=1)
-            if self.overlap_days:
-                start = start - timedelta(days=self.overlap_days)
+            start = completed + timedelta(days=1) - timedelta(days=self.overlap_days)
         else:
             completed = target - timedelta(days=self.initial_lookback_days)
             start = completed + timedelta(days=1)
 
         days = []
-        day = start
-        while day <= target and len(days) < self.max_days_per_sync:
-            days.append(day)
-            day += timedelta(days=1)
+        pub_day = start
+        while pub_day <= target and len(days) < self.max_days_per_sync:
+            days.append(pub_day)
+            pub_day += timedelta(days=1)
 
         for pub_day in days:
             data = self._download_day(pub_day)
-            events = self._archive_events(pub_day, data, tracked=tracked)
-            self._apply_events(events, tracked, closed)
+            self._apply_events(self._archive_events(pub_day, data, tracked=tracked), tracked, closed)
             if pub_day > completed:
                 completed = pub_day
 
@@ -709,13 +636,9 @@ class GermanDOEOpenDataConnector:
             observations, tracked = self._finalize(tracked, closed, now=current)
             closed = {}
         else:
-            # Do not expose an intermediate historical state while a bounded
-            # bootstrap/catch-up still has later publication-day partitions to
-            # apply. A later award or correction can materially change truth.
             observations = []
 
-        next_cursor = GermanDOECursor(completed.isoformat(), tracked, closed).encode()
-        return observations, next_cursor
+        return observations, GermanDOECursor(completed.isoformat(), tracked, closed).encode()
 
 
 def build_germany_doe_connector(*, session=None, **kwargs):
