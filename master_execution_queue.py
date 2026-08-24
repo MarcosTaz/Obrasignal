@@ -34,14 +34,14 @@ def _q(id, title, domain, state, stage, dependencies=(), reason=""):
 
 
 CANONICAL_QUEUE_NAME = "OBRASIGNAL_MASTER_EXECUTION_QUEUE"
-CURRENT_ITEM_ID = "Q040_CANADA_BUYS"
+CURRENT_ITEM_ID = "Q050_US_SAM"
 
 MASTER_EXECUTION_QUEUE = (
     _q("Q000_SCOPE_REBASE", "International market-scope rebase", "STRATEGY", "DONE", "PRODUCTION",
        reason="Active coverage fixed at 45 markets; bespoke development is BUILD-only."),
     _q("Q005_MODULAR_ARCHITECTURE_GUARDRAILS", "Modular monolith and replaceable-capability architecture guardrails", "ARCHITECTURE", "DONE", "PRODUCTION",
        ("Q000_SCOPE_REBASE",),
-       "Adopt small stable Core, contract-first replaceable capabilities, canonical data/events, capability registry, feature flags, failure isolation, contextual UX and architecture fitness tests without premature microservices. This is a cross-cutting rule, not a parallel roadmap; Q040 remains active."),
+       "Adopt small stable Core, contract-first replaceable capabilities, canonical data/events, capability registry, feature flags, failure isolation, contextual UX and architecture fitness tests without premature microservices. This is a cross-cutting rule, not a parallel roadmap."),
     _q("Q010_BR_PNCP_DISCOVERY", "Brazil PNCP national PCA discovery contract", "SIGNAL", "DONE", "RESEARCH",
        ("Q000_SCOPE_REBASE",),
        "Publisher-native Works categories, public national discovery, pagination, identity, update timestamp and recent-first ordering were live-proven."),
@@ -51,10 +51,10 @@ MASTER_EXECUTION_QUEUE = (
     _q("Q030_BR_PNCP_PCA", "Brazil PNCP construction procurement-plan connector", "SIGNAL", "GATED", "PRODUCTION",
        ("Q010_BR_PNCP_DISCOVERY", "Q020_SIGNAL_CONTRACT_V1"),
        "Connector/tests are prebuilt but production promotion is blocked: isolated live smokes repeatedly failed on PNCP transport reliability, including five bounded attempts ending in connect timeout. Reopen only after stable live production-path validation."),
-    _q("Q040_CANADA_BUYS", "CanadaBuys federal construction connector", "SIGNAL", "ACTIVE", "PRODUCTION",
+    _q("Q040_CANADA_BUYS", "CanadaBuys federal construction connector", "SIGNAL", "DONE", "PRODUCTION",
        ("Q020_SIGNAL_CONTRACT_V1",),
-       "High-ARPU BUILD market; federal-first avoids premature provincial fragmentation."),
-    _q("Q050_US_SAM", "SAM.gov federal construction opportunities connector", "SIGNAL", "QUEUED", "PRODUCTION",
+       "Official federal construction contract, identity/amendment/lifecycle semantics, exact schema, opt-in production wiring, exact-head CI and live production-path validation completed."),
+    _q("Q050_US_SAM", "SAM.gov federal construction opportunities connector", "SIGNAL", "ACTIVE", "PRODUCTION",
        ("Q020_SIGNAL_CONTRACT_V1",),
        "Highest absolute commercial upside; federal opportunities first, SLED only if later justified."),
     _q("Q060_CHILE_MERCADOPUBLICO", "Chile Mercado Público construction connector", "SIGNAL", "QUEUED", "PRODUCTION",
