@@ -184,31 +184,36 @@ _app.fetch_ted = _fetch_ted_with_health
 
 def fetch_base_with_national_sources():
     rows = []
-    connectors = [("BASE", _original_fetch_base)]
+    # (source, fetcher, empty_ok). An empty incremental global window is a
+    # successful observation; legacy discovery feeds retain the stronger
+    # unexpected-empty alarm because they are expected to contain a corpus.
+    connectors = [("BASE", _original_fetch_base, False)]
     if os.getenv("BASE_ACCESS_TOKEN", "").strip() == "":
         connectors = []
         conn = _app.db()
         record_source_result(conn, "BASE", success=False, duration_ms=0, error="BASE_ACCESS_TOKEN is not configured")
         conn.close()
-    connectors.extend((("BOAMP", _national_sources.fetch_boamp), ("PLACSP", _national_sources.fetch_placsp)))
+    connectors.extend((("BOAMP", _national_sources.fetch_boamp, False), ("PLACSP", _national_sources.fetch_placsp, False)))
     if _national_sources.LUXEMBOURG_RSS_URL:
-        connectors.append(("PMP-LU", _national_sources.fetch_luxembourg_rss))
+        connectors.append(("PMP-LU", _national_sources.fetch_luxembourg_rss, False))
 
     if _global_source_enabled("CO_SECOP"):
-        connectors.append(("CO_SECOP", _fetch_secop_staged))
+        connectors.append(("CO_SECOP", _fetch_secop_staged, True))
     else:
         _record_blocked_global_source("CO_SECOP")
 
     if _global_source_enabled("PY_DNCP"):
-        connectors.append(("PY_DNCP", _fetch_dncp_staged))
+        connectors.append(("PY_DNCP", _fetch_dncp_staged, True))
     else:
         _record_blocked_global_source("PY_DNCP")
 
-    for source, fetcher in connectors:
+    for source, fetcher, empty_ok in connectors:
         started = time.perf_counter()
         try:
             found = fetcher()
-            if not found:
+            if found is None:
+                found = []
+            if not found and not empty_ok:
                 raise RuntimeError(f"{source} returned an unexpected empty result set")
             rows.extend(found)
             conn = _app.db()
