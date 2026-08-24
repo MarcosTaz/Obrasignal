@@ -11,15 +11,12 @@ def test_ready_global_sources_still_require_explicit_request(monkeypatch):
     monkeypatch.delenv('OBRASIGNAL_GLOBAL_SOURCES', raising=False)
     assert preload._global_source_enabled('CO_SECOP') is False
     assert preload._global_source_enabled('PY_DNCP') is False
+    assert preload._global_source_enabled('UY_ARCE') is False
 
-    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP,PY_DNCP')
+    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP,PY_DNCP,UY_ARCE')
     assert preload._global_source_enabled('CO_SECOP') is True
     assert preload._global_source_enabled('PY_DNCP') is True
-
-
-def test_planned_arce_remains_blocked_even_when_explicitly_requested(monkeypatch):
-    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'UY_ARCE')
-    assert preload._global_source_enabled('UY_ARCE') is False
+    assert preload._global_source_enabled('UY_ARCE') is True
 
 
 def test_explicit_request_cannot_bypass_a_failing_production_gate(monkeypatch):
@@ -117,11 +114,10 @@ def test_empty_incremental_dncp_window_is_healthy_not_source_failure(monkeypatch
     assert dncp[0]['found'] == 0
 
 
-def test_empty_incremental_arce_window_is_healthy_once_gate_is_open(monkeypatch):
+def test_empty_incremental_arce_window_is_healthy_not_source_failure(monkeypatch):
     events = []
     monkeypatch.setenv('BASE_ACCESS_TOKEN', 'configured')
     monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'UY_ARCE')
-    monkeypatch.setattr(preload, 'production_gate_reasons', lambda source: () if source == 'UY_ARCE' else ('runtime_not_enabled',))
     monkeypatch.setattr(preload._app, 'db', lambda: FakeConn())
     monkeypatch.setattr(preload, '_original_fetch_base', lambda: [{'source': 'BASE', 'external_id': 'base-1'}])
     monkeypatch.setattr(preload._national_sources, 'fetch_boamp', lambda: [{'source': 'BOAMP', 'external_id': 'boamp-1'}])
