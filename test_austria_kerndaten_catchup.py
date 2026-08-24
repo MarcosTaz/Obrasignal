@@ -119,7 +119,14 @@ def test_catchup_horizon_is_frozen_and_newer_item_waits_for_next_cycle():
         old2["url"]: legacy_xml("R-2"),
         newer["url"]: legacy_xml("R-3"),
     }
-    connector = FakeConnector(items=[old1, old2], payloads=payloads, max_notice_fetches_per_run=1)
+    # This test isolates the frozen-horizon invariant. Overlap behavior is a
+    # separate concern and would intentionally rehydrate older publications.
+    connector = FakeConnector(
+        items=[old1, old2],
+        payloads=payloads,
+        max_notice_fetches_per_run=1,
+        overlap_hours=0,
+    )
 
     rows1, cursor1 = connector.fetch_incremental(now=NOW)
     assert rows1 == []
