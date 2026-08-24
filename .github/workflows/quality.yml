@@ -6,9 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Main pushes are intentionally covered so the exact post-merge tree is tested,
-# not only the pre-merge pull-request commit.
-
 jobs:
   python:
     runs-on: ubuntu-latest
@@ -19,89 +16,55 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP validate exact PNCP public PCA search route
+      - name: TEMP freeze PNCP PCA search ordering contract
         run: |
           python - <<'PY'
-          import requests
+          import re, requests
+          BASE="https://pncp.gov.br/app/"
+          PAGE=BASE+"pca"
+          S=requests.Session(); S.headers.update({"User-Agent":"Mozilla/5.0 ObraSignal source audit","Referer":PAGE})
+          html=S.get(PAGE,timeout=25).text
+          scripts=[BASE+x.split('/')[-1] for x in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']',html,flags=re.I)]
+          runtime_url=next(x for x in scripts if '/runtime.' in x)
+          runtime=S.get(runtime_url,timeout=25).text
+          target="default-src_app_pages_pcaPage_planejamento_module_ts"
+          h=re.search(re.escape(target)+r'["\']?\s*:\s*["\']([a-f0-9]{8,40})["\']',runtime); assert h
+          chunk=S.get(BASE+f"{target}.{h.group(1)}.js",timeout=25).text
+          print(f"CHUNK_BYTES={len(chunk)}")
+          contexts=[]
+          for needle in ("ordenacao","data_atualizacao_pncp","Mais recentes","mais recentes","recentes","relevancia"):
+              for m in re.finditer(re.escape(needle),chunk,flags=re.I):
+                  a=max(0,m.start()-700); b=min(len(chunk),m.end()+900)
+                  ctx=re.sub(r'\s+',' ',chunk[a:b])
+                  if ctx not in contexts:
+                      contexts.append(ctx)
+                      print(f"ORDER_CONTEXT_{needle}="+repr(ctx[:1700]))
+          # Extract compact literal candidates related to ordering.
+          vals=set()
+          for raw in re.findall(r'["\']([^"\']{1,120})["\']',chunk):
+              low=raw.lower()
+              if any(x in low for x in ("ordena","atualizacao","recente","relev")):
+                  vals.add(raw)
+          print("ORDER_LITERALS="+repr(sorted(vals)[:200]))
 
-          URL = "https://pncp.gov.br/api/search/"
-          S = requests.Session()
-          S.headers.update({
-              "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
-              "Referer": "https://pncp.gov.br/app/pca",
-              "Accept": "application/json, text/plain, */*",
-          })
-
-          def fetch(page):
-              r = S.get(URL, params={
-                  "q": "",
-                  "tipos_documento": "pcaorgao",
-                  "pagina": page,
-                  "tam_pagina": 10,
-              }, timeout=25)
-              print(f"PNCP_SEARCH_PAGE={page}|HTTP={r.status_code}|BYTES={len(r.content)}|CTYPE={r.headers.get('content-type')!r}|URL={r.url}")
-              r.raise_for_status()
-              data = r.json()
-              print(f"PNCP_SEARCH_TYPE={type(data).__name__}")
-              if isinstance(data, dict):
-                  print("PNCP_SEARCH_KEYS=" + repr(sorted(data.keys())))
-                  for key in sorted(data):
-                      if key.lower() in {"total", "totalregistros", "total_registros", "totalpaginas", "pagina", "tam_pagina", "size", "count", "max_score"}:
-                          print(f"PNCP_SEARCH_META_{key}={data[key]!r}")
-                  rows = None
-                  for key in ("items", "data", "resultados", "results", "content"):
-                      if isinstance(data.get(key), list):
-                          rows = data[key]
-                          print(f"PNCP_SEARCH_ROWS_KEY={key}|COUNT={len(rows)}")
-                          break
-                  if rows is None:
-                      # bounded structural inspection only
-                      print("PNCP_SEARCH_VALUE_TYPES=" + repr({k:type(v).__name__ for k,v in data.items()}))
-                      rows = []
-              elif isinstance(data, list):
-                  rows = data
-                  print(f"PNCP_SEARCH_ROWS_KEY=list|COUNT={len(rows)}")
-              else:
-                  rows = []
-              if rows:
-                  print("PNCP_SEARCH_ROW_KEYS=" + repr(sorted(rows[0].keys())))
-                  compact=[]
-                  for row in rows[:3]:
-                      compact.append({k:row.get(k) for k in sorted(row) if k.lower() in {
-                          "orgao_cnpj","cnpj","ano","ano_pca","sequencial_pca","sequencialpca",
-                          "numero_controle_pncp","numero_controle_pncp_pca","data_atualizacao_pncp",
-                          "data_atualizacao","dataatualizacao","data_publicacao_pncp","orgao_nome",
-                          "razao_social","nome_unidade","codigo_unidade","valor_global","valor_total","id"
-                      }})
-                  print("PNCP_SEARCH_SAMPLES=" + repr(compact))
-              return data, rows
-
-          first, rows1 = fetch(1)
-          second, rows2 = fetch(2)
-          assert rows1, "PCA national search page 1 returned no rows"
-          assert rows2, "PCA national search page 2 returned no rows"
-
-          def identity(row):
-              return (
-                  row.get("id") or row.get("numero_controle_pncp") or row.get("numero_controle_pncp_pca"),
-                  row.get("orgao_cnpj") or row.get("cnpj"),
-                  row.get("ano") or row.get("ano_pca"),
-                  row.get("sequencial_pca") or row.get("sequencialPca"),
-              )
-          ids1={identity(r) for r in rows1}
-          ids2={identity(r) for r in rows2}
-          print(f"PNCP_SEARCH_PAGE_OVERLAP={len(ids1 & ids2)}")
-          print(f"PNCP_SEARCH_DISTINCT_PAGE1={len(ids1)}|PAGE2={len(ids2)}")
-          assert ids1 and ids2
-          assert ids1.isdisjoint(ids2), "pagination pages unexpectedly overlap"
-
-          update_fields=[]
-          for row in rows1 + rows2:
-              value=row.get("data_atualizacao_pncp") or row.get("data_atualizacao") or row.get("dataAtualizacao")
-              if value:
-                  update_fields.append(str(value))
-          print("PNCP_SEARCH_UPDATE_VALUES=" + repr(update_fields[:20]))
-          assert update_fields, "national PCA search does not expose an update timestamp"
+          URL="https://pncp.gov.br/api/search/"
+          variants=[
+              {},
+              {"ordenacao":"data_atualizacao_pncp"},
+              {"ordenacao":"-data_atualizacao_pncp"},
+              {"ordenacao":"data_atualizacao_pncp_desc"},
+              {"ordenacao":"mais_recente"},
+          ]
+          for extra in variants:
+              params={"q":"","tipos_documento":"pcaorgao","pagina":1,"tam_pagina":5,**extra}
+              r=S.get(URL,params=params,timeout=25,headers={"Accept":"application/json"})
+              print(f"ORDER_PROBE={extra!r}|HTTP={r.status_code}|BYTES={len(r.content)}")
+              if r.status_code!=200: continue
+              try:data=r.json()
+              except Exception: continue
+              rows=data.get("items",[]) if isinstance(data,dict) else []
+              print("ORDER_UPDATES="+repr([x.get("data_atualizacao_pncp") for x in rows]))
+              print("ORDER_YEARS="+repr([x.get("ano") for x in rows]))
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
