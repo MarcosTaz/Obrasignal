@@ -1,13 +1,9 @@
-"""Uruguay ARCE public-procurement connector using the official OCDS RSS index.
+"""Uruguay ARCE procurement connector using the official OCDS RSS index.
 
-ARCE exposes a small current RSS index (last 500 releases), monthly RSS recovery
-feeds, record indexes by purchase id, and individual OCDS release packages. The
-record endpoint contains release references rather than a compiled release, so
-this connector hydrates the bounded tender-related release history and merges
-partial OCDS updates before normalization.
-
-No deployment source is enabled by importing this module. Runtime activation is
-still controlled by source_registry production gates and OBRASIGNAL_GLOBAL_SOURCES.
+ARCE publishes a current RSS index, monthly RSS recovery routes, record indexes
+by purchase id, and individual OCDS release packages. Its record endpoint links
+to releases rather than publishing a compiledRelease, so this connector hydrates
+a bounded tender release history and merges partial updates before normalization.
 """
 from copy import deepcopy
 from dataclasses import dataclass
@@ -25,9 +21,8 @@ from ocds_adapter import normalize_ocds_record
 
 ARCE_RSS_URL = "https://www.comprasestatales.gub.uy/ocds/rss"
 ARCE_RECORD_ROOT = "https://www.comprasestatales.gub.uy/ocds/record"
-ARCE_USER_AGENT = "ObraSignal procurement connector/1.0 (+official open-data client)"
 ARCE_HEADERS = {
-    "User-Agent": ARCE_USER_AGENT,
+    "User-Agent": "ObraSignal procurement connector/1.0 (+official open-data client)",
     "Accept": "application/rss+xml, application/xml;q=0.9, application/json;q=0.9, */*;q=0.1",
 }
 ARCE_LICENSE = "Licencia de Datos Abiertos - Uruguay"
@@ -92,9 +87,8 @@ def _parse_iso(value):
     if isinstance(value, datetime):
         parsed = value
     elif value:
-        text = str(value).strip()
         try:
-            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
         except ValueError:
             return None
     else:
@@ -117,8 +111,8 @@ def _parse_rss_date(value):
     except (TypeError, ValueError):
         return None
     if parsed.tzinfo is None:
-        # ARCE RSS timestamps observed live match the corresponding OCDS release
-        # UTC timestamps while omitting an RFC timezone token.
+        # Live ARCE RSS timestamps match the associated OCDS UTC release time
+        # but omit an RFC timezone token.
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
 
@@ -129,7 +123,6 @@ def purchase_id_from_title(title):
 
 
 def parse_arce_rss(content):
-    """Parse ARCE's RSS response into stable, chronological event objects."""
     if isinstance(content, str):
         content = content.encode("utf-8")
     root = ET.fromstring(content)
@@ -147,14 +140,13 @@ def parse_arce_rss(content):
         if not published or not guid:
             continue
         title = _child_text(item, "title")
-        link = _child_text(item, "link").replace("http://", "https://", 1)
         events.append(
             ARCEEvent(
                 published_at=_iso(published),
                 guid=guid,
                 category=_child_text(item, "category"),
                 title=title,
-                link=link,
+                link=_child_text(item, "link").replace("http://", "https://", 1),
                 purchase_id=purchase_id_from_title(title),
             )
         )
@@ -175,22 +167,16 @@ def _month_end(moment):
     return datetime(parsed.year, parsed.month, last_day, 23, 59, 59, tzinfo=timezone.utc)
 
 
-def _next_month(moment):
-    parsed = _parse_iso(moment)
-    if parsed.month == 12:
-        return datetime(parsed.year + 1, 1, 1, tzinfo=timezone.utc)
-    return datetime(parsed.year, parsed.month + 1, 1, tzinfo=timezone.utc)
-
-
 def _merge_list(base, patch):
     base = deepcopy(base) if isinstance(base, list) else []
     patch = deepcopy(patch)
     if not patch:
         return patch
-    if all(isinstance(item, dict) and item.get("id") is not None for item in base + patch):
+    combined = base + patch
+    if all(isinstance(item, dict) and item.get("id") is not None for item in combined):
         order = []
         indexed = {}
-        for item in base + patch:
+        for item in combined:
             identity = str(item.get("id"))
             if identity not in indexed:
                 indexed[identity] = deepcopy(item)
@@ -202,13 +188,7 @@ def _merge_list(base, patch):
 
 
 def _merge_value(base, patch):
-    """Merge an OCDS partial update while treating omitted fields as unchanged.
-
-    This deliberately targets source-state reconstruction rather than claiming
-    to be a complete implementation of every OCDS merge extension. Dictionaries
-    merge recursively, id-addressable arrays merge by id, other arrays replace,
-    and explicit null remains explicit null.
-    """
+    """Merge partial OCDS state: omitted fields remain, explicit fields win."""
     if patch is None:
         return None
     if isinstance(patch, dict):
@@ -247,8 +227,7 @@ def _extract_record(package, purchase_id):
     if len(records) == 1:
         return records[0]
     for record in records:
-        ocid = str(record.get("ocid") or "")
-        if ocid.endswith(f"-{purchase_id}"):
+        if str(record.get("ocid") or "").endswith(f"-{purchase_id}"):
             return record
     raise RuntimeError(f"UY_ARCE record response did not identify purchase {purchase_id}")
 
@@ -337,14 +316,14 @@ class ARCEOCDSRSSAdapter:
                 return [], cursor
             return batch, ARCECursor(batch[-1].published_at, batch[-1].guid)
 
-        # The current feed only carries the latest 500 releases. Recover from
-        # the publisher's documented monthly RSS route when the cursor fell
-        # behind that visible horizon. One month is processed per sync so
-        # catch-up is bounded and resumable.
-        recovery_start = cursor_dt
-        recovery_url = monthly_rss_url(recovery_start)
-        recovery_events = self._feed(recovery_url)
-        eligible = [event for event in recovery_events if _parse_iso(event.published_at) >= overlap_start]
+        # Current RSS contains only the most recent 500 releases. A cursor older
+        # than that visible horizon switches to the documented /rss/YYYY/MM
+        # recovery route. A completed historical month is marked with guid '~';
+        # the following run then starts in the next month rather than looping.
+        recovery_start = cursor_dt + timedelta(seconds=1) if cursor and cursor.guid == "~" else cursor_dt
+        recovery_overlap = recovery_start - timedelta(seconds=max(0, self.overlap_seconds))
+        recovery_events = self._feed(monthly_rss_url(recovery_start))
+        eligible = [event for event in recovery_events if _parse_iso(event.published_at) >= recovery_overlap]
         batch = eligible[: max(1, self.max_events_per_sync)]
         if len(eligible) > len(batch):
             return batch, ARCECursor(batch[-1].published_at, batch[-1].guid)
@@ -357,8 +336,7 @@ class ARCEOCDSRSSAdapter:
         return [], cursor
 
     def _record_index(self, purchase_id):
-        url = f"{ARCE_RECORD_ROOT}/{purchase_id}"
-        return _extract_record(self._get(url).json(), purchase_id)
+        return _extract_record(self._get(f"{ARCE_RECORD_ROOT}/{purchase_id}").json(), purchase_id)
 
     def _hydrate_tender_state(self, purchase_id):
         record = self._record_index(purchase_id)
