@@ -118,6 +118,7 @@ from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
 from latvia_runtime import install as install_latvia_runtime
 from uk_runtime import install as install_uk_runtime
+from ecuador_runtime import install as install_ecuador_runtime
 import preload as _preload
 
 init_db()
@@ -130,4 +131,5 @@ finally:
 install_lifecycle_read_model(_preload)
 install_latvia_runtime()
 install_uk_runtime()
+install_ecuador_runtime()
 start_background_worker()
