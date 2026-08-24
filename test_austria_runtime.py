@@ -81,3 +81,31 @@ def test_austria_runtime_stages_lifecycle_but_emits_only_open_rows(monkeypatch):
     rows = austria_runtime._app.fetch_base()
     assert rows == [live]
     assert staged == [("AT_KERNDATEN", [live, closed], "new")]
+
+
+def test_austria_runtime_failure_does_not_stage_or_advance_cursor(monkeypatch):
+    staged = []
+    health = []
+    base = {"source": "BASE", "external_id": "base-safe"}
+    monkeypatch.setattr(austria_runtime._app, "fetch_base", lambda: [base])
+    monkeypatch.setattr(austria_runtime._app, "db", lambda: FakeConn())
+    monkeypatch.setattr(austria_runtime._preload, "_global_source_enabled", lambda source: True)
+    monkeypatch.setattr(austria_runtime._preload, "_record_blocked_global_source", lambda source: None)
+    monkeypatch.setattr(runtime_plugin, "get_source_cursor", lambda conn, source: "at-old")
+    monkeypatch.setattr(runtime_plugin, "stage_source_sync", lambda *args: staged.append(args))
+    monkeypatch.setattr(runtime_plugin, "record_source_result", lambda conn, source, **kwargs: health.append((source, kwargs)))
+    monkeypatch.setattr(runtime_plugin, "dedupe_records", lambda rows: rows)
+
+    def fail(*, watermark=None):
+        assert watermark == "at-old"
+        raise RuntimeError("upstream failed before a safe cursor existed")
+
+    monkeypatch.setattr(austria_runtime, "fetch_austria_kerndaten_tenders", fail)
+
+    austria_runtime.install()
+    rows = austria_runtime._app.fetch_base()
+
+    assert rows == [base]
+    assert staged == []
+    assert health and health[0][0] == "AT_KERNDATEN"
+    assert health[0][1]["success"] is False
