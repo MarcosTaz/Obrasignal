@@ -167,11 +167,23 @@ def test_normalizer_only_populates_cpv_when_scheme_is_actually_cpv():
     assert item["cpv"] == "72141000"
 
 
-def test_active_tender_filter_rejects_completed_process():
+@pytest.mark.parametrize("status", ["planned", "complete", "cancelled", "unsuccessful", "withdrawn"])
+def test_live_tender_filter_rejects_non_active_processes(status):
     item = normalize_ocds_record(
-        _minimal_record("ocds-x-complete", status="complete"),
+        _minimal_record(f"ocds-x-{status}", status=status),
         source="X",
         country="TST",
         require_active_tender=True,
     )
     assert item is None
+
+
+def test_live_tender_filter_accepts_only_active_process():
+    item = normalize_ocds_record(
+        _minimal_record("ocds-x-active", status="active"),
+        source="X",
+        country="TST",
+        require_active_tender=True,
+    )
+    assert item is not None
+    assert item["signal_type"] == "TENDER"
