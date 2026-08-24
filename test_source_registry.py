@@ -28,14 +28,15 @@ def test_active_sources_have_access_metadata():
         assert meta["stale_after_minutes"] > 0
 
 
-def test_wave_1_contains_only_machine_verified_green_sources():
+def test_wave_1_keeps_canonical_count_without_faking_planned_machine_gates():
     wave_1 = wave_sources(1)
+    ready = {name: meta for name, meta in wave_1.items() if meta["status"] == "ready"}
     assert len(wave_1) == 15
     assert all(meta["official"] for meta in wave_1.values())
-    assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
-    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 13
+    assert len(ready) == 13
+    assert all(meta["machine_access"] == "VERIFIED" for meta in ready.values())
 
 
 def test_live_validated_wave_1_sources_pass_registry_gate():
@@ -242,9 +243,22 @@ def test_germany_registry_declares_only_proven_daily_works_lifecycle_contract():
     assert "SERVICE_BUND_DE" in production_ready_sources()
 
 
-def test_planned_wave_source_does_not_become_runtime_active_by_registry_entry_alone():
-    reasons = production_gate_reasons("KR_KONEPS")
-    assert reasons == ("runtime_not_enabled",)
+def test_korea_planned_registry_records_real_credential_block_without_fake_capabilities():
+    source = SOURCES["KR_KONEPS"]
+    assert source["kind"] == "OFFICIAL_CONSTRUCTION_BID_NOTICE_API"
+    assert source["access"] == "portal_service_key_required"
+    assert source["status"] == "planned"
+    assert source["legal_reuse"] == "GREEN"
+    assert source["machine_access"] == "CREDENTIAL_REQUIRED"
+    assert source["signal_types"] == ("TENDER",)
+    assert source["capabilities"] == ()
+    assert source["adapter"] is None
+    assert source["realtime_capable"] is True
+    assert production_gate_reasons("KR_KONEPS") == (
+        "machine_access_not_verified",
+        "runtime_not_enabled",
+        "adapter_not_configured",
+    )
     assert "KR_KONEPS" not in production_ready_sources()
 
 
