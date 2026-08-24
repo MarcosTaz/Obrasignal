@@ -14,8 +14,8 @@ def test_verified_active_sources_are_official():
     assert all(meta["official"] for meta in active.values())
 
 
-def test_research_source_is_not_marked_active():
-    assert SOURCES["SERVICE_BUND_DE"]["status"] == "research"
+def test_ready_source_is_not_legacy_active_by_registry_entry_alone():
+    assert SOURCES["SERVICE_BUND_DE"]["status"] == "ready"
     assert "SERVICE_BUND_DE" not in active_sources()
 
 
@@ -221,11 +221,25 @@ def test_tenderned_registry_declares_only_proven_public_tender_lifecycle_contrac
     assert "lots" not in source["capabilities"]
 
 
-def test_germany_does_not_pass_production_gate_until_legal_closure():
-    reasons = production_gate_reasons("SERVICE_BUND_DE")
-    assert "commercial_reuse_not_green" in reasons
-    assert "runtime_not_enabled" in reasons
-    assert "SERVICE_BUND_DE" not in production_ready_sources()
+def test_germany_registry_declares_only_proven_daily_works_lifecycle_contract():
+    source = SOURCES["SERVICE_BUND_DE"]
+    assert source["kind"] == "OFFICIAL_EFORMS_DAILY_BULK"
+    assert source["access"] == "public_daily_eforms_zip"
+    assert source["status"] == "ready"
+    assert source["legal_reuse"] == "GREEN"
+    assert source["machine_access"] == "VERIFIED"
+    assert source["adapter"] == "GermanDOEOpenDataConnector"
+    assert source["signal_types"] == ("TENDER",)
+    assert set(source["capabilities"]) == {"incremental_sync", "lots", "lifecycle"}
+    assert source["realtime_capable"] is False
+    assert source["expected_refresh_minutes"] == 1440
+    assert source["stale_after_minutes"] == 4320
+    assert "search" not in source["capabilities"]
+    assert "amendments" not in source["capabilities"]
+    assert "awards" not in source["capabilities"]
+    assert "contracts" not in source["capabilities"]
+    assert production_gate_reasons("SERVICE_BUND_DE") == ()
+    assert "SERVICE_BUND_DE" in production_ready_sources()
 
 
 def test_planned_wave_source_does_not_become_runtime_active_by_registry_entry_alone():
@@ -248,4 +262,5 @@ def test_registered_source_freshness_is_source_specific():
     assert stale_after_minutes_for("LV_IUB") == 4320
     assert stale_after_minutes_for("EE_RHR") == 4320
     assert stale_after_minutes_for("LT_VPT") == 4320
+    assert stale_after_minutes_for("SERVICE_BUND_DE") == 4320
     assert stale_after_minutes_for("UNKNOWN_SOURCE", default=17) == 17
