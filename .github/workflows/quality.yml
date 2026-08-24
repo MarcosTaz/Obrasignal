@@ -19,28 +19,27 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP resolve PNCP PCA named lazy chunk
+      - name: TEMP prove PNCP public PCA search endpoint
         run: |
           python - <<'PY'
-          import re, time
+          import json, re, time
           from urllib.parse import urljoin
           import requests
 
-          BASE = "https://pncp.gov.br/app/"
-          PAGE = BASE + "pca"
-          TARGET = "default-src_app_pages_pcaPage_planejamento_module_ts"
-          S = requests.Session()
+          BASE="https://pncp.gov.br/app/"
+          PAGE=BASE+"pca"
+          S=requests.Session()
           S.headers.update({
-              "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
-              "Referer": PAGE,
-              "Accept": "*/*",
+              "User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+              "Referer":PAGE,
+              "Accept":"application/json, text/plain, */*",
           })
 
-          def get(url, tries=4):
+          def get(url, params=None, tries=3):
               last=None
               for n in range(tries):
                   try:
-                      r=S.get(url, timeout=25)
+                      r=S.get(url,params=params,timeout=25)
                       if r.status_code in (429,500,502,503,504):
                           last=f"HTTP {r.status_code}"; time.sleep(n+1); continue
                       return r
@@ -48,78 +47,93 @@ jobs:
                       last=exc; time.sleep(n+1)
               raise RuntimeError(f"fetch failed {url}: {last!r}")
 
-          page=get(PAGE)
-          assert page.status_code == 200
-          scripts=[urljoin(PAGE,src) for src in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']',page.text,flags=re.I)]
-          runtime_url=next(url for url in scripts if "/runtime." in url)
-          runtime=get(runtime_url)
-          assert runtime.status_code == 200
-          text=runtime.text
-          print(f"PNCP_RUNTIME={runtime_url}|BYTES={len(runtime.content)}")
+          page=get(PAGE); assert page.status_code==200
+          scripts=[urljoin(PAGE,x) for x in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']',page.text,flags=re.I)]
+          main_url=next(x for x in scripts if "/main." in x)
+          runtime_url=next(x for x in scripts if "/runtime." in x)
+          main=get(main_url); runtime=get(runtime_url)
+          assert main.status_code==200 and runtime.status_code==200
 
-          # Webpack uses the chunk name itself as the id in this build.
-          # Capture all literal mappings involving the exact observed PCA chunk name.
-          for m in re.finditer(re.escape(TARGET), text):
-              a=max(0,m.start()-500); b=min(len(text),m.end()+700)
-              print("PNCP_RUNTIME_PCA_CONTEXT="+repr(text[a:b]))
+          target="default-src_app_pages_pcaPage_planejamento_module_ts"
+          h=re.search(re.escape(target)+r'["\']?\s*:\s*["\']([a-f0-9]{8,40})["\']',runtime.text)
+          assert h
+          chunk_url=BASE+f"{target}.{h.group(1)}.js"
+          chunk=get(chunk_url); assert chunk.status_code==200
+          print(f"PNCP_FRONTEND_MAIN={main_url}|BYTES={len(main.content)}")
+          print(f"PNCP_PCA_CHUNK={chunk_url}|BYTES={len(chunk.content)}")
 
-          # Common Angular/Webpack production pattern: <chunk-name>.<contenthash>.js.
-          # Resolve only hashes associated with the publisher-observed target name.
-          hashes=set()
-          patterns=(
-              re.escape(TARGET)+r'["\']?\s*:\s*["\']([a-f0-9]{8,40})["\']',
-              r'["\']'+re.escape(TARGET)+r'["\']\s*:\s*["\']([a-f0-9]{8,40})["\']',
-          )
-          for pattern in patterns:
-              hashes.update(re.findall(pattern,text))
-          # If runtime builds the filename through two maps, print every nearby hash and test bounded candidates.
-          if not hashes:
-              for m in re.finditer(re.escape(TARGET),text):
-                  nearby=text[max(0,m.start()-1200):min(len(text),m.end()+1200)]
-                  hashes.update(re.findall(r'["\']([a-f0-9]{8,40})["\']',nearby))
-          print("PNCP_PCA_CHUNK_HASHES="+repr(sorted(hashes)))
+          # Freeze the actual environment values used by the public frontend.
+          search_contexts=[]
+          for text,label in ((main.text,"MAIN"),(chunk.text,"CHUNK")):
+              for m in re.finditer(r'searchURL',text):
+                  a=max(0,m.start()-700); b=min(len(text),m.end()+900)
+                  ctx=text[a:b]
+                  search_contexts.append(ctx)
+                  print(f"PNCP_SEARCHURL_CONTEXT_{label}="+repr(ctx))
 
-          candidates=[]
-          for h in sorted(hashes):
-              candidates.extend([
-                  BASE + f"{TARGET}.{h}.js",
-                  BASE + f"{h}.js",
-              ])
-          # Also use exact same-origin JS filenames literally present in runtime.
-          for raw in re.findall(r'["\']([^"\']+\.js)["\']',text):
-              if TARGET in raw:
-                  candidates.append(urljoin(runtime_url,raw))
-          candidates=list(dict.fromkeys(candidates))[:20]
-          print("PNCP_PCA_CHUNK_CANDIDATES="+repr(candidates))
+          urls=set()
+          for text in (main.text,chunk.text):
+              urls.update(re.findall(r'https?://[^"\'`\\\s]{5,240}',text))
+          for u in sorted(urls):
+              if "pncp" in u.lower() or "search" in u.lower():
+                  print("PNCP_FRONTEND_URL="+repr(u))
 
-          chunk=None
-          chunk_url=None
-          for url in candidates:
+          # Resolve searchURL from minified environment object: look around literal property
+          # and accept only publisher-owned HTTPS endpoint.
+          resolved=[]
+          for ctx in search_contexts:
+              # property before or after a literal URL, depending on minifier ordering
+              for u in re.findall(r'https://[^"\'`\\\s,}]+',ctx):
+                  if "pncp" in u.lower(): resolved.append(u)
+              # common object form searchURL:"https://..."
+              resolved += re.findall(r'searchURL\s*:\s*["\'](https://[^"\']+)',ctx)
+          resolved=list(dict.fromkeys(resolved))
+          print("PNCP_SEARCH_URL_CANDIDATES="+repr(resolved))
+
+          # Search service code proven in PCA chunk:
+          # q=<term>&tipos_documento=pcaorgao&pagina=<n>&tam_pagina=<n>[&filters]
+          # Probe only publisher-owned candidates, no auth/session mutation.
+          successful=[]
+          for base in resolved[:10]:
+              if "pncp" not in base.lower(): continue
+              endpoint=base if base.endswith("/") else base+"/"
               try:
-                  r=get(url,tries=2)
+                  r=get(endpoint,{
+                      "q":"",
+                      "tipos_documento":"pcaorgao",
+                      "pagina":1,
+                      "tam_pagina":10,
+                  },tries=2)
               except Exception as exc:
-                  print(f"PNCP_CHUNK_ERROR={url}|{type(exc).__name__}:{exc}")
+                  print(f"PNCP_SEARCH_PROBE_ERROR={endpoint}|{type(exc).__name__}:{exc}")
                   continue
-              print(f"PNCP_CHUNK_TRY={url}|HTTP={r.status_code}|BYTES={len(r.content)}|CTYPE={r.headers.get('content-type')!r}")
-              if r.status_code==200 and "javascript" in str(r.headers.get("content-type") or "").lower() and len(r.content)>500:
-                  chunk=r.text; chunk_url=url; break
+              print(f"PNCP_SEARCH_PROBE={r.url.split('?')[0]}|HTTP={r.status_code}|BYTES={len(r.content)}|CTYPE={r.headers.get('content-type')!r}")
+              if r.status_code==200:
+                  try:
+                      data=r.json()
+                  except Exception:
+                      print("PNCP_SEARCH_NON_JSON="+repr((r.text or "")[:500])); continue
+                  print("PNCP_SEARCH_TYPE="+type(data).__name__)
+                  if isinstance(data,dict):
+                      print("PNCP_SEARCH_KEYS="+repr(sorted(data.keys())))
+                      # print compact metadata and only first record keys/sample
+                      for key in ("total", "totalRegistros", "total_registros", "totalPaginas", "pagina", "tam_pagina", "size", "count"):
+                          if key in data: print(f"PNCP_SEARCH_META_{key}={data.get(key)!r}")
+                      rows=None
+                      for key in ("items","data","resultados","results","content"):
+                          if isinstance(data.get(key),list): rows=data[key]; print(f"PNCP_SEARCH_ROWS_KEY={key}|COUNT={len(rows)}"); break
+                      if rows:
+                          print("PNCP_SEARCH_ROW_KEYS="+repr(sorted(rows[0].keys())))
+                          print("PNCP_SEARCH_ROW_SAMPLE="+repr({k:rows[0].get(k) for k in sorted(rows[0].keys()) if k.lower() in {
+                              "orgao_cnpj","cnpj","ano","ano_pca","sequencial_pca","numero_controle_pncp","numero_controle_pncp_pca","data_atualizacao","dataatualizacao","data_publicacao_pncp","razao_social","nome_unidade","codigo_unidade","valor_total"
+                          }}))
+                          successful.append((endpoint,data))
+                  elif isinstance(data,list) and data:
+                      print("PNCP_SEARCH_ROWS_KEY=list|COUNT="+str(len(data)))
+                      print("PNCP_SEARCH_ROW_KEYS="+repr(sorted(data[0].keys())))
+                      successful.append((endpoint,data))
 
-          if chunk is None:
-              print("PNCP_PCA_CHUNK_RESOLVED=false")
-          else:
-              print(f"PNCP_PCA_CHUNK_RESOLVED=true|URL={chunk_url}|BYTES={len(chunk.encode())}")
-              endpoints=set()
-              for raw in re.findall(r'["\']([^"\']{2,320})["\']',chunk):
-                  value=raw.replace('\\/','/')
-                  low=value.lower()
-                  if "pca" in low and ("/" in value or "api" in low): endpoints.add(value)
-              for ep in sorted(endpoints):
-                  print("PNCP_PCA_ENDPOINT="+repr(ep[:500]))
-              for m in re.finditer(r'pca',chunk,flags=re.I):
-                  a=max(0,m.start()-450); b=min(len(chunk),m.end()+750)
-                  sn=re.sub(r'\s+',' ',chunk[a:b])
-                  if any(token in sn.lower() for token in ("http","api","service","buscar","consulta","planejamento")):
-                      print("PNCP_PCA_CHUNK_CONTEXT="+repr(sn[:1250]))
+          print(f"PNCP_SEARCH_SUCCESSFUL={len(successful)}")
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
