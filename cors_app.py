@@ -120,6 +120,7 @@ from latvia_runtime import install as install_latvia_runtime
 from uk_runtime import install as install_uk_runtime
 from ecuador_runtime import install as install_ecuador_runtime
 from switzerland_runtime import install as install_switzerland_runtime
+from poland_runtime import install as install_poland_runtime
 import preload as _preload
 
 init_db()
@@ -134,4 +135,5 @@ install_latvia_runtime()
 install_uk_runtime()
 install_ecuador_runtime()
 install_switzerland_runtime()
+install_poland_runtime()
 start_background_worker()
