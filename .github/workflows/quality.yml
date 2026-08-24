@@ -19,191 +19,75 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP Brazil PNCP live taxonomy probe
+      - name: TEMP Brazil PNCP catalog classification probe
         run: |
           python - <<'PY'
           from datetime import date, timedelta
-          import re
-          import time
           import requests
 
           S = requests.Session()
-          S.headers.update({
-              "Accept": "application/json",
-              "User-Agent": "ObraSignal PNCP source-evaluation probe/1.1",
-          })
+          S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP source-evaluation probe/1.2"})
 
-          def get(url, params=None, allow_404=False):
-              last = None
-              for attempt in range(2):
-                  try:
-                      r = S.get(url, params=params, timeout=15)
-                      if r.status_code == 404 and allow_404:
-                          return None, 404
-                      if r.status_code in (429, 500, 502, 503, 504):
-                          last = f"HTTP {r.status_code}"
-                          time.sleep(attempt + 1)
-                          continue
-                      r.raise_for_status()
-                      return r.json(), r.status_code
-                  except Exception as exc:
-                      last = f"{type(exc).__name__}: {exc}"
-                      time.sleep(attempt + 1)
-              raise RuntimeError(f"PNCP request failed after bounded retries: {last}")
+          def get(url, params=None):
+              r = S.get(url, params=params, timeout=20)
+              r.raise_for_status()
+              return r.json(), r.status_code
 
           def records(payload):
-              if payload is None:
-                  return []
               if isinstance(payload, list):
                   return payload
               if isinstance(payload, dict):
                   for key in ("data", "content", "items", "resultado", "resultados"):
-                      value = payload.get(key)
-                      if isinstance(value, list):
-                          return value
+                      if isinstance(payload.get(key), list):
+                          return payload[key]
               return []
 
-          def nested(d, *path):
-              cur = d
-              for p in path:
-                  if not isinstance(cur, dict):
-                      return None
-                  cur = cur.get(p)
-              return cur
-
-          def nbs_kind(code):
-              text = str(code or "").strip()
-              digits = re.sub(r"\D", "", text)
-              if text.startswith("1.01") or digits.startswith("101"):
-                  return "construction"
-              if text.startswith("1.1403.21") or digits.startswith("1140321"):
-                  return "construction_engineering_design"
-              return None
-
-          print("PNCP_PROBE_DATE=" + date.today().isoformat())
-
-          modalities_payload, status = get("https://pncp.gov.br/api/pncp/v1/modalidades", {"statusAtivo": "true"})
-          modalities = records(modalities_payload)
-          if not modalities and isinstance(modalities_payload, list):
-              modalities = modalities_payload
-          print("PNCP_MODALITIES_HTTP=" + str(status))
-          print("PNCP_MODALITIES=" + ",".join(
-              f"{m.get('id')}:{m.get('nome')}" for m in modalities if isinstance(m, dict)
-          ))
+          def summarize_item(item):
+              cat = item.get("catalogo") if isinstance(item.get("catalogo"), dict) else {}
+              category = item.get("categoriaItemCatalogo") if isinstance(item.get("categoriaItemCatalogo"), dict) else {}
+              return {
+                  "numeroItem": item.get("numeroItem"),
+                  "materialOuServico": item.get("materialOuServico"),
+                  "descricao": str(item.get("descricao") or "")[:220],
+                  "catalogoCodigoItem": item.get("catalogoCodigoItem"),
+                  "catalogo": {"id": cat.get("id"), "nome": cat.get("nome"), "descricao": cat.get("descricao"), "url": cat.get("url")},
+                  "categoriaItemCatalogo": {"id": category.get("id"), "nome": category.get("nome"), "descricao": category.get("descricao")},
+                  "ncmNbsCodigo": item.get("ncmNbsCodigo"),
+                  "ncmNbsDescricao": item.get("ncmNbsDescricao"),
+                  "codigoEspecificacaoCompra": item.get("codigoEspecificacaoCompra"),
+              }
 
           end = (date.today() + timedelta(days=30)).strftime("%Y%m%d")
-          proposal_url = "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta"
-          proposal_rows = []
-          query_mode = "all_modalities"
-          try:
-              payload, status = get(proposal_url, {"dataFinal": end, "pagina": 1, "tamanhoPagina": 10})
-              proposal_rows = records(payload)
-              print("PNCP_PROPOSAL_HTTP=" + str(status))
-              if isinstance(payload, dict):
-                  print("PNCP_PROPOSAL_TOP_KEYS=" + ",".join(sorted(payload.keys())))
-          except RuntimeError as exc:
-              print("PNCP_ALL_MODALITIES_QUERY=" + str(exc).split("?")[0])
-              query_mode = "per_modality"
-
-          if not proposal_rows:
-              query_mode = "per_modality"
-              for m in modalities[:8]:
-                  if not isinstance(m, dict) or m.get("id") is None:
-                      continue
-                  try:
-                      payload, status = get(proposal_url, {
-                          "dataFinal": end,
-                          "codigoModalidadeContratacao": m.get("id"),
-                          "pagina": 1,
-                          "tamanhoPagina": 10,
-                      }, allow_404=True)
-                  except RuntimeError as exc:
-                      print(f"PNCP_MODALITY_QUERY_ERROR={m.get('id')}:{type(exc).__name__}")
-                      continue
-                  got = records(payload)
-                  for row in got:
-                      if isinstance(row, dict):
-                          row = dict(row)
-                          row.setdefault("_probe_modalidade", m.get("nome"))
-                          proposal_rows.append(row)
-                  if len(proposal_rows) >= 10:
-                      break
-
-          proposal_rows = proposal_rows[:10]
-          print("PNCP_QUERY_MODE=" + query_mode)
-          print("PNCP_OPEN_SAMPLE=" + str(len(proposal_rows)))
-          if proposal_rows:
-              print("PNCP_RECORD_KEYS=" + ",".join(sorted(proposal_rows[0].keys())))
-
-          sampled_opps = sampled_items = with_nbs = construction_items = construction_opps = failed_details = 0
-          construction_samples = []
-
-          for row in proposal_rows:
-              if not isinstance(row, dict):
-                  continue
-              cnpj = nested(row, "orgaoEntidade", "cnpj") or row.get("cnpjOrgao") or row.get("cnpj")
-              ano = row.get("anoCompra") or row.get("ano")
-              seq = row.get("sequencialCompra") or row.get("sequencial")
+          payload, status = get("https://pncp.gov.br/api/consulta/v1/contratacoes/proposta", {"dataFinal":end,"pagina":1,"tamanhoPagina":3})
+          open_rows = records(payload)
+          print(f"PNCP_OPEN_HTTP={status}|ROWS={len(open_rows)}")
+          for row in open_rows:
+              org = row.get("orgaoEntidade") or {}
+              cnpj = org.get("cnpj")
+              ano = row.get("anoCompra")
+              seq = row.get("sequencialCompra")
               if not (cnpj and ano and seq):
                   continue
-              sampled_opps += 1
-              item_url = f"https://pncp.gov.br/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens"
-              try:
-                  item_payload, _ = get(item_url, allow_404=True)
-              except RuntimeError:
-                  failed_details += 1
-                  continue
-              its = records(item_payload)
-              if isinstance(item_payload, list):
-                  its = item_payload
-              sampled_items += len(its)
-              opp_codes = []
-              for item in its:
-                  if not isinstance(item, dict):
-                      continue
-                  code = item.get("ncmNbsCodigo")
-                  if code not in (None, ""):
-                      with_nbs += 1
-                  if nbs_kind(code):
-                      construction_items += 1
-                      opp_codes.append((str(code), str(item.get("ncmNbsDescricao") or "")[:120]))
-              if opp_codes:
-                  construction_opps += 1
-                  construction_samples.append({
-                      "id": row.get("numeroControlePNCP"),
-                      "deadline": row.get("dataEncerramentoProposta"),
-                      "modalidade": row.get("modalidadeNome") or row.get("_probe_modalidade"),
-                      "codes": opp_codes[:5],
-                  })
-
-          print("PNCP_DETAIL_OPPS_SAMPLED=" + str(sampled_opps))
-          print("PNCP_DETAIL_FAILURES=" + str(failed_details))
-          print("PNCP_ITEMS_SAMPLED=" + str(sampled_items))
-          print("PNCP_ITEMS_WITH_NBS=" + str(with_nbs))
-          print("PNCP_CONSTRUCTION_NBS_ITEMS=" + str(construction_items))
-          print("PNCP_CONSTRUCTION_OPPS=" + str(construction_opps))
-          for sample in construction_samples[:5]:
-              print("PNCP_CONSTRUCTION_SAMPLE=" + repr(sample))
+              items_payload, item_status = get(f"https://pncp.gov.br/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens")
+              items = records(items_payload)
+              print(f"PNCP_OPEN_CASE={row.get('numeroControlePNCP')}|HTTP={item_status}|OBJECT={str(row.get('objetoCompra') or '')[:180]}")
+              if items:
+                  print("PNCP_OPEN_ITEM_KEYS=" + ",".join(sorted(items[0].keys())))
+              for item in items[:3]:
+                  print("PNCP_OPEN_ITEM=" + repr(summarize_item(item)))
 
           known = [
               ("00394452000103", 2026, 14582, "Ponta Grossa command pavilion"),
               ("00394452000103", 2026, 13836, "63rd Infantry photovoltaic plant"),
           ]
           for cnpj, ano, seq, label in known:
-              url = f"https://pncp.gov.br/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens"
-              try:
-                  payload, status = get(url, allow_404=True)
-              except RuntimeError as exc:
-                  print(f"PNCP_KNOWN_WORKS={label}|ERROR={type(exc).__name__}")
-                  continue
-              its = records(payload)
-              if isinstance(payload, list):
-                  its = payload
-              codes = []
-              for item in its:
-                  if isinstance(item, dict):
-                      codes.append((item.get("ncmNbsCodigo"), item.get("ncmNbsDescricao"), item.get("materialOuServico")))
-              print(f"PNCP_KNOWN_WORKS={label}|HTTP={status}|ITEMS={len(its)}|CODES={codes[:12]!r}")
+              items_payload, status = get(f"https://pncp.gov.br/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens")
+              items = records(items_payload)
+              print(f"PNCP_KNOWN_WORKS={label}|HTTP={status}|ITEMS={len(items)}")
+              if items:
+                  print("PNCP_KNOWN_WORK_KEYS=" + ",".join(sorted(items[0].keys())))
+              for item in items[:5]:
+                  print("PNCP_KNOWN_WORK_ITEM=" + repr(summarize_item(item)))
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
