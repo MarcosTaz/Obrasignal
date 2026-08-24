@@ -1,4 +1,4 @@
-from colombia_secop import SECOP_CONFIG, normalize_secop_process
+from colombia_secop import SECOP_CONFIG, SECOP_CURSOR_EXPRESSION, normalize_secop_process
 
 
 def test_secop_config_is_official_construction_first_dataset():
@@ -6,6 +6,9 @@ def test_secop_config_is_official_construction_first_dataset():
     assert SECOP_CONFIG.dataset_id == "p6dx-8zbt"
     assert SECOP_CONFIG.id_field == "id_del_proceso"
     assert SECOP_CONFIG.updated_field == "fecha_de_ultima_publicaci"
+    assert SECOP_CONFIG.cursor_expression == SECOP_CURSOR_EXPRESSION
+    assert SECOP_CONFIG.cursor_alias == "source_cursor_at"
+    assert SECOP_CONFIG.initial_lookback_days == 90
     assert "tipo_de_contrato = 'Obra'" in SECOP_CONFIG.base_where
     assert "V1.72" not in SECOP_CONFIG.base_where
     assert "estado_de_apertura_del_proceso = 'Abierto'" in SECOP_CONFIG.base_where
@@ -21,6 +24,7 @@ def test_secop_normalizer_preserves_unspsc_without_pretending_it_is_cpv():
         "fase": "Presentación de oferta",
         "fecha_de_publicacion_del": "2026-08-20T00:00:00.000",
         "fecha_de_ultima_publicaci": "2026-08-21T11:15:00.000",
+        "source_cursor_at": "2026-08-21T11:15:00.000",
         "fecha_de_recepcion_de": "2026-09-05T18:00:00.000",
         "precio_base": "1250000000",
         "modalidad_de_contratacion": "Licitación pública",
@@ -49,6 +53,31 @@ def test_secop_normalizer_preserves_unspsc_without_pretending_it_is_cpv():
     assert item["contract_type"] == "Obra"
     assert item["place"] == "Medellín | Antioquia | Colombia"
     assert item["url"] == "https://community.secop.gov.co/example"
+    assert item["source_url_raw"] == "https://community.secop.gov.co/example"
+
+
+def test_missing_last_publication_uses_effective_cursor_timestamp():
+    item = normalize_secop_process({
+        "id_del_proceso": "CO1.REQ.9966248",
+        "fecha_de_publicacion_del": "2026-08-12T12:00:00.000",
+        "source_cursor_at": "2026-08-12T12:00:00.000",
+        "tipo_de_contrato": "Obra",
+        "estado_de_apertura_del_proceso": "Abierto",
+    })
+    assert item["source_updated_at"] == "2026-08-12T12:00:00.000"
+    assert item["source_last_publication_at"] is None
+    assert item["source_initial_publication_at"] == "2026-08-12T12:00:00.000"
+
+
+def test_login_url_is_preserved_for_audit_but_not_presented_as_opportunity():
+    login = "https://community.secop.gov.co/STS/Users/Login/Index"
+    item = normalize_secop_process({
+        "id_del_proceso": "CO1.REQ.9966248",
+        "fecha_de_publicacion_del": "2026-08-12T12:00:00.000",
+        "urlproceso": {"url": login},
+    })
+    assert item["source_url_raw"] == login
+    assert item["url"] == "https://www.datos.gov.co/d/p6dx-8zbt"
 
 
 def test_secop_normalizer_rejects_rows_without_source_identity():
