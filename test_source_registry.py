@@ -34,7 +34,7 @@ def test_wave_1_contains_only_machine_verified_green_sources():
     assert all(meta["official"] for meta in wave_1.values())
     assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
-    assert {meta["status"] for meta in wave_1.values()) <= {"planned", "ready"}
+    assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
     assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 7
 
 
