@@ -35,11 +35,18 @@ def test_wave_1_contains_only_machine_verified_green_sources():
     assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
-    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 5
+    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 6
 
 
 def test_live_validated_wave_1_sources_pass_registry_gate():
-    for source in ("CO_SECOP", "PY_DNCP", "UY_ARCE", "ZA_ETENDERS", "LV_IUB"):
+    for source in (
+        "CO_SECOP",
+        "PY_DNCP",
+        "UY_ARCE",
+        "ZA_ETENDERS",
+        "LV_IUB",
+        "UK_PROCUREMENT",
+    ):
         assert SOURCES[source]["status"] == "ready"
         assert production_gate_reasons(source) == ()
         assert source in production_ready_sources()
@@ -81,6 +88,19 @@ def test_lv_registry_declares_only_implemented_daily_tender_contract():
     assert "awards" not in source["capabilities"]
 
 
+def test_uk_registry_declares_only_proven_release_record_tender_contract():
+    source = SOURCES["UK_PROCUREMENT"]
+    assert source["kind"] == "OCDS_RELEASE_RECORD_API"
+    assert source["access"] == "public_release_record_api"
+    assert source["adapter"] == "UKFindTenderConnector"
+    assert source["signal_types"] == ("TENDER",)
+    assert set(source["capabilities"]) == {"search", "incremental_sync", "detail", "lots"}
+    assert source["realtime_capable"] is True
+    assert "awards" not in source["capabilities"]
+    assert "contracts" not in source["capabilities"]
+    assert "historical_data" not in source["capabilities"]
+
+
 def test_germany_does_not_pass_production_gate_until_legal_closure():
     reasons = production_gate_reasons("SERVICE_BUND_DE")
     assert "commercial_reuse_not_green" in reasons
@@ -98,6 +118,7 @@ def test_registered_source_freshness_is_source_specific():
     assert stale_after_minutes_for("TED") == 60
     assert stale_after_minutes_for("PY_DNCP") == 180
     assert stale_after_minutes_for("UY_ARCE") == 180
+    assert stale_after_minutes_for("UK_PROCUREMENT") == 180
     assert stale_after_minutes_for("ZA_ETENDERS") == 4320
     assert stale_after_minutes_for("LV_IUB") == 4320
     assert stale_after_minutes_for("EE_RHR") == 64800
