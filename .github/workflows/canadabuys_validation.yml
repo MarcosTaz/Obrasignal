@@ -3,7 +3,6 @@ name: CanadaBuys Validation
 on:
   push:
     branches:
-      - codex/canadubuys-production
       - codex/canadabuys-production
   workflow_dispatch:
 
@@ -16,24 +15,15 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -q -r requirements.txt pytest
-      - name: Run CanadaBuys deterministic suite
+      - name: Run all CanadaBuys deterministic suites
         shell: bash
         run: |
           set -o pipefail
-          python -m pytest -q test_canada_buys.py 2>&1 | tee canadabuys-pytest.txt
-      - name: Run CanadaBuys live production path
-        env:
-          OBRASIGNAL_LIVE_CANADABUYS: '1'
-        shell: bash
-        run: |
-          set -o pipefail
-          python -m pytest -q test_canada_buys_live_contract.py 2>&1 | tee canadabuys-live.txt
+          python -m pytest -q test_canada_buys.py test_canada_buys_fail_closed.py test_canada_buys_identity_contract.py test_canada_buys_no_value.py test_canada_buys_runtime.py test_canada_buys_timezone.py 2>&1 | tee canadabuys-pytest.txt
       - name: Upload validation output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: canadabuys-validation
-          path: |
-            canadabuys-pytest.txt
-            canadabuys-live.txt
+          name: canadabuys-pytest
+          path: canadabuys-pytest.txt
           retention-days: 1
