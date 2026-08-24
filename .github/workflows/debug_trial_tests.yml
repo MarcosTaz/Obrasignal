@@ -13,18 +13,18 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt && pip install pytest
-      - name: Run focused billing tests
+      - name: Run full Python suite
         shell: bash
         run: |
           set +e
-          pytest -q tests/test_billing.py > trial-test-output.txt 2>&1
+          pytest -q > trial-test-output.txt 2>&1
           code=$?
-          cat trial-test-output.txt
+          tail -n 400 trial-test-output.txt
           echo "$code" > trial-test-exit.txt
           exit 0
       - uses: actions/upload-artifact@v4
         with:
-          name: trial-test-debug
+          name: trial-full-debug
           path: |
             trial-test-output.txt
             trial-test-exit.txt
