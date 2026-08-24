@@ -1,4 +1,4 @@
-"""TEMPORARY last live probe for BZP NoticeUpdateNotice content.
+"""TEMPORARY exact-sequence probe for BZP deadline updates.
 
 Network-dependent by design. MUST be deleted before merge.
 """
@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 import html
 import json
-import re
 
 import requests
 
@@ -18,7 +17,7 @@ HEADERS = {
 }
 
 
-class _TextParser(HTMLParser):
+class _PartsParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.parts = []
@@ -26,26 +25,16 @@ class _TextParser(HTMLParser):
     def handle_data(self, data):
         value = " ".join(str(data).split())
         if value:
-            self.parts.append(value)
+            self.parts.append(html.unescape(value))
 
 
-def _text(value):
-    parser = _TextParser()
+def _parts(value):
+    parser = _PartsParser()
     parser.feed(str(value or ""))
-    return html.unescape("\n".join(parser.parts))
+    return parser.parts
 
 
-def _curate(row):
-    return {
-        key: row.get(key)
-        for key in (
-            "noticeNumber", "bzpNumber", "publicationDate", "orderObject",
-            "orderType", "cpvCode", "submittingOffersDate", "tenderId", "objectId",
-        )
-    }
-
-
-def test_poland_bzp_update_html_change_semantics_live():
+def test_poland_bzp_exact_deadline_update_sequence_live():
     session = requests.Session()
     session.headers.update(HEADERS)
     now = datetime.now(timezone.utc)
@@ -65,46 +54,27 @@ def test_poland_bzp_update_html_change_semantics_live():
     rows = response.json()
     assert isinstance(rows, list) and rows
 
-    matches = []
+    findings = []
     for row in rows:
         if not isinstance(row, dict):
             continue
-        text = _text(row.get("htmlBody"))
-        lower = text.lower()
-        if not any(token in lower for token in (
-            "termin składania ofert", "terminu składania ofert", "składania ofert"
-        )):
-            continue
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        relevant = [
-            line for line in lines
-            if any(token in line.lower() for token in (
-                "termin składania", "terminu składania", "składania ofert",
-                "zmiana", "przed zmianą", "po zmianie"
-            ))
-        ][:120]
-        dates = sorted(set(re.findall(
-            r"(?:\d{4}-\d{2}-\d{2}|\d{2}[.\-/]\d{2}[.\-/]\d{4})(?:\s*(?:r\.)?)?(?:\s+\d{1,2}:\d{2})?",
-            text,
-        )))[:100]
-        matches.append({
-            "row": _curate(row),
-            "relevant_lines": relevant,
-            "date_tokens": dates,
-            "html_bytes": len(str(row.get("htmlBody") or "").encode("utf-8")),
-        })
-        if len(matches) >= 5:
+        parts = _parts(row.get("htmlBody"))
+        for index, part in enumerate(parts):
+            if "8.1. Termin składania ofert" not in part:
+                continue
+            findings.append({
+                "tenderId": row.get("tenderId"),
+                "objectId": row.get("objectId"),
+                "noticeNumber": row.get("noticeNumber"),
+                "publicationDate": row.get("publicationDate"),
+                "sequence": parts[index:index + 20],
+            })
+            break
+        if len(findings) >= 5:
             break
 
-    evidence = {
-        "returned": len(rows),
-        "matches": matches,
-        "match_count_capped": len(matches),
-        "all_update_order_types": sorted(set(str(row.get("orderType")) for row in rows if isinstance(row, dict))),
-        "all_update_deadlines": sorted(set(str(row.get("submittingOffersDate")) for row in rows if isinstance(row, dict))),
-        "cookies": sorted(session.cookies.keys()),
-    }
+    assert findings, "No update containing exact 8.1 deadline section found in bounded sample"
     raise AssertionError(
-        "PL_BZP_UPDATE_EVIDENCE "
-        + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:50000]
+        "PL_BZP_EXACT_UPDATE_SEQUENCE "
+        + json.dumps({"findings": findings}, ensure_ascii=False, sort_keys=True)[:30000]
     )
