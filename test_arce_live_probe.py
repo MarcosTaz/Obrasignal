@@ -1,42 +1,38 @@
-"""Temporary forensic probe for Uruguay ARCE OCDS Atom feed; remove after inspection."""
+"""Temporary forensic probe for Uruguay ARCE OCDS RSS feed; remove after inspection."""
 import xml.etree.ElementTree as ET
 
 import requests
 
 ARCE_RSS = "https://www.comprasestatales.gub.uy/ocds/rss"
+HEADERS = {
+    "User-Agent": "ObraSignal procurement research connector/0.1 (+official open-data validation)",
+    "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.1",
+}
 
 
 def _local(tag):
     return tag.rsplit("}", 1)[-1] if "}" in tag else tag
 
 
-def test_arce_atom_shape_live():
-    response = requests.get(
-        ARCE_RSS,
-        headers={
-            "User-Agent": "ObraSignal procurement research connector/0.1 (+official open-data validation)",
-            "Accept": "application/atom+xml, application/xml;q=0.9, */*;q=0.1",
-        },
-        timeout=30,
-    )
+def test_arce_rss_item_shape_live():
+    response = requests.get(ARCE_RSS, headers=HEADERS, timeout=30)
     assert response.status_code == 200, {
         "status": response.status_code,
         "content_type": response.headers.get("content-type"),
-        "server": response.headers.get("server"),
         "body_preview": response.text[:300],
     }
-    assert "xml" in (response.headers.get("content-type") or "").lower(), response.headers
     root = ET.fromstring(response.content)
-    assert _local(root.tag) == "feed", root.tag
-    entries = [node for node in root if _local(node.tag) == "entry"]
-    assert entries, "ARCE feed returned no entries"
+    assert _local(root.tag) == "rss", root.tag
+    channel = next((node for node in root if _local(node.tag) == "channel"), None)
+    assert channel is not None, [_local(node.tag) for node in root]
+    items = [node for node in channel if _local(node.tag) == "item"]
+    assert items, "ARCE RSS returned no items"
 
-    entry = entries[0]
+    item = items[0]
     diagnostics = {
-        "root_tag": root.tag,
-        "entry_children": [_local(child.tag) for child in entry],
-        "links": [child.attrib for child in entry if _local(child.tag) == "link"],
-        "content_types": [child.attrib for child in entry if _local(child.tag) == "content"],
-        "text_preview": { _local(child.tag): (child.text or "")[:200] for child in entry if (child.text or "").strip() },
+        "channel_children": [_local(child.tag) for child in channel[:12]],
+        "item_children": [_local(child.tag) for child in item],
+        "item_attrs": { _local(child.tag): child.attrib for child in item if child.attrib },
+        "item_text": { _local(child.tag): (child.text or "")[:500] for child in item if (child.text or "").strip() },
     }
     raise AssertionError(diagnostics)
