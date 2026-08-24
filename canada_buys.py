@@ -1,25 +1,21 @@
 """CanadaBuys federal construction tender connector.
 
-Official source contract live-validated 2026-08-25:
-- CanadaBuys tender-notice open data is federal-only and Open Government Licence;
-- all tender files share the same 67-column UTF-8 CSV schema;
+Source contract live-validated 2026-08-25 against official CanadaBuys data:
+- all tender files use the same 67-column UTF-8 CSV schema;
 - publisher-native procurement category token ``CNST`` means construction;
-- ``solicitationNumber-numeroSollicitation`` is the cross-dataset stable identity;
-- ``referenceNumber-numeroReference`` is preserved as a notice/source reference but
-  is not used as durable identity because CanadaBuys documents that it can vary;
-- amendment number/date are publisher-native version information for the same tender;
-- New Tender Notices is a cumulative intraday new-notice file refreshed about every
-  two hours; Open Tender Notices is the authoritative daily snapshot of tenders open
-  for bidding and contains current amendments;
-- tender closing timestamps are fixed UTC-05:00, not local Eastern daylight time;
-- tender-notice rows do not expose a tender value/currency field, so this connector
-  deliberately emits no fabricated value.
+- ``solicitationNumber-numeroSollicitation`` is the stable cross-dataset identity;
+- ``referenceNumber-numeroReference`` is preserved as notice/source reference;
+- amendments update the same opportunity rather than creating a new one;
+- New Tender Notices is a cumulative intraday delta refreshed about every 2 hours;
+- Open Tender Notices is the daily authoritative snapshot of notices open for bids;
+- Complete Tender Notices carries Open/Cancelled/Expired lifecycle state since 2022-08-08;
+- closing timestamps are fixed UTC-05:00, not daylight-saving local time;
+- tender-notice rows expose no tender value/currency field, so none is fabricated.
 
-The connector uses conditional HTTP requests so repeated runs do not download
-unchanged snapshots. New provides low-latency discovery; Open reconciles the active
-set and amendment state. Missing Open rows are only closed automatically when their
-known deadline has elapsed. A future-dated disappearance is retained as unknown
-rather than being falsely called cancelled; a later lifecycle source can resolve it.
+Incremental strategy: conditional GETs make New/Open cheap when unchanged. New accelerates
+discovery and never closes. Open reconciles active state. If a previously visible tender
+disappears before its known deadline, Complete is consulted on demand to avoid inventing
+a cancellation. Known deadlines are expired locally even when Open returns HTTP 304.
 """
 from __future__ import annotations
 
@@ -36,6 +32,7 @@ SOURCE = "CA_CANADABUYS"
 COUNTRY = "CAN"
 NEW_URL = "https://canadabuys.canada.ca/opendata/pub/newTenderNotice-nouvelAvisAppelOffres.csv"
 OPEN_URL = "https://canadabuys.canada.ca/opendata/pub/openTenderNotice-ouvertAvisAppelOffres.csv"
+COMPLETE_URL = "https://canadabuys.canada.ca/opendata/pub/tenderNoticeComplete-avisAppelOffresComplet.csv"
 CATALOG_URL = "https://open.canada.ca/data/en/dataset/6abd20d4-7a1c-4b38-baa2-9525d0bb2fd2"
 PUBLIC_SITE = "https://canadabuys.canada.ca/en/tender-opportunities"
 ATTRIBUTION = "Public Services and Procurement Canada — CanadaBuys"
@@ -86,8 +83,7 @@ CSV_FIELDS = (
     "contactInfoCity-contacterInfoVille-fra", "contactInfoProvince-contacterInfoProvince-fra",
     "contactInfoCountry-contactInfoPays-fra", "noticeURL-URLavis-eng", "noticeURL-URLavis-fra",
     "attachment-piecesJointes-eng", "attachment-piecesJointes-fra",
-    "tenderDescription-descriptionAppelOffres-eng",
-    "tenderDescription-descriptionAppelOffres-fra",
+    "tenderDescription-descriptionAppelOffres-eng", "tenderDescription-descriptionAppelOffres-fra",
 )
 
 
@@ -113,7 +109,7 @@ def _source_datetime(value):
     if not text:
         return None
     try:
-        parsed = datetime.fromisoformat(text)
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return None
     if parsed.tzinfo is None:
@@ -127,29 +123,19 @@ def _utc(value):
     return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def _deadline(row):
-    return _source_datetime(row.get("tenderClosingDate-appelOffresDateCloture"))
-
-
-def _identity(row):
-    return _text(row.get("solicitationNumber-numeroSollicitation"))
-
-
 def _state(row):
-    external_id = _identity(row)
+    external_id = _text(row.get("solicitationNumber-numeroSollicitation"))
     reference = _text(row.get("referenceNumber-numeroReference"))
-    deadline = _deadline(row)
+    deadline = _source_datetime(row.get("tenderClosingDate-appelOffresDateCloture"))
     if not external_id:
         raise RuntimeError(f"{SOURCE} construction row missing solicitation number; cursor not advanced")
     if not reference:
         raise RuntimeError(f"{SOURCE} construction row missing reference number; cursor not advanced")
     if deadline is None:
         raise RuntimeError(f"{SOURCE} construction row missing/invalid closing timestamp; cursor not advanced")
-
     categories = _tokens(row.get("procurementCategory-categorieApprovisionnement"))
     if "CNST" not in categories:
         raise RuntimeError(f"{SOURCE} non-construction row passed construction gate; cursor not advanced")
-
     return {
         "external_id": external_id,
         "reference_number": reference,
@@ -189,52 +175,26 @@ def _observation(state, *, actionable=True, lifecycle_status="open", lifecycle_r
             if value and value not in place_parts:
                 place_parts.append(value)
     row = {
-        "source": SOURCE,
-        "external_id": _text(state.get("external_id")),
-        "title": _text(state.get("title")),
-        "description": _text(state.get("description")),
-        "buyer": _text(state.get("buyer")),
-        "country": COUNTRY,
-        "cpv": "",
-        "taxonomy": "UNSPSC" if unspsc else "",
-        "category_code": unspsc[0] if unspsc else "",
-        "cpv_codes": [],
-        "value": "",
-        "currency": "",
-        "deadline": _text(state.get("deadline")),
-        "publication_date": _text(state.get("publication_date")),
-        "published_at": None,
-        "source_updated_at": None,
-        "url": _text(state.get("notice_url")) or PUBLIC_SITE,
-        "market": "GLOBAL",
-        "place": " | ".join(place_parts),
-        "source_status": _text(state.get("source_status")),
-        "source_phase": "notice",
-        "signal_type": "TENDER",
-        "procurement_method": _text(state.get("procurement_method")),
-        "contract_type": "works",
-        "source_reference": _text(state.get("reference_number")),
-        "notice_identifier": _text(state.get("reference_number")),
-        "procedure_reference": _text(state.get("external_id")),
-        "amendment_number": _text(state.get("amendment_number")),
-        "amendment_date": _text(state.get("amendment_date")),
-        "notice_type": _text(state.get("notice_type")),
-        "selection_criteria": _text(state.get("selection_criteria")),
-        "procurement_categories": list(state.get("categories") or []),
-        "unspsc_codes": unspsc,
-        "gsin_codes": list(state.get("gsin") or []),
-        "regions_of_opportunity": list(state.get("regions_of_opportunity") or []),
-        "regions_of_delivery": list(state.get("regions_of_delivery") or []),
-        "trade_agreements": list(state.get("trade_agreements") or []),
+        "source": SOURCE, "external_id": _text(state.get("external_id")),
+        "title": _text(state.get("title")), "description": _text(state.get("description")),
+        "buyer": _text(state.get("buyer")), "country": COUNTRY,
+        "cpv": "", "taxonomy": "UNSPSC" if unspsc else "", "category_code": unspsc[0] if unspsc else "", "cpv_codes": [],
+        "value": "", "currency": "", "deadline": _text(state.get("deadline")),
+        "publication_date": _text(state.get("publication_date")), "published_at": None,
+        "source_updated_at": None, "url": _text(state.get("notice_url")) or PUBLIC_SITE,
+        "market": "GLOBAL", "place": " | ".join(place_parts), "source_status": _text(state.get("source_status")),
+        "source_phase": "notice", "signal_type": "TENDER", "procurement_method": _text(state.get("procurement_method")),
+        "contract_type": "works", "source_reference": _text(state.get("reference_number")),
+        "notice_identifier": _text(state.get("reference_number")), "procedure_reference": _text(state.get("external_id")),
+        "amendment_number": _text(state.get("amendment_number")), "amendment_date": _text(state.get("amendment_date")),
+        "notice_type": _text(state.get("notice_type")), "selection_criteria": _text(state.get("selection_criteria")),
+        "procurement_categories": list(state.get("categories") or []), "unspsc_codes": unspsc,
+        "gsin_codes": list(state.get("gsin") or []), "regions_of_opportunity": list(state.get("regions_of_opportunity") or []),
+        "regions_of_delivery": list(state.get("regions_of_delivery") or []), "trade_agreements": list(state.get("trade_agreements") or []),
         "expected_contract_start": _text(state.get("expected_contract_start")),
-        "expected_contract_end": _text(state.get("expected_contract_end")),
-        "attachment": _text(state.get("attachment")),
-        "attribution": ATTRIBUTION,
-        "source_catalog_url": CATALOG_URL,
-        "source_api_url": OPEN_URL,
-        "is_actionable": bool(actionable),
-        "lifecycle_status": lifecycle_status,
-        "lifecycle_reason": lifecycle_reason,
+        "expected_contract_end": _text(state.get("expected_contract_end")), "attachment": _text(state.get("attachment")),
+        "attribution": ATTRIBUTION, "source_catalog_url": CATALOG_URL, "source_api_url": OPEN_URL,
+        "is_actionable": bool(actionable), "lifecycle_status": lifecycle_status, "lifecycle_reason": lifecycle_reason,
     }
     if lifecycle_only:
         row["_lifecycle_only"] = True
@@ -250,8 +210,7 @@ def _parse_csv(content):
     else:
         text = str(content or "")
     reader = csv.DictReader(StringIO(text, newline=""))
-    fields = tuple(reader.fieldnames or ())
-    if fields != CSV_FIELDS:
+    if tuple(reader.fieldnames or ()) != CSV_FIELDS:
         raise RuntimeError(f"{SOURCE} CSV schema drift: expected 67 publisher columns; cursor not advanced")
     rows = list(reader)
     if any(None in row for row in rows):
@@ -285,25 +244,15 @@ class CanadaBuysCursor:
         tracked = payload.get("tracked") or {}
         if not isinstance(tracked, dict):
             raise RuntimeError(f"invalid {SOURCE} cursor tracked state; cursor not advanced")
-        return cls(
-            tracked=deepcopy(tracked),
-            etag_new=_text(payload.get("etag_new")),
-            modified_new=_text(payload.get("modified_new")),
-            etag_open=_text(payload.get("etag_open")),
-            modified_open=_text(payload.get("modified_open")),
-            open_observed_at=_text(payload.get("open_observed_at")),
-        )
+        return cls(tracked=deepcopy(tracked), etag_new=_text(payload.get("etag_new")), modified_new=_text(payload.get("modified_new")),
+                   etag_open=_text(payload.get("etag_open")), modified_open=_text(payload.get("modified_open")),
+                   open_observed_at=_text(payload.get("open_observed_at")))
 
     def encode(self):
-        return json.dumps({
-            "version": 1,
-            "tracked": self.tracked,
-            "etag_new": self.etag_new,
-            "modified_new": self.modified_new,
-            "etag_open": self.etag_open,
-            "modified_open": self.modified_open,
-            "open_observed_at": self.open_observed_at,
-        }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return json.dumps({"version": 1, "tracked": self.tracked, "etag_new": self.etag_new,
+                           "modified_new": self.modified_new, "etag_open": self.etag_open,
+                           "modified_open": self.modified_open, "open_observed_at": self.open_observed_at},
+                          ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 class CanadaBuysConnector:
@@ -311,20 +260,37 @@ class CanadaBuysConnector:
         self.session = session or requests.Session()
         self.session.headers.update(HEADERS)
 
-    def _download(self, url, *, etag="", modified=""):
+    def _download(self, url, *, etag="", modified="", conditional=True):
         headers = dict(HEADERS)
-        if etag:
+        if conditional and etag:
             headers["If-None-Match"] = etag
-        if modified:
+        if conditional and modified:
             headers["If-Modified-Since"] = modified
         response = self.session.get(url, headers=headers, timeout=60)
         if response.status_code == 304:
             return None, etag, modified
         response.raise_for_status()
-        content = response.content
-        if not content:
+        if not response.content:
             raise RuntimeError(f"{SOURCE} {url} returned empty body; cursor not advanced")
-        return _parse_csv(content), _text(response.headers.get("ETag")), _text(response.headers.get("Last-Modified"))
+        return _parse_csv(response.content), _text(response.headers.get("ETag")), _text(response.headers.get("Last-Modified"))
+
+    def _resolve_missing(self, ids):
+        if not ids:
+            return {}
+        rows, _, _ = self._download(COMPLETE_URL, conditional=False)
+        wanted = set(ids)
+        found = {}
+        for raw in rows:
+            if not _is_construction(raw):
+                continue
+            external_id = _text(raw.get("solicitationNumber-numeroSollicitation"))
+            if external_id not in wanted:
+                continue
+            state = _state(raw)
+            if external_id in found:
+                raise RuntimeError(f"{SOURCE} duplicate construction identity in Complete file; cursor not advanced")
+            found[external_id] = state
+        return found
 
     def fetch_incremental(self, *, watermark=None, now=None):
         now = now or datetime.now(timezone.utc)
@@ -332,18 +298,11 @@ class CanadaBuysConnector:
             now = now.replace(tzinfo=timezone.utc)
         now = now.astimezone(timezone.utc)
         cursor = CanadaBuysCursor.decode(watermark)
-
-        new_rows, etag_new, modified_new = self._download(
-            NEW_URL, etag=cursor.etag_new, modified=cursor.modified_new
-        )
-        open_rows, etag_open, modified_open = self._download(
-            OPEN_URL, etag=cursor.etag_open, modified=cursor.modified_open
-        )
-
+        new_rows, etag_new, modified_new = self._download(NEW_URL, etag=cursor.etag_new, modified=cursor.modified_new)
+        open_rows, etag_open, modified_open = self._download(OPEN_URL, etag=cursor.etag_open, modified=cursor.modified_open)
         current = deepcopy(cursor.tracked)
         observations = []
 
-        # New is cumulative intraday and only accelerates discovery. It never closes.
         if new_rows is not None:
             seen_new = set()
             for raw in new_rows:
@@ -356,15 +315,14 @@ class CanadaBuysConnector:
                 seen_new.add(external_id)
                 if state["source_status"].lower() != "open":
                     continue
-                if _source_datetime(state["deadline"]) <= now:
+                deadline = _source_datetime(state["deadline"])
+                if deadline is None or deadline <= now:
                     continue
                 state["was_visible"] = True
-                previous = current.get(external_id)
-                if previous != state:
+                if current.get(external_id) != state:
                     observations.append(_observation(state, lifecycle_reason="new_intraday_notice"))
                 current[external_id] = state
 
-        # Open is the authoritative active snapshot and amendment reconciler.
         if open_rows is not None:
             open_states = {}
             for raw in open_rows:
@@ -379,19 +337,25 @@ class CanadaBuysConnector:
                 state["was_visible"] = True
                 open_states[external_id] = state
 
+            future_missing = []
+            for external_id, previous in current.items():
+                if external_id in open_states or not isinstance(previous, dict):
+                    continue
+                deadline = _source_datetime(previous.get("deadline"))
+                if deadline is not None and deadline > now:
+                    future_missing.append(external_id)
+            resolved = self._resolve_missing(future_missing)
+
             next_tracked = {}
             for external_id in sorted(set(current) | set(open_states)):
                 previous = current.get(external_id)
                 state = open_states.get(external_id)
                 if state is not None:
                     deadline = _source_datetime(state["deadline"])
-                    if deadline <= now:
-                        # Publisher can transiently retain just-closed rows in a daily snapshot.
+                    if deadline is not None and deadline <= now:
                         if isinstance(previous, dict) and previous.get("was_visible"):
-                            observations.append(_observation(
-                                state, actionable=False, lifecycle_status="expired",
-                                lifecycle_reason="deadline_elapsed", lifecycle_only=True,
-                            ))
+                            observations.append(_observation(state, actionable=False, lifecycle_status="expired",
+                                                             lifecycle_reason="deadline_elapsed", lifecycle_only=True))
                         continue
                     next_tracked[external_id] = state
                     if previous != state:
@@ -402,27 +366,40 @@ class CanadaBuysConnector:
                     continue
                 deadline = _source_datetime(previous.get("deadline"))
                 if deadline is not None and deadline <= now:
-                    observations.append(_observation(
-                        previous, actionable=False, lifecycle_status="expired",
-                        lifecycle_reason="missing_from_open_snapshot_after_deadline",
-                        lifecycle_only=True,
-                    ))
+                    observations.append(_observation(previous, actionable=False, lifecycle_status="expired",
+                                                     lifecycle_reason="missing_from_open_snapshot_after_deadline", lifecycle_only=True))
+                    continue
+
+                authoritative = resolved.get(external_id)
+                status = _text((authoritative or {}).get("source_status")).lower()
+                if status == "cancelled":
+                    observations.append(_observation(authoritative, actionable=False, lifecycle_status="cancelled",
+                                                     lifecycle_reason="complete_file_cancelled", lifecycle_only=True))
+                    continue
+                if status == "expired":
+                    observations.append(_observation(authoritative, actionable=False, lifecycle_status="expired",
+                                                     lifecycle_reason="complete_file_expired", lifecycle_only=True))
+                    continue
+                retained = deepcopy(authoritative if status == "open" else previous)
+                retained["was_visible"] = True
+                next_tracked[external_id] = retained
+            current = next_tracked
+        else:
+            next_tracked = {}
+            for external_id, previous in current.items():
+                if not isinstance(previous, dict):
+                    continue
+                deadline = _source_datetime(previous.get("deadline"))
+                if deadline is not None and deadline <= now and previous.get("was_visible"):
+                    observations.append(_observation(previous, actionable=False, lifecycle_status="expired",
+                                                     lifecycle_reason="deadline_elapsed_since_unchanged_snapshot", lifecycle_only=True))
                 else:
-                    # A future-dated disappearance may be cancellation, upstream lag, or
-                    # a source anomaly. Preserve it but never fabricate a terminal cause.
-                    retained = deepcopy(previous)
-                    retained["was_visible"] = True
-                    next_tracked[external_id] = retained
+                    next_tracked[external_id] = previous
             current = next_tracked
 
-        next_cursor = CanadaBuysCursor(
-            tracked=current,
-            etag_new=etag_new,
-            modified_new=modified_new,
-            etag_open=etag_open,
-            modified_open=modified_open,
-            open_observed_at=_utc(now) if open_rows is not None else cursor.open_observed_at,
-        )
+        next_cursor = CanadaBuysCursor(tracked=current, etag_new=etag_new, modified_new=modified_new,
+                                       etag_open=etag_open, modified_open=modified_open,
+                                       open_observed_at=_utc(now) if open_rows is not None else cursor.open_observed_at)
         return observations, next_cursor.encode()
 
 
