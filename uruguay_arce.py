@@ -308,11 +308,12 @@ class ARCEOCDSRSSAdapter:
             return batch, ARCECursor(batch[-1].published_at, batch[-1].guid)
 
         # The RSS is an immutable release-event index. Progress therefore uses
-        # the strict (pubDate, guid) key, not a replay window. The time overlap
-        # is retained only when deciding whether the cursor is still safely
-        # covered by the current last-500 feed horizon.
+        # the strict (pubDate, guid) key, not a replay window. The tolerance is
+        # used only to decide whether the cursor is still safely covered by the
+        # current last-500 feed: a cursor just before the oldest visible event
+        # is still covered because all later events remain present.
         cursor_key = (cursor_dt, cursor.guid or "")
-        horizon_probe = cursor_dt - timedelta(seconds=max(0, self.overlap_seconds))
+        horizon_probe = cursor_dt + timedelta(seconds=max(0, self.overlap_seconds))
         oldest_live = _parse_iso(live_events[0].published_at) if live_events else None
         if oldest_live and horizon_probe >= oldest_live:
             eligible = [event for event in live_events if event.key() > cursor_key]
