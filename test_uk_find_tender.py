@@ -115,7 +115,7 @@ def test_current_active_construction_record_emits_two_actionable_lots():
     assert rows[0]["cpv"] == "45233253"
     assert rows[0]["cpv_codes"] == ["45233253", "45000000"]
     assert rows[1]["cpv"] == "45112700"
-    assert rows[0]["place"] == "UKL18 | GB | United Kingdom"
+    assert rows[0]["place"] == "UKL18 | United Kingdom | GB"
     assert rows[0]["sme_suitable"] is True
     assert rows[0]["license"] == FTS_LICENSE
     assert rows[0]["url"].endswith("/ocdsReleasePackages/080242-2026")
