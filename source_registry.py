@@ -192,6 +192,23 @@ SOURCES = {
     "LT_VPT": _source(country="LTU", source_id="lt_vpt_cvp_is", kind="OFFICIAL_PUBLIC_SNAPSHOT_API", access="public_shared_api_key_snapshot", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=1440, stale_after_minutes=4320, capabilities=("incremental_sync", "lifecycle"), signal_types=("TENDER",), wave=1, adapter="LithuaniaVPTSnapshotConnector", realtime_capable=False),
     "EE_RHR": _source(country="EST", source_id="ee_rhr_public_api", kind="OFFICIAL_XML_EFORMS_BULK", access="public_monthly_xml", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=1440, stale_after_minutes=4320, capabilities=("incremental_sync", "lots", "lifecycle"), signal_types=("TENDER",), wave=1, adapter="EstoniaRHRConnector", realtime_capable=False),
     "CO_SECOP": _source(country="COL", source_id="co_secop_open_data", kind="SOCRATA_ODATA", access="api", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=1440, stale_after_minutes=4320, capabilities=("search", "incremental_sync", "awards", "contracts", "plans", "suppliers"), signal_types=("PROCUREMENT_PLAN", "TENDER", "AWARD", "CONTRACT"), wave=1, adapter="SocrataProcurementAdapter"),
+    "CA_CANADABUYS": _source(
+        country="CAN",
+        source_id="ca_canadabuys_tender_notices",
+        kind="OFFICIAL_TENDER_CSV",
+        access="public_new_open_csv",
+        status="ready",
+        priority=1,
+        legal_reuse="GREEN",
+        machine_access="VERIFIED",
+        expected_refresh_minutes=120,
+        stale_after_minutes=360,
+        capabilities=("incremental_sync", "detail", "amendments", "lifecycle"),
+        signal_types=("TENDER",),
+        wave=1,
+        adapter="CanadaBuysConnector",
+        realtime_capable=True,
+    ),
 }
 
 
