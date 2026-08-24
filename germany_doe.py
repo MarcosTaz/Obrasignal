@@ -44,7 +44,7 @@ DOE_HEADERS = {
     "User-Agent": "ObraSignal Germany DOE connector/1.0 (+official CC0 open-data ingestion)",
 }
 BERLIN = ZoneInfo("Europe/Berlin")
-_FILE_RE = re.compile(r"^(?P<notice>[0-9a-fA-F-]{36})-(?P<version>\d+)\.xml$")
+_FILE_RE = re.compile(r"^(?P<notice>[^/\\]+)-(?P<version>\d+)\.xml$")
 _TERMINAL_RESULTS = {
     "selec-w": ("awarded", "publisher reports at least one winner selected for this lot"),
     "clos-nw": ("closed_without_winner", "publisher reports competition closed without a winner for this lot"),
