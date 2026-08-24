@@ -6,9 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Main pushes are intentionally covered so the exact post-merge tree is tested,
-# not only the pre-merge pull-request commit.
-
 jobs:
   python:
     runs-on: ubuntu-latest
@@ -19,6 +16,214 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
+      - name: TEMP Brazil PGC construction-plan probe
+        run: |
+          python - <<'PY'
+          from datetime import date, datetime, timezone
+          import time
+          import requests
+
+          BASE = "https://dadosabertos.compras.gov.br"
+          SPEC = BASE + "/v3/api-docs"
+          SECTION = BASE + "/modulo-servico/1_consultarSecaoServico"
+          DIVISION = BASE + "/modulo-servico/2_consultarDivisaoServico"
+          GROUP = BASE + "/modulo-servico/3_consultarGrupoServico"
+          PGC = BASE + "/modulo-pgc/2_consultarPgcDetalheCatalogo"
+          S = requests.Session()
+          S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal Brazil PGC source-evaluation/1.0"})
+
+          def get(url, params=None, tries=3, timeout=30):
+              last = ""
+              for attempt in range(tries):
+                  try:
+                      r = S.get(url, params=params, timeout=timeout)
+                      if r.status_code in (429,500,502,503,504):
+                          last = f"HTTP {r.status_code}"
+                          time.sleep(attempt + 1)
+                          continue
+                      if r.status_code >= 400:
+                          return None, r.status_code, (r.text or "")[:240]
+                      return r.json(), r.status_code, ""
+                  except Exception as exc:
+                      last = f"{type(exc).__name__}:{exc}"
+                      time.sleep(attempt + 1)
+              return None, 0, last
+
+          def rows(payload):
+              if isinstance(payload, list): return payload
+              if isinstance(payload, dict):
+                  for key in ("resultado","data","content","items"):
+                      if isinstance(payload.get(key), list): return payload[key]
+              return []
+
+          def total(payload):
+              return payload.get("totalRegistros") if isinstance(payload, dict) else None
+
+          def parse_dt(value):
+              if not value: return None
+              text = str(value).strip().replace("Z", "+00:00")
+              try:
+                  d = datetime.fromisoformat(text)
+              except ValueError:
+                  try:
+                      d = datetime.fromisoformat(text[:10])
+                  except ValueError:
+                      return None
+              if d.tzinfo is None:
+                  d = d.replace(tzinfo=timezone.utc)
+              return d.astimezone(timezone.utc)
+
+          spec, ss, se = get(SPEC, tries=2, timeout=20)
+          print(f"PGC_SPEC_HTTP={ss}|ERR={se!r}")
+          if isinstance(spec, dict):
+              paths = spec.get("paths") or {}
+              for target in (
+                  "/modulo-servico/1_consultarSecaoServico",
+                  "/modulo-servico/2_consultarDivisaoServico",
+                  "/modulo-servico/3_consultarGrupoServico",
+                  "/modulo-pgc/2_consultarPgcDetalheCatalogo",
+                  "/modulo-pgc/1_consultarPgcDetalhe",
+              ):
+                  op = ((paths.get(target) or {}).get("get") or {})
+                  params = [(p.get("name"), p.get("required")) for p in op.get("parameters", []) if isinstance(p, dict)]
+                  print(f"PGC_OPENAPI_PARAMS={target}|{params!r}")
+
+          # Official CATSER section 5 is construction. Resolve its live hierarchy.
+          sec_payload, sec_status, sec_err = get(SECTION, {"pagina":1,"tamanhoPagina":50,"codigoSecao":5})
+          sec_rows = rows(sec_payload)
+          print(f"CATSER_SECTION5_HTTP={sec_status}|ROWS={len(sec_rows)}|TOTAL={total(sec_payload)}|ERR={sec_err!r}")
+          for r in sec_rows[:5]:
+              print("CATSER_SECTION5_ROW=" + repr(r))
+
+          div_payload, div_status, div_err = get(DIVISION, {"pagina":1,"tamanhoPagina":100,"codigoSecao":5,"statusDivisao":"true"})
+          divisions = rows(div_payload)
+          print(f"CATSER_DIVISIONS_HTTP={div_status}|ROWS={len(divisions)}|TOTAL={total(div_payload)}|ERR={div_err!r}")
+          for r in divisions:
+              print("CATSER_DIVISION=" + repr({k:r.get(k) for k in ("codigoSecao","nomeSecao","codigoDivisao","nomeDivisao","statusDivisao","dataHoraAtualizacao")}))
+
+          groups = []
+          for div in divisions:
+              code = div.get("codigoDivisao")
+              if code in (None, ""): continue
+              gp, gs, ge = get(GROUP, {"pagina":1,"tamanhoPagina":100,"codigoDivisao":code,"statusGrupo":"true"})
+              gr = rows(gp)
+              print(f"CATSER_GROUP_QUERY=division:{code}|HTTP={gs}|ROWS={len(gr)}|TOTAL={total(gp)}|ERR={ge!r}")
+              for row in gr:
+                  if isinstance(row, dict): groups.append(row)
+          unique = {}
+          for g in groups:
+              unique[str(g.get("codigoGrupo"))] = g
+          groups = list(unique.values())
+          print("CATSER_SECTION5_GROUPS=" + str(len(groups)))
+          for g in groups:
+              print("CATSER_GROUP=" + repr({k:g.get(k) for k in ("codigoDivisao","nomeDivisao","codigoGrupo","nomeGrupo","statusGrupo","dataHoraAtualizacao")}))
+
+          today = datetime.now(timezone.utc)
+          all_plan_rows = []
+          group_results = []
+          # Test current PCA and next-year planning. Bound to all discovered construction groups,
+          # first page only; metadata gives total density without stressing the publisher.
+          for year in (2026, 2027):
+              for g in groups:
+                  code = g.get("codigoGrupo")
+                  if code in (None, ""): continue
+                  payload, status, err = get(PGC, {
+                      "pagina":1,
+                      "tamanhoPagina":20,
+                      "anoPcaProjetoCompra":year,
+                      "tipo":"S",
+                      "codigo":code,
+                  })
+                  result = rows(payload)
+                  n = total(payload)
+                  print(f"PGC_GROUP_QUERY=year:{year}|group:{code}|HTTP={status}|ROWS={len(result)}|TOTAL={n}|ERR={err!r}")
+                  group_results.append((year, str(code), n or 0, len(result), status))
+                  for row in result:
+                      if isinstance(row, dict):
+                          row = dict(row)
+                          row["_probe_year"] = year
+                          row["_probe_group"] = code
+                          all_plan_rows.append(row)
+
+          print("PGC_SAMPLE_ROWS=" + str(len(all_plan_rows)))
+          print("PGC_TOTALS_BY_GROUP=" + repr(group_results))
+          if all_plan_rows:
+              print("PGC_ROW_KEYS=" + ",".join(sorted(all_plan_rows[0].keys())))
+
+          strict_rows = []
+          future_rows = []
+          not_executed = []
+          update_times = []
+          identities = set()
+          duplicate_identity_candidates = 0
+
+          for row in all_plan_rows:
+              sec = row.get("codigoSecaoServico")
+              if str(sec).lstrip("0") != "5":
+                  continue
+              strict_rows.append(row)
+              executed = row.get("statusContratacaoExecucao") is True
+              if not executed:
+                  not_executed.append(row)
+              candidates = [
+                  parse_dt(row.get("dataPrevistaFormalizacaoDemanda")),
+                  parse_dt(row.get("dataInicioProcessoCompra")),
+                  parse_dt(row.get("dataFimProcessoCompra")),
+              ]
+              if any(d and d >= today for d in candidates):
+                  future_rows.append(row)
+              for key in (
+                  "dataHoraAtualizacaoItem","dataHoraAtualizacaoProjetoCompra",
+                  "dataHoraAtualizacaoDfd","dataHoraAtualizacaoArtefato","dataHoraPublicacaoPncp"
+              ):
+                  d = parse_dt(row.get(key))
+                  if d: update_times.append((d,key,row.get("orgao"),row.get("codigoUasg")))
+
+              ident = (
+                  str(row.get("orgao") or ""), str(row.get("codigoUasg") or ""),
+                  str(row.get("numeroArtefato") or ""), str(row.get("anoArtefato") or ""),
+                  str(row.get("ordemDfd") or ""), str(row.get("codigoItemCatalogo") or ""),
+                  str(row.get("numeroItemPncp") or ""),
+              )
+              if ident in identities:
+                  duplicate_identity_candidates += 1
+              identities.add(ident)
+
+          print(f"PGC_STRICT_SECTION5={len(strict_rows)}|NOT_EXECUTED={len(not_executed)}|FUTURE_DATED={len(future_rows)}")
+          print(f"PGC_IDENTITY_CANDIDATE_DUPLICATES={duplicate_identity_candidates}")
+          if update_times:
+              update_times.sort(reverse=True, key=lambda x:x[0])
+              print("PGC_MAX_UPDATE=" + repr((update_times[0][0].isoformat(), update_times[0][1], update_times[0][2], update_times[0][3])))
+
+          for row in strict_rows[:12]:
+              print("PGC_STRICT_SAMPLE=" + repr({
+                  "year":row.get("_probe_year"),
+                  "orgao":row.get("orgao"),
+                  "codigoUasg":row.get("codigoUasg"),
+                  "nomeUasg":row.get("nomeUasg"),
+                  "numeroArtefato":row.get("numeroArtefato"),
+                  "anoArtefato":row.get("anoArtefato"),
+                  "ordemDfd":row.get("ordemDfd"),
+                  "prioridade":row.get("nivelPrioridadeDfd"),
+                  "objeto":str(row.get("descricaoObjetoDfd") or "")[:180],
+                  "secao":row.get("codigoSecaoServico"),
+                  "nomeSecao":row.get("nomeSecaoServico"),
+                  "divisao":row.get("codigoDivisaoServico"),
+                  "grupo":row.get("codigoGrupoServico"),
+                  "nomeGrupo":row.get("nomeGrupoServico"),
+                  "codigoItemCatalogo":row.get("codigoItemCatalogo"),
+                  "descricaoItemCatalogo":str(row.get("descricaoItemCatalogo") or "")[:120],
+                  "valorUnitario":row.get("valorUnitario"),
+                  "quantidade":row.get("quantidade"),
+                  "formalizacao":row.get("dataPrevistaFormalizacaoDemanda"),
+                  "inicio":row.get("dataInicioProcessoCompra"),
+                  "fim":row.get("dataFimProcessoCompra"),
+                  "executado":row.get("statusContratacaoExecucao"),
+                  "numeroItemPncp":row.get("numeroItemPncp"),
+                  "atualizacaoItem":row.get("dataHoraAtualizacaoItem"),
+                  "atualizacaoProjeto":row.get("dataHoraAtualizacaoProjetoCompra"),
+              }))
+          PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
       - name: Run repository tests
