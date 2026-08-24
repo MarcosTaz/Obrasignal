@@ -19,52 +19,35 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP classify PNCP PCA update endpoint behavior
+      - name: TEMP PNCP PCA valid-page-size diagnostic
         run: |
           python - <<'PY'
-          import time
-          import requests
-
+          import time, requests
           URL="https://pncp.gov.br/api/consulta/v1/pca/atualizacao"
-          S=requests.Session()
-          S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA endpoint diagnostic/1.3"})
-
+          S=requests.Session(); S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA diagnostic/1.4"})
           cases=[
-              ("compact_same_size", {"dataInicio":"20260821","dataFim":"20260821","pagina":1,"tamanhoPagina":5}),
-              ("compact_20_21_size", {"dataInicio":"20260820","dataFim":"20260821","pagina":1,"tamanhoPagina":5}),
-              ("compact_21_22_size", {"dataInicio":"20260821","dataFim":"20260822","pagina":1,"tamanhoPagina":5}),
-              ("compact_same_default_size", {"dataInicio":"20260821","dataFim":"20260821","pagina":1}),
-              ("iso_same_size", {"dataInicio":"2026-08-21","dataFim":"2026-08-21","pagina":1,"tamanhoPagina":5}),
-              ("compact_cnpj_known_fresh", {"dataInicio":"20260821","dataFim":"20260821","cnpj":"13128814000158","pagina":1,"tamanhoPagina":5}),
+            ("compact_same",{"dataInicio":"20260821","dataFim":"20260821","pagina":1,"tamanhoPagina":10}),
+            ("compact_20_21",{"dataInicio":"20260820","dataFim":"20260821","pagina":1,"tamanhoPagina":10}),
+            ("compact_21_22",{"dataInicio":"20260821","dataFim":"20260822","pagina":1,"tamanhoPagina":10}),
+            ("iso_same",{"dataInicio":"2026-08-21","dataFim":"2026-08-21","pagina":1,"tamanhoPagina":10}),
+            ("cnpj_same",{"dataInicio":"20260821","dataFim":"20260821","cnpj":"13128814000158","pagina":1,"tamanhoPagina":10}),
+            ("cnpj_20_22",{"dataInicio":"20260820","dataFim":"20260822","cnpj":"13128814000158","pagina":1,"tamanhoPagina":10}),
           ]
-
           for label,params in cases:
-              try:
-                  t0=time.monotonic()
-                  r=S.get(URL,params=params,timeout=20)
-                  elapsed=time.monotonic()-t0
-                  raw=r.content or b""
-                  text=raw[:220].decode("utf-8",errors="replace")
-                  ctype=r.headers.get("content-type")
-                  clen=r.headers.get("content-length")
-                  print(f"PCA_DIAG={label}|HTTP={r.status_code}|SEC={elapsed:.3f}|CTYPE={ctype!r}|CLEN={clen!r}|BYTES={len(raw)}|TEXT={text!r}")
-                  if raw:
-                      try:
-                          p=r.json()
-                          if isinstance(p,dict):
-                              print(f"PCA_DIAG_JSON={label}|TYPE=dict|KEYS={sorted(p.keys())!r}|META="+repr({k:p.get(k) for k in ("numeroPagina","paginasRestantes","totalPaginas","totalRegistros","empty") if k in p}))
-                              for key in ("data","resultado","content","items"):
-                                  if isinstance(p.get(key),list):
-                                      print(f"PCA_DIAG_ROWS={label}|KEY={key}|ROWS={len(p[key])}|FIRST="+repr(p[key][0] if p[key] else None))
-                                      break
-                          elif isinstance(p,list):
-                              print(f"PCA_DIAG_JSON={label}|TYPE=list|ROWS={len(p)}|FIRST="+repr(p[0] if p else None))
-                          else:
-                              print(f"PCA_DIAG_JSON={label}|TYPE={type(p).__name__}|VALUE={repr(p)[:220]}")
-                      except Exception as exc:
-                          print(f"PCA_DIAG_JSON_ERROR={label}|{type(exc).__name__}:{exc}")
-              except Exception as exc:
-                  print(f"PCA_DIAG_EXCEPTION={label}|{type(exc).__name__}:{exc}")
+            try:
+              t0=time.monotonic(); r=S.get(URL,params=params,timeout=25); sec=time.monotonic()-t0
+              raw=r.content or b""; text=raw[:260].decode("utf-8",errors="replace")
+              print(f"PCA10={label}|HTTP={r.status_code}|SEC={sec:.3f}|CTYPE={r.headers.get('content-type')!r}|CLEN={r.headers.get('content-length')!r}|BYTES={len(raw)}|TEXT={text!r}")
+              if raw:
+                try:
+                  p=r.json()
+                  if isinstance(p,dict):
+                    print(f"PCA10_JSON={label}|KEYS={sorted(p.keys())!r}|META="+repr({k:p.get(k) for k in ("numeroPagina","paginasRestantes","totalPaginas","totalRegistros","empty") if k in p}))
+                    for k in ("data","resultado","content","items"):
+                      if isinstance(p.get(k),list): print(f"PCA10_ROWS={label}|KEY={k}|ROWS={len(p[k])}|FIRST="+repr(p[k][0] if p[k] else None)); break
+                  elif isinstance(p,list): print(f"PCA10_LIST={label}|ROWS={len(p)}|FIRST="+repr(p[0] if p else None))
+                except Exception as exc: print(f"PCA10_JSON_ERROR={label}|{type(exc).__name__}:{exc}")
+            except Exception as exc: print(f"PCA10_EXCEPTION={label}|{type(exc).__name__}:{exc}")
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
