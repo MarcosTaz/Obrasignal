@@ -144,13 +144,14 @@ def test_microworks_cannot_bypass_capacity_economics_trust_or_action_gates():
         "Q233_MICROWORKS_ECONOMIC_MATCHING",
         "Q234_CONTINUOUS_OPPORTUNITY_HUNTING",
     } == set(items["Q235_MICROWORKS_ACTION_PILOT"].dependencies)
-    assert all(items[item_id].state == "GATED" for item_id in {
+    for item_id in {
         "Q231_CAPACITY_UNIT_SERVICES",
         "Q232_MICROWORKS_SOURCE_VALIDATION",
         "Q233_MICROWORKS_ECONOMIC_MATCHING",
         "Q234_CONTINUOUS_OPPORTUNITY_HUNTING",
         "Q235_MICROWORKS_ACTION_PILOT",
-    })
+    }:
+        assert items[item_id].state == "GATED"
 
 
 def test_reverse_capacity_network_requires_trust_and_capacity_contract():
