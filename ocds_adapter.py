@@ -53,7 +53,6 @@ class OCDSWindowCursor:
                     return cls(stamp)
             except (TypeError, ValueError, json.JSONDecodeError):
                 return None
-        # Backwards-compatible date-only watermark.
         try:
             date.fromisoformat(text[:10])
         except ValueError:
@@ -101,7 +100,6 @@ def _records_from_payload(payload):
     if isinstance(records, list):
         return [row for row in records if isinstance(row, dict)]
 
-    # Some APIs wrap one or more record packages in a packages collection.
     packages = payload.get("packages")
     if isinstance(packages, list):
         rows = []
@@ -110,8 +108,6 @@ def _records_from_payload(payload):
                 rows.extend(_records_from_payload(package))
         return rows
 
-    # Release packages are accepted too. Wrap each release as a record-like unit
-    # so downstream normalization can share one code path.
     releases = payload.get("releases")
     if isinstance(releases, list):
         return [
@@ -125,7 +121,6 @@ def _records_from_payload(payload):
         if isinstance(rows, list):
             return [row for row in rows if isinstance(row, dict)]
 
-    # A single OCDS record is also valid input for detail endpoints/tests.
     if payload.get("ocid") and (payload.get("compiledRelease") or payload.get("releases")):
         return [payload]
     return []
@@ -210,7 +205,7 @@ def normalize_ocds_record(record, *, source, country, market="GLOBAL", require_a
 
     status = _text(tender.get("statusDetails") or tender.get("status"))
     standard_status = _text(tender.get("status")).lower()
-    if require_active_tender and standard_status not in ("active", "planned"):
+    if require_active_tender and standard_status != "active":
         return None
 
     classification = _first_classification(tender)
@@ -341,6 +336,5 @@ class OCDSAPIConnector:
                 item = normalizer(record)
                 if item and item.get("external_id"):
                     rows.append(item)
-            # Advance only after every page in this date window completed.
             cursor = OCDSWindowCursor(end.isoformat()).encode()
         return rows, cursor
