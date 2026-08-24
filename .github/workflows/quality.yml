@@ -23,7 +23,7 @@ jobs:
         run: |
           python - <<'PY'
           import time
-          from datetime import datetime
+          from collections import Counter
           import requests
 
           SEARCH="https://pncp.gov.br/api/search/"
@@ -31,7 +31,7 @@ jobs:
           S=requests.Session()
           S.headers.update({
               "Accept":"application/json, text/plain, */*",
-              "User-Agent":"ObraSignal PNCP production-contract probe/1.0",
+              "User-Agent":"ObraSignal PNCP production-contract probe/1.1",
               "Referer":"https://pncp.gov.br/app/pca",
           })
 
@@ -47,6 +47,13 @@ jobs:
                       last=exc; time.sleep(n+1)
               raise RuntimeError(f"bounded fetch failed {url}: {last!r}")
 
+          def rows_from(data):
+              if isinstance(data,list): return data
+              if isinstance(data,dict):
+                  for key in ("items","data","content","results","resultados"):
+                      if isinstance(data.get(key),list): return data[key]
+              return []
+
           def search(size, page=1):
               r=get(SEARCH,{
                   "q":"",
@@ -55,7 +62,7 @@ jobs:
                   "pagina":page,
                   "tam_pagina":size,
               })
-              print(f"SEARCH_SIZE={size}|PAGE={page}|HTTP={r.status_code}|BYTES={len(r.content)}|CTYPE={r.headers.get('content-type')!r}")
+              print(f"SEARCH_SIZE={size}|PAGE={page}|HTTP={r.status_code}|BYTES={len(r.content)}")
               r.raise_for_status(); data=r.json()
               assert isinstance(data,dict) and isinstance(data.get("items"),list)
               print(f"SEARCH_TOTAL={data.get('total')}|ROWS={len(data['items'])}")
@@ -65,54 +72,73 @@ jobs:
               data=search(size)
               assert 0 < len(data["items"]) <= size
 
-          data=search(10)
-          rows=data["items"]
+          start=search(10)
+          rows=start["items"]
           updates=[str(x.get("data_atualizacao_pncp") or "") for x in rows]
           print("RECENT_UPDATES="+repr(updates))
           assert all(updates[i] >= updates[i+1] for i in range(len(updates)-1))
+          assert all(str(row.get("orgao_cnpj") or "").strip() and str(row.get("ano") or "").strip() for row in rows)
 
-          for row in rows[:3]:
-              print("SEARCH_IDENTITY="+repr({
-                  "id":row.get("id"),
-                  "orgao_cnpj":row.get("orgao_cnpj"),
-                  "ano":row.get("ano"),
-                  "numero":row.get("numero"),
-                  "numero_sequencial":row.get("numero_sequencial"),
-                  "item_url":row.get("item_url"),
-                  "cancelado":row.get("cancelado"),
-                  "data_publicacao_pncp":row.get("data_publicacao_pncp"),
-                  "data_atualizacao_pncp":row.get("data_atualizacao_pncp"),
-                  "orgao_nome":row.get("orgao_nome"),
-                  "unidade_codigo":row.get("unidade_codigo"),
-                  "unidade_nome":row.get("unidade_nome"),
-                  "municipio_nome":row.get("municipio_nome"),
-                  "uf":row.get("uf"),
-                  "valor_global":row.get("valor_global"),
+          hydrated=False
+          for control in rows[:5]:
+              cnpj=str(control.get("orgao_cnpj") or "").strip()
+              ano=str(control.get("ano") or "").strip()
+              consolidated=f"{API}/orgaos/{cnpj}/pca/{ano}/consolidado/unidades"
+              cr=get(consolidated,{"pagina":1,"tamanhoPagina":100},tries=3,timeout=40)
+              print(f"CONSOLIDATED={cnpj}/{ano}|HTTP={cr.status_code}|BYTES={len(cr.content)}")
+              if cr.status_code != 200 or not cr.content:
+                  continue
+              try: cdata=cr.json()
+              except Exception: continue
+              units=rows_from(cdata)
+              print(f"CONSOLIDATED_TYPE={type(cdata).__name__}|ROWS={len(units)}")
+              if units:
+                  print("CONSOLIDATED_KEYS="+repr(sorted(units[0].keys())))
+              unit=next((u for u in units if str(u.get("sequencialPca") or "").strip()),None)
+              if unit is None:
+                  continue
+              seq=str(unit.get("sequencialPca")).strip()
+              numero=str(unit.get("numeroControlePNCP") or "").strip()
+              assert str(unit.get("cnpj") or cnpj).strip() == cnpj
+              assert str(unit.get("anoPca") or ano).strip() == ano
+              print("PCA_IDENTITY="+repr({
+                  "cnpj":cnpj,"ano":ano,"sequencialPca":seq,
+                  "numeroControlePNCP":numero,"codigoUnidade":unit.get("codigoUnidade"),
+                  "dataAtualizacao":unit.get("dataAtualizacao"),"valorTotal":unit.get("valorTotal"),
               }))
 
-          control=rows[0]
-          cnpj=str(control.get("orgao_cnpj") or "").strip()
-          ano=str(control.get("ano") or "").strip()
-          seq=str(control.get("numero_sequencial") or "").strip()
-          assert cnpj and ano and seq, "search row lacks PCA hydration identity"
-          detail_url=f"{API}/orgaos/{cnpj}/pca/{ano}/{seq}/itens"
-          dr=get(detail_url,tries=3,timeout=40)
-          print(f"DETAIL_URL={detail_url}|HTTP={dr.status_code}|BYTES={len(dr.content)}|CTYPE={dr.headers.get('content-type')!r}")
-          dr.raise_for_status(); items=dr.json()
-          assert isinstance(items,list)
-          print(f"DETAIL_ROWS={len(items)}")
-          if items:
+              detail=f"{API}/orgaos/{cnpj}/pca/{ano}/{seq}/itens"
+              dr=get(detail,{"pagina":1,"tamanhoPagina":100},tries=3,timeout=40)
+              print(f"DETAIL={cnpj}/{ano}/{seq}|HTTP={dr.status_code}|BYTES={len(dr.content)}")
+              if dr.status_code != 200 or not dr.content:
+                  continue
+              idata=dr.json(); items=rows_from(idata)
+              print(f"DETAIL_TYPE={type(idata).__name__}|ROWS={len(items)}")
+              if not items:
+                  continue
               print("DETAIL_KEYS="+repr(sorted(items[0].keys())))
-              print("DETAIL_IDENTITY="+repr({k:items[0].get(k) for k in (
-                  "cnpj","anoPca","sequencialPca","numeroItem","categoriaItemPcaid",
-                  "categoriaItemPcaNome","dataDesejada","dataAtualizacao","valorTotal",
-                  "grupoContratacaoCodigo","grupoContratacaoNome","nomeUnidade","codigoUnidade"
-              )}))
-              assert str(items[0].get("cnpj") or "") == cnpj
-              assert str(items[0].get("anoPca") or "") == ano
-              assert str(items[0].get("sequencialPca") or "") == seq
+              first=items[0]
+              assert str(first.get("cnpj") or "") == cnpj
+              assert str(first.get("anoPca") or "") == ano
+              assert str(first.get("sequencialPca") or "") == seq
+              assert str(first.get("numeroItem") or "").strip()
+              cats=Counter(str(item.get("categoriaItemPcaId") or item.get("categoriaItemPcaid") or "") for item in items)
+              print("CATEGORY_COUNTS="+repr(dict(cats)))
+              works=[item for item in items if str(item.get("categoriaItemPcaId") or item.get("categoriaItemPcaid") or "") in {"3","4","8"}]
+              print(f"WORKS_ROWS={len(works)}")
+              if works:
+                  sample=works[0]
+                  print("WORKS_SAMPLE="+repr({k:sample.get(k) for k in (
+                      "numeroItem","categoriaItemPcaId","categoriaItemPcaid","categoriaItemPcaNome",
+                      "classificacaoSuperiorCodigo","classificacaoSuperiorNome","descricao",
+                      "quantidade","valorUnitario","valorTotal","dataDesejada","dataAtualizacao",
+                      "grupoContratacaoCodigo","grupoContratacaoNome","codigoUnidade","nomeUnidade"
+                  )}))
+              hydrated=True
+              break
 
-          # Detect obvious offset drift while a bounded detail hydration occurs.
+          assert hydrated, "could not prove search -> consolidated/unidades -> sequencialPca -> items chain"
+
           end=search(10)
           start_anchor=(rows[0].get("data_atualizacao_pncp"),rows[0].get("id"))
           end_anchor=(end["items"][0].get("data_atualizacao_pncp"),end["items"][0].get("id"))
