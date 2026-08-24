@@ -3,10 +3,17 @@ import app as _app
 import preload as _preload
 
 from incremental_runtime_plugin import install_incremental_source
-from poland_bzp import fetch_poland_bzp_tenders
+from poland_bzp import build_poland_bzp_connector, fetch_poland_bzp_tenders as _fetch_poland_bzp_tenders
 
 
 SOURCE = "PL_BZP"
+RUNTIME_MAX_PAGE_SIZE = 250
+
+
+def fetch_poland_bzp_tenders(*, watermark=None):
+    """Fetch BZP using only the page size proved by live validation."""
+    connector = build_poland_bzp_connector(max_page_size=RUNTIME_MAX_PAGE_SIZE)
+    return _fetch_poland_bzp_tenders(watermark=watermark, connector=connector)
 
 
 def install():
