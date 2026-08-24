@@ -26,20 +26,21 @@ jobs:
           with urllib.request.urlopen(req, timeout=120) as r:
               body = r.read()
               print('status=', r.status)
-              print('final_url=', r.geturl())
+              print('final_url_host=', urllib.request.urlparse(r.geturl()).netloc if hasattr(urllib.request, 'urlparse') else r.geturl().split('/')[2])
               print('content_type=', r.headers.get('content-type'))
               print('content_length_header=', r.headers.get('content-length'))
               print('last_modified=', r.headers.get('last-modified'))
               print('etag=', r.headers.get('etag'))
               print('bytes=', len(body))
-          text = body.decode('utf-8-sig')
-          # SAM bulk extracts historically carry metadata/preamble rows. Locate the
-          # actual CSV header rather than assuming row 1.
+          # Current publisher extract contains Windows-1252 punctuation. cp1252 is
+          # single-byte and therefore fail-safe for transport inspection while
+          # preserving every byte-to-character mapping relevant to CSV structure.
+          text = body.decode('cp1252')
           lines = text.splitlines()
           header_index = None
           for i, line in enumerate(lines[:25]):
               lowered = line.lower()
-              if 'noticeid' in lowered and ('title' in lowered or 'solicitation' in lowered):
+              if 'notice' in lowered and ('title' in lowered or 'solicitation' in lowered):
                   header_index = i
                   break
           print('header_index=', header_index)
@@ -47,26 +48,27 @@ jobs:
               print('first_lines=', json.dumps(lines[:10]))
               raise SystemExit('could not locate SAM opportunity header')
           reader = csv.DictReader(io.StringIO('\n'.join(lines[header_index:])))
-          print('fields=', len(reader.fieldnames or []))
-          print('fieldnames=', json.dumps(reader.fieldnames, ensure_ascii=False))
+          fields = list(reader.fieldnames or [])
+          print('fields=', len(fields))
+          print('fieldnames=', json.dumps(fields, ensure_ascii=False))
           rows=[]
           for idx,row in enumerate(reader):
               rows.append(row)
               if idx >= 4999:
                   break
           print('sample_rows=', len(rows))
-          # Print compact distributions only from first 5k rows.
-          for candidate in ['Type','TYPE','type','Active','ACTIVE','active','NAICS','naicsCode','NAICS Code','Classification Code','classificationCode']:
-              if candidate in (reader.fieldnames or []):
+          for candidate in fields:
+              low=candidate.lower()
+              if low in {'type','active','naics','naicscode','naics code','classification code','classificationcode'}:
                   counts=collections.Counter((r.get(candidate) or '').strip() for r in rows)
-                  print(candidate, json.dumps(counts.most_common(20), ensure_ascii=False))
-          # Compact sample with only likely identity/construction/lifecycle columns.
-          likely = [x for x in (reader.fieldnames or []) if any(k in x.lower() for k in ('notice','solic','naics','class','type','active','posted','response','archive','title'))]
+                  print('DIST', candidate, json.dumps(counts.most_common(25), ensure_ascii=False))
+          likely = [x for x in fields if any(k in x.lower() for k in ('notice','solic','naics','class','type','active','posted','response','archive','title'))]
           print('likely_fields=', json.dumps(likely, ensure_ascii=False))
           for row in rows[:3]:
-              print('SAMPLE', json.dumps({k: row.get(k) for k in likely[:30]}, ensure_ascii=False))
+              print('SAMPLE', json.dumps({k: row.get(k) for k in likely}, ensure_ascii=False))
           PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: sam-bulk-probe
           path: sam-bulk-probe.txt
