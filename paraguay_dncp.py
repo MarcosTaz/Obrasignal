@@ -5,8 +5,12 @@ https://www.contrataciones.gov.py/datos/api/v3/doc/
 
 The production API requires an application/request token. Anonymous access is
 reserved for low-rate testing by the publisher, so production helpers fail
-closed when credentials are absent. The source searches by ``fecha_release`` in
-small completed date windows and asks the API itself for works-only processes.
+closed when credentials are absent.
+
+DNCP `/search/processes` deliberately returns a minimal OCDS record package.
+This source therefore uses search only for bounded candidate discovery, then
+hydrates each OCID through the official `/ocds/record/{ocid}` record-package
+endpoint before deciding whether to emit a live TENDER signal.
 """
 from datetime import datetime, timezone
 import os
@@ -20,6 +24,7 @@ from ocds_adapter import OCDSAPIConfig, OCDSAPIConnector, normalize_ocds_record
 DNCP_API_ROOT = "https://www.contrataciones.gov.py/datos/api/v3/doc"
 DNCP_SEARCH_URL = f"{DNCP_API_ROOT}/search/processes"
 DNCP_TOKEN_URL = f"{DNCP_API_ROOT}/oauth/token"
+DNCP_RECORD_URL_TEMPLATE = f"{DNCP_API_ROOT}/ocds/record/{{ocid}}"
 DNCP_PORTAL_URL = "https://www.contrataciones.gov.py/buscador/licitaciones.html"
 
 DNCP_CONFIG = OCDSAPIConfig(
@@ -27,9 +32,9 @@ DNCP_CONFIG = OCDSAPIConfig(
     country="PRY",
     search_url=DNCP_SEARCH_URL,
     page_size=100,
-    # The publisher caps list services at 10,000 results. With works + one-day
-    # release windows, 100 pages x 100 records reaches that ceiling and must
-    # fail closed rather than pretend a truncated window is complete.
+    # The publisher caps list services at 10,000 results. With active works +
+    # one-day release windows, 100 pages x 100 records reaches that ceiling and
+    # must fail closed rather than pretend a truncated window is complete.
     max_pages_per_window=100,
     window_days=1,
     max_windows_per_sync=14,
@@ -37,6 +42,11 @@ DNCP_CONFIG = OCDSAPIConfig(
     overlap_days=1,
     market="GLOBAL",
     timeout=45,
+    record_url_template=DNCP_RECORD_URL_TEMPLATE,
+    hydrate_records=True,
+    # Hydration is intentionally bounded. A larger candidate window requires
+    # query narrowing or a bulk strategy, not thousands of detail calls.
+    max_hydrations_per_window=250,
 )
 
 
@@ -46,6 +56,10 @@ def dncp_search_params(start, end):
         "fecha_hasta": end.isoformat(),
         "tipo_fecha": "fecha_release",
         "tender.mainProcurementCategory": "works",
+        # Live validation confirmed DNCP accepts the standard OCDS status field
+        # for search even though the minimal response omits it. Hydration then
+        # verifies the final compiled tender state before emission.
+        "tender.status": "active",
         "order": "date asc",
     }
 
@@ -91,8 +105,6 @@ class DNCPTokenProvider:
     def headers(self):
         direct = self._direct_token()
         if direct:
-            # V3 Swagger models Authorization as an apiKey/header and instructs
-            # callers to pass the generated access token in this header.
             return {"Authorization": direct}
 
         if self._cached_token and time.monotonic() < self._expires_at:
@@ -119,8 +131,8 @@ def normalize_dncp_process(record):
     )
     if not item:
         return None
-    # Search is already works-only server-side; retain publisher terminology
-    # and a useful official fallback when a minimal record omits tender.url.
+    # Preserve the publisher's richer local category label when present; only
+    # fall back to the standard OCDS code when the source gives no details.
     item["contract_type"] = item.get("contract_type") or "works"
     item["url"] = item.get("url") or DNCP_PORTAL_URL
     return item
