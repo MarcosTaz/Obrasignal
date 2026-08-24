@@ -175,9 +175,9 @@ def test_austria_registry_declares_only_proven_distributed_tender_contract():
     assert source["adapter"] == "AustriaKerndatenIncrementalConnector"
     assert source["signal_types"] == ("TENDER",)
     assert set(source["capabilities"]) == {"incremental_sync", "detail", "lifecycle"}
-    assert source["realtime_capable"] is True
-    assert source["expected_refresh_minutes"] == 60
-    assert source["stale_after_minutes"] == 180
+    assert source["realtime_capable"] is False
+    assert source["expected_refresh_minutes"] == 720
+    assert source["stale_after_minutes"] == 2160
     assert "search" not in source["capabilities"]
     assert "awards" not in source["capabilities"]
     assert "contracts" not in source["capabilities"]
@@ -205,7 +205,7 @@ def test_registered_source_freshness_is_source_specific():
     assert stale_after_minutes_for("UK_PROCUREMENT") == 180
     assert stale_after_minutes_for("CH_SIMAP") == 180
     assert stale_after_minutes_for("PL_BZP") == 180
-    assert stale_after_minutes_for("AT_KERNDATEN") == 180
+    assert stale_after_minutes_for("AT_KERNDATEN") == 2160
     assert stale_after_minutes_for("EC_SERCOP") == 4320
     assert stale_after_minutes_for("ZA_ETENDERS") == 4320
     assert stale_after_minutes_for("LV_IUB") == 4320
