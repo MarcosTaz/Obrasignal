@@ -4,10 +4,11 @@ This module deliberately separates transport/pagination from country-specific
 normalization. It is intended for official open-data datasets such as Colombia
 SECOP and, later, municipal/state procurement datasets that use Socrata.
 
-The adapter uses keyset pagination on (updated timestamp, source identifier)
-rather than deep global offsets. Existing watermarks are replayed with a small
-overlap so late corrections are re-read safely and de-duplicated by the normal
-ObraSignal source/external-id identity.
+The adapter uses keyset pagination on (effective source timestamp, source
+identifier) rather than deep global offsets. Sources with incomplete update
+columns may provide a documented SoQL cursor expression (for example a
+``greatest(update_at, published_at)`` expression) without changing the generic
+pagination contract.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -32,10 +33,30 @@ class SocrataSourceConfig:
     app_token_env: str | None = None
     market: str = "GLOBAL"
     base_where: str = ""
+    cursor_expression: str = ""
+    cursor_alias: str = "source_cursor_at"
 
     @property
     def resource_url(self):
         return f"https://{self.domain}/resource/{self.dataset_id}.json"
+
+    @property
+    def cursor_sql(self):
+        return str(self.cursor_expression or self.updated_field).strip()
+
+    @property
+    def cursor_result_field(self):
+        if self.cursor_expression:
+            return str(self.cursor_alias or "source_cursor_at").strip()
+        return self.updated_field
+
+    @property
+    def select_fields(self):
+        fields = list(self.selected_fields)
+        if self.cursor_expression:
+            alias = self.cursor_result_field
+            fields.append(f"{self.cursor_sql} AS {alias}")
+        return tuple(fields)
 
 
 @dataclass(frozen=True)
@@ -112,16 +133,16 @@ class SocrataProcurementAdapter:
         return _socrata_timestamp(anchor - timedelta(days=self.config.initial_lookback_days))
 
     def _incremental_where(self, start_timestamp, after=None):
-        updated = self.config.updated_field
+        cursor_sql = self.config.cursor_sql
         identifier = self.config.id_field
         if after:
             stamp = _escape_soql(after.timestamp)
             ext = _escape_soql(after.external_id)
             return (
-                f"({updated} > '{stamp}' OR "
-                f"({updated} = '{stamp}' AND {identifier} > '{ext}'))"
+                f"({cursor_sql} > '{stamp}' OR "
+                f"({cursor_sql} = '{stamp}' AND {identifier} > '{ext}'))"
             )
-        return f"{updated} >= '{_escape_soql(start_timestamp)}'"
+        return f"{cursor_sql} >= '{_escape_soql(start_timestamp)}'"
 
     def _where(self, start_timestamp, after=None):
         incremental = self._incremental_where(start_timestamp, after)
@@ -132,18 +153,28 @@ class SocrataProcurementAdapter:
 
     def _params(self, start_timestamp, after=None):
         return {
-            "$select": ",".join(self.config.selected_fields),
+            "$select": ",".join(self.config.select_fields),
             "$where": self._where(start_timestamp, after),
-            "$order": f"{self.config.updated_field} ASC, {self.config.id_field} ASC",
+            "$order": f"{self.config.cursor_sql} ASC, {self.config.id_field} ASC",
             "$limit": str(self.config.page_size),
         }
+
+    def _cursor_from_row(self, row):
+        stamp = str(row.get(self.config.cursor_result_field) or "").strip()
+        ext = str(row.get(self.config.id_field) or "").strip()
+        if not stamp or not ext:
+            raise RuntimeError(
+                f"{self.config.source} cannot advance cursor: missing "
+                f"{self.config.cursor_result_field}/{self.config.id_field}"
+            )
+        return SocrataCursor(stamp, ext)
 
     def fetch_raw_incremental(self, *, watermark=None, now=None):
         """Return raw rows plus a durable high-water cursor.
 
-        Cursor advancement is based on the source's update timestamp. The first
-        page starts from either a bounded initial lookback or an overlap before
-        the previous watermark. Subsequent pages use keyset pagination.
+        Cursor advancement is based on the source's effective cursor timestamp.
+        The first page starts from either a bounded initial lookback or an overlap
+        before the previous watermark. Subsequent pages use keyset pagination.
         """
         start_timestamp = self._start_timestamp(watermark, now)
         after = None
@@ -162,15 +193,7 @@ class SocrataProcurementAdapter:
             if not batch:
                 break
             rows.extend(row for row in batch if isinstance(row, dict))
-            last = batch[-1]
-            stamp = str(last.get(self.config.updated_field) or "").strip()
-            ext = str(last.get(self.config.id_field) or "").strip()
-            if not stamp or not ext:
-                raise RuntimeError(
-                    f"{self.config.source} cannot advance cursor: missing "
-                    f"{self.config.updated_field}/{self.config.id_field}"
-                )
-            next_after = SocrataCursor(stamp, ext)
+            next_after = self._cursor_from_row(batch[-1])
             if after == next_after:
                 raise RuntimeError(f"{self.config.source} Socrata cursor did not advance")
             after = next_after
@@ -182,13 +205,7 @@ class SocrataProcurementAdapter:
                 "sync window must be narrowed before advancing the watermark"
             )
 
-        cursor = None
-        if rows:
-            last = rows[-1]
-            cursor = SocrataCursor(
-                str(last.get(self.config.updated_field) or ""),
-                str(last.get(self.config.id_field) or ""),
-            ).encode()
+        cursor = self._cursor_from_row(rows[-1]).encode() if rows else None
         return rows, cursor
 
     def fetch_incremental(self, normalizer, *, watermark=None, now=None):
