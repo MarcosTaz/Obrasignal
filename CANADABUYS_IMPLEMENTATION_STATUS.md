@@ -1,26 +1,23 @@
 # CanadaBuys implementation status
 
-Q040_CANADA_BUYS remains ACTIVE until exact-head CI and live production-path validation pass.
+Q040_CANADA_BUYS is complete and the canonical queue has advanced to `Q050_US_SAM`.
 
-Implemented on `codex/canadabuys-production`:
+Validated implementation on `codex/canadabuys-production`:
 
-- official New/Open CSV connector;
+- official New/Open/Complete CanadaBuys CSV lifecycle path;
 - strict publisher-native CNST construction gate;
 - solicitation-number durable identity;
-- amendment/version preservation;
+- amendment/version preservation without identity churn;
 - fixed UTC-05 closing-time semantics;
 - conditional ETag/Last-Modified transport;
-- Open snapshot lifecycle reconciliation;
-- fail-closed 67-column schema contract;
+- Open snapshot lifecycle reconciliation with conservative Complete-file terminal proof;
+- fail-closed exact 67-column schema contract;
 - no fabricated tender value/currency;
-- generic incremental runtime wrapper;
-- deterministic contract/runtime tests;
-- opt-in live production-path test.
+- source registry status `ready`, legal reuse GREEN and machine access VERIFIED;
+- explicit opt-in runtime gate through `OBRASIGNAL_GLOBAL_SOURCES` rather than default activation;
+- production WSGI composition wiring;
+- deterministic contract/runtime/registry tests;
+- successful live production-path test against the official CanadaBuys publisher;
+- exact-head repository Quality gate passed before queue promotion.
 
-Not yet promoted at the time this file is written:
-
-- source registry entry;
-- default runtime activation;
-- master queue Q040 -> DONE.
-
-Those require exact-head CI plus a successful live production-path gate.
+Operational note: `ready` does not mean the production environment variable is currently set. Repository promotion is complete; actual live ingestion remains intentionally controlled by the deployment environment's explicit source opt-in.
