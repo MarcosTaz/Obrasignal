@@ -2,13 +2,20 @@
 import requests
 
 
+CURSOR = "greatest(fecha_de_ultima_publicaci, fecha_de_publicacion_del)"
+
+
 def test_official_secop_construction_query_live():
     response = requests.get(
         "https://www.datos.gov.co/resource/p6dx-8zbt.json",
         params={
-            "$select": "id_del_proceso,tipo_de_contrato,estado_de_apertura_del_proceso,fecha_de_ultima_publicaci,urlproceso",
+            "$select": (
+                "id_del_proceso,tipo_de_contrato,estado_de_apertura_del_proceso,"
+                "fecha_de_publicacion_del,fecha_de_ultima_publicaci,urlproceso,"
+                f"{CURSOR} AS source_cursor_at"
+            ),
             "$where": "estado_de_apertura_del_proceso = 'Abierto' AND tipo_de_contrato = 'Obra'",
-            "$order": "fecha_de_ultima_publicaci DESC,id_del_proceso DESC",
+            "$order": f"{CURSOR} DESC,id_del_proceso DESC",
             "$limit": "5",
         },
         timeout=30,
@@ -21,4 +28,4 @@ def test_official_secop_construction_query_live():
         assert row["tipo_de_contrato"] == "Obra"
         assert row["estado_de_apertura_del_proceso"] == "Abierto"
         assert row.get("id_del_proceso")
-        assert row.get("fecha_de_ultima_publicaci")
+        assert row.get("source_cursor_at"), row
