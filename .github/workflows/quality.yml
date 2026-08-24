@@ -19,35 +19,41 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP PNCP PCA valid-page-size diagnostic
+      - name: TEMP PNCP PCA Works classification control
         run: |
           python - <<'PY'
-          import time, requests
-          URL="https://pncp.gov.br/api/consulta/v1/pca/atualizacao"
-          S=requests.Session(); S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA diagnostic/1.4"})
-          cases=[
-            ("compact_same",{"dataInicio":"20260821","dataFim":"20260821","pagina":1,"tamanhoPagina":10}),
-            ("compact_20_21",{"dataInicio":"20260820","dataFim":"20260821","pagina":1,"tamanhoPagina":10}),
-            ("compact_21_22",{"dataInicio":"20260821","dataFim":"20260822","pagina":1,"tamanhoPagina":10}),
-            ("iso_same",{"dataInicio":"2026-08-21","dataFim":"2026-08-21","pagina":1,"tamanhoPagina":10}),
-            ("cnpj_same",{"dataInicio":"20260821","dataFim":"20260821","cnpj":"13128814000158","pagina":1,"tamanhoPagina":10}),
-            ("cnpj_20_22",{"dataInicio":"20260820","dataFim":"20260822","cnpj":"13128814000158","pagina":1,"tamanhoPagina":10}),
-          ]
-          for label,params in cases:
-            try:
-              t0=time.monotonic(); r=S.get(URL,params=params,timeout=25); sec=time.monotonic()-t0
-              raw=r.content or b""; text=raw[:260].decode("utf-8",errors="replace")
-              print(f"PCA10={label}|HTTP={r.status_code}|SEC={sec:.3f}|CTYPE={r.headers.get('content-type')!r}|CLEN={r.headers.get('content-length')!r}|BYTES={len(raw)}|TEXT={text!r}")
-              if raw:
-                try:
+          import requests, time
+          URL="https://pncp.gov.br/api/consulta/v1/pca/"
+          S=requests.Session(); S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA Works control/1.5"})
+          for code in (541,542,543,546,547):
+              try:
+                  t0=time.monotonic()
+                  r=S.get(URL,params={"anoPca":2026,"codigoClassificacaoSuperior":str(code),"pagina":1,"tamanhoPagina":10},timeout=30)
+                  sec=time.monotonic()-t0
+                  raw=r.content or b""
+                  print(f"PCA_CLASS={code}|HTTP={r.status_code}|SEC={sec:.3f}|BYTES={len(raw)}|CTYPE={r.headers.get('content-type')!r}")
+                  if r.status_code!=200 or not raw:
+                      print(f"PCA_CLASS_BODY={code}|{raw[:240].decode('utf-8',errors='replace')!r}")
+                      continue
                   p=r.json()
-                  if isinstance(p,dict):
-                    print(f"PCA10_JSON={label}|KEYS={sorted(p.keys())!r}|META="+repr({k:p.get(k) for k in ("numeroPagina","paginasRestantes","totalPaginas","totalRegistros","empty") if k in p}))
-                    for k in ("data","resultado","content","items"):
-                      if isinstance(p.get(k),list): print(f"PCA10_ROWS={label}|KEY={k}|ROWS={len(p[k])}|FIRST="+repr(p[k][0] if p[k] else None)); break
-                  elif isinstance(p,list): print(f"PCA10_LIST={label}|ROWS={len(p)}|FIRST="+repr(p[0] if p else None))
-                except Exception as exc: print(f"PCA10_JSON_ERROR={label}|{type(exc).__name__}:{exc}")
-            except Exception as exc: print(f"PCA10_EXCEPTION={label}|{type(exc).__name__}:{exc}")
+                  print(f"PCA_CLASS_META={code}|"+repr({k:p.get(k) for k in ("numeroPagina","paginasRestantes","totalPaginas","totalRegistros","empty") if isinstance(p,dict) and k in p}))
+                  data=p.get("data",[]) if isinstance(p,dict) else (p if isinstance(p,list) else [])
+                  print(f"PCA_CLASS_ROWS={code}|{len(data)}")
+                  cats={}; nitems=0
+                  for row in data:
+                      if not isinstance(row,dict): continue
+                      candidates=row.get("itens") if isinstance(row.get("itens"),list) else [row]
+                      for it in candidates:
+                          if not isinstance(it,dict): continue
+                          nitems+=1
+                          name=it.get("categoriaItemPcaNome")
+                          cls=it.get("classificacaoSuperiorCodigo")
+                          cats[(str(name),str(cls))]=cats.get((str(name),str(cls)),0)+1
+                          if nitems<=5:
+                              print(f"PCA_CLASS_ITEM={code}|"+repr({k:it.get(k) for k in ("numeroItem","categoriaItemPcaNome","classificacaoSuperiorCodigo","classificacaoSuperiorNome","descricaoItem","pdmDescricao","valorTotal","dataDesejada","dataAtualizacao","grupoContratacaoCodigo","grupoContratacaoNome")}))
+                  print(f"PCA_CLASS_COUNTS={code}|ITEMS={nitems}|CATS={cats!r}")
+              except Exception as exc:
+                  print(f"PCA_CLASS_EXCEPTION={code}|{type(exc).__name__}:{exc}")
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
