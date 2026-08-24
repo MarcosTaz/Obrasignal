@@ -35,11 +35,11 @@ def test_wave_1_contains_only_machine_verified_green_sources():
     assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
-    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 4
+    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 5
 
 
 def test_live_validated_wave_1_sources_pass_registry_gate():
-    for source in ("CO_SECOP", "PY_DNCP", "UY_ARCE", "ZA_ETENDERS"):
+    for source in ("CO_SECOP", "PY_DNCP", "UY_ARCE", "ZA_ETENDERS", "LV_IUB"):
         assert SOURCES[source]["status"] == "ready"
         assert production_gate_reasons(source) == ()
         assert source in production_ready_sources()
@@ -68,6 +68,16 @@ def test_za_registry_declares_only_implemented_tender_api_contract():
     assert source["adapter"] == "OCDSAPIConnector"
     assert source["signal_types"] == ("TENDER",)
     assert {"search", "incremental_sync", "historical_data"} <= set(source["capabilities"])
+    assert "awards" not in source["capabilities"]
+
+
+def test_lv_registry_declares_only_implemented_daily_tender_contract():
+    source = SOURCES["LV_IUB"]
+    assert source["kind"] == "OFFICIAL_JSON_BULK"
+    assert source["access"] == "daily_json"
+    assert source["adapter"] == "OfficialJSONBulkAdapter"
+    assert source["signal_types"] == ("TENDER",)
+    assert set(source["capabilities"]) == {"incremental_sync", "historical_data"}
     assert "awards" not in source["capabilities"]
 
 
