@@ -35,12 +35,13 @@ def test_wave_1_contains_only_machine_verified_green_sources():
     assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
-    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 6
+    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 7
 
 
 def test_live_validated_wave_1_sources_pass_registry_gate():
     for source in (
         "CO_SECOP",
+        "EC_SERCOP",
         "PY_DNCP",
         "UY_ARCE",
         "ZA_ETENDERS",
@@ -56,6 +57,22 @@ def test_dncp_registry_declares_oauth_and_realtime_capability():
     assert SOURCES["PY_DNCP"]["access"] == "api_oauth"
     assert SOURCES["PY_DNCP"]["adapter"] == "OCDSAPIConnector"
     assert SOURCES["PY_DNCP"]["realtime_capable"] is True
+
+
+def test_ecuador_registry_declares_only_proven_bulk_record_tender_contract():
+    source = SOURCES["EC_SERCOP"]
+    assert source["kind"] == "OCDS_MONTHLY_BULK_RECORD_API"
+    assert source["access"] == "public_monthly_bulk_record_api"
+    assert source["adapter"] == "SERCOPBulkRecordConnector"
+    assert source["signal_types"] == ("TENDER",)
+    assert set(source["capabilities"]) == {"incremental_sync", "detail"}
+    assert source["realtime_capable"] is False
+    assert source["expected_refresh_minutes"] == 1440
+    assert source["stale_after_minutes"] == 4320
+    assert "search" not in source["capabilities"]
+    assert "awards" not in source["capabilities"]
+    assert "contracts" not in source["capabilities"]
+    assert "plans" not in source["capabilities"]
 
 
 def test_arce_registry_describes_actual_rss_record_release_architecture():
@@ -109,9 +126,9 @@ def test_germany_does_not_pass_production_gate_until_legal_closure():
 
 
 def test_planned_wave_source_does_not_become_runtime_active_by_registry_entry_alone():
-    reasons = production_gate_reasons("EC_SERCOP")
+    reasons = production_gate_reasons("KR_KONEPS")
     assert reasons == ("runtime_not_enabled",)
-    assert "EC_SERCOP" not in production_ready_sources()
+    assert "KR_KONEPS" not in production_ready_sources()
 
 
 def test_registered_source_freshness_is_source_specific():
@@ -119,6 +136,7 @@ def test_registered_source_freshness_is_source_specific():
     assert stale_after_minutes_for("PY_DNCP") == 180
     assert stale_after_minutes_for("UY_ARCE") == 180
     assert stale_after_minutes_for("UK_PROCUREMENT") == 180
+    assert stale_after_minutes_for("EC_SERCOP") == 4320
     assert stale_after_minutes_for("ZA_ETENDERS") == 4320
     assert stale_after_minutes_for("LV_IUB") == 4320
     assert stale_after_minutes_for("EE_RHR") == 64800
