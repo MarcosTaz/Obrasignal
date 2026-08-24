@@ -30,26 +30,26 @@ jobs:
           S = requests.Session()
           S.headers.update({
               "Accept": "application/json",
-              "User-Agent": "ObraSignal PNCP source-evaluation probe/1.0",
+              "User-Agent": "ObraSignal PNCP source-evaluation probe/1.1",
           })
 
           def get(url, params=None, allow_404=False):
               last = None
-              for attempt in range(4):
+              for attempt in range(2):
                   try:
-                      r = S.get(url, params=params, timeout=45)
+                      r = S.get(url, params=params, timeout=15)
                       if r.status_code == 404 and allow_404:
                           return None, 404
                       if r.status_code in (429, 500, 502, 503, 504):
                           last = f"HTTP {r.status_code}"
-                          time.sleep(1.5 * (attempt + 1))
+                          time.sleep(attempt + 1)
                           continue
                       r.raise_for_status()
                       return r.json(), r.status_code
                   except Exception as exc:
                       last = f"{type(exc).__name__}: {exc}"
-                      time.sleep(1.5 * (attempt + 1))
-              raise RuntimeError(f"PNCP request failed after retries: {last}")
+                      time.sleep(attempt + 1)
+              raise RuntimeError(f"PNCP request failed after bounded retries: {last}")
 
           def records(payload):
               if payload is None:
@@ -61,7 +61,6 @@ jobs:
                       value = payload.get(key)
                       if isinstance(value, list):
                           return value
-                  # Some PNCP detail endpoints return a single object; collections do not.
               return []
 
           def nested(d, *path):
@@ -83,7 +82,6 @@ jobs:
 
           print("PNCP_PROBE_DATE=" + date.today().isoformat())
 
-          # Official current modality domain.
           modalities_payload, status = get("https://pncp.gov.br/api/pncp/v1/modalidades", {"statusAtivo": "true"})
           modalities = records(modalities_payload)
           if not modalities and isinstance(modalities_payload, list):
@@ -93,14 +91,12 @@ jobs:
               f"{m.get('id')}:{m.get('nome')}" for m in modalities if isinstance(m, dict)
           ))
 
-          # Prefer the all-modalities open-proposals query. If the live API still requires
-          # modalidade, fall back to bounded samples by active modality.
-          end = (date.today() + timedelta(days=45)).strftime("%Y%m%d")
+          end = (date.today() + timedelta(days=30)).strftime("%Y%m%d")
           proposal_url = "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta"
           proposal_rows = []
           query_mode = "all_modalities"
           try:
-              payload, status = get(proposal_url, {"dataFinal": end, "pagina": 1, "tamanhoPagina": 50})
+              payload, status = get(proposal_url, {"dataFinal": end, "pagina": 1, "tamanhoPagina": 10})
               proposal_rows = records(payload)
               print("PNCP_PROPOSAL_HTTP=" + str(status))
               if isinstance(payload, dict):
@@ -111,7 +107,7 @@ jobs:
 
           if not proposal_rows:
               query_mode = "per_modality"
-              for m in modalities[:20]:
+              for m in modalities[:8]:
                   if not isinstance(m, dict) or m.get("id") is None:
                       continue
                   try:
@@ -130,23 +126,19 @@ jobs:
                           row = dict(row)
                           row.setdefault("_probe_modalidade", m.get("nome"))
                           proposal_rows.append(row)
-                  if len(proposal_rows) >= 80:
+                  if len(proposal_rows) >= 10:
                       break
 
+          proposal_rows = proposal_rows[:10]
           print("PNCP_QUERY_MODE=" + query_mode)
           print("PNCP_OPEN_SAMPLE=" + str(len(proposal_rows)))
           if proposal_rows:
               print("PNCP_RECORD_KEYS=" + ",".join(sorted(proposal_rows[0].keys())))
 
-          sampled_opps = 0
-          sampled_items = 0
-          with_nbs = 0
-          construction_items = 0
-          construction_opps = 0
-          failed_details = 0
+          sampled_opps = sampled_items = with_nbs = construction_items = construction_opps = failed_details = 0
           construction_samples = []
 
-          for row in proposal_rows[:50]:
+          for row in proposal_rows:
               if not isinstance(row, dict):
                   continue
               cnpj = nested(row, "orgaoEntidade", "cnpj") or row.get("cnpjOrgao") or row.get("cnpj")
@@ -165,7 +157,6 @@ jobs:
               if isinstance(item_payload, list):
                   its = item_payload
               sampled_items += len(its)
-              opp_is_construction = False
               opp_codes = []
               for item in its:
                   if not isinstance(item, dict):
@@ -173,17 +164,15 @@ jobs:
                   code = item.get("ncmNbsCodigo")
                   if code not in (None, ""):
                       with_nbs += 1
-                  kind = nbs_kind(code)
-                  if kind:
+                  if nbs_kind(code):
                       construction_items += 1
-                      opp_is_construction = True
                       opp_codes.append((str(code), str(item.get("ncmNbsDescricao") or "")[:120]))
-              if opp_is_construction:
+              if opp_codes:
                   construction_opps += 1
                   construction_samples.append({
                       "id": row.get("numeroControlePNCP"),
                       "deadline": row.get("dataEncerramentoProposta"),
-                      "modalidade": nested(row, "modalidadeNome") or row.get("modalidadeNome") or row.get("_probe_modalidade"),
+                      "modalidade": row.get("modalidadeNome") or row.get("_probe_modalidade"),
                       "codes": opp_codes[:5],
                   })
 
@@ -193,18 +182,20 @@ jobs:
           print("PNCP_ITEMS_WITH_NBS=" + str(with_nbs))
           print("PNCP_CONSTRUCTION_NBS_ITEMS=" + str(construction_items))
           print("PNCP_CONSTRUCTION_OPPS=" + str(construction_opps))
-          for sample in construction_samples[:10]:
+          for sample in construction_samples[:5]:
               print("PNCP_CONSTRUCTION_SAMPLE=" + repr(sample))
 
-          # Fixed known construction tenders independently identified on the official PNCP web portal.
-          # This tests whether clearly construction procurement actually carries usable NBS coding.
           known = [
               ("00394452000103", 2026, 14582, "Ponta Grossa command pavilion"),
               ("00394452000103", 2026, 13836, "63rd Infantry photovoltaic plant"),
           ]
           for cnpj, ano, seq, label in known:
               url = f"https://pncp.gov.br/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens"
-              payload, status = get(url, allow_404=True)
+              try:
+                  payload, status = get(url, allow_404=True)
+              except RuntimeError as exc:
+                  print(f"PNCP_KNOWN_WORKS={label}|ERROR={type(exc).__name__}")
+                  continue
               its = records(payload)
               if isinstance(payload, list):
                   its = payload
