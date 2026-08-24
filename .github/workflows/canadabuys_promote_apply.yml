@@ -1,0 +1,56 @@
+name: Apply CanadaBuys Promotion Wiring
+
+on:
+  push:
+    branches:
+      - codex/canadabuys-production
+    paths:
+      - .github/workflows/canadabuys_promote_apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/canadabuys-production
+      - name: Register and wire CanadaBuys without default activation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          registry = Path('source_registry.py')
+          text = registry.read_text()
+          if '"CA_CANADABUYS"' not in text:
+              needle = '    "CO_SECOP": _source(country="COL", source_id="co_secop_open_data", kind="SOCRATA_ODATA", access="api", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=1440, stale_after_minutes=4320, capabilities=("search", "incremental_sync", "awards", "contracts", "plans", "suppliers"), signal_types=("PROCUREMENT_PLAN", "TENDER", "AWARD", "CONTRACT"), wave=1, adapter="SocrataProcurementAdapter"),\n'
+              addition = '    "CA_CANADABUYS": _source(country="CAN", source_id="ca_canadabuys_tender_notices", kind="OFFICIAL_PUBLIC_CSV_DELTA_SNAPSHOT", access="public_new_open_complete_csv", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=120, stale_after_minutes=2880, capabilities=("incremental_sync", "amendments", "lifecycle"), signal_types=("TENDER",), wave=1, adapter="CanadaBuysConnector", realtime_capable=False),\n'
+              if needle not in text:
+                  raise SystemExit('source registry insertion point not found')
+              registry.write_text(text.replace(needle, addition + needle, 1))
+
+          preload = Path('preload.py')
+          text = preload.read_text()
+          import_line = 'from canada_buys_runtime import install_canadabuys_runtime\n'
+          if import_line not in text:
+              needle = 'from source_registry import production_gate_reasons\n'
+              if needle not in text:
+                  raise SystemExit('preload import insertion point not found')
+              text = text.replace(needle, needle + import_line, 1)
+          call = 'install_canadabuys_runtime(\n    _app,\n    source_enabled=_global_source_enabled,\n    record_blocked=_record_blocked_global_source,\n)\n'
+          if call not in text:
+              needle = '_app.fetch_base = fetch_base_with_national_sources\n'
+              if needle not in text:
+                  raise SystemExit('preload composition insertion point not found')
+              text = text.replace(needle, needle + '\n' + call, 1)
+          preload.write_text(text)
+          PY
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add source_registry.py preload.py
+          git commit -m "Promote CanadaBuys to opt-in ready source"
+          git push origin HEAD:codex/canadabuys-production
