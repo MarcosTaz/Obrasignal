@@ -1,6 +1,6 @@
 """Bounded incremental orchestration for Austria's distributed Kerndaten feed.
 
-The core parser/transport lives in ``austria_kerndaten``.  This layer solves a
+The core parser/transport lives in ``austria_kerndaten``. This layer solves a
 separate operational problem proven against the live source: a single Austrian
 KDQ can contain more recent publications than it is safe to hydrate in one run.
 
@@ -11,6 +11,8 @@ Rules enforced here:
 - partial catch-up state is persisted in the cursor and resumes without skips;
 - no commercial/lifecycle observations are emitted while any frozen KDQ still
   has backlog; only the final reconciled snapshot becomes visible;
+- a successful catalogue read is authoritative for the next frozen cycle, so a
+  retired KDQ cannot remain forever merely because it existed in an old cursor;
 - legacy v1 cursors remain readable and are upgraded to v2 on the next write.
 """
 
@@ -67,7 +69,7 @@ class AustriaKerndatenIncrementalCursor:
         datasets = payload.get("datasets") or {}
         kdq_observed = payload.get("kdq_observed") or {}
         tracked = payload.get("tracked") or {}
-        catchup = payload.get("catchup") or {} if version == 2 else {}
+        catchup = (payload.get("catchup") or {}) if version == 2 else {}
         if not all(isinstance(value, dict) for value in (datasets, kdq_observed, tracked, catchup)):
             raise RuntimeError(f"invalid {SOURCE} cursor structure; cursor not advanced")
         return cls(
@@ -188,6 +190,30 @@ class AustriaKerndatenIncrementalConnector(_TransportConnector):
         if self.max_notice_fetches_per_run < 1:
             raise ValueError("max_notice_fetches_per_run must be >= 1")
 
+    def _discover(self, cursor):
+        """Return one fresh authoritative catalogue snapshot.
+
+        The base transport intentionally preserves historical datasets. That is
+        useful for loose polling, but unsafe for strict national catch-up: a KDQ
+        removed from a successfully-read official catalogue could otherwise
+        block every future complete snapshot forever.
+        """
+        discovered = {}
+        for dataset_id in self._catalog_dataset_ids():
+            urls = self._dataset_urls(dataset_id)
+            if urls:
+                discovered[dataset_id] = {"urls": urls}
+        kdq_count = sum(
+            len((entry or {}).get("urls") or [])
+            for entry in discovered.values()
+            if isinstance(entry, dict)
+        )
+        if kdq_count > self.max_kdqs:
+            raise RuntimeError(f"{SOURCE} discovery exceeds max_kdqs={self.max_kdqs}; cursor not advanced")
+        if not discovered:
+            raise RuntimeError(f"{SOURCE} discovered no KDQ datasets; cursor not advanced")
+        return discovered
+
     def _new_catchup(self, cursor, *, datasets, now):
         through = _utc(now)
         kdqs = {}
@@ -253,7 +279,6 @@ class AustriaKerndatenIncrementalConnector(_TransportConnector):
         through, frozen_datasets, kdq_progress, pending = self._validated_catchup(catchup, now=now)
         kdq_observed = deepcopy(cursor.kdq_observed)
         budget = self.max_notice_fetches_per_run
-        successful_scans = 0
         progressed = 0
         completed = 0
         errors = []
@@ -284,7 +309,6 @@ class AustriaKerndatenIncrementalConnector(_TransportConnector):
                         continue
                     selected.append((key, item))
                 selected.sort(key=lambda pair: pair[0])
-                successful_scans += 1
 
                 batch = selected[:budget]
                 item_failed = False
