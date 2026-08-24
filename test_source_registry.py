@@ -35,7 +35,7 @@ def test_wave_1_contains_only_machine_verified_green_sources():
     assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
-    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 9
+    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 10
 
 
 def test_live_validated_wave_1_sources_pass_registry_gate():
@@ -49,6 +49,7 @@ def test_live_validated_wave_1_sources_pass_registry_gate():
         "LV_IUB",
         "UK_PROCUREMENT",
         "PL_BZP",
+        "EE_RHR",
     ):
         assert SOURCES[source]["status"] == "ready"
         assert production_gate_reasons(source) == ()
@@ -150,6 +151,22 @@ def test_poland_registry_declares_only_proven_bzp_tender_contract():
     assert "contracts" not in source["capabilities"]
 
 
+def test_estonia_registry_declares_only_proven_monthly_tender_lifecycle_contract():
+    source = SOURCES["EE_RHR"]
+    assert source["kind"] == "OFFICIAL_XML_EFORMS_BULK"
+    assert source["access"] == "public_monthly_xml"
+    assert source["adapter"] == "EstoniaRHRConnector"
+    assert source["signal_types"] == ("TENDER",)
+    assert set(source["capabilities"]) == {"incremental_sync", "lots", "lifecycle"}
+    assert source["realtime_capable"] is False
+    assert source["expected_refresh_minutes"] == 1440
+    assert source["stale_after_minutes"] == 4320
+    assert "search" not in source["capabilities"]
+    assert "awards" not in source["capabilities"]
+    assert "contracts" not in source["capabilities"]
+    assert "historical_data" not in source["capabilities"]
+
+
 def test_germany_does_not_pass_production_gate_until_legal_closure():
     reasons = production_gate_reasons("SERVICE_BUND_DE")
     assert "commercial_reuse_not_green" in reasons
@@ -173,5 +190,5 @@ def test_registered_source_freshness_is_source_specific():
     assert stale_after_minutes_for("EC_SERCOP") == 4320
     assert stale_after_minutes_for("ZA_ETENDERS") == 4320
     assert stale_after_minutes_for("LV_IUB") == 4320
-    assert stale_after_minutes_for("EE_RHR") == 64800
+    assert stale_after_minutes_for("EE_RHR") == 4320
     assert stale_after_minutes_for("UNKNOWN_SOURCE", default=17) == 17
