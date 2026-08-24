@@ -46,6 +46,8 @@ def test_queue_is_total_order_with_unique_ids_and_backward_dependencies():
 def test_single_master_priority_chooses_us_after_current_canada():
     ready = executable_after_current()
     assert ready == next_executable_after_current()
+    assert "Q030_BR_PNCP_PCA" not in {item.id for item in ready}
+    assert all(item.state == "QUEUED" for item in ready)
     assert [item.id for item in ready[:3]] == [
         "Q050_US_SAM",
         "Q060_CHILE_MERCADOPUBLICO",
