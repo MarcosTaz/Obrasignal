@@ -33,7 +33,7 @@ def _q(id, title, domain, state, stage, dependencies=(), reason=""):
 
 
 CANONICAL_QUEUE_NAME = "OBRASIGNAL_MASTER_EXECUTION_QUEUE"
-CURRENT_ITEM_ID = "Q030_BR_PNCP_PCA"
+CURRENT_ITEM_ID = "Q040_CANADA_BUYS"
 
 MASTER_EXECUTION_QUEUE = (
     _q(
@@ -52,12 +52,12 @@ MASTER_EXECUTION_QUEUE = (
     ),
     _q(
         "Q030_BR_PNCP_PCA", "Brazil PNCP construction procurement-plan connector", "SIGNAL",
-        "ACTIVE", "PRODUCTION", ("Q010_BR_PNCP_DISCOVERY", "Q020_SIGNAL_CONTRACT_V1"),
-        "Implement bounded recent-first discovery, strict publisher-native Works categories, item hydration, identity, cursor/drift safety and opt-in runtime wiring."
+        "GATED", "PRODUCTION", ("Q010_BR_PNCP_DISCOVERY", "Q020_SIGNAL_CONTRACT_V1"),
+        "Connector/tests are prebuilt but production promotion is blocked: isolated live smokes repeatedly failed on PNCP transport reliability, including five bounded attempts ending in connect timeout. Reopen only after stable live production-path validation."
     ),
     _q(
         "Q040_CANADA_BUYS", "CanadaBuys federal construction connector", "SIGNAL",
-        "QUEUED", "PRODUCTION", ("Q020_SIGNAL_CONTRACT_V1",),
+        "ACTIVE", "PRODUCTION", ("Q020_SIGNAL_CONTRACT_V1",),
         "High-ARPU BUILD market; federal-first avoids premature provincial fragmentation."
     ),
     _q(
@@ -72,8 +72,8 @@ MASTER_EXECUTION_QUEUE = (
     ),
     _q(
         "Q070_SHARED_FAMILIES", "Harden TED/eForms and OCDS shared-coverage families", "SIGNAL",
-        "QUEUED", "PRODUCTION", ("Q030_BR_PNCP_PCA", "Q040_CANADA_BUYS", "Q050_US_SAM", "Q060_CHILE_MERCADOPUBLICO"),
-        "Maximise supported markets per maintained connector and remove country-specific duplication."
+        "QUEUED", "PRODUCTION", ("Q040_CANADA_BUYS", "Q050_US_SAM", "Q060_CHILE_MERCADOPUBLICO"),
+        "Maximise supported markets per maintained connector and remove country-specific duplication; a blocked Brazil source must not freeze unrelated shared coverage."
     ),
     _q(
         "Q080_EVIDENCE_GRAPH_V1", "Proof / Evidence Graph v1", "COMMAND",
@@ -128,7 +128,7 @@ MASTER_EXECUTION_QUEUE = (
     _q(
         "Q180_ACTION_ARCHITECTURE", "ACTION execution architecture", "ACTION",
         "GATED", "RESEARCH", ("Q170_COMMAND_NEXT_BEST_ACTION",),
-        "Define authorisation, consent, audit and rollback boundaries before automating high-value actions."
+        "Define authorisation, consent, audit, revocation and rollback boundaries before high-value external action."
     ),
     _q(
         "Q190_FUTURE_DEMAND_ASSET_CLOCK", "Future Demand Engine / Asset Clock research", "SIGNAL",
@@ -141,9 +141,29 @@ MASTER_EXECUTION_QUEUE = (
         "Validate rule-to-asset-to-work translation with legal traceability before LAW → BILL OF WORKS claims."
     ),
     _q(
-        "Q210_SUPPLY_EDGE", "Bid-to-Supply Intelligence research", "ACTION",
-        "GATED", "RESEARCH", ("Q090_COMPANY_STATE_CONTRACT", "Q180_ACTION_ARCHITECTURE"),
-        "Test whether specification/BoQ sourcing produces measurable margin improvement with independent ranking."
+        "Q210_SUPPLY_EDGE", "Supply Edge / Bid-to-Supply Intelligence research", "ACTION",
+        "GATED", "RESEARCH", ("Q090_COMPANY_STATE_CONTRACT", "Q160_SHADOW_PORTFOLIO_PROTOTYPE", "Q180_ACTION_ARCHITECTURE"),
+        "Validate BoQ/spec extraction, technical equivalence, installed/landed/cash-adjusted cost and supplier discovery before automating procurement."
+    ),
+    _q(
+        "Q212_TRUSTBRIDGE_RESEARCH", "TrustBridge bilateral trade-confidence research", "DNA",
+        "GATED", "RESEARCH", ("Q080_EVIDENCE_GRAPH_V1", "Q100_OUTCOME_GRAPH_V1", "Q180_ACTION_ARCHITECTURE", "Q210_SUPPLY_EDGE"),
+        "Validate lawful KYB/payment/delivery evidence, Trade and Supplier Passports, transaction confidence and licensed credit/insurance orchestration by jurisdiction."
+    ),
+    _q(
+        "Q214_TRADE_AGENT_ARCHITECTURE", "ObraSignal Trade Agent authorization and negotiation architecture", "ACTION",
+        "GATED", "RESEARCH", ("Q180_ACTION_ARCHITECTURE", "Q210_SUPPLY_EDGE", "Q212_TRUSTBRIDGE_RESEARCH"),
+        "Define explicit digital-agent identity, Levels 0–4, scoped authority, negotiation limits and hard prevention of unauthorized legal/financial commitments."
+    ),
+    _q(
+        "Q216_SUPPLIER_PORTAL", "Low-friction secure Supplier Portal prototype", "ACTION",
+        "GATED", "PROTOTYPE", ("Q214_TRADE_AGENT_ARCHITECTURE",),
+        "Let suppliers answer scoped RFQs without subscription while preserving least disclosure, audit, expiry/revocation and safe document handling."
+    ),
+    _q(
+        "Q218_TRADE_LOOP_PILOT", "Integrated Supply Edge + TrustBridge + Trade Agent pilot", "ACTION",
+        "GATED", "PILOT", ("Q160_SHADOW_PORTFOLIO_PROTOTYPE", "Q170_COMMAND_NEXT_BEST_ACTION", "Q210_SUPPLY_EDGE", "Q212_TRUSTBRIDGE_RESEARCH", "Q214_TRADE_AGENT_ARCHITECTURE", "Q216_SUPPLIER_PORTAL"),
+        "Pilot opportunity→BoQ→supplier→RFQ→terms→trust→SHADOW→negotiation→recommendation with 2–5 decisions and measurable economics, not supplier lists."
     ),
     _q(
         "Q220_WORK_PACKAGE_RELEASE", "Work Package Release Prediction research", "SIGNAL",
@@ -151,9 +171,34 @@ MASTER_EXECUTION_QUEUE = (
         "Test whether package timing, prime identity and subcontract release windows can be predicted accurately enough for action."
     ),
     _q(
+        "Q222_MOBILIZE_RESEARCH", "ObraSignal MOBILIZE integrated mobilization-intelligence research", "SHADOW",
+        "GATED", "RESEARCH", ("Q090_COMPANY_STATE_CONTRACT", "Q160_SHADOW_PORTFOLIO_PROTOTYPE", "Q180_ACTION_ARCHITECTURE", "Q210_SUPPLY_EDGE"),
+        "Compare daily travel, accommodation, hybrid transport, own-vs-local vehicles and contextual local services using MINIMUM/PROBABLE/PRUDENT economics, provenance and direct margin impact rather than isolated travel calculators."
+    ),
+    _q(
+        "Q224_SITE_READY_RESEARCH", "ObraSignal SITE READY pre-mobilization readiness research", "COMMAND",
+        "GATED", "RESEARCH", ("Q080_EVIDENCE_GRAPH_V1", "Q090_COMPANY_STATE_CONTRACT", "Q180_ACTION_ARCHITECTURE", "Q222_MOBILIZE_RESEARCH"),
+        "Validate useful project-specific blockers, evidence-backed readiness and delay risk while controlling false positives; avoid decorative scores and generic checklists."
+    ),
+    _q(
+        "Q226_CAPACITY_OPTIMIZER_RESEARCH", "Capacity Acquisition Optimizer research", "SHADOW",
+        "GATED", "RESEARCH", ("Q140_CONTRACTOR_DNA_V1", "Q160_SHADOW_PORTFOLIO_PROTOTYPE", "Q190_FUTURE_DEMAND_ASSET_CLOCK", "Q210_SUPPLY_EDGE", "Q222_MOBILIZE_RESEARCH"),
+        "Compare MAKE/OWN, BUY, RENT, SUBCONTRACT, TEMPORARY and REDEPLOY using current economics, opportunity cost, residual value and probabilistic future utilization rather than one-project price alone."
+    ),
+    _q(
+        "Q228_CREW_ECONOMICS_RESEARCH", "CREW ECONOMICS installed-cost configuration research", "DNA",
+        "GATED", "RESEARCH", ("Q130_CREW_CAPACITY_SENSOR", "Q140_CONTRACTOR_DNA_V1", "Q160_SHADOW_PORTFOLIO_PROTOTYPE", "Q222_MOBILIZE_RESEARCH"),
+        "Compare own/local/subcontract crew configurations across labour, travel, accommodation, productivity, supervision, schedule, quality and risk without optimizing wage/hour in isolation."
+    ),
+    _q(
+        "Q229_DEAD_TIME_RESEARCH", "ObraSignal DEAD TIME idle-capacity research", "OFFICE",
+        "GATED", "RESEARCH", ("Q120_OFFICE_SENSOR_RESEARCH", "Q130_CREW_CAPACITY_SENSOR", "Q140_CONTRACTOR_DNA_V1", "Q170_COMMAND_NEXT_BEST_ACTION", "Q222_MOBILIZE_RESEARCH", "Q224_SITE_READY_RESEARCH"),
+        "Measure defensible idle cost and test economically better temporary uses of workers/equipment without invasive tracking or pretending downtime can be eliminated."
+    ),
+    _q(
         "Q230_VALUE_CREATED", "Measured and estimated Value Created framework", "COMMAND",
         "GATED", "PROTOTYPE", ("Q100_OUTCOME_GRAPH_V1", "Q170_COMMAND_NEXT_BEST_ACTION"),
-        "Quantify legitimate product value without fabricated ROI and support regret-prevention learning."
+        "Quantify legitimate opportunity, sourcing, mobilization, liquidity, risk-avoidance and time-saving value without fabricated ROI."
     ),
     _q(
         "Q240_GROWTH_SIMULATOR", "Contractor Growth Simulator", "SHADOW",
