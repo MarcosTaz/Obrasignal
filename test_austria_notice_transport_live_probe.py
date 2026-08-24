@@ -1,12 +1,11 @@
-"""TEMPORARY live probe for Austria KDQ -> notice XML semantics.
+"""TEMPORARY live probe for Austria actionable Works and lifecycle identity.
 
-Delete before merge. Intentionally fails after emitting bounded forensic evidence.
+Delete before merge. Intentionally fails after bounded evidence is emitted.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
-import re
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
@@ -18,13 +17,11 @@ HEADERS = {
     "User-Agent": "ObraSignal temporary Austria Kerndaten forensic probe/1.0",
 }
 MAX_KDQ_BYTES = 8 * 1024 * 1024
-MAX_NOTICE_BYTES = 8 * 1024 * 1024
-MAX_ITEMS_PER_KDQ = 4
-KDQS = {
-    "hubexo": "https://www.ausschreibung.at/OpenData/kdq?id=87BA5ED1",
-    "mvg": "https://opendata.mvg.at/mvg_kerndaten.xml",
-    "social_insurance": "https://opendata.sozialversicherung.at/BVergG/kdq.xml",
-}
+MAX_NOTICE_BYTES = 4 * 1024 * 1024
+MAX_SCAN = 100
+MAX_ACTIONABLE_HITS = 4
+HUBEXO_KDQ = "https://www.ausschreibung.at/OpenData/kdq?id=87BA5ED1"
+MVG_KDQ = "https://opendata.mvg.at/mvg_kerndaten.xml"
 
 
 def _local(tag: str) -> str:
@@ -33,15 +30,25 @@ def _local(tag: str) -> str:
 
 def _ns(tag: str) -> str:
     text = str(tag)
-    if text.startswith("{") and "}" in text:
-        return text[1:].split("}", 1)[0]
-    return ""
+    return text[1:].split("}", 1)[0] if text.startswith("{") and "}" in text else ""
 
 
-def _text(elem: ET.Element) -> str:
-    if elem.text is None:
+def _text(elem: ET.Element | None) -> str:
+    if elem is None or elem.text is None:
         return ""
     return " ".join(elem.text.split())
+
+
+def _first(root: ET.Element, name: str) -> ET.Element | None:
+    for elem in root.iter():
+        if _local(elem.tag) == name:
+            return elem
+    return None
+
+
+def _attr(root: ET.Element, name: str, attr: str) -> str:
+    elem = _first(root, name)
+    return "" if elem is None else str(elem.attrib.get(attr) or "").strip()
 
 
 def _bounded_get(session: requests.Session, url: str, max_bytes: int) -> tuple[bytes, dict]:
@@ -64,19 +71,14 @@ def _bounded_get(session: requests.Session, url: str, max_bytes: int) -> tuple[b
         "final_url": response.url,
         "host": urlparse(response.url).hostname,
         "content_type": response.headers.get("content-type"),
-        "content_length": response.headers.get("content-length"),
         "received": total,
     }
-
-
-def _parse_xml(blob: bytes) -> ET.Element:
-    return ET.fromstring(blob)
 
 
 def _kdq_items(root: ET.Element) -> list[dict]:
     if _local(root.tag).lower() != "kdq":
         raise AssertionError(f"unexpected KDQ root: {root.tag}")
-    rows: list[dict] = []
+    rows = []
     for elem in root.iter():
         if _local(elem.tag).lower() != "item":
             continue
@@ -85,122 +87,156 @@ def _kdq_items(root: ET.Element) -> list[dict]:
             if _local(child.tag).lower() == "url":
                 url = _text(child).strip()
                 break
-        if not url:
-            continue
-        rows.append({
-            "id": str(elem.attrib.get("id") or "").strip(),
-            "lastmod": str(elem.attrib.get("lastmod") or "").strip(),
-            "url": url,
-        })
+        if url:
+            rows.append({
+                "id": str(elem.attrib.get("id") or "").strip(),
+                "lastmod": str(elem.attrib.get("lastmod") or "").strip(),
+                "url": url,
+            })
     rows.sort(key=lambda row: row.get("lastmod") or "", reverse=True)
     return rows
 
 
-def _looks_cpv(value: str) -> bool:
-    compact = re.sub(r"[^0-9]", "", value)
-    return len(compact) in (8, 9) and compact.startswith(("45", "44", "71"))
+def _deadline(root: ET.Element) -> str:
+    return _text(_first(root, "DATETIME_RECEIPT_TENDERS"))
 
 
-def _summarize_notice(root: ET.Element) -> dict:
-    cpv_hits: list[dict] = []
-    deadline_hits: list[dict] = []
-    identity_hits: list[dict] = []
-    lifecycle_hits: list[dict] = []
-    type_hits: list[dict] = []
-    eforms_markers: list[dict] = []
-    leaf_sample: list[dict] = []
-    all_namespaces: list[str] = []
+def _reference(root: ET.Element) -> str:
+    return _text(_first(root, "REFERENCE_NUMBER"))
 
-    deadline_tokens = ("frist", "deadline", "submission", "angebot", "receipt", "enddate", "endtime")
-    identity_tokens = ("id", "identifier", "uuid", "notice", "publication", "version", "reference")
-    lifecycle_tokens = ("award", "zuschlag", "widerruf", "revocation", "cancel", "aufhebung", "status")
-    type_tokens = ("type", "art", "contract", "auftrag", "procedure", "verfahren")
 
-    for elem in root.iter():
-        tag = _local(elem.tag)
-        low_tag = tag.lower()
-        ns = _ns(elem.tag)
-        if ns and ns not in all_namespaces and len(all_namespaces) < 30:
-            all_namespaces.append(ns)
-        value = _text(elem)
-        attrs = {str(k): str(v)[:250] for k, v in elem.attrib.items()}
-        joined = " ".join([value, *attrs.values()]).strip()
-        low_joined = joined.lower()
-        row = {"tag": tag, "text": value[:350], "attrs": attrs}
+def _cpv(root: ET.Element) -> str:
+    elem = _first(root, "CPV_CODE")
+    return "" if elem is None else str(elem.attrib.get("CODE") or "").strip()
 
-        if joined and (_looks_cpv(joined) or "cpv" in low_tag or "cpv" in low_joined):
-            if len(cpv_hits) < 40:
-                cpv_hits.append(row)
-        if joined and any(token in low_tag for token in deadline_tokens):
-            if len(deadline_hits) < 40:
-                deadline_hits.append(row)
-        if joined and any(token in low_tag for token in identity_tokens):
-            if len(identity_hits) < 40:
-                identity_hits.append(row)
-        if joined and (any(token in low_tag for token in lifecycle_tokens) or any(token in low_joined for token in ("award", "zuschlag", "widerruf", "revocation", "cancelled", "aufgehoben"))):
-            if len(lifecycle_hits) < 40:
-                lifecycle_hits.append(row)
-        if joined and any(token in low_tag for token in type_tokens):
-            if len(type_hits) < 40:
-                type_hits.append(row)
 
-        ns_low = ns.lower()
-        if any(token in ns_low for token in ("oasis", "ubl", "eforms", "ted")):
-            marker = {"tag": tag, "ns": ns[-220:]}
-            if marker not in eforms_markers and len(eforms_markers) < 30:
-                eforms_markers.append(marker)
+def _buyer_national_id(root: ET.Element) -> str:
+    return _text(_first(root, "NATIONALID"))
 
-        if value and len(leaf_sample) < 70 and not list(elem):
-            leaf_sample.append(row)
 
+def _summary(root: ET.Element, item: dict, transport: dict) -> dict:
     return {
+        "item": item,
         "root": _local(root.tag),
         "root_ns": _ns(root.tag),
-        "namespaces": all_namespaces,
-        "cpv_hits": cpv_hits,
-        "deadline_hits": deadline_hits,
-        "identity_hits": identity_hits,
-        "lifecycle_hits": lifecycle_hits,
-        "type_hits": type_hits,
-        "eforms_markers": eforms_markers,
-        "leaf_sample": leaf_sample,
+        "reference_number": _reference(root),
+        "buyer_national_id": _buyer_national_id(root),
+        "contract_type": _attr(root, "TYPE_CONTRACT", "CTYPE"),
+        "cpv_main": _cpv(root),
+        "deadline": _deadline(root),
+        "date_first_publication": _text(_first(root, "DATE_FIRST_PUBLICATION")),
+        "datetime_last_change": _text(_first(root, "DATETIME_LAST_CHANGE")),
+        "date_conclusion_contract": _text(_first(root, "DATE_CONCLUSION_CONTRACT")),
+        "url_document": _text(_first(root, "URL_DOCUMENT")),
+        "transport": transport,
     }
 
 
-def test_austria_kdq_notice_transport_live():
+def _is_future(value: str) -> bool:
+    if not value:
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc) > datetime.now(timezone.utc)
+
+
+def _fetch_notice(session: requests.Session, item: dict) -> tuple[ET.Element, dict]:
+    blob, transport = _bounded_get(session, item["url"], MAX_NOTICE_BYTES)
+    return ET.fromstring(blob), transport
+
+
+def _actionable_works(session: requests.Session, items: list[dict]) -> dict:
+    hits = []
+    roots_seen: dict[str, int] = {}
+    scanned = 0
+    errors = []
+    for item in items[:MAX_SCAN]:
+        scanned += 1
+        try:
+            root, transport = _fetch_notice(session, item)
+        except Exception as exc:
+            errors.append({"item": item, "error": f"{type(exc).__name__}: {str(exc)[:300]}"})
+            continue
+        root_name = _local(root.tag)
+        roots_seen[root_name] = roots_seen.get(root_name, 0) + 1
+        if root_name != "KD_8_1_Z2":
+            continue
+        if _attr(root, "TYPE_CONTRACT", "CTYPE") != "WORKS":
+            continue
+        deadline = _deadline(root)
+        if not _is_future(deadline):
+            continue
+        hits.append(_summary(root, item, transport))
+        if len(hits) >= MAX_ACTIONABLE_HITS:
+            break
+    return {"scanned": scanned, "roots_seen": roots_seen, "hits": hits, "errors": errors[:8]}
+
+
+def _mvg_lifecycle_pair(session: requests.Session, items: list[dict]) -> dict:
+    by_id = {row["id"]: row for row in items if row.get("id")}
+    candidates = []
+    for award_item in items:
+        item_id = award_item.get("id") or ""
+        if not item_id.endswith("_Award"):
+            continue
+        base = item_id[:-6]
+        tender_item = by_id.get(base)
+        if not tender_item:
+            continue
+        candidates.append((tender_item, award_item))
+        if len(candidates) >= 8:
+            break
+
+    evidence = {"candidate_pairs": len(candidates), "pairs": []}
+    for tender_item, award_item in candidates:
+        try:
+            tender_root, tender_transport = _fetch_notice(session, tender_item)
+            award_root, award_transport = _fetch_notice(session, award_item)
+            tender = _summary(tender_root, tender_item, tender_transport)
+            award = _summary(award_root, award_item, award_transport)
+            evidence["pairs"].append({
+                "same_reference": bool(tender["reference_number"] and tender["reference_number"] == award["reference_number"]),
+                "same_buyer_national_id": bool(tender["buyer_national_id"] and tender["buyer_national_id"] == award["buyer_national_id"]),
+                "tender": tender,
+                "award": award,
+            })
+            if evidence["pairs"][-1]["same_reference"]:
+                break
+        except Exception as exc:
+            evidence["pairs"].append({
+                "tender_item": tender_item,
+                "award_item": award_item,
+                "error": f"{type(exc).__name__}: {str(exc)[:500]}",
+            })
+    return evidence
+
+
+def test_austria_actionable_and_identity_live():
     session = requests.Session()
     session.headers.update(HEADERS)
-    evidence = {"at": datetime.now(timezone.utc).isoformat(), "publishers": {}}
+    evidence = {"at": datetime.now(timezone.utc).isoformat()}
 
-    for name, kdq_url in KDQS.items():
-        publisher = {"kdq_url": kdq_url}
-        evidence["publishers"][name] = publisher
-        try:
-            kdq_blob, kdq_transport = _bounded_get(session, kdq_url, MAX_KDQ_BYTES)
-            kdq_root = _parse_xml(kdq_blob)
-            items = _kdq_items(kdq_root)
-            publisher.update({
-                "kdq_transport": kdq_transport,
-                "kdq_root": _local(kdq_root.tag),
-                "kdq_ns": _ns(kdq_root.tag),
-                "item_count": len(items),
-                "latest_items": items[:MAX_ITEMS_PER_KDQ],
-                "notices": [],
-            })
-            for item in items[:MAX_ITEMS_PER_KDQ]:
-                row = {"item": item}
-                try:
-                    blob, transport = _bounded_get(session, item["url"], MAX_NOTICE_BYTES)
-                    root = _parse_xml(blob)
-                    row["transport"] = transport
-                    row["summary"] = _summarize_notice(root)
-                except Exception as exc:
-                    row["error"] = f"{type(exc).__name__}: {str(exc)[:700]}"
-                publisher["notices"].append(row)
-        except Exception as exc:
-            publisher["error"] = f"{type(exc).__name__}: {str(exc)[:700]}"
+    hubexo_blob, hubexo_transport = _bounded_get(session, HUBEXO_KDQ, MAX_KDQ_BYTES)
+    hubexo_items = _kdq_items(ET.fromstring(hubexo_blob))
+    evidence["hubexo"] = {
+        "kdq_transport": hubexo_transport,
+        "item_count": len(hubexo_items),
+        "actionable_works": _actionable_works(session, hubexo_items),
+    }
+
+    mvg_blob, mvg_transport = _bounded_get(session, MVG_KDQ, MAX_KDQ_BYTES)
+    mvg_items = _kdq_items(ET.fromstring(mvg_blob))
+    evidence["mvg"] = {
+        "kdq_transport": mvg_transport,
+        "item_count": len(mvg_items),
+        "lifecycle_identity": _mvg_lifecycle_pair(session, mvg_items),
+    }
 
     raise AssertionError(
-        "AT_KERNDATEN_NOTICE_EVIDENCE "
+        "AT_KERNDATEN_ACTIONABLE_IDENTITY_EVIDENCE "
         + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:120000]
     )
