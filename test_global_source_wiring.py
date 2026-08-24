@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import preload
 from source_runtime import discard_staged_source_syncs, staged_source_syncs
 
@@ -9,16 +7,18 @@ class FakeConn:
         pass
 
 
-def test_global_source_requires_explicit_request_and_production_gate(monkeypatch):
+def test_ready_global_source_still_requires_explicit_request(monkeypatch):
     monkeypatch.delenv('OBRASIGNAL_GLOBAL_SOURCES', raising=False)
     assert preload._global_source_enabled('CO_SECOP') is False
 
     monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP')
-    # Registry status is still planned, so runtime_not_enabled blocks it.
-    assert preload._global_source_enabled('CO_SECOP') is False
-
-    monkeypatch.setattr(preload, 'production_gate_reasons', lambda source: ())
     assert preload._global_source_enabled('CO_SECOP') is True
+
+
+def test_explicit_request_cannot_bypass_a_failing_production_gate(monkeypatch):
+    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP')
+    monkeypatch.setattr(preload, 'production_gate_reasons', lambda source: ('commercial_reuse_not_green',))
+    assert preload._global_source_enabled('CO_SECOP') is False
 
 
 def test_secop_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
