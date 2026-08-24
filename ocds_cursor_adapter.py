@@ -1,12 +1,12 @@
 """Reusable OCDS adapter for APIs that paginate with an opaque cursor link.
 
-The source cursor used inside one result window is deliberately not persisted.
-ObraSignal persists only the completed temporal window after every source page in
-that window has been read successfully. This prevents an ephemeral publisher
-cursor from becoming durable product state.
+The opaque source cursor exists only inside one result window. ObraSignal
+persists a temporal high-water mark only after every source page in the window
+has completed. Both daily and sub-daily windows are supported so high-frequency
+sources do not need to replay an entire publication day on every sync.
 """
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 import json
 from urllib.parse import parse_qs, urlsplit
 
@@ -26,6 +26,11 @@ class OCDSOpaqueCursorConfig:
     max_windows_per_sync: int = 31
     initial_lookback_days: int = 7
     overlap_days: int = 1
+    # When window_minutes is configured, the three minute fields replace the
+    # day-based window/lookback/overlap values above.
+    window_minutes: int | None = None
+    initial_lookback_minutes: int = 1440
+    overlap_minutes: int = 5
     market: str = "GLOBAL"
     timeout: int = 45
 
@@ -46,12 +51,17 @@ class OCDSOpaqueWindowCursor:
             try:
                 payload = json.loads(text)
                 stamp = str(payload.get("completed_through") or "").strip()
-                date.fromisoformat(stamp[:10])
-                return cls(stamp[:10])
             except (TypeError, ValueError, json.JSONDecodeError):
                 return None
+        else:
+            stamp = text
+        if not stamp:
+            return None
         try:
-            return cls(date.fromisoformat(text[:10]).isoformat())
+            if "T" in stamp:
+                datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                return cls(stamp)
+            return cls(date.fromisoformat(stamp[:10]).isoformat())
         except ValueError:
             return None
 
@@ -67,6 +77,35 @@ def _date(value):
         return date.fromisoformat(str(value)[:10])
     except ValueError:
         return None
+
+
+def _datetime(value):
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, date):
+        parsed = datetime.combine(value, time.min, tzinfo=timezone.utc)
+    elif value:
+        text = str(value).strip()
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            try:
+                parsed = datetime.combine(date.fromisoformat(text[:10]), time.min, tzinfo=timezone.utc)
+            except ValueError:
+                return None
+    else:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _cursor_stamp(value):
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
 
 
 def _release_rows(payload):
@@ -119,8 +158,20 @@ class OCDSOpaqueCursorAdapter:
         if not callable(self.normalizer) and not callable(self.window_processor):
             raise TypeError("opaque-cursor adapter requires a normalizer or window_processor")
 
-    def _start_date(self, watermark, today):
+    def _subdaily(self):
+        return self.config.window_minutes is not None
+
+    def _start_point(self, watermark, now):
         cursor = OCDSOpaqueWindowCursor.decode(watermark)
+        if self._subdaily():
+            current = _datetime(now or datetime.now(timezone.utc))
+            if cursor:
+                completed = _datetime(cursor.completed_through)
+                if completed:
+                    return completed - timedelta(minutes=max(0, int(self.config.overlap_minutes)))
+            return current - timedelta(minutes=max(0, int(self.config.initial_lookback_minutes)))
+
+        today = _date(now or datetime.now(timezone.utc))
         if cursor:
             completed = _date(cursor.completed_through)
             if completed:
@@ -128,12 +179,24 @@ class OCDSOpaqueCursorAdapter:
         return today - timedelta(days=max(0, int(self.config.initial_lookback_days)))
 
     def _windows(self, watermark, now):
-        today = _date(now or datetime.now(timezone.utc))
-        start = self._start_date(watermark, today)
-        width = max(1, int(self.config.window_days))
         count = 0
-        while start <= today and count < max(1, int(self.config.max_windows_per_sync)):
-            end = min(today, start + timedelta(days=width - 1))
+        maximum = max(1, int(self.config.max_windows_per_sync))
+        if self._subdaily():
+            end_limit = _datetime(now or datetime.now(timezone.utc))
+            start = self._start_point(watermark, end_limit)
+            width = timedelta(minutes=max(1, int(self.config.window_minutes)))
+            while start < end_limit and count < maximum:
+                end = min(end_limit, start + width)
+                yield start, end
+                start = end
+                count += 1
+            return
+
+        end_limit = _date(now or datetime.now(timezone.utc))
+        start = self._start_point(watermark, end_limit)
+        width = max(1, int(self.config.window_days))
+        while start <= end_limit and count < maximum:
+            end = min(end_limit, start + timedelta(days=width - 1))
             yield start, end
             start = end + timedelta(days=1)
             count += 1
@@ -182,5 +245,5 @@ class OCDSOpaqueCursorAdapter:
         for start, end in self._windows(watermark, now):
             releases = self._fetch_window(start, end)
             observations.extend(self._process_window(releases, start=start, end=end, now=now))
-            cursor = OCDSOpaqueWindowCursor(end.isoformat()).encode()
+            cursor = OCDSOpaqueWindowCursor(_cursor_stamp(end)).encode()
         return observations, cursor
