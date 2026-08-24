@@ -17,39 +17,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: codex/canadabuys-production
-      - name: Replace CanadaBuys registry block with evidence-backed semantics
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          path = Path('source_registry.py')
-          text = path.read_text()
-          pattern = re.compile(r'    "CA_CANADABUYS": _source\(\n(?:(?!^    \),$).)*^    \),\n', re.MULTILINE | re.DOTALL)
-          replacement = '''    "CA_CANADABUYS": _source(
-        country="CAN",
-        source_id="ca_canadabuys_tender_notices",
-        kind="OFFICIAL_PUBLIC_CSV_DELTA_SNAPSHOT",
-        access="public_new_open_complete_csv",
-        status="ready",
-        priority=1,
-        legal_reuse="GREEN",
-        machine_access="VERIFIED",
-        expected_refresh_minutes=120,
-        stale_after_minutes=2880,
-        capabilities=("incremental_sync", "amendments", "lifecycle"),
-        signal_types=("TENDER",),
-        wave=1,
-        adapter="CanadaBuysConnector",
-        realtime_capable=False,
-    ),
-'''
-          updated, count = pattern.subn(replacement, text, count=1)
-          if count != 1:
-              raise SystemExit(f'expected one CanadaBuys block; replaced {count}')
-          path.write_text(updated)
-          PY
-          git diff --check
+      - run: python scripts/fix_canadabuys_registry_metadata.py
+      - run: git diff --check
+      - run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add source_registry.py
