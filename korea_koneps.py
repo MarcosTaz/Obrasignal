@@ -1,13 +1,13 @@
 """Credential-gated Korea PPS/KONEPS construction bid notice connector.
 
-This module implements the documented Public Data Portal construction operation
+Implements the documented Public Data Portal construction operation
 ``getBidPblancListInfoCnstwk`` without changing ObraSignal's production gate.
-The official operation is nationwide and publisher-native for ``공사`` (Works),
-so no title/keyword inference is used to classify construction opportunities.
+The operation itself is publisher-native ``공사`` (Works), so construction is
+never inferred from titles or keywords.
 
-A valid Public Data Portal service key is mandatory.  Until an authorized key is
-available and a live validation passes, ``KR_KONEPS`` remains planned and blocked
-in ``source_registry.py``; this module is deliberately not wired into runtime.
+A valid Public Data Portal service key is mandatory. Until an authorized key is
+available and live validation passes, ``KR_KONEPS`` remains planned and this
+module is deliberately not wired into runtime.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import math
 import os
+from urllib.parse import unquote
 from zoneinfo import ZoneInfo
 
 import requests
@@ -35,6 +36,12 @@ _CANCELLED_NOTICE_KIND = "취소공고"
 
 def _text(value):
     return "" if value is None else " ".join(str(value).split())
+
+
+def _normalize_service_key(value):
+    """Accept either the portal's encoded or decoded key without double-encoding."""
+    text = _text(value)
+    return unquote(text) if text else ""
 
 
 def _source_dt(value):
@@ -82,15 +89,13 @@ def _cursor_dt(value, *, label="completed_through"):
 def _identity(item):
     notice_no = _text(item.get("bidNtceNo"))
     notice_ord = _text(item.get("bidNtceOrd"))
-    if not notice_no or not notice_ord:
-        return ""
-    return f"{notice_no}:{notice_ord}"
+    return f"{notice_no}:{notice_ord}" if notice_no and notice_ord else ""
 
 
 def _event_key(state):
     updated = _source_dt(state.get("source_updated_at")) or datetime.min.replace(tzinfo=timezone.utc)
     published = _source_dt(state.get("published_at")) or datetime.min.replace(tzinfo=timezone.utc)
-    return (updated, published, _text(state.get("external_id")))
+    return updated, published, _text(state.get("external_id"))
 
 
 def _amount(item):
@@ -128,7 +133,6 @@ def _item_event(item):
     value, value_source = _amount(item)
     document_url, document_name = _first_document(item)
     published = _utc(item.get("bidNtceDt") or item.get("rgstDt"))
-    deadline = _utc(item.get("bidClseDt"))
     return {
         "external_id": external_id,
         "bid_notice_no": notice_no,
@@ -139,7 +143,7 @@ def _item_event(item):
         "source_updated_at": updated,
         "published_at": published,
         "first_published_at": published,
-        "deadline": deadline or "",
+        "deadline": _utc(item.get("bidClseDt")) or "",
         "title": _text(item.get("bidNtceNm")) or external_id,
         "buyer": _text(item.get("dminsttNm")) or _text(item.get("ntceInsttNm")),
         "publishing_authority": _text(item.get("ntceInsttNm")),
@@ -171,11 +175,12 @@ def _merge_state(current, incoming):
     updated = deepcopy(incoming)
     updated["was_visible"] = bool(current.get("was_visible")) or bool(incoming.get("was_visible"))
     first_values = [
-        value for value in (current.get("first_published_at"), incoming.get("first_published_at"))
+        value
+        for value in (current.get("first_published_at"), incoming.get("first_published_at"))
         if _source_dt(value) is not None
     ]
     if first_values:
-        updated["first_published_at"] = min(first_values, key=lambda value: _source_dt(value))
+        updated["first_published_at"] = min(first_values, key=_source_dt)
     return updated
 
 
@@ -285,7 +290,8 @@ class KONEPSConstructionConnector:
         max_state_items=50000,
         timeout=45,
     ):
-        self.service_key = _text(service_key) or _text(os.getenv("KONEPS_SERVICE_KEY")) or _text(os.getenv("DATA_GO_KR_SERVICE_KEY"))
+        raw_key = _text(service_key) or _text(os.getenv("KONEPS_SERVICE_KEY")) or _text(os.getenv("DATA_GO_KR_SERVICE_KEY"))
+        self.service_key = _normalize_service_key(raw_key)
         self.session = session or requests.Session()
         self.initial_lookback_minutes = max(1, int(initial_lookback_minutes))
         self.overlap_minutes = max(0, int(overlap_minutes))
@@ -304,24 +310,32 @@ class KONEPSConstructionConnector:
 
     def _get_page(self, start, end, page_no):
         self._require_service_key()
-        response = self.session.get(
-            KONEPS_CONSTRUCTION_ENDPOINT,
-            params={
-                "serviceKey": self.service_key,
-                "pageNo": int(page_no),
-                "numOfRows": self.page_size,
-                "type": "json",
-                "inqryDiv": "3",
-                "inqryBgnDt": _query_dt(start),
-                "inqryEndDt": _query_dt(end),
-            },
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "ObraSignal KONEPS connector/1.0 (+official public-data ingestion)",
-            },
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
+        try:
+            response = self.session.get(
+                KONEPS_CONSTRUCTION_ENDPOINT,
+                params={
+                    "serviceKey": self.service_key,
+                    "pageNo": int(page_no),
+                    "numOfRows": self.page_size,
+                    "type": "json",
+                    "inqryDiv": "3",
+                    "inqryBgnDt": _query_dt(start),
+                    "inqryEndDt": _query_dt(end),
+                },
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "ObraSignal KONEPS connector/1.0 (+official public-data ingestion)",
+                },
+                timeout=self.timeout,
+            )
+        except Exception:
+            raise RuntimeError(f"{SOURCE} network request failed; cursor not advanced") from None
+        try:
+            response.raise_for_status()
+        except Exception:
+            status = getattr(response, "status_code", "unknown")
+            raise RuntimeError(f"{SOURCE} HTTP status {status}; cursor not advanced") from None
+
         try:
             payload = response.json()
         except (TypeError, ValueError) as exc:
@@ -343,13 +357,16 @@ class KONEPSConstructionConnector:
             raise RuntimeError(f"{SOURCE} pagination metadata is invalid; cursor not advanced") from exc
         if response_page != int(page_no) or response_rows <= 0 or total_count < 0:
             raise RuntimeError(f"{SOURCE} pagination metadata is inconsistent; cursor not advanced")
+
         items = body.get("items")
         if items is None:
             items = []
         elif isinstance(items, dict) and isinstance(items.get("item"), list):
-            items = items.get("item")
+            items = items["item"]
         elif isinstance(items, dict) and isinstance(items.get("item"), dict):
-            items = [items.get("item")]
+            items = [items["item"]]
+        elif isinstance(items, dict) and _text(items.get("bidNtceNo")):
+            items = [items]
         if not isinstance(items, list):
             raise RuntimeError(f"{SOURCE} items payload is unsupported; cursor not advanced")
         return items, total_count, response_rows
@@ -485,16 +502,13 @@ class KONEPSConstructionConnector:
             observations, tracked = self._finalize(tracked, closed, now=current)
             closed = {}
         else:
-            # Later change-time windows may contain a cancellation or amendment of
-            # a bid already seen in this catch-up segment. Do not publish partial truth.
             observations = []
 
-        cursor_value = KONEPSCursor(
+        return observations, KONEPSCursor(
             completed.isoformat(timespec="minutes").replace("+00:00", "Z"),
             tracked,
             closed,
         ).encode()
-        return observations, cursor_value
 
 
 def build_korea_koneps_connector(*, service_key=None, session=None, **kwargs):
