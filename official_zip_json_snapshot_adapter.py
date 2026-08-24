@@ -80,10 +80,10 @@ def _month_shift(year, month, delta):
 
 
 def _recent_months(local_day, count):
-    result = []
-    for offset in range(max(1, int(count))):
-        result.append(_month_shift(local_day.year, local_day.month, -offset))
-    return result
+    return [
+        _month_shift(local_day.year, local_day.month, -offset)
+        for offset in range(max(1, int(count)))
+    ]
 
 
 def _safe_member(info):
@@ -125,22 +125,48 @@ class OfficialZipJSONSnapshotAdapter:
             "User-Agent": self.config.user_agent,
         }
 
-    def _fetch_month(self, year, month, *, now):
-        url = self.url_factory(year, month)
+    def _download_bounded(self, url):
+        limit = max(1, int(self.config.max_compressed_bytes))
         response = self.session.get(
             url,
             headers=self._headers(),
             timeout=self.config.timeout,
+            stream=True,
         )
-        response.raise_for_status()
-        body = response.content
-        if not body:
-            raise RuntimeError(f"{self.config.source} snapshot {year}-{month:02d} returned empty body")
-        if len(body) > int(self.config.max_compressed_bytes):
-            raise RuntimeError(
-                f"{self.config.source} snapshot {year}-{month:02d} compressed bytes={len(body)} "
-                f"above max_compressed_bytes={self.config.max_compressed_bytes}"
-            )
+        try:
+            response.raise_for_status()
+            declared = response.headers.get("content-length") if hasattr(response, "headers") else None
+            if declared:
+                try:
+                    declared_bytes = int(declared)
+                except (TypeError, ValueError):
+                    declared_bytes = None
+                if declared_bytes is not None and declared_bytes > limit:
+                    raise RuntimeError(
+                        f"{self.config.source} snapshot declared compressed bytes={declared_bytes} "
+                        f"above max_compressed_bytes={limit}"
+                    )
+
+            body = bytearray()
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                if not chunk:
+                    continue
+                body.extend(chunk)
+                if len(body) > limit:
+                    raise RuntimeError(
+                        f"{self.config.source} snapshot compressed bytes>{limit}; download aborted"
+                    )
+            if not body:
+                raise RuntimeError(f"{self.config.source} snapshot returned empty body")
+            return bytes(body)
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
+
+    def _fetch_month(self, year, month, *, now):
+        url = self.url_factory(year, month)
+        body = self._download_bounded(url)
         if body[:2] != b"PK":
             raise RuntimeError(f"{self.config.source} snapshot {year}-{month:02d} is not a ZIP archive")
 
@@ -158,8 +184,8 @@ class OfficialZipJSONSnapshotAdapter:
                     f"{self.config.source} snapshot {year}-{month:02d} has {len(infos)} ZIP entries, "
                     f"above max_zip_entries={self.config.max_zip_entries}"
                 )
-            json_infos = []
             total_uncompressed = 0
+            json_infos = []
             for info in infos:
                 _safe_member(info)
                 total_uncompressed += int(info.file_size or 0)
@@ -193,10 +219,7 @@ class OfficialZipJSONSnapshotAdapter:
             normalized = self.normalizer(unit, now=now)
             if normalized is None:
                 continue
-            if isinstance(normalized, list):
-                candidates = normalized
-            else:
-                candidates = [normalized]
+            candidates = normalized if isinstance(normalized, list) else [normalized]
             for item in candidates:
                 if isinstance(item, dict) and item.get("external_id"):
                     rows.append(item)
@@ -228,7 +251,7 @@ class OfficialZipJSONSnapshotAdapter:
         for year, month in _recent_months(local_now.date(), self.config.lookback_months):
             rows.extend(self._fetch_month(year, month, now=current_utc))
 
-        # The same OCID may be represented in more than one rolling snapshot.
+        # The same OCID can be represented in more than one rolling snapshot.
         # Prefer the source's most recently updated normalized representation.
         latest = {}
         order = []
