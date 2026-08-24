@@ -253,6 +253,16 @@ def mark_post_conversion_churn(conn, account_id, *, occurred_at=None):
         _insert_event(conn, account_id, "post_conversion_churn", _now(occurred_at))
 
 
+def _next_commercial_action(status, evaluation_type):
+    if status == "PAID":
+        return "RETAIN_AND_EXPAND"
+    if status in {"EXPIRED", "CLOSED"}:
+        return "CONVERT_TO_PRO"
+    if status == "EVALUATION_ACTIVE":
+        return "ASSISTED_PILOT_REVIEW" if evaluation_type == "enterprise" else "DEMONSTRATE_VALUE"
+    return "COMPLETE_VALUE_ACTIVATION"
+
+
 def evaluation_summary(conn, account, *, now=None):
     if not account or not account.get("evaluation_status"):
         return None
@@ -265,15 +275,18 @@ def evaluation_summary(conn, account, *, now=None):
     if ends and status != "PAID":
         remaining = max(0, math.ceil((ends - current).total_seconds() / 86400))
     events = _event_names(conn, account.get("account_id"))
+    evaluation_type = account.get("evaluation_type") or "legacy"
     return {
-        "type": account.get("evaluation_type") or "legacy",
+        "type": evaluation_type,
         "status": status,
         "activated_at": account.get("evaluation_activated_at"),
         "ends_at": account.get("evaluation_ends_at"),
         "days_remaining": remaining,
         "extension_days": int(account.get("evaluation_extension_days") or 0),
+        "extension_reason": account.get("evaluation_extension_reason"),
         "value_status": account.get("evaluation_value_status") or "UNKNOWN",
         "activation_reason": account.get("evaluation_activation_reason"),
+        "next_commercial_action": _next_commercial_action(status, evaluation_type),
         "activation_requirements": {
             "profile_ready": "profile_ready" in events,
             "market_data_available": "market_data_available" in events,
