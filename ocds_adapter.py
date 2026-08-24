@@ -283,7 +283,10 @@ class OCDSAPIConnector:
         if cursor:
             parsed = _date(cursor.completed_through)
             if parsed:
-                return parsed - timedelta(days=max(0, self.config.overlap_days))
+                # completed_through is inclusive. The first unseen date is the
+                # following day; overlap_days then deliberately replays the
+                # requested number of already-completed days.
+                return parsed + timedelta(days=1) - timedelta(days=max(0, self.config.overlap_days))
         return today - timedelta(days=max(0, self.config.initial_lookback_days))
 
     def _windows(self, watermark, now):
