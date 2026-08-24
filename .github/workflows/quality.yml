@@ -19,6 +19,32 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
+      - name: TEMP live-smoke production Brazil PNCP PCA connector
+        run: |
+          python - <<'PY'
+          from brazil_pncp_pca import SOURCE, SIGNAL_TYPE, WORK_CATEGORY_IDS, fetch_brazil_pncp_pca_plans
+
+          # Use the most recently live-proven publisher cursor. The connector's
+          # own 30-minute overlap keeps this bounded while exercising the exact
+          # production discovery -> consolidated PCA -> category-item path.
+          rows, cursor = fetch_brazil_pncp_pca_plans(watermark="2026-08-24T18:41:08.470092")
+          assert cursor
+          assert all(row.get("source") == SOURCE for row in rows)
+          assert all(row.get("signal_type") == SIGNAL_TYPE for row in rows)
+          assert all(str(row.get("category_code")) in WORK_CATEGORY_IDS for row in rows)
+          assert all(row.get("external_id") and row.get("source_updated_at") for row in rows)
+          assert all(not row.get("deadline") for row in rows)
+          print(f"PNCP_PRODUCTION_SMOKE|signals={len(rows)}|cursor={cursor}")
+          if rows:
+              sample = rows[0]
+              print("PNCP_SAMPLE|" + repr({
+                  "external_id": sample.get("external_id"),
+                  "category_code": sample.get("category_code"),
+                  "target_date": sample.get("target_date"),
+                  "value": sample.get("value"),
+                  "buyer": sample.get("buyer"),
+              }))
+          PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
       - name: Run repository tests
