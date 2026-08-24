@@ -98,13 +98,26 @@ def _next_cursor(payload, *, search_url, cursor_param):
     return token
 
 
+def _normalized_items(value, *, source):
+    if not value:
+        return []
+    if isinstance(value, dict):
+        value = [value]
+    if not isinstance(value, list):
+        raise RuntimeError(f"{source} normalizer returned unsupported type")
+    return [item for item in value if isinstance(item, dict) and item.get("external_id")]
+
+
 class OCDSOpaqueCursorAdapter:
-    def __init__(self, config, *, params_factory, normalizer, session=None, headers=None):
+    def __init__(self, config, *, params_factory, normalizer=None, window_processor=None, session=None, headers=None):
         self.config = config
         self.params_factory = params_factory
         self.normalizer = normalizer
+        self.window_processor = window_processor
         self.session = session or requests.Session()
         self.headers = dict(headers or {})
+        if not callable(self.normalizer) and not callable(self.window_processor):
+            raise TypeError("opaque-cursor adapter requires a normalizer or window_processor")
 
     def _start_date(self, watermark, today):
         cursor = OCDSOpaqueWindowCursor.decode(watermark)
@@ -131,7 +144,7 @@ class OCDSOpaqueCursorAdapter:
         token = None
         seen_tokens = set()
         releases = []
-        for page in range(1, max(1, int(self.config.max_pages_per_window)) + 1):
+        for _page in range(1, max(1, int(self.config.max_pages_per_window)) + 1):
             params = dict(base_params)
             if token:
                 params[self.config.cursor_param] = token
@@ -153,20 +166,21 @@ class OCDSOpaqueCursorAdapter:
             f"{self.config.source} reached max_pages_per_window={self.config.max_pages_per_window} for {start}..{end}; cursor not advanced"
         )
 
+    def _process_window(self, releases, *, start, end, now):
+        if callable(self.window_processor):
+            value = self.window_processor(releases, start=start, end=end, now=now)
+            return _normalized_items(value, source=self.config.source)
+        observations = []
+        for release in releases:
+            value = self.normalizer(release, now=now)
+            observations.extend(_normalized_items(value, source=self.config.source))
+        return observations
+
     def fetch_incremental(self, *, watermark=None, now=None):
         observations = []
         cursor = None
         for start, end in self._windows(watermark, now):
-            for release in self._fetch_window(start, end):
-                normalized = self.normalizer(release, now=now)
-                if not normalized:
-                    continue
-                if isinstance(normalized, dict):
-                    normalized = [normalized]
-                if not isinstance(normalized, list):
-                    raise RuntimeError(f"{self.config.source} normalizer returned unsupported type")
-                for item in normalized:
-                    if isinstance(item, dict) and item.get("external_id"):
-                        observations.append(item)
+            releases = self._fetch_window(start, end)
+            observations.extend(self._process_window(releases, start=start, end=end, now=now))
             cursor = OCDSOpaqueWindowCursor(end.isoformat()).encode()
         return observations, cursor
