@@ -35,7 +35,7 @@ def test_wave_1_contains_only_machine_verified_green_sources():
     assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
-    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 10
+    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 11
 
 
 def test_live_validated_wave_1_sources_pass_registry_gate():
@@ -50,6 +50,7 @@ def test_live_validated_wave_1_sources_pass_registry_gate():
         "UK_PROCUREMENT",
         "PL_BZP",
         "EE_RHR",
+        "AT_KERNDATEN",
     ):
         assert SOURCES[source]["status"] == "ready"
         assert production_gate_reasons(source) == ()
@@ -167,6 +168,23 @@ def test_estonia_registry_declares_only_proven_monthly_tender_lifecycle_contract
     assert "historical_data" not in source["capabilities"]
 
 
+def test_austria_registry_declares_only_proven_distributed_tender_contract():
+    source = SOURCES["AT_KERNDATEN"]
+    assert source["kind"] == "OFFICIAL_DISTRIBUTED_XML"
+    assert source["access"] == "public_catalogue_kdq_xml"
+    assert source["adapter"] == "AustriaKerndatenIncrementalConnector"
+    assert source["signal_types"] == ("TENDER",)
+    assert set(source["capabilities"]) == {"incremental_sync", "detail", "lifecycle"}
+    assert source["realtime_capable"] is False
+    assert source["expected_refresh_minutes"] == 720
+    assert source["stale_after_minutes"] == 2160
+    assert "search" not in source["capabilities"]
+    assert "awards" not in source["capabilities"]
+    assert "contracts" not in source["capabilities"]
+    assert "historical_data" not in source["capabilities"]
+    assert "lots" not in source["capabilities"]
+
+
 def test_germany_does_not_pass_production_gate_until_legal_closure():
     reasons = production_gate_reasons("SERVICE_BUND_DE")
     assert "commercial_reuse_not_green" in reasons
@@ -187,6 +205,7 @@ def test_registered_source_freshness_is_source_specific():
     assert stale_after_minutes_for("UK_PROCUREMENT") == 180
     assert stale_after_minutes_for("CH_SIMAP") == 180
     assert stale_after_minutes_for("PL_BZP") == 180
+    assert stale_after_minutes_for("AT_KERNDATEN") == 2160
     assert stale_after_minutes_for("EC_SERCOP") == 4320
     assert stale_after_minutes_for("ZA_ETENDERS") == 4320
     assert stale_after_minutes_for("LV_IUB") == 4320
