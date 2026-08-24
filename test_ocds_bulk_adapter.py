@@ -111,6 +111,77 @@ def test_monthly_bulk_discovers_only_selected_ocids_dedupes_and_hydrates():
     decoded = OCDSMonthlyBulkCursor.decode(cursor)
     assert decoded.observed_through == "2026-08-24"
     assert decoded.periods == ("2026-07", "2026-08")
+    assert decoded.tracked_ocids == ()
+
+
+def test_actionable_cursor_ocid_is_rehydrated_even_when_absent_from_recent_bulk():
+    template = "https://official.example/download?year={year}&month={month}"
+    september_url = template.format(year=2026, month="09")
+    records = {
+        "ocds-old-open": {
+            "releases": [{"ocid": "ocds-old-open", "id": "r-old", "tender": {"id": "t-old"}}]
+        }
+    }
+    watermark = OCDSMonthlyBulkCursor(
+        observed_through="2026-08-31",
+        periods=("2026-08",),
+        tracked_ocids=("ocds-old-open",),
+    ).encode()
+
+    open_session = Session({september_url: _zip([])}, records)
+    config = OCDSMonthlyBulkConfig(
+        source="TEST",
+        country="TST",
+        bulk_url_template=template,
+        record_url="https://official.example/api/record",
+        overlap_months=0,
+    )
+    open_connector = OCDSMonthlyBulkConnector(
+        config,
+        candidate_selector=lambda *_: True,
+        normalizer=lambda record, now=None: {
+            "source": "TEST",
+            "external_id": record["ocid"],
+            "ocid": record["ocid"],
+            "is_actionable": True,
+        },
+        session=open_session,
+    )
+    rows, next_cursor = open_connector.fetch_incremental(
+        watermark=watermark,
+        now=datetime(2026, 9, 5, tzinfo=timezone.utc),
+    )
+    assert [row["external_id"] for row in rows] == ["ocds-old-open"]
+    assert [params["ocid"] for _url, params in open_session.calls if "ocid" in params] == ["ocds-old-open"]
+    assert OCDSMonthlyBulkCursor.decode(next_cursor).tracked_ocids == ("ocds-old-open",)
+
+    closed_session = Session({september_url: _zip([])}, records)
+    closed_connector = OCDSMonthlyBulkConnector(
+        config,
+        candidate_selector=lambda *_: True,
+        normalizer=lambda record, now=None: {
+            "source": "TEST",
+            "external_id": record["ocid"],
+            "ocid": record["ocid"],
+            "is_actionable": False,
+            "_lifecycle_only": True,
+        },
+        session=closed_session,
+    )
+    rows, closed_cursor = closed_connector.fetch_incremental(
+        watermark=next_cursor,
+        now=datetime(2026, 9, 6, tzinfo=timezone.utc),
+    )
+    assert rows[0]["_lifecycle_only"] is True
+    assert OCDSMonthlyBulkCursor.decode(closed_cursor).tracked_ocids == ()
+
+
+def test_legacy_cursor_without_tracked_ocids_remains_decodable():
+    cursor = OCDSMonthlyBulkCursor.decode(
+        '{"observed_through":"2026-08-24","periods":["2026-08"]}'
+    )
+    assert cursor is not None
+    assert cursor.tracked_ocids == ()
 
 
 def test_non_zip_bulk_fails_without_returning_cursor():
