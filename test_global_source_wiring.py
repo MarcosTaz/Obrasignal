@@ -7,17 +7,14 @@ class FakeConn:
         pass
 
 
-def test_ready_global_source_still_requires_explicit_request(monkeypatch):
+def test_ready_global_sources_still_require_explicit_request(monkeypatch):
     monkeypatch.delenv('OBRASIGNAL_GLOBAL_SOURCES', raising=False)
     assert preload._global_source_enabled('CO_SECOP') is False
-
-    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP')
-    assert preload._global_source_enabled('CO_SECOP') is True
-
-
-def test_planned_dncp_cannot_run_even_when_explicitly_requested(monkeypatch):
-    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'PY_DNCP')
     assert preload._global_source_enabled('PY_DNCP') is False
+
+    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP,PY_DNCP')
+    assert preload._global_source_enabled('CO_SECOP') is True
+    assert preload._global_source_enabled('PY_DNCP') is True
 
 
 def test_explicit_request_cannot_bypass_a_failing_production_gate(monkeypatch):
