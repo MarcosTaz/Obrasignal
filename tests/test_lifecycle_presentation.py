@@ -166,7 +166,7 @@ def test_post_sync_decisioning_skips_tombstoned_row(monkeypatch, tmp_path):
         ).fetchone()[0]
         conn.execute("DELETE FROM sync_runs")
         conn.execute(
-            "INSERT INTO sync_runs(started_at,finished_at,found,new_items) VALUES(?,?,?,?,?)".replace(",?,?,?,?,?", ",?,?,?,?)"),
+            "INSERT INTO sync_runs(started_at,finished_at,found,new_items) VALUES(?,?,?,?)",
             (last_seen, last_seen, 2, 2),
         )
         conn.commit()
