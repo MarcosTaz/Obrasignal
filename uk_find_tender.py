@@ -7,6 +7,7 @@ once per window before lifecycle/actionability is decided.
 """
 from datetime import datetime, timezone
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -23,6 +24,7 @@ FTS_HEADERS = {
     "Accept": "application/json",
     "User-Agent": "ObraSignal procurement connector/1.0 (+official open-data client)",
 }
+LONDON = ZoneInfo("Europe/London")
 
 
 def _text(value):
@@ -268,7 +270,14 @@ class UKFindTenderConnector:
     def _format_timestamp(value):
         if not isinstance(value, datetime):
             raise RuntimeError("Find a Tender subdaily window requires datetime bounds")
-        return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        # Live validation on 2026-08-24 proved that updatedFrom/updatedTo are
+        # filtered against the UK publication clock: 10:05Z did NOT retrieve a
+        # release stamped 11:13+01, while 11:05+01 did. Keep durable cursors UTC,
+        # but express the source query in Europe/London with its explicit DST
+        # offset so BST/GMT transitions are handled by the timezone database.
+        return value.astimezone(LONDON).isoformat(timespec="seconds")
 
     def _params(self, start, end):
         # No server-side `stages` filter: a live 2026 validation showed a current
