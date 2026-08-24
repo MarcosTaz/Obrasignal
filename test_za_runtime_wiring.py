@@ -1,5 +1,5 @@
 import preload
-from source_registry import SOURCES, production_gate_reasons
+from source_registry import SOURCES, production_gate_reasons, production_ready_sources
 from source_runtime import discard_staged_source_syncs, staged_source_syncs
 
 
@@ -8,11 +8,16 @@ class FakeConn:
         pass
 
 
-def test_za_stays_blocked_while_registry_is_planned_even_if_requested(monkeypatch):
-    assert SOURCES["ZA_ETENDERS"]["status"] == "planned"
-    assert "runtime_not_enabled" in production_gate_reasons("ZA_ETENDERS")
-    monkeypatch.setenv("OBRASIGNAL_GLOBAL_SOURCES", "ZA_ETENDERS")
+def test_live_validated_za_passes_gate_but_still_requires_explicit_request(monkeypatch):
+    assert SOURCES["ZA_ETENDERS"]["status"] == "ready"
+    assert production_gate_reasons("ZA_ETENDERS") == ()
+    assert "ZA_ETENDERS" in production_ready_sources()
+
+    monkeypatch.delenv("OBRASIGNAL_GLOBAL_SOURCES", raising=False)
     assert preload._global_source_enabled("ZA_ETENDERS") is False
+
+    monkeypatch.setenv("OBRASIGNAL_GLOBAL_SOURCES", "ZA_ETENDERS")
+    assert preload._global_source_enabled("ZA_ETENDERS") is True
 
 
 def test_za_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
@@ -36,11 +41,10 @@ def test_za_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
     discard_staged_source_syncs()
 
 
-def test_za_runtime_empty_increment_is_healthy_when_gate_is_open(monkeypatch):
+def test_za_runtime_empty_increment_is_healthy_when_requested(monkeypatch):
     events = []
     monkeypatch.setenv("BASE_ACCESS_TOKEN", "configured")
     monkeypatch.setenv("OBRASIGNAL_GLOBAL_SOURCES", "ZA_ETENDERS")
-    monkeypatch.setattr(preload, "production_gate_reasons", lambda source: () if source == "ZA_ETENDERS" else ("runtime_not_enabled",))
     monkeypatch.setattr(preload._app, "db", lambda: FakeConn())
     monkeypatch.setattr(preload, "_original_fetch_base", lambda: [{"source": "BASE", "external_id": "base-1"}])
     monkeypatch.setattr(preload._national_sources, "fetch_boamp", lambda: [{"source": "BOAMP", "external_id": "boamp-1"}])
