@@ -9,57 +9,57 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe official CanadaBuys files
+      - name: Analyze official CanadaBuys files
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY' | tee canadabuys-probe.txt
-          import csv, io, urllib.request, xml.etree.ElementTree as ET
+          import csv, io, urllib.request, collections, json
 
           urls = {
               'new': 'https://canadabuys.canada.ca/opendata/pub/newTenderNotice-nouvelAvisAppelOffres.csv',
               'open': 'https://canadabuys.canada.ca/opendata/pub/openTenderNotice-ouvertAvisAppelOffres.csv',
-              'dictionary': 'https://donnees-data.tpsgc-pwgsc.gc.ca/ba2/ac-cb/achatscanada-canadabuys-dd.xml',
           }
 
-          for name, url in urls.items():
-              req = urllib.request.Request(url, headers={'User-Agent': 'ObraSignal CanadaBuys probe/1.0'})
-              with urllib.request.urlopen(req, timeout=45) as r:
+          def fetch(url):
+              req = urllib.request.Request(url, headers={'User-Agent':'ObraSignal CanadaBuys probe/1.0'})
+              with urllib.request.urlopen(req, timeout=60) as r:
                   body = r.read()
-                  print(f'=== {name.upper()} ===')
-                  print('status=', r.status)
-                  print('content-type=', r.headers.get('content-type'))
-                  print('content-length-header=', r.headers.get('content-length'))
-                  print('bytes=', len(body))
-                  print('etag=', r.headers.get('etag'))
-                  print('last-modified=', r.headers.get('last-modified'))
-                  if name in {'new','open'}:
-                      text = body.decode('utf-8-sig')
-                      reader = csv.reader(io.StringIO(text, newline=''))
-                      rows=[]
-                      for i,row in enumerate(reader):
-                          rows.append(row)
-                          if i >= 3:
-                              break
-                      print('header-count=', len(rows[0]) if rows else 0)
-                      print('header=', rows[0] if rows else [])
-                      for idx,row in enumerate(rows[1:], start=1):
-                          print(f'row{idx}-count=', len(row))
-                          print(f'row{idx}=', row)
-                  else:
-                      text = body.decode('utf-8-sig')
-                      print('xml-prefix=', text[:1200].replace('\n',' '))
-                      root = ET.fromstring(text)
-                      print('xml-root=', root.tag)
-                      keys=('solicitation','reference','procurementcategory','closing','status','organization','region','location','value','currency','publication','amend')
-                      seen=0
-                      for elem in root.iter():
-                          blob=' '.join([elem.tag, *(f'{k}={v}' for k,v in elem.attrib.items()), elem.text or ''])
-                          if any(k in blob.lower() for k in keys):
-                              print('DICT:', blob[:1200].replace('\n',' '))
-                              seen += 1
-                              if seen >= 120:
-                                  break
+                  return r, body
+
+          for name,url in urls.items():
+              r,body=fetch(url)
+              text=body.decode('utf-8-sig')
+              rows=list(csv.DictReader(io.StringIO(text,newline='')))
+              print(f'=== {name.upper()} ===')
+              print('status=',r.status,'bytes=',len(body),'etag=',r.headers.get('etag'),'last-modified=',r.headers.get('last-modified'))
+              print('rows=',len(rows),'fields=',len(rows[0]) if rows else 0)
+              cats=collections.Counter((x.get('procurementCategory-categorieApprovisionnement') or '').strip() for x in rows)
+              sts=collections.Counter((x.get('tenderStatus-appelOffresStatut-eng') or '').strip() for x in rows)
+              print('category_counts=',dict(cats))
+              print('status_counts=',dict(sts))
+              cn=[x for x in rows if (x.get('procurementCategory-categorieApprovisionnement') or '').strip()=='*CNST']
+              print('cnst_rows=',len(cn))
+              print('cnst_missing_solicitation=',sum(not (x.get('solicitationNumber-numeroSollicitation') or '').strip() for x in cn))
+              print('cnst_missing_reference=',sum(not (x.get('referenceNumber-numeroReference') or '').strip() for x in cn))
+              print('cnst_missing_closing=',sum(not (x.get('tenderClosingDate-appelOffresDateCloture') or '').strip() for x in cn))
+              print('cnst_missing_notice_url=',sum(not (x.get('noticeURL-URLavis-eng') or '').strip() for x in cn))
+              sol=collections.defaultdict(list); ref=collections.defaultdict(list)
+              for x in cn:
+                  sol[(x.get('solicitationNumber-numeroSollicitation') or '').strip()].append(x)
+                  ref[(x.get('referenceNumber-numeroReference') or '').strip()].append(x)
+              sol_dups={k:v for k,v in sol.items() if k and len(v)>1}
+              ref_dups={k:v for k,v in ref.items() if k and len(v)>1}
+              print('cnst_duplicate_solicitation_keys=',len(sol_dups),'duplicate_rows=',sum(len(v) for v in sol_dups.values()))
+              print('cnst_duplicate_reference_keys=',len(ref_dups),'duplicate_rows=',sum(len(v) for v in ref_dups.values()))
+              for k,v in list(sol_dups.items())[:20]:
+                  print('SOL_DUP',json.dumps({'solicitation':k,'rows':[{'reference':x.get('referenceNumber-numeroReference'),'amendment':x.get('amendmentNumber-numeroModification'),'amendmentDate':x.get('amendmentDate-dateModification'),'publicationDate':x.get('publicationDate-datePublication'),'closing':x.get('tenderClosingDate-appelOffresDateCloture'),'title':x.get('title-titre-eng')} for x in v]},ensure_ascii=False))
+              amendments=collections.Counter((x.get('amendmentNumber-numeroModification') or '').strip() for x in cn)
+              print('cnst_amendment_counts=',dict(amendments.most_common(20)))
+              amended=[x for x in cn if (x.get('amendmentNumber-numeroModification') or '').strip() not in ('','000','0')]
+              print('cnst_amended_rows=',len(amended))
+              for x in amended[:20]:
+                  print('AMENDED',json.dumps({'solicitation':x.get('solicitationNumber-numeroSollicitation'),'reference':x.get('referenceNumber-numeroReference'),'amendment':x.get('amendmentNumber-numeroModification'),'amendmentDate':x.get('amendmentDate-dateModification'),'publicationDate':x.get('publicationDate-datePublication'),'closing':x.get('tenderClosingDate-appelOffresDateCloture'),'status':x.get('tenderStatus-appelOffresStatut-eng')},ensure_ascii=False))
           PY
       - name: Upload probe result
         uses: actions/upload-artifact@v4
