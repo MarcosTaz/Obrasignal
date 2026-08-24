@@ -105,6 +105,62 @@ def test_lifecycle_only_observation_is_staged_but_never_emitted_to_legacy_tender
     assert health[0][1]["found"] == 2
 
 
+def test_procurement_plan_is_staged_but_not_emitted_as_legacy_tender(monkeypatch):
+    staged = []
+    health = []
+    monkeypatch.setattr(runtime_plugin, "get_source_cursor", lambda conn, source: "old")
+    monkeypatch.setattr(runtime_plugin, "stage_source_sync", lambda source, rows, cursor: staged.append((source, rows, cursor)))
+    monkeypatch.setattr(runtime_plugin, "record_source_result", lambda conn, source, **kwargs: health.append((source, kwargs)))
+    monkeypatch.setattr(runtime_plugin, "dedupe_records", lambda rows: rows)
+
+    plan = {
+        "source": "BR_PNCP_PCA",
+        "external_id": "plan-1",
+        "signal_type": "PROCUREMENT_PLAN",
+        "target_date": "2026-12-23",
+    }
+    wrapped = build_incremental_source_wrapper(
+        lambda: [{"source": "BASE", "external_id": "base-1"}],
+        source="BR_PNCP_PCA",
+        fetch_incremental=lambda *, watermark=None: ([plan], "new"),
+        source_enabled=lambda source: True,
+        record_blocked=lambda source: None,
+        db=lambda: FakeConn(),
+    )
+
+    assert wrapped() == [{"source": "BASE", "external_id": "base-1"}]
+    assert staged == [("BR_PNCP_PCA", [plan], "new")]
+    assert health[0][1]["success"] is True
+    assert health[0][1]["found"] == 1
+
+
+def test_explicit_unknown_signal_type_fails_before_staging(monkeypatch):
+    staged = []
+    health = []
+    monkeypatch.setattr(runtime_plugin, "get_source_cursor", lambda conn, source: None)
+    monkeypatch.setattr(runtime_plugin, "stage_source_sync", lambda *args: staged.append(args))
+    monkeypatch.setattr(runtime_plugin, "record_source_result", lambda conn, source, **kwargs: health.append((source, kwargs)))
+    monkeypatch.setattr(runtime_plugin, "dedupe_records", lambda rows: rows)
+
+    wrapped = build_incremental_source_wrapper(
+        lambda: [{"source": "BASE", "external_id": "base-1"}],
+        source="BROKEN",
+        fetch_incremental=lambda *, watermark=None: ([{
+            "source": "BROKEN",
+            "external_id": "x",
+            "signal_type": "TENDERISH",
+        }], "cursor-that-must-not-stage"),
+        source_enabled=lambda source: True,
+        record_blocked=lambda source: None,
+        db=lambda: FakeConn(),
+    )
+
+    assert wrapped() == [{"source": "BASE", "external_id": "base-1"}]
+    assert staged == []
+    assert health[0][1]["success"] is False
+    assert "unsupported signal_type" in str(health[0][1]["error"])
+
+
 def test_incremental_failure_is_isolated_and_cursor_is_not_staged(monkeypatch):
     staged = []
     health = []

@@ -9,6 +9,7 @@ by the existing Wave-1 connectors.
 import time
 
 from procurement_quality import dedupe_records
+from signal_store import signal_type_of
 from source_health import get_source_cursor, record_source_result
 from source_runtime import stage_source_sync
 
@@ -29,16 +30,26 @@ def _record_health(db, source, *, success, started, found=0, error=None):
 
 
 def _legacy_rows(observations):
-    """Return only observations that belong in the legacy tender table.
+    """Return only observations that belong in the legacy ``tenders`` table.
 
-    Lifecycle-only observations are still staged atomically for metadata,
-    lifecycle state and watermark progress, but must never become incomplete
-    legacy tender rows merely to communicate a cancellation/completion event.
+    The compatibility table is a TENDER projection, not the canonical Signal
+    store. Lifecycle-only observations and every explicit non-TENDER signal are
+    staged for durable source-side persistence but are never disguised as tenders.
+    Missing ``signal_type`` retains compatibility with pre-Signal connectors and
+    is interpreted as TENDER. Explicit unknown types fail closed.
     """
-    return [
-        row for row in observations
-        if isinstance(row, dict) and not bool(row.get("_lifecycle_only"))
-    ]
+    rows = []
+    for row in observations or []:
+        if not isinstance(row, dict):
+            raise ValueError("incremental source observation must be a mapping")
+        if bool(row.get("_lifecycle_only")):
+            # Validate an explicit type even when this is lifecycle-only so a
+            # misspelled type cannot advance the source cursor unnoticed.
+            signal_type_of(row)
+            continue
+        if signal_type_of(row) == "TENDER":
+            rows.append(row)
+    return rows
 
 
 def build_incremental_source_wrapper(
@@ -53,11 +64,10 @@ def build_incremental_source_wrapper(
     """Wrap the current aggregate fetcher with one gated incremental source.
 
     ``fetch_incremental`` must accept ``watermark=`` and return
-    ``(observations, cursor)``. All observations are staged; only non-lifecycle
-    observations are emitted to the legacy tender persistence path. The cursor is
-    committed later by the existing sync transaction. Source failure is isolated
-    like the legacy connector loop: health is marked failed while already-fetched
-    sources survive.
+    ``(observations, cursor)``. All valid observations are staged in the generic
+    Signal path. Only TENDER observations are emitted to legacy tender
+    persistence. The cursor is committed later by the existing source-side
+    transaction. Source failure is isolated like the legacy connector loop.
     """
     source = str(source or "").upper()
     if not source:
@@ -83,8 +93,11 @@ def build_incremental_source_wrapper(
 
             observations, cursor = fetch_incremental(watermark=watermark)
             observations = list(observations or [])
+            # Validate the legacy projection *before* staging. If a connector
+            # emits an explicit unknown signal type, no source state is staged.
+            legacy_rows = _legacy_rows(observations)
             stage_source_sync(source, observations, cursor)
-            rows.extend(_legacy_rows(observations))
+            rows.extend(legacy_rows)
             _record_health(db, source, success=True, started=started, found=len(observations))
         except Exception as exc:
             _record_health(db, source, success=False, started=started, error=exc)
