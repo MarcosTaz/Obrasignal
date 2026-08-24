@@ -1,17 +1,17 @@
 """Poland e-Zamowienia BZP public construction-notice connector.
 
-The BZP read WebService has no effective page-number pagination. Completeness is
-therefore proved with the companion ``/stats`` endpoint: a time interval is only
-accepted when the returned notice count equals the publisher's count, otherwise
-it is split until every leaf can be fetched completely. ``tenderId`` is the
-stable procedure identity; notice ``objectId`` remains publication-level.
+BZP has no effective page-number pagination. Completeness is proved with the
+companion ``/stats`` endpoint: a time interval is accepted only when each notice
+list exactly matches the publisher count; oversized intervals are split until
+complete. ``tenderId`` is the stable procedure identity and ``objectId`` is the
+publication identity used by the public detail page.
 
 Only publisher-native ``orderType == 'Works'`` ContractNotice records can create
-an opportunity. NoticeUpdateNotice rows deliberately omit order type, CPV and
-submission deadline, so they are applied only to procedures already tracked as
-construction. When section 8.1 changes the submission deadline, the exact
-``Przed zmianą`` / ``Po zmianie`` sequence is parsed in Europe/Warsaw time.
-TenderResultNotice closes a tracked opportunity regardless of result subtype.
+an opportunity. NoticeUpdateNotice omits order type, CPV and summary deadline,
+so it is applied only to already tracked construction procedures. Section 8.1
+submission-deadline changes are parsed from the exact ``Przed zmianą`` / ``Po
+zmianie`` HTML sequence in Europe/Warsaw time. TenderResultNotice closes a
+tracked opportunity. Raw HTML and contractor/contact payloads are never kept.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -49,9 +49,8 @@ def _dt(value):
     if isinstance(value, datetime):
         parsed = value
     elif value:
-        text = str(value).strip()
         try:
-            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
         except ValueError:
             return None
     else:
@@ -97,45 +96,38 @@ def _html_parts(value):
 
 
 def parse_bzp_update_deadline(html_body):
-    """Return corrected UTC deadline, None if section 8.1 is not changed.
+    """Return the final corrected UTC deadline or None when 8.1 is untouched.
 
     Live BZP validation on 2026-08-24 observed the exact sequence:
     ``8.1. Termin składania ofert`` / ``Przed zmianą:`` / old value /
     ``Po zmianie:`` / new ``YYYY-MM-DD HH:MM`` value. If BZP says section 8.1
-    changed but does not provide this exact parseable structure, fail closed.
+    changed but this exact structure cannot be parsed, fail closed.
     """
     parts = _html_parts(html_body)
-    headings = [index for index, part in enumerate(parts) if "8.1. Termin składania ofert" in part]
+    headings = [i for i, part in enumerate(parts) if "8.1. Termin składania ofert" in part]
     if not headings:
         return None
-
-    parsed_values = []
+    values = []
     for index in headings:
         tail = parts[index + 1:index + 6]
         if len(tail) < 4 or tail[0] != "Przed zmianą:" or tail[2] != "Po zmianie:":
             raise RuntimeError("BZP deadline update section 8.1 has unsupported structure; cursor not advanced")
-        old_value, new_value = tail[1], tail[3]
         try:
-            datetime.strptime(old_value, "%Y-%m-%d %H:%M")
-            local_new = datetime.strptime(new_value, "%Y-%m-%d %H:%M").replace(tzinfo=WARSAW)
+            datetime.strptime(tail[1], "%Y-%m-%d %H:%M")
+            local_new = datetime.strptime(tail[3], "%Y-%m-%d %H:%M").replace(tzinfo=WARSAW)
         except ValueError as exc:
             raise RuntimeError("BZP deadline update section 8.1 has invalid date value; cursor not advanced") from exc
-        parsed_values.append(local_new.astimezone(timezone.utc))
-
-    # Multiple section-8.1 changes inside one update would be unusual. They are
-    # acceptable only when all blocks are structurally valid; the last publisher
-    # value is the final state of that notice.
-    return _utc(parsed_values[-1])
+        values.append(local_new.astimezone(timezone.utc))
+    return _utc(values[-1])
 
 
 def parse_bzp_cpvs(value):
-    """Parse publisher CPV string without translating or inventing codes."""
+    """Parse publisher CPV text without translating or inventing codes."""
     text = _text(value)
     if not text:
         return []
     matches = list(re.finditer(r"\b\d{8}-\d\b", text))
-    entries = []
-    seen = set()
+    entries, seen = [], set()
     for index, match in enumerate(matches):
         code = match.group(0)
         if code in seen:
@@ -156,24 +148,21 @@ def _place(row):
     return " | ".join(values)
 
 
-def _state_from_contract(row):
+def _state_from_contract(row, *, was_actionable=False):
     if _text(row.get("orderType")) != "Works":
         return None
     tender_id = _text(row.get("tenderId"))
     object_id = _text(row.get("objectId"))
     published = _utc(row.get("publicationDate"))
-    deadline = _utc(row.get("submittingOffersDate"))
     if not tender_id or not object_id or not published:
         raise RuntimeError("BZP Works ContractNotice missing tenderId/objectId/publicationDate; cursor not advanced")
-
-    cpvs = parse_bzp_cpvs(row.get("cpvCode"))
     return {
         "tender_id": tender_id,
         "title": _text(row.get("orderObject")),
         "buyer": _text(row.get("organizationName")),
         "place": _place(row),
-        "cpv_classifications": cpvs,
-        "deadline": deadline or "",
+        "cpv_classifications": parse_bzp_cpvs(row.get("cpvCode")),
+        "deadline": _utc(row.get("submittingOffersDate")) or "",
         "first_published_at": published,
         "source_updated_at": published,
         "object_id": object_id,
@@ -181,7 +170,22 @@ def _state_from_contract(row):
         "bzp_number": _text(row.get("bzpNumber")),
         "tender_type": _text(row.get("tenderType")),
         "last_notice_type": "ContractNotice",
+        "was_actionable": bool(was_actionable),
     }
+
+
+def _refresh_state_from_notice(state, row, notice_type):
+    if _text(row.get("orderObject")):
+        state["title"] = _text(row.get("orderObject"))
+    cpvs = parse_bzp_cpvs(row.get("cpvCode"))
+    if cpvs:
+        state["cpv_classifications"] = cpvs
+    state["object_id"] = _text(row.get("objectId")) or state.get("object_id")
+    state["notice_number"] = _text(row.get("noticeNumber")) or state.get("notice_number")
+    state["bzp_number"] = _text(row.get("bzpNumber")) or state.get("bzp_number")
+    state["source_updated_at"] = _utc(row.get("publicationDate")) or state.get("source_updated_at")
+    state["last_notice_type"] = notice_type
+    return state
 
 
 def _observation(state, *, now, actionable=None, lifecycle_status=None, lifecycle_reason=None, lifecycle_only=False):
@@ -191,7 +195,6 @@ def _observation(state, *, now, actionable=None, lifecycle_status=None, lifecycl
     deadline = _utc(state.get("deadline")) or ""
     current = _dt(now) or datetime.now(timezone.utc)
     deadline_dt = _dt(deadline)
-
     if actionable is None:
         actionable = bool(deadline_dt and deadline_dt > current)
         lifecycle_status = "active" if actionable else ("deadline_missing" if deadline_dt is None else "deadline_elapsed")
@@ -200,7 +203,6 @@ def _observation(state, *, now, actionable=None, lifecycle_status=None, lifecycl
             if actionable else
             ("Works notice has no valid submission deadline" if deadline_dt is None else "submission deadline has elapsed")
         )
-
     record = {
         "source": SOURCE,
         "external_id": tender_id,
@@ -258,10 +260,15 @@ def _result_status(value):
 class BZPCursor:
     completed_through: str
     tracked: dict
+    closed: dict
 
     def encode(self):
         return json.dumps(
-            {"completed_through": self.completed_through, "tracked": self.tracked},
+            {
+                "completed_through": self.completed_through,
+                "tracked": self.tracked,
+                "closed": self.closed,
+            },
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,
@@ -279,14 +286,14 @@ class BZPCursor:
                 raise RuntimeError("invalid PL_BZP cursor JSON") from exc
             stamp = _text(payload.get("completed_through"))
             tracked = payload.get("tracked") or {}
-            if not isinstance(tracked, dict):
-                raise RuntimeError("invalid PL_BZP cursor tracked state")
+            closed = payload.get("closed") or {}
+            if not isinstance(tracked, dict) or not isinstance(closed, dict):
+                raise RuntimeError("invalid PL_BZP cursor procedure state")
         else:
-            stamp = text
-            tracked = {}
+            stamp, tracked, closed = text, {}, {}
         if _dt(stamp) is None:
             raise RuntimeError("invalid PL_BZP cursor completed_through")
-        return cls(_utc(stamp), tracked)
+        return cls(_utc(stamp), tracked, closed)
 
 
 class PolandBZPConnector:
@@ -317,9 +324,7 @@ class PolandBZPConnector:
     def _get(self, url, *, params):
         self._requests += 1
         if self._requests > self.max_requests_per_sync:
-            raise RuntimeError(
-                f"PL_BZP exceeded max_requests_per_sync={self.max_requests_per_sync}; cursor not advanced"
-            )
+            raise RuntimeError(f"PL_BZP exceeded max_requests_per_sync={self.max_requests_per_sync}; cursor not advanced")
         response = self.session.get(url, params=params, headers=BZP_HEADERS, timeout=self.timeout)
         response.raise_for_status()
         return response.json()
@@ -374,37 +379,31 @@ class PolandBZPConnector:
             if depth >= self.max_split_depth or (end - start) <= timedelta(seconds=1):
                 raise RuntimeError("PL_BZP interval cannot be split to complete page; cursor not advanced")
             midpoint = start + (end - start) / 2
-            left = self._fetch_interval(start, midpoint, depth=depth + 1)
-            right = self._fetch_interval(midpoint, end, depth=depth + 1)
             merged = {}
-            for row in left + right:
+            for row in self._fetch_interval(start, midpoint, depth=depth + 1) + self._fetch_interval(midpoint, end, depth=depth + 1):
                 object_id = _text(row.get("objectId"))
                 if object_id:
                     merged[object_id] = row
             return list(merged.values())
-
         rows = []
         for notice_type in NOTICE_TYPES:
             rows.extend(self._list(notice_type, start, end, counts[notice_type]))
         return rows
 
     def _windows(self, start, end):
-        current = start
+        current, count = start, 0
         width = timedelta(days=self.max_window_days)
-        count = 0
         while current < end and count < self.max_windows_per_sync:
             boundary = min(end, current + width)
             yield current, boundary
-            current = boundary
-            count += 1
+            current, count = boundary, count + 1
 
     @staticmethod
     def _event_key(row):
         published = _dt(row.get("publicationDate")) if isinstance(row, dict) else None
         return (published or datetime.min.replace(tzinfo=timezone.utc), _text(row.get("objectId")))
 
-    def _process_events(self, rows, tracked, *, now):
-        observations = []
+    def _process_events(self, rows, tracked, closed):
         seen_objects = set()
         for row in sorted((row for row in rows if isinstance(row, dict)), key=self._event_key):
             object_id = _text(row.get("objectId"))
@@ -417,27 +416,16 @@ class PolandBZPConnector:
             if notice_type == "ContractNotice":
                 if _text(row.get("orderType")) != "Works":
                     if tender_id and tender_id in tracked:
-                        state = tracked.pop(tender_id)
-                        state["object_id"] = object_id or state.get("object_id")
-                        state["notice_number"] = _text(row.get("noticeNumber")) or state.get("notice_number")
-                        state["source_updated_at"] = _utc(row.get("publicationDate")) or state.get("source_updated_at")
-                        state["last_notice_type"] = notice_type
-                        observations.append(_observation(
-                            state,
-                            now=now,
-                            actionable=False,
-                            lifecycle_status="not_construction",
-                            lifecycle_reason="publisher ContractNotice no longer reports orderType=Works",
-                            lifecycle_only=True,
-                        ))
+                        state = _refresh_state_from_notice(tracked.pop(tender_id), row, notice_type)
+                        state["closed_status"] = "not_construction"
+                        state["closed_reason"] = "publisher ContractNotice no longer reports orderType=Works"
+                        closed[tender_id] = state
                     continue
-                state = _state_from_contract(row)
+                previous = tracked.get(tender_id) if tender_id else None
+                state = _state_from_contract(row, was_actionable=bool(previous and previous.get("was_actionable")))
                 tender_id = state["tender_id"]
                 tracked[tender_id] = state
-                observation = _observation(state, now=now)
-                observations.append(observation)
-                if not observation["is_actionable"]:
-                    tracked.pop(tender_id, None)
+                closed.pop(tender_id, None)
                 continue
 
             if notice_type == "NoticeUpdateNotice":
@@ -447,85 +435,84 @@ class PolandBZPConnector:
                 corrected_deadline = parse_bzp_update_deadline(row.get("htmlBody"))
                 if corrected_deadline:
                     state["deadline"] = corrected_deadline
-                if _text(row.get("orderObject")):
-                    state["title"] = _text(row.get("orderObject"))
-                state["object_id"] = object_id or state.get("object_id")
-                state["notice_number"] = _text(row.get("noticeNumber")) or state.get("notice_number")
-                state["bzp_number"] = _text(row.get("bzpNumber")) or state.get("bzp_number")
-                state["source_updated_at"] = _utc(row.get("publicationDate")) or state.get("source_updated_at")
-                state["last_notice_type"] = notice_type
-                observation = _observation(state, now=now)
-                observations.append(observation)
-                if not observation["is_actionable"]:
-                    tracked.pop(tender_id, None)
+                _refresh_state_from_notice(state, row, notice_type)
                 continue
 
             if notice_type == "TenderResultNotice":
                 if not tender_id or tender_id not in tracked:
                     continue
-                state = tracked.pop(tender_id)
-                if _text(row.get("orderObject")):
-                    state["title"] = _text(row.get("orderObject"))
-                result_cpvs = parse_bzp_cpvs(row.get("cpvCode"))
-                if result_cpvs:
-                    state["cpv_classifications"] = result_cpvs
-                state["object_id"] = object_id or state.get("object_id")
-                state["notice_number"] = _text(row.get("noticeNumber")) or state.get("notice_number")
-                state["bzp_number"] = _text(row.get("bzpNumber")) or state.get("bzp_number")
-                state["source_updated_at"] = _utc(row.get("publicationDate")) or state.get("source_updated_at")
-                state["last_notice_type"] = notice_type
+                state = _refresh_state_from_notice(tracked.pop(tender_id), row, notice_type)
                 status, reason = _result_status(row.get("procedureResult"))
+                state["closed_status"] = status
+                state["closed_reason"] = reason
+                closed[tender_id] = state
+
+    def _finalize(self, tracked, closed, *, now):
+        observations = []
+        active = {}
+        for tender_id, state in closed.items():
+            if state.get("was_actionable"):
                 observations.append(_observation(
                     state,
                     now=now,
                     actionable=False,
-                    lifecycle_status=status,
-                    lifecycle_reason=reason,
+                    lifecycle_status=_text(state.get("closed_status")) or "result_published",
+                    lifecycle_reason=_text(state.get("closed_reason")) or "publisher reports closed procedure",
                     lifecycle_only=True,
                 ))
-
-        # A tracked procedure can expire without a new BZP notice. Close it on
-        # every successful sync so the radar never keeps elapsed opportunities.
-        current = _dt(now) or datetime.now(timezone.utc)
-        for tender_id, state in list(tracked.items()):
+        for tender_id, state in tracked.items():
             deadline = _dt(state.get("deadline"))
-            if deadline is not None and deadline <= current:
+            if deadline is not None and deadline > now:
+                state["was_actionable"] = True
+                active[tender_id] = state
+                observations.append(_observation(state, now=now, actionable=True, lifecycle_status="active", lifecycle_reason="publisher reports Works procedure with future submission deadline"))
+            elif state.get("was_actionable"):
                 observations.append(_observation(
                     state,
-                    now=current,
+                    now=now,
                     actionable=False,
-                    lifecycle_status="deadline_elapsed",
-                    lifecycle_reason="submission deadline has elapsed",
+                    lifecycle_status="deadline_missing" if deadline is None else "deadline_elapsed",
+                    lifecycle_reason="Works procedure has no valid submission deadline" if deadline is None else "submission deadline has elapsed",
                     lifecycle_only=True,
                 ))
-                tracked.pop(tender_id, None)
-        return observations
+        return observations, active
 
     def fetch_incremental(self, *, watermark=None, now=None):
         self._requests = 0
         current = _dt(now) or datetime.now(timezone.utc)
         cursor = BZPCursor.decode(watermark) if watermark else None
         tracked = json.loads(json.dumps(cursor.tracked, ensure_ascii=False)) if cursor else {}
+        closed = json.loads(json.dumps(cursor.closed, ensure_ascii=False)) if cursor else {}
         if cursor:
+            for state in tracked.values():
+                if isinstance(state, dict):
+                    state["was_actionable"] = True
             start = _dt(cursor.completed_through) - timedelta(minutes=self.overlap_minutes)
         else:
             start = current - timedelta(days=self.initial_lookback_days)
 
-        observations = []
         completed = _dt(cursor.completed_through) if cursor else None
         any_window = False
         for window_start, window_end in self._windows(start, current):
             any_window = True
             rows = self._fetch_interval(window_start, window_end)
-            observations.extend(self._process_events(rows, tracked, now=current))
+            self._process_events(rows, tracked, closed)
             completed = window_end
-
         if not any_window:
-            observations.extend(self._process_events([], tracked, now=current))
             completed = current
         if completed is None:
             completed = current
-        next_cursor = BZPCursor(_utc(completed), tracked).encode()
+
+        caught_up = completed >= current
+        if caught_up:
+            observations, tracked = self._finalize(tracked, closed, now=current)
+            closed = {}
+        else:
+            # Never publish an intermediate state while a long-outage catch-up is
+            # incomplete: later updates/results may change what is currently true.
+            observations = []
+
+        next_cursor = BZPCursor(_utc(completed), tracked, closed).encode()
         return observations, next_cursor
 
 
