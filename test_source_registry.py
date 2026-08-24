@@ -35,11 +35,12 @@ def test_wave_1_contains_only_machine_verified_green_sources():
     assert all(meta["machine_access"] == "VERIFIED" for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
-    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 7
+    assert sum(meta["status"] == "ready" for meta in wave_1.values()) == 8
 
 
 def test_live_validated_wave_1_sources_pass_registry_gate():
     for source in (
+        "CH_SIMAP",
         "CO_SECOP",
         "EC_SERCOP",
         "PY_DNCP",
@@ -118,6 +119,21 @@ def test_uk_registry_declares_only_proven_release_record_tender_contract():
     assert "historical_data" not in source["capabilities"]
 
 
+def test_simap_registry_declares_only_proven_public_tender_contract():
+    source = SOURCES["CH_SIMAP"]
+    assert source["kind"] == "PUBLIC_PROCUREMENT_API"
+    assert source["access"] == "public_project_search_api"
+    assert source["adapter"] == "SIMAPConnector"
+    assert source["signal_types"] == ("TENDER",)
+    assert set(source["capabilities"]) == {"search", "incremental_sync", "detail", "lots"}
+    assert source["realtime_capable"] is True
+    assert source["expected_refresh_minutes"] == 60
+    assert source["stale_after_minutes"] == 180
+    assert "awards" not in source["capabilities"]
+    assert "contracts" not in source["capabilities"]
+    assert "historical_data" not in source["capabilities"]
+
+
 def test_germany_does_not_pass_production_gate_until_legal_closure():
     reasons = production_gate_reasons("SERVICE_BUND_DE")
     assert "commercial_reuse_not_green" in reasons
@@ -136,6 +152,7 @@ def test_registered_source_freshness_is_source_specific():
     assert stale_after_minutes_for("PY_DNCP") == 180
     assert stale_after_minutes_for("UY_ARCE") == 180
     assert stale_after_minutes_for("UK_PROCUREMENT") == 180
+    assert stale_after_minutes_for("CH_SIMAP") == 180
     assert stale_after_minutes_for("EC_SERCOP") == 4320
     assert stale_after_minutes_for("ZA_ETENDERS") == 4320
     assert stale_after_minutes_for("LV_IUB") == 4320
