@@ -280,6 +280,7 @@ def _notice_events(root):
             "source_updated_at": issued_utc,
             "url": human_uri,
             "procurement_method": procedure_method,
+            "was_visible": False,
         })
     return events
 
@@ -325,6 +326,7 @@ def _award_events(root, tracked_folders=()):
         "event_kind": "award",
         "closed": True,
         "source_updated_at": _utc(issued),
+        "was_visible": False,
     } for lot_id in lot_ids]
 
 
@@ -343,6 +345,7 @@ def _merge_event(current, event):
         return deepcopy(event)
     if _event_time(event) < _event_time(current):
         return current
+    visible = bool(current.get("was_visible")) or bool(event.get("was_visible"))
     if event.get("closed"):
         closed = deepcopy(current)
         closed.update({
@@ -351,9 +354,11 @@ def _merge_event(current, event):
             "event_kind": "award",
             "closed": True,
             "source_updated_at": event.get("source_updated_at") or current.get("source_updated_at"),
+            "was_visible": visible,
         })
         return closed
     updated = deepcopy(event)
+    updated["was_visible"] = visible
     first = str(current.get("first_published_at") or "").strip()
     if first and (not updated.get("first_published_at") or first < str(updated.get("first_published_at"))):
         updated["first_published_at"] = first
@@ -411,12 +416,14 @@ class EERHRCursor:
     observed_through: str
     tracked: dict
     periods: tuple[str, ...] = ()
+    catchup_next: str = ""
 
     def encode(self):
         return json.dumps({
             "observed_through": self.observed_through,
             "tracked": self.tracked,
             "periods": list(self.periods),
+            "catchup_next": self.catchup_next,
         }, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
     @classmethod
@@ -430,13 +437,16 @@ class EERHRCursor:
         observed = str(payload.get("observed_through") or "").strip()
         tracked = payload.get("tracked") or {}
         periods = payload.get("periods") or []
+        catchup_next = str(payload.get("catchup_next") or "").strip()
         if not observed or not isinstance(tracked, dict) or not isinstance(periods, list):
             raise RuntimeError("invalid EE_RHR cursor state")
         try:
             datetime.fromisoformat(observed.replace("Z", "+00:00"))
         except ValueError as exc:
             raise RuntimeError("invalid EE_RHR cursor observed_through") from exc
-        return cls(observed, tracked, tuple(str(period) for period in periods if period))
+        if catchup_next:
+            _parse_month(catchup_next)
+        return cls(observed, tracked, tuple(str(period) for period in periods if period), catchup_next)
 
 
 def _shift_month(year, month, offset):
@@ -453,6 +463,30 @@ def _periods(now, count):
     ]
 
 
+def _month_text(period):
+    return f"{period[0]:04d}-{period[1]:02d}"
+
+
+def _parse_month(value):
+    text = str(value or "").strip()
+    try:
+        year_text, month_text = text.split("-", 1)
+        year, month = int(year_text), int(month_text)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("invalid EE_RHR cursor catchup_next") from exc
+    if year < 2000 or month < 1 or month > 12:
+        raise RuntimeError("invalid EE_RHR cursor catchup_next")
+    return year, month
+
+
+def _month_range(start, end):
+    start_index = start[0] * 12 + start[1] - 1
+    end_index = end[0] * 12 + end[1] - 1
+    if start_index > end_index:
+        return []
+    return [(index // 12, index % 12 + 1) for index in range(start_index, end_index + 1)]
+
+
 class EstoniaRHRConnector:
     def __init__(
         self,
@@ -460,12 +494,14 @@ class EstoniaRHRConnector:
         session=None,
         initial_months=3,
         overlap_months=1,
+        max_months_per_sync=4,
         max_resource_bytes=80 * 1024 * 1024,
         timeout=120,
     ):
         self.session = session or requests.Session()
         self.initial_months = max(1, int(initial_months))
         self.overlap_months = max(0, int(overlap_months))
+        self.max_months_per_sync = max(self.initial_months, int(max_months_per_sync), 1)
         self.max_resource_bytes = max(1024, int(max_resource_bytes))
         self.timeout = max(1, int(timeout))
 
@@ -538,56 +574,40 @@ class EstoniaRHRConnector:
         finally:
             response.close()
 
-    def fetch_incremental(self, *, watermark=None, now=None):
-        current = now or datetime.now(timezone.utc)
-        if current.tzinfo is None:
-            current = current.replace(tzinfo=timezone.utc)
-        current = current.astimezone(timezone.utc)
-        cursor = EERHRCursor.decode(watermark) if watermark else None
-        previous = deepcopy(cursor.tracked) if cursor else {}
-        period_count = self.overlap_months + 1 if cursor else self.initial_months
-        periods = _periods(current, period_count)
+    def _apply_period(self, states, year, month):
+        seen_notices = set()
+        for root in self._roots("notice", year, month):
+            for event in _notice_events(root):
+                key = (event.get("notice_id"), event.get("lot_id"))
+                if key in seen_notices:
+                    continue
+                seen_notices.add(key)
+                external_id = event["external_id"]
+                states[external_id] = _merge_event(states.get(external_id), event)
 
-        latest_notices = {}
-        seen_publications = set()
-        for year, month in periods:
-            for root in self._roots("notice", year, month):
-                for event in _notice_events(root):
-                    publication_key = (event.get("notice_id"), event.get("lot_id"))
-                    if publication_key in seen_publications:
-                        continue
-                    seen_publications.add(publication_key)
-                    external_id = event["external_id"]
-                    latest_notices[external_id] = _merge_event(latest_notices.get(external_id), event)
-
-        states = deepcopy(previous)
-        for external_id, event in latest_notices.items():
-            states[external_id] = _merge_event(states.get(external_id), event)
-
-        tracked_folders = {
+        folders = {
             str(state.get("procedure_id") or "")
-            for state in [*previous.values(), *latest_notices.values()]
+            for state in states.values()
             if isinstance(state, dict) and state.get("procedure_id")
         }
         seen_awards = set()
-        for year, month in periods:
-            for root in self._roots("notice_award", year, month):
-                for event in _award_events(root, tracked_folders=tracked_folders):
-                    publication_key = (event.get("notice_id"), event.get("lot_id"))
-                    if publication_key in seen_awards:
-                        continue
-                    seen_awards.add(publication_key)
-                    external_id = event["external_id"]
-                    if external_id not in states and external_id not in previous:
-                        continue
-                    states[external_id] = _merge_event(states.get(external_id), event)
+        for root in self._roots("notice_award", year, month):
+            for event in _award_events(root, tracked_folders=folders):
+                key = (event.get("notice_id"), event.get("lot_id"))
+                if key in seen_awards:
+                    continue
+                seen_awards.add(key)
+                external_id = event["external_id"]
+                if external_id not in states:
+                    continue
+                states[external_id] = _merge_event(states.get(external_id), event)
 
-        previous_ids = set(previous)
+    def _finalize(self, states, current):
         observations = []
         next_tracked = {}
         for external_id in sorted(states):
             state = states[external_id]
-            was_visible = external_id in previous_ids
+            was_visible = bool(state.get("was_visible"))
             if state.get("closed"):
                 if was_visible:
                     observations.append(_observation(
@@ -614,6 +634,7 @@ class EstoniaRHRConnector:
                     lifecycle_status="active",
                     lifecycle_reason="RHR publishes a Works lot with a future submission deadline",
                 ))
+                state["was_visible"] = True
                 next_tracked[external_id] = state
             elif was_visible:
                 observations.append(_observation(
@@ -626,11 +647,70 @@ class EstoniaRHRConnector:
                     ),
                     lifecycle_only=True,
                 ))
+        return observations, next_tracked
 
+    def fetch_incremental(self, *, watermark=None, now=None):
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        current = current.astimezone(timezone.utc)
+        local_current = current.astimezone(TALLINN)
+        current_period = (local_current.year, local_current.month)
+
+        cursor = EERHRCursor.decode(watermark) if watermark else None
+        states = deepcopy(cursor.tracked) if cursor else {}
+        if cursor and not cursor.catchup_next:
+            # A normal completed cursor contains only lots that were already
+            # visible. Older cursor versions did not persist this flag.
+            for state in states.values():
+                if isinstance(state, dict):
+                    state["was_visible"] = True
+
+        if cursor and cursor.catchup_next:
+            start_period = _parse_month(cursor.catchup_next)
+        elif cursor:
+            observed = datetime.fromisoformat(cursor.observed_through.replace("Z", "+00:00"))
+            if observed.tzinfo is None:
+                observed = observed.replace(tzinfo=timezone.utc)
+            local_observed = observed.astimezone(TALLINN)
+            start_period = _shift_month(
+                local_observed.year,
+                local_observed.month,
+                -self.overlap_months,
+            )
+        else:
+            initial = _periods(current, self.initial_months)
+            start_period = initial[0]
+
+        pending_periods = _month_range(start_period, current_period)
+        if not pending_periods:
+            pending_periods = [current_period]
+        batch = pending_periods[:self.max_months_per_sync]
+        for year, month in batch:
+            self._apply_period(states, year, month)
+
+        caught_up = batch[-1] == current_period
+        period_labels = tuple(_month_text(period) for period in batch)
+        if not caught_up:
+            next_period = _shift_month(batch[-1][0], batch[-1][1], 1)
+            # Preserve the last fully published timestamp while carrying the
+            # working state forward. No intermediate opportunity/tombstone is
+            # emitted because a later skipped month may change the truth.
+            observed_through = cursor.observed_through if cursor else _utc(current)
+            next_cursor = EERHRCursor(
+                observed_through=observed_through,
+                tracked=states,
+                periods=period_labels,
+                catchup_next=_month_text(next_period),
+            ).encode()
+            return [], next_cursor
+
+        observations, next_tracked = self._finalize(states, current)
         next_cursor = EERHRCursor(
             observed_through=_utc(current),
             tracked=next_tracked,
-            periods=tuple(f"{year}-{month:02d}" for year, month in periods),
+            periods=period_labels,
+            catchup_next="",
         ).encode()
         return observations, next_cursor
 
