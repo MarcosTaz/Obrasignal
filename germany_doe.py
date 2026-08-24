@@ -12,9 +12,10 @@ IssueDate/IssueTime remain source metadata and an intra-day ordering component.
 Only ``ProcurementTypeCode=works`` ContractNotice records can create opportunities.
 Commercial identity is lot-level: ContractFolderID + real lot ID. ContractAwardNotice
 records only close tracked tenders when the publisher-native winner-selection status
-is terminal (``selec-w`` or ``clos-nw``); ``open-nw`` explicitly remains open.
-Contract modification notices (``can-modif``) belong to post-award contract execution
-and are intentionally outside this TENDER-only lifecycle connector.
+is terminal (``selec-w`` or ``clos-nw``); ``open-nw`` explicitly remains open and a
+later publisher version can reopen a previously terminal tracked lot. Contract
+modification notices (``can-modif``) belong to post-award contract execution and are
+intentionally outside this TENDER-only lifecycle connector.
 """
 from __future__ import annotations
 
@@ -383,11 +384,26 @@ def _award_events(root, *, publication_day, filename_notice_id, file_version, tr
             raise RuntimeError(f"{SOURCE} unexpected LotResult status codelist; cursor not advanced")
         if not code or code not in _KNOWN_RESULT_CODES:
             raise RuntimeError(f"{SOURCE} unknown winner-selection-status {code!r}; cursor not advanced")
-        if code == "open-nw":
-            continue
         lot_id = _result_lot_id(result)
         if not lot_id:
-            raise RuntimeError(f"{SOURCE} relevant terminal LotResult has no lot identities; cursor not advanced")
+            raise RuntimeError(f"{SOURCE} relevant LotResult has no lot identities; cursor not advanced")
+        if code == "open-nw":
+            events.append({
+                "external_id": f"{folder_id}::{lot_id}",
+                "procedure_id": folder_id,
+                "lot_id": lot_id,
+                "notice_id": notice_id,
+                "file_version": int(file_version),
+                "publication_day": publication_day,
+                "notice_type": notice_type,
+                "event_kind": "result",
+                "closed": False,
+                "winner_selection_status": code,
+                "source_updated_at": _utc(issued),
+                "was_visible": False,
+                "reopen": True,
+            })
+            continue
         lifecycle_status, lifecycle_reason = _TERMINAL_RESULTS[code]
         events.append({
             "external_id": f"{folder_id}::{lot_id}",
@@ -445,6 +461,29 @@ def _merge_event(current, incoming):
     if first_values:
         updated["first_published_at"] = min(first_values)
     return updated
+
+
+def _reopen_known_state(current, incoming):
+    """Apply a later open-nw result without inventing a tender from a result notice."""
+    if current is None or _event_key(incoming) < _event_key(current):
+        return None
+    reopened = deepcopy(current)
+    for key in (
+        "notice_id", "file_version", "publication_day", "notice_type",
+        "source_updated_at", "winner_selection_status",
+    ):
+        if incoming.get(key) not in (None, ""):
+            reopened[key] = incoming.get(key)
+    reopened.update({
+        "event_kind": "result",
+        "closed": False,
+        "url": _human_url(incoming.get("notice_id")) or current.get("url"),
+        "was_visible": bool(current.get("was_visible")),
+    })
+    reopened.pop("closure_status", None)
+    reopened.pop("closure_reason", None)
+    reopened.pop("reopen", None)
+    return reopened
 
 
 def _observation(state, *, actionable, lifecycle_status, lifecycle_reason, lifecycle_only=False):
@@ -588,7 +627,7 @@ class GermanDOEOpenDataConnector:
             raise RuntimeError(f"{SOURCE} daily export is not a ZIP archive; cursor not advanced")
         return data
 
-    def _archive_events(self, day, data, *, tracked):
+    def _archive_events(self, day, data, *, tracked, closed):
         try:
             zf = zipfile.ZipFile(BytesIO(data))
         except (zipfile.BadZipFile, OSError) as exc:
@@ -612,9 +651,10 @@ class GermanDOEOpenDataConnector:
                 if total > self.max_uncompressed_bytes:
                     raise RuntimeError(f"{SOURCE} daily ZIP exceeds max_uncompressed_bytes; cursor not advanced")
 
-            tracked_folders = {
+            known_folders = {
                 str(state.get("procedure_id") or "")
-                for state in tracked.values()
+                for states in (tracked, closed)
+                for state in states.values()
                 if isinstance(state, dict) and str(state.get("procedure_id") or "")
             }
             events = []
@@ -640,7 +680,7 @@ class GermanDOEOpenDataConnector:
                         publication_day=day.isoformat(),
                         filename_notice_id=filename_notice_id,
                         file_version=file_version,
-                        tracked_folders=tracked_folders,
+                        tracked_folders=known_folders,
                     ))
             return sorted(events, key=_event_key)
 
@@ -650,6 +690,16 @@ class GermanDOEOpenDataConnector:
             external_id = str(event.get("external_id") or "").strip()
             if not external_id:
                 raise RuntimeError(f"{SOURCE} event missing external identity; cursor not advanced")
+            if event.get("reopen"):
+                current = tracked.get(external_id)
+                if current is None:
+                    current = closed.get(external_id)
+                reopened = _reopen_known_state(current, event)
+                if reopened is None:
+                    continue
+                tracked[external_id] = reopened
+                closed.pop(external_id, None)
+                continue
             if event.get("closed"):
                 current = tracked.pop(external_id, None)
                 if current is None:
@@ -736,7 +786,7 @@ class GermanDOEOpenDataConnector:
 
         for pub_day in days:
             data = self._download_day(pub_day)
-            self._apply_events(self._archive_events(pub_day, data, tracked=tracked), tracked, closed)
+            self._apply_events(self._archive_events(pub_day, data, tracked=tracked, closed=closed), tracked, closed)
             if pub_day > completed:
                 completed = pub_day
 
