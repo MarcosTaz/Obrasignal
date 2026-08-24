@@ -14,62 +14,38 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Probe public contract opportunities extract
+      - run: python -m pip install -q requests
+      - name: Probe public extract HEAD and validators
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY' | tee sam-bulk-probe.txt
-          import csv, io, urllib.request, collections, json
-
-          url = 'https://sam.gov/api/prod/fileextractservices/v1/api/download/Contract%20Opportunities/datagov/ContractOpportunitiesFullCSV.csv?privacy=Public'
-          req = urllib.request.Request(url, headers={'User-Agent':'ObraSignal SAM.gov probe/1.0'})
-          with urllib.request.urlopen(req, timeout=120) as r:
-              body = r.read()
-              print('status=', r.status)
-              print('final_url_host=', urllib.request.urlparse(r.geturl()).netloc if hasattr(urllib.request, 'urlparse') else r.geturl().split('/')[2])
-              print('content_type=', r.headers.get('content-type'))
-              print('content_length_header=', r.headers.get('content-length'))
-              print('last_modified=', r.headers.get('last-modified'))
-              print('etag=', r.headers.get('etag'))
-              print('bytes=', len(body))
-          # Current publisher extract contains Windows-1252 punctuation. cp1252 is
-          # single-byte and therefore fail-safe for transport inspection while
-          # preserving every byte-to-character mapping relevant to CSV structure.
-          text = body.decode('cp1252')
-          lines = text.splitlines()
-          header_index = None
-          for i, line in enumerate(lines[:25]):
-              lowered = line.lower()
-              if 'notice' in lowered and ('title' in lowered or 'solicitation' in lowered):
-                  header_index = i
-                  break
-          print('header_index=', header_index)
-          if header_index is None:
-              print('first_lines=', json.dumps(lines[:10]))
-              raise SystemExit('could not locate SAM opportunity header')
-          reader = csv.DictReader(io.StringIO('\n'.join(lines[header_index:])))
-          fields = list(reader.fieldnames or [])
-          print('fields=', len(fields))
-          print('fieldnames=', json.dumps(fields, ensure_ascii=False))
-          rows=[]
-          for idx,row in enumerate(reader):
-              rows.append(row)
-              if idx >= 4999:
-                  break
-          print('sample_rows=', len(rows))
-          for candidate in fields:
-              low=candidate.lower()
-              if low in {'type','active','naics','naicscode','naics code','classification code','classificationcode'}:
-                  counts=collections.Counter((r.get(candidate) or '').strip() for r in rows)
-                  print('DIST', candidate, json.dumps(counts.most_common(25), ensure_ascii=False))
-          likely = [x for x in fields if any(k in x.lower() for k in ('notice','solic','naics','class','type','active','posted','response','archive','title'))]
-          print('likely_fields=', json.dumps(likely, ensure_ascii=False))
-          for row in rows[:3]:
-              print('SAMPLE', json.dumps({k: row.get(k) for k in likely}, ensure_ascii=False))
+          import requests
+          url='https://sam.gov/api/prod/fileextractservices/v1/api/download/Contract%20Opportunities/datagov/ContractOpportunitiesFullCSV.csv?privacy=Public'
+          headers={'User-Agent':'ObraSignal SAM.gov probe/1.0'}
+          r=requests.head(url,headers=headers,allow_redirects=True,timeout=60)
+          print('HEAD status=',r.status_code)
+          print('HEAD final_host=',requests.utils.urlparse(r.url).netloc)
+          print('HEAD content_length=',r.headers.get('Content-Length'))
+          print('HEAD last_modified=',r.headers.get('Last-Modified'))
+          print('HEAD etag=',r.headers.get('ETag'))
+          r.raise_for_status()
+          validators={
+              'If-None-Match':r.headers.get('ETag',''),
+              'If-Modified-Since':r.headers.get('Last-Modified',''),
+              'User-Agent':'ObraSignal SAM.gov probe/1.0',
+          }
+          c=requests.get(url,headers=validators,allow_redirects=True,stream=True,timeout=60)
+          print('COND status=',c.status_code)
+          print('COND final_host=',requests.utils.urlparse(c.url).netloc)
+          print('COND content_length=',c.headers.get('Content-Length'))
+          print('COND last_modified=',c.headers.get('Last-Modified'))
+          print('COND etag=',c.headers.get('ETag'))
+          c.close()
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: sam-bulk-probe
+          name: sam-bulk-transport-probe
           path: sam-bulk-probe.txt
           retention-days: 1
