@@ -3,6 +3,7 @@
 This test is intentionally network-dependent and MUST be deleted before merge.
 It exists only to evidence completeness/lifecycle semantics of the official API.
 """
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 import json
 
@@ -108,28 +109,29 @@ def test_poland_bzp_paging_completeness_and_lifecycle_live():
     assert len(twelve) == 12
     assert ids(twelve)[:3] == ids(base3)
 
-    # Capture bounded samples of publisher-native lifecycle notice types.
+    # Capture bounded samples of publisher-native lifecycle notice types. Do not
+    # assume a truncated sample must contain construction rows: record the actual
+    # orderType distribution and let complete-window probes decide semantics.
     samples = {}
     full_by_type = {}
     for notice_type in ("ContractNotice", "NoticeUpdateNotice", "TenderResultNotice", "ContractPerformingNotice"):
         _, rows = _get_list(
-            session, notice_type=notice_type, start=start, end=end, page_size=80
+            session, notice_type=notice_type, start=start, end=end, page_size=120
         )
         full_by_type[notice_type] = rows
         works = _works(rows)
         samples[notice_type] = {
             "count_returned": len(rows),
             "works_count": len(works),
+            "order_types": dict(sorted(Counter(str(row.get("orderType")) for row in rows).items())),
             "first": _curate(rows[0]) if rows else None,
             "first_works": _curate(works[0]) if works else None,
         }
 
     assert samples["ContractNotice"]["works_count"] > 0
-    assert samples["NoticeUpdateNotice"]["works_count"] > 0
-    assert samples["TenderResultNotice"]["works_count"] > 0
 
-    # Look for actual same-procedure linkage across notice types. This is only
-    # evidentiary: absence in the bounded sample is reported, not fabricated.
+    # Look for actual same-procedure linkage across notice types. Absence from a
+    # bounded sample is evidence too and must not be converted into an assumption.
     tender_sets = {
         notice_type: {
             str(row.get("tenderId") or "").strip()
@@ -158,13 +160,14 @@ def test_poland_bzp_paging_completeness_and_lifecycle_live():
     # Probe one smaller day window against stats to establish the completeness
     # primitive: if stats count <= requested pageSize, list length must equal it.
     complete_window = None
+    complete_lifecycle = {}
     for days_ago in range(1, 15):
         day = (now - timedelta(days=days_ago)).date()
         day_start = f"{day.isoformat()}T00:00:00Z"
         day_end = f"{day.isoformat()}T23:59:59Z"
         day_stats = _stats(session, day_start, day_end)
         count = day_stats.get("ContractNotice", 0)
-        if 0 < count <= 200:
+        if complete_window is None and 0 < count <= 250:
             _, rows = _get_list(
                 session, notice_type="ContractNotice", start=day_start, end=day_end,
                 page_size=count,
@@ -174,10 +177,34 @@ def test_poland_bzp_paging_completeness_and_lifecycle_live():
                 "end": day_end,
                 "stats_count": count,
                 "returned_count": len(rows),
+                "works_count": len(_works(rows)),
                 "first_id": str(rows[0].get("objectId") or "") if rows else None,
                 "last_id": str(rows[-1].get("objectId") or "") if rows else None,
             }
             assert len(rows) == count
+
+        # Also capture complete manageable lifecycle days so construction update
+        # and result semantics are not inferred from a truncated first page.
+        for notice_type in ("NoticeUpdateNotice", "TenderResultNotice"):
+            if notice_type in complete_lifecycle:
+                continue
+            lifecycle_count = day_stats.get(notice_type, 0)
+            if 0 < lifecycle_count <= 250:
+                _, lifecycle_rows = _get_list(
+                    session, notice_type=notice_type, start=day_start, end=day_end,
+                    page_size=lifecycle_count,
+                )
+                assert len(lifecycle_rows) == lifecycle_count
+                works = _works(lifecycle_rows)
+                complete_lifecycle[notice_type] = {
+                    "start": day_start,
+                    "stats_count": lifecycle_count,
+                    "returned_count": len(lifecycle_rows),
+                    "works_count": len(works),
+                    "order_types": dict(sorted(Counter(str(row.get("orderType")) for row in lifecycle_rows).items())),
+                    "first_works": _curate(works[0]) if works else None,
+                }
+        if complete_window is not None and len(complete_lifecycle) == 2:
             break
 
     assert complete_window is not None
@@ -197,6 +224,7 @@ def test_poland_bzp_paging_completeness_and_lifecycle_live():
         "tender_id_overlaps": overlaps,
         "linked_examples": linked,
         "complete_window": complete_window,
+        "complete_lifecycle": complete_lifecycle,
         "cookies": sorted(session.cookies.keys()),
     }
 
