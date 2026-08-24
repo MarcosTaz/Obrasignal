@@ -28,6 +28,19 @@ def _record_health(db, source, *, success, started, found=0, error=None):
         conn.close()
 
 
+def _legacy_rows(observations):
+    """Return only observations that belong in the legacy tender table.
+
+    Lifecycle-only observations are still staged atomically for metadata,
+    lifecycle state and watermark progress, but must never become incomplete
+    legacy tender rows merely to communicate a cancellation/completion event.
+    """
+    return [
+        row for row in observations
+        if isinstance(row, dict) and not bool(row.get("_lifecycle_only"))
+    ]
+
+
 def build_incremental_source_wrapper(
     previous_fetch,
     *,
@@ -39,10 +52,12 @@ def build_incremental_source_wrapper(
 ):
     """Wrap the current aggregate fetcher with one gated incremental source.
 
-    ``fetch_incremental`` must accept ``watermark=`` and return ``(rows, cursor)``.
-    The cursor is staged only after a complete source fetch and is committed later
-    by the existing sync transaction. Source failure is isolated like the legacy
-    connector loop: health is marked failed while already-fetched sources survive.
+    ``fetch_incremental`` must accept ``watermark=`` and return
+    ``(observations, cursor)``. All observations are staged; only non-lifecycle
+    observations are emitted to the legacy tender persistence path. The cursor is
+    committed later by the existing sync transaction. Source failure is isolated
+    like the legacy connector loop: health is marked failed while already-fetched
+    sources survive.
     """
     source = str(source or "").upper()
     if not source:
@@ -66,11 +81,11 @@ def build_incremental_source_wrapper(
             finally:
                 conn.close()
 
-            found, cursor = fetch_incremental(watermark=watermark)
-            found = list(found or [])
-            stage_source_sync(source, found, cursor)
-            rows.extend(found)
-            _record_health(db, source, success=True, started=started, found=len(found))
+            observations, cursor = fetch_incremental(watermark=watermark)
+            observations = list(observations or [])
+            stage_source_sync(source, observations, cursor)
+            rows.extend(_legacy_rows(observations))
+            _record_health(db, source, success=True, started=started, found=len(observations))
         except Exception as exc:
             _record_health(db, source, success=False, started=started, error=exc)
 

@@ -13,6 +13,7 @@ from company_profile import load_profile, save_profile, derive_profile
 from source_registry import SOURCES
 from account_registry import ensure_account
 from opportunity_workflow import get_workflow, set_workflow, workflow_counts
+from opportunity_lifecycle import ensure_lifecycle_table
 from account_onboarding import bootstrap_account
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
@@ -103,8 +104,10 @@ def _deadline_state(value):
 
 def _row(row, decision=None, workflow=None):
     d = dict(row)
+    lifecycle_value = d.get("is_actionable")
+    d["is_actionable"] = True if lifecycle_value is None else bool(lifecycle_value)
     d["deadline_status"] = _deadline_state(d.get("deadline"))
-    d["is_open"] = d["deadline_status"]["state"] in ("open", "urgent")
+    d["is_open"] = d["is_actionable"] and d["deadline_status"]["state"] in ("open", "urgent")
     if decision:
         d["account_decision"] = decision.get("decision")
         d["account_reason"] = decision.get("reason")
@@ -182,7 +185,7 @@ def profile():
         return jsonify({"error": "invalid_profile", "detail": detail}), 400
 
     # A successful save means both durable profile persistence and a Radar
-    # classified from that exact profile.  Returning before this bounded pass
+    # classified from that exact profile. Returning before this bounded pass
     # completed created a race in which the immediate refresh served decisions
     # made with the previous criteria.
     recalculated = bootstrap_account(identity.account_id)
@@ -195,7 +198,8 @@ def alerts():
     limit = max(1, min(50, int(request.args.get("limit", 20) or 20)))
     unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
     c = _db()
-    where = "WHERE e.account_id=? AND e.event_type='new_high_match'"
+    ensure_lifecycle_table(c)
+    where = "WHERE e.account_id=? AND e.event_type='new_high_match' AND COALESCE(lc.is_actionable,1)=1"
     params = [identity.account_id]
     if unread_only:
         where += " AND e.delivered_at IS NULL"
@@ -203,6 +207,7 @@ def alerts():
     rows = c.execute(f"""SELECT e.id AS event_id, e.event_key, e.score, e.created_at, e.delivered_at,
                    t.id, t.title, t.country, t.source, t.url, t.deadline, t.profile_reason, t.profile_score, t.external_id
             FROM opportunity_events e LEFT JOIN tenders t ON t.id=e.tender_id
+            LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
             {where} ORDER BY e.created_at DESC LIMIT ?""", params).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = []
@@ -232,13 +237,18 @@ def alert_delivered(event_id):
 def stats():
     identity = request.obrasignal_identity
     c = _db()
+    ensure_lifecycle_table(c)
     latest = """JOIN (
         SELECT od.source, od.external_id, MAX(od.id) AS max_id
         FROM opportunity_decisions od
         WHERE od.account_id=?
         GROUP BY od.source, od.external_id
     ) latest ON latest.max_id=d.id"""
-    base = f"FROM tenders t JOIN opportunity_decisions d ON d.source=t.source AND d.external_id=t.external_id {latest} WHERE d.account_id=?"
+    base = f"""FROM tenders t
+        JOIN opportunity_decisions d ON d.source=t.source AND d.external_id=t.external_id
+        {latest}
+        LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
+        WHERE d.account_id=? AND COALESCE(lc.is_actionable,1)=1"""
     params = [identity.account_id, identity.account_id]
     total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
     high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 75", params).fetchone()[0]
@@ -270,7 +280,8 @@ def opportunities():
     minscore = request.args.get("minscore")
     minscore = int(minscore) if minscore not in (None, "") else None
     c = _db()
-    where = ["1=1"]
+    ensure_lifecycle_table(c)
+    where = ["COALESCE(lc.is_actionable,1)=1"]
     params = []
     if market in ("PT", "EU"):
         where.append("(t.market=? OR (t.market IS NULL AND t.country=?))")
@@ -290,7 +301,12 @@ def opportunities():
         where.append("COALESCE(d.score,t.score)>=?")
         params.append(minscore)
     rows = c.execute(
-        f"""SELECT t.* FROM tenders t
+        f"""SELECT t.*, COALESCE(lc.is_actionable,1) AS is_actionable,
+                   lc.lifecycle_status, lc.lifecycle_reason,
+                   lc.source_updated_at AS lifecycle_source_updated_at,
+                   lc.last_observed AS lifecycle_last_observed
+            FROM tenders t
+            LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
             LEFT JOIN (SELECT source, external_id, MAX(id) max_id FROM opportunity_decisions WHERE account_id=? GROUP BY source, external_id) latest
             ON latest.source=t.source AND latest.external_id=t.external_id
             LEFT JOIN opportunity_decisions d ON d.id=latest.max_id
@@ -305,11 +321,22 @@ def opportunities():
 
 @bp.route("/opportunities/<int:opportunity_id>", methods=["GET"])
 def opportunity_detail(opportunity_id):
-    """Return the canonical tender plus this account's decision and workflow."""
+    """Return canonical history plus current source lifecycle for this account."""
     identity = request.obrasignal_identity
     c = _db()
     try:
-        row = c.execute("SELECT * FROM tenders WHERE id=?", (opportunity_id,)).fetchone()
+        ensure_lifecycle_table(c)
+        row = c.execute(
+            """SELECT t.*, COALESCE(lc.is_actionable,1) AS is_actionable,
+                      lc.lifecycle_status, lc.lifecycle_reason,
+                      lc.source_updated_at AS lifecycle_source_updated_at,
+                      lc.last_observed AS lifecycle_last_observed
+               FROM tenders t
+               LEFT JOIN opportunity_lifecycle lc
+                 ON lc.source=t.source AND lc.external_id=t.external_id
+               WHERE t.id=?""",
+            (opportunity_id,),
+        ).fetchone()
         if row is None:
             return jsonify({"error": "not_found"}), 404
         decisions = _latest_decisions(c, identity.account_id, [row["external_id"]])
@@ -348,7 +375,7 @@ def opportunity_workflow(opportunity_id):
 
 
 # Keep the native API usable when this module is imported directly (tests and
-# development), while cors_app remains the production WSGI boundary.  Register
+# development), while cors_app remains the production WSGI boundary. Register
 # only once because both entrypoints share the same Flask application object.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(bp)

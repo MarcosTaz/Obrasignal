@@ -5,8 +5,14 @@ def _esc(value):
     return escape(str(value if value is not None else ""), quote=True)
 
 
+def _actionable(value):
+    if value is None:
+        return True
+    return value not in (False, 0, "0", "false", "False")
+
+
 def render_opportunity_detail(item, decision):
-    """Render the explainable opportunity detail using the open visual language."""
+    """Render explainable detail while preserving source lifecycle truth."""
     lines = []
     for line in decision.get("lines", []) or []:
         lines.append(
@@ -35,6 +41,23 @@ def render_opportunity_detail(item, decision):
     reason = _esc(decision.get("reason") or "Sem razão registada.")
     rule_version = _esc(decision.get("rule_version") or "—")
     decided_at = _esc(decision.get("decided_at") or "—")
+
+    current_actionable = _actionable(item.get("is_actionable"))
+    lifecycle_status = _esc(item.get("lifecycle_status") or ("active" if current_actionable else "closed"))
+    lifecycle_reason = _esc(item.get("lifecycle_reason") or "A fonte oficial já não apresenta esta oportunidade como acionável.")
+    lifecycle_observed = _esc(item.get("lifecycle_last_observed") or item.get("lifecycle_source_updated_at") or "—")
+    lifecycle_banner = ""
+    decision_kicker = "Decisão comercial"
+    if not current_actionable:
+        decision_kicker = "Decisão histórica"
+        lifecycle_banner = (
+            '<section class="lifecycle-alert">'
+            '<div class="kicker" style="color:#7f1d1d">ESTADO OFICIAL ATUAL</div>'
+            f'<strong>Esta oportunidade já não está ativa · {_esc(lifecycle_status.upper())}</strong>'
+            f'<div style="margin-top:6px;line-height:1.5">{lifecycle_reason}</div>'
+            f'<div class="footer-meta" style="margin-top:8px">Última observação lifecycle: {lifecycle_observed}</div>'
+            '</section>'
+        )
 
     return f'''<!doctype html>
 <html lang="pt">
@@ -65,6 +88,7 @@ h1{{font-size:clamp(28px,4vw,46px);line-height:1.05;margin:8px 0 12px;letter-spa
 .score-label{{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}}
 .score-value{{font-size:34px;font-weight:850;color:var(--accent);line-height:1.1;margin-top:4px}}
 .reason{{margin-top:20px;padding:16px 18px;border:1px solid #d7e5ff;background:var(--accent-soft);border-radius:16px;line-height:1.5}}
+.lifecycle-alert{{margin-bottom:18px;padding:18px 20px;border:1px solid #fecaca;background:#fff1f2;color:#7f1d1d;border-radius:18px}}
 .section{{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 8px 28px rgba(20,32,51,.05)}}
 .section h2{{margin:0 0 14px;font-size:20px;letter-spacing:-.02em}}
 .evidence-row{{display:grid;grid-template-columns:190px 110px 1fr;gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line)}}
@@ -85,7 +109,8 @@ h1{{font-size:clamp(28px,4vw,46px);line-height:1.05;margin:8px 0 12px;letter-spa
 </head>
 <body>
 <div class="wrap">
-  <div class="nav"><a class="back" href="/">← Voltar ao radar</a><div class="kicker">ObraSignal · decisão comercial</div></div>
+  <div class="nav"><a class="back" href="/">← Voltar ao radar</a><div class="kicker">ObraSignal · {decision_kicker}</div></div>
+  {lifecycle_banner}
   <section class="hero">
     <div class="hero-grid">
       <div>

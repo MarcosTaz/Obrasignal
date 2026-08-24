@@ -68,6 +68,43 @@ def test_enabled_source_reads_cursor_stages_it_and_records_health(monkeypatch):
     assert health[0][1]["found"] == 1
 
 
+def test_lifecycle_only_observation_is_staged_but_never_emitted_to_legacy_tenders(monkeypatch):
+    staged = []
+    health = []
+    monkeypatch.setattr(runtime_plugin, "get_source_cursor", lambda conn, source: "old-cursor")
+    monkeypatch.setattr(runtime_plugin, "stage_source_sync", lambda source, rows, cursor: staged.append((source, rows, cursor)))
+    monkeypatch.setattr(
+        runtime_plugin,
+        "record_source_result",
+        lambda conn, source, **kwargs: health.append((source, kwargs)),
+    )
+    monkeypatch.setattr(runtime_plugin, "dedupe_records", lambda rows: rows)
+
+    live = {"source": "UK_PROCUREMENT", "external_id": "ocid-open", "is_actionable": True}
+    tombstone = {
+        "source": "UK_PROCUREMENT",
+        "external_id": "ocid-closed",
+        "is_actionable": False,
+        "lifecycle_status": "complete",
+        "_lifecycle_only": True,
+    }
+
+    wrapped = build_incremental_source_wrapper(
+        lambda: [{"source": "BASE", "external_id": "base-1"}],
+        source="UK_PROCUREMENT",
+        fetch_incremental=lambda *, watermark=None: ([live, tombstone], "new-cursor"),
+        source_enabled=lambda source: True,
+        record_blocked=lambda source: None,
+        db=lambda: FakeConn(),
+    )
+
+    rows = wrapped()
+
+    assert [row["external_id"] for row in rows] == ["base-1", "ocid-open"]
+    assert staged == [("UK_PROCUREMENT", [live, tombstone], "new-cursor")]
+    assert health[0][1]["found"] == 2
+
+
 def test_incremental_failure_is_isolated_and_cursor_is_not_staged(monkeypatch):
     staged = []
     health = []
