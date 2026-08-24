@@ -1,5 +1,6 @@
-"""Temporary forensic probe for Uruguay ARCE record release references; remove after inspection."""
+"""Temporary forensic probe for Uruguay ARCE release-field evolution; remove after inspection."""
 import re
+import time
 import xml.etree.ElementTree as ET
 
 import requests
@@ -28,16 +29,7 @@ def _purchase_id(title):
     return match.group(1) if match else ""
 
 
-def _summary(value):
-    if isinstance(value, dict):
-        return {"type": "dict", "keys": sorted(value.keys())}
-    if isinstance(value, list):
-        return {"type": "list", "length": len(value), "first_type": type(value[0]).__name__ if value else None}
-    text = str(value)
-    return text[:300]
-
-
-def test_arce_record_release_reference_shape_live():
+def test_arce_release_field_evolution_live():
     response = requests.get(ARCE_RSS, headers=HEADERS, timeout=30)
     response.raise_for_status()
     root = ET.fromstring(response.content)
@@ -53,19 +45,41 @@ def test_arce_record_release_reference_shape_live():
     records = package.get("records") if isinstance(package, dict) else None
     assert isinstance(records, list) and records
     record = records[0]
-    releases = [release for release in (record.get("releases") or []) if isinstance(release, dict)]
-    assert releases
+    refs = sorted(
+        [ref for ref in (record.get("releases") or []) if isinstance(ref, dict) and ref.get("url")],
+        key=lambda ref: str(ref.get("date") or ""),
+    )
+    assert refs and len(refs) <= 25, len(refs)
 
-    samples = []
-    for release in releases[:3] + releases[-3:]:
-        samples.append({
-            "keys": sorted(release.keys()),
-            "values": {key: _summary(value) for key, value in release.items()},
+    evolution = []
+    for ref in refs:
+        time.sleep(0.12)
+        url = str(ref["url"]).replace("http://", "https://", 1)
+        response = requests.get(url, headers=HEADERS, timeout=30)
+        response.raise_for_status()
+        release_package = response.json()
+        releases = release_package.get("releases") if isinstance(release_package, dict) else None
+        assert isinstance(releases, list) and releases, {"url": url, "keys": getattr(release_package, "keys", lambda: [])()}
+        release = releases[0]
+        tender = release.get("tender") if isinstance(release.get("tender"), dict) else {}
+        period = tender.get("tenderPeriod") if isinstance(tender.get("tenderPeriod"), dict) else {}
+        value = tender.get("value") if isinstance(tender.get("value"), dict) else {}
+        evolution.append({
+            "ref_date": ref.get("date"),
+            "tag": release.get("tag"),
+            "release_id": release.get("id"),
+            "tender_keys": sorted(tender.keys()),
+            "status": tender.get("status") if "status" in tender else "<absent>",
+            "title": tender.get("title") if "title" in tender else "<absent>",
+            "category": tender.get("mainProcurementCategory") if "mainProcurementCategory" in tender else "<absent>",
+            "deadline": period.get("endDate") if "endDate" in period else "<absent>",
+            "value": value if value else "<absent>",
+            "items_count": len(tender.get("items") or []) if "items" in tender else "<absent>",
         })
+
     raise AssertionError({
         "purchase_id": purchase_id,
         "ocid": record.get("ocid"),
-        "record_keys": sorted(record.keys()),
-        "release_count": len(releases),
-        "samples": samples,
+        "release_count": len(refs),
+        "evolution": evolution,
     })
