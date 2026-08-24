@@ -123,6 +123,7 @@ from switzerland_runtime import install as install_switzerland_runtime
 from poland_runtime import install as install_poland_runtime
 from estonia_runtime import install as install_estonia_runtime
 from austria_runtime import install as install_austria_runtime
+from lithuania_runtime import install as install_lithuania_runtime
 import preload as _preload
 
 init_db()
@@ -140,4 +141,5 @@ install_switzerland_runtime()
 install_poland_runtime()
 install_estonia_runtime()
 install_austria_runtime()
+install_lithuania_runtime()
 start_background_worker()
