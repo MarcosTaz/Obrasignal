@@ -10,8 +10,9 @@ class FakeConn:
 def test_germany_runtime_requires_explicit_opt_in(monkeypatch):
     monkeypatch.delenv("OBRASIGNAL_GLOBAL_SOURCES", raising=False)
     assert germany_runtime._preload._global_source_enabled("SERVICE_BUND_DE") is False
-    # Registry is intentionally promoted later; before that, env alone cannot
-    # bypass the production gate. This assertion is updated with registry wiring.
+
+    monkeypatch.setenv("OBRASIGNAL_GLOBAL_SOURCES", "SERVICE_BUND_DE")
+    assert germany_runtime._preload._global_source_enabled("SERVICE_BUND_DE") is True
 
 
 def test_germany_runtime_is_idempotent_and_persists_catchup_cursor(monkeypatch):
@@ -54,7 +55,13 @@ def test_germany_runtime_stages_lifecycle_but_emits_only_actionable_rows(monkeyp
     monkeypatch.setattr(runtime_plugin, "stage_source_sync", lambda source, rows, cursor: staged.append((source, rows, cursor)))
 
     live = {"source": "SERVICE_BUND_DE", "external_id": "open", "is_actionable": True}
-    closed = {"source": "SERVICE_BUND_DE", "external_id": "closed", "is_actionable": False, "_lifecycle_only": True, "lifecycle_status": "awarded_or_completed"}
+    closed = {
+        "source": "SERVICE_BUND_DE",
+        "external_id": "closed",
+        "is_actionable": False,
+        "_lifecycle_only": True,
+        "lifecycle_status": "awarded",
+    }
     monkeypatch.setattr(germany_runtime, "fetch_germany_doe_tenders", lambda *, watermark=None: ([live, closed], "new"))
 
     germany_runtime.install()
