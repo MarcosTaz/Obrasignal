@@ -19,50 +19,48 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP PNCP PCA live Works control
+      - name: TEMP PNCP PCA verified Works controls
         run: |
           python - <<'PY'
           import requests, time
 
           BASE="https://pncp.gov.br/api/pncp/v1/orgaos"
-          S=requests.Session(); S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA live Works control/1.9"})
+          S=requests.Session(); S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA verified Works control/2.0"})
           plans=[
-              ("10651417000178",2026,1,"IF Goiano"),
-              ("00394429000100",2026,1,"Comando Aeronautica"),
-              ("10792928000100",2026,1,"IF Amazonas"),
+              ("08241804000194",2026,1,"public-indexed-engineering-plan"),
+              ("03507548000110",2026,1,"varzea-grande-works-plan"),
+              ("05853163000130",2026,2,"public-indexed-civil-works-plan"),
           ]
-          target={3,4,8}; found=[]
+          works_names={"obra","obras","serviços de engenharia","servicos de engenharia","obras e serviços de engenharia","obras e servicos de engenharia"}
+          found=[]
 
           def get(url,params=None,timeout=20):
               try:
                   t0=time.monotonic(); r=S.get(url,params=params,timeout=timeout); sec=time.monotonic()-t0
-                  print(f"PCA_LIVE_HTTP={url}|PARAMS={params!r}|HTTP={r.status_code}|SEC={sec:.3f}|BYTES={len(r.content or b'')}")
+                  print(f"PCA_VERIFIED_HTTP={url}|PARAMS={params!r}|HTTP={r.status_code}|SEC={sec:.3f}|BYTES={len(r.content or b'')}")
                   if r.status_code!=200 or not r.content:
-                      print("PCA_LIVE_BODY="+repr((r.text or "")[:220])); return None
+                      print("PCA_VERIFIED_BODY="+repr((r.text or "")[:220])); return None
                   return r.json()
               except Exception as exc:
-                  print(f"PCA_LIVE_EXCEPTION={url}|{type(exc).__name__}:{exc}"); return None
+                  print(f"PCA_VERIFIED_EXCEPTION={url}|{type(exc).__name__}:{exc}"); return None
 
           for cnpj,year,seq,label in plans:
               root=f"{BASE}/{cnpj}/pca/{year}/{seq}"
               agg=get(root+"/valorescategoriaitem")
-              print(f"PCA_LIVE_AGG={label}|{agg!r}")
+              print(f"PCA_VERIFIED_AGG={label}|{agg!r}")
               rows=agg if isinstance(agg,list) else (agg.get("data") if isinstance(agg,dict) and isinstance(agg.get("data"),list) else [])
               present=[]
               for row in rows:
                   if not isinstance(row,dict): continue
-                  # Production OpenAPI/manual variants have used both names.
                   cid=row.get("categoriaItemId") if row.get("categoriaItemId") is not None else row.get("categoriaItemPcaId")
                   name=row.get("categoriaItemNome") or row.get("categoriaItemPcaNome")
-                  try: cid_int=int(cid)
-                  except Exception: continue
-                  if cid_int in target:
-                      present.append((cid_int,name,row))
-              print(f"PCA_LIVE_WORK_CATEGORIES={label}|"+repr([(c,n) for c,n,_ in present]))
+                  if str(name or "").strip().lower() in works_names:
+                      present.append((cid,name,row))
+              print(f"PCA_VERIFIED_WORK_CATEGORIES={label}|"+repr([(c,n) for c,n,_ in present]))
               for cid,cname,_ in present:
                   payload=get(root+"/itens",{"categoria":cid,"pagina":1,"tamanhoPagina":10})
                   items=payload if isinstance(payload,list) else (payload.get("data") if isinstance(payload,dict) and isinstance(payload.get("data"),list) else [])
-                  print(f"PCA_LIVE_WORK_ITEMS={label}|CATEGORY={cid}:{cname}|ROWS={len(items)}")
+                  print(f"PCA_VERIFIED_WORK_ITEMS={label}|CATEGORY={cid}:{cname}|ROWS={len(items)}")
                   for item in items[:3]:
                       if not isinstance(item,dict): continue
                       sample={k:item.get(k) for k in (
@@ -70,16 +68,16 @@ jobs:
                           "codigoItem","descricaoItem","quantidade","quantidadeEstimada","valorUnitario","valorTotal","valorOrcamentoExercicio",
                           "dataDesejada","unidadeRequisitante","grupoContratacaoCodigo","grupoContratacaoNome","dataInclusao","dataAtualizacao"
                       ) if k in item}
-                      print(f"PCA_LIVE_WORK_ITEM={label}|{sample!r}")
+                      print(f"PCA_VERIFIED_WORK_ITEM={label}|{sample!r}")
                       found.append((label,cid,cname,sample))
               if found: break
 
-          print(f"PCA_LIVE_WORK_FOUND={len(found)}")
+          print(f"PCA_VERIFIED_WORK_FOUND={len(found)}")
           if not found:
-              raise SystemExit("No live Works category found in known PCA controls")
+              raise SystemExit("Indexed Works PCA controls were not reproduced through production API")
           PY
       - name: Compile root Python modules
-        run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
+        run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf='%f\n' | sort)
       - name: Run repository tests
         run: PYTHONPATH=. pytest -q --import-mode=importlib tests test_*.py
 
