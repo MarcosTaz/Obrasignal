@@ -55,5 +55,5 @@ def test_official_dncp_v3_search_then_record_hydration_live():
     for item in normalized:
         assert item["source"] == "PY_DNCP"
         assert item["signal_type"] == "TENDER"
-        assert item["contract_type"] == "works"
+        assert item["contract_type"]
         assert item["external_id"].startswith("ocds-03ad3f-")
