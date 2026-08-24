@@ -46,15 +46,16 @@ def test_daily_source_is_not_falsely_stale_after_one_hour():
     assert row['stale_after_minutes'] == 4320
 
 
-def test_monthly_bulk_source_uses_monthly_sla():
+def test_mutable_monthly_rhr_feed_uses_daily_health_contract():
     conn = _conn()
     record_source_result(conn, 'EE_RHR', success=True, duration_ms=100, found=10)
     twenty_days_ago = (datetime.now(timezone.utc) - timedelta(days=20)).isoformat()
     conn.execute('UPDATE source_health SET last_success=?, last_attempt=? WHERE source=?', (twenty_days_ago, twenty_days_ago, 'EE_RHR'))
     conn.commit()
     row = source_health_snapshot(conn)[0]
-    assert row['status'] == 'healthy'
-    assert row['stale_after_minutes'] == 64800
+    assert row['status'] == 'stale'
+    assert row['expected_refresh_minutes'] == 1440
+    assert row['stale_after_minutes'] == 4320
 
 
 def test_registered_realtime_source_becomes_stale_at_its_own_threshold():
