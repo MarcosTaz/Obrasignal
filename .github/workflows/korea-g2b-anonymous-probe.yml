@@ -1,0 +1,31 @@
+name: Korea G2B Anonymous Probe
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/probe_korea_g2b_anonymous.js'
+      - '.github/workflows/korea-g2b-anonymous-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright probe dependency
+        run: |
+          mkdir -p /tmp/korea-g2b-probe
+          cd /tmp/korea-g2b-probe
+          npm init -y
+          npm install playwright
+          npx playwright install chromium --with-deps
+          echo "NODE_PATH=/tmp/korea-g2b-probe/node_modules" >> "$GITHUB_ENV"
+      - name: Probe current anonymous G2B search contract
+        run: node tools/probe_korea_g2b_anonymous.js
