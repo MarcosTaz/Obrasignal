@@ -1,76 +1,116 @@
-"""Temporary forensic probe for official SERCOP bulk download behavior; delete after contract freeze."""
-import re
+"""Temporary forensic probe for official SERCOP monthly OCDS ZIP shape; delete after contract freeze."""
+from collections import Counter
+from io import BytesIO
+import json
+import zipfile
 
 import requests
 
 BASE = "https://datosabiertos.compraspublicas.gob.ec/PLATAFORMA"
-PAGE = f"{BASE}/datos-abiertos"
+URL = f"{BASE}/download?type=json&year=2026&month=8&method=all"
 HEADERS = {
     "User-Agent": "ObraSignal procurement research connector/0.1 (+official open-data validation)",
-    "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
+    "Accept": "application/zip,application/json;q=0.9,*/*;q=0.8",
 }
 
 
-def _context(text, needle, radius=1800):
-    pos = text.find(needle)
-    if pos < 0:
-        return None
-    return re.sub(r"\s+", " ", text[max(0, pos-radius): min(len(text), pos+len(needle)+radius)])[:4200]
-
-
-def _peek(url):
-    with requests.get(url, headers=HEADERS, timeout=60, stream=True, allow_redirects=True) as response:
-        first = b""
-        for chunk in response.iter_content(chunk_size=4096):
-            if chunk:
-                first += chunk
-            if len(first) >= 8192:
-                break
+def _brief(value, depth=0):
+    if depth >= 3:
+        if isinstance(value, (dict, list)):
+            return {"type": type(value).__name__, "length": len(value)}
+        return str(value)[:240] if value is not None else None
+    if isinstance(value, dict):
+        return {key: _brief(val, depth + 1) for key, val in list(value.items())[:40]}
+    if isinstance(value, list):
         return {
-            "requested_url": url,
-            "status": response.status_code,
-            "final_url": response.url,
-            "content_type": response.headers.get("content-type"),
-            "content_disposition": response.headers.get("content-disposition"),
-            "content_length": response.headers.get("content-length"),
-            "first_bytes_len": len(first),
-            "first_hex": first[:32].hex(),
-            "first_text": first[:600].decode("utf-8", errors="replace"),
+            "type": "list",
+            "length": len(value),
+            "first": _brief(value[0], depth + 1) if value else None,
         }
+    return str(value)[:240] if value is not None else None
 
 
-def test_official_sercop_bulk_variants_and_public_form_contract():
-    page = requests.get(PAGE, headers=HEADERS, timeout=30)
-    page.raise_for_status()
+def _latest_release(unit):
+    if not isinstance(unit, dict):
+        return {}
+    compiled = unit.get("compiledRelease")
+    if isinstance(compiled, dict):
+        return compiled
+    releases = unit.get("releases")
+    if isinstance(releases, list):
+        rows = [row for row in releases if isinstance(row, dict)]
+        if rows:
+            return max(rows, key=lambda row: str(row.get("date") or ""))
+    if unit.get("ocid") and (unit.get("tender") or unit.get("tag")):
+        return unit
+    return {}
 
-    method_match = re.search(r"const\s+methodList\s*=\s*(\[.*?\]);\s*const\s+basePath", page.text, flags=re.S)
-    method_source = method_match.group(1) if method_match else None
 
-    variants = {
-        "august_all": f"{BASE}/download?type=json&year=2026&month=8&method=all",
-        "july_all": f"{BASE}/download?type=json&year=2026&month=7&method=all",
-        "annual_all": f"{BASE}/download?type=json&year=2026&month=0&method=all",
-        "august_licitacion": f"{BASE}/download?type=json&year=2026&month=8&method=Licitaci%C3%B3n",
-    }
-    totals = {}
-    for name, query in {
-        "august_all": "year=2026&month=8&method=all",
-        "july_all": "year=2026&month=7&method=all",
-        "annual_all": "year=2026&month=0&method=all",
-        "august_licitacion": "year=2026&month=8&method=Licitaci%C3%B3n",
-    }.items():
-        response = requests.get(f"{BASE}/get-totals?{query}", headers=HEADERS, timeout=30)
-        totals[name] = {
-            "status": response.status_code,
-            "content_type": response.headers.get("content-type"),
-            "text": response.text[:800],
-        }
+def test_current_sercop_month_zip_ocds_shape():
+    response = requests.get(URL, headers=HEADERS, timeout=90)
+    response.raise_for_status()
+    assert response.content[:2] == b"PK"
 
+    with zipfile.ZipFile(BytesIO(response.content)) as archive:
+        names = archive.namelist()
+        assert len(names) == 1, names
+        raw = archive.read(names[0])
+    payload = json.loads(raw)
+
+    if isinstance(payload, list):
+        units = [row for row in payload if isinstance(row, dict)]
+        root = "list"
+        root_keys = []
+    elif isinstance(payload, dict):
+        root = "dict"
+        root_keys = sorted(payload.keys())
+        units = []
+        for key in ("records", "releases", "packages", "data", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                units = [row for row in value if isinstance(row, dict)]
+                break
+        if not units and payload:
+            units = [payload]
+    else:
+        raise AssertionError({"payload_type": type(payload).__name__})
+
+    releases = [_latest_release(unit) for unit in units]
+    releases = [row for row in releases if row]
+    tender_status = Counter()
+    main_category = Counter()
+    tags = Counter()
+    active_future_candidates = []
+    for release in releases:
+        tender = release.get("tender") if isinstance(release.get("tender"), dict) else {}
+        tender_status[str(tender.get("status"))] += 1
+        main_category[str(tender.get("mainProcurementCategory"))] += 1
+        for tag in release.get("tag") or []:
+            tags[str(tag)] += 1
+        period = tender.get("tenderPeriod") if isinstance(tender.get("tenderPeriod"), dict) else {}
+        if str(tender.get("status") or "").lower() == "active" and period.get("endDate"):
+            active_future_candidates.append(release)
+
+    first = units[0] if units else {}
+    first_release = _latest_release(first)
     diagnostics = {
-        "page_status": page.status_code,
-        "method_source": method_source[:6000] if method_source else None,
-        "download_path": _context(page.text, "return `${basePath}/download"),
-        "totals": totals,
-        "downloads": {name: _peek(url) for name, url in variants.items()},
+        "status": response.status_code,
+        "zip_bytes": len(response.content),
+        "content_type": response.headers.get("content-type"),
+        "content_disposition": response.headers.get("content-disposition"),
+        "archive_names": names,
+        "json_bytes": len(raw),
+        "root": root,
+        "root_keys": root_keys,
+        "unit_count": len(units),
+        "first_unit_keys": sorted(first.keys()) if isinstance(first, dict) else [],
+        "first_unit": _brief(first),
+        "first_release_keys": sorted(first_release.keys()) if isinstance(first_release, dict) else [],
+        "first_release": _brief(first_release),
+        "tender_status": dict(tender_status),
+        "main_category": dict(main_category),
+        "tags": dict(tags),
+        "active_with_deadline_count": len(active_future_candidates),
+        "first_active_with_deadline": _brief(active_future_candidates[0]) if active_future_candidates else None,
     }
     raise AssertionError(diagnostics)
