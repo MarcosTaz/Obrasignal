@@ -1,5 +1,4 @@
 """Temporary forensic probe for Find a Tender public OCDS output; delete after contract freeze."""
-from datetime import datetime, timezone
 
 import requests
 
@@ -16,32 +15,50 @@ def _summary(value, depth=0):
             return {"type": type(value).__name__, "length": len(value)}
         return value
     if isinstance(value, dict):
-        return {k: _summary(v, depth + 1) for k, v in list(value.items())[:50]}
+        return {k: _summary(v, depth + 1) for k, v in list(value.items())[:60]}
     if isinstance(value, list):
         return {"type": "list", "length": len(value), "first": _summary(value[0], depth + 1) if value else None}
-    return value
+    text = str(value) if value is not None else None
+    return text[:500] if isinstance(text, str) else text
 
 
-def test_find_tender_public_ocds_cursor_shape_live():
-    params = {
-        "updatedFrom": "2026-08-23T00:00:00",
-        "updatedTo": "2026-08-24T23:59:59",
-        "stages": "tender",
-        "limit": "2",
-    }
-    response = requests.get(URL, params=params, headers=HEADERS, timeout=30)
+def _probe(url, params=None):
+    response = requests.get(url, params=params or {}, headers=HEADERS, timeout=30)
     response.raise_for_status()
     payload = response.json()
     releases = payload.get("releases") if isinstance(payload, dict) else None
-    first = releases[0] if isinstance(releases, list) and releases else {}
-    diagnostics = {
+    interesting_headers = {
+        key: value for key, value in response.headers.items()
+        if key.lower() in {"link", "retry-after", "x-next-cursor", "x-cursor", "content-type"}
+        or "cursor" in key.lower()
+    }
+    return {
         "status": response.status_code,
         "url": response.url,
         "root_keys": sorted(payload.keys()) if isinstance(payload, dict) else [],
-        "release_count": len(releases) if isinstance(releases, list) else None,
+        "uri": payload.get("uri") if isinstance(payload, dict) else None,
         "publishedDate": payload.get("publishedDate") if isinstance(payload, dict) else None,
         "license": payload.get("license") if isinstance(payload, dict) else None,
         "links": payload.get("links") if isinstance(payload, dict) else None,
-        "first_summary": _summary(first),
+        "release_count": len(releases) if isinstance(releases, list) else None,
+        "release_ids": [row.get("id") for row in releases[:5] if isinstance(row, dict)] if isinstance(releases, list) else [],
+        "release_dates": [row.get("date") for row in releases[:5] if isinstance(row, dict)] if isinstance(releases, list) else [],
+        "first_summary": _summary(releases[0]) if isinstance(releases, list) and releases else None,
+        "headers": interesting_headers,
+    }
+
+
+def test_find_tender_public_ocds_cursor_shape_live():
+    diagnostics = {
+        "known_2026_ocid": _probe(f"{URL}/ocds-h6vhtk-0503cc"),
+        "known_2026_notice": _probe(f"{URL}/065280-2026"),
+        "wide_window_limit_2": _probe(
+            URL,
+            {
+                "updatedFrom": "2026-07-01T00:00:00",
+                "updatedTo": "2026-08-24T23:59:59",
+                "limit": "2",
+            },
+        ),
     }
     raise AssertionError(diagnostics)
