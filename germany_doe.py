@@ -1,17 +1,18 @@
 """Germany DOE/Bekanntmachungsservice public eForms daily-bulk connector.
 
-The German Public Procurement Data Service exposes the official Open Data API
-without authentication. Its ``/api/notice-exports`` endpoint exports notices by
-publisher publication archive day (``pubDay``) and does not allow the current
-day. Live validation on 2026-08-24 proved that archive day and eForms
-``IssueDate`` are not interchangeable: the 2026-08-23 archive contained notices
-with IssueDate 2026-08-21. Durable progress therefore uses only closed pubDay
-partitions; IssueDate/IssueTime remain source metadata and an intra-day tie-break.
+The German Public Procurement Data Service exposes official CC0 open data without
+authentication. Production consumes publisher-original eForms ZIP partitions from
+``/api/notice-exports?pubDay=YYYY-MM-DD``.
 
-Production consumes the publisher-original eForms ZIP. Only publisher-native
-``ProcurementTypeCode=works`` ContractNotice records can create opportunities.
-Identity is lot-level (ContractFolderID + lot ID). ContractAwardNotice records
-only close tracked tender opportunities; they are not exposed as an AWARD signal.
+Live validation on 2026-08-24 established that ``pubDay`` and eForms ``IssueDate``
+are not interchangeable: the 2026-08-23 archive contained notices issued on
+2026-08-21. Durable progress therefore follows closed ``pubDay`` partitions;
+IssueDate/IssueTime remain source metadata and an intra-day ordering component.
+
+Only ``ProcurementTypeCode=works`` ContractNotice records can create opportunities.
+Commercial identity is lot-level: ContractFolderID + real lot ID. ContractAwardNotice
+records only close tracked tenders when the publisher-native winner-selection status
+is terminal (``selec-w`` or ``clos-nw``); ``open-nw`` explicitly remains open.
 """
 from __future__ import annotations
 
@@ -42,6 +43,11 @@ DOE_HEADERS = {
 }
 BERLIN = ZoneInfo("Europe/Berlin")
 _FILE_RE = re.compile(r"^(?P<notice>[0-9a-fA-F-]{36})-(?P<version>\d+)\.xml$")
+_TERMINAL_RESULTS = {
+    "selec-w": ("awarded", "publisher reports at least one winner selected for this lot"),
+    "clos-nw": ("closed_without_winner", "publisher reports competition closed without a winner for this lot"),
+}
+_KNOWN_RESULT_CODES = frozenset((*_TERMINAL_RESULTS, "open-nw"))
 
 
 def _local(tag):
@@ -194,11 +200,10 @@ def _project(root):
 
 def _project_place(project, buyer_info):
     location = _direct(project, "RealizedLocation") if project is not None else None
-    description = _direct_text(location, "Description")
     address = _direct(location, "Address") if location is not None else None
     values = []
     for value in (
-        description,
+        _direct_text(location, "Description"),
         _direct_text(address, "CountrySubentityCode"),
         _path_text(address, "Country", "IdentificationCode"),
     ):
@@ -220,16 +225,37 @@ def _amount(elem):
     return "", ""
 
 
+def _lot_id(lot):
+    node = _direct(lot, "ID")
+    value = _text(node)
+    scheme = str((node.attrib if node is not None else {}).get("schemeName") or "").strip().lower()
+    if scheme in {"lotsgroup", "lots-group", "lots group"} or value.upper().startswith("GLO-"):
+        return ""
+    if scheme and scheme != "lot":
+        return ""
+    return value
+
+
+def _notice_lots(root):
+    lots = []
+    seen = set()
+    for child in root.iter():
+        if _local(child.tag) != "ProcurementProjectLot":
+            continue
+        lot_id = _lot_id(child)
+        if not lot_id or lot_id in seen:
+            continue
+        seen.add(lot_id)
+        lots.append(child)
+    return lots
+
+
 def _lot_deadline(lot):
     process = _direct(lot, "TenderingProcess")
     period = _direct(process, "TenderSubmissionDeadlinePeriod") if process is not None else None
     if period is None:
         return ""
     return _utc(_parse_issue(_direct_text(period, "EndDate"), _direct_text(period, "EndTime"))) or ""
-
-
-def _notice_lots(root):
-    return [child for child in root.iter() if _local(child.tag) == "ProcurementProjectLot"]
 
 
 def _human_url(notice_id):
@@ -250,6 +276,7 @@ def _notice_events(root, *, publication_day, filename_notice_id, file_version):
     project = _project(root)
     if _direct_text(project, "ProcurementTypeCode").lower() != "works":
         return []
+
     folder_id = _direct_text(root, "ContractFolderID")
     notice_id = _direct_text(root, "ID")
     issued = _issue_timestamp(root)
@@ -257,26 +284,22 @@ def _notice_events(root, *, publication_day, filename_notice_id, file_version):
         raise RuntimeError(f"{SOURCE} Works notice missing ContractFolderID/ID/IssueDate+IssueTime; cursor not advanced")
     if notice_id != filename_notice_id:
         raise RuntimeError(f"{SOURCE} eForms filename/root notice ID mismatch; cursor not advanced")
+
     lots = _notice_lots(root)
     if not lots:
-        raise RuntimeError(f"{SOURCE} Works notice contains no ProcurementProjectLot; cursor not advanced")
+        raise RuntimeError(f"{SOURCE} Works notice contains no real ProcurementProjectLot; cursor not advanced")
 
     buyer_info = _buyer(root)
     project_title = _direct_text(project, "Name")
     project_description = _direct_text(project, "Description")
     project_cpvs = _cpvs(project)
-    place = _project_place(project, buyer_info)
     project_value, project_currency = _amount(project)
     process = _first_desc(root, "TenderingProcess")
-    procedure_method = _direct_text(process, "ProcedureCode")
-    notice_type = _direct_text(root, "NoticeTypeCode")
     issued_utc = _utc(issued)
-
     events = []
+
     for lot in lots:
-        lot_id = _direct_text(lot, "ID")
-        if not lot_id:
-            raise RuntimeError(f"{SOURCE} Works lot missing ID; cursor not advanced")
+        lot_id = _lot_id(lot)
         lot_name = _direct_text(lot, "Name")
         cpvs = _cpvs(lot) or project_cpvs
         lot_value, lot_currency = _amount(lot)
@@ -293,13 +316,13 @@ def _notice_events(root, *, publication_day, filename_notice_id, file_version):
             "notice_id": notice_id,
             "file_version": int(file_version),
             "publication_day": publication_day,
-            "notice_type": notice_type,
+            "notice_type": _direct_text(root, "NoticeTypeCode"),
             "event_kind": "notice",
             "closed": False,
             "title": title,
             "description": project_description or title,
             "buyer": str(buyer_info.get("name") or "").strip(),
-            "place": place,
+            "place": _project_place(project, buyer_info),
             "cpv_codes": cpvs,
             "deadline": _lot_deadline(lot),
             "value": lot_value or project_value,
@@ -307,25 +330,22 @@ def _notice_events(root, *, publication_day, filename_notice_id, file_version):
             "first_published_at": issued_utc,
             "source_updated_at": issued_utc,
             "url": _human_url(notice_id),
-            "procurement_method": procedure_method,
+            "procurement_method": _direct_text(process, "ProcedureCode"),
             "was_visible": False,
         })
     return events
 
 
-def _award_lot_ids(root):
-    out = []
-    for result in _descendants(root, "LotResult"):
-        lot_id = _path_text(result, "TenderLot", "ID")
-        if lot_id and lot_id not in out:
-            out.append(lot_id)
-    if out:
-        return out
-    for lot in _notice_lots(root):
-        lot_id = _direct_text(lot, "ID")
-        if lot_id and lot_id not in out:
-            out.append(lot_id)
-    return out
+def _result_lot_id(result):
+    value = _path_text(result, "TenderLot", "ID")
+    if value:
+        return value
+    for node in result.iter():
+        if _local(node.tag) != "ID":
+            continue
+        if str(node.attrib.get("schemeName") or "").strip().lower() == "lot" and _text(node):
+            return _text(node)
+    return ""
 
 
 def _award_events(root, *, publication_day, filename_notice_id, file_version, tracked_folders=()):
@@ -336,28 +356,50 @@ def _award_events(root, *, publication_day, filename_notice_id, file_version, tr
     project_type = _direct_text(project, "ProcurementTypeCode").lower()
     if project_type != "works" and folder_id not in set(tracked_folders):
         return []
+
     notice_id = _direct_text(root, "ID")
     issued = _issue_timestamp(root)
     if not folder_id or not notice_id or issued is None:
         raise RuntimeError(f"{SOURCE} relevant award missing ContractFolderID/ID/IssueDate+IssueTime; cursor not advanced")
     if notice_id != filename_notice_id:
         raise RuntimeError(f"{SOURCE} award filename/root notice ID mismatch; cursor not advanced")
-    lot_ids = _award_lot_ids(root)
-    if not lot_ids:
-        raise RuntimeError(f"{SOURCE} relevant award contains no lot identities; cursor not advanced")
-    return [{
-        "external_id": f"{folder_id}::{lot_id}",
-        "procedure_id": folder_id,
-        "lot_id": lot_id,
-        "notice_id": notice_id,
-        "file_version": int(file_version),
-        "publication_day": publication_day,
-        "notice_type": _direct_text(root, "NoticeTypeCode"),
-        "event_kind": "award",
-        "closed": True,
-        "source_updated_at": _utc(issued),
-        "was_visible": False,
-    } for lot_id in lot_ids]
+
+    results = _descendants(root, "LotResult")
+    if not results:
+        raise RuntimeError(f"{SOURCE} relevant award contains no LotResult identities; cursor not advanced")
+
+    events = []
+    for result in results:
+        code_node = _direct(result, "TenderResultCode")
+        code = _text(code_node).strip()
+        list_name = str((code_node.attrib if code_node is not None else {}).get("listName") or "").strip().lower()
+        if list_name and list_name != "winner-selection-status":
+            raise RuntimeError(f"{SOURCE} unexpected LotResult status codelist; cursor not advanced")
+        if not code or code not in _KNOWN_RESULT_CODES:
+            raise RuntimeError(f"{SOURCE} unknown winner-selection-status {code!r}; cursor not advanced")
+        if code == "open-nw":
+            continue
+        lot_id = _result_lot_id(result)
+        if not lot_id:
+            raise RuntimeError(f"{SOURCE} relevant terminal LotResult has no lot identities; cursor not advanced")
+        lifecycle_status, lifecycle_reason = _TERMINAL_RESULTS[code]
+        events.append({
+            "external_id": f"{folder_id}::{lot_id}",
+            "procedure_id": folder_id,
+            "lot_id": lot_id,
+            "notice_id": notice_id,
+            "file_version": int(file_version),
+            "publication_day": publication_day,
+            "notice_type": _direct_text(root, "NoticeTypeCode"),
+            "event_kind": "result",
+            "closed": True,
+            "winner_selection_status": code,
+            "closure_status": lifecycle_status,
+            "closure_reason": lifecycle_reason,
+            "source_updated_at": _utc(issued),
+            "was_visible": False,
+        })
+    return events
 
 
 def _event_key(event):
@@ -374,21 +416,26 @@ def _merge_event(current, incoming):
     visible = bool(current.get("was_visible")) or bool(incoming.get("was_visible"))
     if incoming.get("closed"):
         closed = deepcopy(current)
+        for key in (
+            "notice_id", "file_version", "publication_day", "notice_type",
+            "source_updated_at", "winner_selection_status", "closure_status", "closure_reason",
+        ):
+            if incoming.get(key) not in (None, ""):
+                closed[key] = incoming.get(key)
         closed.update({
-            "notice_id": incoming.get("notice_id") or current.get("notice_id"),
-            "file_version": incoming.get("file_version") or current.get("file_version"),
-            "publication_day": incoming.get("publication_day") or current.get("publication_day"),
-            "notice_type": incoming.get("notice_type") or current.get("notice_type"),
-            "event_kind": "award",
+            "event_kind": "result",
             "closed": True,
-            "source_updated_at": incoming.get("source_updated_at") or current.get("source_updated_at"),
             "url": _human_url(incoming.get("notice_id")) or current.get("url"),
             "was_visible": visible,
         })
         return closed
     updated = deepcopy(incoming)
     updated["was_visible"] = visible
-    first_values = [str(value or "").strip() for value in (current.get("first_published_at"), incoming.get("first_published_at")) if str(value or "").strip()]
+    first_values = [
+        str(value or "").strip()
+        for value in (current.get("first_published_at"), incoming.get("first_published_at"))
+        if str(value or "").strip()
+    ]
     if first_values:
         updated["first_published_at"] = min(first_values)
     return updated
@@ -425,6 +472,7 @@ def _observation(state, *, actionable, lifecycle_status, lifecycle_reason, lifec
         "source_reference": str(state.get("notice_id") or ""),
         "notice_identifier": str(state.get("notice_id") or ""),
         "doe_contract_folder_id": str(state.get("procedure_id") or ""),
+        "doe_winner_selection_status": str(state.get("winner_selection_status") or ""),
         "source_publication_day": str(state.get("publication_day") or ""),
         "lot_id": str(state.get("lot_id") or ""),
         "lot_count": int(state.get("lot_count") or 1),
@@ -450,7 +498,12 @@ class GermanDOECursor:
     closed: dict
 
     def encode(self):
-        return json.dumps({"completed_through": self.completed_through, "tracked": self.tracked, "closed": self.closed}, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        return json.dumps(
+            {"completed_through": self.completed_through, "tracked": self.tracked, "closed": self.closed},
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
 
     @classmethod
     def decode(cls, value):
@@ -490,7 +543,6 @@ class GermanDOEOpenDataConnector:
         self.session = session or requests.Session()
         self.initial_lookback_days = max(1, int(initial_lookback_days))
         self.max_days_per_sync = max(1, int(max_days_per_sync))
-        # Always preserve at least one new day of progress per bounded run.
         self.overlap_days = min(max(0, int(overlap_days)), max(0, self.max_days_per_sync - 1))
         self.max_archive_bytes = max(1024, int(max_archive_bytes))
         self.max_entries = max(1, int(max_entries))
@@ -504,7 +556,14 @@ class GermanDOEOpenDataConnector:
         return current.astimezone(BERLIN).date() - timedelta(days=1)
 
     def _download_day(self, day):
-        response = self.session.get(DOE_EXPORTS, params={"pubDay": day.isoformat()}, headers=DOE_HEADERS, timeout=self.timeout, stream=True, allow_redirects=True)
+        response = self.session.get(
+            DOE_EXPORTS,
+            params={"pubDay": day.isoformat()},
+            headers=DOE_HEADERS,
+            timeout=self.timeout,
+            stream=True,
+            allow_redirects=True,
+        )
         response.raise_for_status()
         body = bytearray()
         try:
@@ -528,6 +587,7 @@ class GermanDOEOpenDataConnector:
             zf = zipfile.ZipFile(BytesIO(data))
         except (zipfile.BadZipFile, OSError) as exc:
             raise RuntimeError(f"{SOURCE} invalid daily ZIP; cursor not advanced") from exc
+
         with zf:
             infos = zf.infolist()
             if len(infos) > self.max_entries:
@@ -535,6 +595,7 @@ class GermanDOEOpenDataConnector:
             names = [info.filename for info in infos if not info.is_dir()]
             if len(names) != len(set(names)):
                 raise RuntimeError(f"{SOURCE} daily ZIP contains duplicate filenames; cursor not advanced")
+
             total = 0
             for info in infos:
                 if info.is_dir():
@@ -545,7 +606,11 @@ class GermanDOEOpenDataConnector:
                 if total > self.max_uncompressed_bytes:
                     raise RuntimeError(f"{SOURCE} daily ZIP exceeds max_uncompressed_bytes; cursor not advanced")
 
-            tracked_folders = {str(state.get("procedure_id") or "") for state in tracked.values() if isinstance(state, dict) and str(state.get("procedure_id") or "")}
+            tracked_folders = {
+                str(state.get("procedure_id") or "")
+                for state in tracked.values()
+                if isinstance(state, dict) and str(state.get("procedure_id") or "")
+            }
             events = []
             for info in infos:
                 if info.is_dir():
@@ -557,11 +622,20 @@ class GermanDOEOpenDataConnector:
                     raise RuntimeError(f"{SOURCE} malformed eForms XML; cursor not advanced") from exc
                 root_name = _local(root.tag)
                 if root_name == "ContractNotice":
-                    events.extend(_notice_events(root, publication_day=day.isoformat(), filename_notice_id=filename_notice_id, file_version=file_version))
+                    events.extend(_notice_events(
+                        root,
+                        publication_day=day.isoformat(),
+                        filename_notice_id=filename_notice_id,
+                        file_version=file_version,
+                    ))
                 elif root_name == "ContractAwardNotice":
-                    events.extend(_award_events(root, publication_day=day.isoformat(), filename_notice_id=filename_notice_id, file_version=file_version, tracked_folders=tracked_folders))
-                else:
-                    continue
+                    events.extend(_award_events(
+                        root,
+                        publication_day=day.isoformat(),
+                        filename_notice_id=filename_notice_id,
+                        file_version=file_version,
+                        tracked_folders=tracked_folders,
+                    ))
             return sorted(events, key=_event_key)
 
     @staticmethod
@@ -583,24 +657,53 @@ class GermanDOEOpenDataConnector:
     def _finalize(tracked, closed, *, now):
         observations, survivors = [], {}
         current = _parse_source_datetime(now) or datetime.now(timezone.utc)
+
         for state in closed.values():
             if state.get("was_visible"):
-                observations.append(_observation(state, actionable=False, lifecycle_status="awarded_or_completed", lifecycle_reason="publisher ContractAwardNotice closes the tender opportunity", lifecycle_only=True))
+                status = str(state.get("closure_status") or "closed")
+                reason = str(state.get("closure_reason") or "publisher result closes the tender opportunity")
+                observations.append(_observation(
+                    state,
+                    actionable=False,
+                    lifecycle_status=status,
+                    lifecycle_reason=reason,
+                    lifecycle_only=True,
+                ))
+
         for external_id, state in tracked.items():
             deadline = _parse_source_datetime(state.get("deadline"))
             if deadline is not None and deadline > current:
                 state["was_visible"] = True
                 survivors[external_id] = state
-                observations.append(_observation(state, actionable=True, lifecycle_status="active", lifecycle_reason="publisher reports Works ContractNotice with future lot submission deadline"))
+                observations.append(_observation(
+                    state,
+                    actionable=True,
+                    lifecycle_status="active",
+                    lifecycle_reason="publisher reports Works ContractNotice with future lot submission deadline",
+                ))
                 continue
+
             if deadline is None:
                 if state.get("was_visible"):
-                    observations.append(_observation(state, actionable=False, lifecycle_status="deadline_missing", lifecycle_reason="tracked Works lot no longer has a valid structured submission deadline", lifecycle_only=True))
+                    observations.append(_observation(
+                        state,
+                        actionable=False,
+                        lifecycle_status="deadline_missing",
+                        lifecycle_reason="tracked Works lot no longer has a valid structured submission deadline",
+                        lifecycle_only=True,
+                    ))
                     state["was_visible"] = False
                 survivors[external_id] = state
                 continue
+
             if state.get("was_visible"):
-                observations.append(_observation(state, actionable=False, lifecycle_status="deadline_elapsed", lifecycle_reason="lot submission deadline has elapsed", lifecycle_only=True))
+                observations.append(_observation(
+                    state,
+                    actionable=False,
+                    lifecycle_status="deadline_elapsed",
+                    lifecycle_reason="lot submission deadline has elapsed",
+                    lifecycle_only=True,
+                ))
         return observations, survivors
 
     def fetch_incremental(self, *, watermark=None, now=None):
@@ -631,8 +734,7 @@ class GermanDOEOpenDataConnector:
             if pub_day > completed:
                 completed = pub_day
 
-        caught_up = completed >= target
-        if caught_up:
+        if completed >= target:
             observations, tracked = self._finalize(tracked, closed, now=current)
             closed = {}
         else:
