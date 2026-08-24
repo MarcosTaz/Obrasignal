@@ -1,22 +1,21 @@
 """Estonia Riigihangete Register (RHR) public eForms bulk connector.
 
-RHR exposes public month-partitioned XML files for contract notices and contract
-award notices. The current month is mutable, so it is deliberately re-read on
-every sync; the previous month is kept as overlap and the first sync looks back
-three local (Europe/Tallinn) months.
+RHR publishes public month-partitioned XML for contract notices and contract
+award notices. The current month is mutable and is therefore re-read; previous
+months provide overlap. Only publisher-native ``ProcurementTypeCode=works``
+records create opportunities. Opportunities are lot-level because CPV and
+submission deadlines can differ by lot.
 
-Only publisher-native ``ProcurementTypeCode == 'works'`` notices can create an
-opportunity. One opportunity is emitted per procurement lot because CPVs and
-submission deadlines are lot-specific. ``ContractFolderID`` is the stable
-procedure identity observed across republications and awards; the eForms notice
-UUID is publication identity. ``IssueDate`` + ``IssueTime`` orders publications
-because live RHR data keeps ``VersionID == '01'`` across republications.
+Live validation on 2026-08-24 established ``ContractFolderID`` as stable
+procedure identity across republications and awards, while notice ``ID`` is the
+publication identity. ``VersionID`` remained ``01`` across republications, so
+``IssueDate`` + ``IssueTime`` is the ordering key.
 """
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
-from xml.etree.ElementTree import XMLPullParser
+from xml.etree.ElementTree import ParseError, XMLPullParser
 from zoneinfo import ZoneInfo
 
 import requests
@@ -88,16 +87,15 @@ def _parse_issue(date_value, time_value):
     time_text = str(time_value or "").strip()
     if not date_text or not time_text:
         return None
-    # eForms live values are e.g. 2026-08-03+03:00 and
-    # 11:06:27.538+03:00. The date offset is redundant once the time carries it.
     date_core = date_text[:10]
     if len(date_core) != 10:
         return None
-    if time_text.endswith("Z") or (len(time_text) >= 6 and time_text[-6] in "+-" and time_text[-3] == ":"):
+    if time_text.endswith("Z") or (
+        len(time_text) >= 6 and time_text[-6] in "+-" and time_text[-3] == ":"
+    ):
         stamp = f"{date_core}T{time_text}"
     else:
-        suffix = date_text[10:]
-        stamp = f"{date_core}T{time_text}{suffix}"
+        stamp = f"{date_core}T{time_text}{date_text[10:]}"
     try:
         parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
     except ValueError:
@@ -160,11 +158,10 @@ def _organization_map(root):
 
 
 def _buyer(root):
-    party = _first_desc(root, "ContractingParty")
-    party = _direct(party, "Party") if party is not None else None
+    contracting = _first_desc(root, "ContractingParty")
+    party = _direct(contracting, "Party") if contracting is not None else None
     buyer_id = _path_text(party, "PartyIdentification", "ID")
-    info = _organization_map(root).get(buyer_id, {})
-    return buyer_id, info
+    return _organization_map(root).get(buyer_id, {})
 
 
 def _project(root):
@@ -200,7 +197,7 @@ def _human_uri(root):
 
 
 def _amount(elem):
-    for name in ("EstimatedOverallContractAmount", "EstimatedOverallContractAmount", "TaxExclusiveAmount"):
+    for name in ("EstimatedOverallContractAmount", "TaxExclusiveAmount"):
         child = _first_desc(elem, name)
         if child is not None and _text(child):
             return _text(child), str(child.attrib.get("currencyID") or "").strip()
@@ -212,8 +209,7 @@ def _lot_deadline(lot):
     period = _direct(process, "TenderSubmissionDeadlinePeriod") if process is not None else None
     if period is None:
         return ""
-    parsed = _parse_issue(_direct_text(period, "EndDate"), _direct_text(period, "EndTime"))
-    return _utc(parsed) or ""
+    return _utc(_parse_issue(_direct_text(period, "EndDate"), _direct_text(period, "EndTime"))) or ""
 
 
 def _notice_lots(root):
@@ -231,34 +227,34 @@ def _notice_events(root):
     notice_id = _direct_text(root, "ID")
     issued = _issue_timestamp(root)
     if not folder_id or not notice_id or issued is None:
-        raise RuntimeError("EE_RHR Works notice missing ContractFolderID/ID/IssueDate+IssueTime; cursor not advanced")
-
+        raise RuntimeError(
+            "EE_RHR Works notice missing ContractFolderID/ID/IssueDate+IssueTime; cursor not advanced"
+        )
     lots = _notice_lots(root)
     if not lots:
         raise RuntimeError("EE_RHR Works notice contains no ProcurementProjectLot; cursor not advanced")
 
-    _buyer_id, buyer_info = _buyer(root)
+    buyer_info = _buyer(root)
     project_title = _direct_text(project, "Name")
     project_description = _direct_text(project, "Description")
     project_cpvs = _cpvs(project)
     place = _project_place(project, buyer_info)
     value, currency = _amount(project)
-    procedure_method = _path_text(root, "TenderingProcess", "ProcedureCode") or _direct_text(_first_desc(root, "TenderingProcess"), "ProcedureCode")
+    process = _first_desc(root, "TenderingProcess")
+    procedure_method = _direct_text(process, "ProcedureCode")
     human_uri = _human_uri(root)
     notice_type = _direct_text(root, "NoticeTypeCode")
     issued_utc = _utc(issued)
 
     events = []
-    lot_count = len(lots)
     for lot in lots:
         lot_id = _direct_text(lot, "ID")
         if not lot_id:
             raise RuntimeError("EE_RHR Works lot missing ID; cursor not advanced")
         lot_name = _direct_text(lot, "Name")
         cpvs = _cpvs(lot) or project_cpvs
-        deadline = _lot_deadline(lot)
         lot_value, lot_currency = _amount(lot)
-        if lot_count > 1:
+        if len(lots) > 1:
             suffix = lot_name or lot_id
             title = f"{project_title} — {suffix}" if project_title else suffix
         else:
@@ -267,7 +263,7 @@ def _notice_events(root):
             "external_id": f"{folder_id}::{lot_id}",
             "procedure_id": folder_id,
             "lot_id": lot_id,
-            "lot_count": lot_count,
+            "lot_count": len(lots),
             "notice_id": notice_id,
             "notice_type": notice_type,
             "event_kind": "notice",
@@ -277,7 +273,7 @@ def _notice_events(root):
             "buyer": str(buyer_info.get("name") or "").strip(),
             "place": place,
             "cpv_codes": cpvs,
-            "deadline": deadline,
+            "deadline": _lot_deadline(lot),
             "value": lot_value or value,
             "currency": lot_currency or currency,
             "first_published_at": issued_utc,
@@ -314,28 +310,27 @@ def _award_events(root, tracked_folders=()):
     notice_id = _direct_text(root, "ID")
     issued = _issue_timestamp(root)
     if not folder_id or not notice_id or issued is None:
-        raise RuntimeError("EE_RHR relevant award missing ContractFolderID/ID/IssueDate+IssueTime; cursor not advanced")
+        raise RuntimeError(
+            "EE_RHR relevant award missing ContractFolderID/ID/IssueDate+IssueTime; cursor not advanced"
+        )
     lot_ids = _award_lot_ids(root)
     if not lot_ids:
         raise RuntimeError("EE_RHR relevant award contains no lot identities; cursor not advanced")
-    issued_utc = _utc(issued)
-    notice_type = _direct_text(root, "NoticeTypeCode")
     return [{
         "external_id": f"{folder_id}::{lot_id}",
         "procedure_id": folder_id,
         "lot_id": lot_id,
         "notice_id": notice_id,
-        "notice_type": notice_type,
+        "notice_type": _direct_text(root, "NoticeTypeCode"),
         "event_kind": "award",
         "closed": True,
-        "source_updated_at": issued_utc,
+        "source_updated_at": _utc(issued),
     } for lot_id in lot_ids]
 
 
 def _event_time(event):
-    value = str(event.get("source_updated_at") or "")
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(event.get("source_updated_at") or "").replace("Z", "+00:00"))
     except ValueError:
         return datetime.min.replace(tzinfo=timezone.utc)
     if parsed.tzinfo is None:
@@ -346,9 +341,7 @@ def _event_time(event):
 def _merge_event(current, event):
     if current is None:
         return deepcopy(event)
-    current_time = _event_time(current)
-    event_time = _event_time(event)
-    if event_time < current_time:
+    if _event_time(event) < _event_time(current):
         return current
     if event.get("closed"):
         closed = deepcopy(current)
@@ -454,11 +447,10 @@ def _shift_month(year, month, offset):
 def _periods(now, count):
     local_now = now.astimezone(TALLINN)
     total = max(1, int(count))
-    periods = []
-    for offset in range(-(total - 1), 1):
-        year, month = _shift_month(local_now.year, local_now.month, offset)
-        periods.append((year, month))
-    return periods
+    return [
+        _shift_month(local_now.year, local_now.month, offset)
+        for offset in range(-(total - 1), 1)
+    ]
 
 
 class EstoniaRHRConnector:
@@ -500,9 +492,10 @@ class EstoniaRHRConnector:
                 f"EE_RHR {year}-{month:02d} {surface} resource exceeds max_resource_bytes="
                 f"{self.max_resource_bytes}; cursor not advanced"
             )
-        parser = XMLPullParser(events=("end",))
+
+        parser = XMLPullParser(events=("start", "end"))
         received = 0
-        seen = 0
+        wrapper = None
         try:
             for chunk in response.iter_content(chunk_size=131072):
                 if not chunk:
@@ -515,18 +508,35 @@ class EstoniaRHRConnector:
                     )
                 try:
                     parser.feed(chunk)
-                except Exception as exc:
-                    raise RuntimeError(f"EE_RHR {surface} XML parse failure; cursor not advanced") from exc
-                for _event, elem in parser.read_events():
-                    if _local(elem.tag) != expected:
-                        continue
-                    seen += 1
-                    yield elem
-                    elem.clear()
+                    for event, elem in parser.read_events():
+                        local = _local(elem.tag)
+                        if event == "start" and wrapper is None:
+                            wrapper = local
+                            if wrapper != "OPEN-DATA":
+                                raise RuntimeError(
+                                    f"EE_RHR {surface} XML has unexpected root {wrapper}; cursor not advanced"
+                                )
+                        elif event == "end" and local == expected:
+                            yield elem
+                            elem.clear()
+                except RuntimeError:
+                    raise
+                except (ParseError, ValueError) as exc:
+                    raise RuntimeError(
+                        f"EE_RHR {surface} XML parse failure; cursor not advanced"
+                    ) from exc
+            try:
+                parser.close()
+            except (ParseError, ValueError) as exc:
+                raise RuntimeError(
+                    f"EE_RHR {surface} XML parse failure; cursor not advanced"
+                ) from exc
+            if not received or wrapper != "OPEN-DATA":
+                raise RuntimeError(
+                    f"EE_RHR {surface} XML missing OPEN-DATA wrapper; cursor not advanced"
+                )
         finally:
             response.close()
-        if received and seen == 0:
-            raise RuntimeError(f"EE_RHR {surface} XML contains no {expected}; cursor not advanced")
 
     def fetch_incremental(self, *, watermark=None, now=None):
         current = now or datetime.now(timezone.utc)
@@ -588,6 +598,7 @@ class EstoniaRHRConnector:
                         lifecycle_only=True,
                     ))
                 continue
+
             deadline_text = str(state.get("deadline") or "").strip()
             try:
                 deadline = datetime.fromisoformat(deadline_text.replace("Z", "+00:00")) if deadline_text else None
@@ -595,6 +606,7 @@ class EstoniaRHRConnector:
                 deadline = None
             if deadline is not None and deadline.tzinfo is None:
                 deadline = deadline.replace(tzinfo=timezone.utc)
+
             if deadline is not None and deadline.astimezone(timezone.utc) > current:
                 observations.append(_observation(
                     state,
