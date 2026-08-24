@@ -31,18 +31,18 @@ def test_active_sources_have_access_metadata():
 def test_wave_1_keeps_canonical_count_without_faking_planned_machine_gates():
     wave_1 = wave_sources(1)
     ready = {name: meta for name, meta in wave_1.items() if meta["status"] == "ready"}
-    assert len(wave_1) == 16
-    assert "CA_CANADABUYS" in wave_1
+    assert len(wave_1) == 15
+    assert "CA_CANADABUYS" not in wave_1
     assert all(meta["official"] for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
-    assert len(ready) == 15
+    assert len(ready) == 14
     assert all(meta["machine_access"] == "VERIFIED" for meta in ready.values())
     assert SOURCES["KR_KONEPS"]["status"] == "planned"
     assert SOURCES["KR_KONEPS"]["machine_access"] == "CREDENTIAL_REQUIRED"
 
 
-def test_live_validated_wave_1_sources_pass_registry_gate():
+def test_live_validated_ready_sources_pass_registry_gate():
     for source in (
         "CA_CANADABUYS",
         "CH_SIMAP",
