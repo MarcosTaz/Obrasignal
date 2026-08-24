@@ -3,7 +3,9 @@ from master_execution_queue import (
     CURRENT_ITEM_ID,
     MASTER_EXECUTION_QUEUE,
     current_item,
+    executable_after_current,
     next_executable_after_current,
+    next_item_after_current,
     queue_ids,
 )
 
@@ -12,8 +14,16 @@ def test_exactly_one_canonical_active_item():
     assert CANONICAL_QUEUE_NAME == "OBRASIGNAL_MASTER_EXECUTION_QUEUE"
     active = [item for item in MASTER_EXECUTION_QUEUE if item.state == "ACTIVE"]
     assert len(active) == 1
-    assert active[0].id == CURRENT_ITEM_ID == "Q010_BR_PNCP_DISCOVERY"
+    assert active[0].id == CURRENT_ITEM_ID == "Q030_BR_PNCP_PCA"
     assert current_item() == active[0]
+
+
+def test_completed_dependencies_are_recorded_before_brazil_implementation():
+    states = {item.id: item.state for item in MASTER_EXECUTION_QUEUE}
+    assert states["Q000_SCOPE_REBASE"] == "DONE"
+    assert states["Q010_BR_PNCP_DISCOVERY"] == "DONE"
+    assert states["Q020_SIGNAL_CONTRACT_V1"] == "DONE"
+    assert states["Q030_BR_PNCP_PCA"] == "ACTIVE"
 
 
 def test_queue_is_total_order_with_unique_ids_and_backward_dependencies():
@@ -26,9 +36,16 @@ def test_queue_is_total_order_with_unique_ids_and_backward_dependencies():
             assert position[dependency] < position[item.id]
 
 
-def test_future_architecture_does_not_jump_current_execution():
-    executable = next_executable_after_current()
-    assert [item.id for item in executable] == ["Q020_SIGNAL_CONTRACT_V1"]
+def test_single_master_priority_chooses_first_ready_item_only():
+    ready = executable_after_current()
+    assert ready == next_executable_after_current()
+    assert [item.id for item in ready[:4]] == [
+        "Q040_CANADA_BUYS",
+        "Q050_US_SAM",
+        "Q060_CHILE_MERCADOPUBLICO",
+        "Q080_EVIDENCE_GRAPH_V1",
+    ]
+    assert next_item_after_current().id == "Q040_CANADA_BUYS"
 
 
 def test_all_six_target_layers_are_in_same_queue():
