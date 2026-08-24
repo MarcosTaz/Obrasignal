@@ -19,31 +19,142 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP PNCP PCA OpenAPI contract probe
+      - name: TEMP PNCP PCA global-update chain probe
         run: |
           python - <<'PY'
+          from datetime import datetime, timezone
+          import time
           import requests
-          url = "https://pncp.gov.br/api/consulta/v3/api-docs"
-          r = requests.get(url, headers={"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA contract probe/1.0"}, timeout=20)
-          print(f"PNCP_SPEC_HTTP={r.status_code}")
-          r.raise_for_status()
-          spec = r.json()
-          paths = spec.get("paths") or {}
-          found = 0
-          for path, methods in sorted(paths.items()):
-              if "pca" not in path.lower():
+
+          CONSULTA = "https://pncp.gov.br/api/consulta"
+          PNCP = "https://pncp.gov.br/api/pncp"
+          S = requests.Session()
+          S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA live probe/1.1"})
+
+          def get(url, params=None, tries=2, timeout=25):
+              last=""
+              for a in range(tries):
+                  try:
+                      r=S.get(url,params=params,timeout=timeout)
+                      text=r.text or ""
+                      if r.status_code in (429,500,502,503,504):
+                          last=f"HTTP {r.status_code}"
+                          time.sleep(a+1)
+                          continue
+                      if r.status_code>=400:
+                          return None,r.status_code,text[:250]
+                      try:
+                          return r.json(),r.status_code,""
+                      except Exception:
+                          return None,r.status_code,"NON_JSON:"+text[:180]
+                  except Exception as exc:
+                      last=f"{type(exc).__name__}:{exc}"
+                      time.sleep(a+1)
+              return None,0,last
+
+          def rows(payload):
+              if isinstance(payload,list): return payload
+              if isinstance(payload,dict):
+                  for k in ("data","resultado","content","items"):
+                      if isinstance(payload.get(k),list): return payload[k]
+              return []
+
+          def meta(payload):
+              if not isinstance(payload,dict): return {}
+              return {k:payload.get(k) for k in ("numeroPagina","paginasRestantes","totalPaginas","totalRegistros","empty") if k in payload}
+
+          update_url=CONSULTA+"/v1/pca/atualizacao"
+          formats=[
+              ("compact",{"dataInicio":"20260818","dataFim":"20260824","pagina":1,"tamanhoPagina":20}),
+              ("iso-date",{"dataInicio":"2026-08-18","dataFim":"2026-08-24","pagina":1,"tamanhoPagina":20}),
+              ("iso-datetime",{"dataInicio":"2026-08-18T00:00:00","dataFim":"2026-08-24T23:59:59","pagina":1,"tamanhoPagina":20}),
+          ]
+          payload=None; chosen=None; plans=[]
+          for label,params in formats:
+              p,st,er=get(update_url,params,tries=2,timeout=30)
+              rr=rows(p)
+              print(f"PCA_UPDATE_FORMAT={label}|HTTP={st}|ROWS={len(rr)}|META={meta(p)!r}|ERR={er!r}")
+              if st==200 and isinstance(p,(dict,list)):
+                  payload=p; chosen=(label,params); plans=rr
+                  break
+          if payload is None:
+              raise SystemExit("No accepted date format for PNCP PCA global update route")
+
+          print("PCA_UPDATE_CHOSEN="+repr(chosen))
+          print("PCA_UPDATE_ROWS="+str(len(plans)))
+          if plans:
+              print("PCA_UPDATE_KEYS="+",".join(sorted(plans[0].keys())))
+          for p in plans[:8]:
+              print("PCA_UPDATE_SAMPLE="+repr(p))
+
+          def first(row,*names):
+              for n in names:
+                  v=row.get(n)
+                  if v not in (None,""): return v
+              return None
+
+          item_calls=item_failures=item_rows=works_rows=future_works=0
+          categories={}
+          identities=set(); duplicate_ids=0
+          max_update=None
+          checked_plans=0
+          for plan in plans[:8]:
+              if not isinstance(plan,dict): continue
+              cnpj=first(plan,"cnpj","orgaoEntidadeCnpj")
+              ano=first(plan,"anoPca","ano")
+              seq=first(plan,"sequencialPca","sequencial")
+              if cnpj is None or ano is None or seq is None:
+                  print("PCA_PLAN_UNUSABLE_IDENTITY="+repr(plan))
                   continue
-              op = (methods or {}).get("get") or {}
-              if not op:
-                  continue
-              params=[]
-              for p in op.get("parameters",[]):
-                  if not isinstance(p,dict): continue
-                  s=p.get("schema") or {}
-                  params.append({"name":p.get("name"),"in":p.get("in"),"required":p.get("required",False),"type":s.get("type"),"format":s.get("format"),"example":p.get("example",s.get("example"))})
-              print(f"PNCP_PCA_OPENAPI={path}|SUMMARY={op.get('summary') or op.get('operationId')!r}|PARAMS={params!r}")
-              found += 1
-          print(f"PNCP_PCA_GET_OPERATIONS={found}")
+              checked_plans+=1
+              url=f"{PNCP}/v1/orgaos/{cnpj}/pca/{ano}/{seq}/itens"
+              items_payload,st,er=get(url,tries=2,timeout=30)
+              its=rows(items_payload)
+              # Maintenance/read API may return a bare list.
+              if isinstance(items_payload,list): its=items_payload
+              item_calls+=1
+              print(f"PCA_ITEMS_CALL={cnpj}:{ano}:{seq}|HTTP={st}|ROWS={len(its)}|ERR={er!r}")
+              if st!=200 or not isinstance(items_payload,(dict,list)):
+                  item_failures+=1; continue
+              for item in its:
+                  if not isinstance(item,dict): continue
+                  item_rows+=1
+                  cid=first(item,"categoriaItemPcaId","categoriaItemPca")
+                  cname=first(item,"categoriaItemPcaNome","categoriaItemNome")
+                  categories[(str(cid),str(cname))]=categories.get((str(cid),str(cname)),0)+1
+                  is_works=str(cid) in {"3","4","8"} or str(cname or "").strip().lower() in {
+                      "obras","serviços de engenharia","servicos de engenharia","obras e serviços de engenharia","obras e servicos de engenharia"
+                  }
+                  if not is_works: continue
+                  works_rows+=1
+                  ident=(str(cnpj),str(ano),str(seq),str(first(item,"numeroItem","numeroItemPca")))
+                  if ident in identities: duplicate_ids+=1
+                  identities.add(ident)
+                  desired=first(item,"dataDesejada")
+                  if desired:
+                      try:
+                          d=datetime.fromisoformat(str(desired)[:10]).replace(tzinfo=timezone.utc)
+                          if d.date()>=datetime.now(timezone.utc).date(): future_works+=1
+                      except Exception: pass
+                  upd=first(item,"dataAtualizacao")
+                  if upd:
+                      try:
+                          d=datetime.fromisoformat(str(upd).replace("Z","+00:00"))
+                          if d.tzinfo is None: d=d.replace(tzinfo=timezone.utc)
+                          d=d.astimezone(timezone.utc)
+                          if max_update is None or d>max_update: max_update=d
+                      except Exception: pass
+                  sample={k:item.get(k) for k in (
+                      "numeroItem","categoriaItemPcaId","categoriaItemPcaNome","classificacaoSuperiorCodigo","classificacaoSuperiorNome",
+                      "codigoItem","descricao","quantidade","valorUnitario","valorTotal","valorOrcamentoExercicio","dataDesejada",
+                      "unidadeRequisitante","grupoContratacaoCodigo","grupoContratacaoNome","dataPublicacaoPncp","dataInclusao","dataAtualizacao"
+                  ) if k in item}
+                  print(f"PCA_WORK_ITEM={cnpj}:{ano}:{seq}|{sample!r}")
+
+          print(f"PCA_CHAIN_CHECKED_PLANS={checked_plans}|ITEM_CALLS={item_calls}|ITEM_FAILURES={item_failures}|ITEM_ROWS={item_rows}")
+          print("PCA_CATEGORY_COUNTS="+repr(categories))
+          print(f"PCA_WORKS_ROWS={works_rows}|FUTURE_WORKS={future_works}|DUPLICATE_IDENTITIES={duplicate_ids}")
+          print("PCA_MAX_ITEM_UPDATE="+(max_update.isoformat() if max_update else "None"))
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
