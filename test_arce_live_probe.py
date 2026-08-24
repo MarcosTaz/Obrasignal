@@ -1,4 +1,4 @@
-"""Temporary forensic probe for Uruguay ARCE OCDS release-history semantics; remove after inspection."""
+"""Temporary forensic probe for Uruguay ARCE record release references; remove after inspection."""
 import re
 import xml.etree.ElementTree as ET
 
@@ -28,15 +28,22 @@ def _purchase_id(title):
     return match.group(1) if match else ""
 
 
-def test_arce_release_history_field_semantics_live():
+def _summary(value):
+    if isinstance(value, dict):
+        return {"type": "dict", "keys": sorted(value.keys())}
+    if isinstance(value, list):
+        return {"type": "list", "length": len(value), "first_type": type(value[0]).__name__ if value else None}
+    text = str(value)
+    return text[:300]
+
+
+def test_arce_record_release_reference_shape_live():
     response = requests.get(ARCE_RSS, headers=HEADERS, timeout=30)
     response.raise_for_status()
     root = ET.fromstring(response.content)
     channel = next(node for node in root if _local(node.tag) == "channel")
     items = [node for node in channel if _local(node.tag) == "item"]
-    tender_items = [item for item in items if "tender" in _text(item, "category").lower()]
-    assert tender_items
-    item = tender_items[0]
+    item = next(item for item in items if "tender" in _text(item, "category").lower())
     purchase_id = _purchase_id(_text(item, "title"))
     assert purchase_id
 
@@ -46,42 +53,19 @@ def test_arce_release_history_field_semantics_live():
     records = package.get("records") if isinstance(package, dict) else None
     assert isinstance(records, list) and records
     record = records[0]
-    releases = sorted(
-        [release for release in (record.get("releases") or []) if isinstance(release, dict)],
-        key=lambda release: str(release.get("date") or ""),
-    )
+    releases = [release for release in (record.get("releases") or []) if isinstance(release, dict)]
     assert releases
 
-    timeline = []
-    for release in releases:
-        tender = release.get("tender") if isinstance(release.get("tender"), dict) else {}
-        period = tender.get("tenderPeriod") if isinstance(tender.get("tenderPeriod"), dict) else {}
-        value = tender.get("value") if isinstance(tender.get("value"), dict) else {}
-        timeline.append({
-            "date": release.get("date"),
-            "tag": release.get("tag"),
-            "id": release.get("id"),
-            "keys": sorted(tender.keys()),
-            "status": tender.get("status") if "status" in tender else "<absent>",
-            "title": tender.get("title") if "title" in tender else "<absent>",
-            "category": tender.get("mainProcurementCategory") if "mainProcurementCategory" in tender else "<absent>",
-            "deadline": period.get("endDate") if "endDate" in period else "<absent>",
-            "value": value if value else "<absent>",
-            "items": len(tender.get("items") or []) if "items" in tender else "<absent>",
+    samples = []
+    for release in releases[:3] + releases[-3:]:
+        samples.append({
+            "keys": sorted(release.keys()),
+            "values": {key: _summary(value) for key, value in release.items()},
         })
-
-    latest_explicit = {}
-    for field in ("status", "title", "mainProcurementCategory", "tenderPeriod", "value", "items"):
-        for release in reversed(releases):
-            tender = release.get("tender") if isinstance(release.get("tender"), dict) else {}
-            if field in tender:
-                latest_explicit[field] = {"date": release.get("date"), "tag": release.get("tag"), "value": tender.get(field)}
-                break
-
     raise AssertionError({
         "purchase_id": purchase_id,
         "ocid": record.get("ocid"),
+        "record_keys": sorted(record.keys()),
         "release_count": len(releases),
-        "timeline": timeline,
-        "latest_explicit": latest_explicit,
+        "samples": samples,
     })
