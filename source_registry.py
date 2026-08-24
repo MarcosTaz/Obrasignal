@@ -191,6 +191,23 @@ SOURCES = {
     "NL_TENDERNED": _source(country="NLD", source_id="nl_tenderned", kind="PUBLIC_LIST_DETAIL_API", access="public_json_list_detail", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=60, stale_after_minutes=180, capabilities=("incremental_sync", "detail", "amendments", "lifecycle"), signal_types=("TENDER",), wave=1, adapter="TenderNedPublicConnector", realtime_capable=True),
     "LT_VPT": _source(country="LTU", source_id="lt_vpt_cvp_is", kind="OFFICIAL_PUBLIC_SNAPSHOT_API", access="public_shared_api_key_snapshot", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=1440, stale_after_minutes=4320, capabilities=("incremental_sync", "lifecycle"), signal_types=("TENDER",), wave=1, adapter="LithuaniaVPTSnapshotConnector", realtime_capable=False),
     "EE_RHR": _source(country="EST", source_id="ee_rhr_public_api", kind="OFFICIAL_XML_EFORMS_BULK", access="public_monthly_xml", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=1440, stale_after_minutes=4320, capabilities=("incremental_sync", "lots", "lifecycle"), signal_types=("TENDER",), wave=1, adapter="EstoniaRHRConnector", realtime_capable=False),
+    "BR_PNCP_PCA": _source(
+        country="BRA",
+        source_id="br_pncp_pca",
+        kind="OFFICIAL_PUBLIC_PCA_SEARCH_AND_API",
+        access="public_frontend_search_plus_documented_open_api",
+        status="ready",
+        priority=1,
+        legal_reuse="GREEN",
+        machine_access="VERIFIED",
+        expected_refresh_minutes=60,
+        stale_after_minutes=180,
+        capabilities=("search", "incremental_sync", "detail", "plans"),
+        signal_types=("PROCUREMENT_PLAN",),
+        wave=2,
+        adapter="BrazilPNCPPCAConnector",
+        realtime_capable=True,
+    ),
     "CO_SECOP": _source(country="COL", source_id="co_secop_open_data", kind="SOCRATA_ODATA", access="api", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=1440, stale_after_minutes=4320, capabilities=("search", "incremental_sync", "awards", "contracts", "plans", "suppliers"), signal_types=("PROCUREMENT_PLAN", "TENDER", "AWARD", "CONTRACT"), wave=1, adapter="SocrataProcurementAdapter"),
 }
 

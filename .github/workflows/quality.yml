@@ -19,6 +19,44 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
+      - name: TEMP live-smoke production Brazil PNCP PCA connector
+        run: |
+          python - <<'PY'
+          from datetime import timedelta
+          from brazil_pncp_pca import (
+              OVERLAP_MINUTES,
+              SOURCE,
+              SIGNAL_TYPE,
+              WORK_CATEGORY_IDS,
+              _cursor_text,
+              _search_identity,
+              _search_page,
+              fetch_brazil_pncp_pca_plans,
+          )
+
+          top, _ = _search_page(1)
+          assert top
+          newest = _search_identity(top[0])[3]
+          smoke_watermark = _cursor_text(newest + timedelta(minutes=OVERLAP_MINUTES))
+          rows, cursor = fetch_brazil_pncp_pca_plans(watermark=smoke_watermark)
+
+          assert cursor
+          assert all(row.get("source") == SOURCE for row in rows)
+          assert all(row.get("signal_type") == SIGNAL_TYPE for row in rows)
+          assert all(str(row.get("category_code")) in WORK_CATEGORY_IDS for row in rows)
+          assert all(row.get("external_id") and row.get("source_updated_at") for row in rows)
+          assert all(not row.get("deadline") for row in rows)
+          print(f"PNCP_PRODUCTION_SMOKE|signals={len(rows)}|cursor={cursor}|watermark={smoke_watermark}")
+          if rows:
+              sample = rows[0]
+              print("PNCP_SAMPLE|" + repr({
+                  "external_id": sample.get("external_id"),
+                  "category_code": sample.get("category_code"),
+                  "target_date": sample.get("target_date"),
+                  "value": sample.get("value"),
+                  "buyer": sample.get("buyer"),
+              }))
+          PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
       - name: Run repository tests
