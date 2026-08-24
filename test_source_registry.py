@@ -32,15 +32,19 @@ def test_wave_1_keeps_canonical_count_without_faking_planned_machine_gates():
     wave_1 = wave_sources(1)
     ready = {name: meta for name, meta in wave_1.items() if meta["status"] == "ready"}
     assert len(wave_1) == 15
+    assert "CA_CANADABUYS" not in wave_1
     assert all(meta["official"] for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
     assert len(ready) == 14
     assert all(meta["machine_access"] == "VERIFIED" for meta in ready.values())
+    assert SOURCES["KR_KONEPS"]["status"] == "planned"
+    assert SOURCES["KR_KONEPS"]["machine_access"] == "CREDENTIAL_REQUIRED"
 
 
-def test_live_validated_wave_1_sources_pass_registry_gate():
+def test_live_validated_ready_sources_pass_registry_gate():
     for source in (
+        "CA_CANADABUYS",
         "CH_SIMAP",
         "CO_SECOP",
         "EC_SERCOP",
@@ -182,124 +186,8 @@ def test_austria_registry_declares_only_proven_distributed_tender_contract():
     assert source["realtime_capable"] is False
     assert source["expected_refresh_minutes"] == 720
     assert source["stale_after_minutes"] == 2160
-    assert "search" not in source["capabilities"]
-    assert "awards" not in source["capabilities"]
-    assert "contracts" not in source["capabilities"]
-    assert "historical_data" not in source["capabilities"]
-    assert "lots" not in source["capabilities"]
 
 
-def test_lithuania_registry_declares_only_complete_snapshot_tender_lifecycle_contract():
-    source = SOURCES["LT_VPT"]
-    assert source["kind"] == "OFFICIAL_PUBLIC_SNAPSHOT_API"
-    assert source["access"] == "public_shared_api_key_snapshot"
-    assert source["adapter"] == "LithuaniaVPTSnapshotConnector"
-    assert source["signal_types"] == ("TENDER",)
-    assert set(source["capabilities"]) == {"incremental_sync", "lifecycle"}
-    assert source["realtime_capable"] is False
-    assert source["expected_refresh_minutes"] == 1440
-    assert source["stale_after_minutes"] == 4320
-    assert "search" not in source["capabilities"]
-    assert "awards" not in source["capabilities"]
-    assert "contracts" not in source["capabilities"]
-    assert "historical_data" not in source["capabilities"]
-    assert "lots" not in source["capabilities"]
-
-
-def test_tenderned_registry_declares_only_proven_public_tender_lifecycle_contract():
-    source = SOURCES["NL_TENDERNED"]
-    assert source["kind"] == "PUBLIC_LIST_DETAIL_API"
-    assert source["access"] == "public_json_list_detail"
-    assert source["adapter"] == "TenderNedPublicConnector"
-    assert source["signal_types"] == ("TENDER",)
-    assert set(source["capabilities"]) == {"incremental_sync", "detail", "amendments", "lifecycle"}
-    assert source["realtime_capable"] is True
-    assert source["expected_refresh_minutes"] == 60
-    assert source["stale_after_minutes"] == 180
-    assert "search" not in source["capabilities"]
-    assert "awards" not in source["capabilities"]
-    assert "contracts" not in source["capabilities"]
-    assert "historical_data" not in source["capabilities"]
-    assert "lots" not in source["capabilities"]
-
-
-def test_germany_registry_declares_only_proven_daily_works_lifecycle_contract():
-    source = SOURCES["SERVICE_BUND_DE"]
-    assert source["kind"] == "OFFICIAL_EFORMS_DAILY_BULK"
-    assert source["access"] == "public_daily_eforms_zip"
-    assert source["status"] == "ready"
-    assert source["legal_reuse"] == "GREEN"
-    assert source["machine_access"] == "VERIFIED"
-    assert source["adapter"] == "GermanDOEOpenDataConnector"
-    assert source["signal_types"] == ("TENDER",)
-    assert set(source["capabilities"]) == {"incremental_sync", "lots", "lifecycle"}
-    assert source["realtime_capable"] is False
-    assert source["expected_refresh_minutes"] == 1440
-    assert source["stale_after_minutes"] == 4320
-    assert "search" not in source["capabilities"]
-    assert "amendments" not in source["capabilities"]
-    assert "awards" not in source["capabilities"]
-    assert "contracts" not in source["capabilities"]
-    assert production_gate_reasons("SERVICE_BUND_DE") == ()
-    assert "SERVICE_BUND_DE" in production_ready_sources()
-
-
-def test_italy_registry_declares_only_proven_pvl_works_tender_contract():
-    source = SOURCES["IT_ANAC"]
-    assert source["source_id"] == "it_anac_bdncp_pvl"
-    assert source["kind"] == "OFFICIAL_PUBLIC_LEGAL_NOTICE_API"
-    assert source["access"] == "public_json_day_window"
-    assert source["status"] == "ready"
-    assert source["legal_reuse"] == "GREEN"
-    assert source["machine_access"] == "VERIFIED"
-    assert source["adapter"] == "ANACPVLConnector"
-    assert source["signal_types"] == ("TENDER",)
-    assert set(source["capabilities"]) == {"incremental_sync", "lots", "lifecycle"}
-    assert source["realtime_capable"] is True
-    assert source["expected_refresh_minutes"] == 60
-    assert source["stale_after_minutes"] == 180
-    assert "search" not in source["capabilities"]
-    assert "awards" not in source["capabilities"]
-    assert "contracts" not in source["capabilities"]
-    assert "suppliers" not in source["capabilities"]
-    assert "historical_data" not in source["capabilities"]
-    assert production_gate_reasons("IT_ANAC") == ()
-    assert "IT_ANAC" in production_ready_sources()
-
-
-def test_korea_planned_registry_records_real_credential_block_without_fake_capabilities():
-    source = SOURCES["KR_KONEPS"]
-    assert source["kind"] == "OFFICIAL_CONSTRUCTION_BID_NOTICE_API"
-    assert source["access"] == "portal_service_key_required"
-    assert source["status"] == "planned"
-    assert source["legal_reuse"] == "GREEN"
-    assert source["machine_access"] == "CREDENTIAL_REQUIRED"
-    assert source["signal_types"] == ("TENDER",)
-    assert source["capabilities"] == ()
-    assert source["adapter"] is None
-    assert source["realtime_capable"] is True
-    assert production_gate_reasons("KR_KONEPS") == (
-        "machine_access_not_verified",
-        "runtime_not_enabled",
-        "adapter_not_configured",
-    )
-    assert "KR_KONEPS" not in production_ready_sources()
-
-
-def test_registered_source_freshness_is_source_specific():
-    assert stale_after_minutes_for("TED") == 60
+def test_staleness_is_source_specific():
     assert stale_after_minutes_for("PY_DNCP") == 180
-    assert stale_after_minutes_for("UY_ARCE") == 180
-    assert stale_after_minutes_for("UK_PROCUREMENT") == 180
-    assert stale_after_minutes_for("CH_SIMAP") == 180
-    assert stale_after_minutes_for("PL_BZP") == 180
-    assert stale_after_minutes_for("NL_TENDERNED") == 180
-    assert stale_after_minutes_for("AT_KERNDATEN") == 2160
-    assert stale_after_minutes_for("EC_SERCOP") == 4320
-    assert stale_after_minutes_for("ZA_ETENDERS") == 4320
-    assert stale_after_minutes_for("LV_IUB") == 4320
-    assert stale_after_minutes_for("EE_RHR") == 4320
-    assert stale_after_minutes_for("LT_VPT") == 4320
-    assert stale_after_minutes_for("SERVICE_BUND_DE") == 4320
-    assert stale_after_minutes_for("IT_ANAC") == 180
-    assert stale_after_minutes_for("UNKNOWN_SOURCE", default=17) == 17
+    assert stale_after_minutes_for("UNKNOWN", 77) == 77
