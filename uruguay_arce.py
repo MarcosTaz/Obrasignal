@@ -167,6 +167,24 @@ def _month_end(moment):
     return datetime(parsed.year, parsed.month, last_day, 23, 59, 59, tzinfo=timezone.utc)
 
 
+def _natural_release_ref_key(ref):
+    """Deterministically order same-second ARCE release refs.
+
+    Live record indexes have shown sequential release URLs such as
+    ``aclar_llamado-<purchase>-0`` and ``...-1`` while returning ties in reverse
+    order. Natural-token ordering makes that sequence stable without assuming
+    the record endpoint's array order is chronological.
+    """
+    url = str(ref.get("url") or "") if isinstance(ref, dict) else ""
+    basename = url.rsplit("/", 1)[-1]
+    natural = tuple(
+        (0, int(token)) if token.isdigit() else (1, token.lower())
+        for token in re.split(r"(\d+)", basename)
+        if token != ""
+    )
+    return (str(ref.get("date") or "") if isinstance(ref, dict) else "", natural, url)
+
+
 def _merge_list(base, patch):
     base = deepcopy(base) if isinstance(base, list) else []
     patch = deepcopy(patch)
@@ -203,6 +221,8 @@ def _merge_value(base, patch):
 
 def merge_arce_releases(releases):
     candidates = [release for release in releases or [] if isinstance(release, dict)]
+    # Hydration supplies a deterministic order for equal timestamps; Python's
+    # stable sort preserves it while still protecting callers with unsorted dates.
     candidates.sort(key=lambda release: str(release.get("date") or ""))
     if not candidates:
         return None
@@ -298,6 +318,11 @@ class ARCEOCDSRSSAdapter:
         cursor = ARCECursor.decode(watermark)
         cursor_dt = _parse_iso(cursor.published_at) if cursor else None
         live_events = self._feed(ARCE_RSS_URL)
+        if not live_events:
+            # The production current feed is expected to be populated. Treat an
+            # empty/filtered response as source degradation, never as evidence
+            # that no events exist, so the cursor cannot skip an outage window.
+            raise RuntimeError("UY_ARCE current RSS returned no events; cursor not advanced")
 
         if not cursor_dt:
             cutoff = current - timedelta(hours=max(1, self.initial_lookback_hours))
@@ -314,8 +339,8 @@ class ARCEOCDSRSSAdapter:
         # is still covered because all later events remain present.
         cursor_key = (cursor_dt, cursor.guid or "")
         horizon_probe = cursor_dt + timedelta(seconds=max(0, self.overlap_seconds))
-        oldest_live = _parse_iso(live_events[0].published_at) if live_events else None
-        if oldest_live and horizon_probe >= oldest_live:
+        oldest_live = _parse_iso(live_events[0].published_at)
+        if horizon_probe >= oldest_live:
             eligible = [event for event in live_events if event.key() > cursor_key]
             batch = eligible[: max(1, self.max_events_per_sync)]
             if not batch:
@@ -355,7 +380,7 @@ class ARCEOCDSRSSAdapter:
             and ref.get("url")
             and any(str(tag or "").lower().startswith("tender") for tag in (ref.get("tag") or []))
         ]
-        refs.sort(key=lambda ref: str(ref.get("date") or ""))
+        refs.sort(key=_natural_release_ref_key)
         if not refs:
             raise RuntimeError(f"UY_ARCE purchase {purchase_id} has no tender release references")
         if len(refs) > max(1, self.max_release_refs_per_process):
