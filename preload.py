@@ -7,6 +7,7 @@ import app as _app
 import national_sources as _national_sources
 import colombia_secop as _colombia_secop
 import paraguay_dncp as _paraguay_dncp
+import uruguay_arce as _uruguay_arce
 from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
 from source_health import get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
@@ -102,6 +103,17 @@ def _fetch_dncp_staged():
         conn.close()
     records, cursor = _paraguay_dncp.fetch_dncp_processes(watermark=watermark)
     stage_source_sync("PY_DNCP", records, cursor)
+    return records
+
+
+def _fetch_arce_staged():
+    conn = _app.db()
+    try:
+        watermark = get_source_cursor(conn, "UY_ARCE")
+    finally:
+        conn.close()
+    records, cursor = _uruguay_arce.fetch_arce_tenders(watermark=watermark)
+    stage_source_sync("UY_ARCE", records, cursor)
     return records
 
 
@@ -206,6 +218,11 @@ def fetch_base_with_national_sources():
         connectors.append(("PY_DNCP", _fetch_dncp_staged, True))
     else:
         _record_blocked_global_source("PY_DNCP")
+
+    if _global_source_enabled("UY_ARCE"):
+        connectors.append(("UY_ARCE", _fetch_arce_staged, True))
+    else:
+        _record_blocked_global_source("UY_ARCE")
 
     for source, fetcher, empty_ok in connectors:
         started = time.perf_counter()
