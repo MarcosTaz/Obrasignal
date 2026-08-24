@@ -1,45 +1,84 @@
-"""TEMPORARY production smoke for Germany DOE. Delete before merge."""
+"""TEMPORARY filename/root identity diagnostic for Germany DOE. Delete before merge."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections import Counter
+from io import BytesIO
 import json
+import re
+import zipfile
+from xml.etree.ElementTree import fromstring
 
-from germany_doe import GermanDOEOpenDataConnector
+import requests
+
+URL = "https://oeffentlichevergabe.de/api/notice-exports"
+ACCEPT = "application/vnd.bekanntmachungsservice.eforms.zip+zip"
+DAY = "2026-08-23"
+UUID_RE = re.compile(r"^[0-9a-fA-F-]{36}-\d+\.xml$")
+SPLIT_RE = re.compile(r"^(?P<stem>.+)-(?P<version>\d+)\.xml$")
 
 
-def test_germany_doe_production_live_smoke():
-    connector = GermanDOEOpenDataConnector(
-        initial_lookback_days=1,
-        max_days_per_sync=2,
-        overlap_days=0,
-    )
-    rows, cursor = connector.fetch_incremental(
-        now=datetime(2026, 8, 24, 12, 0, tzinfo=timezone.utc)
-    )
-    payload = json.loads(cursor)
-    assert payload["completed_through"] == "2026-08-23"
-    assert rows
-    assert all(row.get("source") == "SERVICE_BUND_DE" for row in rows)
-    assert all(row.get("contract_type") == "works" for row in rows)
-    assert all(row.get("is_actionable") is True for row in rows)
-    assert all(row.get("deadline") for row in rows)
+def _local(tag):
+    return str(tag).rsplit("}", 1)[-1]
+
+
+def _text(node):
+    return "" if node is None or node.text is None else " ".join(str(node.text).split())
+
+
+def _direct(root, name):
+    for node in list(root):
+        if _local(node.tag) == name:
+            return node
+    return None
+
+
+def test_germany_doe_archive_filename_identity_live():
+    response = requests.get(URL, params={"pubDay": DAY}, headers={"Accept": ACCEPT}, timeout=120)
+    response.raise_for_status()
+    patterns = Counter()
+    mismatches, non_uuid, malformed = [], [], []
+
+    with zipfile.ZipFile(BytesIO(response.content)) as zf:
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            name = info.filename
+            match = SPLIT_RE.fullmatch(name)
+            if not match:
+                malformed.append(name)
+                continue
+            root = fromstring(zf.read(info))
+            root_id = _text(_direct(root, "ID"))
+            stem = match.group("stem")
+            version = match.group("version")
+            is_uuid = bool(UUID_RE.fullmatch(name))
+            patterns["uuid" if is_uuid else "non_uuid"] += 1
+            if stem != root_id:
+                mismatches.append({
+                    "filename": name,
+                    "stem": stem,
+                    "version": version,
+                    "root": _local(root.tag),
+                    "root_id": root_id,
+                    "notice_type": _text(_direct(root, "NoticeTypeCode")),
+                })
+            if not is_uuid and len(non_uuid) < 40:
+                non_uuid.append({
+                    "filename": name,
+                    "stem": stem,
+                    "version": version,
+                    "root": _local(root.tag),
+                    "root_id": root_id,
+                    "notice_type": _text(_direct(root, "NoticeTypeCode")),
+                })
+
     evidence = {
-        "row_count": len(rows),
-        "tracked_count": len(payload.get("tracked", {})),
-        "closed_count": len(payload.get("closed", {})),
-        "sample": [
-            {
-                "external_id": row.get("external_id"),
-                "cpv": row.get("cpv"),
-                "deadline": row.get("deadline"),
-                "publication_date": row.get("publication_date"),
-                "notice_identifier": row.get("notice_identifier"),
-                "url": row.get("url"),
-            }
-            for row in rows[:8]
-        ],
+        "entry_count": sum(patterns.values()) + len(malformed),
+        "patterns": dict(patterns),
+        "malformed_count": len(malformed),
+        "malformed": malformed[:40],
+        "stem_root_mismatch_count": len(mismatches),
+        "stem_root_mismatches": mismatches[:40],
+        "non_uuid_examples": non_uuid,
     }
-    raise AssertionError(
-        "GERMANY_DOE_PRODUCTION_SMOKE "
-        + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:120000]
-    )
+    raise AssertionError("GERMANY_DOE_FILENAME_EVIDENCE " + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:160000])
