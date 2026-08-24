@@ -6,9 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Main pushes are intentionally covered so the exact post-merge tree is tested,
-# not only the pre-merge pull-request commit.
-
 jobs:
   python:
     runs-on: ubuntu-latest
@@ -19,6 +16,173 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
+      - name: TEMP federal Compras.gov.br Works probe
+        run: |
+          python - <<'PY'
+          from datetime import date, datetime, timedelta, timezone
+          import time
+          import requests
+
+          BASE = "https://dadosabertos.compras.gov.br"
+          CONTRACTS = BASE + "/modulo-contratacoes/1_consultarContratacoes_PNCP_14133"
+          ITEMS_ID = BASE + "/modulo-contratacoes/2.1_consultarItensContratacoes_PNCP_14133_Id"
+          CATSER = BASE + "/modulo-servico/6_consultarItemServico"
+          S = requests.Session()
+          S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal federal-source probe/1.0"})
+
+          def get(url, params=None, *, tries=3, timeout=30):
+              last = None
+              for attempt in range(tries):
+                  try:
+                      r = S.get(url, params=params, timeout=timeout)
+                      if r.status_code in (429, 500, 502, 503, 504):
+                          last = f"HTTP {r.status_code}"
+                          time.sleep(1 + attempt)
+                          continue
+                      if r.status_code >= 400:
+                          return None, r.status_code, (r.text or "")[:300]
+                      return r.json(), r.status_code, ""
+                  except Exception as exc:
+                      last = f"{type(exc).__name__}:{exc}"
+                      time.sleep(1 + attempt)
+              return None, 0, last or "request failed"
+
+          def rows(payload):
+              if isinstance(payload, list):
+                  return payload
+              if isinstance(payload, dict):
+                  for key in ("resultado", "data", "content", "items"):
+                      if isinstance(payload.get(key), list):
+                          return payload[key]
+              return []
+
+          def dt(value):
+              if not value:
+                  return None
+              text = str(value).strip().replace("Z", "+00:00")
+              try:
+                  parsed = datetime.fromisoformat(text)
+              except ValueError:
+                  return None
+              if parsed.tzinfo is None:
+                  parsed = parsed.replace(tzinfo=timezone.utc)
+              return parsed.astimezone(timezone.utc)
+
+          spec, spec_status, spec_err = get(BASE + "/v3/api-docs", tries=2, timeout=20)
+          print(f"COMPRAS_SPEC_HTTP={spec_status}")
+          if isinstance(spec, dict):
+              paths = spec.get("paths") or {}
+              for target in ("/modulo-contratacoes/1_consultarContratacoes_PNCP_14133", "/modulo-contratacoes/2.1_consultarItensContratacoes_PNCP_14133_Id", "/modulo-servico/6_consultarItemServico"):
+                  op = ((paths.get(target) or {}).get("get") or {})
+                  params = [p.get("name") for p in op.get("parameters", []) if isinstance(p, dict)]
+                  print(f"COMPRAS_OPENAPI_PARAMS={target}|{params!r}")
+
+          today = date.today()
+          start = today - timedelta(days=21)
+          now = datetime.now(timezone.utc)
+          contracts = []
+          for modality in (3, 5):
+              payload, status, err = get(CONTRACTS, {
+                  "pagina":1,
+                  "tamanhoPagina":20,
+                  "dataPublicacaoPncpInicial":start.isoformat(),
+                  "dataPublicacaoPncpFinal":today.isoformat(),
+                  "codigoModalidade":modality,
+                  "contratacaoExcluida":"false",
+              })
+              result = rows(payload)
+              print(f"COMPRAS_CONTRACT_QUERY=modalidade:{modality}|HTTP={status}|ROWS={len(result)}|ERR={err[:120]!r}")
+              if isinstance(payload, dict):
+                  print(f"COMPRAS_CONTRACT_META=modalidade:{modality}|totalRegistros={payload.get('totalRegistros')}|totalPaginas={payload.get('totalPaginas')}|paginasRestantes={payload.get('paginasRestantes')}")
+              for row in result:
+                  if isinstance(row, dict):
+                      row = dict(row)
+                      row["_probe_modalidade"] = modality
+                      contracts.append(row)
+
+          print("COMPRAS_CONTRACTS_SAMPLED=" + str(len(contracts)))
+          if contracts:
+              print("COMPRAS_CONTRACT_KEYS=" + ",".join(sorted(contracts[0].keys())))
+
+          open_contracts = []
+          for c in contracts:
+              deadline = dt(c.get("dataEncerramentoPropostaPncp"))
+              opening = dt(c.get("dataAberturaPropostaPncp"))
+              excluded = bool(c.get("contratacaoExcluida"))
+              if deadline and deadline > now and not excluded:
+                  open_contracts.append(c)
+          print("COMPRAS_OPEN_BY_STRUCTURED_DEADLINE=" + str(len(open_contracts)))
+          for c in open_contracts[:5]:
+              print("COMPRAS_OPEN_SAMPLE=" + repr({
+                  "idCompra": c.get("idCompra"),
+                  "numeroControlePNCP": c.get("numeroControlePNCP"),
+                  "modalidadeNome": c.get("modalidadeNome"),
+                  "situacao": c.get("situacaoCompraNomePncp"),
+                  "objeto": str(c.get("objetoCompra") or "")[:180],
+                  "abre": c.get("dataAberturaPropostaPncp"),
+                  "fecha": c.get("dataEncerramentoPropostaPncp"),
+                  "atualiza": c.get("dataAtualizacaoPncp") or c.get("dataAualizacaoPncp"),
+              }))
+
+          item_calls = item_rows = catalog_populated = catser_resolved = section5 = item_failures = 0
+          seen_codes = set()
+          section_samples = []
+          for c in open_contracts[:12]:
+              purchase_id = c.get("idCompra")
+              if not purchase_id:
+                  continue
+              item_calls += 1
+              payload, status, err = get(ITEMS_ID, {"tipo":"idCompra", "codigo":purchase_id})
+              if status >= 400 or payload is None:
+                  # Current Swagger variants have historically accepted idCompra directly.
+                  payload, status, err = get(ITEMS_ID, {"idCompra":purchase_id})
+              its = rows(payload)
+              if not its:
+                  item_failures += 1
+                  print(f"COMPRAS_ITEMS_EMPTY={purchase_id}|HTTP={status}|ERR={err[:120]!r}")
+                  continue
+              print(f"COMPRAS_ITEMS={purchase_id}|HTTP={status}|ROWS={len(its)}")
+              item_rows += len(its)
+              for item in its:
+                  if not isinstance(item, dict):
+                      continue
+                  code = item.get("codItemCatalogo")
+                  if code not in (None, "", 0, "0"):
+                      catalog_populated += 1
+                  if item_rows <= 12:
+                      print("COMPRAS_ITEM_SAMPLE=" + repr({
+                          "idCompra":purchase_id,
+                          "materialOuServico":item.get("materialOuServico"),
+                          "codigoGrupo":item.get("codigoGrupo"),
+                          "codigoClasse":item.get("codigoClasse"),
+                          "codItemCatalogo":code,
+                          "descricao":str(item.get("descricaoResumida") or item.get("descricaodetalhada") or "")[:180],
+                      }))
+                  if code in (None, "", 0, "0") or str(code) in seen_codes:
+                      continue
+                  seen_codes.add(str(code))
+                  cpayload, cstatus, cerr = get(CATSER, {"pagina":1,"tamanhoPagina":10,"codigoServico":code})
+                  crows = rows(cpayload)
+                  if crows:
+                      catser_resolved += 1
+                  else:
+                      print(f"CATSER_UNRESOLVED={code}|HTTP={cstatus}|ERR={cerr[:100]!r}")
+                  for service in crows[:1]:
+                      sec = service.get("codigoSecao")
+                      name = service.get("nomeSecao")
+                      if str(sec).lstrip("0") == "5":
+                          section5 += 1
+                      section_samples.append((str(code), sec, name, service.get("nomeServico")))
+
+          print("COMPRAS_ITEM_CALLS=" + str(item_calls))
+          print("COMPRAS_ITEM_FAILURES=" + str(item_failures))
+          print("COMPRAS_ITEM_ROWS=" + str(item_rows))
+          print("COMPRAS_CATALOG_POPULATED=" + str(catalog_populated))
+          print("COMPRAS_CATSER_RESOLVED=" + str(catser_resolved))
+          print("COMPRAS_CATSER_SECTION5=" + str(section5))
+          for sample in section_samples[:12]:
+              print("COMPRAS_CATSER_SAMPLE=" + repr(sample))
+          PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
       - name: Run repository tests
