@@ -1,11 +1,12 @@
-"""TEMPORARY live forensic probe for Poland e-Zamowienia BZP WebService.
+"""TEMPORARY final live probe for Poland BZP update/deadline semantics.
 
-This test is intentionally network-dependent and MUST be deleted before merge.
-It exists only to evidence completeness/lifecycle semantics of the official API.
+Network-dependent by design. MUST be deleted before merge.
 """
-from collections import Counter
 from datetime import datetime, timedelta, timezone
+from html.parser import HTMLParser
+import html
 import json
+import re
 
 import requests
 
@@ -18,20 +19,38 @@ HEADERS = {
 }
 
 
-def _get_list(session, *, notice_type, start, end, page_size, extras=None):
-    params = {
-        "NoticeType": notice_type,
-        "PublicationDateFrom": start,
-        "PublicationDateTo": end,
-        "PageSize": page_size,
-    }
-    params.update(extras or {})
-    response = session.get(BASE, params=params, timeout=60)
+class _TextParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+
+    def handle_data(self, data):
+        value = " ".join(str(data).split())
+        if value:
+            self.parts.append(value)
+
+
+def _text_from_html(value):
+    parser = _TextParser()
+    parser.feed(str(value or ""))
+    return html.unescape("\n".join(parser.parts))
+
+
+def _get_list(session, notice_type, start, end, page_size):
+    response = session.get(
+        BASE,
+        params={
+            "NoticeType": notice_type,
+            "PublicationDateFrom": start,
+            "PublicationDateTo": end,
+            "PageSize": page_size,
+        },
+        timeout=90,
+    )
     response.raise_for_status()
     payload = response.json()
     assert isinstance(payload, list)
-    assert all(isinstance(row, dict) for row in payload)
-    return response, payload
+    return [row for row in payload if isinstance(row, dict)]
 
 
 def _stats(session, start, end):
@@ -50,8 +69,6 @@ def _stats(session, start, end):
 
 
 def _curate(row):
-    if not isinstance(row, dict):
-        return None
     return {
         key: row.get(key)
         for key in (
@@ -59,178 +76,80 @@ def _curate(row):
             "publicationDate", "orderObject", "cpvCode", "submittingOffersDate",
             "procedureResult", "organizationName", "organizationCity",
             "organizationProvince", "organizationCountry", "tenderId", "objectId",
-            "contractors",
         )
     }
 
 
-def _works(rows):
-    return [row for row in rows if str(row.get("orderType") or "").strip() == "Works"]
-
-
-def test_poland_bzp_paging_completeness_and_lifecycle_live():
+def test_poland_bzp_update_deadline_and_large_complete_window_live():
     session = requests.Session()
     session.headers.update(HEADERS)
-
     now = datetime.now(timezone.utc)
-    start_dt = now - timedelta(days=14)
-    start = start_dt.strftime("%Y-%m-%dT00:00:00Z")
+    start = (now - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00Z")
     end = now.strftime("%Y-%m-%dT23:59:59Z")
 
-    stats = _stats(session, start, end)
-    assert stats.get("ContractNotice", 0) > 100
-    assert stats.get("NoticeUpdateNotice", 0) > 0
-    assert stats.get("TenderResultNotice", 0) > 0
-
-    # Determine whether the conventional PageNumber query has any semantics.
-    _, base3 = _get_list(
-        session, notice_type="ContractNotice", start=start, end=end, page_size=3
-    )
-    _, page1 = _get_list(
-        session, notice_type="ContractNotice", start=start, end=end, page_size=3,
-        extras={"PageNumber": 1},
-    )
-    _, page2 = _get_list(
-        session, notice_type="ContractNotice", start=start, end=end, page_size=3,
-        extras={"PageNumber": 2},
-    )
-    ids = lambda rows: [str(row.get("objectId") or "") for row in rows]
-    paging = {
-        "default": ids(base3),
-        "page1": ids(page1),
-        "page2": ids(page2),
+    contracts = _get_list(session, "ContractNotice", start, end, 160)
+    updates = _get_list(session, "NoticeUpdateNotice", start, end, 160)
+    contract_by_tender = {
+        str(row.get("tenderId") or "").strip(): row
+        for row in contracts if str(row.get("tenderId") or "").strip()
     }
+    linked = None
+    for update in updates:
+        tender_id = str(update.get("tenderId") or "").strip()
+        if tender_id and tender_id in contract_by_tender:
+            linked = (contract_by_tender[tender_id], update)
+            break
+    assert linked is not None, "bounded sample did not contain a ContractNotice/NoticeUpdateNotice link"
 
-    # pageSize itself is effective and deterministic for the same time window.
-    _, twelve = _get_list(
-        session, notice_type="ContractNotice", start=start, end=end, page_size=12
-    )
-    assert len(base3) == 3
-    assert len(twelve) == 12
-    assert ids(twelve)[:3] == ids(base3)
+    contract, update = linked
+    update_text = _text_from_html(update.get("htmlBody"))
+    lines = [line.strip() for line in update_text.splitlines() if line.strip()]
+    deadline_lines = [
+        line for line in lines
+        if any(token in line.lower() for token in (
+            "termin składania", "składania ofert", "terminu składania", "ofert"
+        ))
+    ][:80]
+    date_tokens = sorted(set(re.findall(
+        r"(?:\d{4}-\d{2}-\d{2}|\d{2}[.\-/]\d{2}[.\-/]\d{4})(?:\s*(?:r\.)?)?(?:\s+\d{1,2}:\d{2})?",
+        update_text,
+    )))[:80]
 
-    # Capture bounded samples of publisher-native lifecycle notice types. Do not
-    # assume a truncated sample must contain construction rows: record the actual
-    # orderType distribution and let complete-window probes decide semantics.
-    samples = {}
-    full_by_type = {}
-    for notice_type in ("ContractNotice", "NoticeUpdateNotice", "TenderResultNotice", "ContractPerformingNotice"):
-        _, rows = _get_list(
-            session, notice_type=notice_type, start=start, end=end, page_size=120
-        )
-        full_by_type[notice_type] = rows
-        works = _works(rows)
-        samples[notice_type] = {
-            "count_returned": len(rows),
-            "works_count": len(works),
-            "order_types": dict(sorted(Counter(str(row.get("orderType")) for row in rows).items())),
-            "first": _curate(rows[0]) if rows else None,
-            "first_works": _curate(works[0]) if works else None,
-        }
-
-    assert samples["ContractNotice"]["works_count"] > 0
-
-    # Look for actual same-procedure linkage across notice types. Absence from a
-    # bounded sample is evidence too and must not be converted into an assumption.
-    tender_sets = {
-        notice_type: {
-            str(row.get("tenderId") or "").strip()
-            for row in rows if str(row.get("tenderId") or "").strip()
-        }
-        for notice_type, rows in full_by_type.items()
-    }
-    overlaps = {}
-    contract_ids = tender_sets["ContractNotice"]
-    for notice_type in ("NoticeUpdateNotice", "TenderResultNotice", "ContractPerformingNotice"):
-        common = sorted(contract_ids & tender_sets[notice_type])
-        overlaps[notice_type] = common[:10]
-
-    linked = {}
-    for notice_type, common in overlaps.items():
-        if not common:
-            linked[notice_type] = None
-            continue
-        tender_id = common[0]
-        linked[notice_type] = {
-            "tenderId": tender_id,
-            "contract": _curate(next(row for row in full_by_type["ContractNotice"] if row.get("tenderId") == tender_id)),
-            "related": _curate(next(row for row in full_by_type[notice_type] if row.get("tenderId") == tender_id)),
-        }
-
-    # Probe one smaller day window against stats to establish the completeness
-    # primitive: if stats count <= requested pageSize, list length must equal it.
-    complete_window = None
-    complete_lifecycle = {}
+    # Prove a materially larger pageSize against stats on a complete weekday.
+    large_complete = None
     for days_ago in range(1, 15):
         day = (now - timedelta(days=days_ago)).date()
         day_start = f"{day.isoformat()}T00:00:00Z"
         day_end = f"{day.isoformat()}T23:59:59Z"
-        day_stats = _stats(session, day_start, day_end)
-        count = day_stats.get("ContractNotice", 0)
-        if complete_window is None and 0 < count <= 250:
-            _, rows = _get_list(
-                session, notice_type="ContractNotice", start=day_start, end=day_end,
-                page_size=count,
-            )
-            complete_window = {
+        counts = _stats(session, day_start, day_end)
+        count = counts.get("ContractNotice", 0)
+        if 250 < count <= 500:
+            rows = _get_list(session, "ContractNotice", day_start, day_end, count)
+            large_complete = {
                 "start": day_start,
-                "end": day_end,
                 "stats_count": count,
                 "returned_count": len(rows),
-                "works_count": len(_works(rows)),
-                "first_id": str(rows[0].get("objectId") or "") if rows else None,
-                "last_id": str(rows[-1].get("objectId") or "") if rows else None,
+                "works_count": sum(1 for row in rows if row.get("orderType") == "Works"),
+                "first_id": rows[0].get("objectId") if rows else None,
+                "last_id": rows[-1].get("objectId") if rows else None,
             }
             assert len(rows) == count
-
-        # Also capture complete manageable lifecycle days so construction update
-        # and result semantics are not inferred from a truncated first page.
-        for notice_type in ("NoticeUpdateNotice", "TenderResultNotice"):
-            if notice_type in complete_lifecycle:
-                continue
-            lifecycle_count = day_stats.get(notice_type, 0)
-            if 0 < lifecycle_count <= 250:
-                _, lifecycle_rows = _get_list(
-                    session, notice_type=notice_type, start=day_start, end=day_end,
-                    page_size=lifecycle_count,
-                )
-                assert len(lifecycle_rows) == lifecycle_count
-                works = _works(lifecycle_rows)
-                complete_lifecycle[notice_type] = {
-                    "start": day_start,
-                    "stats_count": lifecycle_count,
-                    "returned_count": len(lifecycle_rows),
-                    "works_count": len(works),
-                    "order_types": dict(sorted(Counter(str(row.get("orderType")) for row in lifecycle_rows).items())),
-                    "first_works": _curate(works[0]) if works else None,
-                }
-        if complete_window is not None and len(complete_lifecycle) == 2:
             break
-
-    assert complete_window is not None
+    assert large_complete is not None, "no recent weekday with 251..500 ContractNotice rows found"
 
     evidence = {
-        "window": {"from": start, "to": end},
-        "stats": {key: stats.get(key) for key in (
-            "ContractNotice", "NoticeUpdateNotice", "TenderResultNotice",
-            "ContractPerformingNotice", "SmallContractNotice",
-        )},
-        "paging": paging,
-        "page_number_changes_results": (
-            paging["default"] != paging["page1"] or paging["default"] != paging["page2"]
-        ),
-        "page_size": {"size3": len(base3), "size12": len(twelve)},
-        "samples": samples,
-        "tender_id_overlaps": overlaps,
-        "linked_examples": linked,
-        "complete_window": complete_window,
-        "complete_lifecycle": complete_lifecycle,
+        "linked": {
+            "contract": _curate(contract),
+            "update": _curate(update),
+            "same_tender_id": contract.get("tenderId") == update.get("tenderId"),
+            "update_html_bytes": len(str(update.get("htmlBody") or "").encode("utf-8")),
+            "deadline_lines": deadline_lines,
+            "date_tokens": date_tokens,
+        },
+        "large_complete": large_complete,
         "cookies": sorted(session.cookies.keys()),
     }
-
-    # One-run forensic stop. The probe will be deleted after inspection and
-    # replaced with deterministic offline tests.
     raise AssertionError(
-        "PL_BZP_TARGET_EVIDENCE "
+        "PL_BZP_FINAL_EVIDENCE "
         + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:50000]
     )
