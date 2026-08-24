@@ -1,151 +1,142 @@
-"""TEMPORARY live forensic probe for the official Swiss simap.ch API.
+"""TEMPORARY live forensic probe for Swiss SIMAP lot/lifecycle semantics.
 
-This file MUST be deleted once the upstream contract has been evidenced. It is
-intentionally network-dependent and must never remain in permanent CI.
+This file is intentionally network-dependent and MUST be deleted once the
+upstream contract has been evidenced. Permanent CI must remain offline.
 """
 from datetime import datetime, timedelta
 import json
-import re
 from zoneinfo import ZoneInfo
 
 import requests
 
-
 BASE = "https://www.simap.ch/api"
-SPEC_URL = f"{BASE}/specifications/simap.yaml"
-SEARCH_PATH = "/publications/v2/project/project-search"
-HEADERS = {
-    "Accept": "application/json",
-    "User-Agent": "ObraSignal temporary forensic validator/1.0",
-}
+SEARCH = "/publications/v2/project/project-search"
 ZURICH = ZoneInfo("Europe/Zurich")
+HEADERS = {"Accept": "application/json", "User-Agent": "ObraSignal temporary forensic validator/1.0"}
 
 
-def _shape(value, depth=0):
-    if depth >= 6:
-        return type(value).__name__
-    if isinstance(value, dict):
-        return {str(k): _shape(v, depth + 1) for k, v in list(value.items())[:40]}
-    if isinstance(value, list):
-        return [_shape(value[0], depth + 1)] if value else []
-    return type(value).__name__
-
-
-def _selected_scalars(value, path="", output=None):
-    output = [] if output is None else output
-    if len(output) >= 120:
-        return output
-    if isinstance(value, dict):
-        for key, child in value.items():
-            child_path = f"{path}.{key}" if path else str(key)
-            _selected_scalars(child, child_path, output)
-            if len(output) >= 120:
-                break
-    elif isinstance(value, list):
-        for index, child in enumerate(value[:3]):
-            _selected_scalars(child, f"{path}[{index}]", output)
-            if len(output) >= 120:
-                break
-    else:
-        key = path.rsplit(".", 1)[-1].lower()
-        if any(token in key for token in (
-            "deadline", "date", "type", "status", "cpv", "bkp", "cpc",
-            "lot", "publication", "project", "process", "corrected",
-        )):
-            output.append((path, value))
-    return output
-
-
-def _path_block(spec_text, path):
-    marker = f"  {path}:"
-    start = spec_text.find(marker)
-    if start < 0:
-        return ""
-    rest = spec_text[start + len(marker):]
-    match = re.search(r"\n  /[^\n]+:\s*\n", rest)
-    return rest[: match.start()] if match else rest
-
-
-def _get(session, path, *, params=None):
+def _get_json(session, path, params=None):
     response = session.get(f"{BASE}{path}", params=params, timeout=45)
     response.raise_for_status()
     return response.json()
 
 
-def test_simap_official_spec_and_public_contract_live():
+def _interesting(value, path="", out=None):
+    out = [] if out is None else out
+    if len(out) >= 180:
+        return out
+    if isinstance(value, dict):
+        for key, child in value.items():
+            _interesting(child, f"{path}.{key}" if path else str(key), out)
+            if len(out) >= 180:
+                break
+    elif isinstance(value, list):
+        for index, child in enumerate(value[:5]):
+            _interesting(child, f"{path}[{index}]", out)
+            if len(out) >= 180:
+                break
+    else:
+        leaf = path.rsplit(".", 1)[-1].lower()
+        if any(token in leaf for token in (
+            "deadline", "date", "type", "status", "cpv", "bkp", "cpc",
+            "ebkp", "npk", "oag", "lot", "publication", "project", "process",
+            "correct", "reference", "id",
+        )):
+            out.append((path, value))
+    return out
+
+
+def _base_window(days=365):
+    today = datetime.now(ZURICH).date()
+    return [
+        ("newestPublicationFrom", (today - timedelta(days=days)).isoformat()),
+        ("newestPublicationUntil", today.isoformat()),
+        ("projectSubTypes", "construction"),
+    ]
+
+
+def _find_project_with_lots(session):
+    params = _base_window() + [("newestPubTypes", "tender")]
+    token = None
+    for page_number in range(1, 21):
+        page_params = params + ([("lastItem", token)] if token else [])
+        payload = _get_json(session, SEARCH, page_params)
+        projects = payload.get("projects") if isinstance(payload, dict) else None
+        assert isinstance(projects, list)
+        for row in projects:
+            if isinstance(row, dict) and row.get("lots"):
+                return page_number, row, payload.get("pagination")
+        pagination = payload.get("pagination") or {}
+        next_token = pagination.get("lastItem")
+        if not next_token or next_token == token:
+            break
+        token = str(next_token)
+    return None, None, None
+
+
+def _find_negative_latest(session):
+    findings = {}
+    for pub_type in ("correction", "revocation", "abandonment"):
+        payload = _get_json(session, SEARCH, _base_window() + [("newestPubTypes", pub_type)])
+        projects = payload.get("projects") if isinstance(payload, dict) else None
+        assert isinstance(projects, list)
+        if not projects:
+            findings[pub_type] = None
+            continue
+        row = projects[0]
+        project_id = str(row.get("id") or "")
+        publication_id = str(row.get("publicationId") or "")
+        assert project_id and publication_id
+        header = _get_json(session, f"/publications/v2/project/{project_id}/project-header")
+        detail = _get_json(session, f"/publications/v1/project/{project_id}/publication-details/{publication_id}")
+        history = _get_json(session, f"/publications/v1/publication/{publication_id}/past-publications")
+        findings[pub_type] = {
+            "search": row,
+            "header": _interesting(header),
+            "detail": _interesting(detail),
+            "history": _interesting(history),
+        }
+    return findings
+
+
+def test_simap_lot_lifecycle_and_human_url_live():
     session = requests.Session()
     session.headers.update(HEADERS)
 
-    spec = session.get(SPEC_URL, timeout=45)
-    spec.raise_for_status()
-    text = spec.text
-    assert "openapi:" in text[:5000].lower()
-    block = _path_block(text, SEARCH_PATH)
-    assert block, f"official OpenAPI spec does not declare {SEARCH_PATH}"
-    parameter_names = sorted(set(re.findall(r"\bname:\s*([^\s#]+)", block)))
-    for required in (
-        "lastItem", "newestPublicationFrom", "newestPublicationUntil",
-        "newestPubTypes", "projectSubTypes",
-    ):
-        assert required in parameter_names
-
-    today = datetime.now(ZURICH).date()
-    start = today - timedelta(days=30)
-    params = [
-        ("newestPublicationFrom", start.isoformat()),
-        ("newestPublicationUntil", today.isoformat()),
-        ("projectSubTypes", "construction"),
-        ("newestPubTypes", "tender"),
-    ]
-    payload = _get(session, SEARCH_PATH, params=params)
-    assert isinstance(payload, dict)
-    projects = payload.get("projects")
-    pagination = payload.get("pagination")
-    assert isinstance(projects, list) and projects
-    assert isinstance(pagination, dict)
-    first = projects[0]
-    assert isinstance(first, dict)
-
-    project_id = str(first.get("id") or "").strip()
-    publication_id = str(first.get("publicationId") or "").strip()
+    lot_page, lot_row, lot_pagination = _find_project_with_lots(session)
+    assert lot_row, "No construction tender with lots found within bounded 20-page / 365-day probe"
+    project_id = str(lot_row.get("id") or "")
+    publication_id = str(lot_row.get("publicationId") or "")
     assert project_id and publication_id
-    assert first.get("projectSubType") == "construction"
-    assert first.get("pubType") == "tender"
 
-    detail = _get(session, f"/publications/v1/project/{project_id}/publication-details/{publication_id}")
-    header = _get(session, f"/publications/v2/project/{project_id}/project-header")
-    history = _get(session, f"/publications/v1/publication/{publication_id}/past-publications")
+    lot_header = _get_json(session, f"/publications/v2/project/{project_id}/project-header")
+    lot_detail = _get_json(session, f"/publications/v1/project/{project_id}/publication-details/{publication_id}")
 
-    last_item = pagination.get("lastItem")
-    page2_summary = None
-    if last_item:
-        page2 = _get(session, SEARCH_PATH, params=params + [("lastItem", str(last_item))])
-        projects2 = page2.get("projects") if isinstance(page2, dict) else None
-        assert isinstance(projects2, list)
-        ids1 = {str(row.get("id")) for row in projects if isinstance(row, dict)}
-        ids2 = {str(row.get("id")) for row in projects2 if isinstance(row, dict)}
-        assert not (ids1 & ids2)
-        page2_summary = {
-            "count": len(projects2),
-            "pagination": page2.get("pagination"),
-            "overlap": sorted(ids1 & ids2),
-        }
+    human_url = f"https://www.simap.ch/en/project-detail/{project_id}"
+    human = session.get(human_url, timeout=45, allow_redirects=True)
+    human.raise_for_status()
+    assert "text/html" in (human.headers.get("content-type") or "").lower()
+    assert "/project-detail/" in human.url
+
+    negatives = _find_negative_latest(session)
+    assert any(negatives.values()), "No correction/revocation/abandonment construction examples found"
 
     evidence = {
-        "spec_bytes": len(spec.content),
-        "search_parameters": parameter_names,
-        "search_shape": _shape(payload),
-        "first_project": first,
-        "detail_shape": _shape(detail),
-        "detail_selected": _selected_scalars(detail),
-        "header_shape": _shape(header),
-        "header_selected": _selected_scalars(header),
-        "history_shape": _shape(history),
-        "history_selected": _selected_scalars(history),
-        "pagination": pagination,
-        "page2": page2_summary,
+        "lot_page": lot_page,
+        "lot_search": lot_row,
+        "lot_pagination": lot_pagination,
+        "lot_header": _interesting(lot_header),
+        "lot_detail": _interesting(lot_detail),
+        "human": {
+            "requested": human_url,
+            "final": human.url,
+            "status": human.status_code,
+            "content_type": human.headers.get("content-type"),
+            "bytes": len(human.content),
+        },
+        "negative_latest": negatives,
         "cookies": sorted(session.cookies.keys()),
     }
-    # Deliberate one-run forensic stop so pytest includes the live shape in CI
-    # logs. This assertion is temporary and MUST be removed after inspection.
-    raise AssertionError("SIMAP_EVIDENCE " + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:30000])
+    # One-run forensic stop: print bounded evidence into failure logs, then this
+    # entire live probe will be removed and replaced with deterministic tests.
+    raise AssertionError("SIMAP_TARGET_EVIDENCE " + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:45000])
