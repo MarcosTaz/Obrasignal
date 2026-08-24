@@ -48,14 +48,10 @@ SECOP_CONSTRUCTION_WHERE = (
     "tipo_de_contrato = 'Obra'"
 )
 
-# Some live open-work rows omit ``fecha_de_ultima_publicaci``. SoQL's
-# ``greatest`` ignores NULL values and gives us the latest available source
-# timestamp without losing those rows. The alias is returned with every page and
-# becomes the durable keyset cursor.
-SECOP_CURSOR_EXPRESSION = (
-    "greatest(fecha_de_ultima_publicaci, fecha_de_publicacion_del)"
-)
-
+# Business dates in the live dataset can both be NULL even for open works.
+# Socrata documents ``:updated_at`` and ``:id`` as datastore system fields for
+# detecting changes and stable row identity. They are therefore the technical
+# cursor; procurement publication dates remain business metadata only.
 SECOP_CONFIG = SocrataSourceConfig(
     source="CO_SECOP",
     country="COL",
@@ -67,14 +63,16 @@ SECOP_CONFIG = SocrataSourceConfig(
     page_size=1000,
     max_pages=50,
     # Open works can remain actionable well beyond one week. The first sync
-    # therefore scans 90 days; later runs use the durable cursor plus 24h overlap.
+    # therefore scans 90 days of datastore changes; later runs use cursor+24h overlap.
     initial_lookback_days=90,
     overlap_minutes=1440,
     app_token_env="SOCRATA_APP_TOKEN",
     market="GLOBAL",
     base_where=SECOP_CONSTRUCTION_WHERE,
-    cursor_expression=SECOP_CURSOR_EXPRESSION,
+    cursor_expression=":updated_at",
     cursor_alias="source_cursor_at",
+    cursor_id_expression=":id",
+    cursor_id_alias="source_cursor_id",
 )
 
 
@@ -116,7 +114,8 @@ def normalize_secop_process(row):
         return None
     publication = _text(row.get("fecha_de_publicacion_del"))
     last_publication = _text(row.get("fecha_de_ultima_publicaci"))
-    effective_update = _text(row.get("source_cursor_at")) or last_publication or publication
+    datastore_updated = _text(row.get("source_cursor_at"))
+    datastore_row_id = _text(row.get("source_cursor_id"))
     city = _text(row.get("ciudad_de_la_unidad_de")) or _text(row.get("ciudad_entidad"))
     department = _text(row.get("departamento_entidad"))
     place = " | ".join(x for x in (city, department, "Colombia") if x)
@@ -137,9 +136,10 @@ def normalize_secop_process(row):
         "deadline": _text(row.get("fecha_de_recepcion_de")),
         "publication_date": publication[:10] if publication else "",
         "published_at": publication or None,
-        "source_updated_at": effective_update or None,
-        "source_last_publication_at": last_publication or None,
+        "source_updated_at": datastore_updated or None,
+        "source_business_last_publication_at": last_publication or None,
         "source_initial_publication_at": publication or None,
+        "source_row_id": datastore_row_id or None,
         "url": _public_process_url(row.get("urlproceso")),
         "source_url_raw": raw_url or None,
         "market": "GLOBAL",
