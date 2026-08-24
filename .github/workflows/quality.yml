@@ -19,66 +19,49 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP PNCP PCA known-plan Works control
+      - name: TEMP PNCP integration OpenAPI PCA introspection
         run: |
           python - <<'PY'
-          import requests, time
+          import requests
 
-          BASE="https://pncp.gov.br/api/pncp/v1/orgaos"
-          S=requests.Session(); S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA known-plan Works control/1.7"})
-          plans=[
-              ("10651417000178",2026,1,"IF Goiano"),
-              ("00394429000100",2026,1,"Comando Aeronautica"),
-              ("10792928000100",2026,1,"IF Amazonas"),
+          S=requests.Session()
+          S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP integration contract probe/1.8"})
+          candidates=[
+              "https://pncp.gov.br/api/pncp/v3/api-docs",
+              "https://pncp.gov.br/api/pncp/v3/api-docs/swagger-config",
+              "https://pncp.gov.br/pncp-api/v3/api-docs",
           ]
-          target_ids={3,4,8}
-          found=[]
-
-          def request(url,params=None,timeout=20):
-              t0=time.monotonic()
+          specs=[]
+          for url in candidates:
               try:
-                  r=S.get(url,params=params,timeout=timeout)
-                  sec=time.monotonic()-t0
-                  raw=r.content or b""
-                  print(f"PCA_CONTROL_HTTP={url}|PARAMS={params!r}|HTTP={r.status_code}|SEC={sec:.3f}|BYTES={len(raw)}")
-                  if r.status_code!=200 or not raw:
-                      print("PCA_CONTROL_BODY="+repr((r.text or "")[:220])); return None
-                  return r.json()
+                  r=S.get(url,timeout=20)
+                  print(f"PNCP_INTROSPECT={url}|HTTP={r.status_code}|CTYPE={r.headers.get('content-type')!r}|BYTES={len(r.content or b'')}|BODY={(r.text or '')[:180]!r}")
+                  if r.status_code==200 and r.content:
+                      try:
+                          p=r.json()
+                          if isinstance(p,dict): specs.append((url,p))
+                      except Exception as exc:
+                          print(f"PNCP_INTROSPECT_JSON_ERROR={url}|{type(exc).__name__}:{exc}")
               except Exception as exc:
-                  print(f"PCA_CONTROL_EXCEPTION={url}|{type(exc).__name__}:{exc}"); return None
+                  print(f"PNCP_INTROSPECT_EXCEPTION={url}|{type(exc).__name__}:{exc}")
 
-          for cnpj,year,seq,label in plans:
-              root=f"{BASE}/{cnpj}/pca/{year}/{seq}"
-              agg=request(root+"/valorcategoriaitem")
-              print(f"PCA_CATEGORY_AGG={label}|{agg!r}")
-              rows=agg if isinstance(agg,list) else (agg.get("data") if isinstance(agg,dict) and isinstance(agg.get("data"),list) else [])
-              present=[]
-              for row in rows:
-                  if not isinstance(row,dict): continue
-                  cid=row.get("categoriaItemId")
-                  if str(cid).isdigit() and int(cid) in target_ids:
-                      present.append((int(cid),row.get("categoriaItemNome"),row.get("quantidadeItens"),row.get("valorTotal")))
-              print(f"PCA_WORK_CATEGORIES_PRESENT={label}|{present!r}")
-              for cid,cname,qty,total in present:
-                  items=request(root+"/itens",{"categoria":cid,"pagina":1,"tamanhoPagina":10})
-                  its=items if isinstance(items,list) else (items.get("data") if isinstance(items,dict) and isinstance(items.get("data"),list) else [])
-                  print(f"PCA_WORK_ITEMS={label}|CATEGORY={cid}:{cname}|ROWS={len(its)}")
-                  for it in its[:3]:
-                      if not isinstance(it,dict): continue
-                      sample={k:it.get(k) for k in (
-                          "cnpj","codigoUnidade","nomeUnidade","anoPca","sequencialPca","numeroItem",
-                          "categoriaItemPcaId","categoriaItemPcaNome","classificacaoSuperiorCodigo","classificacaoSuperiorNome",
-                          "codigoItem","descricaoItem","quantidade","valorUnitario","valorTotal","valorOrcamentoExercicio",
-                          "dataDesejada","unidadeRequisitante","grupoContratacaoCodigo","grupoContratacaoNome",
-                          "dataPublicacaoPncp","dataInclusao","dataAtualizacao"
-                      ) if k in it}
-                      print(f"PCA_WORK_CONTROL_ITEM={label}|{sample!r}")
-                      found.append((label,cid,cname,sample))
-              if found: break
-
-          print(f"PCA_WORK_CONTROL_FOUND={len(found)}")
-          if not found:
-              raise SystemExit("Known public PCA controls did not expose a Works-category item")
+          seen=set(); count=0
+          for url,spec in specs:
+              for path,methods in sorted((spec.get("paths") or {}).items()):
+                  if "/pca" not in path.lower(): continue
+                  for method,op in (methods or {}).items():
+                      if method.lower()!="get" or not isinstance(op,dict): continue
+                      key=(path,method)
+                      if key in seen: continue
+                      seen.add(key); count+=1
+                      params=[]
+                      for p in op.get("parameters",[]):
+                          if not isinstance(p,dict): continue
+                          schema=p.get("schema") or {}
+                          params.append({"name":p.get("name"),"in":p.get("in"),"required":p.get("required",False),"type":schema.get("type"),"minimum":schema.get("minimum"),"maximum":schema.get("maximum")})
+                      security=op.get("security")
+                      print(f"PNCP_PCA_INTEGRATION_GET={path}|SUMMARY={op.get('summary') or op.get('operationId')!r}|SECURITY={security!r}|PARAMS={params!r}")
+          print(f"PNCP_PCA_INTEGRATION_GET_COUNT={count}")
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
