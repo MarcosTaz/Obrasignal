@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-import json
 
 import pytest
 
@@ -76,6 +75,36 @@ def test_incremental_fetch_uses_keyset_pagination_not_offset():
     assert "updated_at = '2026-08-23T10:00:00.000' AND id > 'B'" in session.calls[1]["params"]["$where"]
     decoded = SocrataCursor.decode(cursor)
     assert decoded == SocrataCursor("2026-08-23T11:00:00.000", "C")
+
+
+def test_effective_cursor_expression_is_used_for_select_where_order_and_cursor():
+    expression = "greatest(updated_at, published_at)"
+    session = FakeSession([[
+        {
+            "id": "A",
+            "updated_at": None,
+            "published_at": "2026-08-23T09:00:00.000",
+            "effective_at": "2026-08-23T09:00:00.000",
+            "title": "one",
+        }
+    ]])
+    adapter = SocrataProcurementAdapter(
+        _config(
+            page_size=10,
+            selected_fields=("id", "updated_at", "published_at", "title"),
+            cursor_expression=expression,
+            cursor_alias="effective_at",
+        ),
+        session=session,
+    )
+    rows, cursor = adapter.fetch_raw_incremental(now=datetime(2026, 8, 24, tzinfo=timezone.utc))
+
+    params = session.calls[0]["params"]
+    assert f"{expression} AS effective_at" in params["$select"]
+    assert f"{expression} >= '2026-08-22T00:00:00.000'" in params["$where"]
+    assert params["$order"] == f"{expression} ASC, id ASC"
+    assert rows[0]["updated_at"] is None
+    assert SocrataCursor.decode(cursor) == SocrataCursor("2026-08-23T09:00:00.000", "A")
 
 
 def test_existing_watermark_is_replayed_with_overlap():
