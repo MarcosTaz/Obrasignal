@@ -13,7 +13,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
+          python - <<'PY' | tee canadabuys-probe.txt
           import csv, io, urllib.request, xml.etree.ElementTree as ET
 
           urls = {
@@ -51,7 +51,6 @@ jobs:
                       print('xml-prefix=', text[:1200].replace('\n',' '))
                       root = ET.fromstring(text)
                       print('xml-root=', root.tag)
-                      # Print only elements/attrs containing target semantic keywords.
                       keys=('solicitation','reference','procurementcategory','closing','status','organization','region','location','value','currency','publication','amend')
                       seen=0
                       for elem in root.iter():
@@ -62,3 +61,9 @@ jobs:
                               if seen >= 120:
                                   break
           PY
+      - name: Upload probe result
+        uses: actions/upload-artifact@v4
+        with:
+          name: canadabuys-probe
+          path: canadabuys-probe.txt
+          retention-days: 1
