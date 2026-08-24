@@ -80,12 +80,21 @@ def _hydrate_evidence(session, row):
     assert project_id and publication_id
     header = _get_json(session, f"/publications/v2/project/{project_id}/project-header")
     detail = _get_json(session, f"/publications/v1/project/{project_id}/publication-details/{publication_id}")
-    history = _get_json(session, f"/publications/v1/publication/{publication_id}/past-publications")
+    history = None
+    history_error = None
+    response = session.get(
+        f"{BASE}/publications/v1/publication/{publication_id}/past-publications", timeout=45
+    )
+    if response.status_code < 400:
+        history = response.json()
+    else:
+        history_error = {"status": response.status_code, "body": response.text[:500]}
     return {
         "search": row,
         "header": _interesting(header),
         "detail": _interesting(detail),
-        "history": _interesting(history),
+        "history": _interesting(history) if history is not None else None,
+        "history_error": history_error,
     }
 
 
