@@ -23,12 +23,12 @@ def test_official_dncp_v3_search_then_record_hydration_live():
     )
     search.raise_for_status()
     payload = search.json()
-    records = payload.get("records") if isinstance(payload, dict) else None
-    assert isinstance(records, list), payload
-    assert records, "official DNCP works search returned no records"
+    candidates = payload.get("records") if isinstance(payload, dict) else None
+    assert isinstance(candidates, list), payload
+    assert candidates, "official DNCP works search returned no records"
 
     hydrated = []
-    for candidate in records[:3]:
+    for candidate in candidates[:3]:
         ocid = candidate.get("ocid")
         assert ocid, candidate
         time.sleep(0.35)
@@ -37,9 +37,12 @@ def test_official_dncp_v3_search_then_record_hydration_live():
             timeout=30,
         )
         response.raise_for_status()
-        record = response.json()
-        assert isinstance(record, dict), type(record)
-        hydrated.append(record)
+        package = response.json()
+        assert isinstance(package, dict), type(package)
+        records = package.get("records")
+        assert isinstance(records, list) and records, package.keys()
+        matching = [record for record in records if record.get("ocid") == ocid]
+        hydrated.append(matching[0] if matching else records[0])
 
     statuses = [
         ((record.get("compiledRelease") or {}).get("tender") or {}).get("status")
