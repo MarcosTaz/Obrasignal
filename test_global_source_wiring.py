@@ -7,12 +7,14 @@ class FakeConn:
         pass
 
 
-def test_ready_global_source_still_requires_explicit_request(monkeypatch):
+def test_ready_global_sources_still_require_explicit_request(monkeypatch):
     monkeypatch.delenv('OBRASIGNAL_GLOBAL_SOURCES', raising=False)
     assert preload._global_source_enabled('CO_SECOP') is False
+    assert preload._global_source_enabled('PY_DNCP') is False
 
-    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP')
+    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'CO_SECOP,PY_DNCP')
     assert preload._global_source_enabled('CO_SECOP') is True
+    assert preload._global_source_enabled('PY_DNCP') is True
 
 
 def test_explicit_request_cannot_bypass_a_failing_production_gate(monkeypatch):
@@ -40,6 +42,53 @@ def test_secop_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
     assert staged[0].source == 'CO_SECOP'
     assert staged[0].cursor == 'new-cursor'
     discard_staged_source_syncs()
+
+
+def test_dncp_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
+    discard_staged_source_syncs()
+    monkeypatch.setattr(preload._app, 'db', lambda: FakeConn())
+    monkeypatch.setattr(preload, 'get_source_cursor', lambda conn, source: 'py-old')
+    record = {'source': 'PY_DNCP', 'external_id': 'ocds-03ad3f-500001-1', 'taxonomy': 'DNCP'}
+
+    def fake_fetch(*, watermark=None):
+        assert watermark == 'py-old'
+        return [record], 'py-new'
+
+    monkeypatch.setattr(preload._paraguay_dncp, 'fetch_dncp_processes', fake_fetch)
+    rows = preload._fetch_dncp_staged()
+
+    assert rows == [record]
+    staged = staged_source_syncs()
+    assert len(staged) == 1
+    assert staged[0].source == 'PY_DNCP'
+    assert staged[0].cursor == 'py-new'
+    discard_staged_source_syncs()
+
+
+def test_empty_incremental_dncp_window_is_healthy_not_source_failure(monkeypatch):
+    events = []
+    monkeypatch.setenv('BASE_ACCESS_TOKEN', 'configured')
+    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'PY_DNCP')
+    monkeypatch.setattr(preload._app, 'db', lambda: FakeConn())
+    monkeypatch.setattr(preload, '_original_fetch_base', lambda: [{'source': 'BASE', 'external_id': 'base-1'}])
+    monkeypatch.setattr(preload._national_sources, 'fetch_boamp', lambda: [{'source': 'BOAMP', 'external_id': 'boamp-1'}])
+    monkeypatch.setattr(preload._national_sources, 'fetch_placsp', lambda: [{'source': 'PLACSP', 'external_id': 'placsp-1'}])
+    monkeypatch.setattr(preload._national_sources, 'LUXEMBOURG_RSS_URL', '')
+    monkeypatch.setattr(preload, '_fetch_dncp_staged', lambda: [])
+    monkeypatch.setattr(preload, 'dedupe_records', lambda rows: rows)
+    monkeypatch.setattr(
+        preload,
+        'record_source_result',
+        lambda conn, source, **kwargs: events.append((source, kwargs)),
+    )
+
+    rows = preload.fetch_base_with_national_sources()
+
+    assert len(rows) == 3
+    dncp = [payload for source, payload in events if source == 'PY_DNCP']
+    assert len(dncp) == 1
+    assert dncp[0]['success'] is True
+    assert dncp[0]['found'] == 0
 
 
 def test_sync_failure_discards_staged_global_cursor(monkeypatch):
