@@ -8,10 +8,10 @@ from korea_koneps import KONEPSConstructionConnector, KONEPSCursor
 NOW = datetime(2026, 8, 24, 12, 0, tzinfo=timezone.utc)
 
 
-def _page(items=None, *, page_no=1, num_rows=100, total_count=0):
+def _page(items=None, *, page_no=1, num_rows=100, total_count=0, code="00", message="NORMAL SERVICE"):
     return {
         "response": {
-            "header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE"},
+            "header": {"resultCode": code, "resultMsg": message},
             "body": {
                 "items": [] if items is None else items,
                 "numOfRows": num_rows,
@@ -19,6 +19,25 @@ def _page(items=None, *, page_no=1, num_rows=100, total_count=0):
                 "totalCount": total_count,
             },
         }
+    }
+
+
+def _item(*, changed="2026-08-24 20:55:00"):
+    return {
+        "bidNtceNo": "R26BK01234567",
+        "bidNtceOrd": "000",
+        "ntceKindNm": "등록공고",
+        "chgDt": changed,
+        "rgstDt": "2026-08-24 20:50:00",
+        "bidNtceDt": "2026-08-24 20:50:00",
+        "bidNtceNm": "공공시설 보수",
+        "bidClseDt": "2026-09-01 10:00:00",
+        "ntceInsttNm": "서울특별시",
+        "dminsttNm": "서울특별시 시설관리본부",
+        "cnstrtsiteRgnNm": "서울특별시",
+        "presmptPrce": "2500000000",
+        "mainCnsttyNm": "시설물유지관리공사",
+        "bidNtceDtlUrl": "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01234567&bidPbancOrd=000",
     }
 
 
@@ -97,6 +116,33 @@ def test_network_exception_cannot_leak_service_key_from_request_message():
 
     assert secret not in str(exc.value)
     assert "serviceKey=" not in str(exc.value)
+
+
+def test_api_error_message_cannot_echo_service_key():
+    secret = "publisher-echo-secret"
+    payload = _page(
+        code="30",
+        message=f"SERVICE KEY {secret} IS NOT REGISTERED",
+    )
+    session = _RecordingSession(response=_Response(payload))
+    connector = KONEPSConstructionConnector(service_key=secret, session=session)
+
+    with pytest.raises(RuntimeError, match="resultCode='30'") as exc:
+        connector.fetch_incremental(now=NOW)
+
+    assert secret not in str(exc.value)
+    assert "SERVICE KEY" not in str(exc.value)
+
+
+def test_change_query_requires_publisher_chgdt_even_when_registration_dates_exist():
+    item = _item(changed="")
+    session = _RecordingSession(
+        response=_Response(_page([item], total_count=1))
+    )
+    connector = KONEPSConstructionConnector(service_key="key", session=session)
+
+    with pytest.raises(RuntimeError, match="chgDt"):
+        connector.fetch_incremental(now=NOW)
 
 
 def test_partial_catchup_queries_exact_bounded_change_time_window():
