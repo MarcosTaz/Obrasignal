@@ -19,35 +19,47 @@ jobs:
       - name: TEMP freeze PNCP PCA search ordering contract
         run: |
           python - <<'PY'
-          import re, requests
-          BASE="https://pncp.gov.br/app/"
-          PAGE=BASE+"pca"
-          S=requests.Session(); S.headers.update({"User-Agent":"Mozilla/5.0 ObraSignal source audit","Referer":PAGE})
-          html=S.get(PAGE,timeout=25).text
-          scripts=[BASE+x.split('/')[-1] for x in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']',html,flags=re.I)]
-          runtime_url=next(x for x in scripts if '/runtime.' in x)
-          runtime=S.get(runtime_url,timeout=25).text
-          target="default-src_app_pages_pcaPage_planejamento_module_ts"
-          h=re.search(re.escape(target)+r'["\']?\s*:\s*["\']([a-f0-9]{8,40})["\']',runtime); assert h
-          chunk=S.get(BASE+f"{target}.{h.group(1)}.js",timeout=25).text
-          print(f"CHUNK_BYTES={len(chunk)}")
-          contexts=[]
-          for needle in ("ordenacao","data_atualizacao_pncp","Mais recentes","mais recentes","recentes","relevancia"):
+          import re, time, requests
+
+          CHUNK="https://pncp.gov.br/app/default-src_app_pages_pcaPage_planejamento_module_ts.5f0d34fff9039ddc.js"
+          SEARCH="https://pncp.gov.br/api/search/"
+          S=requests.Session()
+          S.headers.update({
+              "User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+              "Referer":"https://pncp.gov.br/app/pca",
+              "Accept":"application/json, text/plain, */*",
+          })
+
+          def get(url, *, params=None, tries=4):
+              last=None
+              for n in range(tries):
+                  try:
+                      r=S.get(url,params=params,timeout=25)
+                      if r.status_code in (429,500,502,503,504):
+                          last=f"HTTP {r.status_code}"; time.sleep(n+1); continue
+                      return r
+                  except Exception as exc:
+                      last=exc; time.sleep(n+1)
+              raise RuntimeError(f"bounded fetch failed: {last!r}")
+
+          cr=get(CHUNK)
+          print(f"CHUNK_HTTP={cr.status_code}|BYTES={len(cr.content)}")
+          cr.raise_for_status(); chunk=cr.text
+          for needle in ("ordenacao","data_atualizacao_pncp","recentes","relevancia"):
+              shown=0
               for m in re.finditer(re.escape(needle),chunk,flags=re.I):
-                  a=max(0,m.start()-700); b=min(len(chunk),m.end()+900)
+                  a=max(0,m.start()-800); b=min(len(chunk),m.end()+1100)
                   ctx=re.sub(r'\s+',' ',chunk[a:b])
-                  if ctx not in contexts:
-                      contexts.append(ctx)
-                      print(f"ORDER_CONTEXT_{needle}="+repr(ctx[:1700]))
-          # Extract compact literal candidates related to ordering.
+                  print(f"ORDER_CONTEXT_{needle}="+repr(ctx[:1950]))
+                  shown+=1
+                  if shown>=8: break
           vals=set()
-          for raw in re.findall(r'["\']([^"\']{1,120})["\']',chunk):
+          for raw in re.findall(r'["\']([^"\']{1,140})["\']',chunk):
               low=raw.lower()
               if any(x in low for x in ("ordena","atualizacao","recente","relev")):
                   vals.add(raw)
-          print("ORDER_LITERALS="+repr(sorted(vals)[:200]))
+          print("ORDER_LITERALS="+repr(sorted(vals)[:250]))
 
-          URL="https://pncp.gov.br/api/search/"
           variants=[
               {},
               {"ordenacao":"data_atualizacao_pncp"},
@@ -57,14 +69,18 @@ jobs:
           ]
           for extra in variants:
               params={"q":"","tipos_documento":"pcaorgao","pagina":1,"tam_pagina":5,**extra}
-              r=S.get(URL,params=params,timeout=25,headers={"Accept":"application/json"})
+              try:r=get(SEARCH,params=params)
+              except Exception as exc:
+                  print(f"ORDER_PROBE_ERROR={extra!r}|{type(exc).__name__}:{exc}"); continue
               print(f"ORDER_PROBE={extra!r}|HTTP={r.status_code}|BYTES={len(r.content)}")
               if r.status_code!=200: continue
               try:data=r.json()
-              except Exception: continue
+              except Exception:
+                  print("ORDER_NON_JSON="+repr((r.text or "")[:300])); continue
               rows=data.get("items",[]) if isinstance(data,dict) else []
               print("ORDER_UPDATES="+repr([x.get("data_atualizacao_pncp") for x in rows]))
               print("ORDER_YEARS="+repr([x.get("ano") for x in rows]))
+              print("ORDER_IDS="+repr([x.get("id") for x in rows]))
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
