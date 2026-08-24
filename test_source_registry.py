@@ -35,7 +35,7 @@ def test_wave_1_keeps_canonical_count_without_faking_planned_machine_gates():
     assert all(meta["official"] for meta in wave_1.values())
     assert all(meta["legal_reuse"] == "GREEN" for meta in wave_1.values())
     assert {meta["status"] for meta in wave_1.values()} <= {"planned", "ready"}
-    assert len(ready) == 13
+    assert len(ready) == 14
     assert all(meta["machine_access"] == "VERIFIED" for meta in ready.values())
 
 
@@ -54,6 +54,7 @@ def test_live_validated_wave_1_sources_pass_registry_gate():
         "AT_KERNDATEN",
         "LT_VPT",
         "NL_TENDERNED",
+        "IT_ANAC",
     ):
         assert SOURCES[source]["status"] == "ready"
         assert production_gate_reasons(source) == ()
@@ -243,6 +244,29 @@ def test_germany_registry_declares_only_proven_daily_works_lifecycle_contract():
     assert "SERVICE_BUND_DE" in production_ready_sources()
 
 
+def test_italy_registry_declares_only_proven_pvl_works_tender_contract():
+    source = SOURCES["IT_ANAC"]
+    assert source["source_id"] == "it_anac_bdncp_pvl"
+    assert source["kind"] == "OFFICIAL_PUBLIC_LEGAL_NOTICE_API"
+    assert source["access"] == "public_json_day_window"
+    assert source["status"] == "ready"
+    assert source["legal_reuse"] == "GREEN"
+    assert source["machine_access"] == "VERIFIED"
+    assert source["adapter"] == "ANACPVLConnector"
+    assert source["signal_types"] == ("TENDER",)
+    assert set(source["capabilities"]) == {"incremental_sync", "lots", "lifecycle"}
+    assert source["realtime_capable"] is True
+    assert source["expected_refresh_minutes"] == 60
+    assert source["stale_after_minutes"] == 180
+    assert "search" not in source["capabilities"]
+    assert "awards" not in source["capabilities"]
+    assert "contracts" not in source["capabilities"]
+    assert "suppliers" not in source["capabilities"]
+    assert "historical_data" not in source["capabilities"]
+    assert production_gate_reasons("IT_ANAC") == ()
+    assert "IT_ANAC" in production_ready_sources()
+
+
 def test_korea_planned_registry_records_real_credential_block_without_fake_capabilities():
     source = SOURCES["KR_KONEPS"]
     assert source["kind"] == "OFFICIAL_CONSTRUCTION_BID_NOTICE_API"
@@ -277,4 +301,5 @@ def test_registered_source_freshness_is_source_specific():
     assert stale_after_minutes_for("EE_RHR") == 4320
     assert stale_after_minutes_for("LT_VPT") == 4320
     assert stale_after_minutes_for("SERVICE_BUND_DE") == 4320
+    assert stale_after_minutes_for("IT_ANAC") == 180
     assert stale_after_minutes_for("UNKNOWN_SOURCE", default=17) == 17
