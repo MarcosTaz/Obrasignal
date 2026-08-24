@@ -99,8 +99,11 @@ def _global_api_cors(response):
 
 
 # Gunicorn imports this module before it starts accepting requests. Complete all
-# idempotent schema work first, then allow the ingestion worker to run.
+# idempotent schema work and install additive global-source runtime plugins before
+# allowing the ingestion worker to run.
 from app import init_db, start_background_worker
+from latvia_runtime import install as install_latvia_runtime
 
 init_db()
+install_latvia_runtime()
 start_background_worker()
