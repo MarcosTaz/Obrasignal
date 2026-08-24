@@ -127,6 +127,7 @@ from lithuania_runtime import install as install_lithuania_runtime
 from netherlands_runtime import install as install_netherlands_runtime
 from germany_runtime import install as install_germany_runtime
 from italy_runtime import install as install_italy_runtime
+from brazil_runtime import install as install_brazil_runtime
 import preload as _preload
 
 init_db()
@@ -148,4 +149,5 @@ install_lithuania_runtime()
 install_netherlands_runtime()
 install_germany_runtime()
 install_italy_runtime()
+install_brazil_runtime()
 start_background_worker()
