@@ -19,6 +19,27 @@ def test_bzp_ready_still_requires_explicit_runtime_opt_in(monkeypatch):
     assert poland_runtime._preload._global_source_enabled("PL_BZP") is True
 
 
+def test_runtime_fetch_caps_page_size_to_live_proven_250(monkeypatch):
+    built = []
+    forwarded = []
+    marker = object()
+
+    def fake_build(**kwargs):
+        built.append(kwargs)
+        return marker
+
+    def fake_fetch(*, watermark=None, connector=None):
+        forwarded.append((watermark, connector))
+        return [], "pl-new"
+
+    monkeypatch.setattr(poland_runtime, "build_poland_bzp_connector", fake_build)
+    monkeypatch.setattr(poland_runtime, "_fetch_poland_bzp_tenders", fake_fetch)
+
+    assert poland_runtime.fetch_poland_bzp_tenders(watermark="pl-old") == ([], "pl-new")
+    assert built == [{"max_page_size": 250}]
+    assert forwarded == [("pl-old", marker)]
+
+
 def test_bzp_runtime_stages_lifecycle_but_emits_only_live_rows(monkeypatch):
     staged = []
     health = []
