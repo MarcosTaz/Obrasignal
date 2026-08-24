@@ -107,18 +107,36 @@ def test_incremental_fetch_completes_pages_and_date_windows_before_advancing_cur
     assert OCDSWindowCursor.decode(cursor) == OCDSWindowCursor("2026-08-24")
 
 
-def test_existing_cursor_replays_overlap_window():
+def test_existing_cursor_replays_exact_configured_overlap_days():
     session = FakeSession([
         {"records": [], "pagination": {"total_pages": 0}},
-        {"records": [], "pagination": {"total_pages": 0}},
     ])
-    connector = OCDSAPIConnector(_config(), params_factory=_params, session=session)
+    connector = OCDSAPIConnector(_config(max_windows_per_sync=1), params_factory=_params, session=session)
     connector.fetch_incremental(
         lambda record: record,
         watermark=OCDSWindowCursor("2026-08-24").encode(),
         now=datetime(2026, 8, 24, tzinfo=timezone.utc),
     )
-    assert session.calls[0]["params"]["from"] == "2026-08-23"
+    # overlap_days=1 means reprocess the one most recently completed day.
+    assert session.calls[0]["params"]["from"] == "2026-08-24"
+
+
+def test_zero_overlap_starts_on_first_unseen_day_and_cannot_stall_cursor():
+    session = FakeSession([
+        {"records": [], "pagination": {"total_pages": 0}},
+    ])
+    connector = OCDSAPIConnector(
+        _config(overlap_days=0, max_windows_per_sync=1),
+        params_factory=_params,
+        session=session,
+    )
+    _, cursor = connector.fetch_incremental(
+        lambda record: record,
+        watermark=OCDSWindowCursor("2026-08-23").encode(),
+        now=datetime(2026, 8, 24, tzinfo=timezone.utc),
+    )
+    assert session.calls[0]["params"]["from"] == "2026-08-24"
+    assert OCDSWindowCursor.decode(cursor) == OCDSWindowCursor("2026-08-24")
 
 
 def test_total_pages_above_safety_limit_fails_without_returning_cursor():

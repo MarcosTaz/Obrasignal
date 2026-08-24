@@ -8,6 +8,7 @@ import national_sources as _national_sources
 import colombia_secop as _colombia_secop
 import paraguay_dncp as _paraguay_dncp
 import uruguay_arce as _uruguay_arce
+import south_africa_etenders as _south_africa_etenders
 from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
 from source_health import get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
@@ -117,6 +118,17 @@ def _fetch_arce_staged():
     return records
 
 
+def _fetch_za_staged():
+    conn = _app.db()
+    try:
+        watermark = get_source_cursor(conn, "ZA_ETENDERS")
+    finally:
+        conn.close()
+    records, cursor = _south_africa_etenders.fetch_za_tenders(watermark=watermark)
+    stage_source_sync("ZA_ETENDERS", records, cursor)
+    return records
+
+
 def _ted_since_date():
     conn = _app.db()
     try:
@@ -223,6 +235,11 @@ def fetch_base_with_national_sources():
         connectors.append(("UY_ARCE", _fetch_arce_staged, True))
     else:
         _record_blocked_global_source("UY_ARCE")
+
+    if _global_source_enabled("ZA_ETENDERS"):
+        connectors.append(("ZA_ETENDERS", _fetch_za_staged, True))
+    else:
+        _record_blocked_global_source("ZA_ETENDERS")
 
     for source, fetcher, empty_ok in connectors:
         started = time.perf_counter()
