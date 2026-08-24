@@ -77,18 +77,22 @@ def test_opaque_next_cursor_is_used_only_inside_window_and_watermark_is_temporal
     assert "abc123" not in cursor
 
 
-def test_subdaily_watermark_replays_only_configured_overlap_minutes():
-    session = FakeSession([FakeResponse({"releases": []})])
+def test_subdaily_watermark_replays_only_configured_overlap_minutes_and_finishes_to_now():
+    session = FakeSession([FakeResponse({"releases": []}), FakeResponse({"releases": []})])
     adapter = OCDSOpaqueCursorAdapter(_config(window_minutes=15, overlap_minutes=5), params_factory=_params, normalizer=_normalizer, session=session)
     watermark = OCDSOpaqueWindowCursor("2026-08-24T10:30:00Z").encode()
     now = datetime(2026, 8, 24, 10, 45, tzinfo=timezone.utc)
 
     _, cursor = adapter.fetch_incremental(watermark=watermark, now=now)
 
-    params = session.calls[0][1]
-    assert params["updatedFrom"].startswith("2026-08-24T10:25:00")
-    assert params["updatedTo"].startswith("2026-08-24T10:40:00")
-    assert OCDSOpaqueWindowCursor.decode(cursor).completed_through == "2026-08-24T10:40:00Z"
+    assert len(session.calls) == 2
+    first = session.calls[0][1]
+    second = session.calls[1][1]
+    assert first["updatedFrom"].startswith("2026-08-24T10:25:00")
+    assert first["updatedTo"].startswith("2026-08-24T10:40:00")
+    assert second["updatedFrom"].startswith("2026-08-24T10:40:00")
+    assert second["updatedTo"].startswith("2026-08-24T10:45:00")
+    assert OCDSOpaqueWindowCursor.decode(cursor).completed_through == "2026-08-24T10:45:00Z"
 
 
 def test_repeated_cursor_is_rejected_without_completing_window():
