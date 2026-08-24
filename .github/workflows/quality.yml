@@ -19,6 +19,75 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
+      - name: TEMP Korea KONEPS secret and live probe
+        env:
+          KONEPS_SERVICE_KEY: ${{ secrets.KONEPS_SERVICE_KEY }}
+          DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime, timedelta, time, timezone
+          from korea_koneps import KONEPSConstructionConnector, SEOUL, _item_event, _source_dt
+
+          key = os.getenv("KONEPS_SERVICE_KEY") or os.getenv("DATA_GO_KR_SERVICE_KEY") or ""
+          print("KONEPS_SECRET_PRESENT=" + ("yes" if key else "no"))
+          if not key:
+              raise SystemExit(0)
+
+          connector = KONEPSConstructionConnector(
+              service_key=key,
+              page_size=100,
+              max_pages=50,
+              max_items=5000,
+              timeout=45,
+          )
+          now = datetime.now(timezone.utc)
+          local_now = now.astimezone(SEOUL)
+          day = local_now.date() if local_now.hour >= 18 else local_now.date() - timedelta(days=1)
+          while day.weekday() >= 5:
+              day -= timedelta(days=1)
+
+          tested = 0
+          found = False
+          for _ in range(5):
+              while day.weekday() >= 5:
+                  day -= timedelta(days=1)
+              for start_hour in (9, 12, 15):
+                  start_local = datetime.combine(day, time(start_hour, 0), tzinfo=SEOUL)
+                  end_local = datetime.combine(day, time(min(start_hour + 3, 18), 0), tzinfo=SEOUL)
+                  rows = connector._fetch_window(
+                      start_local.astimezone(timezone.utc),
+                      end_local.astimezone(timezone.utc),
+                  )
+                  tested += 1
+                  if not rows:
+                      continue
+                  events = [_item_event(row) for row in rows]
+                  actionable = [
+                      event for event in events
+                      if not event.get("is_cancelled")
+                      and _source_dt(event.get("deadline")) is not None
+                      and _source_dt(event.get("deadline")) > now
+                  ]
+                  kinds = sorted({event.get("notice_kind") for event in events if event.get("notice_kind")})
+                  print("KONEPS_LIVE_API_OK=yes")
+                  print(f"KONEPS_WINDOW={start_local.isoformat()}..{end_local.isoformat()}")
+                  print(f"KONEPS_ITEMS={len(rows)}")
+                  print(f"KONEPS_VALID_EVENTS={len(events)}")
+                  print(f"KONEPS_ACTIONABLE={len(actionable)}")
+                  print("KONEPS_NOTICE_KINDS=" + ",".join(kinds))
+                  print(f"KONEPS_WINDOWS_TESTED={tested}")
+                  found = True
+                  break
+              if found:
+                  break
+              day -= timedelta(days=1)
+
+          if not found:
+              print("KONEPS_LIVE_API_OK=yes")
+              print("KONEPS_ITEMS=0")
+              print(f"KONEPS_WINDOWS_TESTED={tested}")
+          PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
       - name: Run repository tests
