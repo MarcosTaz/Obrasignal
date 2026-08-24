@@ -180,7 +180,7 @@ def test_connector_uses_subdaily_updated_range_without_unproven_stages_filter_an
     record_package = {"records": [_record()]}
     session = FakeSession([FakeResponse(release_package), FakeResponse(record_package)])
     connector = UKFindTenderConnector(session=session)
-    # Replace long bootstrap with one deterministic 15-minute window.
+    # Replace long bootstrap with one deterministic 15-minute UTC window.
     connector.transport.config = type(connector.transport.config)(
         **{
             **connector.transport.config.__dict__,
@@ -196,8 +196,10 @@ def test_connector_uses_subdaily_updated_range_without_unproven_stages_filter_an
     assert len(rows) == 2
     assert len(session.calls) == 2
     search_params = session.calls[0]["params"]
-    assert search_params["updatedFrom"] == "2026-08-24T10:45:00"
-    assert search_params["updatedTo"] == "2026-08-24T11:00:00"
+    # FTS interprets updatedFrom/updatedTo on the Europe/London clock. Internal
+    # cursor state remains UTC; only the API boundary is converted to London time.
+    assert search_params["updatedFrom"] == "2026-08-24T11:45:00+01:00"
+    assert search_params["updatedTo"] == "2026-08-24T12:00:00+01:00"
     assert "stages" not in search_params
     assert session.calls[1]["url"].endswith("/ocdsRecordPackages/ocds-h6vhtk-06ea4b")
     assert OCDSOpaqueWindowCursor.decode(cursor).completed_through == "2026-08-24T11:00:00Z"
