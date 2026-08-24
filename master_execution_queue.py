@@ -39,6 +39,9 @@ CURRENT_ITEM_ID = "Q040_CANADA_BUYS"
 MASTER_EXECUTION_QUEUE = (
     _q("Q000_SCOPE_REBASE", "International market-scope rebase", "STRATEGY", "DONE", "PRODUCTION",
        reason="Active coverage fixed at 45 markets; bespoke development is BUILD-only."),
+    _q("Q005_MODULAR_ARCHITECTURE_GUARDRAILS", "Modular monolith and replaceable-capability architecture guardrails", "ARCHITECTURE", "DONE", "PRODUCTION",
+       ("Q000_SCOPE_REBASE",),
+       "Adopt small stable Core, contract-first replaceable capabilities, canonical data/events, capability registry, feature flags, failure isolation, contextual UX and architecture fitness tests without premature microservices. This is a cross-cutting rule, not a parallel roadmap; Q040 remains active."),
     _q("Q010_BR_PNCP_DISCOVERY", "Brazil PNCP national PCA discovery contract", "SIGNAL", "DONE", "RESEARCH",
        ("Q000_SCOPE_REBASE",),
        "Publisher-native Works categories, public national discovery, pagination, identity, update timestamp and recent-first ordering were live-proven."),
