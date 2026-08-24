@@ -19,117 +19,59 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP PNCP PCA one-day incremental probe
+      - name: TEMP inspect PNCP PCA frontend discovery contract
         run: |
           python - <<'PY'
-          from datetime import date, timedelta
-          import time
+          import re
+          from urllib.parse import urljoin
           import requests
 
           S = requests.Session()
-          S.headers.update({"Accept": "application/json", "User-Agent": "ObraSignal PNCP-PCA bounded probe/2.0"})
-          CONSULT = "https://pncp.gov.br/api/consulta/v1/pca/atualizacao"
-          API = "https://pncp.gov.br/api/pncp/v1"
+          S.headers.update({"User-Agent": "Mozilla/5.0 ObraSignal source-contract audit/1.0"})
+          page = "https://pncp.gov.br/app/pca"
+          r = S.get(page, timeout=25)
+          print(f"PNCP_APP_HTTP={r.status_code}|CONTENT_TYPE={r.headers.get('content-type')!r}|BYTES={len(r.content)}")
+          r.raise_for_status()
+          html = r.text
 
-          def request(url, params=None, timeout=25, tries=2):
-              last = ""
-              for attempt in range(tries):
-                  try:
-                      r = S.get(url, params=params, timeout=timeout)
-                      print(f"PNCP_HTTP={r.status_code}|URL={r.url.split('?')[0]}|CONTENT_TYPE={r.headers.get('content-type')!r}|BYTES={len(r.content)}")
-                      if r.status_code in (429, 500, 502, 503, 504):
-                          last = f"HTTP {r.status_code}"
-                          time.sleep(attempt + 1)
-                          continue
-                      if r.status_code == 204:
-                          return None, 204, ""
-                      if r.status_code >= 400:
-                          return None, r.status_code, (r.text or "")[:300]
-                      try:
-                          return r.json(), r.status_code, ""
-                      except Exception:
-                          return None, r.status_code, "NON_JSON:" + repr((r.text or "")[:300])
-                  except Exception as exc:
-                      last = f"{type(exc).__name__}:{exc}"
-                      time.sleep(attempt + 1)
-              return None, 0, last
+          scripts = []
+          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', html, flags=re.I):
+              url = urljoin(page, src)
+              if url.startswith("https://pncp.gov.br/") or url.startswith("https://www.pncp.gov.br/"):
+                  scripts.append(url)
+          scripts = list(dict.fromkeys(scripts))[:25]
+          print(f"PNCP_APP_SCRIPTS={len(scripts)}")
 
-          def rows(payload):
-              if isinstance(payload, list):
-                  return payload
-              if isinstance(payload, dict):
-                  for key in ("data", "content", "items", "resultado", "lista"):
-                      if isinstance(payload.get(key), list):
-                          return payload[key]
-              return []
-
-          # Publisher-native category domain, not a hard-coded inference table.
-          cats, cs, ce = request(API + "/categoriaItemPcas", {"statusAtivo": "true"}, timeout=20)
-          cat_rows = rows(cats) or (cats if isinstance(cats, list) else [])
-          print(f"PNCP_PCA_CATEGORIES_HTTP={cs}|COUNT={len(cat_rows)}|ERR={ce!r}")
-          for cat in cat_rows:
-              if isinstance(cat, dict):
-                  print("PNCP_PCA_CATEGORY=" + repr({k: cat.get(k) for k in ("id", "nome", "descricao", "statusAtivo")}))
-
-          # Tiny global discovery windows.  yyyyMMdd is the PNCP consultation convention.
-          found = []
-          found_payload = None
-          today = date(2026, 8, 24)
-          for offset in range(1, 8):
-              day = today - timedelta(days=offset)
-              compact = day.strftime("%Y%m%d")
-              payload, status, err = request(CONSULT, {
-                  "dataInicio": compact,
-                  "dataFim": compact,
-                  "pagina": 1,
-                  "tamanhoPagina": 10,
-              }, timeout=25, tries=2)
-              result = rows(payload)
-              meta = {}
-              if isinstance(payload, dict):
-                  meta = {k: payload.get(k) for k in ("totalRegistros", "totalPaginas", "paginasRestantes", "numeroPagina", "tamanhoPagina") if k in payload}
-              print(f"PNCP_PCA_UPDATE_DAY={compact}|HTTP={status}|ROWS={len(result)}|META={meta!r}|ERR={err!r}")
-              if result:
-                  found = result
-                  found_payload = payload
-                  break
-
-          if found:
-              print("PNCP_PCA_UPDATE_KEYS=" + ",".join(sorted(found[0].keys())))
-              for row in found[:3]:
-                  print("PNCP_PCA_UPDATE_SAMPLE=" + repr(row))
-          else:
-              print("PNCP_PCA_UPDATE_NO_NONEMPTY_DAY=true")
-
-          # Independent official item-detail control from a publicly indexed 2026 PCA.
-          control_cnpj, control_year, control_seq = "08241804000194", 2026, 1
-          detail_url = f"{API}/orgaos/{control_cnpj}/pca/{control_year}/{control_seq}/itens"
-          detail, ds, de = request(detail_url, timeout=25, tries=2)
-          detail_rows = rows(detail) or (detail if isinstance(detail, list) else [])
-          print(f"PNCP_PCA_DETAIL_HTTP={ds}|ROWS={len(detail_rows)}|ERR={de!r}")
-          if detail_rows:
-              print("PNCP_PCA_DETAIL_KEYS=" + ",".join(sorted(detail_rows[0].keys())))
-              works = []
-              for item in detail_rows:
-                  if not isinstance(item, dict):
+          needles = ("/pca", "pca?", "pca/", "PCA", "api/consulta", "api/pncp")
+          candidates = set()
+          for i, url in enumerate(scripts, 1):
+              try:
+                  js = S.get(url, timeout=25)
+                  print(f"PNCP_JS={i}|HTTP={js.status_code}|BYTES={len(js.content)}|PATH={url.split('pncp.gov.br')[-1][:180]}")
+                  if js.status_code != 200 or len(js.content) > 12_000_000:
                       continue
-                  cat_name = str(item.get("categoriaItemPcaNome") or item.get("categoriaItemPcaNome") or "")
-                  if any(token in cat_name.lower() for token in ("obra", "engenharia")):
-                      works.append(item)
-              print(f"PNCP_PCA_DETAIL_WORKS={len(works)}")
-              for item in works[:5]:
-                  print("PNCP_PCA_WORK_ITEM=" + repr({
-                      "numeroItem": item.get("numeroItem"),
-                      "categoriaItemPcaId": item.get("categoriaItemPcaId") or item.get("categoriaItemPcaid"),
-                      "categoriaItemPcaNome": item.get("categoriaItemPcaNome"),
-                      "classificacaoSuperiorCodigo": item.get("classificacaoSuperiorCodigo"),
-                      "classificacaoSuperiorNome": item.get("classificacaoSuperiorNome"),
-                      "grupoContratacaoCodigo": item.get("grupoContratacaoCodigo"),
-                      "valorTotal": item.get("valorTotal"),
-                      "dataDesejada": item.get("dataDesejada"),
-                      "dataPublicacaoPncp": item.get("dataPublicacaoPncp"),
-                      "dataAtualizacao": item.get("dataAtualizacao"),
-                  }))
+                  text = js.text
+                  if not any(n in text for n in needles):
+                      continue
+                  # Extract endpoint-looking string literals, then print only PCA/API candidates.
+                  for raw in re.findall(r'["\']([^"\']{3,260})["\']', text):
+                      value = raw.replace("\\/", "/")
+                      low = value.lower()
+                      if ("pca" in low and ("/" in value or "api" in low)) or "api/consulta" in low:
+                          if not value.startswith("data:"):
+                              candidates.add(value)
+                  # Also show short surrounding snippets around PCA service methods.
+                  for match in list(re.finditer(r'pca', text, flags=re.I))[:20]:
+                      a=max(0, match.start()-180); b=min(len(text), match.end()+260)
+                      snippet=re.sub(r'\s+', ' ', text[a:b])
+                      if "api" in snippet.lower() or "http" in snippet.lower():
+                          print("PNCP_PCA_JS_CONTEXT=" + repr(snippet[:520]))
+              except Exception as exc:
+                  print(f"PNCP_JS_ERROR={i}|{type(exc).__name__}:{exc}")
+
+          print(f"PNCP_PCA_ENDPOINT_CANDIDATES={len(candidates)}")
+          for value in sorted(candidates):
+              print("PNCP_PCA_ENDPOINT=" + repr(value[:500]))
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
