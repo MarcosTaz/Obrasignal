@@ -63,7 +63,7 @@ def test_ecuador_registry_declares_only_proven_bulk_record_tender_contract():
     source = SOURCES["EC_SERCOP"]
     assert source["kind"] == "OCDS_MONTHLY_BULK_RECORD_API"
     assert source["access"] == "public_monthly_bulk_record_api"
-    assert source["adapter"] == "SERCOPBulkRecordConnector"
+    assert source["adapter"] == "OCDSMonthlyBulkConnector"
     assert source["signal_types"] == ("TENDER",)
     assert set(source["capabilities"]) == {"incremental_sync", "detail"}
     assert source["realtime_capable"] is False
