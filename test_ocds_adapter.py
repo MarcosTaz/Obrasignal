@@ -151,6 +151,67 @@ def test_release_package_is_accepted_by_common_normalizer():
     assert rows[0]["url"] == "https://publisher.test/releases"
 
 
+def test_search_candidates_can_be_hydrated_through_record_package():
+    ocid = "ocds-x-hydrated"
+    session = FakeSession([
+        {"records": [{"ocid": ocid, "tender": {"title": "minimal"}}], "pagination": {"total_pages": 1}},
+        {"records": [_minimal_record(ocid)]},
+    ])
+    connector = OCDSAPIConnector(
+        _config(
+            page_size=10,
+            max_windows_per_sync=1,
+            hydrate_records=True,
+            record_url_template="https://example.test/ocds/record/{ocid}",
+            max_hydrations_per_window=5,
+        ),
+        params_factory=_params,
+        session=session,
+    )
+    rows, cursor = connector.fetch_incremental(
+        lambda record: normalize_ocds_record(
+            record,
+            source="TEST_OCDS",
+            country="TST",
+            require_active_tender=True,
+        ),
+        now=datetime(2026, 8, 24, tzinfo=timezone.utc),
+    )
+
+    assert [row["external_id"] for row in rows] == [ocid]
+    assert len(session.calls) == 2
+    assert session.calls[0]["url"] == "https://example.test/search"
+    assert session.calls[1]["url"] == "https://example.test/ocds/record/ocds-x-hydrated"
+    assert session.calls[1]["params"] == {}
+    assert OCDSWindowCursor.decode(cursor) == OCDSWindowCursor("2026-08-23")
+
+
+def test_hydration_limit_fails_closed_before_detail_requests():
+    session = FakeSession([
+        {
+            "records": [{"ocid": "ocds-x-A"}, {"ocid": "ocds-x-B"}],
+            "pagination": {"total_pages": 1},
+        },
+    ])
+    connector = OCDSAPIConnector(
+        _config(
+            page_size=10,
+            max_windows_per_sync=1,
+            hydrate_records=True,
+            record_url_template="https://example.test/ocds/record/{ocid}",
+            max_hydrations_per_window=1,
+        ),
+        params_factory=_params,
+        session=session,
+    )
+    with pytest.raises(RuntimeError, match="above max_hydrations_per_window"):
+        connector.fetch_incremental(
+            lambda record: record,
+            now=datetime(2026, 8, 24, tzinfo=timezone.utc),
+        )
+    assert len(session.calls) == 1
+
+
 def test_normalizer_preserves_native_taxonomy_and_does_not_fake_cpv():
     item = normalize_ocds_record(_minimal_record("ocds-x-1"), source="X", country="TST")
     assert item["taxonomy"] == "UNSPSC"
