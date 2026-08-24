@@ -19,14 +19,16 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP resolve PNCP PCA frontend chunks
+      - name: TEMP resolve PNCP PCA named lazy chunk
         run: |
           python - <<'PY'
           import re, time
           from urllib.parse import urljoin
           import requests
 
-          PAGE = "https://pncp.gov.br/app/pca"
+          BASE = "https://pncp.gov.br/app/"
+          PAGE = BASE + "pca"
+          TARGET = "default-src_app_pages_pcaPage_planejamento_module_ts"
           S = requests.Session()
           S.headers.update({
               "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
@@ -42,84 +44,82 @@ jobs:
                       if r.status_code in (429,500,502,503,504):
                           last=f"HTTP {r.status_code}"; time.sleep(n+1); continue
                       return r
-                  except Exception as e:
-                      last=e; time.sleep(n+1)
-              print(f"FETCH_FAIL={url}|{last!r}")
-              return None
+                  except Exception as exc:
+                      last=exc; time.sleep(n+1)
+              raise RuntimeError(f"fetch failed {url}: {last!r}")
 
           page=get(PAGE)
-          assert page is not None and page.status_code == 200
-          scripts=[]
-          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', page.text, flags=re.I):
-              scripts.append(urljoin(PAGE,src))
-          scripts=list(dict.fromkeys(scripts))
-          print("SCRIPT_URLS="+repr(scripts))
+          assert page.status_code == 200
+          scripts=[urljoin(PAGE,src) for src in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']',page.text,flags=re.I)]
+          runtime_url=next(url for url in scripts if "/runtime." in url)
+          runtime=get(runtime_url)
+          assert runtime.status_code == 200
+          text=runtime.text
+          print(f"PNCP_RUNTIME={runtime_url}|BYTES={len(runtime.content)}")
 
-          assets={}
-          for url in scripts:
-              r=get(url)
-              if r is None: continue
-              print(f"SCRIPT_FETCH={url}|HTTP={r.status_code}|BYTES={len(r.content)}")
-              if r.status_code==200:
-                  assets[url]=r.text
+          # Webpack uses the chunk name itself as the id in this build.
+          # Capture all literal mappings involving the exact observed PCA chunk name.
+          for m in re.finditer(re.escape(TARGET), text):
+              a=max(0,m.start()-500); b=min(len(text),m.end()+700)
+              print("PNCP_RUNTIME_PCA_CONTEXT="+repr(text[a:b]))
 
-          # Angular/Webpack runtime maps chunk ids to hashed filenames. Extract every local JS path/hash
-          # visible in already loaded assets, then fetch bounded same-origin candidates.
-          names=set()
-          for url,text in assets.items():
-              for raw in re.findall(r'["\']([^"\']+\.js)["\']', text):
-                  if 0 < len(raw) < 220 and not raw.startswith(("http://","https://","data:")):
-                      names.add(urljoin(url,raw))
-              for raw in re.findall(r'([A-Za-z0-9._-]{3,120}\.[a-f0-9]{8,32}\.js)', text):
-                  names.add(urljoin(url,raw))
-          print(f"DIRECT_JS_CANDIDATES={len(names)}")
+          # Common Angular/Webpack production pattern: <chunk-name>.<contenthash>.js.
+          # Resolve only hashes associated with the publisher-observed target name.
+          hashes=set()
+          patterns=(
+              re.escape(TARGET)+r'["\']?\s*:\s*["\']([a-f0-9]{8,40})["\']',
+              r'["\']'+re.escape(TARGET)+r'["\']\s*:\s*["\']([a-f0-9]{8,40})["\']',
+          )
+          for pattern in patterns:
+              hashes.update(re.findall(pattern,text))
+          # If runtime builds the filename through two maps, print every nearby hash and test bounded candidates.
+          if not hashes:
+              for m in re.finditer(re.escape(TARGET),text):
+                  nearby=text[max(0,m.start()-1200):min(len(text),m.end()+1200)]
+                  hashes.update(re.findall(r'["\']([a-f0-9]{8,40})["\']',nearby))
+          print("PNCP_PCA_CHUNK_HASHES="+repr(sorted(hashes)))
 
-          # Also parse webpack hash maps of the form id:"hash" and id:"chunk-name" from runtime.
-          ids_to_hash={}
-          ids_to_name={}
-          for text in assets.values():
-              for ident,h in re.findall(r'(\d+):["\']([a-f0-9]{8,32})["\']',text):
-                  ids_to_hash.setdefault(ident,h)
-              for ident,name in re.findall(r'(\d+):["\']([A-Za-z0-9_-]{3,80})["\']',text):
-                  if not re.fullmatch(r'[a-f0-9]{8,32}',name): ids_to_name.setdefault(ident,name)
-          print(f"WEBPACK_HASH_IDS={len(ids_to_hash)}|NAME_IDS={len(ids_to_name)}")
-          for ident,name in list(ids_to_name.items())[:200]:
-              if "pca" in name.lower() or "plan" in name.lower() or "contrat" in name.lower():
-                  print(f"WEBPACK_RELEVANT={ident}|NAME={name}|HASH={ids_to_hash.get(ident)}")
+          candidates=[]
+          for h in sorted(hashes):
+              candidates.extend([
+                  BASE + f"{TARGET}.{h}.js",
+                  BASE + f"{h}.js",
+              ])
+          # Also use exact same-origin JS filenames literally present in runtime.
+          for raw in re.findall(r'["\']([^"\']+\.js)["\']',text):
+              if TARGET in raw:
+                  candidates.append(urljoin(runtime_url,raw))
+          candidates=list(dict.fromkeys(candidates))[:20]
+          print("PNCP_PCA_CHUNK_CANDIDATES="+repr(candidates))
 
-          # Search loaded bundles for dynamic import contexts around route 'pca'.
-          relevant_ids=set()
-          for url,text in assets.items():
-              for m in re.finditer(r'pca',text,flags=re.I):
-                  a=max(0,m.start()-500); b=min(len(text),m.end()+800)
-                  sn=text[a:b]
-                  if any(x in sn.lower() for x in ("loadchildren","loadcomponent","import(","webpack","route","path:")):
-                      print("PCA_ROUTE_CONTEXT="+repr(re.sub(r'\s+',' ',sn)[:1400]))
-                      relevant_ids.update(re.findall(r'\b(\d{2,6})\b',sn))
-          print("RELEVANT_IDS="+repr(sorted(relevant_ids)[:80]))
-
-          # Construct conventional Angular chunk paths only when both id/hash were actually observed.
-          base="https://pncp.gov.br/app/"
-          for ident in sorted(relevant_ids):
-              h=ids_to_hash.get(ident)
-              if not h: continue
-              for filename in (f"{ident}.{h}.js", f"{ids_to_name.get(ident,ident)}.{h}.js"):
-                  url=urljoin(base,filename)
+          chunk=None
+          chunk_url=None
+          for url in candidates:
+              try:
                   r=get(url,tries=2)
-                  if r is None or r.status_code!=200: continue
-                  text=r.text
-                  print(f"RELEVANT_CHUNK={url}|BYTES={len(r.content)}")
-                  for m in re.finditer(r'pca',text,flags=re.I):
-                      a=max(0,m.start()-350); b=min(len(text),m.end()+550)
-                      sn=re.sub(r'\s+',' ',text[a:b])
-                      if "api" in sn.lower() or "http" in sn.lower() or "service" in sn.lower():
-                          print("PCA_CHUNK_CONTEXT="+repr(sn[:950]))
-                  endpoints=set()
-                  for raw in re.findall(r'["\']([^"\']{2,260})["\']',text):
-                      value=raw.replace('\\/','/')
-                      low=value.lower()
-                      if "pca" in low and ("/" in value or "api" in low): endpoints.add(value)
-                  for ep in sorted(endpoints): print("PCA_CHUNK_ENDPOINT="+repr(ep[:400]))
+              except Exception as exc:
+                  print(f"PNCP_CHUNK_ERROR={url}|{type(exc).__name__}:{exc}")
+                  continue
+              print(f"PNCP_CHUNK_TRY={url}|HTTP={r.status_code}|BYTES={len(r.content)}|CTYPE={r.headers.get('content-type')!r}")
+              if r.status_code==200 and "javascript" in str(r.headers.get("content-type") or "").lower() and len(r.content)>500:
+                  chunk=r.text; chunk_url=url; break
+
+          if chunk is None:
+              print("PNCP_PCA_CHUNK_RESOLVED=false")
+          else:
+              print(f"PNCP_PCA_CHUNK_RESOLVED=true|URL={chunk_url}|BYTES={len(chunk.encode())}")
+              endpoints=set()
+              for raw in re.findall(r'["\']([^"\']{2,320})["\']',chunk):
+                  value=raw.replace('\\/','/')
+                  low=value.lower()
+                  if "pca" in low and ("/" in value or "api" in low): endpoints.add(value)
+              for ep in sorted(endpoints):
+                  print("PNCP_PCA_ENDPOINT="+repr(ep[:500]))
+              for m in re.finditer(r'pca',chunk,flags=re.I):
+                  a=max(0,m.start()-450); b=min(len(chunk),m.end()+750)
+                  sn=re.sub(r'\s+',' ',chunk[a:b])
+                  if any(token in sn.lower() for token in ("http","api","service","buscar","consulta","planejamento")):
+                      print("PNCP_PCA_CHUNK_CONTEXT="+repr(sn[:1250]))
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
