@@ -82,3 +82,14 @@ Do not submit the production build until all of these are verified:
 - A second device using the same authenticated user sees the same entitlement.
 - Store-managed subscription cancellation/management works.
 - The in-app purchase screen displays localized store pricing and complete recurring-subscription terms.
+
+
+## ObraSignal Evaluation v0.1 — separate from store trials
+
+ObraSignal's own evaluation access is not a Google Play/App Store subscription trial and must not be configured as one implicitly. New self-service accounts receive a 21-day value-aware evaluation **only after** `profile_ready + market_data_available + first_relevant_shortlist_generated`. Onboarding therefore does not consume evaluation days. Enterprise accounts may be explicitly configured for a 30-day assisted pilot. A controlled extension is capped at 7 days and is never granted merely for inactivity.
+
+RevenueCat continues to govern paid `pro` entitlement. Active paid entitlement takes precedence over evaluation state. Existing legacy pilot accounts keep their pre-v0.1 `trial_ends_at` window unless a separate migration is explicitly approved.
+
+Do not create a 21-day store free-trial offer merely because the ObraSignal Evaluation is 21 days. Store trials are a separate future commercial experiment and require their own price/renewal disclosures.
+
+Trial Policy v0.1 is **VALIDATION REQUIRED** and must be reviewed after 10 paying customers and again after 25 paying customers, or earlier if evidence clearly shows the baseline is wrong.

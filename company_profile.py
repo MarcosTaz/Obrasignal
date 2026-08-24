@@ -244,5 +244,20 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
     # Durable persistence is the critical operation. Do not write authenticated
     # account profiles to Render's ephemeral filesystem.
     _persist_profile_db(normalized, account)
+    # A successfully validated and durably persisted company profile is the
+    # authoritative profile_ready event for the evaluation lifecycle.
+    try:
+        from account_registry import ensure_account
+        from evaluation_policy import record_evaluation_event
+        conn = _profile_db()
+        try:
+            ensure_account(conn, account)
+            record_evaluation_event(conn, account, 'profile_ready')
+        finally:
+            conn.close()
+    except Exception:
+        # Profile persistence must not fail because evaluation telemetry fails.
+        # The missing event remains observable/recoverable via billing status.
+        pass
 
     return normalized

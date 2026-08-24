@@ -15,7 +15,7 @@ import {
 const COLORS = { bg: '#070C18', panel: '#10182B', line: '#253553', text: '#F3F6FF', muted: '#9BA8C0', blue: '#5E8BFF', green: '#6FE39A', red: '#FF8998' };
 
 export default function BillingGate({ children }) {
-  const [billing, setBilling] = useState({ configured: false, pro: false, plan: 'pilot', expiresAt: null, managementUrl: null });
+  const [billing, setBilling] = useState({ configured: false, pro: false, plan: 'evaluation', expiresAt: null, managementUrl: null, evaluation: null, metrics: null });
   const [modal, setModal] = useState(false);
   const [offering, setOffering] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -33,9 +33,11 @@ export default function BillingGate({ children }) {
       setBilling({
         configured: result.configured,
         pro: hasProEntitlement(info),
-        plan: server?.plan || (hasProEntitlement(info) ? 'pro' : 'pilot'),
+        plan: server?.plan || (hasProEntitlement(info) ? 'pro' : 'evaluation'),
         expiresAt: server?.expires_at || entitlement?.expirationDate || server?.trial_ends_at || null,
         managementUrl: info?.managementURL || null,
+        evaluation: server?.evaluation || null,
+        metrics: server?.evaluation_metrics || null,
       });
     } catch (e) {
       setError(e?.message || 'Não foi possível verificar a subscrição.');
@@ -74,8 +76,13 @@ export default function BillingGate({ children }) {
   const expired = billing.plan === 'expired';
 
   return <View style={{ flex: 1 }}>
-    {expired ? <View style={styles.blocked}><Text style={styles.blockedTitle}>O período de teste terminou</Text><Text style={styles.blockedText}>Para continuar a receber oportunidades personalizadas, ativa o ObraSignal Pro.</Text><Pressable style={styles.primary} onPress={openPaywall}><Text style={styles.primaryText}>Ver subscrição</Text></Pressable></View> : children}
-    {!expired && <Pressable style={styles.planPill} onPress={openPaywall} accessibilityRole="button" accessibilityLabel="Plano ObraSignal"><Text style={styles.planText}>{billing.pro ? 'PRO' : billing.plan === 'pilot' ? 'PILOT' : 'PLANO'}</Text></Pressable>}
+    {expired ? <View style={styles.blocked}><Text style={styles.blockedTitle}>A avaliação terminou</Text><Text style={styles.blockedText}>Para continuar a receber oportunidades personalizadas, ativa o ObraSignal Pro.</Text><Pressable style={styles.primary} onPress={openPaywall}><Text style={styles.primaryText}>Ver subscrição</Text></Pressable></View> : <>{billing.plan === 'evaluation' && billing.evaluation ? <View style={styles.evalCard}>
+      <Text style={styles.evalTitle}>AVALIAÇÃO OBRASIGNAL</Text>
+      <Text style={styles.evalText}>{billing.evaluation.status === 'EVALUATION_ACTIVE' ? `${billing.evaluation.days_remaining} dias restantes` : 'A janela de 21 dias ainda não começou'}</Text>
+      <Text style={styles.evalMeta}>{billing.evaluation.activated_at ? `Começou em ${new Date(billing.evaluation.activated_at).toLocaleDateString()}` : 'Começa quando o perfil estiver pronto, houver dados de mercado e a primeira shortlist relevante for gerada.'}</Text>
+      <Text style={styles.evalMeta}>{billing.metrics?.exposure_event_count || 0} exposições de valor registadas · sem estimativas económicas inventadas</Text>
+    </View> : null}{children}</>}
+    {!expired && <Pressable style={styles.planPill} onPress={openPaywall} accessibilityRole="button" accessibilityLabel="Plano ObraSignal"><Text style={styles.planText}>{billing.pro ? 'PRO' : billing.plan === 'evaluation' ? 'AVALIAÇÃO' : billing.plan === 'pilot' ? 'PILOT LEGADO' : 'PLANO'}</Text></Pressable>}
     <Modal visible={modal} transparent animationType="slide" onRequestClose={() => !busy && setModal(false)}>
       <View style={styles.overlay}><View style={styles.sheet}>
         <Text style={styles.eyebrow}>OBRASIGNAL PRO</Text>
@@ -93,6 +100,10 @@ export default function BillingGate({ children }) {
 }
 
 const styles = StyleSheet.create({
+  evalCard:{margin:12,padding:12,borderRadius:12,backgroundColor:'#0D1B30',borderWidth:1,borderColor:'#355A8A'},
+  evalTitle:{fontSize:10,fontWeight:'900',letterSpacing:1,color:COLORS.blue},
+  evalText:{fontSize:15,fontWeight:'900',color:COLORS.text,marginTop:4},
+  evalMeta:{fontSize:10,lineHeight:15,color:COLORS.muted,marginTop:3},
   planPill:{position:'absolute',right:72,top:14,paddingHorizontal:10,paddingVertical:6,borderRadius:999,backgroundColor:'#15295A',borderWidth:1,borderColor:'#315EA8'},
   planText:{fontSize:9,fontWeight:'900',letterSpacing:1,color:COLORS.text},
   blocked:{flex:1,alignItems:'center',justifyContent:'center',padding:28,backgroundColor:COLORS.bg},
