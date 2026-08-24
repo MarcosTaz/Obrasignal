@@ -61,7 +61,7 @@ def test_all_six_target_layers_are_in_same_queue():
     assert {"SIGNAL", "OFFICE", "DNA", "SHADOW", "COMMAND", "ACTION"}.issubset(domains)
 
 
-def test_trade_and_mobilization_capabilities_are_in_the_same_master_queue():
+def test_trade_mobilization_and_microworks_are_in_the_same_master_queue():
     ids = set(queue_ids())
     required = {
         "Q210_SUPPLY_EDGE",
@@ -74,6 +74,11 @@ def test_trade_and_mobilization_capabilities_are_in_the_same_master_queue():
         "Q226_CAPACITY_OPTIMIZER_RESEARCH",
         "Q228_CREW_ECONOMICS_RESEARCH",
         "Q229_DEAD_TIME_RESEARCH",
+        "Q231_CAPACITY_UNIT_SERVICES",
+        "Q232_MICROWORKS_SOURCE_VALIDATION",
+        "Q233_MICROWORKS_ECONOMIC_MATCHING",
+        "Q234_CONTINUOUS_OPPORTUNITY_HUNTING",
+        "Q235_MICROWORKS_ACTION_PILOT",
     }
     assert required.issubset(ids)
 
@@ -105,6 +110,55 @@ def test_mobilization_capabilities_depend_on_operational_intelligence_not_featur
         "Q170_COMMAND_NEXT_BEST_ACTION",
         "Q224_SITE_READY_RESEARCH",
     }.issubset(set(items["Q229_DEAD_TIME_RESEARCH"].dependencies))
+
+
+def test_microworks_cannot_bypass_capacity_economics_trust_or_action_gates():
+    items = _by_id()
+    assert {
+        "Q090_COMPANY_STATE_CONTRACT",
+        "Q120_OFFICE_SENSOR_RESEARCH",
+        "Q130_CREW_CAPACITY_SENSOR",
+    } == set(items["Q231_CAPACITY_UNIT_SERVICES"].dependencies)
+    assert {
+        "Q020_SIGNAL_CONTRACT_V1",
+        "Q080_EVIDENCE_GRAPH_V1",
+        "Q231_CAPACITY_UNIT_SERVICES",
+    } == set(items["Q232_MICROWORKS_SOURCE_VALIDATION"].dependencies)
+    assert {
+        "Q160_SHADOW_PORTFOLIO_PROTOTYPE",
+        "Q170_COMMAND_NEXT_BEST_ACTION",
+        "Q212_TRUSTBRIDGE_RESEARCH",
+        "Q222_MOBILIZE_RESEARCH",
+        "Q229_DEAD_TIME_RESEARCH",
+        "Q231_CAPACITY_UNIT_SERVICES",
+        "Q232_MICROWORKS_SOURCE_VALIDATION",
+    } == set(items["Q233_MICROWORKS_ECONOMIC_MATCHING"].dependencies)
+    assert {
+        "Q120_OFFICE_SENSOR_RESEARCH",
+        "Q180_ACTION_ARCHITECTURE",
+        "Q229_DEAD_TIME_RESEARCH",
+        "Q233_MICROWORKS_ECONOMIC_MATCHING",
+    } == set(items["Q234_CONTINUOUS_OPPORTUNITY_HUNTING"].dependencies)
+    assert {
+        "Q214_TRADE_AGENT_ARCHITECTURE",
+        "Q233_MICROWORKS_ECONOMIC_MATCHING",
+        "Q234_CONTINUOUS_OPPORTUNITY_HUNTING",
+    } == set(items["Q235_MICROWORKS_ACTION_PILOT"].dependencies)
+    assert all(items[item_id].state == "GATED" for item_id in {
+        "Q231_CAPACITY_UNIT_SERVICES",
+        "Q232_MICROWORKS_SOURCE_VALIDATION",
+        "Q233_MICROWORKS_ECONOMIC_MATCHING",
+        "Q234_CONTINUOUS_OPPORTUNITY_HUNTING",
+        "Q235_MICROWORKS_ACTION_PILOT",
+    })
+
+
+def test_reverse_capacity_network_requires_trust_and_capacity_contract():
+    items = _by_id()
+    deps = set(items["Q270_LIVE_CAPACITY_NETWORK"].dependencies)
+    assert "Q212_TRUSTBRIDGE_RESEARCH" in deps
+    assert "Q231_CAPACITY_UNIT_SERVICES" in deps
+    assert items["Q270_LIVE_CAPACITY_NETWORK"].state == "FUTURE"
 
 
 def test_strategic_bangs_and_long_term_capabilities_are_queued():
