@@ -19,121 +19,89 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP prove PNCP public PCA search endpoint
+      - name: TEMP validate exact PNCP public PCA search route
         run: |
           python - <<'PY'
-          import json, re, time
-          from urllib.parse import urljoin
           import requests
 
-          BASE="https://pncp.gov.br/app/"
-          PAGE=BASE+"pca"
-          S=requests.Session()
+          URL = "https://pncp.gov.br/api/search/"
+          S = requests.Session()
           S.headers.update({
-              "User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
-              "Referer":PAGE,
-              "Accept":"application/json, text/plain, */*",
+              "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+              "Referer": "https://pncp.gov.br/app/pca",
+              "Accept": "application/json, text/plain, */*",
           })
 
-          def get(url, params=None, tries=3):
-              last=None
-              for n in range(tries):
-                  try:
-                      r=S.get(url,params=params,timeout=25)
-                      if r.status_code in (429,500,502,503,504):
-                          last=f"HTTP {r.status_code}"; time.sleep(n+1); continue
-                      return r
-                  except Exception as exc:
-                      last=exc; time.sleep(n+1)
-              raise RuntimeError(f"fetch failed {url}: {last!r}")
+          def fetch(page):
+              r = S.get(URL, params={
+                  "q": "",
+                  "tipos_documento": "pcaorgao",
+                  "pagina": page,
+                  "tam_pagina": 10,
+              }, timeout=25)
+              print(f"PNCP_SEARCH_PAGE={page}|HTTP={r.status_code}|BYTES={len(r.content)}|CTYPE={r.headers.get('content-type')!r}|URL={r.url}")
+              r.raise_for_status()
+              data = r.json()
+              print(f"PNCP_SEARCH_TYPE={type(data).__name__}")
+              if isinstance(data, dict):
+                  print("PNCP_SEARCH_KEYS=" + repr(sorted(data.keys())))
+                  for key in sorted(data):
+                      if key.lower() in {"total", "totalregistros", "total_registros", "totalpaginas", "pagina", "tam_pagina", "size", "count", "max_score"}:
+                          print(f"PNCP_SEARCH_META_{key}={data[key]!r}")
+                  rows = None
+                  for key in ("items", "data", "resultados", "results", "content"):
+                      if isinstance(data.get(key), list):
+                          rows = data[key]
+                          print(f"PNCP_SEARCH_ROWS_KEY={key}|COUNT={len(rows)}")
+                          break
+                  if rows is None:
+                      # bounded structural inspection only
+                      print("PNCP_SEARCH_VALUE_TYPES=" + repr({k:type(v).__name__ for k,v in data.items()}))
+                      rows = []
+              elif isinstance(data, list):
+                  rows = data
+                  print(f"PNCP_SEARCH_ROWS_KEY=list|COUNT={len(rows)}")
+              else:
+                  rows = []
+              if rows:
+                  print("PNCP_SEARCH_ROW_KEYS=" + repr(sorted(rows[0].keys())))
+                  compact=[]
+                  for row in rows[:3]:
+                      compact.append({k:row.get(k) for k in sorted(row) if k.lower() in {
+                          "orgao_cnpj","cnpj","ano","ano_pca","sequencial_pca","sequencialpca",
+                          "numero_controle_pncp","numero_controle_pncp_pca","data_atualizacao_pncp",
+                          "data_atualizacao","dataatualizacao","data_publicacao_pncp","orgao_nome",
+                          "razao_social","nome_unidade","codigo_unidade","valor_global","valor_total","id"
+                      }})
+                  print("PNCP_SEARCH_SAMPLES=" + repr(compact))
+              return data, rows
 
-          page=get(PAGE); assert page.status_code==200
-          scripts=[urljoin(PAGE,x) for x in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']',page.text,flags=re.I)]
-          main_url=next(x for x in scripts if "/main." in x)
-          runtime_url=next(x for x in scripts if "/runtime." in x)
-          main=get(main_url); runtime=get(runtime_url)
-          assert main.status_code==200 and runtime.status_code==200
+          first, rows1 = fetch(1)
+          second, rows2 = fetch(2)
+          assert rows1, "PCA national search page 1 returned no rows"
+          assert rows2, "PCA national search page 2 returned no rows"
 
-          target="default-src_app_pages_pcaPage_planejamento_module_ts"
-          h=re.search(re.escape(target)+r'["\']?\s*:\s*["\']([a-f0-9]{8,40})["\']',runtime.text)
-          assert h
-          chunk_url=BASE+f"{target}.{h.group(1)}.js"
-          chunk=get(chunk_url); assert chunk.status_code==200
-          print(f"PNCP_FRONTEND_MAIN={main_url}|BYTES={len(main.content)}")
-          print(f"PNCP_PCA_CHUNK={chunk_url}|BYTES={len(chunk.content)}")
+          def identity(row):
+              return (
+                  row.get("id") or row.get("numero_controle_pncp") or row.get("numero_controle_pncp_pca"),
+                  row.get("orgao_cnpj") or row.get("cnpj"),
+                  row.get("ano") or row.get("ano_pca"),
+                  row.get("sequencial_pca") or row.get("sequencialPca"),
+              )
+          ids1={identity(r) for r in rows1}
+          ids2={identity(r) for r in rows2}
+          print(f"PNCP_SEARCH_PAGE_OVERLAP={len(ids1 & ids2)}")
+          print(f"PNCP_SEARCH_DISTINCT_PAGE1={len(ids1)}|PAGE2={len(ids2)}")
+          assert ids1 and ids2
+          assert ids1.isdisjoint(ids2), "pagination pages unexpectedly overlap"
 
-          # Freeze the actual environment values used by the public frontend.
-          search_contexts=[]
-          for text,label in ((main.text,"MAIN"),(chunk.text,"CHUNK")):
-              for m in re.finditer(r'searchURL',text):
-                  a=max(0,m.start()-700); b=min(len(text),m.end()+900)
-                  ctx=text[a:b]
-                  search_contexts.append(ctx)
-                  print(f"PNCP_SEARCHURL_CONTEXT_{label}="+repr(ctx))
-
-          urls=set()
-          for text in (main.text,chunk.text):
-              urls.update(re.findall(r'https?://[^"\'`\\\s]{5,240}',text))
-          for u in sorted(urls):
-              if "pncp" in u.lower() or "search" in u.lower():
-                  print("PNCP_FRONTEND_URL="+repr(u))
-
-          # Resolve searchURL from minified environment object: look around literal property
-          # and accept only publisher-owned HTTPS endpoint.
-          resolved=[]
-          for ctx in search_contexts:
-              # property before or after a literal URL, depending on minifier ordering
-              for u in re.findall(r'https://[^"\'`\\\s,}]+',ctx):
-                  if "pncp" in u.lower(): resolved.append(u)
-              # common object form searchURL:"https://..."
-              resolved += re.findall(r'searchURL\s*:\s*["\'](https://[^"\']+)',ctx)
-          resolved=list(dict.fromkeys(resolved))
-          print("PNCP_SEARCH_URL_CANDIDATES="+repr(resolved))
-
-          # Search service code proven in PCA chunk:
-          # q=<term>&tipos_documento=pcaorgao&pagina=<n>&tam_pagina=<n>[&filters]
-          # Probe only publisher-owned candidates, no auth/session mutation.
-          successful=[]
-          for base in resolved[:10]:
-              if "pncp" not in base.lower(): continue
-              endpoint=base if base.endswith("/") else base+"/"
-              try:
-                  r=get(endpoint,{
-                      "q":"",
-                      "tipos_documento":"pcaorgao",
-                      "pagina":1,
-                      "tam_pagina":10,
-                  },tries=2)
-              except Exception as exc:
-                  print(f"PNCP_SEARCH_PROBE_ERROR={endpoint}|{type(exc).__name__}:{exc}")
-                  continue
-              print(f"PNCP_SEARCH_PROBE={r.url.split('?')[0]}|HTTP={r.status_code}|BYTES={len(r.content)}|CTYPE={r.headers.get('content-type')!r}")
-              if r.status_code==200:
-                  try:
-                      data=r.json()
-                  except Exception:
-                      print("PNCP_SEARCH_NON_JSON="+repr((r.text or "")[:500])); continue
-                  print("PNCP_SEARCH_TYPE="+type(data).__name__)
-                  if isinstance(data,dict):
-                      print("PNCP_SEARCH_KEYS="+repr(sorted(data.keys())))
-                      # print compact metadata and only first record keys/sample
-                      for key in ("total", "totalRegistros", "total_registros", "totalPaginas", "pagina", "tam_pagina", "size", "count"):
-                          if key in data: print(f"PNCP_SEARCH_META_{key}={data.get(key)!r}")
-                      rows=None
-                      for key in ("items","data","resultados","results","content"):
-                          if isinstance(data.get(key),list): rows=data[key]; print(f"PNCP_SEARCH_ROWS_KEY={key}|COUNT={len(rows)}"); break
-                      if rows:
-                          print("PNCP_SEARCH_ROW_KEYS="+repr(sorted(rows[0].keys())))
-                          print("PNCP_SEARCH_ROW_SAMPLE="+repr({k:rows[0].get(k) for k in sorted(rows[0].keys()) if k.lower() in {
-                              "orgao_cnpj","cnpj","ano","ano_pca","sequencial_pca","numero_controle_pncp","numero_controle_pncp_pca","data_atualizacao","dataatualizacao","data_publicacao_pncp","razao_social","nome_unidade","codigo_unidade","valor_total"
-                          }}))
-                          successful.append((endpoint,data))
-                  elif isinstance(data,list) and data:
-                      print("PNCP_SEARCH_ROWS_KEY=list|COUNT="+str(len(data)))
-                      print("PNCP_SEARCH_ROW_KEYS="+repr(sorted(data[0].keys())))
-                      successful.append((endpoint,data))
-
-          print(f"PNCP_SEARCH_SUCCESSFUL={len(successful)}")
+          update_fields=[]
+          for row in rows1 + rows2:
+              value=row.get("data_atualizacao_pncp") or row.get("data_atualizacao") or row.get("dataAtualizacao")
+              if value:
+                  update_fields.append(str(value))
+          print("PNCP_SEARCH_UPDATE_VALUES=" + repr(update_fields[:20]))
+          assert update_fields, "national PCA search does not expose an update timestamp"
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
