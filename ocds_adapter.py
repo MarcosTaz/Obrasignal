@@ -3,11 +3,13 @@
 The connector deliberately separates source transport/pagination from OCDS
 normalization. Country-specific modules provide search parameters and auth,
 while this module owns bounded incremental windows, page completeness checks,
-and conservative conversion of OCDS records/releases into ObraSignal rows.
+optional record hydration, and conservative conversion of OCDS records/releases
+into ObraSignal rows.
 """
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 import json
+from urllib.parse import quote
 
 import requests
 
@@ -27,6 +29,9 @@ class OCDSAPIConfig:
     overlap_days: int = 1
     market: str = "GLOBAL"
     timeout: int = 45
+    record_url_template: str | None = None
+    hydrate_records: bool = False
+    max_hydrations_per_window: int = 250
 
 
 @dataclass(frozen=True)
@@ -292,8 +297,56 @@ class OCDSAPIConnector:
             start = end + timedelta(days=1)
             count += 1
 
+    def _hydrate_candidate(self, candidate):
+        if not self.config.hydrate_records:
+            return candidate
+        template = str(self.config.record_url_template or "").strip()
+        if not template:
+            raise RuntimeError(f"{self.config.source} hydration enabled without record_url_template")
+        ocid = _text(candidate.get("ocid")) if isinstance(candidate, dict) else ""
+        if not ocid:
+            raise RuntimeError(f"{self.config.source} search candidate is missing ocid required for hydration")
+        url = template.format(ocid=quote(ocid, safe=""))
+        response = self.session.get(
+            url,
+            params={},
+            headers=self._headers(),
+            timeout=self.config.timeout,
+        )
+        response.raise_for_status()
+        package = response.json()
+        records = _records_from_payload(package)
+        if not records:
+            raise RuntimeError(f"{self.config.source} hydration returned no OCDS record for {ocid}")
+        for record in records:
+            if _text(record.get("ocid")) == ocid:
+                return record
+        if len(records) == 1:
+            return records[0]
+        raise RuntimeError(f"{self.config.source} hydration response did not contain requested OCID {ocid}")
+
+    def _hydrate_window(self, candidates, start, end):
+        if not self.config.hydrate_records:
+            return candidates
+        unique = []
+        seen = set()
+        for candidate in candidates:
+            ocid = _text(candidate.get("ocid")) if isinstance(candidate, dict) else ""
+            identity = ocid or json.dumps(candidate, sort_keys=True, default=str)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            unique.append(candidate)
+        limit = max(1, int(self.config.max_hydrations_per_window))
+        if len(unique) > limit:
+            raise RuntimeError(
+                f"{self.config.source} window {start}..{end} requires {len(unique)} record hydrations, "
+                f"above max_hydrations_per_window={limit}; narrow the search or add a bulk strategy"
+            )
+        return [self._hydrate_candidate(candidate) for candidate in unique]
+
     def _fetch_window(self, start, end):
-        rows = []
+        candidates = []
         page = 1
         while page <= max(1, int(self.config.max_pages_per_window)):
             params = dict(self.params_factory(start, end) or {})
@@ -314,12 +367,12 @@ class OCDSAPIConnector:
                     f"{self.config.source} window {start}..{end} has total_pages={total_pages}, "
                     f"above max_pages_per_window={self.config.max_pages_per_window}; narrow the query"
                 )
-            rows.extend(batch)
+            candidates.extend(batch)
             if total_pages is not None:
                 if page >= total_pages:
-                    return rows
+                    return self._hydrate_window(candidates, start, end)
             elif not batch or len(batch) < self.config.page_size:
-                return rows
+                return self._hydrate_window(candidates, start, end)
             page += 1
 
         raise RuntimeError(
