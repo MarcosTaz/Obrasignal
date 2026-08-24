@@ -19,41 +19,111 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: pip install pytest
-      - name: TEMP PNCP PCA Works classification control
+      - name: TEMP PNCP PCA incremental Works sample
         run: |
           python - <<'PY'
-          import requests, time
-          URL="https://pncp.gov.br/api/consulta/v1/pca/"
-          S=requests.Session(); S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA Works control/1.5"})
-          for code in (541,542,543,546,547):
+          import time
+          import requests
+
+          BASE="https://pncp.gov.br/api/consulta"
+          URL=BASE+"/v1/pca/atualizacao"
+          S=requests.Session()
+          S.headers.update({"Accept":"application/json","User-Agent":"ObraSignal PNCP-PCA incremental Works sample/1.6"})
+
+          # Inspect the live contract for page-size constraints that Swagger UI may hide.
+          try:
+              spec=S.get(BASE+"/v3/api-docs",timeout=15).json()
+              op=((spec.get("paths") or {}).get("/v1/pca/atualizacao") or {}).get("get") or {}
+              for p in op.get("parameters",[]):
+                  if isinstance(p,dict) and p.get("name")=="tamanhoPagina":
+                      print("PCA_PAGE_SIZE_SCHEMA="+repr(p.get("schema") or {}))
+          except Exception as exc:
+              print(f"PCA_SCHEMA_EXCEPTION={type(exc).__name__}:{exc}")
+
+          def call(page,size,timeout=18):
+              params={"dataInicio":"20260820","dataFim":"20260821","pagina":page,"tamanhoPagina":size}
+              t0=time.monotonic()
               try:
-                  t0=time.monotonic()
-                  r=S.get(URL,params={"anoPca":2026,"codigoClassificacaoSuperior":str(code),"pagina":1,"tamanhoPagina":10},timeout=30)
+                  r=S.get(URL,params=params,timeout=timeout)
                   sec=time.monotonic()-t0
-                  raw=r.content or b""
-                  print(f"PCA_CLASS={code}|HTTP={r.status_code}|SEC={sec:.3f}|BYTES={len(raw)}|CTYPE={r.headers.get('content-type')!r}")
-                  if r.status_code!=200 or not raw:
-                      print(f"PCA_CLASS_BODY={code}|{raw[:240].decode('utf-8',errors='replace')!r}")
-                      continue
+                  if r.status_code!=200 or not r.content:
+                      print(f"PCA_PAGE_CALL=page:{page}|size:{size}|HTTP={r.status_code}|SEC={sec:.3f}|BYTES={len(r.content or b'')}|BODY={(r.text or '')[:160]!r}")
+                      return None
                   p=r.json()
-                  print(f"PCA_CLASS_META={code}|"+repr({k:p.get(k) for k in ("numeroPagina","paginasRestantes","totalPaginas","totalRegistros","empty") if isinstance(p,dict) and k in p}))
-                  data=p.get("data",[]) if isinstance(p,dict) else (p if isinstance(p,list) else [])
-                  print(f"PCA_CLASS_ROWS={code}|{len(data)}")
-                  cats={}; nitems=0
-                  for row in data:
-                      if not isinstance(row,dict): continue
-                      candidates=row.get("itens") if isinstance(row.get("itens"),list) else [row]
-                      for it in candidates:
-                          if not isinstance(it,dict): continue
-                          nitems+=1
-                          name=it.get("categoriaItemPcaNome")
-                          cls=it.get("classificacaoSuperiorCodigo")
-                          cats[(str(name),str(cls))]=cats.get((str(name),str(cls)),0)+1
-                          if nitems<=5:
-                              print(f"PCA_CLASS_ITEM={code}|"+repr({k:it.get(k) for k in ("numeroItem","categoriaItemPcaNome","classificacaoSuperiorCodigo","classificacaoSuperiorNome","descricaoItem","pdmDescricao","valorTotal","dataDesejada","dataAtualizacao","grupoContratacaoCodigo","grupoContratacaoNome")}))
-                  print(f"PCA_CLASS_COUNTS={code}|ITEMS={nitems}|CATS={cats!r}")
+                  print(f"PCA_PAGE_CALL=page:{page}|size:{size}|HTTP=200|SEC={sec:.3f}|BYTES={len(r.content)}|TOTAL={p.get('totalRegistros')}|PAGES={p.get('totalPaginas')}|REST={p.get('paginasRestantes')}")
+                  return p
               except Exception as exc:
-                  print(f"PCA_CLASS_EXCEPTION={code}|{type(exc).__name__}:{exc}")
+                  print(f"PCA_PAGE_EXCEPTION=page:{page}|size:{size}|{type(exc).__name__}:{exc}")
+                  return None
+
+          # Find the largest practical page size without stress-testing broad date windows.
+          chosen=None; first_payload=None
+          for size in (500,200,100,50,10):
+              p=call(1,size,timeout=15)
+              if isinstance(p,dict) and isinstance(p.get("data"),list):
+                  chosen=size; first_payload=p; break
+          print(f"PCA_CHOSEN_PAGE_SIZE={chosen}")
+          if not chosen:
+              raise SystemExit("No usable PNCP PCA page size")
+
+          total_pages=int(first_payload.get("totalPaginas") or 1)
+          candidates=[]
+          for page in (1,2,3,10,50,100,total_pages//4,total_pages//2,(3*total_pages)//4,total_pages):
+              page=max(1,min(total_pages,int(page or 1)))
+              if page not in candidates: candidates.append(page)
+
+          works_names={"obras","serviços de engenharia","servicos de engenharia","obras e serviços de engenharia","obras e servicos de engenharia"}
+          seen=set(); sampled_items=0; works=[]; categories={}
+          plan_updates=[]
+
+          def consume(payload,page):
+              nonlocal_placeholder=None
+              for plan in payload.get("data") or []:
+                  if not isinstance(plan,dict): continue
+                  pu=plan.get("dataAtualizacaoGlobalPCA")
+                  if pu: plan_updates.append(str(pu))
+                  cnpj=str(plan.get("cnpj") or "")
+                  ano=str(plan.get("anoPca") or "")
+                  seq=str(plan.get("sequencialPca") or "")
+                  for item in plan.get("itens") or []:
+                      if not isinstance(item,dict): continue
+                      yield plan,item,(cnpj,ano,seq,str(item.get("numeroItem") or ""))
+
+          for idx,page in enumerate(candidates):
+              payload=first_payload if page==1 else call(page,chosen,timeout=18)
+              if not isinstance(payload,dict): continue
+              for plan,item,ident in consume(payload,page):
+                  sampled_items+=1
+                  if ident in seen:
+                      print(f"PCA_DUPLICATE_SAMPLE={ident!r}|page={page}")
+                  seen.add(ident)
+                  cname=str(item.get("categoriaItemPcaNome") or "").strip()
+                  categories[cname]=categories.get(cname,0)+1
+                  if cname.lower() not in works_names: continue
+                  record={
+                      "page":page,
+                      "identity":ident,
+                      "category":cname,
+                      "classification":item.get("classificacaoSuperiorCodigo"),
+                      "classificationName":item.get("classificacaoSuperiorNome"),
+                      "description":item.get("descricaoItem"),
+                      "value":item.get("valorTotal"),
+                      "desiredDate":item.get("dataDesejada"),
+                      "buyer":plan.get("razaoSocial"),
+                      "globalUpdated":plan.get("dataAtualizacaoGlobalPCA"),
+                      "itemUpdated":item.get("dataAtualizacao"),
+                  }
+                  works.append(record)
+                  print("PCA_WORKS_LIVE="+repr(record))
+                  if len(works)>=12: break
+              if len(works)>=12: break
+
+          print(f"PCA_SAMPLE_SUMMARY=SIZE:{chosen}|TOTAL_PAGES:{total_pages}|PAGES_QUERIED:{candidates!r}|ITEMS:{sampled_items}|UNIQUE_IDS:{len(seen)}|WORKS:{len(works)}")
+          print("PCA_SAMPLE_CATEGORIES="+repr(categories))
+          if plan_updates:
+              print(f"PCA_SAMPLE_GLOBAL_UPDATE_RANGE={min(plan_updates)}..{max(plan_updates)}")
+          if not works:
+              raise SystemExit("No publisher-native Works category found in bounded incremental sample")
           PY
       - name: Compile root Python modules
         run: python -m py_compile $(find . -maxdepth 1 -type f -name '*.py' -printf '%f\n' | sort)
