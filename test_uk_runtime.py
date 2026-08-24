@@ -8,14 +8,18 @@ class FakeConn:
         pass
 
 
-def test_uk_registry_remains_planned_and_env_cannot_bypass_gate(monkeypatch):
-    assert SOURCES["UK_PROCUREMENT"]["status"] == "planned"
-    assert "runtime_not_enabled" in production_gate_reasons("UK_PROCUREMENT")
-    monkeypatch.setenv("OBRASIGNAL_GLOBAL_SOURCES", "UK_PROCUREMENT")
+def test_uk_registry_ready_but_runtime_still_requires_explicit_opt_in(monkeypatch):
+    assert SOURCES["UK_PROCUREMENT"]["status"] == "ready"
+    assert production_gate_reasons("UK_PROCUREMENT") == ()
+
+    monkeypatch.delenv("OBRASIGNAL_GLOBAL_SOURCES", raising=False)
     assert uk_runtime._preload._global_source_enabled("UK_PROCUREMENT") is False
 
+    monkeypatch.setenv("OBRASIGNAL_GLOBAL_SOURCES", "UK_PROCUREMENT")
+    assert uk_runtime._preload._global_source_enabled("UK_PROCUREMENT") is True
 
-def test_uk_runtime_uses_generic_staging_path_when_gate_is_opened_in_test(monkeypatch):
+
+def test_uk_runtime_uses_generic_staging_path_when_explicitly_enabled(monkeypatch):
     staged = []
     health = []
     fetch_calls = []
