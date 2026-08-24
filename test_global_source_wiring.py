@@ -65,6 +65,32 @@ def test_dncp_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
     discard_staged_source_syncs()
 
 
+def test_empty_incremental_dncp_window_is_healthy_not_source_failure(monkeypatch):
+    events = []
+    monkeypatch.setenv('BASE_ACCESS_TOKEN', 'configured')
+    monkeypatch.setenv('OBRASIGNAL_GLOBAL_SOURCES', 'PY_DNCP')
+    monkeypatch.setattr(preload._app, 'db', lambda: FakeConn())
+    monkeypatch.setattr(preload, '_original_fetch_base', lambda: [{'source': 'BASE', 'external_id': 'base-1'}])
+    monkeypatch.setattr(preload._national_sources, 'fetch_boamp', lambda: [{'source': 'BOAMP', 'external_id': 'boamp-1'}])
+    monkeypatch.setattr(preload._national_sources, 'fetch_placsp', lambda: [{'source': 'PLACSP', 'external_id': 'placsp-1'}])
+    monkeypatch.setattr(preload._national_sources, 'LUXEMBOURG_RSS_URL', '')
+    monkeypatch.setattr(preload, '_fetch_dncp_staged', lambda: [])
+    monkeypatch.setattr(preload, 'dedupe_records', lambda rows: rows)
+    monkeypatch.setattr(
+        preload,
+        'record_source_result',
+        lambda conn, source, **kwargs: events.append((source, kwargs)),
+    )
+
+    rows = preload.fetch_base_with_national_sources()
+
+    assert len(rows) == 3
+    dncp = [payload for source, payload in events if source == 'PY_DNCP']
+    assert len(dncp) == 1
+    assert dncp[0]['success'] is True
+    assert dncp[0]['found'] == 0
+
+
 def test_sync_failure_discards_staged_global_cursor(monkeypatch):
     discard_staged_source_syncs()
 
