@@ -13,6 +13,8 @@ Only ``ProcurementTypeCode=works`` ContractNotice records can create opportuniti
 Commercial identity is lot-level: ContractFolderID + real lot ID. ContractAwardNotice
 records only close tracked tenders when the publisher-native winner-selection status
 is terminal (``selec-w`` or ``clos-nw``); ``open-nw`` explicitly remains open.
+Contract modification notices (``can-modif``) belong to post-award contract execution
+and are intentionally outside this TENDER-only lifecycle connector.
 """
 from __future__ import annotations
 
@@ -351,6 +353,10 @@ def _result_lot_id(result):
 def _award_events(root, *, publication_day, filename_notice_id, file_version, tracked_folders=()):
     if _local(root.tag) != "ContractAwardNotice":
         return []
+    notice_type = _direct_text(root, "NoticeTypeCode").strip().lower()
+    if notice_type == "can-modif":
+        return []
+
     project = _project(root)
     folder_id = _direct_text(root, "ContractFolderID")
     project_type = _direct_text(project, "ProcurementTypeCode").lower()
@@ -366,7 +372,7 @@ def _award_events(root, *, publication_day, filename_notice_id, file_version, tr
 
     results = _descendants(root, "LotResult")
     if not results:
-        raise RuntimeError(f"{SOURCE} relevant award contains no LotResult identities; cursor not advanced")
+        raise RuntimeError(f"{SOURCE} relevant award contains no lot identities (LotResult); cursor not advanced")
 
     events = []
     for result in results:
@@ -390,7 +396,7 @@ def _award_events(root, *, publication_day, filename_notice_id, file_version, tr
             "notice_id": notice_id,
             "file_version": int(file_version),
             "publication_day": publication_day,
-            "notice_type": _direct_text(root, "NoticeTypeCode"),
+            "notice_type": notice_type,
             "event_kind": "result",
             "closed": True,
             "winner_selection_status": code,
