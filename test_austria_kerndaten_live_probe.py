@@ -1,178 +1,148 @@
-"""TEMPORARY live probe for Austria KDQ -> notice transport and XML families.
+"""TEMPORARY live probe for Austria distributed KDQ accessibility and eForms discovery.
 
-Delete before merge. This intentionally prints bounded evidence via failure.
+Delete before merge. Intentionally fails after printing bounded evidence.
 """
 from datetime import datetime, timezone
 import json
 from urllib.parse import urlparse
-import xml.etree.ElementTree as ET
 
 import requests
 
 
-KDQ_URL = "https://www.ausschreibung.at/OpenData/kdq?id=87BA5ED1"
+CATALOG = "https://www.data.gv.at"
 HEADERS = {
-    "Accept": "application/xml,text/xml,*/*;q=0.5",
+    "Accept": "application/json,application/ld+json;q=0.9,application/xml;q=0.8,*/*;q=0.5",
     "User-Agent": "ObraSignal temporary Austria Kerndaten forensic probe/1.0",
 }
-MAX_KDQ_BYTES = 20 * 1024 * 1024
-MAX_NOTICE_BYTES = 4 * 1024 * 1024
-MAX_NOTICE_FETCHES = 16
+MAX_DATASETS = 20
+MAX_KDQ_PREFIX = 8192
 
 
-def _local(tag):
-    return str(tag).rsplit("}", 1)[-1]
-
-
-def _namespace(tag):
-    text = str(tag)
-    return text[1:].split("}", 1)[0] if text.startswith("{") and "}" in text else ""
-
-
-def _text(elem):
-    return "" if elem is None or elem.text is None else " ".join(elem.text.split())
-
-
-def _bounded_get(session, url, max_bytes):
-    response = session.get(url, headers=HEADERS, timeout=90, stream=True, allow_redirects=True)
-    response.raise_for_status()
-    length = int(response.headers.get("content-length") or 0)
-    if length and length > max_bytes:
-        response.close()
-        raise AssertionError(f"resource too large: {length} > {max_bytes}: {url}")
-    chunks = []
-    total = 0
+def _safe_json(response):
     try:
-        for chunk in response.iter_content(131072):
-            if not chunk:
-                continue
-            total += len(chunk)
-            if total > max_bytes:
-                raise AssertionError(f"stream exceeded limit {max_bytes}: {url}")
-            chunks.append(chunk)
-    finally:
-        response.close()
-    return b"".join(chunks), {
-        "status": response.status_code,
-        "final_url": response.url,
-        "content_type": response.headers.get("content-type"),
-        "content_length": length,
-        "received": total,
-    }
+        return response.json()
+    except Exception:
+        return None
 
 
-def _leaf_rows(root, limit=250):
-    rows = []
-    for elem in root.iter():
-        if list(elem):
-            continue
-        value = _text(elem)
-        if not value and not elem.attrib:
-            continue
-        rows.append({
-            "tag": _local(elem.tag),
-            "ns": _namespace(elem.tag)[-120:],
-            "text": value[:500],
-            "attrs": {str(k): str(v)[:300] for k, v in elem.attrib.items()},
-        })
-        if len(rows) >= limit:
-            break
-    return rows
-
-
-def _all_urls(root):
+def _graph_access_urls(payload):
     out = []
-    seen = set()
-    for elem in root.iter():
-        candidates = [_text(elem), *[str(v) for v in elem.attrib.values()]]
-        for value in candidates:
-            value = value.strip()
-            if not value.startswith(("http://", "https://")):
-                continue
-            if value in seen:
-                continue
-            seen.add(value)
-            out.append(value)
+    if not isinstance(payload, dict):
+        return out
+    for node in payload.get("@graph") or []:
+        if not isinstance(node, dict):
+            continue
+        access = node.get("dcat:accessURL")
+        if isinstance(access, dict):
+            value = str(access.get("@id") or "").strip()
+            if value and value not in out:
+                out.append(value)
     return out
 
 
-def _interesting_notice(root):
-    rows = []
-    construction_hits = []
-    deadline_hits = []
-    identity_hits = []
-    eforms_markers = []
-    for elem in root.iter():
-        tag = _local(elem.tag)
-        value = _text(elem)
-        low_tag = tag.lower()
-        low = value.lower()
-        if value and (
-            value.startswith("45")
-            or "bauauftrag" in low
-            or "bauleistung" in low
-            or "works" == low
-        ):
-            construction_hits.append({"tag": tag, "text": value[:300], "attrs": dict(elem.attrib)})
-        if value and any(token in low_tag for token in ("frist", "deadline", "submission", "angebots", "enddate", "endtime")):
-            deadline_hits.append({"tag": tag, "text": value[:300], "attrs": dict(elem.attrib)})
-        if value and any(token in low_tag for token in ("id", "identifier", "uuid", "version", "date", "zeit", "time")):
-            if len(identity_hits) < 35:
-                identity_hits.append({"tag": tag, "text": value[:300], "attrs": dict(elem.attrib)})
-        ns = _namespace(elem.tag).lower()
-        if "oasis" in ns or "ubl" in ns or "eforms" in ns or "ted" in ns:
-            marker = {"tag": tag, "ns": ns[-180:]}
-            if marker not in eforms_markers and len(eforms_markers) < 20:
-                eforms_markers.append(marker)
-        if len(rows) < 80 and value:
-            rows.append({"tag": tag, "text": value[:300], "attrs": dict(elem.attrib)})
+def _catalog_search(session, query, limit=MAX_DATASETS):
+    r = session.get(
+        f"{CATALOG}/api/hub/search/search",
+        params={"q": query, "limit": limit},
+        timeout=45,
+    )
+    r.raise_for_status()
+    payload = r.json()
+    result = payload.get("result") or {}
+    rows = result.get("results") or []
+    return int(result.get("count") or 0), [row for row in rows if isinstance(row, dict)]
+
+
+def _dataset_access_urls(session, dataset_id):
+    r = session.get(
+        f"{CATALOG}/api/hub/repo/datasets/{dataset_id}",
+        headers={**HEADERS, "Accept": "application/ld+json"},
+        timeout=45,
+    )
+    r.raise_for_status()
+    return _graph_access_urls(r.json()), r.status_code
+
+
+def _probe_kdq(session, url):
+    result = {"url": url, "host": urlparse(url).hostname}
+    try:
+        r = session.get(url, headers={**HEADERS, "Accept": "application/xml,text/xml,*/*"}, timeout=20, stream=True, allow_redirects=True)
+        result.update({
+            "status": r.status_code,
+            "final_url": r.url,
+            "content_type": r.headers.get("content-type"),
+            "content_length": r.headers.get("content-length"),
+        })
+        prefix = bytearray()
+        try:
+            for chunk in r.iter_content(2048):
+                if chunk:
+                    prefix.extend(chunk)
+                if len(prefix) >= MAX_KDQ_PREFIX:
+                    break
+        finally:
+            r.close()
+        result["prefix_bytes"] = len(prefix)
+        result["prefix"] = bytes(prefix[:2000]).decode("utf-8", errors="replace")
+    except requests.RequestException as exc:
+        result["error"] = f"{type(exc).__name__}: {str(exc)[:500]}"
+    return result
+
+
+def _result_summary(row):
+    title = row.get("title")
+    if isinstance(title, dict):
+        title = title.get("de") or title.get("en") or next(iter(title.values()), "")
     return {
-        "root": _local(root.tag),
-        "root_ns": _namespace(root.tag),
-        "construction_hits": construction_hits[:30],
-        "deadline_hits": deadline_hits[:30],
-        "identity_hits": identity_hits,
-        "eforms_markers": eforms_markers,
-        "leaf_sample": rows,
+        "id": row.get("id"),
+        "title": title,
+        "modified": row.get("modified"),
+        "issued": row.get("issued"),
+        "publisher": row.get("publisher"),
+        "distributions": [
+            {
+                "id": d.get("id"),
+                "format": d.get("format"),
+                "media_type": d.get("media_type"),
+                "modified": d.get("modified"),
+                "license": d.get("license"),
+            }
+            for d in (row.get("distributions") or [])[:3]
+            if isinstance(d, dict)
+        ],
     }
 
 
-def test_austria_kdq_and_notice_family_live():
+def test_austria_distributed_kdq_accessibility_live():
     session = requests.Session()
     session.headers.update(HEADERS)
-    evidence = {"at": datetime.now(timezone.utc).isoformat(), "kdq_url": KDQ_URL}
+    evidence = {"at": datetime.now(timezone.utc).isoformat(), "queries": {}, "kdqs": []}
 
-    payload, meta = _bounded_get(session, KDQ_URL, MAX_KDQ_BYTES)
-    evidence["kdq_http"] = meta
-    root = ET.fromstring(payload)
-    evidence["kdq_root"] = {"tag": _local(root.tag), "ns": _namespace(root.tag), "attrs": dict(root.attrib)}
-    evidence["kdq_leaf_sample"] = _leaf_rows(root)
-    urls = _all_urls(root)
-    evidence["kdq_url_count"] = len(urls)
-    evidence["kdq_urls_sample"] = urls[:30]
-
-    # Prefer URLs that look like actual XML notices over documentation/schema links.
-    notice_urls = []
-    for url in reversed(urls):
-        host = (urlparse(url).hostname or "").lower()
-        low = url.lower()
-        if host.endswith("ausschreibung.at") and "kdq" not in low:
-            notice_urls.append(url)
-        if len(notice_urls) >= MAX_NOTICE_FETCHES:
-            break
-    if not notice_urls:
-        notice_urls = list(reversed(urls[-MAX_NOTICE_FETCHES:]))
-
-    evidence["notices"] = []
-    for url in notice_urls[:MAX_NOTICE_FETCHES]:
-        row = {"url": url}
+    discovered = []
+    for query in ("Kerndaten", "Ausschreibung", "eForms", "eforms Vergabe"):
         try:
-            body, http = _bounded_get(session, url, MAX_NOTICE_BYTES)
-            row["http"] = http
-            notice = ET.fromstring(body)
-            row.update(_interesting_notice(notice))
-        except Exception as exc:
-            row["error"] = f"{type(exc).__name__}: {str(exc)[:500]}"
-        evidence["notices"].append(row)
+            count, rows = _catalog_search(session, query)
+            evidence["queries"][query] = {
+                "count": count,
+                "rows": [_result_summary(row) for row in rows[:10]],
+            }
+            if query in ("Kerndaten", "Ausschreibung"):
+                for row in rows:
+                    dataset_id = str(row.get("id") or "").strip()
+                    if dataset_id and dataset_id not in discovered:
+                        discovered.append(dataset_id)
+        except requests.RequestException as exc:
+            evidence["queries"][query] = {"error": f"{type(exc).__name__}: {str(exc)[:400]}"}
 
-    raise AssertionError("AT_KERNDATEN_KDQ_EVIDENCE " + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:70000])
+    for dataset_id in discovered[:MAX_DATASETS]:
+        row = {"dataset_id": dataset_id}
+        try:
+            urls, status = _dataset_access_urls(session, dataset_id)
+            row["metadata_status"] = status
+            row["access_urls"] = urls
+            row["probes"] = [_probe_kdq(session, url) for url in urls[:2]]
+        except requests.RequestException as exc:
+            row["metadata_error"] = f"{type(exc).__name__}: {str(exc)[:500]}"
+        evidence["kdqs"].append(row)
+
+    raise AssertionError("AT_KERNDATEN_DISTRIBUTED_EVIDENCE " + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:80000])
