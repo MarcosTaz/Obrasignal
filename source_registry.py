@@ -158,7 +158,7 @@ SOURCES = {
         capabilities=("incremental_sync", "detail"),
         signal_types=("TENDER",),
         wave=1,
-        adapter="SERCOPBulkRecordConnector",
+        adapter="OCDSMonthlyBulkConnector",
         realtime_capable=False,
     ),
     "PY_DNCP": _source(country="PRY", source_id="py_dncp_api_v3", kind="OCDS_API", access="api_oauth", status="ready", priority=1, legal_reuse="GREEN", machine_access="VERIFIED", expected_refresh_minutes=60, stale_after_minutes=180, capabilities=("search", "incremental_sync", "awards", "contracts", "plans", "amendments"), signal_types=("PROCUREMENT_PLAN", "TENDER", "AWARD", "CONTRACT"), wave=1, adapter="OCDSAPIConnector", realtime_capable=True),
