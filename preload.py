@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 import app as _app
 import national_sources as _national_sources
 import colombia_secop as _colombia_secop
+import paraguay_dncp as _paraguay_dncp
 from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
 from source_health import get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
@@ -90,6 +91,17 @@ def _fetch_secop_staged():
         conn.close()
     records, cursor = _colombia_secop.fetch_secop_processes(watermark=watermark)
     stage_source_sync("CO_SECOP", records, cursor)
+    return records
+
+
+def _fetch_dncp_staged():
+    conn = _app.db()
+    try:
+        watermark = get_source_cursor(conn, "PY_DNCP")
+    finally:
+        conn.close()
+    records, cursor = _paraguay_dncp.fetch_dncp_processes(watermark=watermark)
+    stage_source_sync("PY_DNCP", records, cursor)
     return records
 
 
@@ -186,6 +198,11 @@ def fetch_base_with_national_sources():
         connectors.append(("CO_SECOP", _fetch_secop_staged))
     else:
         _record_blocked_global_source("CO_SECOP")
+
+    if _global_source_enabled("PY_DNCP"):
+        connectors.append(("PY_DNCP", _fetch_dncp_staged))
+    else:
+        _record_blocked_global_source("PY_DNCP")
 
     for source, fetcher in connectors:
         started = time.perf_counter()
