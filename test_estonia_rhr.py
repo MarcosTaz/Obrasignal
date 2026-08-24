@@ -96,6 +96,22 @@ def test_award_closes_visible_lot_and_never_emits_initial_intermediate_state():
     assert rows == [] and EERHRCursor.decode(cursor).tracked == {}
 
 
+def test_award_closes_tracked_lot_even_when_original_notice_is_outside_overlap():
+    seed = EstoniaRHRConnector(session=Session(open_data(notice_xml())), initial_months=1, overlap_months=0)
+    _rows, watermark = seed.fetch_incremental(now=NOW)
+
+    closing = EstoniaRHRConnector(
+        session=Session(open_data(), open_data(award_xml())),
+        overlap_months=0,
+    )
+    rows, cursor = closing.fetch_incremental(watermark=watermark, now=NOW)
+    assert len(rows) == 1
+    assert rows[0]["external_id"] == "folder-1::LOT-0000"
+    assert rows[0]["lifecycle_status"] == "result_published"
+    assert rows[0]["is_actionable"] is False
+    assert EERHRCursor.decode(cursor).tracked == {}
+
+
 def test_elapsed_tracked_deadline_emits_tombstone_once():
     payload = open_data(notice_xml(deadline_date="2026-08-21+03:00"))
     early = datetime(2026, 8, 20, 8, 0, tzinfo=timezone.utc)
@@ -125,9 +141,23 @@ def test_initial_three_months_and_tallinn_calendar_boundary():
     assert _periods(boundary, 2) == [(2026, 8), (2026, 9)]
 
 
-def test_invalid_cursor_and_resource_limit_fail_closed():
+def test_invalid_cursor_resource_limit_and_root_fail_closed():
     with pytest.raises(RuntimeError, match="invalid EE_RHR cursor"):
         EERHRCursor.decode("not-json")
-    connector = EstoniaRHRConnector(session=Session(open_data(notice_xml()), content_length=999999), initial_months=1, overlap_months=0, max_resource_bytes=1000)
+
+    too_large = EstoniaRHRConnector(
+        session=Session(open_data(notice_xml()), content_length=999999),
+        initial_months=1,
+        overlap_months=0,
+        max_resource_bytes=1000,
+    )
     with pytest.raises(RuntimeError, match="max_resource_bytes=.*cursor not advanced"):
-        connector.fetch_incremental(now=NOW)
+        too_large.fetch_incremental(now=NOW)
+
+    wrong_root = EstoniaRHRConnector(
+        session=Session(b"<NOT-OPEN-DATA/>", open_data()),
+        initial_months=1,
+        overlap_months=0,
+    )
+    with pytest.raises(RuntimeError, match="unexpected root NOT-OPEN-DATA; cursor not advanced"):
+        wrong_root.fetch_incremental(now=NOW)
