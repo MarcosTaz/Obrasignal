@@ -128,7 +128,7 @@ def _item_event(item):
     updated = _utc(item.get("chgDt"))
     if not external_id or not updated or not kind:
         raise RuntimeError(
-            f"{SOURCE} construction item missing bidNtceNo/bidNtceOrd/ntceKindNm/chgDt; cursor not advanced"
+            f"{SOURCE} construction item missing bidNtceNo/bidNtceOrd/ntceKindNm/chgDt change timestamp; cursor not advanced"
         )
     if kind not in _ACTIVE_NOTICE_KINDS and kind != _CANCELLED_NOTICE_KIND:
         raise RuntimeError(f"{SOURCE} construction item has unsupported ntceKindNm={kind!r}; cursor not advanced")
