@@ -307,10 +307,15 @@ class ARCEOCDSRSSAdapter:
                 return [], ARCECursor(_iso(current), "")
             return batch, ARCECursor(batch[-1].published_at, batch[-1].guid)
 
-        overlap_start = cursor_dt - timedelta(seconds=max(0, self.overlap_seconds))
+        # The RSS is an immutable release-event index. Progress therefore uses
+        # the strict (pubDate, guid) key, not a replay window. The time overlap
+        # is retained only when deciding whether the cursor is still safely
+        # covered by the current last-500 feed horizon.
+        cursor_key = (cursor_dt, cursor.guid or "")
+        horizon_probe = cursor_dt - timedelta(seconds=max(0, self.overlap_seconds))
         oldest_live = _parse_iso(live_events[0].published_at) if live_events else None
-        if oldest_live and overlap_start >= oldest_live:
-            eligible = [event for event in live_events if _parse_iso(event.published_at) >= overlap_start]
+        if oldest_live and horizon_probe >= oldest_live:
+            eligible = [event for event in live_events if event.key() > cursor_key]
             batch = eligible[: max(1, self.max_events_per_sync)]
             if not batch:
                 return [], cursor
@@ -319,11 +324,13 @@ class ARCEOCDSRSSAdapter:
         # Current RSS contains only the most recent 500 releases. A cursor older
         # than that visible horizon switches to the documented /rss/YYYY/MM
         # recovery route. A completed historical month is marked with guid '~';
-        # the following run then starts in the next month rather than looping.
-        recovery_start = cursor_dt + timedelta(seconds=1) if cursor and cursor.guid == "~" else cursor_dt
-        recovery_overlap = recovery_start - timedelta(seconds=max(0, self.overlap_seconds))
+        # the following run starts one second later, in the next month.
+        recovery_start = cursor_dt + timedelta(seconds=1) if cursor.guid == "~" else cursor_dt
         recovery_events = self._feed(monthly_rss_url(recovery_start))
-        eligible = [event for event in recovery_events if _parse_iso(event.published_at) >= recovery_overlap]
+        if cursor.guid == "~":
+            eligible = [event for event in recovery_events if _parse_iso(event.published_at) >= recovery_start]
+        else:
+            eligible = [event for event in recovery_events if event.key() > cursor_key]
         batch = eligible[: max(1, self.max_events_per_sync)]
         if len(eligible) > len(batch):
             return batch, ARCECursor(batch[-1].published_at, batch[-1].guid)
