@@ -5,6 +5,7 @@ import pytest
 import paraguay_dncp
 from paraguay_dncp import (
     DNCP_CONFIG,
+    DNCP_RECORD_URL_TEMPLATE,
     DNCP_SEARCH_URL,
     DNCPTokenProvider,
     dncp_search_params,
@@ -53,6 +54,7 @@ def _record(*, status="active", url=None):
                 "procurementMethod": "open",
                 "procurementMethodDetails": "Licitación Pública Nacional",
                 "mainProcurementCategory": "works",
+                "mainProcurementCategoryDetails": "Obras - Servicios de Construccion y Mantenimiento",
                 "url": url,
                 "tenderPeriod": {"endDate": "2026-09-12T09:00:00-03:00"},
                 "value": {"amount": 9500000000, "currency": "PYG"},
@@ -62,20 +64,24 @@ def _record(*, status="active", url=None):
     }
 
 
-def test_dncp_config_targets_official_v3_search_and_safe_daily_windows():
+def test_dncp_config_targets_official_v3_search_and_bounded_hydration():
     assert DNCP_CONFIG.source == "PY_DNCP"
     assert DNCP_CONFIG.search_url == DNCP_SEARCH_URL
     assert DNCP_CONFIG.search_url.endswith("/datos/api/v3/doc/search/processes")
     assert DNCP_CONFIG.window_days == 1
     assert DNCP_CONFIG.max_pages_per_window * DNCP_CONFIG.page_size == 10000
+    assert DNCP_CONFIG.hydrate_records is True
+    assert DNCP_CONFIG.record_url_template == DNCP_RECORD_URL_TEMPLATE
+    assert DNCP_CONFIG.max_hydrations_per_window == 250
 
 
-def test_dncp_search_is_server_side_works_and_release_date_incremental():
+def test_dncp_search_is_server_side_active_works_and_release_date_incremental():
     params = dncp_search_params(date(2026, 8, 23), date(2026, 8, 24))
     assert params["fecha_desde"] == "2026-08-23"
     assert params["fecha_hasta"] == "2026-08-24"
     assert params["tipo_fecha"] == "fecha_release"
     assert params["tender.mainProcurementCategory"] == "works"
+    assert params["tender.status"] == "active"
     assert params["order"] == "date asc"
 
 
@@ -114,7 +120,7 @@ def test_request_token_exchange_is_cached(monkeypatch):
     assert session.posts[0]["url"].endswith("/datos/api/v3/doc/oauth/token")
 
 
-def test_dncp_normalizer_keeps_native_classification_and_official_fallback_url():
+def test_dncp_normalizer_preserves_richer_local_category_and_official_fallback_url():
     item = normalize_dncp_process(_record())
     assert item["source"] == "PY_DNCP"
     assert item["external_id"] == "ocds-03ad3f-500001-1"
@@ -122,11 +128,12 @@ def test_dncp_normalizer_keeps_native_classification_and_official_fallback_url()
     assert item["taxonomy"] == "DNCP"
     assert item["category_code"] == "72000000"
     assert item["cpv"] == ""
-    assert item["contract_type"] == "works"
+    assert item["contract_type"] == "Obras - Servicios de Construccion y Mantenimiento"
     assert item["procurement_method"] == "Licitación Pública Nacional"
     assert item["currency"] == "PYG"
     assert item["url"] == paraguay_dncp.DNCP_PORTAL_URL
 
 
-def test_dncp_normalizer_rejects_completed_tender_from_discovery_signal():
-    assert normalize_dncp_process(_record(status="complete")) is None
+def test_dncp_normalizer_rejects_non_active_tender_from_discovery_signal():
+    for status in ("planned", "complete", "cancelled", "unsuccessful", "withdrawn"):
+        assert normalize_dncp_process(_record(status=status)) is None
