@@ -1,18 +1,20 @@
-"""TEMPORARY Austria probe: inspect Z1 and Hubexo identity/duplication fields.
+"""TEMPORARY Austria probe: Z1 XSD flags + Hubexo duplicate semantics.
 Delete before merge. Intentionally fails after bounded evidence is emitted.
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import xml.etree.ElementTree as ET
 import requests
 
 HEADERS = {"User-Agent": "ObraSignal temporary Austria forensic probe/1.0"}
-DATASET_ID = "fde58043-87ff-44b0-b6b0-3d089adfba4c"
-Z1_ITEM_ID = "FN_227986z_BVergG-VIII-1-Z1_240329"
+Z1_XSD = "https://ausschreibungen.usp.gv.at/schema/latest/kd-8-1-z1.xsd"
 HUBEXO_KDQ = "https://www.ausschreibung.at/OpenData/kdq?id=87BA5ED1"
 HUBEXO_ITEMS = ("899FC4871C63FACD", "701AB593054DF14D", "C3661D2BA33721CA", "28A1BA69A2BF04CC")
 MAX_BYTES = 8 * 1024 * 1024
+XS_NS = "http://www.w3.org/2001/XMLSchema"
 
 
 def _local(tag):
@@ -20,7 +22,9 @@ def _local(tag):
 
 
 def _text(elem):
-    return "" if elem is None or elem.text is None else " ".join(str(elem.text).split())
+    if elem is None:
+        return ""
+    return " ".join(" ".join(elem.itertext()).split())
 
 
 def _get(session, url, accept="application/xml,text/xml,*/*"):
@@ -45,96 +49,106 @@ def _kdq_items(blob):
     for elem in root.iter():
         if _local(elem.tag).lower() != "item":
             continue
+        item_id = str(elem.attrib.get("id") or "").strip()
         url = ""
         for child in elem:
             if _local(child.tag).lower() == "url":
                 url = _text(child).strip()
-        item_id = str(elem.attrib.get("id") or "").strip()
         if item_id and url:
             out[item_id] = {"id": item_id, "lastmod": str(elem.attrib.get("lastmod") or ""), "url": url}
     return out
 
 
-def _leafs(root, limit=180):
+def _xsd_structure(blob):
+    root = ET.fromstring(blob)
+    result = {"target_namespace": root.attrib.get("targetNamespace"), "complex_types": {}, "global_elements": []}
+    for ctype in root.findall(f"{{{XS_NS}}}complexType"):
+        name = ctype.attrib.get("name") or ""
+        rows = []
+        for elem in ctype.iter(f"{{{XS_NS}}}element"):
+            rows.append({
+                "name": elem.attrib.get("name"),
+                "ref": elem.attrib.get("ref"),
+                "type": elem.attrib.get("type"),
+                "min": elem.attrib.get("minOccurs"),
+                "max": elem.attrib.get("maxOccurs"),
+            })
+        docs = [" ".join((doc.text or "").split()) for doc in ctype.iter(f"{{{XS_NS}}}documentation") if (doc.text or "").strip()]
+        result["complex_types"][name] = {"elements": rows, "docs": docs}
+    for elem in root.findall(f"{{{XS_NS}}}element"):
+        result["global_elements"].append({"name": elem.attrib.get("name"), "ref": elem.attrib.get("ref"), "type": elem.attrib.get("type")})
+    return result
+
+
+def _walk(elem, path=""):
+    name = _local(elem.tag)
+    here = f"{path}/{name}"
     rows = []
-    for elem in root.iter():
-        if list(elem):
-            continue
-        text = _text(elem)
-        attrs = {str(k): str(v)[:250] for k, v in elem.attrib.items()}
-        if text or attrs:
-            rows.append({"tag": _local(elem.tag), "text": text[:500], "attrs": attrs})
-        if len(rows) >= limit:
-            break
+    text = " ".join((elem.text or "").split())
+    if text or elem.attrib or not list(elem):
+        rows.append({"path": here, "text": text[:500], "attrs": {str(k): str(v)[:300] for k, v in elem.attrib.items()}})
+    for child in elem:
+        rows.extend(_walk(child, here))
     return rows
 
 
-def _summary(root):
-    values = {}
-    for elem in root.iter():
-        name = _local(elem.tag)
-        if name in {
-            "TITLE", "REFERENCE_NUMBER", "NATIONALID", "CPV_CODE", "TYPE_CONTRACT",
-            "DATETIME_RECEIPT_TENDERS", "DATETIME_RECEIPT_PARTICIPATION",
-            "DATE_FIRST_PUBLICATION", "DATETIME_LAST_CHANGE", "URL_DOCUMENT",
-            "SHORT_DESCR", "NOTICE_CALL_FOR_COMPETITION", "NOTICE_NUMBER_OJ",
-        }:
-            values.setdefault(name, []).append({"text": _text(elem)[:500], "attrs": dict(elem.attrib)})
-    refish = []
-    for elem in root.iter():
-        name = _local(elem.tag)
-        if any(token in name.upper() for token in ("REF", "NUMBER", "NATIONAL", "ID")):
-            text = _text(elem)
-            if text or elem.attrib:
-                refish.append({"tag": name, "text": text[:500], "attrs": dict(elem.attrib)})
-            if len(refish) >= 80:
-                break
-    return {"root": _local(root.tag), "values": values, "refish": refish, "leafs": _leafs(root)}
-
-
-def _access_urls(payload):
-    out = []
-    for node in payload.get("@graph") or []:
-        if not isinstance(node, dict):
+def _semantic_pairs(root):
+    pairs = []
+    for row in _walk(root):
+        path = row["path"]
+        if path.endswith("/URL_DOCUMENT"):
             continue
-        access = node.get("dcat:accessURL")
-        candidates = access if isinstance(access, list) else [access]
-        for value in candidates:
-            if isinstance(value, dict):
-                url = str(value.get("@id") or "").strip()
-                if url and url not in out:
-                    out.append(url)
+        if path.endswith("/PHONE") or path.endswith("/E_MAIL"):
+            continue
+        value = row["text"]
+        attrs = row["attrs"]
+        if not value and not attrs:
+            continue
+        pairs.append((path, value, tuple(sorted(attrs.items()))))
+    return pairs
+
+
+def _digest(pairs):
+    payload = json.dumps(pairs, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _interesting(rows):
+    tokens = ("TITLE", "REFERENCE", "NATIONAL", "LOT", "OBJECT", "CPV", "TYPE_CONTRACT", "RECEIPT", "NOTICE", "PROCEDURE", "P")
+    out = []
+    for row in rows:
+        upper = row["path"].upper()
+        if any(token in upper for token in tokens):
+            out.append(row)
+        if len(out) >= 160:
+            break
     return out
 
 
-def test_austria_z1_and_hubexo_identity_live():
+def test_austria_z1_flags_and_hubexo_duplicates_live():
     session = requests.Session()
-    evidence = {"z1": {}, "hubexo": []}
+    evidence = {}
 
-    meta = session.get(
-        f"https://www.data.gv.at/api/hub/repo/datasets/{DATASET_ID}",
-        headers={**HEADERS, "Accept": "application/ld+json"}, timeout=60,
-    )
-    meta.raise_for_status()
-    urls = _access_urls(meta.json())
-    evidence["z1"]["dataset_access_urls"] = urls
-    for kdq_url in urls:
-        try:
-            items = _kdq_items(_get(session, kdq_url))
-        except Exception as exc:
-            evidence["z1"].setdefault("kdq_errors", []).append(f"{kdq_url}: {type(exc).__name__}: {str(exc)[:400]}")
-            continue
-        if Z1_ITEM_ID not in items:
-            continue
-        item = items[Z1_ITEM_ID]
-        root = ET.fromstring(_get(session, item["url"]))
-        evidence["z1"].update({"kdq_url": kdq_url, "item": item, "notice": _summary(root)})
-        break
+    xsd_blob = _get(session, Z1_XSD)
+    evidence["z1_xsd"] = _xsd_structure(xsd_blob)
 
-    hubexo_items = _kdq_items(_get(session, HUBEXO_KDQ))
+    kdq_items = _kdq_items(_get(session, HUBEXO_KDQ))
+    notices = []
     for item_id in HUBEXO_ITEMS:
-        item = hubexo_items[item_id]
+        item = kdq_items[item_id]
         root = ET.fromstring(_get(session, item["url"]))
-        evidence["hubexo"].append({"item": item, "notice": _summary(root)})
+        rows = _walk(root)
+        semantic = _semantic_pairs(root)
+        notices.append({
+            "item": item,
+            "root": _local(root.tag),
+            "semantic_sha256_without_url_contact": _digest(semantic),
+            "semantic_pair_count": len(semantic),
+            "interesting_tree": _interesting(rows),
+        })
+    evidence["hubexo"] = {
+        "notices": notices,
+        "all_semantic_hashes_equal": len({row["semantic_sha256_without_url_contact"] for row in notices}) == 1,
+    }
 
-    raise AssertionError("AT_Z1_HUBEXO_IDENTITY_EVIDENCE " + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:120000])
+    raise AssertionError("AT_Z1_FLAGS_HUBEXO_DUPLICATES_EVIDENCE " + json.dumps(evidence, ensure_ascii=False, sort_keys=True)[:120000])
