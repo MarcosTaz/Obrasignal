@@ -47,9 +47,15 @@ These last two fields are deliberately false. Source freshness can prove the sta
 
 ## Public API
 
-### `GET /api/v1/source-health`
+### `GET /api/v1/source-health-contract`
 
-Authenticated public read contract for Web/Mobile. Returns `contract_version=source-health-v1`, generated time, source items and coverage summary. Optional `?source=TED` scopes the contract to a single source.
+Authenticated public v1 read contract for Web/Mobile. Returns `contract_version=source-health-v1`, generated time, source items and coverage summary. Optional `?source=TED` scopes the contract to a single source.
+
+### Legacy compatibility: `GET /api/v1/source-health`
+
+This route already existed before GAP-GP-011 and remains unchanged as a compatibility endpoint returning observed `source_health` rows. Because it calls the same canonical `source_health_snapshot`, its items now receive additive `freshness`, `health` and `stats_state` fields. It does not enumerate missing registered sources or provide the v1 coverage summary.
+
+The legacy route and the v1 route are not parallel truths: both derive from the same `source_health` table and `source_registry` policy. New Web/Mobile integration should consume `/source-health-contract` when it needs explicit coverage/missing-source truth.
 
 ### `GET /api/v1/opportunities`
 
@@ -71,7 +77,7 @@ Even `observed_empty_current` remains bounded to loaded observations and never m
 
 A successful stats response now includes `stats_state=current`, `source_coverage`, `source_health_contract_version` and `generated_at`.
 
-The stats request and source-health request are independent. This is intentional so a partial stats failure cannot be hidden by a successful opportunities/source-health request.
+The stats request and source-health-contract request are independent. This is intentional so a partial stats failure cannot be hidden by a successful opportunities/source-health request.
 
 ## Web / Mobile integration requirement
 
@@ -94,7 +100,7 @@ Rollback of API consumption is safe: stop consuming the additive fields/endpoint
 1. Reconstruct current main before composition.
 2. Compose this candidate semantically with the current Web truth branch, including PR #298 or its successor; do not resolve overlaps by file-level winner selection.
 3. Preserve Production Auth, tenant/account isolation and existing lifecycle/actionability semantics.
-4. Wire Web/Mobile to the public contract without importing private backend modules.
+4. Wire Web/Mobile to `api.sourceHealth()` / `/api/v1/source-health-contract` and the additive `/opportunities` fields without importing private backend modules.
 5. Prove partial stats failure disclosure independently from opportunity/source-health success.
 6. Run exact-head Quality and the relevant Web/Mobile gates.
 7. No canonical merge without explicit authorization.
@@ -111,4 +117,4 @@ GAP-GP-011 acceptance must prove at minimum:
 6. missing source observation -> unknown;
 7. stats request failure with opportunities/source-health success -> explicit partial-failure UI, no silently retained current stats;
 8. historical opportunity remains inspectable after source degradation/unavailability;
-9. Web and Mobile consume the public API contract, not a parallel health truth.
+9. Web and Mobile consume the public v1 API contract, not a parallel health truth.
