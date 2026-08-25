@@ -32,20 +32,22 @@ def _get(path, **params):
     assert isinstance(payload, dict)
     rows = payload.get("content")
     assert isinstance(rows, list)
-    return rows
+    return payload, rows
 
 
 def test_live_dgcp_pacc_acquisitions_and_articles_contract():
-    rows = _get("/pacc/adquisiciones", page=1, limit=10)
+    payload, rows = _get("/pacc/adquisiciones", page=1, limit=10)
     assert rows, "DGCP PACC acquisitions unexpectedly returned no rows"
+    print("DGCP_PACC_PAYLOAD_FIELDS=" + ",".join(sorted(map(str, payload.keys()))))
     acquisition = next(
         (row for row in rows if isinstance(row, dict) and row.get("id_adquisicion")),
         None,
     )
     assert acquisition is not None
+    assert str(acquisition.get("objeto_adquisicion") or "").strip(), "PACC acquisition has no controlled object type"
     print("DGCP_PACC_FIELDS=" + ",".join(sorted(map(str, acquisition.keys()))))
 
-    articles = _get(
+    _, articles = _get(
         "/pacc/articulos",
         page=1,
         limit=50,
@@ -54,4 +56,5 @@ def test_live_dgcp_pacc_acquisitions_and_articles_contract():
     assert articles, "DGCP PACC acquisition unexpectedly returned no articles"
     article = next((row for row in articles if isinstance(row, dict)), None)
     assert article is not None
+    assert any(article.get(key) for key in ("familia_unspsc", "clase_unspsc", "subclase_unspsc"))
     print("DGCP_PACC_ARTICLE_FIELDS=" + ",".join(sorted(map(str, article.keys()))))
