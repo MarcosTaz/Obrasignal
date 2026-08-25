@@ -274,10 +274,18 @@ def stats():
         LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
         WHERE d.account_id=? AND {actionable_predicate('lc', 't')}"""
     params = [identity.account_id, identity.account_id]
-    total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
-    high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 75", params).fetchone()[0]
-    open_count = c.execute(f"SELECT COUNT(*) {base} AND t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')", params).fetchone()[0]
-    new24 = c.execute(f"SELECT COUNT(*) {base} AND julianday(t.first_seen)>=julianday('now','-1 day')", params).fetchone()[0]
+    aggregate = c.execute(
+        f"""SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN d.score >= 75 THEN 1 ELSE 0 END) AS high,
+                   SUM(CASE WHEN t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now') THEN 1 ELSE 0 END) AS open_count,
+                   SUM(CASE WHEN julianday(t.first_seen)>=julianday('now','-1 day') THEN 1 ELSE 0 END) AS new24
+            {base}""",
+        params,
+    ).fetchone()
+    total = aggregate[0] or 0
+    high = aggregate[1] or 0
+    open_count = aggregate[2] or 0
+    new24 = aggregate[3] or 0
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
     c.close()
     return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None, "account_id": identity.account_id})
