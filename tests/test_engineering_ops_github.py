@@ -55,31 +55,24 @@ class FakeGitHub:
 
     def directory(self, path, *, ref):
         assert path == ".github/workflows"
-        return [
-            {
-                "type": "file",
-                "path": ".github/workflows/quality.yml",
-            }
-        ]
+        return [{"type": "file", "path": ".github/workflows/quality.yml"}]
 
     def text_file(self, path, *, ref):
         assert path == ".github/workflows/quality.yml"
         return "name: ObraSignal Quality\non:\n  pull_request:\n"
 
     def workflow_runs(self, head_sha):
-        return [
-            {
-                "id": 10,
-                "run_number": 2,
-                "name": "ObraSignal Quality",
-                "path": ".github/workflows/quality.yml",
-                "head_sha": head_sha,
-                "status": "completed",
-                "conclusion": "success",
-                "event": "pull_request",
-                "pull_requests": [],
-            }
-        ]
+        return [{
+            "id": 10,
+            "run_number": 2,
+            "name": "ObraSignal Quality",
+            "path": ".github/workflows/quality.yml",
+            "head_sha": head_sha,
+            "status": "completed",
+            "conclusion": "success",
+            "event": "pull_request",
+            "pull_requests": [],
+        }]
 
 
 def test_collect_is_read_only_snapshot_and_resolves_dependency_heads():
@@ -88,7 +81,7 @@ def test_collect_is_read_only_snapshot_and_resolves_dependency_heads():
     assert snapshot["dependency_heads"]["238"] == ACTUAL_238
     assert len(snapshot["pull_requests"]) == 2
     assert snapshot["workflow_runs"]["319"][0]["head_sha"] == HEAD_319
-    assert snapshot["gate_attribution"]["319"]["owner_gate_state"] == "GREEN"
+    assert snapshot["gate_attribution"]["319"]["owner_gate_state"] == "OWNER_CURRENT_GREEN"
     assert snapshot["collection_errors"] == {}
 
 
@@ -96,7 +89,7 @@ def test_gate_attribution_is_exposed_in_candidate_evidence():
     snapshot = collect(FakeGitHub())
     report = enrich_report_with_gate_attribution(report_snapshot(snapshot), snapshot)
     gate = report["candidates"][0]["evidence"]["gate_attribution"]
-    assert gate["owner_gate_state"] == "GREEN"
+    assert gate["owner_gate_state"] == "OWNER_CURRENT_GREEN"
     assert gate["gates"][0]["attribution"] == "REQUIRED"
 
 
@@ -129,7 +122,7 @@ class EngineeringOpsFake(FakeGitHub):
 
     def text_file(self, path, *, ref):
         if path.endswith("engineering-ops-drift.yml"):
-            return "name: Engineering Ops Drift\non:\n  pull_request:\n    paths:\n      - engineering_ops_github.py\n      - 'tests/**'\n"
+            return "name: Engineering Ops Drift\non:\n  pull_request:\n    paths:\n      - engineering_ops_github.py\n      - 'tests/**'\n  workflow_dispatch:\n"
         return f"name: {path}\non:\n  pull_request:\n"
 
     def workflow_runs(self, head_sha):
