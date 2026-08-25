@@ -50,7 +50,15 @@ def test_estimate_inference_and_assumption_lineage():
     ev = g.add_evidence(primary(locator={"field": "distance_km"}), 180, field_name="distance_km", unit="km")
     fact = g.add_claim("FACT", "project", "distance_km", 180, unit="km")
     assumption = g.add_claim("ASSUMPTION", "company", "vehicle_cost_per_km", 0.35, unit="EUR/km")
-    estimate = g.add_claim("ESTIMATE", "project", "round_trip_cost", 126, unit="EUR", method="2 * distance * cost_per_km", calculation_version="travel-v1")
+    estimate = g.add_claim(
+        "ESTIMATE",
+        "project",
+        "round_trip_cost",
+        126,
+        unit="EUR",
+        method="2 * distance * cost_per_km",
+        calculation_version="travel-v1",
+    )
     inference = g.add_claim("INFERENCE", "project", "daily_commute_margin_pressure", True)
     g.add_edge(ev, fact, "SUPPORTS")
     g.add_edge(fact, estimate, "DERIVED_FROM")
@@ -80,7 +88,11 @@ def test_conflicting_evidence_is_explicit():
 def test_stale_evidence_uses_source_time_not_retrieval_time():
     g = EvidenceGraph("a")
     old = NOW - timedelta(days=10)
-    ev = g.add_evidence(primary(effective_at=old.isoformat(), published_at=old.isoformat(), retrieved_at=NOW.isoformat()), 10, field_name="value")
+    ev = g.add_evidence(
+        primary(effective_at=old.isoformat(), published_at=old.isoformat(), retrieved_at=NOW.isoformat()),
+        10,
+        field_name="value",
+    )
     fact = g.add_claim("FACT", "x", "value", 10)
     g.add_edge(ev, fact, "SUPPORTS")
     assert g.status(fact, as_of=NOW) == ClaimStatus.STALE
@@ -110,7 +122,8 @@ def test_supersession_preserves_history_and_marks_old_claim():
     new = g.add_claim("FACT", "x", "deadline", "2026-09-15")
     g.add_edge(new, old, "SUPERSEDES")
     assert g.status(old, as_of=NOW) == ClaimStatus.SUPERSEDED
-    assert old in g.ancestors(old) is False
+    assert old not in g.ancestors(old)
+    assert new not in g.ancestors(old)
     assert old in g.nodes and new in g.nodes
 
 
@@ -121,6 +134,15 @@ def test_cycle_detection_for_lineage():
     g.add_edge(a, b, "DERIVED_FROM")
     with pytest.raises(ValueError, match="cycle"):
         g.add_edge(b, a, "DERIVED_FROM")
+
+
+def test_cycle_detection_for_supersession():
+    g = EvidenceGraph("a")
+    old = g.add_claim("FACT", "x", "deadline", "2026-09-12")
+    new = g.add_claim("FACT", "x", "deadline", "2026-09-15")
+    g.add_edge(new, old, "SUPERSEDES")
+    with pytest.raises(ValueError, match="cycle"):
+        g.add_edge(old, new, "SUPERSEDES")
 
 
 def test_tenant_isolation():
@@ -140,16 +162,21 @@ def test_deterministic_graph_export_and_ids():
         fact = g.add_claim("FACT", "n1", "value", 100)
         g.add_edge(ev, fact, "SUPPORTS")
         return g.export()
+
     assert build() == build()
 
 
 def test_generic_signal_adapter_preserves_source_timestamps():
     g = EvidenceGraph("a")
     signal = {
-        "source": "TED", "signal_type": "TENDER", "external_id": "abc",
-        "deadline": "2026-09-01", "published_at": "2026-08-24T12:00:00+00:00",
+        "source": "TED",
+        "signal_type": "TENDER",
+        "external_id": "abc",
+        "deadline": "2026-09-01",
+        "published_at": "2026-08-24T12:00:00+00:00",
         "source_updated_at": "2026-08-24T14:00:00+00:00",
-        "last_observed": "2026-08-25T00:00:00+00:00", "url": "https://example.invalid/abc",
+        "last_observed": "2026-08-25T00:00:00+00:00",
+        "url": "https://example.invalid/abc",
         "source_reference": "notice-abc",
     }
     fact = signal_to_fact(g, signal, "deadline", publisher="TED")
@@ -161,8 +188,12 @@ def test_generic_signal_adapter_preserves_source_timestamps():
 
 def test_economic_fit_full_chain_explains_decision_support():
     signal = {
-        "source": "TED", "signal_type": "TENDER", "external_id": "econ-1",
-        "value": "250000", "published_at": NOW.isoformat(), "source_updated_at": NOW.isoformat(),
+        "source": "TED",
+        "signal_type": "TENDER",
+        "external_id": "econ-1",
+        "value": "250000",
+        "published_at": NOW.isoformat(),
+        "source_updated_at": NOW.isoformat(),
         "url": "https://example.invalid/econ-1",
     }
     profile = {"min_value": 100000, "max_value": 500000, "economic_min_score": 60}
@@ -170,9 +201,10 @@ def test_economic_fit_full_chain_explains_decision_support():
     g = EvidenceGraph("company-a")
     inference = economic_fit_lineage(g, signal, profile, result)
     explanation = g.explain(inference, as_of=NOW)
-    assert explanation["claim"]["value"] == "FAVOURABLE"
+    assert explanation["claim"]["value"] == result["status"]
     assert explanation["facts"]
     assert explanation["estimates"]
     assert explanation["assumptions"]
     assert explanation["evidence"]
+    assert explanation["claim"]["calculation_version"] == result["rule_version"]
     assert explanation["model_version"] == "evidence-graph-v1"
