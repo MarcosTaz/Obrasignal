@@ -38,17 +38,22 @@ jobs:
           assert health.get('ok') is True
           assert health.get('service') == 'obrasignal-api'
           assert health.get('build') == os.environ['TARGET_BUILD']
+          auth=health.get('auth') or {}
+          assert auth.get('mode') == 'provider'
+          assert auth.get('config_present') is True
+          assert auth.get('provider_status') in {'uninitialized', 'ready'}
           print('production_build=' + str(health.get('build')))
+          print('auth_provider_status=' + str(auth.get('provider_status')))
           PY
             then
-              echo "Exact production build is healthy on attempt $attempt/18."
+              echo "Exact production build and auth configuration are healthy on attempt $attempt/18."
               break
             fi
             if [ "$attempt" = 18 ]; then
-              echo "Production never served target build ${TARGET_BUILD:0:7}."
+              echo "Production never served a healthy target build ${TARGET_BUILD:0:7}."
               exit 1
             fi
-            echo "Waiting for target production build ${TARGET_BUILD:0:7} (attempt $attempt/18)…"
+            echo "Waiting for healthy target production build ${TARGET_BUILD:0:7} (attempt $attempt/18)…"
             sleep 10
           done
 
