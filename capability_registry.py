@@ -141,7 +141,7 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         feature_flag="mobilize",
     ),
     "BANGS": _c(
-        "BANGS", "EXPERIMENT", "SHADOW",
+        "BANGS", "RESEARCH", "SHADOW",
         contract_versions=("bangs.v0",),
         feature_flag="bangs_field_intelligence_v0",
         kill_switch_required=True,
