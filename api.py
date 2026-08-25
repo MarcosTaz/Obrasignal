@@ -12,7 +12,7 @@ from auth_context_jwt import JwksUnavailableError
 from company_profile import load_profile, save_profile, derive_profile
 from source_registry import SOURCES
 from account_registry import ensure_account
-from opportunity_workflow import get_workflow, set_workflow, workflow_counts
+from opportunity_workflow import get_workflow, get_workflows, set_workflow, workflow_counts
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 from account_onboarding import bootstrap_account
 
@@ -234,9 +234,11 @@ def alerts():
             LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
             {where} ORDER BY e.created_at DESC LIMIT ?""", params).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
+    workflows = get_workflows(c, identity.account_id, [(r["source"], r["external_id"]) for r in rows])
     items = []
     for r in rows:
-        d = _row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"]))
+        key = (r["source"], r["external_id"])
+        d = _row(r, decisions.get(key), workflows.get(key))
         d.update({"event_id": r["event_id"], "event_key": r["event_key"], "score": r["score"], "created_at": r["created_at"], "delivered_at": r["delivered_at"], "delivery_state": "delivered" if r["delivered_at"] else "new"})
         items.append(d)
     c.close()
@@ -338,7 +340,15 @@ def opportunities():
         (identity.account_id, *params, limit),
     ).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
-    items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
+    workflows = get_workflows(c, identity.account_id, [(r["source"], r["external_id"]) for r in rows])
+    items = [
+        _row(
+            r,
+            decisions.get((r["source"], r["external_id"])),
+            workflows.get((r["source"], r["external_id"])),
+        )
+        for r in rows
+    ]
     c.close()
     return jsonify({"items": items, "count": len(items), "market": market, "generated_at": _iso_now(), "account_id": identity.account_id})
 
