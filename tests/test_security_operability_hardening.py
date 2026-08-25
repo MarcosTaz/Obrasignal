@@ -22,6 +22,17 @@ def test_api_security_headers_are_present(monkeypatch):
     assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
 
 
+def test_provider_mode_never_emits_wildcard_cors(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "*")
+    response = cors_app.APP.test_client().options(
+        "/api/v1/profile",
+        headers={"Origin": "https://attacker.example", "Access-Control-Request-Method": "GET"},
+    )
+    assert response.status_code == 204
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
 def test_malformed_integer_query_fails_closed_without_500(monkeypatch):
     client = _client(monkeypatch)
     for path in (
