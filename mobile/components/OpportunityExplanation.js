@@ -79,7 +79,7 @@ function ReadinessChecklist({ opportunityId }) {
   return <View style={styles.readinessCard} accessibilityLabel={`Preparação para proposta: ${READINESS_LABELS[status] || status}`}>
     <View style={styles.readinessHeader}>
       <View style={styles.body}><Text style={styles.readinessHeading}>Preparação para proposta</Text><Text style={styles.readinessSubtitle}>Estado operacional, não decisão BID / NO-BID.</Text></View>
-      <Text style={[styles.readinessStatus, { color }]}>{READINESS_LABELS[status] || status}</Text>
+      <Text style={[styles.readinessStatus, { color: tone }]}>{READINESS_LABELS[status] || status}</Text>
     </View>
     {blockers.map((item, index) => <Item key={`blocked-${item.code}-${index}`} item={item} itemStatus="BLOCKED" />)}
     {unknowns.map((item, index) => <Item key={`unknown-${item.code}-${index}`} item={item} itemStatus="UNKNOWN" />)}
