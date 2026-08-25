@@ -36,8 +36,13 @@ class FakeSession:
         return FakeResponse(self.responses.pop(0))
 
 
-def envelope(rows, *, code=200, has_error=False):
-    return {"code": code, "hasError": has_error, "payload": {"content": rows}}
+def envelope(rows, *, code=200, has_error=False, page=None, limit=None, pages=None, total=None):
+    result = {"code": code, "hasError": has_error, "payload": {"content": rows}}
+    metadata = {"page": page, "limit": limit, "pages": pages, "totalResults": total}
+    if any(value is not None for value in metadata.values()):
+        assert all(value is not None for value in metadata.values())
+        result.update(metadata)
+    return result
 
 
 def acquisition(**overrides):
@@ -58,6 +63,12 @@ def acquisition(**overrides):
     }
     row.update(overrides)
     return row
+
+
+def test_default_snapshot_bounds_match_live_verified_contract():
+    config = DGCPPACCConfig()
+    assert config.page_size == 1000
+    assert config.max_pages == 60
 
 
 def test_normalizes_only_publisher_controlled_works_object():
@@ -95,7 +106,7 @@ def test_invalid_or_negative_value_does_not_poison_signal():
     assert negative["value"] == ""
 
 
-def test_snapshot_paginates_filters_latest_versions_and_expired_plans():
+def test_snapshot_uses_official_metadata_filters_latest_versions_and_expired_plans():
     config = replace(DGCPPACCConfig(), page_size=2, max_pages=4)
     first = acquisition(version=2, descripcion="old version")
     goods = acquisition(id_adquisicion="GOODS", objeto_adquisicion="Bienes")
@@ -103,9 +114,9 @@ def test_snapshot_paginates_filters_latest_versions_and_expired_plans():
     second = acquisition(id_adquisicion="ADQ-43")
     expired = acquisition(id_adquisicion="OLD", fecha_inicio_proceso_compra="2026-08-24")
     session = FakeSession([
-        envelope([first, goods]),
-        envelope([latest, second]),
-        envelope([expired]),
+        envelope([first, goods], page=1, limit=2, pages=3, total=5),
+        envelope([latest, second], page=2, limit=2, pages=3, total=5),
+        envelope([expired], page=3, limit=2, pages=3, total=5),
     ])
     connector = DGCPPACCConnector(config, session=session)
     rows = connector.fetch_snapshot(now=datetime(2026, 8, 25, tzinfo=timezone.utc))
@@ -122,16 +133,53 @@ def test_snapshot_paginates_filters_latest_versions_and_expired_plans():
 
 
 def test_plan_targeted_today_remains_actionable():
-    session = FakeSession([envelope([acquisition(fecha_inicio_proceso_compra="2026-08-25")])])
+    session = FakeSession([
+        envelope([acquisition(fecha_inicio_proceso_compra="2026-08-25")], page=1, limit=10, pages=1, total=1)
+    ])
     connector = DGCPPACCConnector(replace(DGCPPACCConfig(), page_size=10), session=session)
-    rows = connector.fetch_snapshot(now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+    rows = connector.fetch_snapshot(now=datetime(2026, 8, 25, 12, tzinfo=timezone.utc))
     assert len(rows) == 1
 
 
-def test_snapshot_fails_closed_when_page_bound_cannot_prove_completeness():
+def test_snapshot_fails_closed_when_official_page_count_exceeds_bound():
     config = replace(DGCPPACCConfig(), page_size=1, max_pages=2)
-    session = FakeSession([envelope([acquisition()]), envelope([acquisition(id_adquisicion="ADQ-43")])])
+    session = FakeSession([envelope([acquisition()], page=1, limit=1, pages=3, total=3)])
     connector = DGCPPACCConnector(config, session=session)
+    with pytest.raises(RuntimeError, match="above max_pages=2"):
+        connector.fetch_snapshot(year=2026, now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+
+
+def test_snapshot_fails_closed_when_page_or_totals_change():
+    config = replace(DGCPPACCConfig(), page_size=1, max_pages=4)
+    connector = DGCPPACCConnector(config, session=FakeSession([
+        envelope([acquisition()], page=2, limit=1, pages=1, total=1),
+    ]))
+    with pytest.raises(RuntimeError, match="while page=1 was requested"):
+        connector.fetch_snapshot(year=2026, now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+
+    connector = DGCPPACCConnector(config, session=FakeSession([
+        envelope([acquisition()], page=1, limit=1, pages=2, total=2),
+        envelope([acquisition(id_adquisicion="ADQ-43")], page=2, limit=1, pages=3, total=3),
+    ]))
+    with pytest.raises(RuntimeError, match="pagination totals changed"):
+        connector.fetch_snapshot(year=2026, now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+
+
+def test_snapshot_fails_closed_when_final_count_disagrees_with_total_results():
+    config = replace(DGCPPACCConfig(), page_size=2, max_pages=4)
+    connector = DGCPPACCConnector(config, session=FakeSession([
+        envelope([acquisition()], page=1, limit=2, pages=1, total=2),
+    ]))
+    with pytest.raises(RuntimeError, match="snapshot completeness not proven"):
+        connector.fetch_snapshot(year=2026, now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+
+
+def test_metadata_absent_falls_back_to_short_page_and_still_fails_at_bound():
+    config = replace(DGCPPACCConfig(), page_size=1, max_pages=2)
+    connector = DGCPPACCConnector(config, session=FakeSession([
+        envelope([acquisition()]),
+        envelope([acquisition(id_adquisicion="ADQ-43")]),
+    ]))
     with pytest.raises(RuntimeError, match="snapshot completeness not proven"):
         connector.fetch_snapshot(year=2026, now=datetime(2026, 8, 25, tzinfo=timezone.utc))
 
@@ -148,3 +196,10 @@ def test_snapshot_fails_closed_on_bad_envelope_or_content_shape():
     ]))
     with pytest.raises(RuntimeError, match="no content list"):
         connector.fetch_snapshot(year=2026, now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+
+
+def test_config_rejects_unverified_or_unbounded_settings():
+    with pytest.raises(RuntimeError, match="page_size"):
+        DGCPPACCConnector(replace(DGCPPACCConfig(), page_size=1001))
+    with pytest.raises(RuntimeError, match="source identity"):
+        DGCPPACCConnector(replace(DGCPPACCConfig(), source="OTHER"))
