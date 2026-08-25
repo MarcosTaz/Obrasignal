@@ -22,17 +22,40 @@ const crossFileChecks = [
   ['startup loads independent API data concurrently', /Promise\.allSettled\(\[api\.profile\(\),api\.opportunities/],
   ['notification sync reads unread server alerts', /api\.alerts\(\{ unreadOnly: true/],
   ['notification sync acknowledges delivered events', /api\.markAlertDelivered\(item\.event_id\)/],
+  ['notification contract exposes permission denial', /status: 'permission_denied'/],
+  ['notification contract exposes unsupported web', /status: 'unsupported'/],
   ['API exposes alerts endpoint', /alerts:\s*\(\{\s*limit\s*=\s*20,\s*unreadOnly\s*=\s*false\s*\}/],
+];
+
+const truthChecks = [
+  ['unknown stats have an explicit renderer', /metricText\(v\)/],
+  ['unknown score has an explicit renderer', /scoreText\(score\)/],
+  ['missing source has an explicit renderer', /sourceText\(item\.source\)/],
+  ['score is framed as compatibility, not a bid recommendation', /A pontuação expressa compatibilidade com o perfil; não é uma recomendação para concorrer\./],
+  ['web notifications are disclosed as unavailable', /Notificações do navegador ainda não estão disponíveis\./],
+  ['web notification switch is disabled', /<Switch disabled=\{webNotifications\} value=\{webNotifications\?false:/],
+];
+
+const forbiddenTruthPatterns = [
+  ['stats must not default UNKNOWN to zero', /\{v\?\?0\}/],
+  ['card score must not default UNKNOWN to zero', /item\.decision_score\?\?item\.score\?\?0/],
+  ['detail score must not default UNKNOWN to zero', /current\.decision_score\?\?current\.score\?\?0/],
+  ['card source must not fabricate TED', /item\.source\|\|'TED'/],
+  ['detail source must not fabricate TED', /current\.source\|\|'TED'/],
+  ['score must not be described as a recommendation', /O scoring é uma recomendação/],
+  ['notification denial must not collapse to activated copy', /Notificações activadas\./],
 ];
 
 const failures = [
   ...checks.slice(0, 5).filter(([, pattern]) => !pattern.test(app)),
   ...checks.slice(5).filter(([, pattern]) => !pattern.test(onboarding)),
+  ...truthChecks.filter(([, pattern]) => !pattern.test(app)),
+  ...forbiddenTruthPatterns.filter(([, pattern]) => pattern.test(app)),
 ];
 const crossFailures = [
   ...crossFileChecks.slice(0, 2).filter(([, pattern]) => !pattern.test(app)),
-  ...crossFileChecks.slice(2, 4).filter(([, pattern]) => !pattern.test(notifications)),
-  ...crossFileChecks.slice(4).filter(([, pattern]) => !pattern.test(api)),
+  ...crossFileChecks.slice(2, 6).filter(([, pattern]) => !pattern.test(notifications)),
+  ...crossFileChecks.slice(6).filter(([, pattern]) => !pattern.test(api)),
 ];
 
 if (failures.length || crossFailures.length) {
@@ -45,4 +68,4 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
+for (const [name] of [...checks, ...crossFileChecks, ...truthChecks]) console.log(`PASS: ${name}`);
