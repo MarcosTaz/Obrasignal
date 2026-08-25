@@ -110,7 +110,39 @@ jobs:
       - name: Verify authenticated API identity read-only
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $(cat /tmp/access_token)" "$API_URL/profile" > /tmp/profile.json
+          status="$(curl --silent --show-error --max-time 30 --output /tmp/profile.json --write-out '%{http_code}' -H "Authorization: Bearer $(cat /tmp/access_token)" "$API_URL/profile")"
+          echo "API_AUTH_STATUS=$status"
+          if [ "$status" != "200" ]; then
+            python - <<'PY'
+          import json
+          try:
+              payload=json.load(open('/tmp/profile.json', encoding='utf-8'))
+          except Exception:
+              payload={}
+          safe={'error': payload.get('error')} if payload.get('error') else {}
+          print('API_AUTH_BODY=' + json.dumps(safe, separators=(',', ':')))
+          PY
+            if curl --fail --silent --show-error --max-time 30 "$API_URL/health" > /tmp/auth-failure-health.json; then
+              python - <<'PY'
+          import json
+          try:
+              payload=json.load(open('/tmp/auth-failure-health.json', encoding='utf-8'))
+          except Exception:
+              payload={}
+          auth=payload.get('auth') if isinstance(payload, dict) else {}
+          auth=auth if isinstance(auth, dict) else {}
+          safe={
+              key: auth.get(key)
+              for key in ('mode','config_present','provider_status','provider_kind','provider_error')
+              if key in auth
+          }
+          print('API_AUTH_HEALTH=' + json.dumps(safe, separators=(',', ':')))
+          PY
+            else
+              echo 'API_AUTH_HEALTH=UNAVAILABLE'
+            fi
+            exit 1
+          fi
           python - <<'PY'
           import json
           payload=json.load(open('/tmp/profile.json'))
@@ -160,7 +192,7 @@ jobs:
           assert workflow.get('status') in {'NEW','REVIEWING','PREPARING','SUBMITTED','WON','LOST'}
           PY
           else
-            echo "No opportunity available; detail/workflow read proof is NOT_RUN, not PASS."
+            echo "AUTHENTICATED_DETAIL_WORKFLOW=NOT_RUN_EMPTY_OPPORTUNITY"
           fi
 
       - name: Enforce automatic production E2E is non-mutating
@@ -168,16 +200,31 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          text=Path('.github/workflows/authenticated-e2e.yml').read_text()
-          forbidden=(
-              '-X POST "$API_URL/profile"',
-              '-X POST "$API_URL/opportunities/',
+          text=Path('.github/workflows/authenticated-e2e.yml').read_text(encoding='utf-8')
+          forbidden=[]
+          for method in ('POST','PUT','PATCH','DELETE'):
+              forbidden.extend((
+                  f'-X {method} "$API_URL',
+                  f"-X {method} '$API_URL",
+                  f'--request {method} "$API_URL',
+                  f"--request {method} '$API_URL",
+              ))
+          forbidden.extend((
               '__e2e_roundtrip__',
               'restore_profile',
               'restore_workflow',
-          )
+              'trap restore_',
+          ))
           found=[needle for needle in forbidden if needle in text]
           if found:
               raise SystemExit('automatic production E2E contains mutating patterns: '+', '.join(found))
+          required=(
+              'API_AUTH_HEALTH=',
+              'AUTHENTICATED_DETAIL_WORKFLOW=NOT_RUN_EMPTY_OPPORTUNITY',
+              'TARGET_BUILD: ${{ github.sha }}',
+          )
+          missing=[needle for needle in required if needle not in text]
+          if missing:
+              raise SystemExit('automatic production E2E lost required safety evidence: '+', '.join(missing))
           print('AUTOMATIC_PRODUCTION_E2E_READ_ONLY=true')
           PY
