@@ -4,6 +4,7 @@ import pytest
 
 import opportunity_match_pipeline as pipeline
 from decision_evidence import (
+    attach_persistable_decision_evidence,
     build_decision_evidence,
     customer_evidence_view,
     maybe_decision_evidence,
@@ -13,6 +14,7 @@ from decision_log import (
     ensure_decision_table,
     latest_decision,
     record_decision,
+    validate_features_payload,
 )
 
 
@@ -113,6 +115,51 @@ def test_missing_source_field_remains_explicitly_missing_in_customer_contract():
     assert "deadline" in view["missing"]
 
 
+def test_missing_company_specialization_remains_explicitly_missing():
+    profile = {
+        "countries": ["PRT"],
+        "min_value": 100000,
+        "max_value": 500000,
+    }
+    row = _row()
+    evaluation = _evaluation(row, profile)
+    snapshot = build_decision_evidence("company-a", row, profile, evaluation, rule_version=RULE_VERSION, decided_at=DECIDED_AT)
+    view = customer_evidence_view(snapshot)
+
+    assert "company_specialization" in snapshot["missing_inputs"]
+    assert "company_specialization" in view["missing"]
+
+
+def test_customer_provenance_preserves_publisher_reference_and_filters_unsafe_urls():
+    row = _row(
+        publisher="Publications Office of the European Union",
+        source_reference="native-ref-1000",
+        url="javascript:alert(1)",
+    )
+    evaluation = _evaluation(row, _profile())
+    snapshot = build_decision_evidence("company-a", row, _profile(), evaluation, rule_version=RULE_VERSION, decided_at=DECIDED_AT)
+    view = customer_evidence_view(snapshot)
+
+    assert view["sources"]
+    assert {item["publisher"] for item in view["sources"]} == {"Publications Office of the European Union"}
+    assert {item["source_reference"] for item in view["sources"]} == {"native-ref-1000"}
+    assert all(item["source_url"] is None for item in view["sources"])
+    assert "javascript:" not in repr(view)
+
+
+def test_customer_provenance_allows_only_absolute_http_source_urls():
+    for unsafe in ("data:text/html,boom", "file:///tmp/x", "/relative", "custom:thing", "https:///missing-host"):
+        row = _row(url=unsafe)
+        evaluation = _evaluation(row, _profile())
+        snapshot = build_decision_evidence("company-a", row, _profile(), evaluation, rule_version=RULE_VERSION, decided_at=DECIDED_AT)
+        assert all(item["source_url"] is None for item in customer_evidence_view(snapshot)["sources"])
+
+    row = _row(url="https://example.test/source")
+    evaluation = _evaluation(row, _profile())
+    snapshot = build_decision_evidence("company-a", row, _profile(), evaluation, rule_version=RULE_VERSION, decided_at=DECIDED_AT)
+    assert {item["source_url"] for item in customer_evidence_view(snapshot)["sources"]} == {"https://example.test/source"}
+
+
 def test_enabled_evidence_marks_contract_invalid_source_as_unavailable(monkeypatch):
     monkeypatch.setenv("OBRASIGNAL_FEATURE_EVIDENCE_GRAPH_V1", "true")
     row = _row(publication_date="not-a-date")
@@ -169,6 +216,53 @@ def test_decision_log_rejects_blank_tenant_and_unbounded_features_without_partia
     with pytest.raises(ValueError, match="maximum serialized size"):
         record_decision(conn, "TED", "x", "REVIEW", "reason", features=oversized, account_id="company-a")
     assert conn.execute("SELECT COUNT(*) FROM opportunity_decisions").fetchone()[0] == 0
+
+
+def test_oversized_evidence_degrades_without_losing_an_otherwise_valid_decision():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    ensure_decision_table(conn)
+    features = {
+        "explanation": {},
+        "baseline": "b" * 390_000,
+    }
+    validate_features_payload(features)
+    oversized_evidence = {
+        "contract_version": "evidence.v1",
+        "state": "READY",
+        "decision_claim_id": "cl-test",
+        "missing_inputs": [],
+        "explanation": {
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "evidence": [],
+            "conflicts": [],
+            "missing": [],
+        },
+        "graph": {"nodes": [{"metadata": "x" * 150_000}], "edges": []},
+    }
+
+    attach_persistable_decision_evidence(features, oversized_evidence)
+    assert features["decision_evidence"] == {
+        "contract_version": "evidence.v1",
+        "state": "UNAVAILABLE",
+        "reason": "evidence_payload_too_large",
+    }
+    assert features["explanation"]["evidence"]["state"] == "UNAVAILABLE"
+    validate_features_payload(features)
+
+    record_decision(
+        conn,
+        "TED",
+        "bounded-1",
+        "REVIEW",
+        "reason",
+        features=features,
+        account_id="company-a",
+    )
+    persisted = latest_decision(conn, "TED", "bounded-1", account_id="company-a")
+    assert persisted["decision"] == "REVIEW"
+    assert persisted["features"]["decision_evidence"]["reason"] == "evidence_payload_too_large"
 
 
 def test_evaluate_and_record_loads_profile_for_the_same_account_and_persists_evidence(monkeypatch):
