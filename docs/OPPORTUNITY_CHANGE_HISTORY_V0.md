@@ -1,9 +1,9 @@
 # ObraSignal Opportunity Change History / Material Diff v0
 
-**Capability state:** PILOT  
+**Capability state:** RESEARCH  
 **Owner domain:** SIGNAL  
 **Contract:** `opportunity_change_history.v0`  
-**Feature flag:** `opportunity_change_history_v0`
+**Feature flag:** `opportunity_change_history_v0` (future rollout metadata; not activation)
 
 ## PURPOSE
 
@@ -25,9 +25,9 @@ The accepted architecture remains:
 
 Change History sits after normalization and observes the same staged canonical records used by Signal persistence.
 
-`source_runtime.commit_staged_source_syncs()` remains the source-side transaction boundary. History detection/persistence executes before the current Signal upsert and inside the same transaction, so the previous state is still available and history/current/cursor movement cannot partially commit.
+`source_runtime.commit_staged_source_syncs()` contains a dormant integration seam so a separately authorized future maturity decision can execute history before the current Signal upsert and inside the same transaction. With the canonical capability state at `RESEARCH`, the seam is inactive and normal Signal/metadata/lifecycle/cursor persistence proceeds without touching Change History tables.
 
-The canonical Master Execution Queue is not modified by this capability. This branch incorporates `main` through `9b100d4c860a0e9c5d9eb096db1fb62c9ce62af1`, where Q070 Shared Families is `DONE` and `CURRENT_ITEM_ID` is `Q080_EVIDENCE_GRAPH_V1`. Q060 Chile remains `GATED` pending a real Mercado Público production credential. Capability-registry lifecycle is independent of queue state.
+The canonical Master Execution Queue is not modified by this capability. The branch was originally cut from `main` at `9b100d4c860a0e9c5d9eb096db1fb62c9ce62af1` while Q080 Evidence Graph was ACTIVE. Capability-registry lifecycle is independent of queue state and passing tests do not promote maturity.
 
 ## SNAPSHOT MODEL
 
@@ -123,15 +123,15 @@ Stable identity is resolved only from configured safe identity keys. Add/remove 
 
 Native revision identity wins when explicitly normalized. Supported aliases are `amendment_number`, `revision_id`, `amendment_id`, `corrigendum_id`, `native_revision`, and `release_id`; they are projected into `source_version` for history only.
 
-CanadaBuys already normalizes `amendment_number` and `amendment_date`; the source transaction boundary aliases those values into the generic history contract without altering current Signal persistence or fabricating a source version.
+CanadaBuys already normalizes `amendment_number` and `amendment_date`; the dormant source transaction seam can alias those values into the generic history contract without altering current Signal persistence or fabricating a source version when the capability is explicitly promoted in future.
 
-A publisher-native revision-only change therefore creates a material change set with `changed_fields = ["source_version"]`. The same alias logic is applied when reconstructing a pre-module baseline from `signal_records.normalized_json`, so the previous amendment number is not lost during rollout.
+A publisher-native revision-only change therefore creates a material change set with `changed_fields = ["source_version"]` when the pure persistence path is invoked. The same alias logic is applied when reconstructing a pre-module baseline from `signal_records.normalized_json`, so the previous amendment number is not lost during a controlled rollout.
 
 ## PERSISTENCE AND TRANSACTION SAFETY
 
-No separate database is introduced. Tables are created idempotently in the existing SQLite database.
+No separate database is introduced. Tables are created idempotently in the existing SQLite database only when the Change History persistence contract is deliberately invoked.
 
-Source-side sequence when the capability is active:
+Future source-side sequence after an explicit maturity/activation decision:
 
 1. load/bootstrap previous monitored state;
 2. normalize incoming monitored state;
@@ -142,11 +142,13 @@ Source-side sequence when the capability is active:
 7. advance source cursor;
 8. commit once.
 
-Any enabled-history exception rolls the complete source-side transaction back. Reprocessing after a rolled-back attempt is safe.
+Any deliberately enabled-history exception rolls the complete source-side transaction back. Reprocessing after a rolled-back attempt is safe.
 
 ## RUNTIME DISABLE BOUNDARY
 
-The capability registry is the v0 runtime disable boundary. `PILOT` and `ENABLED` execute history persistence; states outside those values skip Change History while Signal, metadata, lifecycle and cursor persistence continue normally.
+The capability registry is the v0 runtime disable boundary. Only `PILOT` and `ENABLED` execute history persistence. `RESEARCH`, `EXPERIMENT`, `DISABLED` and other non-promoted states skip Change History while Signal, metadata, lifecycle and cursor persistence continue normally.
+
+The current branch deliberately registers `OPPORTUNITY_CHANGE_HISTORY` as `RESEARCH`, so normal repository runtime does **not** create or update Change History state. Tests of the future active path use an explicit test-only `PILOT` override; they do not change canonical maturity.
 
 The declared `feature_flag = opportunity_change_history_v0` is metadata for future scoped rollout. This branch does not invent a global customer/environment feature-flag service that does not already exist in the repository.
 
@@ -206,9 +208,9 @@ A future HTML UI must escape values at render time; persistence deliberately doe
 
 ## TESTING
 
-Dedicated tests cover identical-state idempotency, deadline extension/shortening/reversal, mixed aware/naive deadline safety, repeated real transitions, date equivalence, value/currency/status changes, whitespace/case noise suppression including oversized text, real title changes, collection reorder, document/lot add/remove, multi-field grouping, missing vs explicit null, duplicate delivery, bootstrap from existing Signal state, native amendment provenance, revision-only publisher amendments, reconstructed amendment baselines, deterministic fingerprints, material-only reads, event projection, hostile source strings, oversized-state fail-closed behavior, transaction rollback and the runtime disable boundary.
+Dedicated tests cover identical-state idempotency, deadline extension/shortening/reversal, mixed aware/naive deadline safety, repeated real transitions, date equivalence, value/currency/status changes, whitespace/case noise suppression including oversized text, real title changes, collection reorder, document/lot add/remove, multi-field grouping, missing vs explicit null, duplicate delivery, bootstrap from existing Signal state, native amendment provenance, revision-only publisher amendments, reconstructed amendment baselines, deterministic fingerprints, material-only reads, event projection, hostile source strings, oversized-state fail-closed behavior, transaction rollback, explicit future-active-path behavior and non-promoted runtime inactivity.
 
-Repository quality gates additionally compile root Python modules and run the full Python suite plus Expo/mobile checks. CI status is evidence attached to the PR/head under test; documentation does not convert a passing branch test into a production claim.
+Repository quality gates additionally compile root Python modules and run the full Python suite plus Expo/mobile checks. CI status is evidence attached to the exact PR/head under test; documentation does not convert a passing branch test into a production or maturity claim.
 
 ## KNOWN LIMITATIONS
 
@@ -222,6 +224,7 @@ Repository quality gates additionally compile root Python modules and run the fu
 - Event delivery is intentionally absent.
 - HTTP/UI exposure is intentionally deferred pending canonical identity/API integration.
 - Pre-module history cannot be invented beyond a reconstructible current Signal baseline.
+- Runtime execution remains intentionally inactive while the capability is RESEARCH.
 
 ## FUTURE INTEGRATIONS
 
@@ -229,4 +232,4 @@ Alerts/Watchlist may consume `opportunity.changed`; Compare may show `updated si
 
 ## ROLLBACK
 
-Because the capability is additive, rollback consists of removing the `source_runtime` history import/call and capability-registry entry. Existing Signal, metadata, lifecycle, legacy tenders, decisions and source cursors retain their prior contracts. Historical tables may remain inert for audit or be removed later through an explicit retention/migration decision.
+Because the capability is additive, rollback consists of removing the dormant `source_runtime` history import/call and capability-registry entry. Existing Signal, metadata, lifecycle, legacy tenders, decisions and source cursors retain their prior contracts. Historical tables created by explicit tests or a future controlled activation may remain inert for audit or be removed later through an explicit retention/migration decision.
