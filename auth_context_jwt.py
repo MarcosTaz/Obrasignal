@@ -24,22 +24,54 @@ class JwksUnavailableError(Exception):
     """The signing-key service is unavailable and no cached key can verify the token."""
 
 
+def _is_native_supabase_url(value: str) -> bool:
+    parsed = urlsplit((value or "").strip())
+    hostname = (parsed.hostname or "").lower()
+    return (
+        parsed.scheme in {"http", "https"}
+        and bool(hostname)
+        and hostname.endswith(".supabase.co")
+        and parsed.username is None
+        and parsed.password is None
+    )
+
+
 def _normalize_supabase_issuer(issuer: str) -> str:
-    """Accept the common Supabase project URL and normalize it to the JWT issuer."""
+    """Canonicalize any native Supabase project URL to its JWT issuer.
+
+    Render/client configuration has historically used either the project root,
+    ``/rest/v1`` or ``/auth/v1``. All of those refer to the same Supabase
+    project, while JWT ``iss`` is always the canonical ``/auth/v1`` URL.
+    Canonicalizing the path prevents a valid token from being rejected solely
+    because an equivalent project URL was configured.
+    """
     value = (issuer or "").strip().rstrip("/")
     if not value:
         return value
-    parsed = urlsplit(value)
-    if parsed.scheme in {"http", "https"} and parsed.netloc.endswith(".supabase.co"):
-        path = parsed.path.rstrip("/")
-        if not path:
-            return urlunsplit((parsed.scheme, parsed.netloc, "/auth/v1", "", ""))
+    if _is_native_supabase_url(value):
+        parsed = urlsplit(value)
+        return urlunsplit((parsed.scheme, parsed.netloc, "/auth/v1", "", ""))
     return value
 
 
 def _default_jwks_url(issuer: str) -> str:
     """Return the provider's public-key discovery URL."""
     return f"{issuer.rstrip('/')}/.well-known/jwks.json"
+
+
+def _effective_jwks_url(issuer: str, override: str = "") -> str:
+    """Resolve the JWKS endpoint without allowing stale Supabase overrides.
+
+    Native Supabase issuers have one canonical public JWKS endpoint. An
+    operator-provided ``OBRASIGNAL_JWKS_URL`` for the same provider can become
+    stale across key migrations and previously caused otherwise-valid tokens to
+    fail closed as unknown keys. For native Supabase projects the canonical
+    issuer-derived endpoint is therefore authoritative. Explicit overrides are
+    still supported for non-Supabase OIDC-compatible providers.
+    """
+    if _is_native_supabase_url(issuer):
+        return _default_jwks_url(issuer)
+    return (override or _default_jwks_url(issuer)).strip()
 
 
 class JwtVerifier:
@@ -57,9 +89,10 @@ class JwtVerifier:
         self.issuer = _normalize_supabase_issuer(issuer)
         self.audience = (audience or "authenticated").strip()
         # Supabase's JWT issuer is https://<project>.supabase.co/auth/v1 and its
-        # asymmetric signing keys are published at the corresponding discovery URL.
-        # Keep an explicit override for other OIDC-compatible providers.
-        self.jwks_url = (jwks_url or _default_jwks_url(self.issuer)).strip()
+        # asymmetric signing keys are published at the corresponding discovery
+        # URL. Native Supabase always uses that canonical endpoint; an explicit
+        # override remains available for other OIDC-compatible providers.
+        self.jwks_url = _effective_jwks_url(self.issuer, jwks_url)
         self.cache_seconds = max(30, int(cache_seconds))
         self.stale_max_seconds = max(0, int(stale_max_seconds))
         self._keys = None
@@ -69,6 +102,7 @@ class JwtVerifier:
         self._generation = 0
         self._lock = Lock()
         self._keys_source = None
+        self._provider_degraded = False
         if bootstrap_json:
             try:
                 payload = json.loads(bootstrap_json)
@@ -105,6 +139,15 @@ class JwtVerifier:
             payload = json.load(response)
         return self._validated_keys(payload)
 
+    def provider_status(self) -> str:
+        """Return a secret-free summary of the verifier's last known readiness."""
+        with self._lock:
+            if self._provider_degraded:
+                return "degraded"
+            if self._keys:
+                return "ready"
+            return "uninitialized"
+
     def _key_for(self, kid: str):
         """Return a cached public JWK, refreshing once when stale or unknown.
 
@@ -137,6 +180,7 @@ class JwtVerifier:
             except Exception as exc:
                 # Never replace the last known-good public keys with a failed or
                 # malformed response. Cached keys still perform full JWT validation.
+                self._provider_degraded = True
                 self._retry_at = time.time() + min(30, self.cache_seconds)
                 if kid in keys and time.time() - self._fetched_at <= self.stale_max_seconds:
                     return keys[kid]
@@ -148,6 +192,7 @@ class JwtVerifier:
             self._retry_at = 0.0
             self._generation += 1
             self._keys_source = "remote"
+            self._provider_degraded = False
             if kid not in refreshed:
                 raise InvalidTokenError("unknown JWT key id")
             return refreshed[kid]
@@ -164,6 +209,8 @@ class JwtVerifier:
         if not kid or alg not in {"RS256", "ES256"}:
             raise InvalidTokenError("unsupported JWT header")
         jwk = self._key_for(str(kid))
+        if jwk.get("alg") and jwk["alg"] != alg:
+            raise InvalidTokenError("JWT algorithm does not match signing key")
         key = jwt.PyJWK(jwk).key
         claims = jwt.decode(
             token,
@@ -207,3 +254,50 @@ def production_verifier() -> JwtVerifier:
             )
             _verifier_config = config
         return _verifier
+
+
+def authentication_health() -> dict:
+    """Return public-safe authentication configuration/readiness metadata.
+
+    This is intentionally passive: health never calls the identity provider. A
+    provider is ``ready`` only after the verifier has usable public keys,
+    ``degraded`` after a failed JWKS refresh, and ``uninitialized`` before the
+    first verification attempt. No issuer, JWKS URL, key material or secret is
+    returned.
+    """
+    mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
+    if mode == "development":
+        return {
+            "mode": "development",
+            "config_present": True,
+            "provider_status": "not_applicable",
+        }
+    if mode != "provider":
+        return {
+            "mode": "invalid",
+            "config_present": False,
+            "provider_status": "misconfigured",
+        }
+
+    issuer = os.getenv("OBRASIGNAL_JWT_ISSUER", "").strip()
+    audience = os.getenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated").strip()
+    config_present = bool(issuer and audience)
+    if not config_present:
+        return {
+            "mode": "provider",
+            "config_present": False,
+            "provider_status": "misconfigured",
+        }
+    try:
+        verifier = production_verifier()
+    except (RuntimeError, TypeError, ValueError):
+        return {
+            "mode": "provider",
+            "config_present": False,
+            "provider_status": "misconfigured",
+        }
+    return {
+        "mode": "provider",
+        "config_present": True,
+        "provider_status": verifier.provider_status(),
+    }

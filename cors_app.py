@@ -1,10 +1,12 @@
 """Production WSGI entrypoint with a global CORS safety net."""
+import json
 import os
 from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
+from auth_context_jwt import authentication_health
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
@@ -33,6 +35,18 @@ def _cors(response):
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
     response.headers["X-ObraSignal-Build"] = os.getenv("OBRASIGNAL_BUILD") or os.getenv("RENDER_GIT_COMMIT") or "unversioned"
+    return response
+
+
+def _decorate_health(response):
+    """Add bounded auth readiness metadata without exposing provider secrets."""
+    if request.path != "/api/v1/health" or not response.is_json:
+        return response
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return response
+    payload["auth"] = authentication_health()
+    response.set_data(json.dumps(payload, separators=(",", ":")))
     return response
 
 
@@ -106,7 +120,7 @@ if not any(rule.rule == "/api/v1/opportunities/<int:opportunity_id>" for rule in
 @APP.after_request
 def _global_api_cors(response):
     if request.path.startswith("/api/v1/"):
-        return _cors(response)
+        return _cors(_decorate_health(response))
     return response
 
 

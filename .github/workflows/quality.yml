@@ -6,14 +6,21 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Main pushes are intentionally covered so the exact post-merge tree is tested,
-# not only the pre-merge pull-request commit.
+# Pull requests test the exact branch HEAD. Main pushes test the exact post-merge
+# commit. Mergeability is evaluated separately by GitHub and must also be green.
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -31,6 +38,11 @@ jobs:
         working-directory: mobile
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
       - uses: actions/setup-node@v4
         with:
           node-version: '22.13.1'
