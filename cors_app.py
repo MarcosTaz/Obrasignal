@@ -5,6 +5,8 @@ from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
+# Import registers the isolated, authenticated Outcome Capture blueprint on APP.
+import opportunity_outcome_api as _opportunity_outcome_api
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
 
@@ -30,7 +32,7 @@ def _cors(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
@@ -84,6 +86,7 @@ def _global_api_cors(response):
 import app as _app
 from app import db, init_db, start_background_worker
 from opportunity_lifecycle import ensure_lifecycle_table
+from opportunity_outcome import ensure_outcome_table
 from lifecycle_read_model import install as install_lifecycle_read_model
 from latvia_runtime import install as install_latvia_runtime
 from uk_runtime import install as install_uk_runtime
@@ -103,6 +106,7 @@ init_db()
 _lifecycle_conn = db()
 try:
     ensure_lifecycle_table(_lifecycle_conn)
+    ensure_outcome_table(_lifecycle_conn)
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
