@@ -10,4 +10,5 @@ def test_zambia_source_is_registered_ready_but_not_implicitly_active():
     assert source["adapter"] == "OCDSJSONLGzipSnapshotConnector"
     assert source["signal_types"] == ("TENDER",)
     assert source["realtime_capable"] is False
+    assert source["wave"] is None
     assert production_gate_reasons("ZM_ZPPA") == ()
