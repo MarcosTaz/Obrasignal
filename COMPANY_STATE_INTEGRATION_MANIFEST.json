@@ -1,0 +1,94 @@
+{
+  "CELL": "OBRASIGNAL — Q090 COMPANY OPERATIONAL STATE & OFFICE FOUNDATION CELL",
+  "MODULE": "Q090_COMPANY_STATE_CONTRACT / company-state.v1",
+  "BRANCH": "feature/q090-company-state-contract",
+  "PR": 223,
+  "HEAD": "RESOLVE_FROM_PR_HEAD_AT_VALIDATION_TIME",
+  "HEAD POLICY": "The commit SHA is not embedded because changing this file would change the SHA. Exact final HEAD and CI run are recorded in PR metadata/final evidence.",
+  "OWNS": [
+    "company operational fact contract",
+    "explicit unknown/time/freshness/provenance semantics",
+    "tenant-private company-state snapshots",
+    "single Company Profile projection seam",
+    "neutral downstream fact/constraint adapters",
+    "future OFFICE validated-write seam"
+  ],
+  "DOES NOT OWN": [
+    "Company Profile commercial preferences",
+    "Opportunity Requirements extraction or eligibility",
+    "Readiness decisions",
+    "Bid Economics calculations",
+    "MOBILIZE calculations",
+    "BANGS price/cost intelligence",
+    "SHADOW optimization",
+    "COMMAND decisions",
+    "ACTION authorization",
+    "ERP, HR, payroll, accounting, CRM, fleet management"
+  ],
+  "PUBLIC CONTRACTS PROVIDED": [
+    "CompanyState / CompanyFact / Money / Provenance (company-state.v1)",
+    "CompanyStateService trusted-tenant read/write/history boundary",
+    "company_state_from_profile",
+    "requirements_facts",
+    "readiness_inputs",
+    "economics_constraints",
+    "mobilize_inputs",
+    "bangs_inputs"
+  ],
+  "PUBLIC CONTRACTS CONSUMED": [
+    "existing Company Profile mapping/load seam (optional adapter)",
+    "caller-provided canonical sqlite3 connection",
+    "trusted account identity supplied by future canonical auth adapter"
+  ],
+  "OPTIONAL DEPENDENCIES": [
+    "Q080 public Evidence/provenance references when canonical",
+    "existing Company Profile for initial projection",
+    "future OFFICE/integration providers"
+  ],
+  "HARD DEPENDENCIES": [
+    "Q080 queue dependency for canonical promotion/integration authorization",
+    "trusted tenant identity at application boundary",
+    "canonical SQLite persistence connection if persistence is activated"
+  ],
+  "CANONICAL FILES TOUCHED": [],
+  "MIGRATIONS": "Additive runtime ensure_company_state_schema creates company_state_snapshots + index in the canonical SQLite connection; no destructive migration and no second DB.",
+  "FEATURE FLAGS": "None added; Q090 remains QUEUED and is not runtime-enabled.",
+  "RUNTIME REGISTRATION": "NONE",
+  "AUTH/TENANT IMPACT": "No new verifier. Future HTTP adapter must derive account_id from canonical configured_identity(); payload/query tenant identity is forbidden.",
+  "PERSISTENCE": "Append-only bounded tenant-scoped snapshots with deterministic fingerprint, history, consecutive replay idempotency, optimistic concurrency and explicit storage failures.",
+  "LIVE EXTERNAL DEPENDENCIES": [],
+  "TEST STATUS": "Focused local suite: 66 passed before documentation commit; final exact-head repository Quality pending at manifest creation.",
+  "LIVE STATUS": "NOT LIVE VALIDATED; no live provider/runtime endpoint exists in this queued prebuild.",
+  "PRODUCTION STATUS": "NOT DEPLOYED / NOT PRODUCTION VALIDATED",
+  "CONFLICT RISKS": [
+    "Readiness PR #153 currently overloads a profile-like company_state mapping for economic_fit fallback; Integration Lab must keep Q090 operational facts separate.",
+    "Q080 Evidence contract is not canonical on current main; evidence references remain adapter-friendly strings until authorized integration."
+  ],
+  "KNOWN OVERLAPS": [
+    "Company Profile supplies stable/commercial fields but is not operational state.",
+    "Requirements #152 may match company facts but owns requirement assessment.",
+    "Readiness #153 consumes company context but owns readiness status.",
+    "Bid Economics #169 owns financial calculation.",
+    "MOBILIZE #146 owns mobilization calculation.",
+    "BANGS #195 owns field cost/supply intelligence."
+  ],
+  "SUPERSEDES": [],
+  "SUPERSEDED BY": [],
+  "REQUIRED MERGE ORDER": [
+    "Do not merge automatically.",
+    "Preserve canonical Master Queue; Q080 must satisfy its dependency/promotion gate before Q090 canonical promotion.",
+    "Integrate Q090 contract/persistence only when authorized.",
+    "Then combine one consumer at a time through public adapters: Requirements/Readiness, Bid Economics, MOBILIZE, BANGS/OFFICE as separately authorized."
+  ],
+  "ROLLBACK": "Before merge: close PR/delete branch. After a future authorized merge: revert Q090 commits. Leave additive table inert unless a separately reviewed privacy/data-retention migration authorizes removal.",
+  "SAFE INTEGRATION PROCEDURE": [
+    "Recheck main HEAD and Master Queue immediately before integration.",
+    "Rebase/cherry-pick without modifying CURRENT_ITEM_ID or promoting Q090.",
+    "Run fresh/existing/repeated SQLite schema tests and full exact-head Quality.",
+    "Bind any HTTP layer only to canonical configured_identity().account_id; never accept client tenant authority.",
+    "Keep Company Profile and Company State as separate public concepts with one adapter.",
+    "Wire only public consumer adapters; never import another capability's private storage/internals.",
+    "Run Integration Lab combinations and Golden Path tenant/unknown scenarios before any promotion.",
+    "Keep rollback/revert available and do not deploy as a side effect of integration."
+  ]
+}
