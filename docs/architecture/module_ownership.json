@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "baseline_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "default_owner": "UNKNOWN",
+  "modules": [
+    {
+      "module": "cors_app.py",
+      "responsibility": "Production WSGI composition, API blueprint registration, CORS/auth request boundary, startup schema/read-model/runtime installation and worker start ordering.",
+      "owner": "ARCHITECTURE_COMPOSITION",
+      "ownership_state": "PROVEN",
+      "public_surface": ["APP"],
+      "side_effect_surface": "ORCHESTRATION",
+      "evidence": ["cors_app.py", "render.yaml"]
+    },
+    {
+      "module": "sitecustomize.py",
+      "responsibility": "Implicit Python-startup compatibility patch for Flask dashboard rendering.",
+      "owner": "ARCHITECTURE_WEB_BOUNDARY",
+      "ownership_state": "PROVEN",
+      "public_surface": [],
+      "side_effect_surface": "PROCESS_WIDE_MUTATION",
+      "evidence": ["sitecustomize.py"]
+    },
+    {
+      "module": "preload.py",
+      "responsibility": "Legacy production compatibility/composition shim spanning source runtimes, API/web registration, auth/account access, telemetry and app runtime replacement seams.",
+      "owner": "MULTI_OWNER_LEGACY",
+      "ownership_state": "MULTI_OWNER",
+      "public_surface": "UNKNOWN",
+      "side_effect_surface": "ORCHESTRATION_AND_RUNTIME_MUTATION",
+      "evidence": ["preload.py", "cors_app.py"]
+    },
+    {
+      "module": "app.py",
+      "responsibility": "Root Flask application, SQLite connection/startup schema composition, legacy web UI, source synchronization and background worker runtime.",
+      "owner": "MULTI_OWNER_LEGACY",
+      "ownership_state": "MULTI_OWNER",
+      "public_surface": "UNKNOWN",
+      "side_effect_surface": "ORCHESTRATION_PERSISTENT_MUTATION_EXTERNAL_IO",
+      "evidence": ["app.py", "cors_app.py"]
+    },
+    {
+      "module": "api.py",
+      "responsibility": "Native/Mobile API facade and API route implementation.",
+      "owner": "UNKNOWN",
+      "ownership_state": "UNKNOWN",
+      "public_surface": ["APP", "bp"],
+      "side_effect_surface": "READ_AND_PERSISTENT_MUTATION",
+      "evidence": ["api.py", "cors_app.py", "tests/test_api_import.py"]
+    },
+    {
+      "module": "account_registry.py",
+      "responsibility": "Account/tenant registry plus subscription state, RevenueCat synchronization/webhook handling and server-side billing gate.",
+      "owner": "ACCOUNT_AND_BILLING",
+      "ownership_state": "MULTI_OWNER",
+      "public_surface": "UNKNOWN",
+      "side_effect_surface": "PERSISTENT_MUTATION_EXTERNAL_IO_HTTP_BOUNDARY",
+      "evidence": ["account_registry.py", "app.py"]
+    },
+    {
+      "module": "evaluation_policy.py",
+      "responsibility": "Product evaluation lifecycle while explicitly leaving paid Pro entitlement to the RevenueCat/store billing path in account_registry.py.",
+      "owner": "UNKNOWN",
+      "ownership_state": "UNKNOWN",
+      "public_surface": "UNKNOWN",
+      "side_effect_surface": "PERSISTENT_MUTATION",
+      "evidence": ["evaluation_policy.py"]
+    },
+    {
+      "module": "company_profile.py",
+      "responsibility": "Company profile configuration/normalization/validation/persistence plus a direct post-save Account/Evaluation write path.",
+      "owner": "COMPANY_STATE_WITH_ACCOUNT_EVALUATION_COUPLING",
+      "ownership_state": "MULTI_OWNER",
+      "public_surface": "UNKNOWN",
+      "side_effect_surface": "PERSISTENT_MUTATION_CROSS_DOMAIN_WRITE",
+      "evidence": ["company_profile.py", "account_registry.py", "evaluation_policy.py"]
+    },
+    {
+      "module": "source_health.py",
+      "responsibility": "Source health/cursor persistence and source-result diagnostic state.",
+      "owner": "UNKNOWN",
+      "ownership_state": "UNKNOWN",
+      "public_surface": "UNKNOWN",
+      "side_effect_surface": "PERSISTENT_MUTATION",
+      "evidence": ["source_health.py"]
+    },
+    {
+      "module": "sync_funnel_hook.py",
+      "responsibility": "Decision/funnel recording around synchronization plus the production worker-start preload gate.",
+      "owner": "MULTI_OWNER_LEGACY",
+      "ownership_state": "MULTI_OWNER",
+      "public_surface": "UNKNOWN",
+      "side_effect_surface": "PROCESS_WIDE_THREAD_HOOK_AND_PERSISTENT_MUTATION",
+      "evidence": ["sync_funnel_hook.py", "cors_app.py"]
+    },
+    {
+      "module": "mobile/src/billing.js",
+      "responsibility": "Mobile RevenueCat SDK integration, purchase/restore/offering access and entitlement inspection.",
+      "owner": "BILLING",
+      "ownership_state": "PROVEN",
+      "public_surface": ["BILLING_ENTITLEMENT", "BILLING_PRODUCT", "BILLING_SUPPORTED", "configureBilling", "hasProEntitlement", "activeEntitlement", "getCurrentOffering", "purchasePro", "restoreBilling", "refreshBilling"],
+      "side_effect_surface": "EXTERNAL_PROVIDER_SIDE_EFFECT",
+      "evidence": ["mobile/src/billing.js", "mobile/package.json"]
+    },
+    {
+      "module": "mobile/components/BillingGate.js",
+      "responsibility": "Mobile billing/evaluation presentation gate and purchase/restore UI orchestration.",
+      "owner": "BILLING_PRESENTATION",
+      "ownership_state": "PROVEN",
+      "public_surface": ["default:BillingGate"],
+      "side_effect_surface": "UI_ORCHESTRATION_WITH_PROVIDER_MODEL_LEAK",
+      "evidence": ["mobile/components/BillingGate.js", "mobile/src/billing.js"]
+    }
+  ]
+}
