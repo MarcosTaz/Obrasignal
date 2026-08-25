@@ -1,8 +1,7 @@
-"""Bounded live discovery for Uruguay ARCE public annual procurement plans.
+"""Bounded live discovery and connector validation for Uruguay ARCE PAC.
 
-Research-only until machine stability and structured works admission are proven.
-Uses the same unauthenticated same-origin session model as the public SPA; no
-credentials, bypasses or hidden/private endpoints.
+Uses only unauthenticated same-origin public routes used by ARCE's consultation
+SPA; no credentials, bypasses or hidden/private endpoints.
 """
 from datetime import datetime, timezone
 import os
@@ -11,6 +10,8 @@ from urllib.parse import urljoin
 
 import pytest
 import requests
+
+from uruguay_arce_pac import ARCEPACConfig, ARCEPACConnector, ARCE_PAC_TIMEZONE
 
 PAC_PUBLIC_URL = "https://www.comprasestatales.gub.uy/consultaplananual/"
 PAC_CONFIG_URL = urljoin(PAC_PUBLIC_URL, "assets/config.json")
@@ -189,3 +190,21 @@ def test_live_uruguay_arce_public_pac_future_works_bound():
         end = str(row.get("periodoConvFechaFin") or "")[:10]
         if end:
             assert end >= today.isoformat(), "publisher future filter returned an already-ended planned call"
+
+
+def test_live_uruguay_arce_pac_connector_end_to_end():
+    now = datetime.now(timezone.utc)
+    connector = ARCEPACConnector(ARCEPACConfig(page_size=100, max_pages=20))
+    rows = connector.fetch_snapshot(now=now)
+    local_today = now.astimezone(ARCE_PAC_TIMEZONE).date().isoformat()
+    print("UY_PAC_CONNECTOR_SIGNAL_COUNT=" + str(len(rows)))
+    assert rows, "live PAC connector returned no future construction plans"
+    assert len({row["external_id"] for row in rows}) == len(rows)
+    assert all(row.get("source") == "UY_ARCE" for row in rows)
+    assert all(row.get("signal_type") == "PROCUREMENT_PLAN" for row in rows)
+    assert all(row.get("category_code") == "6" for row in rows)
+    assert all(str(row.get("target_date") or "") >= local_today for row in rows)
+    sample = rows[0]
+    print("UY_PAC_CONNECTOR_SAMPLE_FIELDS=" + ",".join(sorted(map(str, sample.keys()))))
+    print("UY_PAC_CONNECTOR_SAMPLE_ID=" + str(sample.get("external_id")))
+    print("UY_PAC_CONNECTOR_SAMPLE_TARGET=" + str(sample.get("target_date")))
