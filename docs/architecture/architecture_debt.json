@@ -49,6 +49,18 @@
       "proof": ["app.py", "cors_app.py"],
       "repair_path": "Persistence/Billing should own any semantic storage move; Architecture only freezes new cross-domain schema edges until an owner-approved staged migration exists.",
       "status": "ROUTED_OTHER_OWNER"
+    },
+    {
+      "id": "ARCH-005",
+      "module": "api.py -> preload.py",
+      "owner": "ARCHITECTURE_API_BOUNDARY",
+      "violation": "The API facade depends on private preload implementation details, including _preload._app.db() and the private _deadline_dt helper.",
+      "blast_radius": "MOBILE_API_AND_PRODUCTION_COMPOSITION",
+      "customer_risk": "API_STARTUP_AND_BOUNDARY_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["api.py", "preload.py", "cors_app.py"],
+      "repair_path": "Introduce or reuse an explicit public runtime/persistence seam, then remove private preload access with exact API behavior and startup-order proof.",
+      "status": "ACKNOWLEDGED_DEBT"
     }
   ]
 }
