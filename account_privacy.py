@@ -171,71 +171,97 @@ def _ensure_legacy_profile_imported(conn, account_id: str) -> None:
 
 
 def export_account_data(conn, account_id: str) -> dict:
-    """Export current canonical server-owned private state for exactly one tenant."""
+    """Export one tenant from a single deterministic SQLite read snapshot."""
     account_id = str(account_id)
-    inventory = _assert_export_contract(conn)
-    account = conn.execute("SELECT * FROM accounts WHERE account_id=?", (account_id,)).fetchone()
-    if account is None:
+    _assert_export_contract(conn)
+    preflight = conn.execute(
+        "SELECT 1 FROM accounts WHERE account_id=?", (account_id,)
+    ).fetchone()
+    if preflight is None:
         raise LookupError("account_not_found")
 
-    # Make the profile owner's historical import path observable to this export
-    # without reading or deleting its private filesystem implementation directly.
+    # Import any owner-managed historical profile before opening the read snapshot.
+    # The import uses the Company Profile owner's own persistence connection and may
+    # commit; mixing that write into the snapshot would make the boundary ambiguous.
     _ensure_legacy_profile_imported(conn, account_id)
 
-    profile_row = conn.execute(
-        "SELECT profile_json, updated_at FROM company_profiles WHERE account_id=?", (account_id,)
-    ).fetchone()
-    profile = None
-    if profile_row is not None:
-        profile = {
-            "profile": _parse_json(profile_row["profile_json"], field="profile_json", default={}),
-            "updated_at": profile_row["updated_at"],
+    if conn.in_transaction:
+        raise AccountDataContractError("account_export_snapshot_unavailable")
+
+    snapshot_started_at = _now()
+    conn.execute("BEGIN")
+    try:
+        # Re-check completeness inside the snapshot so a concurrent schema change
+        # cannot silently escape export classification.
+        inventory = _assert_export_contract(conn)
+        account = conn.execute(
+            "SELECT * FROM accounts WHERE account_id=?", (account_id,)
+        ).fetchone()
+        if account is None:
+            raise LookupError("account_not_found")
+
+        profile_row = conn.execute(
+            "SELECT profile_json, updated_at FROM company_profiles WHERE account_id=?", (account_id,)
+        ).fetchone()
+        profile = None
+        if profile_row is not None:
+            profile = {
+                "profile": _parse_json(profile_row["profile_json"], field="profile_json", default={}),
+                "updated_at": profile_row["updated_at"],
+            }
+
+        decisions = _rows(
+            conn,
+            "SELECT * FROM opportunity_decisions WHERE account_id=? ORDER BY id",
+            (account_id,),
+        )
+        for item in decisions:
+            item["features"] = _parse_json(item.pop("features_json"), field="features_json", default={})
+
+        events = _rows(
+            conn,
+            "SELECT * FROM opportunity_events WHERE account_id=? ORDER BY id",
+            (account_id,),
+        )
+        workflow = _rows(
+            conn,
+            "SELECT * FROM opportunity_workflow WHERE account_id=? ORDER BY id",
+            (account_id,),
+        )
+        evaluation = _rows(
+            conn,
+            "SELECT * FROM evaluation_events WHERE account_id=? ORDER BY id",
+            (account_id,),
+        )
+        for item in evaluation:
+            item["metadata"] = _parse_json(item.pop("metadata_json"), field="metadata_json", default={})
+
+        payload = {
+            "schema_version": EXPORT_SCHEMA_VERSION,
+            "generated_at": _now(),
+            "snapshot": {
+                "boundary": "SQLITE_READ_TRANSACTION",
+                "started_at": snapshot_started_at,
+            },
+            "account": dict(account),
+            "company_profile": profile,
+            "opportunity_decisions": decisions,
+            "opportunity_events": events,
+            "opportunity_workflow": workflow,
+            "evaluation_events": evaluation,
+            "scope": {
+                "server_owned_account_tables": inventory["required"],
+                "completeness": "CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY",
+                "shared_public_procurement_data_included": False,
+                "identity_provider_data_included": False,
+                "billing_provider_source_records_included": False,
+                "device_local_private_cache_included": False,
+            },
         }
-
-    decisions = _rows(
-        conn,
-        "SELECT * FROM opportunity_decisions WHERE account_id=? ORDER BY id",
-        (account_id,),
-    )
-    for item in decisions:
-        item["features"] = _parse_json(item.pop("features_json"), field="features_json", default={})
-
-    events = _rows(
-        conn,
-        "SELECT * FROM opportunity_events WHERE account_id=? ORDER BY id",
-        (account_id,),
-    )
-    workflow = _rows(
-        conn,
-        "SELECT * FROM opportunity_workflow WHERE account_id=? ORDER BY id",
-        (account_id,),
-    )
-    evaluation = _rows(
-        conn,
-        "SELECT * FROM evaluation_events WHERE account_id=? ORDER BY id",
-        (account_id,),
-    )
-    for item in evaluation:
-        item["metadata"] = _parse_json(item.pop("metadata_json"), field="metadata_json", default={})
-
-    return {
-        "schema_version": EXPORT_SCHEMA_VERSION,
-        "generated_at": _now(),
-        "account": dict(account),
-        "company_profile": profile,
-        "opportunity_decisions": decisions,
-        "opportunity_events": events,
-        "opportunity_workflow": workflow,
-        "evaluation_events": evaluation,
-        "scope": {
-            "server_owned_account_tables": inventory["required"],
-            "completeness": "CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY",
-            "shared_public_procurement_data_included": False,
-            "identity_provider_data_included": False,
-            "billing_provider_source_records_included": False,
-            "device_local_private_cache_included": False,
-        },
-    }
+    finally:
+        # End the read-only snapshot without committing any caller state.
+        conn.rollback()
+    return payload
 
 
 def _account_status(conn, account_id: str) -> str | None:
@@ -253,7 +279,15 @@ def deletion_state(conn, account_id: str) -> dict:
     if status is None:
         return {"state": "NOT_FOUND", "product_private_db_deleted": None, "external_revocation": "UNKNOWN"}
     if status == "deleted":
-        return {"state": "COMPLETED", "product_private_db_deleted": True, "external_revocation": "PROVEN_EXTERNAL"}
+        # No current repository contract carries proof that a raw status value means
+        # provider sessions, legacy files, devices and external billing are revoked.
+        # Fail closed until an owner-supplied completion proof is integrated.
+        return {
+            "state": "UNKNOWN",
+            "product_private_db_deleted": None,
+            "external_revocation": "UNKNOWN",
+            "reason": "deletion_completion_evidence_unavailable",
+        }
     if status == "deleted_pending_revocation":
         return {"state": "PENDING", "product_private_db_deleted": True, "external_revocation": "PENDING"}
     if status == "deletion_pending":
