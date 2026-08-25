@@ -1,0 +1,259 @@
+{
+  "schema_version": 1,
+  "manifest_version": "acceptance-integration.v1",
+  "baseline": {
+    "branch": "main",
+    "head_sha": "52e011083545a2e69526cd8e0a294cfb61682884",
+    "acceptance_scope": "CURRENT_MAIN_PLUS_EXPLICITLY_NAMED_BRANCH_CANDIDATES",
+    "automatic_merge": false,
+    "production_mutation": false,
+    "master_queue_mutation": false
+  },
+  "product_journey": [
+    "DISCOVER",
+    "SAVE",
+    "COMPARE",
+    "REQUIREMENTS",
+    "DOCUMENTS",
+    "READINESS",
+    "EVIDENCE",
+    "MILESTONES",
+    "ECONOMICS",
+    "MOBILIZATION",
+    "BANGS",
+    "DECISION",
+    "WORKSPACE",
+    "OUTCOME",
+    "BUYER",
+    "LIFECYCLE"
+  ],
+  "product_completeness": {
+    "DISCOVER": {"implementation": "IMPLEMENTED", "acceptance": "FAIL", "reason": "expired opportunity can remain is_actionable=true without stronger current lifecycle evidence"},
+    "SAVE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #150; integration candidate PR #203"},
+    "COMPARE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "FAIL", "candidate": "PR #151", "reason": "integration-lab monetary adversarial failure under bisection PRs #201/#202"},
+    "REQUIREMENTS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #152"},
+    "DOCUMENTS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #156"},
+    "READINESS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #153"},
+    "EVIDENCE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #147/#194"},
+    "MILESTONES": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #170"},
+    "ECONOMICS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #169"},
+    "MOBILIZATION": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #146"},
+    "BANGS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #195"},
+    "DECISION": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #160"},
+    "WORKSPACE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #172"},
+    "OUTCOME": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #163"},
+    "BUYER": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #164"},
+    "LIFECYCLE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #167/#166/#168"}
+  },
+  "acceptance_matrix_scope": "CURRENT_MAIN",
+  "acceptance_matrix": [
+    {
+      "journey": "AUTH_LIST_DETAIL_PROVENANCE",
+      "domain": "NOT_APPLICABLE",
+      "combination": "NOT_APPLICABLE",
+      "api": "FAIL",
+      "tenant": "PASS",
+      "system": "GATED",
+      "live": "FAIL",
+      "notes": ["API false-claim defect on expired actionability", "tenant identity precedence has deterministic local coverage", "Save absent from main", "deployed valid-token authentication incident remains unresolved on main"]
+    },
+    {
+      "journey": "SAVE_TENANT_READBACK",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Watchlist exists only on PR #150; candidate combination PR #203"]
+    },
+    {
+      "journey": "COMPARE",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "FAIL",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Compare is branch-only and has an integration-lab monetary adversarial defect under active bisection"]
+    },
+    {
+      "journey": "REQUIREMENTS_READINESS",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Requirements #152 and Readiness #153 are branch candidates, not main product capabilities"]
+    },
+    {
+      "journey": "DOCUMENTS_CHANGE_EVIDENCE",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_APPLICABLE",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Documents #156, Change History #155 and Evidence #147/#194 require controlled integration"]
+    },
+    {
+      "journey": "MILESTONES",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_APPLICABLE",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Milestone engine is branch-only #170"]
+    },
+    {
+      "journey": "ECONOMICS_MOBILIZATION_BANGS",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Economics #169, Mobilize #146 and BANGS #195 are not canonical on main"]
+    },
+    {
+      "journey": "DECISION_WORKSPACE_OUTCOME",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Decision #160, Workspace #172 and Outcome #163 require controlled combination validation"]
+    },
+    {
+      "journey": "PROCUREMENT_LIFECYCLE",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_APPLICABLE",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Plan #167, Lineage #166 and Expiry #168 remain branch-only; no main lifecycle chain is product accepted"]
+    },
+    {
+      "journey": "BUYER_PROFILE",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_APPLICABLE",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Buyer profile #164 remains branch-only"]
+    }
+  ],
+  "release_golden_subset": [
+    {"id": "RELEASE_GOLDEN_01", "journey": "authenticated discover/detail", "status": "GATED", "blocking": ["closed-actionability false-claim defect", "deployed valid-token auth incident"]},
+    {"id": "RELEASE_GOLDEN_02", "journey": "tenant save/read isolation", "status": "GATED", "blocking": ["Watchlist not integrated on main"]},
+    {"id": "RELEASE_GOLDEN_03", "journey": "unknown-vs-zero", "status": "PASS", "scope": "deterministic API fixture"},
+    {"id": "RELEASE_GOLDEN_04", "journey": "closed opportunity protection", "status": "FAIL", "blocking": ["expired opportunity may remain is_actionable=true"]},
+    {"id": "RELEASE_GOLDEN_05", "journey": "decision/outcome separation", "status": "GATED", "blocking": ["Decision and Outcome not integrated on main"]},
+    {"id": "RELEASE_GOLDEN_06", "journey": "evidence/provenance", "status": "GATED", "scope": "source URL/provenance partial only", "blocking": ["Evidence product integration not canonical on main"]}
+  ],
+  "defects": [
+    {
+      "id": "BUG-GP-001",
+      "classification": ["FALSE-CLAIM BUG", "DATA SEMANTICS BUG", "PRODUCT BUG"],
+      "scenario": "ADV_CLOSED_OPPORTUNITY",
+      "expected": "expired opportunity is not open and not actionable unless stronger current source evidence explicitly supports actionability",
+      "observed": "deadline_status=closed and is_open=false can coexist with is_actionable=true; default feed filters only is_actionable",
+      "root_cause": "legacy COALESCE(lifecycle.is_actionable,1) default plus deadline filter only when open=1",
+      "owner_cell": "SIGNAL / OPPORTUNITY LIFECYCLE + OPPORTUNITY API",
+      "fix_required": "define canonical precedence between explicit lifecycle evidence and expired deadline; then apply consistently to list/detail/alerts/stats without erasing historical visibility",
+      "retest": ["ADV_CLOSED_OPPORTUNITY", "GP01A_DISCOVER_DETAIL_TRUTH", "RELEASE_GOLDEN_04"]
+    },
+    {
+      "id": "GAP-GP-002",
+      "classification": ["CONTRACT BUG", "ACCEPTANCE TESTABILITY GAP"],
+      "scenario": "temporal replayability",
+      "expected": "golden temporal assertions use an injected fixed clock",
+      "observed": "main opportunity deadline presentation derives current time inside the API path",
+      "root_cause": "no canonical clock seam at the opportunity read-model boundary",
+      "owner_cell": "ASSEMBLY / SIGNAL API CONTRACT",
+      "fix_required": "introduce a narrow injectable clock seam without changing deadline semantics",
+      "retest": ["GP01A_DISCOVER_DETAIL_TRUTH", "ADV_CLOSED_OPPORTUNITY", "ADV_STALE_DATA"]
+    },
+    {
+      "id": "GAP-GP-003",
+      "classification": ["AUTH BUG", "INTEGRATION BUG"],
+      "scenario": "GP15_REAL_AUTH_DEPLOYED",
+      "expected": "real Supabase token reaches protected deployed API successfully",
+      "observed": "current deployed main rejects a valid provider token; branch repair exists but is not merged/deployed",
+      "root_cause": "owned by Production Closure/Auth cell; acceptance does not duplicate its repair",
+      "owner_cell": "PRODUCTION CLOSURE & AUTHENTICATION INTEGRATION",
+      "fix_required": "integrate PR #198, deploy exact merged revision, rerun production smoke and authenticated E2E",
+      "retest": ["GP15_REAL_AUTH_DEPLOYED", "RELEASE_GOLDEN_01"]
+    },
+    {
+      "id": "GAP-GP-004",
+      "classification": ["INTEGRATION BUG"],
+      "scenario": "GP01B_SAVE_TENANT_READBACK",
+      "expected": "first Golden Path includes real Save plus tenant-safe readback",
+      "observed": "main has legacy workflow state but no Watchlist Save capability",
+      "root_cause": "Watchlist remains on PR #150; integration candidate #203 exists",
+      "owner_cell": "INTEGRATION LAB + WATCHLIST OWNER",
+      "fix_required": "validate Watchlist in the minimum safe combination; do not relabel legacy workflow as Save",
+      "retest": ["GP01B_SAVE_TENANT_READBACK", "RELEASE_GOLDEN_02"]
+    },
+    {
+      "id": "GAP-GP-005",
+      "classification": ["DATA SEMANTICS BUG", "INTEGRATION BUG"],
+      "scenario": "COMPARE",
+      "expected": "money comparison fails closed for unsupported/non-finite/precision-risk inputs",
+      "observed": "Integration Lab opened adversarial bisection PRs #201/#202 after Compare combination exposed monetary contract failure",
+      "root_cause": "Compare-owned monetary normalization/precision contract under investigation",
+      "owner_cell": "COMPARE OWNER; INTEGRATION LAB validates fix combination",
+      "fix_required": "resolve Compare monetary defect before any system acceptance or product recommendation semantics",
+      "retest": ["COMPARE", "ADV_MULTI_CURRENCY"]
+    }
+  ],
+  "integration_lab_handoffs": [
+    {
+      "handoff_id": "INT-GP-01",
+      "purpose": "First product Golden Path",
+      "required_modules": ["Auth repair PR #198", "Watchlist PR #150", "Acceptance harness branch acceptance/golden-path-system-v1"],
+      "minimum_combination": "Prefer existing integration candidate PR #203 as code-combination base, then overlay acceptance harness only; Evidence foundation may remain because #203 already contains it",
+      "acceptance_tests": ["GP01A_DISCOVER_DETAIL_TRUTH", "GP01B_SAVE_TENANT_READBACK", "ADV_CLOSED_OPPORTUNITY", "ADV_ZERO_UNKNOWN", "GP14_AUTH_TENANT"],
+      "expected_contracts": ["server-derived tenant", "closed not actionable", "unknown remains unknown", "Save tenant isolated", "source/provenance preserved"],
+      "do_not_include": ["Compare until its monetary defect is resolved"]
+    },
+    {
+      "handoff_id": "INT-GP-02",
+      "purpose": "Requirements to Readiness",
+      "required_modules": ["Requirements PR #152", "Readiness PR #153", "Acceptance harness"],
+      "minimum_combination": "#152 + #153 with their public contract only",
+      "acceptance_tests": ["GP02_REQUIREMENTS_READINESS"],
+      "expected_contracts": ["missing company facts UNKNOWN", "partial requirements coverage cannot yield READY", "known blocker remains blocker", "readiness not pursue"]
+    },
+    {
+      "handoff_id": "INT-GP-03",
+      "purpose": "Economic and operational truth",
+      "required_modules": ["Bid Economics PR #169", "Mobilize PR #146", "BANGS PR #195", "Acceptance harness"],
+      "minimum_combination": "Domain/public contracts first; no API/UI claim required for L0/L1",
+      "acceptance_tests": ["GP05_ECONOMICS", "GP06_MOBILIZATION", "GP07_BANGS_KNOWN_EXECUTION_COST", "ADV_MULTI_CURRENCY", "ADV_PROVIDER_FAILURE"],
+      "expected_contracts": ["unknown cost not zero", "mixed currency fail closed", "observed price not quote", "listed not available", "partial known cost not total job cost"]
+    },
+    {
+      "handoff_id": "INT-GP-04",
+      "purpose": "Procurement lifecycle truth",
+      "required_modules": ["Procurement Plan PR #167", "Lineage PR #166", "Expiring Contract PR #168", "Acceptance harness"],
+      "minimum_combination": "Do not add a live source until canonical signal combination is proven",
+      "acceptance_tests": ["GP11_PROCUREMENT_LIFECYCLE", "ADV_SIMILAR_TITLES"],
+      "expected_contracts": ["plan not tender", "award not contract", "expiry not retender", "same title never sufficient lineage"]
+    }
+  ],
+  "release_policy": {
+    "release_gate_must_be_fast": true,
+    "full_suite_broader_than_release_gate": true,
+    "product_accepted_requires_exact_tested_head": true,
+    "branch_candidate_is_not_available_in_product": true,
+    "fixture_pass_is_not_live_pass": true,
+    "live_pass_is_not_deployed_pass": true
+  }
+}
