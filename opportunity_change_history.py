@@ -25,6 +25,15 @@ MATERIAL = "MATERIAL"
 NON_MATERIAL = "NON_MATERIAL"
 UNKNOWN = "UNKNOWN"
 _MISSING = object()
+REVISION_KEYS = (
+    "source_version",
+    "amendment_number",
+    "revision_id",
+    "amendment_id",
+    "corrigendum_id",
+    "native_revision",
+    "release_id",
+)
 
 
 @dataclass(frozen=True)
@@ -160,17 +169,32 @@ def normalize_field(value: Any, policy: FieldPolicy) -> Any:
     return _norm_text(value, case_insensitive=policy.case_insensitive)
 
 
+def _native_revision(record: Mapping) -> str | None:
+    for key in REVISION_KEYS:
+        value = record.get(key)
+        if value not in (None, ""):
+            return str(value).strip()
+    return None
+
+
 def build_monitored_state(record: Mapping, previous_state: Mapping | None = None) -> dict[str, Any]:
     """Normalize monitored fields while treating absent source keys conservatively.
 
     Missing key means "not observed in this payload", not "removed". When a
     previous state exists it is carried forward. Explicit null/empty is observable
     and may therefore represent a confirmed removal under connector semantics.
+    Publisher-native revision aliases are projected into the monitored
+    ``source_version`` field here as well as at the source-runtime boundary so
+    direct persistence and reconstructed pre-module baselines retain provenance.
     """
     previous_state = previous_state or {}
     state: dict[str, Any] = {}
     for name, policy in FIELD_REGISTRY.items():
         raw = record.get(name, _MISSING)
+        if name == "source_version" and raw is _MISSING:
+            revision = _native_revision(record)
+            if revision is not None:
+                raw = revision
         if raw is _MISSING:
             if name in previous_state:
                 state[name] = previous_state[name]
@@ -181,17 +205,6 @@ def build_monitored_state(record: Mapping, previous_state: Mapping | None = None
 
 def content_fingerprint(state: Mapping) -> str:
     return sha256(_json(dict(state)).encode("utf-8")).hexdigest()
-
-
-def _native_revision(record: Mapping) -> str | None:
-    for key in (
-        "source_version", "revision_id", "amendment_id", "corrigendum_id",
-        "native_revision", "release_id",
-    ):
-        value = record.get(key)
-        if value not in (None, ""):
-            return str(value).strip()
-    return None
 
 
 def _source_ref(record: Mapping) -> str | None:
