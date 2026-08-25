@@ -1,4 +1,5 @@
 import sqlite3
+from types import SimpleNamespace
 
 import pytest
 
@@ -253,6 +254,7 @@ def test_source_runtime_rolls_back_history_and_all_source_state_on_history_failu
     conn = _conn()
     ensure_source_health(conn)
     runtime.discard_staged_source_syncs()
+    monkeypatch.setattr(runtime, "capability", lambda name: SimpleNamespace(state="PILOT"))
     record = _record(
         source="ROLLBACK_SOURCE",
         external_id="rollback-1",
