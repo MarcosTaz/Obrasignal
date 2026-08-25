@@ -1,11 +1,14 @@
-"""Lifecycle-aware commercial read model for legacy ObraSignal surfaces.
+"""Lifecycle-aware compatibility layer for legacy ObraSignal surfaces.
 
 The canonical ``tenders`` table remains historical. Current commercial surfaces
-must hide rows explicitly marked non-actionable by a source lifecycle update,
-while direct detail remains available with the lifecycle state attached.
+must hide rows that are not effectively actionable, while direct detail remains
+available with lifecycle and deadline state attached.
 
 This module is installed additively at the production WSGI boundary so the
-legacy ingestion/ranking core does not need a rewrite.
+legacy ingestion/ranking core does not need a broad rewrite. In addition to the
+read-model replacements, it corrects only the temporal component of legacy
+commercial scoring for date-only deadlines: calendar precision must not become
+an invented midnight timestamp.
 """
 from datetime import datetime, timezone, timedelta
 
@@ -13,22 +16,65 @@ import app as _app
 from auth_context import configured_identity
 from decision_dashboard import get_presented_decision
 from funnel_integration import persist_and_classify
-from opportunity_lifecycle import ensure_lifecycle_table
+from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 from opportunity_web import render_opportunity_detail
 from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
+
+
+_ORIGINAL_COMMERCIAL_SCORE = _app.commercial_score
 
 
 def _ensure(conn):
     ensure_lifecycle_table(conn)
 
 
+def commercial_score(title, description, cpv, deadline=None):
+    """Preserve DATE precision when applying the legacy deadline score policy.
+
+    The legacy scorer converts ``YYYY-MM-DD`` to midnight UTC before computing a
+    fractional day distance. That can penalize a deadline on the current day as
+    expired and can shift the 7/21-day policy boundaries depending on the current
+    clock time. For date-only evidence, use calendar-day distance instead. Exact
+    timestamps continue through the original scorer unchanged.
+    """
+    raw = str(deadline or "").strip()
+    if len(raw) == 10:
+        try:
+            deadline_date = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+        else:
+            days = (deadline_date - datetime.now(timezone.utc).date()).days
+            score, _label, _css, reason = _ORIGINAL_COMMERCIAL_SCORE(
+                title, description, cpv, None
+            )
+            if 0 <= days <= 7:
+                score += 10
+            elif 7 < days <= 21:
+                score += 5
+            elif days < 0:
+                score -= 30
+            score = max(0, min(100, score))
+            if score >= 75:
+                label, css = "PRIORIDADE MÁXIMA", "hot"
+            elif score >= 55:
+                label, css = "BOA OPORTUNIDADE", "good"
+            else:
+                label, css = "BAIXA PRIORIDADE", "low"
+            if 0 <= days <= 7:
+                suffix = "prazo hoje; hora não indicada" if days == 0 else f"prazo em {days} dias; hora não indicada"
+                reason += "; " + suffix
+            return score, label, css, reason
+    return _ORIGINAL_COMMERCIAL_SCORE(title, description, cpv, deadline)
+
+
 def query_tenders(market, q, country, minscore, limit=60):
-    """Legacy list read that excludes explicit source tombstones."""
+    """Legacy list read that returns only effectively actionable rows."""
     conn = _app.db()
     try:
         _ensure(conn)
-        where = ["COALESCE(lc.is_actionable,1)=1"]
+        where = [actionable_predicate("lc", "t")]
         params = []
         if market in ("PT", "EU"):
             where.append("t.market=?")
@@ -57,11 +103,11 @@ def query_tenders(market, q, country, minscore, limit=60):
 
 
 def stats_for(market):
-    """Legacy dashboard stats count current actionable rows only."""
+    """Legacy dashboard stats count current effectively actionable rows only."""
     conn = _app.db()
     try:
         _ensure(conn)
-        where = ["COALESCE(lc.is_actionable,1)=1"]
+        where = [actionable_predicate("lc", "t")]
         params = []
         if market in ("PT", "EU"):
             where.append("t.market=?")
@@ -91,10 +137,10 @@ def api_radar():
     try:
         _ensure(conn)
         rows = conn.execute(
-            """SELECT t.* FROM tenders t
+            f"""SELECT t.* FROM tenders t
                LEFT JOIN opportunity_lifecycle lc
                  ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE t.score >= ? AND COALESCE(lc.is_actionable,1)=1
+               WHERE t.score >= ? AND {actionable_predicate('lc', 't')}
                ORDER BY t.score DESC, t.publication_date DESC LIMIT ?""",
             (minscore, limit),
         ).fetchall()
@@ -120,10 +166,10 @@ def radar_page():
     try:
         _ensure(conn)
         rows = conn.execute(
-            """SELECT t.* FROM tenders t
+            f"""SELECT t.* FROM tenders t
                LEFT JOIN opportunity_lifecycle lc
                  ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE t.score >= ? AND COALESCE(lc.is_actionable,1)=1
+               WHERE t.score >= ? AND {actionable_predicate('lc', 't')}
                ORDER BY t.score DESC, t.publication_date DESC LIMIT 100""",
             (minscore,),
         ).fetchall()
@@ -134,16 +180,16 @@ def radar_page():
 
 
 def record_account_decisions(conn, *, list_active_accounts):
-    """Classify only currently actionable rows from the just-completed sync."""
+    """Classify only effectively actionable rows from the just-completed sync."""
     _ensure(conn)
     run = conn.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
     if not run or not run["finished_at"]:
         return 0
     rows = conn.execute(
-        """SELECT t.* FROM tenders t
+        f"""SELECT t.* FROM tenders t
            LEFT JOIN opportunity_lifecycle lc
              ON lc.source=t.source AND lc.external_id=t.external_id
-           WHERE t.last_seen=? AND COALESCE(lc.is_actionable,1)=1""",
+           WHERE t.last_seen=? AND {actionable_predicate('lc', 't')}""",
         (run["finished_at"],),
     ).fetchall()
     accounts = list_active_accounts(conn) or [configured_identity().account_id]
@@ -156,13 +202,13 @@ def record_account_decisions(conn, *, list_active_accounts):
 
 
 def opportunity_detail(tender_id):
-    """Preserve history while presenting the publisher's current lifecycle state."""
+    """Preserve history while presenting effective current actionability."""
     identity = getattr(_app.request, "obrasignal_identity", None) or configured_identity()
     conn = _app.db()
     try:
         _ensure(conn)
         row = conn.execute(
-            """SELECT t.*, COALESCE(lc.is_actionable,1) AS is_actionable,
+            f"""SELECT t.*, {actionable_predicate('lc', 't')} AS is_actionable,
                       lc.lifecycle_status, lc.lifecycle_reason,
                       lc.source_updated_at AS lifecycle_source_updated_at,
                       lc.last_observed AS lifecycle_last_observed
@@ -187,7 +233,8 @@ def opportunity_detail(tender_id):
 
 
 def install(preload_module):
-    """Install lifecycle-aware readers without changing legacy write paths."""
+    """Install lifecycle-aware compatibility without replacing canonical owners."""
+    _app.commercial_score = commercial_score
     _app.query_tenders = query_tenders
     _app.stats_for = stats_for
     preload_module._record_account_decisions = lambda conn: record_account_decisions(
