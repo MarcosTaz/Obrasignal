@@ -75,7 +75,7 @@ def test_emits_contract_not_tender_and_uses_native_cpv():
     assert "Entreprise Bâtiment" in row["description"]
 
 
-def test_server_query_is_bounded_to_construction_and_all_update_dates():
+def test_server_query_is_bounded_to_construction_and_publication_window():
     session = Session([Response({"total_count": 0, "results": []})])
     rows, cursor = fr.fetch_france_decp_contracts(
         watermark="2026-08-20", session=session, today=date(2026, 8, 25)
@@ -85,8 +85,8 @@ def test_server_query_is_bounded_to_construction_and_all_update_dates():
     params = session.calls[0][1]["params"]
     where = params["where"]
     assert 'startswith(codecpv, "45")' in where
-    assert "datepublicationdonnees >= date'2026-08-18'" in where
-    assert "datepublicationdonneesmodification >= date'2026-08-18'" in where
+    assert "datepublicationdonnees >= date:'2026-08-18'" in where
+    assert "modification" not in where
     assert params["limit"] <= 100
 
 
@@ -99,21 +99,21 @@ def test_non_construction_is_rejected_even_if_server_filter_regresses():
     assert cursor == "2026-08-20"
 
 
-def test_modification_updates_same_contract_identity():
+def test_reobserved_modification_updates_same_contract_identity_without_advancing_publication_cursor():
     original = _works(datepublicationdonnees="2026-08-21", montant=1000000)
     modified = _works(
         datepublicationdonnees="2026-08-21",
-        booleanmodification=True,
-        datepublicationdonneesmodification="2026-08-24",
+        datepublicationdonneesmodificationmodification="2026-08-24",
         montant=1250000,
     )
     session = Session([Response({"total_count": 2, "results": [original, modified]})])
     rows, cursor = fr.fetch_france_decp_contracts(
         watermark="2026-08-20", session=session, today=date(2026, 8, 25)
     )
-    assert cursor == "2026-08-24"
+    assert cursor == "2026-08-21"
     assert len(rows) == 1
     assert rows[0]["external_id"] == "FR-CONTRACT-1"
+    assert rows[0]["source_updated_at"] == "2026-08-24T00:00:00Z"
     assert rows[0]["has_modification"] is True
     assert rows[0]["value"] == "1250000"
 
