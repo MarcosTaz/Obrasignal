@@ -59,7 +59,9 @@ class OCDSOpaqueWindowCursor:
             return None
         try:
             if "T" in stamp:
-                datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    return None
                 return cls(stamp)
             return cls(date.fromisoformat(stamp[:10]).isoformat())
         except ValueError:
@@ -80,6 +82,13 @@ def _date(value):
 
 
 def _datetime(value):
+    """Parse an instant only when its timezone is explicit.
+
+    This helper is used for ObraSignal-owned sub-daily cursor/window instants.
+    Date-only cursor values have separate calendar semantics in ``_date``.
+    A timezone-naive datetime is temporally ambiguous and must not be promoted
+    to UTC merely because this internal representation is stored in UTC.
+    """
     if isinstance(value, datetime):
         parsed = value
     elif isinstance(value, date):
@@ -89,19 +98,18 @@ def _datetime(value):
         try:
             parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
         except ValueError:
-            try:
-                parsed = datetime.combine(date.fromisoformat(text[:10]), time.min, tzinfo=timezone.utc)
-            except ValueError:
-                return None
+            return None
     else:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        return None
     return parsed.astimezone(timezone.utc)
 
 
 def _cursor_stamp(value):
     if isinstance(value, datetime):
+        if value.tzinfo is None:
+            raise ValueError("subdaily OCDS cursor timestamp must be timezone-aware")
         return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     if isinstance(value, date):
         return value.isoformat()
