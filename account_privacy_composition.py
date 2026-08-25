@@ -143,13 +143,18 @@ def _columns(conn, table: str) -> set[str]:
     }
 
 
-def account_privacy_composition_inventory(conn) -> dict:
+def account_privacy_composition_inventory(conn, *, store_kind: str = "primary") -> dict:
     """Discover direct and known-transitive account state without promoting it.
 
     Direct ``account_id`` discovery catches ordinary tenant tables. The explicit
     transitive registry closes the known Notification Delivery gap where
     ``push_deliveries`` has no account_id but is private through event/device chains.
+    ``store_kind`` prevents a test-only fixture store from being mistaken for primary
+    customer persistence, or vice versa.
     """
+    if store_kind not in {"primary", "separate_test_db"}:
+        raise ValueError("unsupported_account_privacy_store_kind")
+
     tables = _table_names(conn)
     direct = sorted(name for name in tables if "account_id" in _columns(conn, name))
     known_present = sorted(name for name in tables if name in DATASET_CONTRACTS)
@@ -158,7 +163,7 @@ def account_privacy_composition_inventory(conn) -> dict:
     datasets = []
     for name in known_present:
         contract = DATASET_CONTRACTS[name]
-        store_violation = contract.expected_store != "primary"
+        store_violation = contract.expected_store != store_kind
         datasets.append(
             {
                 "table": name,
@@ -170,6 +175,7 @@ def account_privacy_composition_inventory(conn) -> dict:
                 "retention_status": contract.retention_status,
                 "recovery_status": contract.recovery_status,
                 "expected_store": contract.expected_store,
+                "observed_store": store_kind,
                 "store_violation": store_violation,
             }
         )
@@ -180,6 +186,7 @@ def account_privacy_composition_inventory(conn) -> dict:
         if "->" in DATASET_CONTRACTS[name].tenant_path
     )
     return {
+        "store_kind": store_kind,
         "direct_account_tables": direct,
         "known_present": known_present,
         "known_transitive_private_tables": transitive_present,
@@ -188,12 +195,12 @@ def account_privacy_composition_inventory(conn) -> dict:
     }
 
 
-def operation_blockers(conn, operation: str) -> list[dict]:
+def operation_blockers(conn, operation: str, *, store_kind: str = "primary") -> list[dict]:
     operation = str(operation or "").strip().lower()
     if operation not in {"export", "deletion"}:
         raise ValueError("unsupported_account_privacy_operation")
 
-    inventory = account_privacy_composition_inventory(conn)
+    inventory = account_privacy_composition_inventory(conn, store_kind=store_kind)
     blockers: list[dict] = []
     for table in inventory["unclassified_direct_account_tables"]:
         blockers.append(
@@ -228,9 +235,11 @@ def operation_blockers(conn, operation: str) -> list[dict]:
     return blockers
 
 
-def assert_composed_operation_complete(conn, operation: str) -> None:
+def assert_composed_operation_complete(
+    conn, operation: str, *, store_kind: str = "primary"
+) -> None:
     """Fail closed when a composed tree has unresolved private-data semantics."""
-    blockers = operation_blockers(conn, operation)
+    blockers = operation_blockers(conn, operation, store_kind=store_kind)
     if blockers:
         names = ",".join(sorted(item["table"] for item in blockers))
         raise AccountPrivacyCompositionError(
