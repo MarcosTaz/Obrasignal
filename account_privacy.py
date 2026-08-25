@@ -239,6 +239,11 @@ def export_account_data(conn, account_id: str) -> dict:
 
 
 def _account_status(conn, account_id: str) -> str | None:
+    # Some isolated legacy tests intentionally construct only the tables needed by
+    # their route. The privacy guard must be observational there, never an implicit
+    # schema creator and never a source of unrelated 500s.
+    if "accounts" not in _table_names(conn):
+        return None
     row = conn.execute("SELECT status FROM accounts WHERE account_id=?", (str(account_id),)).fetchone()
     return str(row[0]) if row else None
 
