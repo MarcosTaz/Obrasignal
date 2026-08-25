@@ -1,6 +1,7 @@
 import app
 import api
 import search_profiles_api  # installs profile routes and canonical direct search
+from search_profiles import ensure_search_profile_table
 
 
 def _setup_db(monkeypatch, tmp_path):
@@ -11,6 +12,7 @@ def _setup_db(monkeypatch, tmp_path):
     monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "account-a")
     app.init_db()
     conn = app.db()
+    ensure_search_profile_table(conn)
     conn.execute(
         """INSERT INTO tenders(source,external_id,title,description,buyer,country,cpv,value,deadline,
                                   publication_date,url,score,first_seen,last_seen,market)
