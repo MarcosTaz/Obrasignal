@@ -9,7 +9,7 @@ from lot_matcher import match_lot
 from economic_fit import evaluate_economic_fit, parse_contract_value
 from profile_scoring import personalized_score
 
-RULE_VERSION = "commercial-v2+lot-v1+capability-v2+economic-fit-v3"
+RULE_VERSION = "commercial-v2+lot-v1+capability-v2+economic-fit-v3+review-evidence-v1"
 
 
 def _cpv_evidence(lot, capability):
@@ -167,7 +167,12 @@ def evaluate_row(row, profile=None):
         decision = "REJECT"
     elif profile_score >= 75 and lot_score >= 65 and economics["status"] in ("FAVOURABLE", "REVIEW"):
         decision = "QUALIFIED"
-    elif profile_score >= 60 or lot_score >= 65:
+    elif positive_commercial_evidence and (profile_score >= 60 or lot_score >= 65):
+        # A generic high lot score (broad works CPV, open procedure, value and
+        # deadline) is not company-fit evidence. Without a capability phrase or
+        # sufficiently specific CPV match, REVIEW would turn UNKNOWN company
+        # fit into shortlist/relevance merely because the procurement itself
+        # looks commercially attractive.
         decision = "REVIEW"
     else:
         decision = "REJECT"
