@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "bug_id": "BUG-GP-007",
+  "customer_journey": "ALERT -> NOTIFICATION_PERMISSION -> RETURN",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "classification": ["FALSE_SUCCESS", "MOBILE", "NOTIFICATION_PERMISSION"],
+  "severity": "HIGH",
+  "owner": "MOBILE_PRODUCT_OWNER",
+  "reproduction": [
+    "On a native device, enable the ObraSignal Notifications setting.",
+    "Deny the operating-system notification permission prompt.",
+    "Allow `syncUnreadOpportunityAlerts()` to return after `configureNotifications()` reports permission not granted.",
+    "Observe the customer-visible notice."
+  ],
+  "observed_result": "Permission denial returns numeric 0 from `syncUnreadOpportunityAlerts()`. `App.js` interprets delivered===0 as `Notificações activadas.` even though OS permission is denied.",
+  "expected_truth": [
+    "Permission denied must be a distinct state from enabled-with-zero-alerts.",
+    "The UI must never say notifications are active when operating-system permission is denied.",
+    "Retry/settings guidance may be shown, but denial is not success."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: denied permission cannot flow to the active-success notice.",
+    "PROVEN_REAL_DEVICE: Android permission denial is visibly represented as denied/not active.",
+    "PROVEN_REAL_DEVICE: permission granted with zero unread alerts may truthfully show enabled with zero new alerts."
+  ],
+  "hard_boundary": "Golden Path owns acceptance/regression only; repair belongs to MOBILE_PRODUCT_OWNER."
+}
