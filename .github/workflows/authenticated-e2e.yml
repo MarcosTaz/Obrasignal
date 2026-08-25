@@ -166,6 +166,9 @@ jobs:
           issuer = payload.get('iss')
           audience = payload.get('aud')
           role = payload.get('role')
+          subject = payload.get('sub')
+          assert subject, 'Supabase access token subject is missing'
+          open('/tmp/token_subject', 'w', encoding='utf-8').write(str(subject))
 
           print('JWT_DIAGNOSTIC')
           print(f'alg={alg if alg is not None else "none"}')
@@ -173,7 +176,7 @@ jobs:
           print(f'typ={typ if typ is not None else "none"}')
           print(f'iss={issuer if issuer is not None else "none"}')
           print(f'aud={json.dumps(audience, separators=(",", ":")) if isinstance(audience, (list, dict)) else audience if audience is not None else "none"}')
-          print(f'sub_present={str(bool(payload.get("sub"))).lower()}')
+          print(f'sub_present={str(bool(subject)).lower()}')
           print(f'role={role if role is not None else "none"}')
           print(f'iat={payload.get("iat") if payload.get("iat") is not None else "none"}')
           print(f'exp={payload.get("exp") if payload.get("exp") is not None else "none"}')
@@ -257,6 +260,8 @@ jobs:
           assert payload.get('authenticated') is True
           account_id=payload.get('account_id')
           assert account_id
+          token_subject=open('/tmp/token_subject', encoding='utf-8').read()
+          assert str(account_id) == token_subject
           assert isinstance(payload.get('profile'), dict)
           open('/tmp/authenticated_account_id', 'w', encoding='utf-8').write(str(account_id))
           print('Authenticated API identity verified.')
