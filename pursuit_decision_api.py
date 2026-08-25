@@ -79,6 +79,12 @@ def opportunity_decision(opportunity_id):
             })
 
         payload = request.get_json(silent=True) or {}
+        requested_actor_type = str(payload.get("actor_type") or "HUMAN").strip().upper()
+        if requested_actor_type != "HUMAN":
+            return jsonify({
+                "error": "invalid_decision",
+                "detail": "actor_type is server-controlled on the human decision API",
+            }), 400
         idempotency_key = request.headers.get("Idempotency-Key") or payload.get("idempotency_key")
         actor_id = identity.subject if getattr(identity, "subject", None) else payload.get("actor_id")
         decision, created = record_pursuit_decision(
@@ -96,7 +102,7 @@ def opportunity_decision(opportunity_id):
             opportunity_state=_snapshot(opportunity),
             confidence=payload.get("confidence"),
             actor_id=actor_id,
-            actor_type=payload.get("actor_type", "HUMAN"),
+            actor_type="HUMAN",
             decided_at=payload.get("decided_at"),
             idempotency_key=idempotency_key,
         )
