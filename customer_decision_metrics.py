@@ -57,6 +57,10 @@ def decision_metrics(audits: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     The function deliberately refuses to manufacture review/usefulness rates.
     An audit is not proof that a customer reviewed an opportunity, and a PURSUE
     decision is not proof that the opportunity was useful or good.
+
+    A valid/KNOWN owner envelope may still expose explicit unknown sub-inputs.
+    Those unknowns count as decision-data exposure without falsifying the
+    envelope's own truth-state classification.
     """
     rows = list(audits)
     seen_identity: set[tuple[str, str, str]] = set()
@@ -68,7 +72,9 @@ def decision_metrics(audits: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     stale_decisions = 0
     critical_slots = 0
     degraded_slots = 0
-    unknown_slots = 0
+    unknown_exposure_slots = 0
+    explicit_unknown_subinputs = 0
+    envelope_unknown_slots = 0
     stale_slots = 0
     unavailable_slots = 0
     conflicted_slots = 0
@@ -96,11 +102,20 @@ def decision_metrics(audits: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
             critical_slots += 1
             item = inputs.get(name)
             state = str(item.get("truth_state") if item else "UNAVAILABLE").strip().upper()
-            if state in DEGRADED_STATES:
+            raw_unknowns = item.get("unknowns") if item else ()
+            if isinstance(raw_unknowns, (str, bytes)):
+                raw_unknowns = (raw_unknowns,)
+            explicit_unknowns = [value for value in (raw_unknowns or ()) if str(value).strip()]
+            has_explicit_unknowns = bool(explicit_unknowns)
+            explicit_unknown_subinputs += len(explicit_unknowns)
+
+            if state in DEGRADED_STATES or has_explicit_unknowns:
                 degraded_slots += 1
                 degraded_for_decision = True
+            if state == "UNKNOWN" or has_explicit_unknowns:
+                unknown_exposure_slots += 1
             if state == "UNKNOWN":
-                unknown_slots += 1
+                envelope_unknown_slots += 1
             elif state == "STALE":
                 stale_slots += 1
                 stale_for_decision = True
@@ -129,7 +144,7 @@ def decision_metrics(audits: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "explicit_decisions": explicit_decisions,
         "decision_counts": dict(sorted(decision_counts.items())),
         "unknown_data_rate": _ratio(
-            unknown_slots,
+            unknown_exposure_slots,
             critical_slots,
             reason_if_empty="no critical decision-input slots were observed",
         ),
@@ -154,11 +169,13 @@ def decision_metrics(audits: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
             reason_if_empty="no explicit pursuit decisions are eligible for outcome capture",
         ),
         "truth_state_counts": {
-            "UNKNOWN": unknown_slots,
+            "UNKNOWN": envelope_unknown_slots,
             "STALE": stale_slots,
             "UNAVAILABLE": unavailable_slots,
             "CONFLICTED": conflicted_slots,
         },
+        "explicit_unknown_subinputs": explicit_unknown_subinputs,
+        "unknown_exposure_slots": unknown_exposure_slots,
         # These require explicit product telemetry/labels not present in the
         # decision audit contract. Returning 0 would be false intelligence.
         "useful_opportunities_surfaced": _explicit_metric_unavailable(
