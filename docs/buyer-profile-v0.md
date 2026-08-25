@@ -40,7 +40,7 @@ This is conservative by design. When a canonical Organization service is introdu
 
 - buyer identity and canonical display name;
 - known identifiers and jurisdiction;
-- known locations from observed buyer-associated records;
+- typed `source_record_location` entries when source records contain a `place` value;
 - known opportunity/award/contract counts;
 - observed lot count;
 - published opportunity, award and contract values separated by currency;
@@ -59,17 +59,19 @@ Counts are always **known/observed counts**. Zero means that ObraSignal currentl
 
 Opportunity deduplication prefers existing procedure-level identities in normalized data (`canonical_opportunity_id`, `procurement_id`, `procedure_id`, `ocid`, `tender_id`). It falls back to source + signal external ID only when no stronger procedure identity exists.
 
-An original notice and amendment sharing a procedure identity count as one observed procedure. The latest observed version supplies its current published fields.
+An original notice and amendment sharing a procedure identity count as one observed procedure. The latest observed version supplies its current published fields; ties are resolved deterministically.
+
+Awards do **not** deduplicate on procedure/OCID alone. They use award-specific identity (`canonical_award_id`, `award_id`, `award_identifier`, or nested award ID) when present and otherwise remain distinct by source + external ID. Contracts use the equivalent contract-specific rule. This prevents multiple legitimate awards/contracts within one procedure from being collapsed.
 
 ## LOT SEMANTICS
 
-`known_opportunity_count` is procedure-level after canonical-key suppression. `observed_lot_count` is a separate metric containing distinct observed `lot_id`/`lot_identifier` values. Lots are not silently added to procedure counts.
+`known_opportunity_count` is procedure-level after canonical-key suppression. `observed_lot_count` is a separate metric containing distinct observed `lot_id`/`lot_identifier` values from TENDER records only. Lots are not silently added to procedure counts and award/contract lot metadata cannot inflate this metric.
 
 ## TIME WINDOWS
 
 Supported deterministic windows are `12m`, `24m`, `all`, and `all_observed`.
 
-Relative windows require an explicit clock internally; tests inject a fixed UTC instant. Records without a usable activity date are excluded from bounded 12/24-month metrics and may appear only in all-observed aggregation.
+Relative windows require an explicit clock internally; tests inject a fixed UTC instant. Naive injected datetimes are interpreted as UTC instead of host-local time. Records without a usable activity date are excluded from bounded 12/24-month metrics and may appear only in all-observed aggregation.
 
 `observed_from` and `observed_to` describe the dated records included in the selected activity window, not the buyer's legal existence or complete procurement history.
 
@@ -87,7 +89,13 @@ No field is called annual procurement spend, total spend, buyer budget, or entir
 
 Currencies are grouped independently. EUR 1M + GBP 1M remains two values. V0 has no FX engine and performs no currency conversion.
 
-Malformed, missing or negative amounts are not invented or coerced into spend.
+Malformed, ambiguous, negative, non-finite or pathological amount strings are not invented, reformatted into a guessed number or coerced into spend. Monetary aggregation fails closed for those values.
+
+## LOCATION SEMANTICS
+
+The current Signal `place` field is not semantically strong enough to distinguish a buyer registered address from project, delivery or opportunity location across all sources. V0 therefore reports such values only as `source_record_location`.
+
+It must not be rendered or described as a verified buyer registered address. A future canonical Location/Organization model may provide stronger typed location facts; Buyer Profile should consume that contract rather than infer them from `place`.
 
 ## CATEGORY BREAKDOWN
 
@@ -109,7 +117,7 @@ Public procurement intelligence may be shared. Any future private enrichment mus
 
 ## SOURCE PROVENANCE
 
-Snapshots return bounded source/reference pairs from the records used for the selected activity window. The read model references source provenance instead of copying raw publisher payloads or private transport metadata.
+Snapshots return deterministic source/reference pairs from the records used for the selected activity window. The read model references source provenance instead of copying raw publisher payloads or private transport metadata.
 
 ## API
 
@@ -123,13 +131,13 @@ No new CRM-style UI is added in v0. A future contextual surface should use acces
 
 ## SECURITY
 
-Buyer IDs are structured, URL-safe encoded identities with a bounded maximum length and are decoded before parameterized SQL predicates are constructed. Malformed/oversized values fail closed. Organization names remain untrusted data; the domain layer returns data and does not render HTML.
+Buyer IDs are structured, URL-safe encoded identities with a bounded maximum length and are decoded before parameterized SQL predicates are constructed. Malformed/oversized values fail closed. Organization names and source-record locations remain untrusted data; the domain layer returns data and does not render HTML.
 
 The snapshot service performs SELECT-only reads. It neither mutates canonical Signal records nor reads tenant-private tables.
 
 ## PERFORMANCE
 
-The service performs one bounded identity query followed by in-memory aggregation, avoiding N+1 reads. Name-scoped identities use indexed source/country columns plus exact buyer filtering. Strong identifiers currently retained only inside `normalized_json` may require scanning the source/jurisdiction candidate set; a canonical Organization/identifier index is a future optimization when justified by production evidence.
+The service performs one identity query followed by in-memory aggregation, avoiding N+1 reads. Name-scoped identities use source/country plus exact buyer filtering. Strong identifiers currently retained only inside `normalized_json` may require scanning the source/jurisdiction candidate set; a canonical Organization/identifier index is a future optimization when justified by production evidence.
 
 Recent activity is bounded to 1..50 records.
 
@@ -143,12 +151,17 @@ Focused tests cover:
 - same name/different jurisdiction;
 - distinct departments;
 - opportunity/award/contract aggregation;
+- multiple awards/contracts within one procedure;
+- award/contract external-ID fallback;
 - 12-month vs all-observed windows;
 - category breakdown;
 - currency separation;
 - value-type separation;
+- malformed/ambiguous amount fail-closed behaviour;
 - amendment/procedure deduplication;
+- deterministic version tie-breaking;
 - lot semantics;
+- typed source-record location semantics;
 - source refs and coverage notes;
 - zero known activity semantics;
 - deterministic output under a fixed clock;
@@ -162,7 +175,8 @@ Focused tests cover:
 - Buyer identifiers are not uniformly normalized across all existing connectors.
 - No cross-source organization merge is attempted, even when two sources may refer to the same legal entity.
 - Award/Contract usefulness depends on those signal types actually being present in the current Signal store.
-- Buyer registered location is not separately modeled in the current Signal contract; v0 therefore reports `known_locations` from buyer-associated records and does not relabel project/opportunity places as verified registered addresses.
+- Buyer registered location is not separately modeled in the current Signal contract; v0 exposes only typed source-record locations and makes no registered-address claim.
+- Strong identifier lookup may scan a source/jurisdiction candidate set until canonical indexed identity exists.
 - No persistence/cache is added.
 - No API/UI rollout is claimed.
 
