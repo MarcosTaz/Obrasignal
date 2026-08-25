@@ -1,0 +1,115 @@
+name: ObraSignal Auth Forged Signature Boundary
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-forged-signature-e2e
+  cancel-in-progress: true
+
+env:
+  SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+  E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+  API_URL: https://obrasignal.onrender.com/api/v1
+
+jobs:
+  forged-signature-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for exact production build
+        env:
+          TARGET_BUILD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --show-error --max-time 10 \
+              "$API_URL/health" > /tmp/health.json \
+              && TARGET_BUILD="$TARGET_BUILD" python - <<'PY'
+          import json
+          import os
+          health=json.load(open('/tmp/health.json', encoding='utf-8'))
+          assert health.get('ok') is True
+          assert health.get('service') == 'obrasignal-api'
+          assert health.get('build') == os.environ['TARGET_BUILD']
+          PY
+            then
+              echo "Exact production build ready."
+              break
+            fi
+            if [ "$attempt" = 24 ]; then
+              echo "Production never served the exact target build."
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Require E2E credentials
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_URL SUPABASE_KEY E2E_EMAIL E2E_PASSWORD; do
+            test -n "${!name}" || { echo "Missing required E2E secret: $name"; exit 1; }
+          done
+
+      - name: Acquire real Supabase token privately
+        run: |
+          set -euo pipefail
+          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${BASE_URL%/rest/v1}"
+          BODY="$(python - <<'PY'
+          import json, os
+          print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
+          PY
+          )"
+          status="$(curl --silent --show-error --output /tmp/auth.json --write-out '%{http_code}' --max-time 30 \
+            -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            --data "$BODY")"
+          test "$status" = "200" || { echo "Supabase authentication failed with HTTP $status."; exit 1; }
+          python - <<'PY'
+          import json
+          token=json.load(open('/tmp/auth.json', encoding='utf-8')).get('access_token')
+          assert token and len(token.split('.')) == 3
+          open('/tmp/access_token', 'w', encoding='utf-8').write(token)
+          print('Real token acquired for private boundary construction.')
+          PY
+
+      - name: Forge signature without changing header or claims
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          token=open('/tmp/access_token', encoding='utf-8').read().strip()
+          header, payload, signature = token.split('.')
+          raw=bytearray(base64.urlsafe_b64decode(signature + '=' * (-len(signature) % 4)))
+          assert raw, 'JWT signature is empty'
+          raw[0] ^= 1
+          forged_signature=base64.urlsafe_b64encode(bytes(raw)).decode('ascii').rstrip('=')
+          forged='.'.join((header, payload, forged_signature))
+          assert forged != token
+          open('/tmp/forged_token', 'w', encoding='utf-8').write(forged)
+          print('Structurally valid forged-signature token prepared privately.')
+          PY
+
+      - name: Require forged signature rejection
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --output /tmp/forged-body --write-out '%{http_code}' --max-time 30 \
+            -H "Authorization: Bearer $(cat /tmp/forged_token)" \
+            "$API_URL/profile")"
+          test "$status" = "401"
+          grep -q 'authentication_required' /tmp/forged-body
+          echo "Forged JWT signature rejected by production auth boundary."
