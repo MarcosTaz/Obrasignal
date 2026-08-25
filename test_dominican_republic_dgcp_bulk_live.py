@@ -1,13 +1,12 @@
-"""Bounded live probe for DGCP bulk process/contract table exports.
+"""Bounded live probe for DGCP bulk exports and partition discovery.
 
-The publisher may return large XLSX files. The probe enforces a hard download
-cap and uses only Python's standard library to inspect the workbook header, so
-we can validate transport/schema before adding any XLSX runtime dependency.
+Full historical process XLSX exceeds the bounded probe budget, so production
+must not blindly download it. This probe validates the official bulk transport
+and discovers publisher-exposed partition links from the official tables page.
 """
-from io import BytesIO
 import os
-import xml.etree.ElementTree as ET
-from zipfile import ZipFile
+import re
+from urllib.parse import urljoin
 
 import pytest
 import requests
@@ -20,82 +19,56 @@ pytestmark = pytest.mark.skipif(
     reason="live DGCP probe is explicit opt-in only",
 )
 
-MAX_PROBE_BYTES = 64 * 1024 * 1024
-_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+TABLES_PAGE = "https://datosabiertos.dgcp.gob.do/datos-abiertos/tablas"
 
 
-def _xlsx_headers(blob):
-    with ZipFile(BytesIO(blob)) as archive:
-        shared = []
-        if "xl/sharedStrings.xml" in archive.namelist():
-            root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
-            for item in root.findall(f"{_NS}si"):
-                shared.append("".join(node.text or "" for node in item.iter(f"{_NS}t")))
-
-        sheet_names = sorted(
-            name for name in archive.namelist()
-            if name.startswith("xl/worksheets/sheet") and name.endswith(".xml")
-        )
-        assert sheet_names, "DGCP XLSX has no worksheet XML"
-        root = ET.fromstring(archive.read(sheet_names[0]))
-        row = root.find(f".{_NS}sheetData/{_NS}row")
-        assert row is not None, "DGCP XLSX first worksheet has no rows"
-        values = []
-        for cell in row.findall(f"{_NS}c"):
-            cell_type = cell.attrib.get("t")
-            if cell_type == "inlineStr":
-                values.append("".join(node.text or "" for node in cell.iter(f"{_NS}t")))
-                continue
-            value = cell.find(f"{_NS}v")
-            raw = value.text if value is not None and value.text is not None else ""
-            if cell_type == "s" and raw:
-                raw = shared[int(raw)]
-            values.append(raw)
-        return tuple(str(value).strip() for value in values)
-
-
-def _probe(path):
+def _probe_transport(path):
     with requests.get(
         f"{DGCP_API_ROOT}{path}",
         headers={
             "Accept": "*/*",
             "User-Agent": "ObraSignal DGCP bulk live contract probe/1.0",
         },
-        timeout=60,
+        timeout=45,
         stream=True,
     ) as response:
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "")
         disposition = response.headers.get("Content-Disposition", "")
-        chunks = []
-        total = 0
-        for chunk in response.iter_content(chunk_size=256 * 1024):
-            if not chunk:
-                continue
-            total += len(chunk)
-            if total > MAX_PROBE_BYTES:
-                raise AssertionError(
-                    f"DGCP bulk endpoint {path} exceeds {MAX_PROBE_BYTES} byte live-probe cap"
-                )
-            chunks.append(chunk)
-        blob = b"".join(chunks)
-        assert blob.startswith(b"PK"), f"DGCP bulk endpoint {path} is not an XLSX/ZIP stream"
-        headers = _xlsx_headers(blob)
-        assert headers, f"DGCP bulk endpoint {path} has no workbook headers"
+        first = next(response.iter_content(chunk_size=4096), b"")
+        assert first.startswith(b"PK"), f"DGCP bulk endpoint {path} is not XLSX/ZIP"
         print(
             f"DGCP_BULK path={path} content_type={content_type!r} "
-            f"content_disposition={disposition!r} bytes={len(blob)} "
-            f"headers={','.join(headers)}"
+            f"content_disposition={disposition!r} first_bytes={first[:16]!r}"
         )
-        return content_type, disposition, len(blob), headers
+        return content_type, disposition
 
 
-def test_live_dgcp_process_and_contract_bulk_transports():
-    process_type, process_disposition, process_size, process_headers = _probe("/tablas/procesos")
-    contract_type, contract_disposition, contract_size, contract_headers = _probe("/tablas/contratos")
+def test_live_dgcp_bulk_transports_and_partition_links():
+    process_type, process_disposition = _probe_transport("/tablas/procesos")
+    contract_type, contract_disposition = _probe_transport("/tablas/contratos")
     assert process_type or process_disposition
     assert contract_type or contract_disposition
-    assert process_size > 0
-    assert contract_size > 0
-    assert any("proceso" in value.lower() for value in process_headers)
-    assert any("contrato" in value.lower() for value in contract_headers)
+
+    response = requests.get(
+        TABLES_PAGE,
+        headers={"User-Agent": "ObraSignal DGCP partition discovery probe/1.0"},
+        timeout=45,
+    )
+    response.raise_for_status()
+    hrefs = re.findall(r'href=["\']([^"\']+)["\']', response.text, flags=re.IGNORECASE)
+    links = []
+    seen = set()
+    for href in hrefs:
+        absolute = urljoin(TABLES_PAGE, href)
+        lowered = absolute.lower()
+        if "2026" not in lowered:
+            continue
+        if not any(token in lowered for token in ("proceso", "contrato", "csv", "xlsx", "tabla")):
+            continue
+        if absolute in seen:
+            continue
+        seen.add(absolute)
+        links.append(absolute)
+    print("DGCP_2026_PARTITION_LINKS=" + " | ".join(links[:50]))
+    assert links, "DGCP tables page exposes no discoverable 2026 partition links"
