@@ -13,7 +13,7 @@ from typing import Any
 
 from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
-DEFAULT_CORPUS = Path(__file__).with_name("tests") / "fixtures" / "intelligence_evaluation_v1.json"
+DEFAULT_CORPUS = Path(__file__).with_name("tests") / "fixtures" / "intelligence_evaluation_pt_v2.json"
 
 
 def load_corpus(path: str | Path = DEFAULT_CORPUS) -> dict[str, Any]:
