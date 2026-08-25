@@ -1,0 +1,109 @@
+{
+  "contract_version": "customer-decision-golden-handoff.v1",
+  "owner": "Customer Decision & Outcome Intelligence",
+  "consumer": "Golden Path / Integration Lab",
+  "implementation_authority": false,
+  "cases": [
+    {
+      "id": "CDI-GP-001",
+      "scenario": "missing_source_identity",
+      "inputs": {"source_truth": "UNKNOWN"},
+      "must": ["decision_context=DEGRADED", "no fabricated source", "no automatic PURSUE", "no automatic DECLINE"]
+    },
+    {
+      "id": "CDI-GP-002",
+      "scenario": "ready_evidence_with_missing_inputs",
+      "inputs": {"evidence.truth_state": "KNOWN", "evidence.unknowns": ["value"]},
+      "must": ["effective evidence state=UNKNOWN", "decision_context=DEGRADED", "unknown remains visible"]
+    },
+    {
+      "id": "CDI-GP-003",
+      "scenario": "company_constraint_changes_after_pursue",
+      "inputs": {"historical_decision": "PURSUE", "company_state_fingerprint": "changed"},
+      "must": ["REVIEW_REQUIRED", "historical_decision_preserved=true", "no automatic reversal"]
+    },
+    {
+      "id": "CDI-GP-004",
+      "scenario": "economic_unknown_with_numeric_zero",
+      "inputs": {"economics.status": "UNKNOWN", "economics.score": 0},
+      "must": ["economics truth=UNKNOWN", "decision_context=DEGRADED", "no profitability claim"]
+    },
+    {
+      "id": "CDI-GP-005",
+      "scenario": "conflicting_company_or_readiness_facts",
+      "inputs": {"critical_input": "CONFLICTED"},
+      "must": ["decision_context=DEGRADED", "conflict preserved", "no guessed precedence"]
+    },
+    {
+      "id": "CDI-GP-006",
+      "scenario": "expired_or_closed_opportunity_with_historical_pursue",
+      "inputs": {"source_lifecycle": "CLOSED", "historical_decision": "PURSUE"},
+      "must": ["historical PURSUE preserved", "current context review/degradation visible", "no active recommendation"]
+    },
+    {
+      "id": "CDI-GP-007",
+      "scenario": "missing_outcome_after_pursue",
+      "inputs": {"decision": "PURSUE", "outcome": null},
+      "must": ["outcome not LOST", "learning=INSUFFICIENT", "outcome capture incomplete only"]
+    },
+    {
+      "id": "CDI-GP-008",
+      "scenario": "no_bid_vs_no_submission",
+      "inputs": {"decision": "NO_BID", "outcome": "NO_SUBMISSION"},
+      "must": ["decision and outcome remain distinct", "no semantic alias"]
+    },
+    {
+      "id": "CDI-GP-009",
+      "scenario": "cross_tenant_private_state",
+      "inputs": {"audit_account": "A", "private_input_account": "B"},
+      "must": ["fail closed", "no B payload in A audit", "no aggregate double identity"]
+    },
+    {
+      "id": "CDI-GP-010",
+      "scenario": "outcome_correction",
+      "inputs": {"historical_decision": "PURSUE", "outcome_before": "WON", "outcome_after": "LOST"},
+      "must": ["outcome correction visible", "historical decision preserved", "no causal attribution", "model_update_allowed=false"]
+    },
+    {
+      "id": "CDI-GP-011",
+      "scenario": "fully_ready_without_explicit_decision",
+      "inputs": {"all_critical_inputs": "KNOWN", "pursuit_decision": null},
+      "must": ["PURSUE requires explicit customer decision", "DECLINE requires explicit customer decision", "relevance/readiness not recommendation"]
+    },
+    {
+      "id": "CDI-GP-012",
+      "scenario": "metrics_without_review_telemetry",
+      "inputs": {"audits_present": true, "review_events_present": false},
+      "must": ["review_to_pursuit=UNAVAILABLE", "review_to_decline=UNAVAILABLE", "usefulness=UNAVAILABLE", "optimization_allowed=false"]
+    }
+  ],
+  "integration_order": [
+    "Q080 Evidence public contract",
+    "Q090 Company State public adapter",
+    "Readiness #239 public contract",
+    "Economics public contract",
+    "Pursuit Decision Journal #160",
+    "Outcome Capture #163",
+    "Customer Decision Intelligence seam",
+    "Integration Lab combined tree",
+    "Golden independent acceptance"
+  ],
+  "forbidden_claims": [
+    "score=recommendation",
+    "readiness=PURSUE",
+    "missing outcome=LOST",
+    "NO_BID=NO_SUBMISSION",
+    "UNKNOWN=0",
+    "win=good decision",
+    "loss=bad decision",
+    "audit existence=customer review",
+    "historical reasoning silently rewritten"
+  ],
+  "governance": {
+    "merge_authorized": false,
+    "deploy_authorized": false,
+    "production_mutation_authorized": false,
+    "queue_promotion_authorized": false,
+    "capability_promotion_authorized": false
+  }
+}
