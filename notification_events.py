@@ -85,9 +85,13 @@ def ensure_push_tables(conn):
             binding_id TEXT NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            last_error TEXT
+            last_error TEXT,
+            revoked_at TEXT
         )"""
     )
+    device_cols = {row[1] for row in conn.execute("PRAGMA table_info(push_devices)").fetchall()}
+    if "revoked_at" not in device_cols:
+        conn.execute("ALTER TABLE push_devices ADD COLUMN revoked_at TEXT")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_push_devices_account ON push_devices(account_id)")
     conn.execute(
         """CREATE TABLE IF NOT EXISTS push_deliveries(
@@ -125,6 +129,28 @@ def ensure_push_tables(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_push_deliveries_event_device ON push_deliveries(event_id,push_device_id)")
 
 
+def _revoke_device_row(conn, device_id, *, expected_token=None, error=None):
+    params = [int(device_id)]
+    where = "id=?"
+    if expected_token is not None:
+        where += " AND expo_push_token=?"
+        params.append(str(expected_token))
+    row = conn.execute(f"SELECT id FROM push_devices WHERE {where}", params).fetchone()
+    if not row:
+        return False
+    now = _iso_now()
+    # Keep the durable installation row id for delivery-ledger dedupe, while
+    # removing the usable provider token and rotating the opaque tap binding.
+    tombstone_token = f"revoked:{row['id']}:{secrets.token_urlsafe(12)}"
+    conn.execute(
+        """UPDATE push_devices
+           SET expo_push_token=?, binding_id=?, revoked_at=?, updated_at=?, last_error=?
+           WHERE id=?""",
+        (tombstone_token, secrets.token_urlsafe(24), now, now, error, row["id"]),
+    )
+    return True
+
+
 def register_push_device(conn, account_id, installation_id, expo_push_token, platform):
     """Bind one physical app installation to exactly one authenticated account."""
     ensure_push_tables(conn)
@@ -146,34 +172,34 @@ def register_push_device(conn, account_id, installation_id, expo_push_token, pla
         (installation_id,),
     ).fetchone()
     now = _iso_now()
-    if current and current["account_id"] == account_id and current["expo_push_token"] == expo_push_token and current["platform"] == platform:
+    if current and current["revoked_at"] is None and current["account_id"] == account_id and current["expo_push_token"] == expo_push_token and current["platform"] == platform:
         conn.execute("UPDATE push_devices SET updated_at=?, last_error=NULL WHERE id=?", (now, current["id"]))
         conn.commit()
         return {"installation_id": installation_id, "binding_id": current["binding_id"], "platform": platform}
 
     # The physical installation is the stable delivery-ledger identity. Token
-    # rotation and A->B rebind rotate the opaque binding but keep the device row
-    # id so an already submitted event cannot be re-sent merely because the
-    # provider token changed.
+    # rotation, re-enable and A->B rebind rotate the opaque binding but keep the
+    # device row id so accepted historical events cannot replay merely because
+    # the provider token or account binding changed.
     binding_id = secrets.token_urlsafe(24)
     token_owner = conn.execute(
-        "SELECT id FROM push_devices WHERE expo_push_token=?",
+        "SELECT id FROM push_devices WHERE expo_push_token=? AND revoked_at IS NULL",
         (expo_push_token,),
     ).fetchone()
     if token_owner and (not current or token_owner["id"] != current["id"]):
-        conn.execute("DELETE FROM push_devices WHERE id=?", (token_owner["id"],))
+        _revoke_device_row(conn, token_owner["id"], expected_token=expo_push_token, error="token_rebound")
 
     if current:
         conn.execute(
             """UPDATE push_devices
-               SET account_id=?, expo_push_token=?, platform=?, binding_id=?, updated_at=?, last_error=NULL
+               SET account_id=?, expo_push_token=?, platform=?, binding_id=?, updated_at=?, last_error=NULL, revoked_at=NULL
                WHERE id=?""",
             (account_id, expo_push_token, platform, binding_id, now, current["id"]),
         )
     else:
         conn.execute(
-            """INSERT INTO push_devices(account_id,installation_id,expo_push_token,platform,binding_id,created_at,updated_at)
-               VALUES (?,?,?,?,?,?,?)""",
+            """INSERT INTO push_devices(account_id,installation_id,expo_push_token,platform,binding_id,created_at,updated_at,revoked_at)
+               VALUES (?,?,?,?,?,?,?,NULL)""",
             (account_id, installation_id, expo_push_token, platform, binding_id, now, now),
         )
     conn.commit()
@@ -182,12 +208,15 @@ def register_push_device(conn, account_id, installation_id, expo_push_token, pla
 
 def unregister_push_device(conn, account_id, installation_id):
     ensure_push_tables(conn)
-    cur = conn.execute(
-        "DELETE FROM push_devices WHERE account_id=? AND installation_id=?",
+    row = conn.execute(
+        "SELECT id FROM push_devices WHERE account_id=? AND installation_id=? AND revoked_at IS NULL",
         (str(account_id or "").strip(), str(installation_id or "").strip()),
-    )
+    ).fetchone()
+    if not row:
+        return False
+    _revoke_device_row(conn, row["id"])
     conn.commit()
-    return bool(cur.rowcount)
+    return True
 
 
 def _push_headers():
@@ -208,7 +237,7 @@ def _pending_push_rows(conn, account_id, limit=100):
             FROM opportunity_events e
             JOIN tenders t ON t.id=e.tender_id
             LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
-            JOIN push_devices d ON d.account_id=e.account_id
+            JOIN push_devices d ON d.account_id=e.account_id AND d.revoked_at IS NULL
             LEFT JOIN push_deliveries pd ON pd.event_id=e.id AND pd.push_device_id=d.id
             WHERE e.account_id=?
               AND e.event_type='new_high_match'
@@ -309,10 +338,7 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
         error = str(error)[:240]
         if error == "DeviceNotRegistered":
             _record_push_attempt(conn, row, error=error, attempted_at=now, failed_at=now)
-            conn.execute(
-                "DELETE FROM push_devices WHERE id=? AND expo_push_token=?",
-                (row["push_device_id"], row["expo_push_token"]),
-            )
+            _revoke_device_row(conn, row["push_device_id"], expected_token=row["expo_push_token"], error=error)
         elif error == "push_response_missing_ticket":
             retry_at = _next_retry_at(int(row["attempt_count"]) + 1, now_dt)
             _record_push_attempt(conn, row, error=error, attempted_at=now, next_attempt_at=retry_at)
@@ -424,11 +450,13 @@ def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, mi
                 (now, error, error, now, row["id"]),
             )
             if error == "DeviceNotRegistered" and row["expo_push_token"]:
-                # Receipt is delayed. Only prune if this exact token is still on
-                # the stable device row; never delete a newly rotated valid token.
-                conn.execute(
-                    "DELETE FROM push_devices WHERE id=? AND expo_push_token=?",
-                    (row["push_device_id"], row["expo_push_token"]),
+                # Receipt is delayed. Revoke only if this exact token is still on
+                # the stable device row; never revoke a newly rotated valid token.
+                _revoke_device_row(
+                    conn,
+                    row["push_device_id"],
+                    expected_token=row["expo_push_token"],
+                    error=error,
                 )
         reconciled += 1
     conn.commit()
