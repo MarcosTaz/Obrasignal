@@ -4,6 +4,7 @@ const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
+const opportunityExplanation = fs.readFileSync(new URL('./components/OpportunityExplanation.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 
 const checks = [
@@ -40,6 +41,10 @@ const truthChecks = [
   ['web notification switch is disabled', /<Switch disabled=\{webNotifications\} value=\{webNotifications\?false:/],
 ];
 
+const explanationTruthChecks = [
+  ['factor rendering is neutral unless semantics are explicit', /visibleFactors\.map\(\(factor\) => <Factor key=\{factor\.key\} title=\{factor\.label\} text=\{factor\.reason\} score=\{factor\.score\} \/>\)/],
+];
+
 const forbiddenTruthPatterns = [
   ['stats must not default UNKNOWN to zero', /\{v\?\?0\}/],
   ['card score must not default UNKNOWN to zero', /item\.decision_score\?\?item\.score\?\?0/],
@@ -50,11 +55,17 @@ const forbiddenTruthPatterns = [
   ['notification denial must not collapse to activated copy', /Notificações activadas\./],
 ];
 
+const forbiddenExplanationPatterns = [
+  ['factor type must not manufacture a positive visual signal', /toneForFactor/],
+];
+
 const failures = [
   ...checks.slice(0, 5).filter(([, pattern]) => !pattern.test(app)),
   ...checks.slice(5).filter(([, pattern]) => !pattern.test(onboarding)),
   ...truthChecks.filter(([, pattern]) => !pattern.test(app)),
+  ...explanationTruthChecks.filter(([, pattern]) => !pattern.test(opportunityExplanation)),
   ...forbiddenTruthPatterns.filter(([, pattern]) => pattern.test(app)),
+  ...forbiddenExplanationPatterns.filter(([, pattern]) => pattern.test(opportunityExplanation)),
 ];
 const crossFailures = [
   ...crossFileChecks.slice(0, 2).filter(([, pattern]) => !pattern.test(app)),
@@ -72,4 +83,4 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossFileChecks, ...truthChecks]) console.log(`PASS: ${name}`);
+for (const [name] of [...checks, ...crossFileChecks, ...truthChecks, ...explanationTruthChecks]) console.log(`PASS: ${name}`);
