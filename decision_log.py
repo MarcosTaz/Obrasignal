@@ -15,6 +15,7 @@ SCHEMA = '''CREATE TABLE IF NOT EXISTS opportunity_decisions (
 )'''
 
 RULE_VERSION = 'commercial-v1'
+MAX_DECISION_BATCH_KEYS = 100
 
 
 def _ensure_account_column(conn):
@@ -45,6 +46,14 @@ def record_decision(conn, source, external_id, decision, reason, score=None, fea
     conn.commit()
 
 
+def _decode_decision_row(row):
+    if row is None:
+        return None
+    item = dict(row)
+    item['features'] = json.loads(item.pop('features_json') or '{}')
+    return item
+
+
 def latest_decision(conn, source, external_id, account_id='default'):
     ensure_decision_table(conn)
     row = conn.execute(
@@ -53,11 +62,52 @@ def latest_decision(conn, source, external_id, account_id='default'):
            ORDER BY id DESC LIMIT 1''',
         (str(account_id or 'default'), source, external_id),
     ).fetchone()
-    if row is None:
-        return None
-    item = dict(row)
-    item['features'] = json.loads(item.pop('features_json') or '{}')
-    return item
+    return _decode_decision_row(row)
+
+
+def latest_decisions(conn, opportunity_keys, account_id='default'):
+    """Return latest account-scoped decisions for one bounded Radar-sized key set."""
+    keys = []
+    seen = set()
+    for source, external_id in opportunity_keys or []:
+        key = (str(source or ''), str(external_id or ''))
+        if key in seen:
+            continue
+        seen.add(key)
+        keys.append(key)
+    if not keys:
+        return {}
+    if len(keys) > MAX_DECISION_BATCH_KEYS:
+        raise ValueError(f"decision batch exceeds bounded limit {MAX_DECISION_BATCH_KEYS}")
+
+    ensure_decision_table(conn)
+    values_sql = ",".join("(?, ?)" for _ in keys)
+    params = []
+    for source, external_id in keys:
+        params.extend((source, external_id))
+    account = str(account_id or 'default')
+    params.extend((account, account))
+    rows = conn.execute(
+        f'''WITH requested(source, external_id) AS (VALUES {values_sql}),
+                latest AS (
+                    SELECT od.source, od.external_id, MAX(od.id) AS max_id
+                    FROM opportunity_decisions od
+                    JOIN requested r
+                      ON r.source=od.source AND r.external_id=od.external_id
+                    WHERE od.account_id=?
+                    GROUP BY od.source, od.external_id
+                )
+            SELECT d.*
+            FROM opportunity_decisions d
+            JOIN latest ON latest.max_id=d.id
+            WHERE d.account_id=?''',
+        params,
+    ).fetchall()
+    decoded = {}
+    for row in rows:
+        item = _decode_decision_row(row)
+        decoded[(item['source'], item['external_id'])] = item
+    return decoded
 
 
 def funnel_counts(conn, account_id='default'):
