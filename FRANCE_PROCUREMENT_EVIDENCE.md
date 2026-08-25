@@ -1,9 +1,7 @@
 # France procurement coverage — BOAMP + DECP evidence
 
 Date: 2026-08-25  
-Integration branch: `integration-international/france-decp-current-main-20260825`  
-Source implementation provenance: PR #171 / `e8209221d21d30f009021f3088df8c0a172a78d7`  
-Current-main reconciliation base: `fce51d5b5524e09691f9187f7619ea0166217487`  
+Branch: `feature/fr-procurement-source-v0`  
 Canonical market classification: `BUILD` (unchanged)  
 Master Execution Queue: not modified.
 
@@ -15,13 +13,13 @@ France remains a high-value BUILD market, but the rational unit of coverage is a
 - **DECP** is added as the official post-award/contract intelligence layer, emitting canonical `CONTRACT` signals only.
 - **TED/eForms** remains complementary EU coverage; it is not treated as a substitute for national DECP contract depth.
 
-This integration candidate does not mark France or DECP as production-deployed. `FR_DECP` is registry `ready` and runtime-gated. Ingestion requires explicit inclusion in `OBRASIGNAL_GLOBAL_SOURCES`, merge, deployment, and normal production verification.
+This branch does not mark France or DECP as production-deployed. `FR_DECP` is registry `ready` and runtime-gated. Ingestion requires explicit inclusion in `OBRASIGNAL_GLOBAL_SOURCES`, merge, deployment, and normal production verification.
 
 ## Commercial case
 
 France is already a canonical BUILD market in `market_scope_registry.py`, with strong demand intensity, construction relevance and monetization potential. The incremental engineering cost is justified because DECP adds buyer/supplier/contract-value/history evidence that tender-only coverage cannot provide.
 
-The market is competitive, not empty. Publicly visible French products observed during the source assessment reinforced that generic tender alerts are commoditized; ObraSignal should differentiate through construction-specific decision intelligence, lifecycle evidence and contractor fit rather than merely republishing notices.
+The market is competitive, not empty. Publicly visible French products range from low-cost BOAMP alerting to premium intelligence/response suites. Examples observed during this assessment include TenderWatch, MarchéRadar, Marchés Publics France, Marchey and Titulis. This reinforces that generic tender alerts are commoditized; ObraSignal should differentiate through construction-specific decision intelligence, lifecycle evidence and contractor fit rather than merely republishing notices.
 
 **Go-to-market signal:** `GOOD SCALE MARKET`.
 
@@ -39,7 +37,7 @@ Signal types supported in current ObraSignal mapping:
 
 - `TENDER`
 
-This integration deliberately does not duplicate or rewrite the existing BOAMP connector.
+This branch deliberately does not duplicate or rewrite the existing BOAMP connector.
 
 ### DECP — contracts / post-award intelligence
 
@@ -85,9 +83,9 @@ Canonical storage primary key `(source, signal_type, external_id)` makes repeat 
 
 - BOAMP: twice-daily publisher cadence; discovery use.
 - DECP: daily dataset cadence; contract/history use.
-- DECP provides materially better historical buyer/supplier/contract-value evidence than tender notices alone and is therefore useful for Buyer Intelligence, competitor intelligence, benchmarking and future contract-expiry analysis when the canonical lineage/term evidence supports it.
+- DECP provides materially better historical buyer/supplier/contract-value evidence than tender notices alone and is therefore useful for Buyer Intelligence, competitor intelligence, benchmarking and future contract-expiry inference.
 
-No claim is made that DECP is a real-time award source, that an award equals a contract, or that contract history proves a future replacement procurement.
+No claim is made that DECP is a real-time award source.
 
 ## Technical access and safety
 
@@ -112,19 +110,10 @@ Controls:
 
 Because DECP is `CONTRACT`, the runtime stages it to canonical Signal persistence and does not project it into the legacy `tenders` table. Product business logic remains outside the connector.
 
-The original source PR used a small `france_app.py` wrapper and changed Render to start `france_app:APP`. The international consolidation rejected that extra composition root even though it reused the same Flask object. The reconciled implementation instead keeps the existing production WSGI boundary unchanged:
-
-- `render.yaml` remains `cors_app:APP`;
-- `france_app.py` is removed;
-- `cors_app.py` installs `install_france_decp_runtime(...)` additively alongside the existing global runtime installers;
-- activation policy still comes from the canonical preload/source-registry gate.
-
-The runtime remains inert unless:
+`france_app.py` is the WSGI composition root for this branch. It preserves `cors_app.APP` and installs the DECP wrapper after the existing application composition. The runtime remains inert unless:
 
 1. the source passes `source_registry.production_gate_reasons`; and
 2. `FR_DECP` is explicitly requested in `OBRASIGNAL_GLOBAL_SOURCES`.
-
-This preserves one modular-monolith runtime composition root and avoids a France-specific runtime fork.
 
 ## Registry decision
 
@@ -137,14 +126,13 @@ This preserves one modular-monolith runtime composition root and avoids a France
 - machine access `VERIFIED` based on official public API/source validation;
 - expected refresh 1440 minutes;
 - signal type `CONTRACT`;
-- capabilities: incremental sync, contracts, historical data, suppliers;
-- no canonical Wave-1 assignment.
+- capabilities: incremental sync, contracts, historical data, suppliers.
 
 `ready` means code/evidence is prepared behind the production gate. It does not mean deployed or actively ingesting.
 
 ## Test plan and evidence
 
-Mock/unit coverage includes:
+Mock/unit coverage added for:
 
 - canonical `CONTRACT` type;
 - construction CPV filter;
@@ -163,13 +151,11 @@ Mock/unit coverage includes:
 - runtime callback boundary;
 - canonical Signal idempotent update.
 
-The consolidation adds `test_france_integration_wiring.py` to lock the architecture decision: Render must continue to point at `cors_app:APP`, `france_app.py` must not exist, the canonical WSGI root must install the France runtime, and `FR_DECP` must remain `ready` with no Wave-1 promotion.
-
-The dedicated GitHub Actions live smoke (`.github/workflows/france_decp_live.yml`) performs a bounded, credential-free request against the official DECP API and validates that live construction records normalize to canonical `CONTRACT` signals. The workflow now checks out and asserts the exact PR HEAD before source validation. The PR check is the authority for `LIVE_VALIDATED`; production deployment is never inferred from this smoke.
+A dedicated GitHub Actions live smoke (`.github/workflows/france_decp_live.yml`) performs a bounded, credential-free request against the official DECP API and validates that live construction records normalize to canonical `CONTRACT` signals. The PR check is the authority for `LIVE TESTED`; production deployment is never inferred from this smoke.
 
 ## Known limitations
 
-- BOAMP legacy ingestion remains a separate pre-existing connector and was not redesigned here.
+- BOAMP legacy ingestion remains a separate pre-existing connector and was not redesigned in this branch.
 - DECP is post-award/contract data; it is not an early-signal or forecast source.
 - Complete incremental capture of amendments to older DECP 2022 contracts is not claimed because the current modification-publication field is text.
 - Procurement-plan / capital-pipeline coverage remains a separate future source question and is not invented from DECP.
@@ -180,20 +166,11 @@ The dedicated GitHub Actions live smoke (`.github/workflows/france_decp_live.yml
 
 **Pass.** The incremental build is substantially below a 100-hour bespoke integration in architecture terms because it reuses the existing incremental runtime, canonical Signal store, source health, cursor transaction and production gate. It adds contract intelligence to an already-core commercial market without creating a parallel France-specific domain model.
 
-## Integration reconciliation / zero-silent-conflict record
-
-- PR #171 source implementation HEAD: `e8209221d21d30f009021f3088df8c0a172a78d7`.
-- Reconciled against current main `fce51d5b5524e09691f9187f7619ea0166217487`.
-- Source adapter, runtime helper, tests, registry metadata, rights/access evidence and live-source workflow are preserved.
-- The old `france_app.py` / Render-start-command composition choice is superseded by canonical `cors_app.py` integration.
-- No Master Queue mutation, no deployment mutation, no environment activation and no automatic merge are part of this reconciliation.
-
 ## Final classification
 
-**France — `BUILD` / dedicated official lifecycle enrichment prepared for integration.**
+**France — `BUILD` / prepared dedicated official source family.**
 
 - Tender discovery: existing BOAMP + complementary TED/eForms.
-- Contract intelligence: DECP `CONTRACT` connector implemented and runtime-composable behind the canonical gate.
-- Shared vs bespoke decision: shared canonical runtime/storage; only the source adapter is France-specific.
-- Integration state: implementation reconciled to current main; exact-head CI/live gates must be green on the final integration HEAD before `COMBINATION_VALIDATED` / `LIVE_VALIDATED` are claimed.
+- Contract intelligence: new DECP connector prepared in this branch.
+- Shared vs bespoke decision: reuse shared canonical runtime/storage; only the source adapter is France-specific.
 - Production status: **NOT CLAIMED**.

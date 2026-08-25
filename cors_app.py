@@ -71,52 +71,6 @@ def _protect_radar_api():
     return None
 
 
-def _opportunity_detail(opportunity_id):
-    """Fallback authenticated detail including current source lifecycle."""
-    try:
-        identity = configured_identity()
-    except (RuntimeError, InvalidTokenError):
-        return jsonify({"error": "authentication_required"}), 401
-
-    from api import _db, _latest_decisions, _row
-    from opportunity_lifecycle import ensure_lifecycle_table
-    from opportunity_workflow import get_workflow
-
-    c = _db()
-    try:
-        ensure_lifecycle_table(c)
-        row = c.execute(
-            """SELECT t.*, COALESCE(lc.is_actionable,1) AS is_actionable,
-                      lc.lifecycle_status, lc.lifecycle_reason,
-                      lc.source_updated_at AS lifecycle_source_updated_at,
-                      lc.last_observed AS lifecycle_last_observed
-               FROM tenders t
-               LEFT JOIN opportunity_lifecycle lc
-                 ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE t.id=?""",
-            (opportunity_id,),
-        ).fetchone()
-        if row is None:
-            return jsonify({"error": "not_found"}), 404
-        decision = _latest_decisions(c, identity.account_id, [row["external_id"]]).get((row["source"], row["external_id"]))
-        item = _row(row, decision, get_workflow(c, identity.account_id, row["source"], row["external_id"]))
-        return jsonify(item)
-    finally:
-        c.close()
-
-
-# Keep this route at the production WSGI boundary because the API blueprint
-# predates the detail endpoint. It is still protected by the same verified
-# provider identity and uses the same account-scoped decision/workflow helpers.
-if not any(rule.rule == "/api/v1/opportunities/<int:opportunity_id>" for rule in APP.url_map.iter_rules()):
-    APP.add_url_rule(
-        "/api/v1/opportunities/<int:opportunity_id>",
-        endpoint="mobile_api.opportunity_detail",
-        view_func=_opportunity_detail,
-        methods=["GET"],
-    )
-
-
 @APP.after_request
 def _global_api_cors(response):
     if request.path.startswith("/api/v1/"):
