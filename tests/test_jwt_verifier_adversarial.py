@@ -89,7 +89,7 @@ def test_rejects_hs256_before_any_jwks_lookup(monkeypatch):
             "iat": now,
             "exp": now + 300,
         },
-        "shared-secret",
+        "shared-secret-used-only-for-hs256-rejection-test",
         algorithm="HS256",
         headers={"kid": "symmetric-key"},
     )
