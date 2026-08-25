@@ -28,7 +28,6 @@ CATEGORIES = {
     "INSURANCE", "GUARANTEE", "WORKFORCE", "EQUIPMENT", "REGISTRATION",
     "GEOGRAPHY", "DOCUMENT", "CONSORTIUM", "OTHER",
 }
-PRIORITIES = {"MANDATORY", "OPTIONAL", "PREFERRED", "UNKNOWN"}
 CONFIDENCES = {"HIGH", "MEDIUM", "LOW", "UNKNOWN"}
 
 _CATEGORY_ALIASES = {
@@ -163,6 +162,11 @@ def normalize_currency(value: Any) -> str | None:
 
 
 def normalize_number(value: Any) -> Decimal | None:
+    """Normalize explicit numeric values without guessing semantic units.
+
+    Handles decimal/thousands separators plus explicit k/million suffixes. The
+    raw source form is always preserved separately in RequirementEvidence.
+    """
     if isinstance(value, Decimal):
         return value
     if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -172,16 +176,21 @@ def normalize_number(value: Any) -> Decimal | None:
         return None
     token = token.replace("\u00a0", " ")
     multiplier = Decimal("1")
-    suffix = re.search(r"\b(million|m|thousand|k)\b", token, re.I)
+    suffix = re.search(r"(?i)(?:\b(million|thousand)\b|(?<=\d)\s*([mk])\b)", token)
     if suffix:
-        multiplier = Decimal("1000000") if suffix.group(1).lower() in {"million", "m"} else Decimal("1000")
+        suffix_value = (suffix.group(1) or suffix.group(2) or "").lower()
+        multiplier = Decimal("1000000") if suffix_value in {"million", "m"} else Decimal("1000")
     numeric = re.sub(r"[^0-9,.-]", "", token)
     if not numeric:
         return None
-    if numeric.count(",") == 1 and numeric.count(".") == 0:
+    if numeric.count(",") > 1 and "." not in numeric:
+        numeric = numeric.replace(",", "")
+    elif numeric.count(".") > 1 and "," not in numeric:
+        numeric = numeric.replace(".", "")
+    elif numeric.count(",") == 1 and "." not in numeric:
         tail = numeric.rsplit(",", 1)[1]
         numeric = numeric.replace(",", ".") if len(tail) <= 2 else numeric.replace(",", "")
-    elif numeric.count(".") == 1 and numeric.count(",") == 0:
+    elif numeric.count(".") == 1 and "," not in numeric:
         tail = numeric.rsplit(".", 1)[1]
         if len(tail) == 3:
             numeric = numeric.replace(".", "")
@@ -197,10 +206,17 @@ def normalize_number(value: Any) -> Decimal | None:
 
 
 def _priority(value: Any) -> RequirementPriority:
+    if value is True:
+        return "MANDATORY"
+    if value is False:
+        return "OPTIONAL"
     token = _norm_token(value)
-    if token in {"mandatory", "required", "must", "shall"}: return "MANDATORY"
-    if token in {"optional"}: return "OPTIONAL"
-    if token in {"preferred", "desirable"}: return "PREFERRED"
+    if token in {"mandatory", "required", "must", "shall", "true"}:
+        return "MANDATORY"
+    if token in {"optional", "false"}:
+        return "OPTIONAL"
+    if token in {"preferred", "desirable"}:
+        return "PREFERRED"
     return "UNKNOWN"
 
 
@@ -224,7 +240,7 @@ def _confidence(method: str, explicit: bool = True) -> Confidence:
 
 def _make_requirement(
     *, opportunity_id: str, category: str, requirement_type: str, description: str,
-    priority: str = "UNKNOWN", operator: str | None = None, required_value: Any = None,
+    priority: Any = "UNKNOWN", operator: str | None = None, required_value: Any = None,
     unit: str | None = None, currency: str | None = None, jurisdiction: str | None = None,
     period: str | None = None, evidence: RequirementEvidence, confidence: str | None = None,
     status: RequirementStatus = "CURRENT", supersedes: str | None = None,
@@ -314,7 +330,7 @@ class StructuredRequirementExtractor:
                     category=_clean(item.get("category")),
                     requirement_type=_clean(item.get("requirement_type") or item.get("type") or item.get("category") or "other"),
                     description=description,
-                    priority=_clean(item.get("priority") or item.get("mandatory")),
+                    priority=item.get("priority", item.get("mandatory", "UNKNOWN")),
                     operator=_clean(item.get("operator")) or None,
                     required_value=item.get("required_value", item.get("value")),
                     unit=_clean(item.get("unit")) or None,
@@ -339,7 +355,7 @@ class StructuredRequirementExtractor:
                     description = _clean(item.get("description") or raw)
                     req_value = item.get("required_value", item.get("value"))
                     curr = _clean(item.get("currency")) or _clean(source_context.get("currency")) or None
-                    priority = _clean(item.get("priority") or "MANDATORY")
+                    priority = item.get("priority", item.get("mandatory", "MANDATORY"))
                     item_operator = _clean(item.get("operator")) or operator
                     item_unit = _clean(item.get("unit")) or unit
                     item_period = _clean(item.get("period")) or None
@@ -399,7 +415,7 @@ class ConservativeTextRequirementExtractor:
             )
             results.append(_make_requirement(
                 opportunity_id=opportunity_id, category="CERTIFICATION", requirement_type="certification",
-                description=sentence, priority="MANDATORY", required_value=cert.group(0).upper().replace(" ", ""),
+                description=sentence, priority="MANDATORY", required_value=cert.group(0),
                 jurisdiction=_clean(source_context.get("jurisdiction") or source_context.get("country")) or None,
                 evidence=evidence, confidence="MEDIUM",
             ))
@@ -473,7 +489,6 @@ def assess_against_company(requirement: OpportunityRequirement, company_profile:
         return RequirementAssessment(requirement, "UNKNOWN", "No certification facts are recorded; absence is not evidence of non-compliance.")
     if any(required == token or (required and required in token) for token in known_tokens):
         return RequirementAssessment(requirement, "MET", "Recorded company certification matches the explicit requirement.")
-    # A non-empty certification list is not proof that unlisted certifications are absent.
     return RequirementAssessment(requirement, "UNKNOWN", "Recorded certifications do not prove this requirement is unmet.")
 
 
@@ -483,6 +498,4 @@ def assess_checklist(checklist: OpportunityRequirementsChecklist, company_profil
         if profile_account and profile_account != _clean(account_id):
             raise PermissionError("company profile account does not match assessment account")
     assessments = tuple(assess_against_company(r, company_profile) for r in checklist.requirements)
-    # known_blocker remains false in v0 because the current company profile has no
-    # positive negative facts sufficient to prove NOT_MET.
     return replace(checklist, assessments=assessments)
