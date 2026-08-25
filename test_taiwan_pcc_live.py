@@ -2,7 +2,11 @@ import os
 
 import pytest
 
-from taiwan_pcc import PCCSnapshotSource, TaiwanPCCPreparedConnector
+from taiwan_pcc import (
+    PCCSnapshotSource,
+    TaiwanPCCPreparedConnector,
+    filter_construction_signals,
+)
 
 LIVE = os.environ.get("TW_PCC_LIVE") == "1"
 
@@ -25,9 +29,6 @@ def test_pcc_7260_public_viewing_live_contract():
         assert record["lineage_key"] == record["source_reference"]
         assert record["title"] or record["buyer"]
 
-    construction_terms = ("工程", "施工", "建築", "道路", "橋", "隧道", "水利", "整修", "修繕")
-    assert any(
-        record.get("category_code")
-        or any(term in (record.get("title") or "") for term in construction_terms)
-        for record in records
-    ), "live PCC 7260 payload exposed no construction-relevant classification/title evidence"
+    construction_records = filter_construction_signals(records)
+    assert construction_records, "live PCC 7260 payload exposed no defensible construction/public-works signals"
+    assert all(record.get("construction_filter_basis") for record in construction_records)
