@@ -3,6 +3,10 @@ name: DGCP Discovery Probe
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'dominican_republic_dgcp*.py'
+      - 'test_dominican_republic_dgcp*.py'
+      - '.github/workflows/dgcp-discovery-probe.yml'
   workflow_dispatch:
 
 permissions:
@@ -11,13 +15,26 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Assert exact revision
         run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest
+      - name: Run DGCP focused contract tests
+        run: |
+          PYTHONPATH=. pytest -q \
+            test_dominican_republic_dgcp.py \
+            test_dominican_republic_dgcp_discovery.py \
+            test_dominican_republic_dgcp_lifecycle.py \
+            test_dominican_republic_dgcp_pacc.py \
+            test_dominican_republic_dgcp_runtime.py
       - name: Probe documented DGCP process/article/OCDS identity contracts
         shell: bash
         run: |
@@ -88,4 +105,37 @@ jobs:
           assert int(bounded.get('pages') or 0) >= 1
           assert all(start.isoformat() <= str(row.get('fecha_publicacion') or '')[:10] <= today.isoformat() for row in bounded_rows)
           print(json.dumps({'bounded_meta': {k: bounded.get(k) for k in ('page','pages','limit','totalResults')}, 'bounded_rows': len(bounded_rows)}, sort_keys=True))
+          PY
+      - name: Execute complete DGCP connector on bounded live day
+        run: |
+          python - <<'PY'
+          from dataclasses import replace
+          from datetime import datetime, timezone
+          import json
+
+          from dominican_republic_dgcp import DGCP_CONFIG
+          from dominican_republic_dgcp_discovery import DGCPProcessDiscoveryConnector, fetch_dgcp_signals_complete
+
+          config = replace(
+              DGCP_CONFIG,
+              page_size=1000,
+              initial_lookback_days=0,
+              overlap_days=0,
+              max_windows_per_sync=1,
+              max_pages_per_window=5,
+              max_hydrations_per_window=100,
+          )
+          rows, cursor = fetch_dgcp_signals_complete(
+              connector=DGCPProcessDiscoveryConnector(config),
+              now=datetime.now(timezone.utc),
+          )
+          assert isinstance(rows, list)
+          assert all(row.get('source') == 'DO_DGCP' for row in rows)
+          assert all(row.get('signal_type') in {'TENDER','AWARD','CONTRACT'} for row in rows)
+          assert len({(row.get('signal_type'), row.get('external_id')) for row in rows}) == len(rows)
+          print(json.dumps({
+              'signals': len(rows),
+              'types': {kind: sum(row.get('signal_type') == kind for row in rows) for kind in ('TENDER','AWARD','CONTRACT')},
+              'cursor': cursor,
+          }, sort_keys=True))
           PY
