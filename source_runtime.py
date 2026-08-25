@@ -54,21 +54,32 @@ def discard_staged_source_syncs():
 
 
 def _history_projection(records):
-    """Expose normalized native amendment semantics without connector coupling.
+    """Expose source-native revision/amendment semantics without connector coupling.
 
-    CanadaBuys already normalizes ``amendment_number``/``amendment_date``. The
-    generic change contract calls those concepts ``source_version`` and
-    ``source_updated_at``. Copying aliases here preserves the source-native value
-    without changing current Signal records or inventing an official revision.
+    The generic change contract monitors ``source_version``. Connectors may already
+    expose that name or one of the supported native revision aliases. CanadaBuys
+    uses ``amendment_number``/``amendment_date``. Projection happens on a copy so
+    current Signal persistence retains the connector's original canonical shape.
     """
     projected = []
+    revision_aliases = (
+        "amendment_number",
+        "revision_id",
+        "amendment_id",
+        "corrigendum_id",
+        "native_revision",
+        "release_id",
+    )
     for record in records or []:
         if not isinstance(record, dict):
             projected.append(record)
             continue
         item = dict(record)
-        if not item.get("source_version") and item.get("amendment_number"):
-            item["source_version"] = item.get("amendment_number")
+        if not item.get("source_version"):
+            for key in revision_aliases:
+                if item.get(key) not in (None, ""):
+                    item["source_version"] = item.get(key)
+                    break
         if not item.get("source_updated_at") and item.get("amendment_date"):
             item["source_updated_at"] = item.get("amendment_date")
         projected.append(item)
