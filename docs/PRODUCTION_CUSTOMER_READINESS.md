@@ -14,7 +14,7 @@ It does not own feature implementation already assigned to Auth, Billing, Evalua
 
 The executable source of this factory's current release snapshot is `production_readiness_manifest.json`, validated by `production_readiness.py` and `tests/test_production_readiness.py`.
 
-The snapshot is deliberately stale as soon as canonical `main` moves. Historical green evidence must then be reconciled rather than transferred by assumption.
+The snapshot is deliberately stale as soon as canonical `main` moves. Historical green evidence must then be reconciled rather than transferred by assumption. When a freshly observed main SHA is available, pass it through `--current-main-sha`; any mismatch is a contract error rather than an implicit rebase of evidence.
 
 ## Classification
 
@@ -66,6 +66,30 @@ Current first-order release blockers/gaps include:
 
 For the full multi-channel target, Mobile and Notifications add further physical-device/external proof requirements.
 
+## Operability findings on current main
+
+Current main has useful bounded latency primitives but not a complete production operability proof:
+
+- `latency_metrics.py` stores observed fetch/pipeline timings rather than inventing publisher-to-discovery timestamps;
+- `latency_health.py` can classify relative stage degradation from recent versus historical samples;
+- `/api/v1/health` is currently process/build liveness only: it returns `ok=true` without testing DB/readiness/dependency state;
+- the background sync worker catches failures and prints the raw exception before sleeping, so worker degradation is not represented as a bounded readiness state;
+- the repository file named `test_alert_feed.py` tests opportunity delivery-state idempotency, not operational alerting.
+
+Security/Operability #248 already owns the adjacent hardening and incident contract. This factory therefore routes, rather than duplicates, the missing liveness-vs-readiness, privacy-safe worker failure classification, metrics/alerts and support-diagnosis semantics.
+
+No SLO, rate-limit threshold or alert threshold is considered proven merely because a telemetry primitive exists.
+
+## Performance proof boundary
+
+The first-value account bootstrap is explicitly bounded to at most 250 recent/actionable tenders, which prevents an unbounded onboarding scan. The current path classifies rows synchronously and persists decisions through the existing decision log, which commits decision writes individually.
+
+That is a **measurement target, not a proven defect**. Before optimization, measure the exact customer-critical path for representative and upper-bounded datasets:
+
+`profile save -> bootstrap classification -> first truthful Radar response`
+
+Capture p50/p95, evaluated row count, database write count and failure/degradation semantics. Do not weaken transactional/tenant truth merely to improve latency.
+
 ## ACTIVE -> NEXT -> WAIT
 
 ### ACTIVE
@@ -75,14 +99,15 @@ For the full multi-channel target, Mobile and Notifications add further physical
 3. Track #83 Billing and #333 Evaluation as owned defects; never duplicate their implementation.
 4. Keep #292 account/privacy lifecycle as a hard customer-readiness gate.
 5. Keep branch protection as a visible release `NO_GO` until explicitly authorized and verified.
+6. Fail closed if the observed canonical main differs from the readiness snapshot SHA.
 
 ### NEXT
 
 1. Prove the current-main operability gap: health/readiness, privacy-safe structured failure evidence, metrics, alerting, dependency degradation, timeout/retry behavior and support diagnosis.
-2. Reconcile #327/#331 source-health evidence into the release view after canonical/Golden movement.
-3. Reconcile #238 recovery evidence only after its canonical integration/operational proof changes.
-4. Consume #277 deterministic fixture proof once available so authenticated E2E cannot pass the full journey through a no-data skip.
-5. Build exact release evidence for performance/load only after the customer-critical canonical path is stable enough to measure without weakening truth/safety.
+2. Measure first-value and Radar/detail/workflow customer-path latency before proposing performance changes.
+3. Reconcile #327/#331 source-health evidence into the release view after canonical/Golden movement.
+4. Reconcile #238 recovery evidence only after its canonical integration/operational proof changes.
+5. Consume #277 deterministic fixture proof once available so authenticated E2E cannot pass the full journey through a no-data skip.
 
 ### WAIT / EXTERNAL
 
@@ -102,16 +127,26 @@ Validate the contract and print every target:
 python production_readiness.py
 ```
 
+Validate the snapshot against a freshly observed canonical main SHA:
+
+```bash
+python production_readiness.py \
+  --current-main-sha 66d43f6fd51cf9cea08016dad335aaa04b711a24
+```
+
 Machine-readable result:
 
 ```bash
 python production_readiness.py --json
 ```
 
-Release assertion for an explicitly selected target:
+Release assertion for an explicitly selected target, with exact-main verification:
 
 ```bash
-python production_readiness.py --target CURRENT_WEB_SAAS --require-go
+python production_readiness.py \
+  --current-main-sha 66d43f6fd51cf9cea08016dad335aaa04b711a24 \
+  --target CURRENT_WEB_SAAS \
+  --require-go
 ```
 
 `--require-go` is a release evidence assertion only. A zero exit code never merges, deploys, changes settings, promotes a queue/capability/source or substitutes for founder authorization.
