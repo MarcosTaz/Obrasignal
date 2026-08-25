@@ -15,6 +15,7 @@ import argparse
 import ast
 import json
 import re
+import shlex
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -65,23 +66,71 @@ def _finding(check, category, state, evidence, severity="INFO"):
     return Finding(check, category, state, evidence, severity)
 
 
-def _check_queue_contract() -> Iterable[Finding]:
-    try:
-        from master_execution_queue import (
-            CURRENT_ITEM_ID,
-            MASTER_EXECUTION_QUEUE,
-            validate_queue,
+def _queue_contract_violations(items, current_item_id: str) -> list[str]:
+    """Validate the canonical queue without inventing a second queue API.
+
+    The queue module intentionally exposes data/query helpers rather than a
+    validator function. These checks mirror its already-tested structural
+    contract so the architecture audit can fail deterministically when a future
+    edit breaks the single-queue invariant.
+    """
+    problems: list[str] = []
+    ids = [item.id for item in items]
+    if len(ids) != len(set(ids)):
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for item_id in ids:
+            if item_id in seen:
+                duplicates.add(item_id)
+            seen.add(item_id)
+        problems.append(f"duplicate queue ids: {sorted(duplicates)}")
+
+    active = [item.id for item in items if item.state == "ACTIVE"]
+    if len(active) != 1:
+        problems.append(f"expected exactly one ACTIVE item; found {active}")
+    elif active[0] != current_item_id:
+        problems.append(
+            f"CURRENT_ITEM_ID={current_item_id!r} does not match ACTIVE item {active[0]!r}"
         )
 
-        validate_queue()
+    allowed_states = {"DONE", "ACTIVE", "QUEUED", "GATED", "FUTURE"}
+    position = {item_id: index for index, item_id in enumerate(ids)}
+    for item in items:
+        if item.state not in allowed_states:
+            problems.append(f"{item.id}: invalid state {item.state!r}")
+        for dependency in item.dependencies:
+            if dependency not in position:
+                problems.append(f"{item.id}: missing dependency {dependency}")
+            elif position[dependency] >= position[item.id]:
+                problems.append(
+                    f"{item.id}: dependency {dependency} is not earlier in canonical order"
+                )
+    return problems
+
+
+def _check_queue_contract() -> Iterable[Finding]:
+    try:
+        from master_execution_queue import CURRENT_ITEM_ID, MASTER_EXECUTION_QUEUE
+
+        problems = _queue_contract_violations(MASTER_EXECUTION_QUEUE, CURRENT_ITEM_ID)
+        if problems:
+            for problem in problems:
+                yield _finding(
+                    "master_queue",
+                    "CANONICAL_OWNERSHIP",
+                    "VIOLATION",
+                    problem,
+                    "P1",
+                )
+            return
         active = [item.id for item in MASTER_EXECUTION_QUEUE if item.state == "ACTIVE"]
         yield _finding(
             "master_queue",
             "CANONICAL_OWNERSHIP",
             "HEALTHY",
-            f"CURRENT_ITEM_ID={CURRENT_ITEM_ID}; active={active}",
+            f"CURRENT_ITEM_ID={CURRENT_ITEM_ID}; active={active}; ordered_items={len(MASTER_EXECUTION_QUEUE)}",
         )
-    except Exception as exc:  # validator failures are architecture failures
+    except Exception as exc:
         yield _finding(
             "master_queue",
             "CANONICAL_OWNERSHIP",
@@ -284,6 +333,16 @@ def _check_runtime_single_flask(root: Path = ROOT) -> Iterable[Finding]:
     )
 
 
+def _gunicorn_target(command: str) -> str | None:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return None
+    if not tokens or Path(tokens[0]).name != "gunicorn":
+        return None
+    return tokens[-1] if len(tokens) > 1 else None
+
+
 def _check_render_entrypoint(root: Path = ROOT) -> Iterable[Finding]:
     path = root / "render.yaml"
     try:
@@ -298,14 +357,13 @@ def _check_render_entrypoint(root: Path = ROOT) -> Iterable[Finding]:
         )
         return
     commands = [match.strip() for match in re.findall(r"^\s*startCommand:\s*(.+?)\s*$", text, re.MULTILINE)]
-    gunicorn = [command for command in commands if command.startswith("gunicorn ")]
-    expected = "gunicorn cors_app:APP"
-    if gunicorn != [expected]:
+    gunicorn = [(command, _gunicorn_target(command)) for command in commands if _gunicorn_target(command)]
+    if len(gunicorn) != 1 or gunicorn[0][1] != "cors_app:APP":
         yield _finding(
             "render_entrypoint",
             "PRODUCTION_CONFIG_DRIFT",
             "VIOLATION",
-            f"expected one canonical web entrypoint {expected!r}; found {gunicorn}",
+            f"expected exactly one gunicorn web command targeting cors_app:APP; found {gunicorn}",
             "P1",
         )
         return
@@ -313,7 +371,7 @@ def _check_render_entrypoint(root: Path = ROOT) -> Iterable[Finding]:
         "render_entrypoint",
         "PRODUCTION_CONFIG_DRIFT",
         "HEALTHY",
-        f"repository-declared production web entrypoint is {expected}",
+        f"repository-declared production web entrypoint: {gunicorn[0][0]}",
     )
 
 
