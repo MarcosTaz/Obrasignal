@@ -4,13 +4,15 @@
   "ACTIVE": [
     {
       "step": "FIRST_VALUE_ACCEPTANCE_CORPUS",
-      "goal": "Turn the current PARTIAL first-value definition into deterministic customer-journey scenarios without stealing Decision or Source semantics.",
-      "next_material_proof": "Build exact-head scenarios for good match, truthful no-match, profile incomplete, system failure and source-unconfirmed states using owner public contracts."
+      "goal": "Convert the new deterministic outcome corpus into executable composition proof without stealing Decision or Source semantics.",
+      "current_evidence": "customer_first_value_corpus.json now distinguishes GOOD_MATCH, truthful NO_MATCH, insufficient information, stale source, partial coverage, closed opportunity, incomplete profile and system failure; only GOOD_MATCH is a first-value candidate.",
+      "next_material_proof": "Bind corpus scenarios to owner public contracts and supported Web render/Golden evidence; do not promote non-canonical #399 or owner semantics into canonical truth."
     },
     {
       "step": "PROFILE_TO_RADAR_CAUSALITY",
-      "goal": "Extend the candidate's exact-head backend/API profile-mutation proof through the actual supported Web render/Golden boundary without converting Decision score into a journey-owned classification.",
-      "next_material_proof": "Candidate test proves profile mutation -> new account decision -> immediate Radar/detail convergence using synthetic tenant-safe data; customer-facing render remains separate evidence."
+      "goal": "Extend exact-head backend/API profile-mutation proof through the actual supported Web render/Golden boundary without converting Decision score into a journey-owned classification.",
+      "current_evidence": "Synthetic tenant-safe test proves profile mutation -> new account decision -> immediate Radar/detail convergence using real profile/bootstrap/Decision code.",
+      "next_material_proof": "Customer-facing render/Golden remains separate evidence."
     }
   ],
   "NEXT": [
@@ -32,7 +34,8 @@
       "step": "WORKFLOW_PURSUIT",
       "owner": "State Machine/Workflow",
       "state": "PARTIAL_TRANSITION_SEMANTICS_UNPROVEN",
-      "action": "Consume owner-defined legal-transition contract when available; preserve current account-scoped persistence evidence."
+      "input": "canonical detail/actionability + workflow routes; routed to #488 comment 5418534353",
+      "action": "Owner must define lifecycle/actionability-aware legal transition/precondition matrix. Web/Mobile must not present an impossible next action, but Customer Journey must not invent which historical/progress transitions remain valid after source closure."
     },
     {
       "step": "REPEAT_VALUE",
