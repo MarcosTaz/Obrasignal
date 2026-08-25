@@ -6,6 +6,7 @@ or decides domain policy. Domain owners remain authoritative for business semant
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime
 import hashlib
 import json
 from typing import Iterable
@@ -41,6 +42,18 @@ def _table_exists(conn, table: str) -> bool:
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
     ).fetchone()
     return row is not None
+
+
+def _parse_timestamp(value):
+    if value is None:
+        return None, None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None, "INVALID"
+    if parsed.tzinfo is None:
+        return None, "NAIVE"
+    return parsed, None
 
 
 def _finding(
@@ -141,6 +154,90 @@ def _scan_opportunity_identity_orphans(
     ]
 
 
+def _scan_source_time_integrity(conn, *, exact_sha: str) -> list[IntegrityFinding]:
+    findings = []
+    if _table_exists(conn, "source_health"):
+        rows = conn.execute(
+            """SELECT source,last_attempt,last_success,last_duration_ms
+               FROM source_health ORDER BY source"""
+        ).fetchall()
+        for row in rows:
+            source, last_attempt, last_success, duration_ms = row[0], row[1], row[2], row[3]
+            attempt_dt, attempt_error = _parse_timestamp(last_attempt)
+            success_dt, success_error = _parse_timestamp(last_success)
+            if attempt_error or success_error:
+                bad = []
+                if attempt_error:
+                    bad.append(f"last_attempt:{attempt_error}")
+                if success_error:
+                    bad.append(f"last_success:{success_error}")
+                findings.append(_finding(
+                    invariant="SOURCE_HEALTH_TIMESTAMP_CORRUPT",
+                    severity="HIGH",
+                    account_id=f"source:{source}",
+                    stores=("source_health",),
+                    expected="source health temporal evidence is timezone-aware and parseable before it can support freshness/health truth",
+                    observed=";".join(bad),
+                    owner="Source Health",
+                    repairable=True,
+                    unknown=False,
+                    exact_sha=exact_sha,
+                ))
+            elif attempt_dt is not None and success_dt is not None and success_dt > attempt_dt:
+                findings.append(_finding(
+                    invariant="SOURCE_HEALTH_TIME_REGRESSION",
+                    severity="HIGH",
+                    account_id=f"source:{source}",
+                    stores=("source_health",),
+                    expected="last_success cannot occur after the row's last_attempt",
+                    observed="last_success is later than last_attempt",
+                    owner="Source Health",
+                    repairable=False,
+                    unknown=True,
+                    exact_sha=exact_sha,
+                ))
+            if duration_ms is not None:
+                try:
+                    negative_duration = int(duration_ms) < 0
+                except (TypeError, ValueError):
+                    negative_duration = True
+                if negative_duration:
+                    findings.append(_finding(
+                        invariant="SOURCE_HEALTH_DURATION_INVALID",
+                        severity="MEDIUM",
+                        account_id=f"source:{source}",
+                        stores=("source_health",),
+                        expected="last_duration_ms is a non-negative integer when present",
+                        observed="duration is negative or non-integer",
+                        owner="Source Health",
+                        repairable=False,
+                        unknown=True,
+                        exact_sha=exact_sha,
+                    ))
+
+    if _table_exists(conn, "source_cursor"):
+        rows = conn.execute(
+            "SELECT source,updated_at FROM source_cursor ORDER BY source"
+        ).fetchall()
+        for row in rows:
+            source, updated_at = row[0], row[1]
+            _updated_dt, updated_error = _parse_timestamp(updated_at)
+            if updated_at is not None and updated_error:
+                findings.append(_finding(
+                    invariant="SOURCE_CURSOR_TIMESTAMP_CORRUPT",
+                    severity="MEDIUM",
+                    account_id=f"source:{source}",
+                    stores=("source_cursor",),
+                    expected="cursor updated_at is timezone-aware and parseable when present",
+                    observed=f"updated_at:{updated_error}",
+                    owner="Source Health / Persistence",
+                    repairable=False,
+                    unknown=True,
+                    exact_sha=exact_sha,
+                ))
+    return findings
+
+
 def scan_canonical_integrity(conn, *, exact_sha: str = "UNKNOWN") -> list[IntegrityFinding]:
     """Scan canonical-main relationships without mutating or normalizing state.
 
@@ -202,6 +299,7 @@ def scan_canonical_integrity(conn, *, exact_sha: str = "UNKNOWN") -> list[Integr
         owner="Opportunity Workflow + Opportunity owner",
         exact_sha=exact_sha,
     ))
+    findings.extend(_scan_source_time_integrity(conn, exact_sha=exact_sha))
 
     if _table_exists(conn, "opportunity_events"):
         rows = conn.execute(
