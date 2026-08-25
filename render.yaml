@@ -37,3 +37,11 @@ services:
       # Keep the first production sync bounded; subsequent 60s polls keep it fresh.
       - key: TED_MAX_PAGES
         value: "4"
+      # Evidence Graph remains EXPERIMENT until Q080 is integrated and explicitly
+      # promoted. Both controls are declared here so a deploy cannot accidentally
+      # enable it through an inherited environment value, and operators retain an
+      # immediate read-time kill switch after rollout.
+      - key: OBRASIGNAL_FEATURE_EVIDENCE_GRAPH_V1
+        value: "false"
+      - key: OBRASIGNAL_KILL_EVIDENCE_GRAPH_V1
+        value: "false"
