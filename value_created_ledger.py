@@ -295,8 +295,11 @@ def record_value_event(
         raise ValueError("monetary event requires amount unless value_type is UNKNOWN")
     if vt == ValueType.ESTIMATED and amt is not None and not method:
         raise ValueError("estimated value requires a traceable method")
-    if vt == ValueType.QUALIFIED and category != "qualified_opportunity":
-        raise ValueError("QUALIFIED value is reserved for qualified_opportunity")
+    if vt == ValueType.QUALIFIED:
+        if category != "qualified_opportunity":
+            raise ValueError("QUALIFIED value is reserved for qualified_opportunity")
+        if amt is None or curr is None or clean_unit is not None:
+            raise ValueError("QUALIFIED opportunity value must be a monetary amount with currency")
     if category == "qualified_opportunity" and vt not in {ValueType.QUALIFIED, ValueType.UNKNOWN}:
         raise ValueError("qualified opportunity cannot be presented as measured/estimated value created")
     if corrects_event_id and supersedes_event_id:
