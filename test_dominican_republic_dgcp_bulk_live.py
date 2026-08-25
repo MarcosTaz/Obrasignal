@@ -30,18 +30,20 @@ def _probe(path):
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "")
         disposition = response.headers.get("Content-Disposition", "")
+        content_length = response.headers.get("Content-Length", "")
         first = next(response.iter_content(chunk_size=4096), b"")
         assert first, f"DGCP bulk endpoint {path} returned an empty stream"
         print(
             f"DGCP_BULK path={path} content_type={content_type!r} "
-            f"content_disposition={disposition!r} first_bytes={first[:16]!r}"
+            f"content_disposition={disposition!r} content_length={content_length!r} "
+            f"first_bytes={first[:16]!r}"
         )
-        return content_type, disposition, first
+        return content_type, disposition, content_length, first
 
 
 def test_live_dgcp_process_and_contract_bulk_transports():
-    process_type, process_disposition, process_first = _probe("/tablas/procesos")
-    contract_type, contract_disposition, contract_first = _probe("/tablas/contratos")
+    process_type, process_disposition, _, process_first = _probe("/tablas/procesos")
+    contract_type, contract_disposition, _, contract_first = _probe("/tablas/contratos")
     assert process_type or process_disposition
     assert contract_type or contract_disposition
     assert process_first
