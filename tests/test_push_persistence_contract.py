@@ -154,6 +154,7 @@ def test_push_schema_unique_indexes_and_idempotency_keys_are_enforced():
         "INSERT INTO push_deliveries(event_id,push_device_id) VALUES(?,?)",
         (event_id, device_id),
     )
+    conn.commit()
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute(
             "INSERT INTO push_deliveries(event_id,push_device_id) VALUES(?,?)",
