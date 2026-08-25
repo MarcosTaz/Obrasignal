@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "bug_id": "BUG-GP-010",
+  "customer_journey": "OPPORTUNITY -> WHY/EVIDENCE -> OFFICIAL_SOURCE",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "classification": ["FALSE_CLAIM", "FABRICATED_PROVENANCE", "MOBILE", "SOURCE_IDENTITY"],
+  "severity": "CRITICAL",
+  "owner": "MOBILE_PRODUCT_OWNER / SOURCE_PRESENTATION_OWNER",
+  "observed_result": [
+    "Opportunity card renders `item.source || 'TED'`.",
+    "Opportunity detail renders `current.source || 'TED'`.",
+    "Therefore missing source identity is presented to the customer as TED even when TED is not evidenced."
+  ],
+  "expected_truth": [
+    "Missing source identity remains explicitly unknown/unavailable; it is never replaced by a named publisher.",
+    "Official-source actions require preserved source identity and URL evidence.",
+    "Source provenance shown to the customer must be derived from canonical source data, never a presentation fallback."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: mobile card/detail contain no named-source fallback for absent source identity.",
+    "PROVEN_AUTOMATED: absent source is rendered as unknown/unavailable and cannot fabricate an official publisher.",
+    "PROVEN_REAL_DEVICE: opportunity with deliberately missing source metadata never displays TED or another publisher name."
+  ],
+  "hard_boundary": "Golden Path owns acceptance/regression only; source presentation repair remains with its specialist owner."
+}
