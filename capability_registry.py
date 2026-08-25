@@ -86,6 +86,14 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         contract_versions=("outcome.v1-draft",),
         feature_flag="contractor_dna_v1",
     ),
+    "BID_ECONOMICS": _c(
+        "BID_ECONOMICS", "RESEARCH", "COMMAND",
+        dependencies=("SIGNAL",),
+        contract_versions=("bid-economics.v0",),
+        feature_flag="bid_economics_v0",
+        kill_switch_required=True,
+        private_data_owner="BID_ECONOMICS",
+    ),
     "SHADOW": _c(
         "SHADOW", "RESEARCH", "SHADOW",
         dependencies=("OFFICE", "DNA", "EVIDENCE"),
@@ -139,6 +147,13 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         "MOBILIZE", "RESEARCH", "SHADOW",
         dependencies=("OFFICE", "SHADOW", "ACTION", "SUPPLY_EDGE"),
         feature_flag="mobilize",
+    ),
+    "BANGS": _c(
+        "BANGS", "RESEARCH", "SHADOW",
+        contract_versions=("bangs.v0",),
+        feature_flag="bangs_field_intelligence_v0",
+        kill_switch_required=True,
+        private_data_owner="BANGS",
     ),
     "SITE_READY": _c(
         "SITE_READY", "RESEARCH", "COMMAND",

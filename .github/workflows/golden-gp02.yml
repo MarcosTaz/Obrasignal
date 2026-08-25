@@ -1,0 +1,24 @@
+name: Golden GP02 Requirements Readiness
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gp02:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact candidate HEAD
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest
+      - name: Run Golden Path 02 acceptance
+        run: PYTHONPATH=. pytest -q tests/test_golden_gp02_requirements_readiness.py
