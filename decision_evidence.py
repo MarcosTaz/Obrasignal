@@ -18,6 +18,7 @@ from evidence_graph import EdgeType, EvidenceGraph, NodeType, signal_to_fact
 LOGGER = logging.getLogger(__name__)
 
 EVIDENCE_CONTRACT_VERSION = "evidence.v1"
+CUSTOMER_POLICY_VERSION = "decision-evidence-customer-v1"
 DECISION_GRAPH_MAX_NODES = 128
 DECISION_GRAPH_MAX_EDGES = 512
 
@@ -412,7 +413,7 @@ def maybe_decision_evidence(
 
 def _safe_source_url(value: Any) -> str | None:
     text = str(value or "").strip()
-    if not text:
+    if not text or any(ord(char) < 32 for char in text):
         return None
     try:
         parsed = urlsplit(text)
@@ -470,24 +471,36 @@ def customer_evidence_view(snapshot: Mapping[str, Any] | None) -> dict[str, Any]
         if len(sources) >= 12:
             break
 
-    missing = sorted(
-        {
-            str(value)
-            for value in (snapshot.get("missing_inputs") or [])
-            + (explanation.get("missing") or [])
-            if value
-        }
-    )
+    graph_missing = [str(value) for value in (explanation.get("missing") or []) if value]
+    material_missing = [str(value) for value in (snapshot.get("missing_inputs") or []) if value]
+    missing = sorted(set(material_missing + graph_missing))
+    conflict_count = len(explanation.get("conflicts") or [])
+    status = explanation.get("status")
+    confidence = explanation.get("confidence")
+
+    # The generic graph status describes structural support for the final claim.
+    # The authenticated customer contract is stricter: a material missing input
+    # or unknown publisher freshness cannot be presented as fully SUPPORTED, and
+    # a contradiction anywhere in the decision lineage remains a CONFLICT.
+    if conflict_count:
+        status = "CONFLICT"
+        if confidence == "HIGH":
+            confidence = "LOW"
+    elif material_missing or "source_freshness" in graph_missing:
+        status = "UNKNOWN"
+        confidence = "UNKNOWN"
+
     return {
         "contract_version": snapshot.get("contract_version") or EVIDENCE_CONTRACT_VERSION,
         "state": "READY",
-        "status": explanation.get("status"),
-        "confidence": explanation.get("confidence"),
+        "status": status,
+        "confidence": confidence,
         "sources": sources,
         "missing": missing,
-        "conflict_count": len(explanation.get("conflicts") or []),
+        "conflict_count": conflict_count,
         "model_version": explanation.get("model_version"),
         "policy_version": explanation.get("policy_version"),
+        "presentation_policy_version": CUSTOMER_POLICY_VERSION,
         "decision_claim_id": snapshot.get("decision_claim_id"),
     }
 
