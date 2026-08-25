@@ -12,9 +12,9 @@ This is an internal capability contract. It does **not** promote `Q080_EVIDENCE_
 
 ## Architecture decision
 
-V1 is an in-process directed graph implemented with immutable dataclasses plus dictionaries/sets. It deliberately adds no Neo4j, graph service, external database, or new infrastructure.
+V1 is an in-process directed graph implemented with immutable snapshot records plus dictionaries/sets for graph indexing. It deliberately adds no Neo4j, graph service, external database, or new infrastructure.
 
-The graph is currently **in-memory only**. `EvidenceGraph.export()` produces a deterministic snapshot structure but does not itself persist it. A future persistence adapter may use existing ObraSignal storage conventions after the storage boundary is explicitly designed.
+The graph is currently **in-memory only**. `EvidenceGraph.export()` produces a deterministic detached snapshot structure but does not itself persist it. A future persistence adapter may use existing ObraSignal storage conventions after the storage boundary is explicitly designed.
 
 `DECISION` is not a claim type in v1. Decisions consume evidence-backed claims; this prevents an operational choice from being confused with the epistemic categories used to justify it. The existing decision log remains the existing decision log rather than being duplicated.
 
@@ -62,7 +62,15 @@ A claim carries, as applicable:
 
 Graph snapshots also carry `model_version` and `policy_version`.
 
-IDs are derived from normalized claim/evidence content plus tenant identity. The same inputs and versions therefore produce the same IDs and export ordering.
+IDs are derived from canonicalized claim/evidence content plus tenant identity. The same inputs and versions therefore produce the same IDs and export ordering.
+
+## Audit immutability
+
+Material node content is snapshotted on insertion. Nested mappings are read-only snapshots and nested sequences are immutable tuples/frozensets inside the graph. Mutating caller-owned dictionaries/lists after insertion cannot rewrite an existing node without changing its identity.
+
+Presentation/export views are detached copies. Mutating a returned `explain()` or `export()` structure does not mutate the graph's audit state.
+
+This provides in-process immutability only. V1 still makes no claim of persisted WORM/audit-log durability.
 
 ## Provenance
 
@@ -173,21 +181,29 @@ A UI or future narrative layer can render this structure. No LLM is required to 
 - `source_updated_at`;
 - `last_observed`.
 
-The adapter creates the evidence provenance and a supported FACT for the selected field. Connectors remain unchanged.
+The adapter creates evidence provenance and a supported FACT for the selected field. Connectors remain unchanged.
 
 ## Economic Fit integration demonstration
 
-`economic_fit_lineage()` demonstrates the contract without rewriting `economic_fit.py`:
+`economic_fit_lineage()` demonstrates the contract without rewriting `economic_fit.py`. The adapter records every material input used by the current economic-fit rule family:
+
+- opportunity `value` always;
+- `deadline` when deadline rules are configured;
+- `procedure_type` when procedure rules are configured;
+- profile assumptions for min/max value, deadline bounds, threshold, preferred procedures, and excluded procedures when present;
+- the deterministic rule trace returned by `evaluate_economic_fit()` in estimate metadata.
+
+Missing material Signal inputs are represented as explicit `FACT` claims with `value=None` and `metadata.missing=true`; absence is not silently converted into zero/false.
 
 ```text
-OFFICIAL SIGNAL.value
+OFFICIAL SIGNAL fields
         |
         v
      EVIDENCE
         |
       SUPPORTS
         v
-       FACT -------------------+
+       FACTS ------------------+
                                 |
 COMPANY PROFILE ASSUMPTIONS ----+--> ESTIMATE economic_fit.score
                                       |
@@ -196,9 +212,7 @@ COMPANY PROFILE ASSUMPTIONS ----+--> ESTIMATE economic_fit.score
                                   INFERENCE economic_fit.assessment
 ```
 
-The existing deterministic `evaluate_economic_fit()` result supplies its rule version. Company profile thresholds are modeled as assumptions in this demonstration because they are decision inputs, not externally verified opportunity facts.
-
-Calling `explain()` on the resulting inference reconstructs the supporting fact, original source evidence, profile assumptions, score calculation metadata, and dependency chain.
+Calling `explain()` on the inference reconstructs the source evidence, facts, assumptions, score calculation metadata/rule trace, and dependency chain.
 
 This is **decision support**, not a new Decision Ledger and not a claim that opportunity value equals value created by ObraSignal.
 
@@ -229,7 +243,7 @@ Presentation consumers must continue to escape untrusted text/URLs according to 
 - No semantic mirror-detection across unrelated source identities.
 - No public API or production UI.
 - No automatic Decision Ledger write.
-- No automatic immutable snapshot persistence after a decision; records are immutable while present in a graph, and exported snapshots are deterministic structures for a future persistence adapter.
+- No persisted immutable decision snapshot/WORM store; immutability is guaranteed for node snapshots while in a graph.
 
 ## Future extensions
 
