@@ -34,6 +34,21 @@ const authIsolationChecks = [
   ['unbound profile cache reads fail closed', storageSource, /getProfile: \(\) => activePrivateTenant \? privateStorage\.getProfile\(activePrivateTenant\) : Promise\.resolve\(null\)/],
 ];
 
+const pushChecks = [
+  ['native client obtains an Expo push token for the canonical EAS project', notifications, /getExpoPushTokenAsync\(\{ projectId: EXPO_PROJECT_ID \}\)/],
+  ['push token is registered through the authenticated API facade', notifications, /api\.registerPushDevice\(\{ installationId, expoPushToken, platform: Platform\.OS \}\)/],
+  ['notification tap validates tenant-private binding before navigation', notifications, /current\.bindingId !== bindingId/],
+  ['cold-start notification response is consumed', notifications, /getLastNotificationResponseAsync\(\)/],
+  ['live notification response listener is installed', notifications, /addNotificationResponseReceivedListener\(handle\)/],
+  ['tap return fetches current opportunity truth before opening detail', app, /openNotificationOpportunity[\s\S]*api\.opportunity\(opportunityId\)/],
+  ['unavailable tapped opportunity fails honestly', app, /notificação já não está disponível/],
+  ['tap return refreshes current Radar truth', app, /loadRef\.current\?\.\(\{preserve:true\}\)/],
+  ['sign-out attempts server unregister before Supabase sign-out', app, /unregisterRemoteOpportunityPush\(\)[\s\S]*supabase\.auth\.signOut\(\)/],
+  ['API facade exposes push registration', api, /registerPushDevice:\(\{installationId,expoPushToken,platform\}\)/],
+  ['API facade exposes push unregister', api, /unregisterPushDevice:\(installationId\)/],
+  ['push binding is unavailable while private storage is unbound', storageSource, /getPushBinding: \(\) => activePrivateTenant \? privateStorage\.getPushBinding\(activePrivateTenant\) : Promise\.resolve\(null\)/],
+];
+
 const failures = [
   ...checks.slice(0, 5).filter(([, pattern]) => !pattern.test(app)),
   ...checks.slice(5).filter(([, pattern]) => !pattern.test(onboarding)),
@@ -44,9 +59,10 @@ const crossFailures = [
   ...crossFileChecks.slice(4).filter(([, pattern]) => !pattern.test(api)),
 ];
 const authIsolationFailures = authIsolationChecks.filter(([, source, pattern]) => !pattern.test(source));
+const pushFailures = pushChecks.filter(([, source, pattern]) => !pattern.test(source));
 
-if (failures.length || crossFailures.length || authIsolationFailures.length) {
-  for (const [name] of [...failures, ...crossFailures, ...authIsolationFailures]) console.error(`FAIL: ${name}`);
+if (failures.length || crossFailures.length || authIsolationFailures.length || pushFailures.length) {
+  for (const [name] of [...failures, ...crossFailures, ...authIsolationFailures, ...pushFailures]) console.error(`FAIL: ${name}`);
   process.exit(1);
 }
 
@@ -55,4 +71,4 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossFileChecks, ...authIsolationChecks]) console.log(`PASS: ${name}`);
+for (const [name] of [...checks, ...crossFileChecks, ...authIsolationChecks, ...pushChecks]) console.log(`PASS: ${name}`);
