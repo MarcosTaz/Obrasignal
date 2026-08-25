@@ -56,6 +56,7 @@ def test_multiple_documents_and_unknown_type():
     ("Bill of Quantities.xlsx", "BOQ"),
     ("Technical Specification.pdf", "TECHNICAL_SPECIFICATION"),
     ("Pricing Schedule.xlsx", "PRICING_SCHEDULE"),
+    ("Price Schedule.xlsx", "PRICING_SCHEDULE"),
     ("Draft Contract.docx", "CONTRACT_DRAFT"),
     ("Clarifications 02.pdf", "CLARIFICATION"),
     ("Amendment No 3.pdf", "AMENDMENT"),
@@ -68,6 +69,7 @@ def test_deterministic_classification(title, expected):
 def test_source_classification_wins_and_guidance_false_positive_is_unknown():
     assert classify_document_type("BOQ-looking-file.pdf", "APPENDIX") == ("APPENDIX", "SOURCE")
     assert classify_document_type("Guidance_on_BOQ_examples.pdf") == ("UNKNOWN", "UNKNOWN")
+    assert classify_document_type("Price index methodology.pdf") == ("UNKNOWN", "UNKNOWN")
 
 
 def test_duplicate_source_reference_is_deduped():
@@ -97,6 +99,44 @@ def test_explicit_supersession_preserves_both_versions():
     assert by_external["spec-v1"].status == "SUPERSEDED"
     assert by_external["spec-v2"].status == "CURRENT"
     assert by_external["spec-v2"].relationships[0].target_document_id == by_external["spec-v1"].document_id
+
+
+def test_incremental_supersession_resolves_previously_persisted_target():
+    conn = db()
+    v1 = ref(external_id="spec-v1", version="1", title="Technical Specification v1.pdf")
+    v2 = ref(external_id="spec-v2", version="2", title="Technical Specification v2.pdf", supersedes_external_id="spec-v1")
+    ingest_document_references(conn, [v1], observed_at="2026-08-24T10:00:00Z")
+    ingest_document_references(conn, [v2], observed_at="2026-08-25T10:00:00Z")
+
+    inventory = get_document_inventory(conn, "TED", "OPP-1")
+    assert [item.external_id for item in inventory.current_documents] == ["spec-v2"]
+    assert [item.external_id for item in inventory.superseded_documents] == ["spec-v1"]
+    assert inventory.current_documents[0].relationships[0].target_document_id == inventory.superseded_documents[0].document_id
+
+
+def test_stale_replay_does_not_resurrect_superseded_document():
+    conn = db()
+    v1 = ref(external_id="spec-v1", version="1", title="Technical Specification v1.pdf")
+    v2 = ref(external_id="spec-v2", version="2", title="Technical Specification v2.pdf", supersedes_external_id="spec-v1")
+    ingest_document_references(conn, [v1])
+    ingest_document_references(conn, [v2])
+    ingest_document_references(conn, [v1])
+
+    inventory = get_document_inventory(conn, "TED", "OPP-1")
+    assert [item.external_id for item in inventory.current_documents] == ["spec-v2"]
+    assert [item.external_id for item in inventory.superseded_documents] == ["spec-v1"]
+
+
+def test_ambiguous_native_target_never_creates_supersession():
+    conn = db()
+    first = ref(external_id="shared", version="1", content_fingerprint="a" * 64, fingerprint_kind="CONTENT")
+    second = ref(external_id="shared", version="2", content_fingerprint="b" * 64, fingerprint_kind="CONTENT")
+    ingest_document_references(conn, [first, second])
+    revision = ref(external_id="new", version="3", supersedes_external_id="shared")
+    ingest_document_references(conn, [revision])
+
+    relations = conn.execute("SELECT COUNT(*) FROM opportunity_document_relationships WHERE source_document_id=(SELECT document_id FROM opportunity_documents WHERE external_id='new')").fetchone()[0]
+    assert relations == 0
 
 
 def test_unknown_version_never_guesses_supersession():
