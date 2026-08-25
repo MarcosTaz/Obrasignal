@@ -6,8 +6,12 @@ on:
     paths:
       - 'morocco_pmmp.py'
       - 'test_morocco_pmmp.py'
+      - 'test_morocco_pmmp_pagination_safety.py'
       - '.github/workflows/morocco_pmmp_live.yml'
       - 'research/MENA_MOROCCO_PMMP_IMPLEMENTATION_RECORD_20260825.md'
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 permissions:
   contents: read
@@ -18,6 +22,10 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
