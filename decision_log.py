@@ -18,6 +18,10 @@ RULE_VERSION = 'commercial-v1'
 MAX_FEATURES_JSON_BYTES = 512_000
 
 
+class DecisionFeaturesTooLarge(ValueError):
+    """Raised before persistence when a decision feature payload exceeds its bound."""
+
+
 def _account_id(value):
     account_id = str(value or '').strip()
     if not account_id:
@@ -28,8 +32,14 @@ def _account_id(value):
 def _encode_features(features):
     raw = json.dumps(features or {}, ensure_ascii=False, sort_keys=True)
     if len(raw.encode('utf-8')) > MAX_FEATURES_JSON_BYTES:
-        raise ValueError('decision features exceed maximum serialized size')
+        raise DecisionFeaturesTooLarge('decision features exceed maximum serialized size')
     return raw
+
+
+def validate_features_payload(features):
+    """Validate the exact persisted decision feature envelope without writing it."""
+    raw = _encode_features(features)
+    return len(raw.encode('utf-8'))
 
 
 def _ensure_account_column(conn):
