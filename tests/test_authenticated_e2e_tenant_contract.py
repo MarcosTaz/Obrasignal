@@ -97,3 +97,11 @@ def test_nested_endpoint_filename_guard_is_preserved() -> None:
     text = _text()
     assert "tr '/' '_'" in text
     assert 'Unsafe E2E output filename' in text
+
+
+def test_checkout_is_immutable_and_does_not_persist_credentials() -> None:
+    text = _text()
+    assert 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4' in text
+    assert 'actions/checkout@v4' not in text
+    assert 'persist-credentials: false' in text
+    assert 'permissions:\n  contents: read' in text
