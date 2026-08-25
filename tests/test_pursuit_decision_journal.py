@@ -82,6 +82,19 @@ def test_domain_accepts_all_v0_states_and_rejects_invalid_values():
         record_pursuit_decision(conn, account_id="a", opportunity_id=99, decision_type="READY")
     with pytest.raises(DecisionValidationError):
         record_pursuit_decision(conn, account_id="a", opportunity_id=99, decision_type="HOLD", reason_codes=["MADE_UP"])
+    with pytest.raises(DecisionValidationError):
+        record_pursuit_decision(conn, account_id="a", opportunity_id=99, decision_type="HOLD", decided_at="yesterday")
+    with pytest.raises(DecisionValidationError):
+        record_pursuit_decision(conn, account_id="a", opportunity_id=99, decision_type="HOLD", decided_at="2026-09-01T10:00:00")
+
+
+def test_decided_at_is_normalized_for_chronological_ordering():
+    conn = _conn()
+    item, _ = record_pursuit_decision(
+        conn, account_id="a", opportunity_id=8, decision_type="HOLD",
+        decided_at="2026-09-01T12:00:00+02:00",
+    )
+    assert item["decided_at"] == "2026-09-01T10:00:00+00:00"
 
 
 def test_domain_tenant_isolation_and_idempotency():
@@ -94,6 +107,14 @@ def test_domain_tenant_isolation_and_idempotency():
     assert current_decision(conn, "b", 5)["decision_type"] == "NO_BID"
     with pytest.raises(IdempotencyConflict):
         record_pursuit_decision(conn, account_id="a", opportunity_id=5, decision_type="NO_BID", idempotency_key="same")
+
+
+def test_write_path_serializes_current_read_and_append():
+    conn = _conn()
+    statements = []
+    conn.set_trace_callback(statements.append)
+    record_pursuit_decision(conn, account_id="a", opportunity_id=9, decision_type="HOLD")
+    assert any(statement.strip().upper() == "BEGIN IMMEDIATE" for statement in statements)
 
 
 def test_history_order_is_deterministic_while_current_follows_supersession():
@@ -167,6 +188,8 @@ def test_api_tenant_isolation_invalid_missing_and_idempotent_retry(monkeypatch, 
     assert first.status_code == 201 and retry.status_code == 200
     assert retry.get_json()["created"] is False
     assert client.post("/api/v1/opportunities/1/decision", json={"decision_type": "READY"}).status_code == 400
+    assert client.post("/api/v1/opportunities/1/decision", json={"decision_type": "HOLD", "decided_at": "not-a-date"}).status_code == 400
+    assert client.post("/api/v1/opportunities/1/decision", json={"decision_type": "HOLD", "actor_type": "SYSTEM_SUGGESTED"}).status_code == 400
     assert client.post("/api/v1/opportunities/999/decision", json={"decision_type": "PURSUE"}).status_code == 404
     monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "company-b")
     assert client.post("/api/v1/opportunities/1/decision", json={"decision_type": "NEEDS_INFO"}).status_code == 201
