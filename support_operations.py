@@ -24,6 +24,7 @@ class CustomerFailureClass(str, Enum):
     PERMISSION_DENIED = "PERMISSION_DENIED"
     NOT_FOUND = "NOT_FOUND"
     CONFLICT = "CONFLICT"
+    INVALID_INPUT = "INVALID_INPUT"
 
 
 class IncidentSeverity(str, Enum):
