@@ -47,6 +47,16 @@ def test_manual_mobile_production_build_fails_closed_without_lock_and_uses_npm_c
     assert "reproducibly enough" not in workflow
 
 
+def test_eas_production_build_requires_lock_before_npm_ci_and_build():
+    workflow = (ROOT / ".github" / "workflows" / "eas-production.yml").read_text()
+    lock_guard = workflow.index("Require canonical npm lock")
+    npm_ci = workflow.index("npm ci --no-audit --no-fund")
+    eas_build = workflow.index("eas build --platform all")
+    assert "test -f package-lock.json" in workflow
+    assert "npm install --no-audit --no-fund" not in workflow
+    assert lock_guard < npm_ci < eas_build
+
+
 def test_current_floating_build_tools_remain_explicit_debt_not_false_green():
     components = {item["name"]: item for item in REGISTRY["components"]}
     assert components["expo-doctor"]["declared_constraint"] == "latest"
