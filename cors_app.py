@@ -59,6 +59,24 @@ def _decorate_health(response):
     return response
 
 
+def _redact_operability_payload(response):
+    """Keep tenant-visible diagnostics useful without exposing exception detail."""
+    if request.path != "/api/v1/source-health" or not response.is_json:
+        return response
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        return response
+    for item in payload["items"]:
+        if not isinstance(item, dict):
+            continue
+        raw_error = item.get("last_error")
+        item["has_error"] = bool(raw_error)
+        if raw_error:
+            item["last_error"] = "redacted"
+    response.set_data(json.dumps(payload, separators=(",", ":")))
+    return response
+
+
 def _json_write_path():
     if request.path == "/api/v1/profile":
         return request.method == "POST"
@@ -76,15 +94,17 @@ def _reject_bad_query():
             int(request.args.get("limit") or "")
         except (TypeError, ValueError):
             return "limit"
-    if request.path == "/api/v1/opportunities":
+    if request.path in ("/api/v1/opportunities", "/api/v1/radar"):
         for name in ("limit", "minscore"):
             if name in request.args and request.args.get(name) not in (None, ""):
                 try:
                     int(request.args.get(name))
                 except (TypeError, ValueError):
                     return name
-        if len(request.args.get("q") or "") > _QUERY_TEXT_MAX:
-            return "q"
+    if request.path == "/api/v1/opportunities" and len(request.args.get("q") or "") > _QUERY_TEXT_MAX:
+        return "q"
+    if request.path in ("/api/v1/latency", "/api/v1/latency-health") and len(request.args.get("source") or "") > 64:
+        return "source"
     return None
 
 
@@ -151,7 +171,8 @@ def _protect_radar_api():
 @APP.after_request
 def _global_api_cors(response):
     if request.path.startswith("/api/v1/"):
-        return _cors(_decorate_health(response))
+        response = _redact_operability_payload(_decorate_health(response))
+        return _cors(response)
     return response
 
 
