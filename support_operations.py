@@ -119,6 +119,33 @@ def classify_incident(impacts: Iterable[IncidentImpact | str]) -> IncidentSeveri
     return min((_SEVERITY_BY_IMPACT[impact] for impact in normalized), key=_SEVERITY_ORDER.__getitem__)
 
 
+def service_readiness_matrix(
+    evidence: Mapping[ServiceArea | str, ServiceReadiness | str] | None = None,
+) -> dict[str, str]:
+    """Return the complete service matrix, defaulting missing owner evidence to UNKNOWN.
+
+    This function never promotes a service to HEALTHY merely because no failure
+    is present in Support. Callers must supply an explicit canonical readiness
+    value from the relevant owning contract.
+    """
+    matrix = {area.value: ServiceReadiness.UNKNOWN.value for area in ServiceArea}
+    if evidence is None:
+        return matrix
+    if not isinstance(evidence, Mapping):
+        raise ValueError("service readiness evidence must be a mapping")
+    for raw_area, raw_state in evidence.items():
+        try:
+            area = raw_area if isinstance(raw_area, ServiceArea) else ServiceArea(raw_area)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"unsupported service area: {raw_area!r}") from exc
+        try:
+            state = raw_state if isinstance(raw_state, ServiceReadiness) else ServiceReadiness(raw_state)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"unsupported service readiness: {raw_state!r}") from exc
+        matrix[area.value] = state.value
+    return matrix
+
+
 def recovery_state(
     *,
     started: bool,
