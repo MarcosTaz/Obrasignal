@@ -53,10 +53,10 @@ export async function registerRemoteOpportunityPush() {
   }
 
   const existingBinding = await storage.getPushBinding();
-  // A tenant change purges the old private binding in #291. A local-only fallback
-  // binding is also superseded by remote registration, so dismiss its presented
-  // notifications before replacing the tap authority with a server binding.
-  if (!isRemoteBinding(existingBinding)) {
+  // A tenant change purges the old private binding in #291. With no current
+  // binding, dismiss any stale previously-presented tray immediately before
+  // attempting a new provider binding.
+  if (!existingBinding) {
     try { await Notifications.dismissAllNotificationsAsync(); } catch (_) {}
   }
 
@@ -67,6 +67,13 @@ export async function registerRemoteOpportunityPush() {
   const response = await api.registerPushDevice({ installationId, expoPushToken, platform: Platform.OS });
   const bindingId = String(response?.binding_id || '').trim();
   if (!bindingId) throw new Error('push_binding_missing');
+
+  // A valid local-only fallback remains authoritative while provider registration
+  // is unavailable. Dismiss it only after remote registration has actually
+  // succeeded, immediately before replacing its tap authority.
+  if (existingBinding && !isRemoteBinding(existingBinding)) {
+    try { await Notifications.dismissAllNotificationsAsync(); } catch (_) {}
+  }
   await storage.setPushBinding({ bindingId, installationId, expoPushToken, kind: 'remote' });
   return { status: 'registered', registered: true, bindingId, installationId };
 }
