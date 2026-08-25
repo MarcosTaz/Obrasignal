@@ -17,11 +17,8 @@ ATTRIBUTION_STATES = (
     "REQUIRED_NOT_RUN",
     "NEEDS_RECHECK",
 )
-
 OWNER_GATE_STATES = ("GREEN", "RED", "NEEDS_RECHECK")
 
-# Explicit owner-contract rules by changed surface. This is operational metadata,
-# not domain authority. Rules are intentionally narrow and auditable.
 OWNER_GATE_PATH_CONTRACTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (
         (
@@ -65,11 +62,6 @@ def required_workflows_for_changed_paths(changed_paths: Iterable[str]) -> set[st
 
 
 def extract_pull_request_paths(workflow_text: str) -> tuple[str, ...] | None:
-    """Extract simple GitHub Actions pull_request.paths entries without YAML deps.
-
-    None means no paths restriction. Empty tuple means a paths construct was
-    present but could not be safely parsed.
-    """
     lines = workflow_text.splitlines()
     in_pull_request = False
     pull_indent = -1
@@ -77,7 +69,6 @@ def extract_pull_request_paths(workflow_text: str) -> tuple[str, ...] | None:
     paths_indent = -1
     found_paths_key = False
     values: list[str] = []
-
     for raw in lines:
         stripped = raw.strip()
         if not stripped or stripped.startswith("#"):
@@ -107,7 +98,6 @@ def extract_pull_request_paths(workflow_text: str) -> tuple[str, ...] | None:
                     values.append(value)
             else:
                 return ()
-
     if not found_paths_key:
         return None
     return tuple(values)
@@ -143,43 +133,28 @@ def classify_gate_attribution(
             "run belongs to another PR context and workflow is absent from candidate tree",
         )
 
-    if workflow_path and workflow_path in candidate_workflows:
-        if path_filters is None:
-            return GateAttribution(
-                workflow,
-                "REQUIRED",
-                "workflow is present in candidate tree with unfiltered pull_request contract",
-            )
-        if len(path_filters) == 0:
-            return GateAttribution(
-                workflow,
-                "NEEDS_RECHECK",
-                "workflow path filter contract could not be parsed safely",
-            )
-        if not _matches_any_path(changed_paths, path_filters):
-            return GateAttribution(
-                workflow,
-                "NOT_APPLICABLE",
-                "candidate delta does not match workflow pull_request path filters",
-            )
+    # Once a changed-surface owner contract is known, other present workflows are
+    # not silently promoted into requirements merely because GitHub triggered them.
+    if required and workflow_path and workflow_path in candidate_workflows:
         return GateAttribution(
             workflow,
-            "REQUIRED",
-            "candidate delta matches repository workflow trigger contract",
+            "NOT_APPLICABLE",
+            "workflow is outside explicit changed-surface owner gate contract",
         )
 
-    return GateAttribution(
-        workflow,
-        "NEEDS_RECHECK",
-        "insufficient repository evidence to attribute gate safely",
-    )
+    if workflow_path and workflow_path in candidate_workflows:
+        if path_filters is None:
+            return GateAttribution(workflow, "REQUIRED", "workflow is present with unfiltered pull_request contract")
+        if len(path_filters) == 0:
+            return GateAttribution(workflow, "NEEDS_RECHECK", "workflow path filter contract could not be parsed safely")
+        if not _matches_any_path(changed_paths, path_filters):
+            return GateAttribution(workflow, "NOT_APPLICABLE", "candidate delta does not match workflow pull_request path filters")
+        return GateAttribution(workflow, "REQUIRED", "candidate delta matches repository workflow trigger contract")
+
+    return GateAttribution(workflow, "NEEDS_RECHECK", "insufficient repository evidence to attribute gate safely")
 
 
-def complete_required_gates(
-    *,
-    required_workflows: Iterable[str],
-    observed_gate_states: Mapping[str, str],
-) -> list[GateAttribution]:
+def complete_required_gates(*, required_workflows: Iterable[str], observed_gate_states: Mapping[str, str]) -> list[GateAttribution]:
     result: list[GateAttribution] = []
     for workflow in sorted({str(name) for name in required_workflows}):
         state = observed_gate_states.get(workflow)
