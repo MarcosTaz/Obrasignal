@@ -55,17 +55,29 @@ class StaleCompanyStateWrite(CompanyStateStorageError):
     pass
 
 
+def _has_account_version_unique_constraint(conn: sqlite3.Connection) -> bool:
+    for row in conn.execute("PRAGMA index_list(company_state_snapshots)").fetchall():
+        if not bool(row[2]):
+            continue
+        index_name = str(row[1]).replace("'", "''")
+        columns = tuple(str(item[2]) for item in conn.execute(f"PRAGMA index_info('{index_name}')").fetchall())
+        if columns == ("account_id", "state_version"):
+            return True
+    return False
+
+
 def ensure_company_state_schema(conn: sqlite3.Connection) -> None:
     """Add and validate the snapshot schema without mutating unrelated tables."""
     try:
         conn.execute(SCHEMA)
         columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(company_state_snapshots)").fetchall()}
-        if not _REQUIRED_COLUMNS.issubset(columns):
+        if not _REQUIRED_COLUMNS.issubset(columns) or not _has_account_version_unique_constraint(conn):
             conn.rollback()
             raise CompanyStateStorageError("company state snapshot schema is incompatible")
         conn.execute(INDEX)
         conn.commit()
     except CompanyStateStorageError:
+        conn.rollback()
         raise
     except sqlite3.Error as exc:
         conn.rollback()
@@ -182,6 +194,9 @@ def save_company_state(
         conn.commit()
         return candidate
     except StaleCompanyStateWrite:
+        conn.rollback()
+        raise
+    except CompanyStateStorageError:
         conn.rollback()
         raise
     except sqlite3.Error as exc:
@@ -423,7 +438,12 @@ class CompanyStateService:
         account = validate_account_id(trusted_account_id)
         operation_clock = _clock_utc(clock)
         _validate_expected_version(expected_version)
-        supplied = tuple(facts)
+        try:
+            supplied = tuple(facts)
+        except TypeError as exc:
+            raise CompanyStateError("trusted provider facts must be iterable") from exc
+        if not supplied:
+            raise CompanyStateError("trusted provider facts cannot be empty")
         if len(supplied) > MAX_FACTS:
             raise CompanyStateError("too many trusted provider facts")
         target_as_of = _clock_utc(as_of, "as_of") if as_of is not None else operation_clock
