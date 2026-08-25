@@ -5,12 +5,14 @@ still processing any legacy TENDER projection. Advancing that watermark before
 persistence succeeds could permanently skip records after a database failure.
 
 This module therefore stages normalized signals in thread-local state and commits
-the canonical Signal record, source metadata, lifecycle state and source cursor in
-one source-side transaction after the legacy transaction has succeeded.
+the canonical Signal record, opportunity history, source metadata, lifecycle state
+and source cursor in one source-side transaction after the legacy transaction has
+succeeded.
 """
 from dataclasses import dataclass
 import threading
 
+from opportunity_change_history import persist_change_observations
 from opportunity_lifecycle import persist_lifecycle_observations
 from signal_store import persist_signal_records
 from source_health import set_source_cursor
@@ -62,13 +64,12 @@ def _empty_commit_result():
 
 
 def commit_staged_source_syncs(conn):
-    """Atomically persist Signal, metadata, lifecycle and source cursors.
+    """Atomically persist history, Signal, metadata, lifecycle and source cursors.
 
-    The legacy opportunity transaction has already committed by the time this
-    function is called. Within this second transaction all source-side state moves
-    together. A malformed Signal identity/type, metadata/lifecycle write failure
-    or cursor failure rolls back the complete source-side transaction, preventing
-    silent data loss and preserving fail-closed cursor semantics.
+    Change history must observe the previous canonical state before Signal upsert
+    replaces it. It therefore runs first, but in the same transaction. Any history,
+    Signal, metadata/lifecycle or cursor failure rolls back the complete source-side
+    transaction, preserving both audit continuity and fail-closed cursor semantics.
     """
     pending = staged_source_syncs()
     if not pending:
@@ -79,6 +80,11 @@ def commit_staged_source_syncs(conn):
     cursors = 0
     try:
         for item in pending:
+            persist_change_observations(
+                conn,
+                item.records,
+                commit=False,
+            )
             signal_records += persist_signal_records(
                 conn,
                 item.records,
