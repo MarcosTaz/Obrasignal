@@ -2,7 +2,7 @@
 
 No network access is performed. PR references are derived only from local git
 history when commit messages contain an explicit pull-request reference.
-Research evidence is derived only from bounded repository text files.
+Research evidence is derived conservatively from bounded repository text files.
 """
 from __future__ import annotations
 
@@ -16,7 +16,12 @@ _PR_PATTERNS = (
     re.compile(r"\b(?:PR|pull request)\s*#(\d+)\b", re.IGNORECASE),
     re.compile(r"\(#(\d+)\)\s*$"),
 )
-_RESEARCH_NAME = re.compile(r"(?:research|evidence|gate|scope)", re.IGNORECASE)
+_REGIONAL_RESEARCH_NAME = re.compile(r"(?:research|gate)", re.IGNORECASE)
+_COUNTRY_EVIDENCE_NAME = re.compile(r"evidence", re.IGNORECASE)
+
+
+def _slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")
 
 
 def _pr_numbers(text: str) -> tuple[int, ...]:
@@ -27,11 +32,7 @@ def _pr_numbers(text: str) -> tuple[int, ...]:
 
 
 def build_git_pr_index(repo_root: str | Path) -> dict[str, tuple[int, ...]]:
-    """Return file -> explicit PR references from local git history.
-
-    Empty output is valid when git history is unavailable or commit messages do
-    not carry PR numbers. The command is bounded and never reaches the network.
-    """
+    """Return file -> explicit PR references from local git history."""
     root = Path(repo_root)
     if not (root / ".git").exists():
         return {}
@@ -98,22 +99,56 @@ def _contains_country(text: str, country: str, iso3: str) -> bool:
         if len(phrase) <= 3:
             pattern = rf"(?<![A-Za-z0-9]){re.escape(phrase)}(?![A-Za-z0-9])"
         else:
-            pattern = re.escape(phrase)
+            pattern = rf"(?<![A-Za-z0-9]){re.escape(phrase)}(?![A-Za-z0-9])"
         if re.search(pattern, text, re.IGNORECASE):
             return True
     if iso3 and iso3 != "UNKNOWN":
-        return bool(re.search(rf"(?<![A-Za-z0-9]){re.escape(iso3)}(?![A-Za-z0-9])", text, re.IGNORECASE))
+        return bool(
+            re.search(
+                rf"(?<![A-Za-z0-9]){re.escape(iso3)}(?![A-Za-z0-9])",
+                text,
+                re.IGNORECASE,
+            )
+        )
     return False
 
 
+def _country_specific_filename(path: Path, country: str, iso3: str) -> bool:
+    stem = _slug(path.stem)
+    country_slug = _slug(country)
+    if country_slug and len(country_slug) > 4 and country_slug in stem:
+        return True
+    segments = tuple(part for part in stem.split("_") if part)
+    if iso3 and iso3 != "UNKNOWN" and iso3.lower() in segments:
+        return True
+    special = {
+        "United Kingdom": ("uk", "find_tender"),
+        "United States": ("us", "sam"),
+        "South Korea": ("korea", "koneps"),
+        "Dominican Republic": ("dominican",),
+        "South Africa": ("south_africa", "za"),
+        "Côte d’Ivoire": ("ivoire",),
+    }
+    return any(_slug(token) in stem for token in special.get(country, ()))
+
+
 def research_docs_for_country(repo_root: str | Path, country: str, iso3: str) -> tuple[str, ...]:
-    """Find bounded research/evidence documents that explicitly name a country."""
+    """Return only defensible country-specific research/evidence documents.
+
+    Country evidence documents must identify the country in their filename.
+    Regional RESEARCH/GATE documents may qualify by explicitly naming the country
+    in their bounded text. Broad scope/portfolio documents never qualify by
+    themselves because they enumerate the decision universe rather than prove
+    country-specific research.
+    """
     root = Path(repo_root)
     matches = []
     for path in sorted(root.rglob("*.md"), key=lambda value: str(value)):
         if any(part in {".git", "node_modules"} for part in path.parts):
             continue
-        if not _RESEARCH_NAME.search(path.name):
+        regional = bool(_REGIONAL_RESEARCH_NAME.search(path.name))
+        evidence = bool(_COUNTRY_EVIDENCE_NAME.search(path.name))
+        if not regional and not evidence:
             continue
         try:
             if path.stat().st_size > 512_000:
@@ -121,7 +156,12 @@ def research_docs_for_country(repo_root: str | Path, country: str, iso3: str) ->
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if _contains_country(text, country, iso3) or _contains_country(path.stem, country, iso3):
+
+        filename_specific = _country_specific_filename(path, country, iso3)
+        if evidence and filename_specific:
+            matches.append(str(path.relative_to(root)))
+            continue
+        if regional and _contains_country(text, country, iso3):
             matches.append(str(path.relative_to(root)))
     return tuple(sorted(set(matches)))
 
@@ -130,7 +170,7 @@ def capability_snapshot() -> tuple[list[dict], list[str]]:
     """Read capability lifecycle state without mutating or promoting it."""
     try:
         registry = importlib.import_module("capability_registry")
-    except Exception as exc:  # fail closed into audit evidence, not startup failure
+    except Exception as exc:
         return [], [f"capability_registry:import_failed:{type(exc).__name__}"]
 
     rows = []
