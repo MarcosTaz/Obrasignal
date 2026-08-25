@@ -27,6 +27,14 @@ MAX_DETAIL_FETCHES = 25
 _DETAIL_HREF = re.compile(r"/ilgstorefront/(?:en|he)/p/(\d{6,})/?(?:[?#].*)?$", re.I)
 _SERIAL = re.compile(r"^\d{6,}$")
 _WS = re.compile(r"\s+")
+_EN_CONSTRUCTION = re.compile(
+    r"\b(?:construction|infrastructure|roads?|bridges?|sewers?|sewage|drainage|architecture|architectural|renovation)\b",
+    re.I,
+)
+_HE_CONSTRUCTION_TERMS = (
+    "בנייה", "בניה", "הקמה", "תשתיות", "כביש", "כבישים", "גשר", "גשרים",
+    "ביוב", "ניקוז", "שיפוץ", "שיפוצים", "אדריכלות", "מבנה", "מבנים",
+)
 
 _NOTICE_TYPES = {"Public Tender", "Central Tender"}
 _LABELS = {
@@ -39,44 +47,6 @@ _LABELS = {
     "Deadline:": "deadline",
 }
 _STOP_SUBJECTS = {"About us", "Freedom of info", "Registration", "Contact us", "accessibility"}
-
-# Conservative bilingual vocabulary. Hebrew stems are intentionally specific to
-# works/building/infrastructure rather than generic commercial terms.
-_CONSTRUCTION_TERMS = (
-    "building and maintenance services",
-    "fixed structures",
-    "prefabricated structures",
-    "civil engineering",
-    "construction",
-    "infrastructure",
-    "road",
-    "roads",
-    "bridge",
-    "bridges",
-    "sewer",
-    "sewage",
-    "drainage",
-    "water infrastructure",
-    "architecture",
-    "architectural",
-    "renovation",
-    "maintenance works",
-    "בנייה",
-    "בניה",
-    "הקמה",
-    "תשתיות",
-    "כביש",
-    "כבישים",
-    "גשר",
-    "גשרים",
-    "ביוב",
-    "ניקוז",
-    "שיפוץ",
-    "שיפוצים",
-    "אדריכלות",
-    "מבנה",
-    "מבנים",
-)
 
 
 class IsraelGPASourceError(RuntimeError):
@@ -242,8 +212,17 @@ def parse_detail(html: str) -> GPANotice:
 
 
 def is_construction_relevant(notice: GPANotice) -> bool:
-    haystack = " ".join((notice.title, *notice.subjects)).casefold()
-    return any(term.casefold() in haystack for term in _CONSTRUCTION_TERMS)
+    """Fail closed on title evidence; subjects remain metadata only in v0.
+
+    The live portal can expose taxonomy text in hidden DOM regions. Using every
+    parsed subject token for admission caused false positives (for example gift
+    vouchers). Until the Subjects block is structurally isolated, v0 only admits
+    notices whose publisher title itself carries construction/public-works terms.
+    """
+    title = _clean(notice.title)
+    if _EN_CONSTRUCTION.search(title):
+        return True
+    return any(term in title for term in _HE_CONSTRUCTION_TERMS)
 
 
 def normalize_notice(notice: GPANotice) -> dict:
@@ -270,7 +249,7 @@ def normalize_notice(notice: GPANotice) -> dict:
         "source_updated_at": updated,
         "deadline": deadline,
         "url": DETAIL_URL.format(serial=notice.serial),
-        "taxonomy": "IL_GPA_SUBJECTS_TITLE_V1",
+        "taxonomy": "IL_GPA_TITLE_ONLY_V1",
         "category_code": notice.notice_type,
         "place": "Israel",
         "construction_relevant": True,
@@ -328,7 +307,7 @@ def fetch_normalized_construction_tenders(*, session=None, timeout: float = 20.0
 
 
 class IsraelGPAConnector:
-    """Registry-named adapter for the bounded public-search/detail route."""
+    """Registry-candidate adapter for the bounded public-search/detail route."""
 
     source = SOURCE
 
