@@ -13,6 +13,7 @@ from company_state import (
     CompanyStateError,
     CONTRACT_VERSION,
     MAX_FACTS,
+    ProvenanceBasis,
     TenantBoundaryError,
     validate_account_id,
 )
@@ -167,8 +168,22 @@ def save_company_state(
         raise CompanyStateStorageError("company state persistence failed") from exc
 
 
-def _manual_fact(raw: Mapping[str, Any], *, observed_at: datetime) -> CompanyFact:
-    """Convert voluntary user input into server-owned DECLARED provenance."""
+def _is_manual_fact(fact: CompanyFact) -> bool:
+    return fact.provenance.basis is ProvenanceBasis.DECLARED and fact.provenance.source_ref == "manual"
+
+
+def _manual_fact(
+    raw: Mapping[str, Any],
+    *,
+    observed_at: datetime,
+    supersedes: tuple[str, ...] = (),
+) -> CompanyFact:
+    """Convert voluntary user input into server-owned DECLARED provenance.
+
+    The client may state fact content, but it cannot choose a privileged evidence
+    basis, audit anchors or supersession targets. Supersession between successive
+    manual declarations is assigned by the server after comparing semantic keys.
+    """
     if not isinstance(raw, Mapping):
         raise CompanyStateError("each fact must be an object")
     provenance = raw.get("provenance")
@@ -185,6 +200,8 @@ def _manual_fact(raw: Mapping[str, Any], *, observed_at: datetime) -> CompanyFac
             raise CompanyStateError("manual fact source_ref is server-owned")
         if provenance.get("observed_at") not in (None, ""):
             raise CompanyStateError("manual fact observed_at is server-owned")
+    if raw.get("supersedes") not in (None, (), []):
+        raise CompanyStateError("manual facts cannot select supersession targets")
 
     normalized = dict(raw)
     normalized["provenance"] = {
@@ -192,7 +209,29 @@ def _manual_fact(raw: Mapping[str, Any], *, observed_at: datetime) -> CompanyFac
         "source_ref": "manual",
         "observed_at": observed_at.isoformat(),
     }
+    normalized["supersedes"] = list(supersedes)
     return CompanyFact.from_dict(normalized)
+
+
+def _manual_revoke(current_facts: dict[str, CompanyFact], fact_id: str) -> None:
+    """Remove a voluntary fact and its older manual chain from the current view.
+
+    Historical snapshots remain immutable. Removing the newest declaration must
+    not accidentally resurrect a previous superseded declaration as current.
+    """
+    target = current_facts.get(fact_id)
+    if target is None:
+        return
+    if not _is_manual_fact(target):
+        raise CompanyStateError("only voluntary manual facts can be revoked through this boundary")
+    stack = [fact_id]
+    while stack:
+        current_id = stack.pop()
+        current = current_facts.get(current_id)
+        if current is None or not _is_manual_fact(current):
+            continue
+        stack.extend(current.supersedes)
+        current_facts.pop(current_id, None)
 
 
 class CompanyStateService:
@@ -260,7 +299,7 @@ class CompanyStateService:
             for fact_id in revocations:
                 if not isinstance(fact_id, str) or not _FACT_ID_RE.fullmatch(fact_id):
                     raise CompanyStateError("revoke_fact_ids contains an invalid fact id")
-                current_facts.pop(fact_id, None)
+                _manual_revoke(current_facts, fact_id)
 
             if "facts" in payload and payload["facts"] is None:
                 raise CompanyStateError("facts null is ambiguous; omit it or provide a list")
@@ -270,8 +309,26 @@ class CompanyStateService:
                     raise CompanyStateError("facts must be a list")
                 if len(raw_facts) > MAX_FACTS:
                     raise CompanyStateError("too many company facts")
+                seen_patch_semantic: set[tuple[str, str, str | None]] = set()
                 for raw in raw_facts:
-                    fact = _manual_fact(raw, observed_at=observed_at)
+                    probe = _manual_fact(raw, observed_at=observed_at)
+                    if probe.semantic_key in seen_patch_semantic:
+                        raise CompanyStateError("facts contains duplicate semantic keys")
+                    seen_patch_semantic.add(probe.semantic_key)
+                    already_superseded = {
+                        prior_id
+                        for existing in current_facts.values()
+                        for prior_id in existing.supersedes
+                    }
+                    prior_manual = tuple(sorted(
+                        existing.fact_id
+                        for existing in current_facts.values()
+                        if existing.fact_id != probe.fact_id
+                        and existing.fact_id not in already_superseded
+                        and existing.semantic_key == probe.semantic_key
+                        and _is_manual_fact(existing)
+                    ))
+                    fact = _manual_fact(raw, observed_at=observed_at, supersedes=prior_manual)
                     current_facts[fact.fact_id] = fact
 
             if "as_of" in payload and payload["as_of"] is None:
