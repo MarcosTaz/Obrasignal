@@ -1,13 +1,13 @@
 """Deterministic mobilization economics for ObraSignal.
 
-MOBILIZE answers how to move a crew to a project at the best *total economic*
+MOBILIZE answers how to move a crew to a project at the best total-economic
 configuration. It deliberately has no network, database or LLM dependency so
 it can be replayed, shadow-tested and replaced behind the stable v1 contract.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from math import ceil
+from math import ceil, isfinite
 from typing import Literal
 
 EvidenceQuality = Literal["LIVE", "QUOTED", "RECENT", "ESTIMATED", "UNKNOWN"]
@@ -16,6 +16,7 @@ VehicleMode = Literal["OWN", "RENTAL"]
 
 CONTRACT_VERSION = "mobilize.v1"
 POLICY_VERSION = "mobilize-policy-v1"
+_ALLOWED_QUALITIES = frozenset({"LIVE", "QUOTED", "RECENT", "ESTIMATED", "UNKNOWN"})
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,8 @@ class RangeInput:
         return self.minimum is not None and self.probable is not None and self.prudent is not None
 
     def validate(self, name: str) -> None:
+        if self.quality not in _ALLOWED_QUALITIES:
+            raise ValueError(f"{name} has unsupported evidence quality: {self.quality}")
         values = (self.minimum, self.probable, self.prudent)
         present = [value is not None for value in values]
         if any(present) and not all(present):
@@ -53,9 +56,16 @@ class RangeInput:
             if self.quality != "UNKNOWN":
                 raise ValueError(f"{name} without values must use UNKNOWN quality")
             return
-        if any(value is None or value < 0 for value in values):
-            raise ValueError(f"{name} cannot contain negative values")
-        if not (self.minimum <= self.probable <= self.prudent):
+        if any(
+            value is None
+            or isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not isfinite(float(value))
+            or float(value) < 0
+            for value in values
+        ):
+            raise ValueError(f"{name} must contain finite non-negative numbers")
+        if not (float(self.minimum) <= float(self.probable) <= float(self.prudent)):
             raise ValueError(f"{name} must satisfy minimum <= probable <= prudent")
         if self.quality == "UNKNOWN":
             raise ValueError(f"{name} with values cannot use UNKNOWN quality")
@@ -99,6 +109,8 @@ class MobilizePolicy:
     productive_hour_value_per_worker: RangeInput = field(default_factory=RangeInput)
     maximum_daily_travel_hours: float | None = None
     fatigue_risk_travel_hours: float | None = None
+    near_cost_ratio: float = 1.10
+    material_travel_reduction_hours: float = 1.0
     policy_version: str = POLICY_VERSION
 
 
@@ -218,25 +230,46 @@ def _evidence(name: str, value: RangeInput) -> dict:
     }
 
 
+def _validate_number(name: str, value: float | None, *, minimum: float = 0.0) -> None:
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(float(value)):
+        raise ValueError(f"{name} must be a finite number")
+    if float(value) < minimum:
+        raise ValueError(f"{name} must be >= {minimum}")
+
+
 def _validate(context: MobilizationContext, policy: MobilizePolicy) -> None:
-    if context.workers <= 0:
-        raise ValueError("workers must be greater than zero")
-    if context.working_days <= 0:
-        raise ValueError("working_days must be greater than zero")
-    if context.working_days_per_week <= 0 or context.working_days_per_week > 7:
-        raise ValueError("working_days_per_week must be between 1 and 7")
-    if context.vehicle_seats <= 0:
-        raise ValueError("vehicle_seats must be greater than zero")
-    if context.own_vehicles_available is not None and context.own_vehicles_available < 0:
-        raise ValueError("own_vehicles_available cannot be negative")
+    if isinstance(context.workers, bool) or not isinstance(context.workers, int) or context.workers <= 0:
+        raise ValueError("workers must be a positive integer")
+    if isinstance(context.working_days, bool) or not isinstance(context.working_days, int) or context.working_days <= 0:
+        raise ValueError("working_days must be a positive integer")
+    if (
+        isinstance(context.working_days_per_week, bool)
+        or not isinstance(context.working_days_per_week, int)
+        or context.working_days_per_week <= 0
+        or context.working_days_per_week > 7
+    ):
+        raise ValueError("working_days_per_week must be an integer between 1 and 7")
+    if isinstance(context.vehicle_seats, bool) or not isinstance(context.vehicle_seats, int) or context.vehicle_seats <= 0:
+        raise ValueError("vehicle_seats must be a positive integer")
+    if context.own_vehicles_available is not None and (
+        isinstance(context.own_vehicles_available, bool)
+        or not isinstance(context.own_vehicles_available, int)
+        or context.own_vehicles_available < 0
+    ):
+        raise ValueError("own_vehicles_available must be a non-negative integer when supplied")
+    if not isinstance(context.currency, str) or not isinstance(policy.currency, str):
+        raise ValueError("currency is required")
     if not context.currency.strip() or not policy.currency.strip():
         raise ValueError("currency is required")
     if context.currency != policy.currency:
         raise ValueError("context and policy currency must match; FX conversion is outside Mobilize V1")
-    if policy.maximum_daily_travel_hours is not None and policy.maximum_daily_travel_hours < 0:
-        raise ValueError("maximum_daily_travel_hours cannot be negative")
-    if policy.fatigue_risk_travel_hours is not None and policy.fatigue_risk_travel_hours < 0:
-        raise ValueError("fatigue_risk_travel_hours cannot be negative")
+
+    _validate_number("maximum_daily_travel_hours", policy.maximum_daily_travel_hours)
+    _validate_number("fatigue_risk_travel_hours", policy.fatigue_risk_travel_hours)
+    _validate_number("near_cost_ratio", policy.near_cost_ratio, minimum=1.0)
+    _validate_number("material_travel_reduction_hours", policy.material_travel_reduction_hours)
 
     for name, value in (
         ("distance_km_one_way", context.distance_km_one_way),
@@ -253,6 +286,8 @@ def _validate(context: MobilizationContext, policy: MobilizePolicy) -> None:
         ("per_diem_per_worker_day", policy.per_diem_per_worker_day),
         ("productive_hour_value_per_worker", policy.productive_hour_value_per_worker),
     ):
+        if not isinstance(value, RangeInput):
+            raise ValueError(f"{name} must be a RangeInput")
         value.validate(name)
 
 
@@ -373,6 +408,11 @@ def _scenario(
             _evidence("fuel_price_per_litre", policy.fuel_price_per_litre),
         ]
     )
+    # Propulsion cost is material to every non-zero-distance vehicle scenario.
+    # It may be explicitly zero, but it may not be silently unknown and still win.
+    if context.distance_km_one_way.known and (context.distance_km_one_way.prudent or 0) > 0:
+        if not consumption_input.known or not policy.fuel_price_per_litre.known:
+            comparable = False
     if consumption_input.known and policy.fuel_price_per_litre.known:
         litres = _rmul(total_vehicle_km, tuple(value / 100 for value in consumption))
         direct = _radd(direct, _rmul(litres, fuel_price))
@@ -382,6 +422,8 @@ def _scenario(
         evidence.append(_evidence("own_vehicle_cost_per_km", policy.own_vehicle_cost_per_km))
         if policy.own_vehicle_cost_per_km.known:
             direct = _radd(direct, _rmul(total_vehicle_km, wear))
+        elif context.distance_km_one_way.known and (context.distance_km_one_way.prudent or 0) > 0:
+            comparable = False
     else:
         rental = _vals(policy.rental_vehicle_daily_cost, "rental_vehicle_daily_cost", missing)
         evidence.append(_evidence("rental_vehicle_daily_cost", policy.rental_vehicle_daily_cost))
@@ -526,7 +568,10 @@ def _scenario(
     )
 
 
-def _choose(scenarios: list[ScenarioAssessment]) -> tuple[str, str | None]:
+def _choose(
+    scenarios: list[ScenarioAssessment],
+    policy: MobilizePolicy,
+) -> tuple[str, str | None]:
     candidates = [
         scenario
         for scenario in scenarios
@@ -554,21 +599,26 @@ def _choose(scenarios: list[ScenarioAssessment]) -> tuple[str, str | None]:
         and best.prudent_cost >= second.minimum_cost
     )
     if overlap:
-        if (
-            best.travel_hours
-            and second.travel_hours
-            and abs(best.travel_hours.probable - second.travel_hours.probable) > 0
-        ):
+        if best.travel_hours and second.travel_hours:
             lower_travel = min(
                 (best, second),
                 key=lambda scenario: scenario.travel_hours.probable
                 if scenario.travel_hours
                 else float("inf"),
             )
-            if lower_travel.probable_cost <= best.probable_cost * 1.10:
+            higher_travel = second if lower_travel is best else best
+            travel_reduction = (
+                higher_travel.travel_hours.probable - lower_travel.travel_hours.probable
+                if higher_travel.travel_hours and lower_travel.travel_hours
+                else 0.0
+            )
+            if (
+                travel_reduction >= policy.material_travel_reduction_hours
+                and lower_travel.probable_cost <= best.probable_cost * policy.near_cost_ratio
+            ):
                 return (
                     lower_travel.scenario,
-                    "overlapping cost ranges; selected near-cost option with materially lower travel exposure",
+                    "overlapping cost ranges; selected policy-defined near-cost option with materially lower travel exposure",
                 )
         return "NO CLEAR WINNER", "leading scenario cost ranges overlap; sensitivity is material"
     return best.scenario, None
@@ -597,7 +647,7 @@ class Mobilize:
                 scenario.scenario,
             )
         )
-        recommended, reason = _choose(scenarios)
+        recommended, reason = _choose(scenarios, policy)
         chosen = next(
             (scenario for scenario in scenarios if scenario.scenario == recommended),
             None,
