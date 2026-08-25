@@ -43,6 +43,25 @@
         {"source": "OM_ESNAD", "country": "Oman", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": true, "gated_rights": true, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32869490008, "head": "8f5e2b88181a6296d283a8e979eae436546b23fd", "result_kind": "MATCHING_SIGNALS"}},
         {"source": "AE_MOF_DPP", "country": "United Arab Emirates", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": true, "gated_rights": true, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32869490112, "head": "8f5e2b88181a6296d283a8e979eae436546b23fd", "result_kind": "EMPTY_VALID_RESULT"}}
       ]
+    },
+    {
+      "pr": 262,
+      "head": "3538cc6dc71e5747bac60846bc5d8fffeb9a7ae3",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32872631238, "head": "3538cc6dc71e5747bac60846bc5d8fffeb9a7ae3"},
+      "sources": [
+        {"source": "KW_CAPT", "country": "Kuwait", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": false, "gated_rights": true, "gated_machine_access": true, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "FAILURE", "run_id": 32872629488, "head": "3538cc6dc71e5747bac60846bc5d8fffeb9a7ae3", "result_kind": "HTTP_403_ACCESS"}},
+        {"source": "MA_PMMP", "country": "Morocco", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": false, "gated_rights": true, "gated_machine_access": true, "gated_credential": false, "gated_completeness": true, "tech_lab": false, "live": {"status": "FAILURE", "run_id": 32872631350, "head": "3538cc6dc71e5747bac60846bc5d8fffeb9a7ae3", "result_kind": "UNSUPPORTED_WEBFORMS_COMPLETENESS"}}
+      ]
+    },
+    {
+      "pr": 266,
+      "head": "204987b80125eef24a5c5a50a207357d19543926",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32872777152, "head": "204987b80125eef24a5c5a50a207357d19543926"},
+      "sources": [
+        {"source": "FI_HILMA", "country": "Finland", "implemented": true, "tested": true, "runtime_wired": true, "ready": false, "planned": true, "gated_rights": false, "gated_machine_access": false, "gated_credential": true, "gated_completeness": false, "tech_lab": false}
+      ]
     }
   ],
   "supersession": [
