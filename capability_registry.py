@@ -87,7 +87,7 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         feature_flag="contractor_dna_v1",
     ),
     "BID_ECONOMICS": _c(
-        "BID_ECONOMICS", "PILOT", "COMMAND",
+        "BID_ECONOMICS", "RESEARCH", "COMMAND",
         dependencies=("SIGNAL",),
         contract_versions=("bid-economics.v0",),
         feature_flag="bid_economics_v0",
