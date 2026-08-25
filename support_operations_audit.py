@@ -15,6 +15,8 @@ from support_operations import (
 
 
 DEFAULT_MANIFEST = Path(__file__).with_name("support_operations_manifest.json")
+_CONTRACT_VERSION = "support-incident-operations.v1"
+_CANDIDATE_STATUS = "CANDIDATE_NOT_CANONICAL"
 _REQUIRED_JOURNEYS = {
     "signup_login",
     "profile",
@@ -71,58 +73,80 @@ def load_manifest(path: str | Path = DEFAULT_MANIFEST) -> dict[str, Any]:
     return data
 
 
+def _string_set(value: Any) -> set[str] | None:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        return None
+    return set(value)
+
+
 def audit_manifest(data: dict[str, Any]) -> list[str]:
     """Return deterministic contract violations without mutating repository state."""
     failures: list[str] = []
 
+    if data.get("contract_version") != _CONTRACT_VERSION:
+        failures.append("support contract version drift")
+    if data.get("status") != _CANDIDATE_STATUS:
+        failures.append("candidate status drift")
+
     expected_failures = {item.value for item in CustomerFailureClass}
-    if set(data.get("customer_failure_classes", [])) != expected_failures:
+    if _string_set(data.get("customer_failure_classes")) != expected_failures:
         failures.append("customer failure taxonomy drift")
 
     expected_readiness = {item.value for item in ServiceReadiness}
-    if set(data.get("service_readiness", [])) != expected_readiness:
+    if _string_set(data.get("service_readiness")) != expected_readiness:
         failures.append("service readiness taxonomy drift")
 
     expected_areas = {item.value for item in ServiceArea}
-    if set(data.get("service_areas", [])) != expected_areas:
+    if _string_set(data.get("service_areas")) != expected_areas:
         failures.append("service area taxonomy drift")
 
     observed_severity = data.get("incident_severity")
     if not isinstance(observed_severity, dict):
         failures.append("incident severity policy missing")
     else:
-        normalized = {
-            str(severity): set(impacts) if isinstance(impacts, list) else set()
-            for severity, impacts in observed_severity.items()
-        }
-        if normalized != _EXPECTED_SEVERITY:
+        normalized: dict[str, set[str]] = {}
+        malformed_severity = False
+        for severity, impacts in observed_severity.items():
+            if not isinstance(severity, str):
+                malformed_severity = True
+                continue
+            values = _string_set(impacts)
+            if values is None:
+                malformed_severity = True
+                continue
+            normalized[severity] = values
+        if malformed_severity or normalized != _EXPECTED_SEVERITY:
             failures.append("incident severity policy drift")
 
     journeys = data.get("journeys")
     if not isinstance(journeys, list):
         failures.append("journey supportability map missing")
     else:
-        ids = [row.get("id") for row in journeys if isinstance(row, dict)]
-        if len(ids) != len(set(ids)):
-            failures.append("duplicate journey id")
-        if set(ids) != _REQUIRED_JOURNEYS:
-            failures.append("journey supportability coverage drift")
+        ids: list[str] = []
         for row in journeys:
             if not isinstance(row, dict):
                 failures.append("malformed journey row")
                 continue
+            journey_id = row.get("id")
+            if not isinstance(journey_id, str) or not journey_id:
+                failures.append("malformed journey id")
+            else:
+                ids.append(journey_id)
             refs = row.get("owner_refs")
             if not isinstance(refs, list) or not refs or any(
                 not isinstance(ref, int) or isinstance(ref, bool) or ref <= 0 for ref in refs
             ):
-                failures.append(f"journey {row.get('id')!r} lacks bounded owner refs")
+                failures.append(f"journey {journey_id!r} lacks bounded owner refs")
             recovery = row.get("recovery")
-            if not isinstance(recovery, str) or not recovery:
-                failures.append(f"journey {row.get('id')!r} lacks recovery contract")
+            if not isinstance(recovery, str) or not recovery or len(recovery) > 128:
+                failures.append(f"journey {journey_id!r} lacks recovery contract")
+        if len(ids) != len(set(ids)):
+            failures.append("duplicate journey id")
+        if set(ids) != _REQUIRED_JOURNEYS:
+            failures.append("journey supportability coverage drift")
 
-    runbooks = data.get("runbook_overlays")
-    normalized_runbooks = set(runbooks) if isinstance(runbooks, list) else set()
-    if normalized_runbooks != _REQUIRED_RUNBOOKS:
+    runbooks = _string_set(data.get("runbook_overlays"))
+    if runbooks != _REQUIRED_RUNBOOKS:
         failures.append("runbook overlay coverage drift")
 
     boundaries = data.get("specialist_boundaries")
@@ -137,7 +161,7 @@ def audit_manifest(data: dict[str, Any]) -> list[str]:
             ):
                 failures.append(f"specialist boundary {owner!r} lacks bounded refs")
 
-    if set(data.get("forbidden_claims", [])) != _REQUIRED_FALSE_CLAIM_GUARDS:
+    if _string_set(data.get("forbidden_claims")) != _REQUIRED_FALSE_CLAIM_GUARDS:
         failures.append("false-resolution guard drift")
 
     owner_issue = data.get("owner_issue")
