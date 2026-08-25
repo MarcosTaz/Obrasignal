@@ -1,0 +1,38 @@
+{
+  "branch": "chatgpt/international-cell-01-coverage-audit",
+  "commands": [
+    "python international_coverage_audit.py --json",
+    "python international_coverage_audit.py --markdown",
+    "python international_coverage_audit.py --strict",
+    "pytest test_international_coverage_audit.py"
+  ],
+  "contract": "OBRASIGNAL_REPOSITORY_STATE_INTERNATIONAL_COVERAGE_AUDIT_V1",
+  "files_added": [
+    "international_coverage_audit.py",
+    "test_international_coverage_audit.py",
+    "INTERNATIONAL_COVERAGE_AUDIT.md",
+    "international_coverage_audit_manifest.json"
+  ],
+  "files_modified": [],
+  "global_registry_changes": [],
+  "integration_notes": [
+    "The module imports existing registries when run inside the repository.",
+    "The audit scans filenames only for repository provenance and performs no network I/O.",
+    "The PR is additive and does not promote any country/source state."
+  ],
+  "local_validation": {
+    "container_repo_clone": "blocked_dns_resolution",
+    "full_pytest": "not_run_container_could_not_clone_repo",
+    "syntax_compile": [
+      "python -m py_compile international_coverage_audit.py",
+      "python -m py_compile test_international_coverage_audit.py"
+    ]
+  },
+  "master_queue_changes": [],
+  "module": "GLOBAL COUNTRY GAP & COVERAGE AUDITOR",
+  "rollback": [
+    "git revert the PR commit, or delete the four added files listed in files_added."
+  ],
+  "runtime_changes": [],
+  "scope": "repository-state-only international coverage audit"
+}
