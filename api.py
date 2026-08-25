@@ -13,7 +13,7 @@ from company_profile import load_profile, save_profile, derive_profile
 from source_registry import SOURCES
 from account_registry import ensure_account
 from opportunity_workflow import get_workflow, set_workflow, workflow_counts
-from opportunity_lifecycle import ensure_lifecycle_table
+from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 from account_onboarding import bootstrap_account
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
@@ -89,6 +89,27 @@ def _headers(response):
 
 
 def _deadline_state(value):
+    raw = str(value or "").strip()
+    if len(raw) == 10:
+        try:
+            deadline_date = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+        else:
+            days = (deadline_date - datetime.now(timezone.utc).date()).days
+            if days < 0:
+                return {"state": "closed", "label": "Terminado", "days_remaining": days}
+            if days == 0:
+                # Date-only publisher evidence proves the calendar day, not an
+                # exact closing instant or timezone. Do not invent midnight or
+                # 23:59 and do not claim definitely open/closed on that day.
+                return {"state": "unknown", "label": "Prazo hoje — hora não indicada", "days_remaining": 0}
+            if days <= 2:
+                return {"state": "urgent", "label": "Urgente", "days_remaining": days}
+            if days <= 7:
+                return {"state": "urgent", "label": "Prazo curto", "days_remaining": days}
+            return {"state": "open", "label": "Aberto", "days_remaining": days}
+
     dt = _deadline_dt(value)
     if not dt:
         return {"state": "unknown", "label": "Prazo não indicado", "days_remaining": None}
@@ -105,8 +126,11 @@ def _deadline_state(value):
 def _row(row, decision=None, workflow=None):
     d = dict(row)
     lifecycle_value = d.get("is_actionable")
-    d["is_actionable"] = True if lifecycle_value is None else bool(lifecycle_value)
     d["deadline_status"] = _deadline_state(d.get("deadline"))
+    if lifecycle_value is None:
+        d["is_actionable"] = d["deadline_status"]["state"] != "closed"
+    else:
+        d["is_actionable"] = bool(lifecycle_value)
     d["is_open"] = d["is_actionable"] and d["deadline_status"]["state"] in ("open", "urgent")
     if decision:
         d["account_decision"] = decision.get("decision")
@@ -199,7 +223,7 @@ def alerts():
     unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
     c = _db()
     ensure_lifecycle_table(c)
-    where = "WHERE e.account_id=? AND e.event_type='new_high_match' AND COALESCE(lc.is_actionable,1)=1"
+    where = f"WHERE e.account_id=? AND e.event_type='new_high_match' AND {actionable_predicate('lc', 't')}"
     params = [identity.account_id]
     if unread_only:
         where += " AND e.delivered_at IS NULL"
@@ -248,7 +272,7 @@ def stats():
         JOIN opportunity_decisions d ON d.source=t.source AND d.external_id=t.external_id
         {latest}
         LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
-        WHERE d.account_id=? AND COALESCE(lc.is_actionable,1)=1"""
+        WHERE d.account_id=? AND {actionable_predicate('lc', 't')}"""
     params = [identity.account_id, identity.account_id]
     total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
     high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 75", params).fetchone()[0]
@@ -281,7 +305,7 @@ def opportunities():
     minscore = int(minscore) if minscore not in (None, "") else None
     c = _db()
     ensure_lifecycle_table(c)
-    where = ["COALESCE(lc.is_actionable,1)=1"]
+    where = [actionable_predicate("lc", "t")]
     params = []
     if market in ("PT", "EU"):
         where.append("(t.market=? OR (t.market IS NULL AND t.country=?))")
@@ -301,7 +325,7 @@ def opportunities():
         where.append("COALESCE(d.score,t.score)>=?")
         params.append(minscore)
     rows = c.execute(
-        f"""SELECT t.*, COALESCE(lc.is_actionable,1) AS is_actionable,
+        f"""SELECT t.*, {actionable_predicate('lc', 't')} AS is_actionable,
                    lc.lifecycle_status, lc.lifecycle_reason,
                    lc.source_updated_at AS lifecycle_source_updated_at,
                    lc.last_observed AS lifecycle_last_observed
@@ -321,13 +345,13 @@ def opportunities():
 
 @bp.route("/opportunities/<int:opportunity_id>", methods=["GET"])
 def opportunity_detail(opportunity_id):
-    """Return canonical history plus current source lifecycle for this account."""
+    """Return canonical history plus effective current actionability for this account."""
     identity = request.obrasignal_identity
     c = _db()
     try:
         ensure_lifecycle_table(c)
         row = c.execute(
-            """SELECT t.*, COALESCE(lc.is_actionable,1) AS is_actionable,
+            f"""SELECT t.*, {actionable_predicate('lc', 't')} AS is_actionable,
                       lc.lifecycle_status, lc.lifecycle_reason,
                       lc.source_updated_at AS lifecycle_source_updated_at,
                       lc.last_observed AS lifecycle_last_observed

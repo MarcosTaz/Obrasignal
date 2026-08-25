@@ -86,12 +86,44 @@ def is_actionable(conn, source, external_id, *, default=True):
 
 
 def actionable_join(alias="t", lifecycle_alias="lc"):
-    """Return a LEFT JOIN fragment that keeps legacy sources actionable by default."""
+    """Return the canonical LEFT JOIN for source-native lifecycle evidence."""
     return (
         f" LEFT JOIN opportunity_lifecycle {lifecycle_alias} "
         f"ON {lifecycle_alias}.source={alias}.source AND {lifecycle_alias}.external_id={alias}.external_id "
     )
 
 
-def actionable_predicate(lifecycle_alias="lc"):
-    return f"COALESCE({lifecycle_alias}.is_actionable,1)=1"
+def actionable_predicate(lifecycle_alias="lc", opportunity_alias="t"):
+    """Return the canonical effective commercial-actionability predicate.
+
+    Source-native lifecycle evidence has precedence. An explicit actionable
+    lifecycle observation may keep an opportunity commercially actionable even
+    after the originally published submission deadline (for example, where the
+    publisher has extended/reopened the opportunity but the legacy tender row
+    has not yet received a replacement deadline). An explicit non-actionable
+    observation always closes it.
+
+    When no lifecycle observation exists, a known expired deadline is sufficient
+    evidence that the opportunity must not be presented as current actionable
+    work. Missing, blank, or unparsable deadlines remain UNKNOWN rather than
+    being silently coerced to closed.
+
+    Date-only values retain day precision: the deadline date itself remains
+    actionable for that calendar day instead of being silently coerced to
+    midnight and closed early.
+    """
+    lifecycle = f"{lifecycle_alias}.is_actionable"
+    deadline = f"{opportunity_alias}.deadline"
+    trimmed = f"TRIM({deadline})"
+    is_date_only = f"LENGTH({trimmed})=10"
+    date_unknown = f"({is_date_only} AND date({deadline}) IS NULL)"
+    datetime_unknown = f"(NOT ({is_date_only}) AND datetime({deadline}) IS NULL)"
+    date_open = f"({is_date_only} AND date({deadline})>=date('now'))"
+    datetime_open = f"(NOT ({is_date_only}) AND datetime({deadline})>=datetime('now'))"
+    return (
+        f"({lifecycle}=1 OR ("
+        f"{lifecycle} IS NULL AND ("
+        f"{deadline} IS NULL OR {trimmed}='' OR "
+        f"{date_unknown} OR {datetime_unknown} OR {date_open} OR {datetime_open}"
+        f")))"
+    )
