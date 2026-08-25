@@ -1,3 +1,5 @@
+import pytest
+
 from taiwan_pcc_runtime import LIVE_SOURCES, fetch_incremental, install
 
 
@@ -15,6 +17,32 @@ class FakeConnector:
                 "external_id": "procurement_plan:A-1",
                 "source_reference": "A-1",
                 "lineage_key": "A-1",
+                "title": "道路改善工程",
+                "category_code": "",
+            },
+            {
+                "source": "TW_PCC",
+                "signal_type": "PROCUREMENT_PLAN",
+                "external_id": "procurement_plan:A-2",
+                "source_reference": "A-2",
+                "lineage_key": "A-2",
+                "title": "資訊系統維護",
+                "category_code": "",
+            },
+        ]
+
+
+class FakeNonConstructionConnector(FakeConnector):
+    def fetch_snapshot(self, *, observed_at=None):
+        return [
+            {
+                "source": "TW_PCC",
+                "signal_type": "PROCUREMENT_PLAN",
+                "external_id": "procurement_plan:X-1",
+                "source_reference": "X-1",
+                "lineage_key": "X-1",
+                "title": "資訊系統維護",
+                "category_code": "",
             }
         ]
 
@@ -25,13 +53,20 @@ def test_runtime_live_slice_contains_pre_tender_and_contract_sources():
     assert all(source.url for source in LIVE_SOURCES)
 
 
-def test_runtime_preserves_cursor_for_snapshot_ingestion(monkeypatch):
+def test_runtime_preserves_cursor_and_filters_non_construction(monkeypatch):
     monkeypatch.setattr("taiwan_pcc_runtime.TaiwanPCCPreparedConnector", FakeConnector)
     rows, cursor = fetch_incremental(watermark="opaque-existing-watermark", now="2026-08-25T00:00:00+00:00")
     assert len(rows) == 1
     assert cursor == "opaque-existing-watermark"
     assert rows[0]["source_reference"] == "A-1"
+    assert rows[0]["construction_filter_basis"] == "conservative_title_fallback"
     assert [source.dataset_id for source in FakeConnector.created_sources] == [7260, 7264]
+
+
+def test_runtime_fails_closed_when_snapshot_has_no_construction_signal(monkeypatch):
+    monkeypatch.setattr("taiwan_pcc_runtime.TaiwanPCCPreparedConnector", FakeNonConstructionConnector)
+    with pytest.raises(RuntimeError, match="no defensible construction"):
+        fetch_incremental(watermark=None, now="2026-08-25T00:00:00+00:00")
 
 
 def test_runtime_install_uses_generic_incremental_plugin(monkeypatch):
