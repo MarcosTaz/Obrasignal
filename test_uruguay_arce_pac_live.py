@@ -70,14 +70,19 @@ def test_live_uruguay_arce_public_pac_surface_contract():
 
     literals = re.findall(r'["\']([^"\']{2,300})["\']', js)
     route_literals = []
+    config_literals = []
     for literal in literals:
         lowered = literal.lower()
-        if not any(token in lowered for token in ("plan", "excel", "xlsx", "api", "consulta", "buscar")):
-            continue
-        if not any(marker in literal for marker in ("/", "http", ".xls", ".xlsx")):
-            continue
-        if literal not in route_literals:
-            route_literals.append(literal)
+        if any(token in lowered for token in ("plan", "excel", "xlsx", "api", "consulta", "buscar")) and any(
+            marker in literal for marker in ("/", "http", ".xls", ".xlsx")
+        ):
+            if literal not in route_literals:
+                route_literals.append(literal)
+        if (
+            literal.startswith("http")
+            or any(token in lowered for token in ("backend", "baseurl", "apiurl", "serverurl", "urlbackend", "environment"))
+        ) and literal not in config_literals:
+            config_literals.append(literal)
 
     print("UY_PAC_STATUS=" + str(response.status_code))
     print("UY_PAC_INTERESTING_HREFS=" + " | ".join(_interesting(hrefs)[:80]))
@@ -85,14 +90,25 @@ def test_live_uruguay_arce_public_pac_surface_contract():
     print("UY_PAC_INTERESTING_FORMS=" + " | ".join(_interesting(actions)[:80]))
     print("UY_PAC_MAIN_JS=" + main_url)
     print("UY_PAC_ROUTE_LITERALS=" + " | ".join(route_literals[:120]))
+    print("UY_PAC_CONFIG_LITERALS=" + " | ".join(config_literals[:120]))
 
-    # Bounded source-code context is temporary research evidence to locate the
-    # public API base used by the SPA. It contains no user data or credentials.
-    needle = "/api/v1/compra-procedimientos/"
-    position = js.find(needle)
-    assert position >= 0
-    context = re.sub(r"\s+", " ", js[max(0, position - 500): position + 700])
-    print("UY_PAC_ROUTE_CONTEXT=" + context)
+    for needle, label in (
+        ("/api/v1/compra-procedimientos/", "PROCEDURE"),
+        ("/api/v1/util/get-header", "UTIL"),
+    ):
+        position = js.find(needle)
+        assert position >= 0
+        context = re.sub(r"\s+", " ", js[max(0, position - 700): position + 900])
+        print(f"UY_PAC_{label}_CONTEXT=" + context)
+
+    # Find bounded contexts where Angular HttpClient-style calls are constructed;
+    # useful to identify whether RestService prefixes an environment host.
+    for needle in ("http.get", ".http.get", "baseUrl", "urlBackend", "apiUrl"):
+        position = js.find(needle)
+        if position >= 0:
+            context = re.sub(r"\s+", " ", js[max(0, position - 500): position + 700])
+            print("UY_PAC_HTTP_CONTEXT=" + context)
+            break
 
     assert response.url.startswith("https://www.comprasestatales.gub.uy/")
 
