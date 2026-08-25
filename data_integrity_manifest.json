@@ -129,11 +129,23 @@
     },
     {
       "fact": "saved_watchlist",
-      "owner": "Saved/Watchlist owner",
-      "canonical_authority": "UNKNOWN_CURRENT_MAIN",
-      "storage": ["mobile AsyncStorage @obrasignal/v1/saved exists as a client representation"],
-      "status": "RECONSTRUCTION_PENDING",
-      "unknown": ["server-side saved/watchlist authority on current main"]
+      "owner": "Saved/Watchlist #150",
+      "canonical_authority": "NO SERVER AUTHORITY ON CURRENT MAIN; #150 proposes opportunity_workflow.saved_at as the single server-side membership fact",
+      "storage": [
+        "mobile AsyncStorage @obrasignal/v1/saved current-main client representation",
+        "opportunity_workflow.saved_at PREBUILD #150"
+      ],
+      "tenant_key": "account_id on PREBUILD server relation; absent from current-main mobile storage key",
+      "status": "PREBUILD_OWNER_CONTRACT_STALE_BASE",
+      "candidate": {
+        "pr": 150,
+        "head_sha": "879ef88233d9b86f9905e7281409b8897e4f4a89",
+        "base_sha": "44f8928595513537110e50f1352b1519c8a82531",
+        "current_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+        "membership": "saved_at IS NOT NULL",
+        "duplicate_table_policy": "no saved_opportunities table"
+      },
+      "unknown": ["#150 behavior after reconciliation onto current main"]
     },
     {
       "fact": "mobile_private_cache",
@@ -247,11 +259,11 @@
     },
     {
       "fact": "saved_watchlist",
-      "classification": "UNKNOWN_AUTHORITY",
-      "authority": "UNKNOWN_CURRENT_MAIN",
-      "representations": ["mobile AsyncStorage saved representation"],
-      "dual_truth": "UNKNOWN",
-      "drift": "not classified as consistent until server/domain authority is reconstructed"
+      "classification": "PREBUILD_SINGLE_AUTHORITY_CONTRACT_STALE_BASE",
+      "authority": "current main has no server authority; #150 proposes opportunity_workflow.saved_at",
+      "representations": ["current-main mobile AsyncStorage saved", "#150 PREBUILD workflow.saved_at"],
+      "dual_truth": "UNKNOWN_UNTIL_INTEGRATED",
+      "drift": "do not reconcile client saved state against #150 until owner candidate is reconciled to current main"
     }
   ]
 }
