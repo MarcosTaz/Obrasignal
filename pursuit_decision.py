@@ -209,12 +209,15 @@ def record_pursuit_decision(conn, *, account_id, opportunity_id, decision_type,
     confidence = _confidence(confidence)
     requested_decided_at = _timestamp(decided_at)
     opportunity_state, opportunity_state_json = _json_object(opportunity_state, "opportunity_state")
+
+    # Fingerprint only caller-controlled decision intent. The observed opportunity
+    # snapshot/revision are server-side evidence captured at first execution and
+    # may legitimately change before a retry using the same idempotency key.
     normalized = {
         "opportunity_id": opportunity_id, "decision_type": decision_type,
         "reason_codes": reason_codes, "freeform_note": freeform_note,
         "blockers": blockers, "unknowns": unknowns, "readiness_ref": readiness_ref,
-        "evidence_refs": evidence_refs, "opportunity_revision_ref": opportunity_revision_ref,
-        "opportunity_state": opportunity_state, "confidence": confidence,
+        "evidence_refs": evidence_refs, "confidence": confidence,
         "actor_id": actor_id, "actor_type": actor_type, "decided_at": requested_decided_at,
     }
     fingerprint = hashlib.sha256(json.dumps(normalized, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
