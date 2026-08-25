@@ -2,9 +2,14 @@
 
 The slice includes official pre-tender public-viewing signals (7260) and large
 procurement suppliers in performance (7264). It does not imply full Taiwan
-procurement coverage.
+procurement coverage. Runtime output is conservatively limited to construction /
+public-works signals before canonical staging.
 """
-from taiwan_pcc import PCCSnapshotSource, TaiwanPCCPreparedConnector
+from taiwan_pcc import (
+    PCCSnapshotSource,
+    TaiwanPCCPreparedConnector,
+    filter_construction_signals,
+)
 from incremental_runtime_plugin import install_incremental_source
 
 SOURCE = "TW_PCC"
@@ -25,7 +30,7 @@ LIVE_SOURCES = (PCC_PUBLIC_VIEWING_SOURCE, PCC_CONTRACT_PERFORMANCE_SOURCE)
 
 
 def fetch_incremental(*, watermark=None, now=None):
-    """Fetch the complete current bounded PCC snapshots.
+    """Fetch and construction-filter the complete current bounded PCC snapshots.
 
     These official datasets are snapshots rather than a proven publisher delta
     stream. Re-fetch the complete slice, rely on canonical stable identity and
@@ -33,7 +38,10 @@ def fetch_incremental(*, watermark=None, now=None):
     any existing watermark because no PCC delta cursor has been proven.
     """
     records = TaiwanPCCPreparedConnector(sources=LIVE_SOURCES).fetch_snapshot(observed_at=now)
-    return records, watermark
+    construction_records = filter_construction_signals(records)
+    if records and not construction_records:
+        raise RuntimeError("TW_PCC live snapshot contained records but no defensible construction/public-works signals")
+    return construction_records, watermark
 
 
 def install(app_module, *, source_enabled, record_blocked):
