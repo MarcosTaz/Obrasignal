@@ -19,6 +19,7 @@ def context(**overrides):
         travel_hours_one_way=r(0.6),
         vehicle_seats=5,
         own_vehicles_available=1,
+        hotel_available=True,
         currency="EUR",
     )
     data.update(overrides)
