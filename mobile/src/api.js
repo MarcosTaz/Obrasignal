@@ -104,6 +104,7 @@ export const api={
   saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
   billingStatus:()=>readWhenReady('/billing/status'),
   stats:()=>readWhenReady('/stats'),
+  sourceHealth:({source=''}={})=>{const p=new URLSearchParams();if(source)p.set('source',source);const query=p.toString();return readWhenReady(`/source-health${query?`?${query}`:''}`);},
   workflowStats:()=>readWhenReady('/workflow/stats'),
   alerts:({limit=20,unreadOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit)});if(unreadOnly)p.set('unread','1');return readWhenReady(`/alerts?${p.toString()}`);},
   markAlertDelivered:(eventId)=>writeWhenReady(`/alerts/${encodeURIComponent(eventId)}/delivered`,{method:'POST',body:JSON.stringify({})}),
