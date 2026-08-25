@@ -43,6 +43,7 @@ def _now() -> str:
 
 
 def ensure_search_profile_table(conn) -> None:
+    """Create the SearchProfile schema during explicit startup/migration only."""
     conn.execute(
         """CREATE TABLE IF NOT EXISTS search_profiles(
             profile_id TEXT PRIMARY KEY,
@@ -275,7 +276,6 @@ def _validated_row(conn, row, account_id: str, *, require_runnable: bool = False
 
 
 def list_search_profiles(conn, account_id: str) -> list[dict]:
-    ensure_search_profile_table(conn)
     rows = conn.execute(
         "SELECT * FROM search_profiles WHERE account_id=? ORDER BY is_default DESC, updated_at DESC, profile_id",
         (account_id,),
@@ -284,7 +284,6 @@ def list_search_profiles(conn, account_id: str) -> list[dict]:
 
 
 def get_search_profile(conn, account_id: str, profile_id: str, *, require_runnable: bool = False) -> dict:
-    ensure_search_profile_table(conn)
     row = conn.execute(
         "SELECT * FROM search_profiles WHERE profile_id=? AND account_id=?",
         (profile_id, account_id),
@@ -293,7 +292,6 @@ def get_search_profile(conn, account_id: str, profile_id: str, *, require_runnab
 
 
 def create_search_profile(conn, account_id: str, *, name, filters=None, sort=None, is_default=False) -> dict:
-    ensure_search_profile_table(conn)
     name = validate_name(name)
     filters = normalize_filters(filters)
     sort = validate_sort(sort)
@@ -316,7 +314,6 @@ def create_search_profile(conn, account_id: str, *, name, filters=None, sort=Non
 
 
 def update_search_profile(conn, account_id: str, profile_id: str, changes: dict) -> dict:
-    ensure_search_profile_table(conn)
     if not isinstance(changes, dict):
         raise SearchProfileError("payload must be an object")
     allowed = {"name", "filters", "sort", "is_default"}
@@ -348,7 +345,6 @@ def update_search_profile(conn, account_id: str, profile_id: str, changes: dict)
 
 
 def delete_search_profile(conn, account_id: str, profile_id: str) -> None:
-    ensure_search_profile_table(conn)
     with conn:
         cur = conn.execute(
             "DELETE FROM search_profiles WHERE profile_id=? AND account_id=?",
