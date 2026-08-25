@@ -149,7 +149,7 @@ def _pending_push_rows(conn, account_id, limit=100):
     ensure_push_tables(conn)
     ensure_lifecycle_table(conn)
     return conn.execute(
-        f"""SELECT e.id AS event_id, e.tender_id, t.title,
+        f"""SELECT e.id AS event_id, e.tender_id,
                    d.id AS push_device_id, d.expo_push_token, d.binding_id
             FROM opportunity_events e
             JOIN tenders t ON t.id=e.tender_id
@@ -175,7 +175,10 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
         {
             "to": row["expo_push_token"],
             "title": "Nova oportunidade ObraSignal",
-            "body": row["title"] or "Foi encontrada uma oportunidade relevante.",
+            # Never put tenant-specific opportunity content in the OS tray.
+            # An offline sign-out may leave a stale server token temporarily;
+            # the opaque binding is validated in-app before current detail is fetched.
+            "body": "Abre o ObraSignal para confirmar uma nova oportunidade.",
             "data": {
                 "opportunityId": row["tender_id"],
                 "eventId": row["event_id"],
