@@ -20,11 +20,21 @@ def test_minimum_sellable_spine_is_bounded_and_customer_facing():
 def test_current_main_has_exact_production_auth_spine_proof():
     data = _contract()
     proven = {item["id"]: item for item in data["proven_acceptance"]}
-    assert set(proven) == {"SELL-001"}
+    assert {"SELL-001", "SELL-005-CONTRACT"} <= set(proven)
     assert proven["SELL-001"]["main_sha"] == data["baseline_main_sha"]
     assert proven["SELL-001"]["status"] == "PASS_EXACT_MAIN"
     assert proven["SELL-001"]["authenticated_e2e_run"] == 32867427570
     assert {"authenticated_api_identity", "profile_persistence_round_trip", "opportunity_account_scoping", "detail_and_workflow_round_trip_when_data_exists"} <= set(proven["SELL-001"]["proof"])
+
+
+def test_source_coverage_contract_exists_without_claiming_customer_surface_is_done():
+    data = _contract()
+    proven = {item["id"]: item for item in data["proven_acceptance"]}
+    coverage = proven["SELL-005-CONTRACT"]
+    assert coverage["status"] == "ACCEPTANCE_CONTRACT_IMPLEMENTED_PENDING_EXACT_HEAD_GATE"
+    assert {"registered_not_active", "ready_not_active", "source_presence_not_national_completeness", "capability_scope_not_full_market_claim"} <= set(coverage["proof"])
+    blockers = {item["id"]: item for item in data["blocking_acceptance"]}
+    assert blockers["SELL-005"]["status"] == "IMPLEMENTATION_HANDOFF_AFTER_ACCEPTANCE_CONTRACT"
 
 
 def test_evaluation_cannot_start_at_signup_or_require_card():
@@ -46,8 +56,12 @@ def test_paid_contract_matches_existing_revenuecat_surface_without_inventing_web
 def test_remaining_sellability_blockers_are_exact_and_non_green():
     blockers = {item["id"]: item for item in _contract()["blocking_acceptance"]}
     assert set(blockers) == {"SELL-002", "SELL-003", "SELL-004", "SELL-005"}
-    assert blockers["SELL-002"]["owner"] == "BILLING"
-    assert "#83" in blockers["SELL-002"]["required_proof"]
+    billing = blockers["SELL-002"]
+    assert billing["owner"] == "BILLING"
+    assert billing["current_candidate_pr"] == 83
+    assert billing["current_candidate_head"] == "3c00cff49211dad2cd54650aeb838dc5f5301f3f"
+    assert billing["current_candidate_base"] == _contract()["baseline_main_sha"]
+    assert billing["current_gates"] == {"billing_security": "FAIL", "quality": "FAIL"}
     assert blockers["SELL-004"]["owner"] == "ACCOUNT_PRIVACY"
     assert all(not item["status"].startswith("PASS") for item in blockers.values())
 
