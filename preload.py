@@ -7,7 +7,7 @@ import app as _app
 import national_sources as _national_sources
 import colombia_secop as _colombia_secop
 import paraguay_dncp as _paraguay_dncp
-import uruguay_arce as _uruguay_arce
+import uruguay_arce_runtime as _uruguay_arce_runtime
 import south_africa_etenders as _south_africa_etenders
 from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
@@ -115,9 +115,9 @@ def _fetch_arce_staged():
         watermark = get_source_cursor(conn, "UY_ARCE")
     finally:
         conn.close()
-    records, cursor = _uruguay_arce.fetch_arce_tenders(watermark=watermark)
-    stage_source_sync("UY_ARCE", records, cursor)
-    return records
+    batch = _uruguay_arce_runtime.fetch_arce_runtime_batch(watermark=watermark)
+    stage_source_sync("UY_ARCE", batch.signals, batch.cursor)
+    return list(batch.legacy_tenders)
 
 
 def _fetch_za_staged():
