@@ -27,6 +27,7 @@ EDGE_POLICY = {
     ("preload.py", "app.py"): "LEGACY",
     ("api.py", "preload.py"): "LEGACY",
     ("app.py", "account_registry.py"): "LEGACY",
+    ("account_registry.py", "app.py"): "LEGACY",
     ("app.py", "company_profile.py"): "LEGACY",
     ("app.py", "decision_log.py"): "LEGACY",
     ("app.py", "latency_metrics.py"): "LEGACY",
