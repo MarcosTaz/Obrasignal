@@ -1,6 +1,6 @@
 # US SAM — Q050 evidence
 
-Status: IMPLEMENTATION IN PROGRESS.
+Status: PRODUCTION PATH VALIDATED.
 
 ## Official contract
 
@@ -22,3 +22,11 @@ Status: IMPLEMENTATION IN PROGRESS.
 - Actionable notice types in v0.1: Presolicitation, Solicitation, Combined Synopsis/Solicitation, Sources Sought.
 - No keyword filtering as the primary construction gate.
 - No fabricated contract value or currency.
+
+## Validation closeout — 2026-08-25
+
+- Exact clean head `388c1d66cb739d244ed2ec4e36f1648997282b29` passed ObraSignal Quality run #1049 (Python + Mobile/Expo).
+- The same head passed SAM.gov Live Gate run #6, including deterministic connector tests and a real full-extract production-path ingestion.
+- An earlier live failure exposed a Requests raw-stream wrapper bug (`I/O operation on closed file`). The adapter was corrected to use `response.iter_lines()` and a regression test covers publisher descriptions beyond Python csv's default 128 KiB field limit.
+- SAM.gov Terms of Use explicitly identify public APIs/extracts as supported automated data channels and distinguish them from prohibited website scraping. ObraSignal uses only the public extract path.
+- API v2 remains an optional future freshness accelerator; Q050 completion does not depend on an API key.

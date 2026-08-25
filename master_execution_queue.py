@@ -34,7 +34,7 @@ def _q(id, title, domain, state, stage, dependencies=(), reason=""):
 
 
 CANONICAL_QUEUE_NAME = "OBRASIGNAL_MASTER_EXECUTION_QUEUE"
-CURRENT_ITEM_ID = "Q050_US_SAM"
+CURRENT_ITEM_ID = "Q060_CHILE_MERCADOPUBLICO"
 
 MASTER_EXECUTION_QUEUE = (
     _q("Q000_SCOPE_REBASE", "International market-scope rebase", "STRATEGY", "DONE", "PRODUCTION",
@@ -57,10 +57,10 @@ MASTER_EXECUTION_QUEUE = (
     _q("Q045_TRIAL_POLICY_V01", "21-day value-aware evaluation and enterprise pilot policy v0.1", "STRATEGY", "DONE", "PRODUCTION",
        ("Q040_CANADA_BUYS",),
        "Replace signup-clock legacy trial for new accounts with auditable value-aware activation, preserve legacy accounts and RevenueCat paid precedence; policy remains VALIDATION REQUIRED while Q050 stays ACTIVE."),
-    _q("Q050_US_SAM", "SAM.gov federal construction opportunities connector", "SIGNAL", "ACTIVE", "PRODUCTION",
+    _q("Q050_US_SAM", "SAM.gov federal construction opportunities connector", "SIGNAL", "DONE", "PRODUCTION",
        ("Q020_SIGNAL_CONTRACT_V1",),
-       "Highest absolute commercial upside; federal opportunities first, SLED only if later justified."),
-    _q("Q060_CHILE_MERCADOPUBLICO", "Chile Mercado Público construction connector", "SIGNAL", "QUEUED", "PRODUCTION",
+       "Official public Contract Opportunities bulk path validated: strict 47-column schema, NAICS 23 construction admission, NoticeId identity, opt-in runtime wiring, fail-closed disappearance semantics, exact-head CI and live production-path proof."),
+    _q("Q060_CHILE_MERCADOPUBLICO", "Chile Mercado Público construction connector", "SIGNAL", "ACTIVE", "PRODUCTION",
        ("Q020_SIGNAL_CONTRACT_V1",), "Strong official API and favourable value-to-effort ratio."),
     _q("Q070_SHARED_FAMILIES", "Harden TED/eForms and OCDS shared-coverage families", "SIGNAL", "QUEUED", "PRODUCTION",
        ("Q040_CANADA_BUYS", "Q050_US_SAM", "Q060_CHILE_MERCADOPUBLICO"),
