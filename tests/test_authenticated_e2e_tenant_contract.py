@@ -35,6 +35,17 @@ def test_profile_persistence_responses_bind_to_authenticated_identity() -> None:
     assert text.count("assert payload.get('authenticated') is True") >= 4
 
 
+def test_cleanup_proves_profile_and_workflow_rollback() -> None:
+    text = _text()
+    assert "/tmp/profile-restored.json" in text
+    assert "assert restored.get('profile') == original.get('profile')" in text
+    assert "Authenticated profile rollback verified." in text
+    assert "/tmp/workflow-restored.json" in text
+    assert "assert restored.get('status') == original.get('status')" in text
+    assert "assert restored.get('note') == original.get('note')" in text
+    assert "Authenticated workflow rollback verified." in text
+
+
 def test_account_scoped_responses_bind_to_authenticated_identity() -> None:
     text = _text()
     assert "assert str(payload.get('account_id')) == expected_account_id" in text
