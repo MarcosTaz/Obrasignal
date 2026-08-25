@@ -4,6 +4,7 @@ const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
+const explanation = fs.readFileSync(new URL('./components/OpportunityExplanation.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 
 const checks = [
@@ -17,6 +18,17 @@ const checks = [
   ['internal economic fit is absent from onboarding', /Economic Fit/.test(onboarding) ? /$a/ : /contract_interests/],
 ];
 
+const watchlistChecks = [
+  ['detail explanation renders save control', /<SavedOpportunityControl\s+item=\{item\}/],
+  ['save control uses accessible contextual label', /accessibilityLabel=\{label\}/],
+  ['save control exposes selected state', /accessibilityState=\{\{\s*disabled:\s*busy,\s*selected:\s*saved\s*\}\}/],
+  ['save control calls save API', /api\.saveOpportunity\(item\.id\)/],
+  ['save control calls unsave API', /api\.unsaveOpportunity\(item\.id\)/],
+  ['save failure is visible', /Não foi possível guardar a oportunidade/],
+  ['save client exposes POST contract', /saveOpportunity:\s*\(id\)=>writeWhenReady\(`\/opportunities\/\$\{encodeURIComponent\(id\)\}\/save`,\{method:'POST'/],
+  ['unsave client exposes DELETE contract', /unsaveOpportunity:\s*\(id\)=>writeWhenReady\(`\/opportunities\/\$\{encodeURIComponent\(id\)\}\/save`,\{method:'DELETE'\}\)/],
+];
+
 const crossFileChecks = [
   ['startup hydrates local cache before remote data', /Promise\.allSettled\(\[storage\.getSettings\(\),storage\.getCache\(\),storage\.getProfile\(\)\]\)/],
   ['startup loads independent API data concurrently', /Promise\.allSettled\(\[api\.profile\(\),api\.opportunities/],
@@ -28,11 +40,13 @@ const crossFileChecks = [
 const failures = [
   ...checks.slice(0, 5).filter(([, pattern]) => !pattern.test(app)),
   ...checks.slice(5).filter(([, pattern]) => !pattern.test(onboarding)),
+  ...watchlistChecks.slice(0, 6).filter(([, pattern]) => !pattern.test(explanation)),
 ];
 const crossFailures = [
   ...crossFileChecks.slice(0, 2).filter(([, pattern]) => !pattern.test(app)),
   ...crossFileChecks.slice(2, 4).filter(([, pattern]) => !pattern.test(notifications)),
   ...crossFileChecks.slice(4).filter(([, pattern]) => !pattern.test(api)),
+  ...watchlistChecks.slice(6).filter(([, pattern]) => !pattern.test(api)),
 ];
 
 if (failures.length || crossFailures.length) {
@@ -45,4 +59,4 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
+for (const [name] of [...checks, ...watchlistChecks, ...crossFileChecks]) console.log(`PASS: ${name}`);
