@@ -1,0 +1,47 @@
+name: ChileCompra OCDS Probe
+
+on:
+  push:
+    branches: [codex/chile-mercadopublico-q060]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe current official OCDS payload
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, urllib.request, pathlib
+          url='https://api.mercadopublico.cl/APISOCDS/OCDS/listaOCDSAgnoMes/2026/08/0/10'
+          req=urllib.request.Request(url,headers={'User-Agent':'ObraSignal ChileCompra probe/1.0','Accept':'application/json'})
+          report={'url':url}
+          try:
+              with urllib.request.urlopen(req,timeout=60) as r:
+                  raw=r.read()
+                  report.update(status=r.status,content_type=r.headers.get('Content-Type'),content_length=len(raw),headers=dict(r.headers))
+              report['prefix']=raw[:1000].decode('utf-8','replace')
+              try:
+                  obj=json.loads(raw.decode('utf-8-sig','replace'))
+                  report['top_type']=type(obj).__name__
+                  if isinstance(obj,dict):
+                      report['top_keys']=list(obj)[:30]
+                      report['sample']=obj
+                  elif isinstance(obj,list):
+                      report['count']=len(obj)
+                      report['sample']=obj[:2]
+              except Exception as e:
+                  report['json_error']=repr(e)
+          except Exception as e:
+              report['error']=repr(e)
+          pathlib.Path('chile-ocds-probe.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)[:500000])
+          print(json.dumps({k:v for k,v in report.items() if k!='sample'},ensure_ascii=False,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chile-ocds-probe
+          path: chile-ocds-probe.json
