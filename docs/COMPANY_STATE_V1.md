@@ -48,7 +48,7 @@ Tests lock the following distinctions:
 
 V1 deliberately has **no universal source-precedence hierarchy**. User declarations, registries and integrations can each be relevant. Material current disagreement remains visible instead of being averaged or silently overwritten.
 
-## Time and freshness
+## Time, freshness and temporal supersession
 
 All domain datetimes are timezone-aware and normalized to UTC. `as_of` participates in the fingerprint because operational truth is temporal.
 
@@ -60,9 +60,11 @@ All domain datetimes are timezone-aware and normalized to UTC. `as_of` participa
 
 Effective interval endpoints are inclusive. Retrieval/storage time is not treated as proof of source freshness. `active_facts()` retains stale observations for explainability/unknown reporting; `current_facts()`, current-value resolution and conflict detection exclude stale observations.
 
+Supersession is also time-aware. A future-dated replacement does **not** hide the prior current fact before the replacement reaches `effective_from`. Once the replacement becomes effective, its supersession remains authoritative even after that replacement later becomes stale or expires; historical truth is not silently resurrected as present truth.
+
 ## Money
 
-Decision-relevant financial constraints use Decimal-backed `Money(amount, currency)`. Currency is explicit; there is no default EUR and no FX conversion. Binary float, NaN and Infinity are rejected for authoritative monetary facts.
+Decision-relevant financial constraints use Decimal-backed `Money(amount, currency)`. Currency is explicit; there is no default EUR and no FX conversion. Binary float, NaN and Infinity are rejected for authoritative monetary facts. Malformed serialized monetary amounts fail through the Company State contract error rather than leaking a lower-level Decimal parser exception.
 
 The existing Company Profile `min_value`/`max_value` is intentionally **not** imported as financial capacity: it is a commercial target/preference and lacks explicit currency/capital-capacity semantics. Q090 exposes constraints only; Bid Economics owns opportunity exposure and financial calculations.
 
@@ -159,13 +161,15 @@ No HTTP endpoint is registered in this queued branch. A future HTTP adapter must
 
 Scalar consumer envelopes expose `KNOWN`/`UNKNOWN`/`CONFLICT` as **value usability**, while also carrying `knowledge_states` and `provenance_bases`. Therefore an `ESTIMATE`, `ASSUMPTION` or `INFERENCE` can be transported without being relabelled as verified `FACT`. A stale source cannot poison a separate current observation of the same semantic fact.
 
+The machine-readable Integration Manifest contains the field-to-consumer matrix and makes all of these downstream dependencies optional. Consumers must not read private Q090 storage, invent zero from missing data, mutate Company State during evaluation or create facts on Q090's behalf.
+
 ## Failure semantics
 
 No state row means Company State is not yet persisted; it does not assert zero capability. Corrupt/unreadable/incompatible storage raises `CompanyStateStorageError`. Provider absence must be represented as explicit `UNAVAILABLE`/`UNKNOWN` data when material; an empty provider batch is not evidence. Consumer integration should translate subsystem failure to explicit `UNKNOWN`/`UNAVAILABLE` according to the consumer's public contract, never to a favourable or negative fact.
 
 ## Security/privacy bounds
 
-The domain bounds fact counts, string sizes, mappings, nesting and snapshot size. Invalid enum/code/date/currency, negative constrained quantities, binary floats, NaN/Infinity and control-character abuse fail closed. HTML-like strings remain data; Q090 renders no HTML. There is no network, secret, browser, shell or expression execution in the domain.
+The domain bounds fact counts, string sizes, mappings, nesting and snapshot size. Invalid enum/code/date/currency, negative constrained quantities, binary floats, NaN/Infinity and C0 control-character abuse fail closed. HTML-like strings remain data; Q090 renders no HTML. There is no network, secret, browser, shell or expression execution in the domain.
 
 V1 stores company-level operational facts. It does not require bank/accounting/payroll/email/continuous location or employee productivity data. Future integrations must remain optional, purpose-bound, least-privilege, revocable and inspectable.
 
