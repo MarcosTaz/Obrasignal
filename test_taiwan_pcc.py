@@ -66,6 +66,7 @@ def test_parse_snapshot_preserves_native_identity_and_text():
     assert record["title"] == "道路改善工程"
     assert record["buyer"] == "測試市政府"
     assert record["target_date"] == "2026-09-01"  # ROC year 115 -> 2026
+    assert record["source_updated_at"] is None
 
 
 def test_lineage_key_survives_signal_stage_change_without_identity_collision():
@@ -76,6 +77,12 @@ def test_lineage_key_survives_signal_stage_change_without_identity_collision():
     assert plan["source_reference"] == dialogue["source_reference"] == "A-2026-001"
     assert plan["lineage_key"] == dialogue["lineage_key"] == "A-2026-001"
     assert plan["external_id"] != dialogue["external_id"]
+
+
+def test_missing_native_case_number_is_rejected_instead_of_synthesized():
+    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://example.invalid")
+    row = {"tendername": "道路改善工程", "organizationname": "測試市政府"}
+    assert normalize_pcc_row(row, source=source) is None
 
 
 def test_signal_store_reingestion_is_idempotent_and_update_is_not_new_signal():
