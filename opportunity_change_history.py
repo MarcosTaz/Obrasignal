@@ -45,6 +45,7 @@ FIELD_REGISTRY: dict[str, FieldPolicy] = {
     "currency": FieldPolicy("currency", MATERIAL, "text", case_insensitive=True),
     "source_status": FieldPolicy("source_status", MATERIAL, "text", case_insensitive=True),
     "lifecycle_status": FieldPolicy("lifecycle_status", MATERIAL, "text", case_insensitive=True),
+    "source_version": FieldPolicy("source_version", MATERIAL, "text"),
     "title": FieldPolicy("title", MATERIAL, "text", case_insensitive=True),
     "description": FieldPolicy("description", MATERIAL, "text"),
     "buyer": FieldPolicy("buyer", MATERIAL, "text", case_insensitive=True),
