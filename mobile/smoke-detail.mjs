@@ -46,7 +46,8 @@ const pushChecks = [
   ['local fallback creates tenant-private tap authority before scheduling', notifications, /binding = \{ bindingId: newLocalBindingId\(\), kind: 'local' \};[\s\S]*storage\.setPushBinding\(binding\)/],
   ['local notification payload never falls back to a null binding', notifications, /bindingId: binding\.bindingId/],
   ['local fallback tray remains tenant-neutral', notifications, /body: 'Abre o ObraSignal para confirmar uma nova oportunidade\.'/],
-  ['remote registration dismisses local-only notification authority before replacement', notifications, /if \(!isRemoteBinding\(existingBinding\)\)[\s\S]*dismissAllNotificationsAsync\(\)/],
+  ['missing current binding dismisses stale tray before provider token attempt', notifications, /if \(!existingBinding\)[\s\S]*dismissAllNotificationsAsync\(\)[\s\S]*getExpoPushTokenAsync\(\{ projectId: EXPO_PROJECT_ID \}\)/],
+  ['local-only authority is dismissed only after remote binding succeeds', notifications, /const bindingId = String\(response\?\.binding_id[\s\S]*if \(existingBinding && !isRemoteBinding\(existingBinding\)\)[\s\S]*dismissAllNotificationsAsync\(\)[\s\S]*storage\.setPushBinding\(\{ bindingId, installationId, expoPushToken, kind: 'remote' \}\)/],
   ['notification tap validates tenant-private binding before navigation', notifications, /current\.bindingId !== bindingId/],
   ['notification response id is claimed before async target validation', notifications, /handledResponseIds\.add\(responseId\)[\s\S]*await notificationOpportunityTarget\(response\)/],
   ['cold-start notification response is consumed', notifications, /getLastNotificationResponseAsync\(\)/],
@@ -91,6 +92,11 @@ if (/Notificações push activadas\./.test(app)) {
 
 if (/body:\s*item\?\.title/.test(notifications)) {
   console.error('FAIL: local notification tray must not expose tenant-specific opportunity title');
+  process.exit(1);
+}
+
+if (/if \(!isRemoteBinding\(existingBinding\)\)[\s\S]*getExpoPushTokenAsync/.test(notifications)) {
+  console.error('FAIL: local fallback alerts must survive a failed remote registration attempt');
   process.exit(1);
 }
 
