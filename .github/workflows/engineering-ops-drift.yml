@@ -1,0 +1,77 @@
+name: Engineering Ops Drift
+
+on:
+  pull_request:
+    paths:
+      - engineering_ops.py
+      - engineering_ops_github.py
+      - engineering_ops_gate_attribution.py
+      - engineering_ops_body_drift.py
+      - engineering_ops_manifest.json
+      - tests/test_engineering_ops.py
+      - tests/test_engineering_ops_github.py
+      - tests/test_engineering_ops_gate_attribution.py
+      - tests/test_engineering_ops_body_drift.py
+      - docs/ENGINEERING_OPS_ORCHESTRATION.md
+      - .github/workflows/engineering-ops-drift.yml
+  schedule:
+    - cron: "41 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: engineering-ops-drift-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      OBRASIGNAL_OPS_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.OBRASIGNAL_OPS_SHA }}
+          persist-credentials: false
+
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_OPS_SHA"
+
+      - name: Compile orchestration tooling
+        run: python3 -m py_compile engineering_ops.py engineering_ops_github.py engineering_ops_gate_attribution.py engineering_ops_body_drift.py
+
+      - name: Observe current repository evidence
+        id: audit
+        run: |
+          python3 engineering_ops_github.py \
+            --json-out engineering-ops-status.json \
+            --markdown-out engineering-ops-status.md
+
+      - name: Publish bounded job summary
+        if: ${{ always() }}
+        run: |
+          if test -f engineering-ops-status.md; then
+            cat engineering-ops-status.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '%s\n' '# Engineering Operations Drift Report' '' \
+              '**UNKNOWN / NEEDS_RECHECK** — collector produced no report.' \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload bounded operational evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: engineering-ops-status-${{ github.run_id }}
+          path: |
+            engineering-ops-status.json
+            engineering-ops-status.md
+          if-no-files-found: warn
+          retention-days: 14
