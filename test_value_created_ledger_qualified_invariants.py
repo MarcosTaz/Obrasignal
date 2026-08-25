@@ -32,7 +32,7 @@ def test_qualified_opportunity_requires_monetary_amount():
 
 def test_qualified_opportunity_requires_amount_when_currency_present():
     conn = db()
-    with pytest.raises(ValueError, match="monetary amount with currency"):
+    with pytest.raises(ValueError, match="monetary event requires amount"):
         record_value_event(
             conn,
             account_id="a",
