@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import json
 import re
 import sqlite3
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from company_state import (
     CompanyFact,
@@ -34,6 +34,17 @@ CREATE TABLE IF NOT EXISTS company_state_snapshots (
 INDEX = "CREATE INDEX IF NOT EXISTS idx_company_state_account_version ON company_state_snapshots(account_id, state_version DESC)"
 MAX_HISTORY_LIMIT = 100
 _FACT_ID_RE = re.compile(r"^cf_[0-9a-f]{24}$")
+_REQUIRED_COLUMNS = {
+    "id", "account_id", "state_version", "fingerprint", "contract_version",
+    "as_of", "snapshot_json", "created_at",
+}
+_TRUSTED_PROVIDER_BASES = frozenset({
+    ProvenanceBasis.VERIFIED,
+    ProvenanceBasis.PUBLIC_REGISTRY,
+    ProvenanceBasis.INTEGRATION,
+    ProvenanceBasis.LEARNED,
+    ProvenanceBasis.UNAVAILABLE,
+})
 
 
 class CompanyStateStorageError(RuntimeError):
@@ -45,10 +56,20 @@ class StaleCompanyStateWrite(CompanyStateStorageError):
 
 
 def ensure_company_state_schema(conn: sqlite3.Connection) -> None:
-    """Add the Company State snapshot schema without mutating existing tables."""
-    conn.execute(SCHEMA)
-    conn.execute(INDEX)
-    conn.commit()
+    """Add and validate the snapshot schema without mutating unrelated tables."""
+    try:
+        conn.execute(SCHEMA)
+        columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(company_state_snapshots)").fetchall()}
+        if not _REQUIRED_COLUMNS.issubset(columns):
+            conn.rollback()
+            raise CompanyStateStorageError("company state snapshot schema is incompatible")
+        conn.execute(INDEX)
+        conn.commit()
+    except CompanyStateStorageError:
+        raise
+    except sqlite3.Error as exc:
+        conn.rollback()
+        raise CompanyStateStorageError("company state schema initialization failed") from exc
 
 
 def _clock_utc(value: datetime, name: str = "clock") -> datetime:
@@ -234,14 +255,45 @@ def _manual_revoke(current_facts: dict[str, CompanyFact], fact_id: str) -> None:
         current_facts.pop(current_id, None)
 
 
+def _provider_fact(fact: CompanyFact, *, operation_clock: datetime, supersedes: tuple[str, ...]) -> CompanyFact:
+    """Validate a trusted-provider fact and assign server-owned supersession."""
+    if not isinstance(fact, CompanyFact):
+        raise CompanyStateError("trusted provider facts must be CompanyFact values")
+    provenance = fact.provenance
+    if provenance.basis not in _TRUSTED_PROVIDER_BASES:
+        raise CompanyStateError("trusted provider facts require a provider provenance basis")
+    if not provenance.source_ref:
+        raise CompanyStateError("trusted provider facts require source_ref")
+    if provenance.observed_at is None:
+        raise CompanyStateError("trusted provider facts require observed_at")
+    if provenance.observed_at > operation_clock:
+        raise CompanyStateError("trusted provider observed_at cannot be in the future")
+    if provenance.verified_at is not None and provenance.verified_at > operation_clock:
+        raise CompanyStateError("trusted provider verified_at cannot be in the future")
+    if fact.supersedes:
+        raise CompanyStateError("trusted providers cannot select supersession targets")
+    return CompanyFact(
+        category=fact.category,
+        code=fact.code,
+        knowledge=fact.knowledge,
+        value=fact.value,
+        provenance=fact.provenance,
+        scope=fact.scope,
+        unit=fact.unit,
+        effective_from=fact.effective_from,
+        effective_until=fact.effective_until,
+        freshness_until=fact.freshness_until,
+        supersedes=supersedes,
+    )
+
+
 class CompanyStateService:
     """Application boundary that accepts only trusted tenant identity.
 
-    The payload cannot select account identity, fingerprint, version or storage
-    metadata. Missing fields mean leave current state unchanged. Revocation is
-    explicit through ``revoke_fact_ids``; null never means deletion. Voluntary
-    facts are always DECLARED at this boundary. Trusted providers use separate
-    server-side adapters rather than impersonating a manual write.
+    ``patch`` is the voluntary/user boundary: facts are always server-labelled
+    DECLARED/manual and cannot mutate trusted provider evidence. ``ingest_trusted_facts``
+    is the narrow future OFFICE/registry/integration boundary for already-validated
+    server-side facts. Neither boundary accepts client tenant authority.
     """
 
     ALLOWED_PAYLOAD_KEYS = frozenset({"facts", "revoke_fact_ids", "as_of", "company_ref", "expected_version"})
@@ -349,5 +401,73 @@ class CompanyStateService:
             if expected is None:
                 expected = current.state_version if current else 0
             return save_company_state(conn, state, expected_version=expected, clock=observed_at)
+        finally:
+            conn.close()
+
+    def ingest_trusted_facts(
+        self,
+        trusted_account_id: str,
+        facts: Iterable[CompanyFact],
+        *,
+        clock: datetime,
+        expected_version: int | None = None,
+        as_of: datetime | None = None,
+    ) -> CompanyState:
+        """Ingest trusted OFFICE/registry/integration facts without a provider framework.
+
+        Tenant identity is supplied by a trusted server caller. Provider facts must
+        carry explicit source and observation provenance. A provider can supersede
+        only its own previous current observation for the same semantic fact;
+        cross-source/manual disagreement remains an explicit conflict.
+        """
+        account = validate_account_id(trusted_account_id)
+        operation_clock = _clock_utc(clock)
+        _validate_expected_version(expected_version)
+        supplied = tuple(facts)
+        if len(supplied) > MAX_FACTS:
+            raise CompanyStateError("too many trusted provider facts")
+        target_as_of = _clock_utc(as_of, "as_of") if as_of is not None else operation_clock
+
+        conn = self._connection_factory()
+        try:
+            ensure_company_state_schema(conn)
+            current = current_company_state(conn, account)
+            current_facts = {fact.fact_id: fact for fact in (current.facts if current else ())}
+            already_superseded = {
+                prior_id
+                for existing in current_facts.values()
+                for prior_id in existing.supersedes
+            }
+            seen_source_semantics: set[tuple[tuple[str, str, str | None], ProvenanceBasis, str]] = set()
+            for raw_fact in supplied:
+                if not isinstance(raw_fact, CompanyFact):
+                    raise CompanyStateError("trusted provider facts must be CompanyFact values")
+                source_key = (raw_fact.semantic_key, raw_fact.provenance.basis, raw_fact.provenance.source_ref or "")
+                if source_key in seen_source_semantics:
+                    raise CompanyStateError("trusted provider batch contains duplicate source semantic keys")
+                seen_source_semantics.add(source_key)
+                prior_same_source = tuple(sorted(
+                    existing.fact_id
+                    for existing in current_facts.values()
+                    if existing.fact_id != raw_fact.fact_id
+                    and existing.fact_id not in already_superseded
+                    and existing.semantic_key == raw_fact.semantic_key
+                    and existing.provenance.basis is raw_fact.provenance.basis
+                    and existing.provenance.source_ref == raw_fact.provenance.source_ref
+                ))
+                fact = _provider_fact(raw_fact, operation_clock=operation_clock, supersedes=prior_same_source)
+                current_facts[fact.fact_id] = fact
+                already_superseded.update(prior_same_source)
+
+            expected = expected_version
+            if expected is None:
+                expected = current.state_version if current else 0
+            state = CompanyState(
+                account_id=account,
+                company_ref=current.company_ref if current else None,
+                as_of=target_as_of,
+                facts=tuple(current_facts.values()),
+            )
+            return save_company_state(conn, state, expected_version=expected, clock=operation_clock)
         finally:
             conn.close()
