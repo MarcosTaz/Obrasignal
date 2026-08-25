@@ -20,6 +20,25 @@ ATTRIBUTION_STATES = (
 
 OWNER_GATE_STATES = ("GREEN", "RED", "NEEDS_RECHECK")
 
+# Explicit owner-contract rules by changed surface. This is operational metadata,
+# not domain authority. Rules are intentionally narrow and auditable.
+OWNER_GATE_PATH_CONTRACTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (
+        (
+            "engineering_ops.py",
+            "engineering_ops_github.py",
+            "engineering_ops_gate_attribution.py",
+            "engineering_ops_manifest.json",
+            "tests/test_engineering_ops.py",
+            "tests/test_engineering_ops_github.py",
+            "tests/test_engineering_ops_gate_attribution.py",
+            "docs/ENGINEERING_OPS_ORCHESTRATION.md",
+            ".github/workflows/engineering-ops-drift.yml",
+        ),
+        ("Engineering Ops Drift", "ObraSignal Quality", "ObraSignal CodeQL"),
+    ),
+)
+
 
 @dataclass(frozen=True)
 class GateAttribution:
@@ -36,12 +55,20 @@ def _matches_any_path(changed_paths: Iterable[str], filters: Sequence[str]) -> b
     return any(fnmatch.fnmatch(path, pattern) for path in paths for pattern in filters)
 
 
+def required_workflows_for_changed_paths(changed_paths: Iterable[str]) -> set[str]:
+    paths = tuple(str(path) for path in changed_paths)
+    required: set[str] = set()
+    for surface_patterns, workflows in OWNER_GATE_PATH_CONTRACTS:
+        if _matches_any_path(paths, surface_patterns):
+            required.update(workflows)
+    return required
+
+
 def extract_pull_request_paths(workflow_text: str) -> tuple[str, ...] | None:
     """Extract simple GitHub Actions pull_request.paths entries without YAML deps.
 
-    Returns None when pull_request has no paths restriction. The parser is narrow
-    by design: ambiguous constructs fail closed by returning an empty tuple,
-    which callers treat as NEEDS_RECHECK rather than applicability proof.
+    None means no paths restriction. Empty tuple means a paths construct was
+    present but could not be safely parsed.
     """
     lines = workflow_text.splitlines()
     in_pull_request = False
@@ -97,22 +124,11 @@ def classify_gate_attribution(
     run_trigger_pr: int | None = None,
     candidate_pr: int | None = None,
 ) -> GateAttribution:
-    """Classify a gate without interpreting the gate's pass/fail result.
-
-    Precedence is deliberately fail-closed:
-    1. an explicit owner/Assembly requirement makes the gate REQUIRED;
-    2. a run triggered for a different PR, whose workflow is absent from the
-       candidate tree, is incidental to this candidate;
-    3. a present unfiltered pull_request workflow is REQUIRED;
-    4. a present workflow with deterministic path filters is REQUIRED only when
-       the candidate delta matches those filters, otherwise NOT_APPLICABLE;
-    5. missing/ambiguous information is NEEDS_RECHECK.
-    """
     required = {str(name) for name in explicit_required_workflows}
     candidate_workflows = {str(path) for path in candidate_workflow_paths}
 
     if workflow in required:
-        return GateAttribution(workflow, "REQUIRED", "explicit candidate gate contract")
+        return GateAttribution(workflow, "REQUIRED", "explicit changed-surface gate contract")
 
     if (
         run_trigger_pr is not None
@@ -164,38 +180,22 @@ def complete_required_gates(
     required_workflows: Iterable[str],
     observed_gate_states: Mapping[str, str],
 ) -> list[GateAttribution]:
-    """Emit REQUIRED_NOT_RUN for required gates lacking exact-head execution."""
     result: list[GateAttribution] = []
     for workflow in sorted({str(name) for name in required_workflows}):
         state = observed_gate_states.get(workflow)
         if state in {None, "NOT_RUN", "HISTORICAL"}:
-            result.append(
-                GateAttribution(
-                    workflow,
-                    "REQUIRED_NOT_RUN",
-                    "required gate has no exact-head completed execution",
-                )
-            )
+            result.append(GateAttribution(workflow, "REQUIRED_NOT_RUN", "required gate has no exact-head completed execution"))
         else:
             result.append(GateAttribution(workflow, "REQUIRED", "required gate observed"))
     return result
 
 
-def evaluate_owner_gate_state(
-    gates: Iterable[Mapping[str, str]],
-) -> tuple[str, str]:
-    """Evaluate owner CI truth after attribution.
-
-    Incidentally-triggered and NOT_APPLICABLE failures do not make an owner RED.
-    Required failures do. Unknown attribution and required-not-run never become
-    GREEN.
-    """
+def evaluate_owner_gate_state(gates: Iterable[Mapping[str, str]]) -> tuple[str, str]:
     saw_required = False
     for gate in gates:
         attribution = str(gate.get("attribution") or "NEEDS_RECHECK")
         gate_state = str(gate.get("gate_state") or "UNKNOWN")
         workflow = str(gate.get("workflow") or "UNKNOWN")
-
         if attribution in {"NEEDS_RECHECK", "REQUIRED_NOT_RUN"}:
             return "NEEDS_RECHECK", f"{workflow}: {attribution}"
         if attribution != "REQUIRED":
@@ -205,7 +205,6 @@ def evaluate_owner_gate_state(
             return "RED", f"{workflow}: required gate failed"
         if gate_state != "PASS":
             return "NEEDS_RECHECK", f"{workflow}: required gate is {gate_state}"
-
     if not saw_required:
         return "NEEDS_RECHECK", "no required gate contract proven"
     return "GREEN", "all required exact-head gates passed"
