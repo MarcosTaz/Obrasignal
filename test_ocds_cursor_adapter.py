@@ -6,6 +6,8 @@ from ocds_cursor_adapter import (
     OCDSOpaqueCursorAdapter,
     OCDSOpaqueCursorConfig,
     OCDSOpaqueWindowCursor,
+    _cursor_stamp,
+    _datetime,
 )
 
 
@@ -150,3 +152,43 @@ def test_max_pages_refuses_to_advance_incomplete_window():
     adapter = OCDSOpaqueCursorAdapter(_config(max_pages_per_window=2), params_factory=_params, normalizer=_normalizer, session=session)
     with pytest.raises(RuntimeError, match="max_pages_per_window=2"):
         adapter.fetch_incremental(now=datetime(2026, 8, 24, 11, 0, tzinfo=timezone.utc))
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2026-08-24T12:00:00Z", "2026-08-24T12:00:00+00:00"),
+        ("2026-08-24T12:00:00+01:00", "2026-08-24T11:00:00+00:00"),
+        ("2026-08-24T12:00:00-05:00", "2026-08-24T17:00:00+00:00"),
+        ("2026-08-24T12:00:00", None),
+        ("not-a-time", None),
+        (None, None),
+    ],
+)
+def test_subdaily_instant_parser_requires_explicit_timezone(value, expected):
+    parsed = _datetime(value)
+    assert (parsed.isoformat() if parsed is not None else None) == expected
+
+
+def test_internal_utc_cursor_roundtrip_preserves_instant_and_precision():
+    stamp = "2026-08-24T10:30:00.123456Z"
+    encoded = OCDSOpaqueWindowCursor(stamp).encode()
+
+    decoded = OCDSOpaqueWindowCursor.decode(encoded)
+
+    assert decoded is not None
+    assert decoded.completed_through == stamp
+    assert _datetime(decoded.completed_through) == datetime(
+        2026, 8, 24, 10, 30, 0, 123456, tzinfo=timezone.utc
+    )
+
+
+def test_timezone_naive_subdaily_cursor_is_rejected_instead_of_assumed_utc():
+    encoded = OCDSOpaqueWindowCursor("2026-08-24T10:30:00").encode()
+
+    assert OCDSOpaqueWindowCursor.decode(encoded) is None
+
+
+def test_internal_cursor_writer_rejects_naive_datetime():
+    with pytest.raises(ValueError, match="timezone-aware"):
+        _cursor_stamp(datetime(2026, 8, 24, 10, 30))
