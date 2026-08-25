@@ -24,3 +24,10 @@ def test_pcc_7260_public_viewing_live_contract():
         assert record["external_id"] == f"procurement_plan:{record['source_reference']}"
         assert record["lineage_key"] == record["source_reference"]
         assert record["title"] or record["buyer"]
+
+    construction_terms = ("工程", "施工", "建築", "道路", "橋", "隧道", "水利", "整修", "修繕")
+    assert any(
+        record.get("category_code")
+        or any(term in (record.get("title") or "") for term in construction_terms)
+        for record in records
+    ), "live PCC 7260 payload exposed no construction-relevant classification/title evidence"
