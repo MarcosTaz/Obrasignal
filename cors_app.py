@@ -5,6 +5,7 @@ from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
+import search_profiles_api  # installs Saved Search API + canonical opportunity query
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
@@ -28,7 +29,7 @@ def _cors(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
@@ -129,12 +130,14 @@ from netherlands_runtime import install as install_netherlands_runtime
 from germany_runtime import install as install_germany_runtime
 from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
+from search_profiles import ensure_search_profile_table
 import preload as _preload
 
 init_db()
 _lifecycle_conn = db()
 try:
     ensure_lifecycle_table(_lifecycle_conn)
+    ensure_search_profile_table(_lifecycle_conn)
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()

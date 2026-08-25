@@ -94,6 +94,7 @@ async function writeWhenReady(path,options={}){
 }
 
 function normalizeOpportunity(item){if(!item||typeof item!=='object')return item;return {...item,decision_score:item.decision_score??item.account_score??null,decision_reason:item.decision_reason??item.account_reason??null};}
+function normalizeSearchResult(data){return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;}
 function unwrapProfile(data){return data?.profile||data||null;}
 
 export const api={
@@ -107,7 +108,13 @@ export const api={
   workflowStats:()=>readWhenReady('/workflow/stats'),
   alerts:({limit=20,unreadOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit)});if(unreadOnly)p.set('unread','1');return readWhenReady(`/alerts?${p.toString()}`);},
   markAlertDelivered:(eventId)=>writeWhenReady(`/alerts/${encodeURIComponent(eventId)}/delivered`,{method:'POST',body:JSON.stringify({})}),
-  opportunities:async({q='',minscore=0,source='',limit=60,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await readWhenReady(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
+  opportunities:async({q='',minscore=0,source='',limit=60,openOnly=false,market='',country=''}={})=>{const p=new URLSearchParams({limit:String(limit),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');if(market)p.set('market',market);if(country)p.set('country',country);return normalizeSearchResult(await readWhenReady(`/opportunities?${p.toString()}`));},
+  searchProfiles:()=>readWhenReady('/search-profiles'),
+  searchProfile:(profileId)=>readWhenReady(`/search-profiles/${encodeURIComponent(profileId)}`),
+  createSearchProfile:(profile)=>writeWhenReady('/search-profiles',{method:'POST',body:JSON.stringify(profile||{})}),
+  updateSearchProfile:(profileId,changes)=>writeWhenReady(`/search-profiles/${encodeURIComponent(profileId)}`,{method:'PATCH',body:JSON.stringify(changes||{})}),
+  deleteSearchProfile:(profileId)=>writeWhenReady(`/search-profiles/${encodeURIComponent(profileId)}`,{method:'DELETE'}),
+  runSearchProfile:async(profileId,{limit=60}={})=>normalizeSearchResult(await writeWhenReady(`/search-profiles/${encodeURIComponent(profileId)}/run?limit=${encodeURIComponent(limit)}`,{method:'POST',body:JSON.stringify({})})),
   opportunity:async(id)=>normalizeOpportunity(await readWhenReady(`/opportunities/${encodeURIComponent(id)}`)),
   workflow:(id)=>readWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`),
   setWorkflow:(id,status,note)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})})
