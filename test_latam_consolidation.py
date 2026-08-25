@@ -15,8 +15,15 @@ from uruguay_arce_pac import normalize_arce_pac_procedure
 def test_dominican_republic_is_one_planned_source_in_shared_ocds_family():
     source = SOURCES["DO_DGCP"]
     assert source["country"] == "DOM"
+    assert source["source_id"] == "do_dgcp_open_data"
     assert source["status"] == "planned"
     assert source["machine_access"] == "VERIFIED"
+    assert source["capabilities"] == (
+        "incremental_sync", "detail", "plans", "awards", "contracts", "lifecycle"
+    )
+    assert source["signal_types"] == (
+        "PROCUREMENT_PLAN", "TENDER", "AWARD", "CONTRACT"
+    )
     assert family_for_source("DO_DGCP") is FAMILIES["OCDS_PAGE_API"]
     assert FAMILIES["OCDS_PAGE_API"].members.count("DO_DGCP") == 1
 
