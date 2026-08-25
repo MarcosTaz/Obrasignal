@@ -3,16 +3,17 @@ name: ObraSignal CodeQL
 on:
   push:
     branches: [main]
+  pull_request:
   schedule:
     - cron: "23 4 * * 1"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  security-events: write
-
 jobs:
   analyze:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      security-events: write
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
