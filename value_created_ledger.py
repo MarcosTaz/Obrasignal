@@ -12,6 +12,7 @@ from enum import Enum
 import json
 import math
 import re
+import sqlite3
 import uuid
 
 CONTRACT_VERSION = "value-created-ledger.v0"
@@ -131,12 +132,14 @@ class ValueSummary:
     estimated_by_currency: dict[str, Decimal]
     qualified_by_currency: dict[str, Decimal]
     time_saved_by_unit: dict[str, Decimal]
+    estimated_time_saved_by_unit: dict[str, Decimal]
     other_non_monetary: dict[str, dict[str, Decimal]]
+    estimated_other_non_monetary: dict[str, dict[str, Decimal]]
     breakdown: dict[str, dict[str, dict[str, Decimal]]]
 
 
 def ensure_value_ledger_schema(conn) -> None:
-    """Idempotent, additive schema initializer for the existing SQLite DB."""
+    """Idempotent, additive schema initializer for the existing SQLite database."""
     conn.execute(SCHEMA)
     columns = {row[1] for row in conn.execute("PRAGMA table_info(value_events)").fetchall()}
     migrations = {
@@ -163,7 +166,7 @@ def _utc_iso(value: datetime | str | None, *, default_now: bool = False) -> str:
     else:
         try:
             dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             raise ValueError("invalid ISO timestamp") from exc
     if dt.tzinfo is None:
         raise ValueError("timestamp must be timezone-aware")
@@ -276,14 +279,18 @@ def record_value_event(
           else (ValueStatus.OBSERVED if vt != ValueType.UNKNOWN else ValueStatus.PROPOSED))
     amt = _decimal(amount)
     curr = _validate_currency(currency)
-    unit = _clean_ref(unit, "unit")
+    clean_unit = _clean_ref(unit, "unit")
     method = _clean_ref(method, "method")
-    source = _clean_ref(source, "source")
-    if source is None:
+    clean_source = _clean_ref(source, "source")
+    if clean_source is None:
         raise ValueError("source is required")
 
-    if amt is not None and curr is None and unit is None:
+    if vt == ValueType.UNKNOWN and amt is not None:
+        raise ValueError("UNKNOWN value cannot carry a numeric amount")
+    if amt is not None and curr is None and clean_unit is None:
         raise ValueError("non-monetary amount requires unit")
+    if curr is not None and clean_unit is not None:
+        raise ValueError("event cannot mix currency and non-monetary unit")
     if curr is not None and amt is None and vt != ValueType.UNKNOWN:
         raise ValueError("monetary event requires amount unless value_type is UNKNOWN")
     if vt == ValueType.ESTIMATED and amt is not None and not method:
@@ -292,8 +299,6 @@ def record_value_event(
         raise ValueError("QUALIFIED value is reserved for qualified_opportunity")
     if category == "qualified_opportunity" and vt not in {ValueType.QUALIFIED, ValueType.UNKNOWN}:
         raise ValueError("qualified opportunity cannot be presented as measured/estimated value created")
-    if category == "time_saved" and curr is None and amt is not None and unit is None:
-        raise ValueError("time_saved requires a unit when not monetized")
     if corrects_event_id and supersedes_event_id:
         raise ValueError("event cannot both correct and supersede another event")
 
@@ -328,17 +333,20 @@ def record_value_event(
                 deduplication_key, causal_reference, corrects_event_id, supersedes_event_id
             ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
-                eid, account, category, vt.value, _decimal_text(amt), curr, unit, occurred, recorded,
-                source, _clean_ref(decision_id, "decision_id"),
+                eid, account, category, vt.value, _decimal_text(amt), curr, clean_unit, occurred, recorded,
+                clean_source, _clean_ref(decision_id, "decision_id"),
                 _clean_ref(opportunity_id, "opportunity_id"), _clean_ref(project_id, "project_id"),
                 method, conf.value, json.dumps(refs, ensure_ascii=False, separators=(",", ":")),
                 json.dumps(assumps, ensure_ascii=False, separators=(",", ":")), notes, st.value,
                 dedup, causal, corrects, supersedes,
             ),
         )
-    except Exception as exc:
-        if dedup and "UNIQUE" in str(exc).upper():
+    except sqlite3.IntegrityError as exc:
+        message = str(exc).upper()
+        if dedup and "DEDUPLICATION_KEY" in message:
             raise ValueError("duplicate value event for account/deduplication_key") from exc
+        if "EVENT_ID" in message:
+            raise ValueError("duplicate event_id") from exc
         raise
     conn.commit()
     row = conn.execute(
@@ -349,9 +357,12 @@ def record_value_event(
 
 def get_value_event(conn, *, account_id, event_id) -> ValueEvent | None:
     ensure_value_ledger_schema(conn)
+    account = _clean_ref(account_id, "account_id")
+    eid = _clean_ref(event_id, "event_id")
+    if account is None or eid is None:
+        return None
     row = conn.execute(
-        "SELECT * FROM value_events WHERE account_id=? AND event_id=?",
-        (str(account_id), str(event_id)),
+        "SELECT * FROM value_events WHERE account_id=? AND event_id=?", (account, eid)
     ).fetchone()
     return _row_to_event(row) if row else None
 
@@ -363,8 +374,12 @@ def _add_nested(target, *keys, amount: Decimal):
     current[keys[-1]] = current.get(keys[-1], Decimal("0")) + amount
 
 
+def _sorted_two_level(data):
+    return {k: dict(sorted(v.items())) for k, v in sorted(data.items())}
+
+
 def get_value_summary(conn, *, account_id, start_at=None, end_at=None) -> ValueSummary:
-    """Return deterministic, separated value buckets for exactly one tenant.
+    """Return deterministic, type-separated value buckets for exactly one tenant.
 
     Known causal duplicates are counted once per value_type/currency/unit. If two
     active observations claim the same causal benefit but disagree on the amount,
@@ -396,7 +411,8 @@ def get_value_summary(conn, *, account_id, start_at=None, end_at=None) -> ValueS
     excluded_ids |= {r["supersedes_event_id"] for r in rows if r["supersedes_event_id"]}
 
     measured, estimated, qualified = {}, {}, {}
-    time_saved, other, breakdown = {}, {}, {}
+    measured_time, estimated_time = {}, {}
+    measured_other, estimated_other, breakdown = {}, {}, {}
     causal_amounts: dict[tuple[str, str, str, str], Decimal] = {}
 
     for row in rows:
@@ -423,25 +439,34 @@ def get_value_summary(conn, *, account_id, start_at=None, end_at=None) -> ValueS
                 continue
             causal_amounts[causal_key] = amount
 
+        dimension = event.currency or event.unit or "unknown"
+        _add_nested(breakdown, event.category, event.value_type.value, dimension, amount=amount)
+
         if event.currency:
-            target = None
             if event.value_type == ValueType.MEASURED:
-                target = measured
+                measured[event.currency] = measured.get(event.currency, Decimal("0")) + amount
             elif event.value_type == ValueType.ESTIMATED:
-                target = estimated
+                estimated[event.currency] = estimated.get(event.currency, Decimal("0")) + amount
             elif event.value_type == ValueType.QUALIFIED:
-                target = qualified
-            if target is not None:
-                target[event.currency] = target.get(event.currency, Decimal("0")) + amount
-            _add_nested(breakdown, event.category, event.value_type.value, event.currency, amount=amount)
-        else:
-            unit_key = event.unit or "unknown"
-            if event.category == "time_saved":
-                time_saved[unit_key] = time_saved.get(unit_key, Decimal("0")) + amount
-            else:
-                bucket = other.setdefault(event.category, {})
-                bucket[unit_key] = bucket.get(unit_key, Decimal("0")) + amount
-            _add_nested(breakdown, event.category, event.value_type.value, unit_key, amount=amount)
+                qualified[event.currency] = qualified.get(event.currency, Decimal("0")) + amount
+            continue
+
+        unit_name = event.unit or "unknown"
+        if event.category == "time_saved":
+            if event.value_type == ValueType.MEASURED:
+                measured_time[unit_name] = measured_time.get(unit_name, Decimal("0")) + amount
+            elif event.value_type == ValueType.ESTIMATED:
+                estimated_time[unit_name] = estimated_time.get(unit_name, Decimal("0")) + amount
+            continue
+
+        if event.value_type == ValueType.MEASURED:
+            measured_other.setdefault(event.category, {})[unit_name] = (
+                measured_other.setdefault(event.category, {}).get(unit_name, Decimal("0")) + amount
+            )
+        elif event.value_type == ValueType.ESTIMATED:
+            estimated_other.setdefault(event.category, {})[unit_name] = (
+                estimated_other.setdefault(event.category, {}).get(unit_name, Decimal("0")) + amount
+            )
 
     return ValueSummary(
         account_id=account,
@@ -450,8 +475,10 @@ def get_value_summary(conn, *, account_id, start_at=None, end_at=None) -> ValueS
         measured_by_currency=dict(sorted(measured.items())),
         estimated_by_currency=dict(sorted(estimated.items())),
         qualified_by_currency=dict(sorted(qualified.items())),
-        time_saved_by_unit=dict(sorted(time_saved.items())),
-        other_non_monetary={k: dict(sorted(v.items())) for k, v in sorted(other.items())},
+        time_saved_by_unit=dict(sorted(measured_time.items())),
+        estimated_time_saved_by_unit=dict(sorted(estimated_time.items())),
+        other_non_monetary=_sorted_two_level(measured_other),
+        estimated_other_non_monetary=_sorted_two_level(estimated_other),
         breakdown={
             k: {t: dict(sorted(v.items())) for t, v in sorted(types.items())}
             for k, types in sorted(breakdown.items())
