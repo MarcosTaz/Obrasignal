@@ -5,11 +5,14 @@ from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
+from pursuit_decision_api import bp as PURSUIT_DECISION_BP
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
+if "pursuit_decision_api" not in APP.blueprints:
+    APP.register_blueprint(PURSUIT_DECISION_BP)
 
 
 def _origin():
@@ -27,7 +30,7 @@ def _cors(response):
     if origin:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
-    response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
+    response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version, Idempotency-Key"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
@@ -116,6 +119,7 @@ def _global_api_cors(response):
 import app as _app
 from app import db, init_db, start_background_worker
 from opportunity_lifecycle import ensure_lifecycle_table
+from pursuit_decision import ensure_pursuit_decision_table
 from lifecycle_read_model import install as install_lifecycle_read_model
 from latvia_runtime import install as install_latvia_runtime
 from uk_runtime import install as install_uk_runtime
@@ -135,6 +139,7 @@ init_db()
 _lifecycle_conn = db()
 try:
     ensure_lifecycle_table(_lifecycle_conn)
+    ensure_pursuit_decision_table(_lifecycle_conn)
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
