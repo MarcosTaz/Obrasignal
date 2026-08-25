@@ -29,6 +29,10 @@ const crossFileChecks = [
 
 const truthChecks = [
   ['unknown stats have an explicit renderer', /metricText\(v\)/],
+  ['cached stats are disclosed as stale', /Contagens guardadas; a atualização não pôde ser confirmada\./],
+  ['missing stats failure is disclosed unavailable', /Contagens temporariamente indisponíveis\./],
+  ['stats state distinguishes stale from unavailable', /setStatsState\(hasStats\(freshStats\)\?'stale':'unavailable'\)/],
+  ['cached stats start stale until server verification', /setStatsState\(hasStats\(cachedStats\)\?'stale':'loading'\)/],
   ['unknown score has an explicit renderer', /scoreText\(score\)/],
   ['missing source has an explicit renderer', /sourceText\(item\.source\)/],
   ['score is framed as compatibility, not a bid recommendation', /A pontuação expressa compatibilidade com o perfil; não é uma recomendação para concorrer\./],
