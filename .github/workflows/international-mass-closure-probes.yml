@@ -1,0 +1,78 @@
+name: International Mass Closure Probes
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact revision
+        shell: bash
+        run: |
+          echo "head=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - name: Run bounded primary-source probes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, re, ssl, urllib.request, urllib.error, urllib.parse
+          from html import unescape
+          from datetime import date, timedelta
+
+          ctx = ssl.create_default_context()
+          UA = {'User-Agent':'ObraSignal-research-closure/1.0','Accept':'application/json, text/html, application/rss+xml, application/atom+xml, application/xml, text/xml, */*'}
+
+          def get(name, url, max_bytes=262144, timeout=20):
+              out={'name':name,'url':url}
+              try:
+                  req=urllib.request.Request(url,headers=UA,method='GET')
+                  with urllib.request.urlopen(req,timeout=timeout,context=ctx) as r:
+                      body=r.read(max_bytes+1); sample=body[:max_bytes]
+                      out.update(status=r.status,content_type=r.headers.get('content-type'),bytes_read=len(sample),truncated=len(body)>max_bytes,final_url=r.geturl())
+                      text=sample.decode('utf-8','replace'); out['sample_text']=re.sub(r'\s+',' ',text[:700])
+                      try:
+                          data=json.loads(text); out['json']=True
+                          if isinstance(data,dict): out['top_keys']=sorted(map(str,data.keys()))[:30]
+                          elif isinstance(data,list): out['list_count']=len(data)
+                      except Exception: out['json']=False
+                      links=[]
+                      for m in re.finditer(r'href=["\']([^"\']+)["\']',text,re.I):
+                          href=unescape(m.group(1)); low=href.lower()
+                          if any(k in low for k in ('rss','atom','.csv','.xlsx','.zip','.json','.xml')): links.append(urllib.parse.urljoin(r.geturl(),href))
+                      out['machine_links']=list(dict.fromkeys(links))[:20]
+              except urllib.error.HTTPError as e: out.update(status=e.code,error='HTTPError')
+              except Exception as e: out.update(status=None,error=type(e).__name__,detail=str(e)[:240])
+              print(json.dumps(out,ensure_ascii=False,sort_keys=True)); return out
+
+          get('DO_SWAGGER','https://datosabiertos.dgcp.gob.do/api-dgcp/docs/doc.json',524288)
+          get('DO_TABLAS_PROCESOS','https://datosabiertos.dgcp.gob.do/api-dgcp/v1/tablas/procesos',131072)
+          get('DO_TABLAS_CONTRATOS','https://datosabiertos.dgcp.gob.do/api-dgcp/v1/tablas/contratos',131072)
+          get('DO_PROCESOS','https://datosabiertos.dgcp.gob.do/api-dgcp/v1/procesos',262144)
+
+          nz=get('NZ_GETS_CURRENT','https://www.gets.govt.nz/ExternalIndex.htm',262144)
+          for i,u in enumerate(nz.get('machine_links',[])[:3],1): get(f'NZ_GETS_MACHINE_LINK_{i}',u,262144)
+
+          get('SG_GEBIZ_CURRENT','https://www.gebiz.gov.sg/ptn/opportunity/BOListing.xhtml?origin=menu',262144)
+          get('AU_AUSTENDER','https://www.tenders.gov.au/',262144)
+
+          # Japan KAN-KO-JU official API. Category=2 is publisher-native construction.
+          today=date.today(); start=today-timedelta(days=7)
+          q=urllib.parse.urlencode({'Query':'工事','Category':2,'Count':20,'CFT_Issue_Date':f'{start.isoformat()}/{today.isoformat()}'})
+          get('JP_KKJ_CONSTRUCTION_API','https://www.kkj.go.jp/api/?'+q,524288)
+          get('JP_KKJ_TERMS','https://www.kkj.go.jp/s/?tc=1',262144)
+
+          # Nigeria NOCOPO official OCDS publication and licence surfaces.
+          get('NG_NOCOPO_RECORDS','https://nocopo.bpp.gov.ng/records',262144)
+          get('NG_NOCOPO_PACKAGES','https://nocopo.bpp.gov.ng/record-packages',262144)
+          get('NG_NOCOPO_LICENSE','https://nocopo.bpp.gov.ng/license',131072)
+          PY
