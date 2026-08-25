@@ -46,7 +46,7 @@ FAMILIES = MappingProxyType({
         family_id="OCDS_PAGE_API",
         standard="OCDS",
         transport="bounded date window + page number",
-        members=("PY_DNCP", "ZA_ETENDERS"),
+        members=("PY_DNCP", "ZA_ETENDERS", "DO_DGCP"),
         invariant="cursor advances only after every page in a bounded temporal window completes",
         generic_module="ocds_adapter",
     ),

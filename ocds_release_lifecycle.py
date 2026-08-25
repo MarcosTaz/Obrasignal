@@ -32,7 +32,14 @@ def _unwrap_mapping(payload):
 
 
 def merge_nonempty_mapping(base, patch):
-    """Recursively preserve prior fields omitted by a later partial OCDS patch."""
+    """Recursively preserve prior fields omitted by a later partial OCDS patch.
+
+    OCDS ReleasePackages may publish partial updates. Empty/missing values in a
+    later release must not erase previously observed normalized context. Mapping
+    children are merged recursively; non-empty scalar/list values replace the
+    previous value. This is deliberately narrower than a full OCDS merge engine
+    and is suitable for source normalizers that only read a bounded set of fields.
+    """
     if not isinstance(base, Mapping):
         base = {}
     if not isinstance(patch, Mapping):
@@ -77,6 +84,8 @@ class OCDSReleasePackageConnector(OCDSAPIConnector):
         raw = response.json()
         payload = _unwrap_mapping(raw)
 
+        # Preserve ReleasePackage history instead of collapsing it to the first
+        # matching release. This is required for lifecycle state reconstruction.
         if isinstance(payload, dict) and isinstance(payload.get("releases"), list):
             releases = [
                 release
@@ -98,6 +107,8 @@ class OCDSReleasePackageConnector(OCDSAPIConnector):
                 "_package_publication_policy": payload.get("publicationPolicy"),
             }
 
+        # Retain compatibility with record-like hydration shapes without issuing
+        # a second HTTP request.
         records = _records_from_payload(raw)
         if not records:
             raise RuntimeError(

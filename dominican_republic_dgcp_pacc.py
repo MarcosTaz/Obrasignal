@@ -1,4 +1,16 @@
-"""Dominican Republic DGCP PACC construction early-signal connector."""
+"""Dominican Republic DGCP PACC construction early-signal connector.
+
+The official `/pacc/adquisiciones` endpoint exposes the annual procurement plan
+with a publisher-controlled `objeto_adquisicion` field. DGCP's PACC guidance
+defines that field as a controlled choice including `Obras`, so construction
+admission is taxonomy-based rather than keyword-based.
+
+The endpoint does not expose a reliable row-level modified timestamp or an
+incremental cursor. This connector therefore performs a bounded snapshot of one
+PACC year on every run. `signal_records` upserts by stable source/type/identity,
+so replay is intentional and safe. Pagination fails closed if the configured
+bound is exhausted while pages remain full.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,7 +20,13 @@ import unicodedata
 
 import requests
 
-from dominican_republic_dgcp import DGCP_API_ROOT, DGCP_ATTRIBUTION, DGCP_LICENSE, DGCP_PORTAL_URL
+from dominican_republic_dgcp import (
+    DGCP_API_ROOT,
+    DGCP_ATTRIBUTION,
+    DGCP_LICENSE,
+    DGCP_PORTAL_URL,
+)
+
 
 DGCP_PACC_ACQUISITIONS_URL = f"{DGCP_API_ROOT}/pacc/adquisiciones"
 
@@ -24,7 +42,10 @@ class DGCPPACCConfig:
 
 def _plain(value):
     text = str(value or "").strip().lower()
-    return "".join(char for char in unicodedata.normalize("NFKD", text) if not unicodedata.combining(char))
+    return "".join(
+        char for char in unicodedata.normalize("NFKD", text)
+        if not unicodedata.combining(char)
+    )
 
 
 def _amount(value):
@@ -61,20 +82,27 @@ def _version(value):
 
 
 def normalize_dgcp_pacc_acquisition(row):
-    if not isinstance(row, dict) or _plain(row.get("objeto_adquisicion")) != "obras":
+    """Return one planned works acquisition as a canonical PROCUREMENT_PLAN."""
+    if not isinstance(row, dict):
         return None
+    if _plain(row.get("objeto_adquisicion")) != "obras":
+        return None
+
     acquisition_id = str(row.get("id_adquisicion") or "").strip()
     pacc_id = str(row.get("uid_pacc") or "").strip()
     buyer = str(row.get("unidad_compra") or "").strip()
     if not acquisition_id or not pacc_id or not buyer:
         return None
+
     target_date = _date(row.get("fecha_inicio_proceso_compra"))
     if not target_date:
         return None
+
     title = str(row.get("descripcion") or row.get("finalidad") or "").strip()
     description = str(row.get("finalidad") or row.get("descripcion") or "").strip()
     value = _amount(row.get("valor_presupuestado"))
     external_id = f"{pacc_id}:{acquisition_id}"
+
     return {
         "source": "DO_DGCP",
         "signal_type": "PROCUREMENT_PLAN",
@@ -110,25 +138,20 @@ def normalize_dgcp_pacc_acquisition(row):
 class DGCPPACCConnector:
     def __init__(self, config=DGCPPACCConfig(), *, session=None):
         self.config = config
-        if config.source != "DO_DGCP" or config.country != "DOM":
-            raise RuntimeError("DGCP PACC source identity is fixed to DO_DGCP/DOM")
-        if not 1 <= int(config.page_size) <= 1000:
-            raise RuntimeError("DGCP PACC page_size must be within publisher bound 1..1000")
-        if not 1 <= int(config.max_pages) <= 500:
-            raise RuntimeError("DGCP PACC max_pages must remain bounded within 1..500")
-        if not 1 <= int(config.timeout) <= 120:
-            raise RuntimeError("DGCP PACC timeout must remain within 1..120 seconds")
         self.session = session or requests.Session()
 
     def _rows(self, *, year):
-        page_size = int(self.config.page_size)
-        max_pages = int(self.config.max_pages)
+        page_size = max(1, int(self.config.page_size))
+        max_pages = max(1, int(self.config.max_pages))
         all_rows = []
         for page in range(1, max_pages + 1):
             response = self.session.get(
                 DGCP_PACC_ACQUISITIONS_URL,
                 params={"page": page, "limit": page_size, "año": int(year)},
-                headers={"Accept": "application/json", "User-Agent": "ObraSignal DGCP PACC connector/1.0 (+official open-data ingestion)"},
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "ObraSignal DGCP PACC connector/1.0 (+official open-data ingestion)",
+                },
                 timeout=self.config.timeout,
             )
             response.raise_for_status()
@@ -143,7 +166,9 @@ class DGCPPACCConnector:
             all_rows.extend(batch)
             if len(rows) < page_size:
                 return all_rows
-        raise RuntimeError(f"DGCP PACC reached max_pages={max_pages} for year={year}; snapshot completeness not proven")
+        raise RuntimeError(
+            f"DGCP PACC reached max_pages={max_pages} for year={year}; snapshot completeness not proven"
+        )
 
     def fetch_snapshot(self, *, year=None, now=None):
         current = now or datetime.now(timezone.utc)

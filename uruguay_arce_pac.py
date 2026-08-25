@@ -1,9 +1,14 @@
 """Uruguay ARCE annual procurement-plan early-signal connector.
 
-Uses the public PAC consultation SPA/API, publisher-controlled family code 6
-(`CONSTRUCCIONES, MEJORAS Y REPARACIONES EXTRAORDINARIAS`) and future planned
-call windows. Snapshot semantics remain separate from the existing UY_ARCE OCDS
-RSS cursor.
+ARCE's public PAC consultation SPA exposes an unauthenticated paginated JSON API.
+This connector deliberately covers the publisher-controlled family code 6
+(`CONSTRUCCIONES, MEJORAS Y REPARACIONES EXTRAORDINARIAS`) and planned calls whose
+published call window has not started yet. It does not use title keywords and it
+does not depend on the currently broken public Excel export.
+
+PAC is a snapshot transport, not the OCDS RSS event stream. Keeping it in this
+small module prevents its snapshot semantics from contaminating UY_ARCE's tender
+cursor. Runtime composition is a separate integration decision.
 """
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from uruguay_arce import ARCE_ATTRIBUTION, ARCE_LICENSE
+
 
 ARCE_PAC_PUBLIC_URL = "https://www.comprasestatales.gub.uy/consultaplananual/"
 ARCE_PAC_CONFIG_URL = urljoin(ARCE_PAC_PUBLIC_URL, "assets/config.json")
@@ -77,8 +83,10 @@ def _published(value):
 
 
 def normalize_arce_pac_procedure(row, *, today):
+    """Normalize one future family-6 PAC row into canonical PROCUREMENT_PLAN."""
     if not isinstance(row, dict) or _truthy(row.get("dadoBaja")):
         return None
+
     procedure_id = _text(row.get("id"))
     plan = row.get("planAnual") if isinstance(row.get("planAnual"), dict) else {}
     plan_id = _text(plan.get("id"))
@@ -87,10 +95,14 @@ def normalize_arce_pac_procedure(row, *, today):
     start_date = _date(row.get("periodoConvFechaIni"))
     end_date = _date(row.get("periodoConvFechaFin"))
     current = today.isoformat() if hasattr(today, "isoformat") else _date(today)
+
     if not procedure_id or not plan_id or not buyer or not title or not start_date or not current:
         return None
-    if start_date < current or (end_date and end_date < start_date):
+    if start_date < current:
         return None
+    if end_date and end_date < start_date:
+        return None
+
     published_at = _published(row.get("fechaHoraPublicacion") or plan.get("fechaPublicacion"))
     updated_at = _published(row.get("fechaHoraUltimaActualizacion"))
     source_reference = f"pac:{procedure_id}"
@@ -179,6 +191,7 @@ class ARCEPACConnector:
         current = today.isoformat()
         rows = []
         expected_pages = None
+
         for page in range(max_pages):
             response = self._get(
                 api_url + ARCE_PAC_SEARCH_PATH,
@@ -203,18 +216,24 @@ class ARCEPACConnector:
             if total_pages < 0:
                 raise RuntimeError("UY_ARCE PAC returned a negative totalPages")
             if total_pages > max_pages:
-                raise RuntimeError(f"UY_ARCE PAC requires {total_pages} pages, above max_pages={max_pages}; snapshot completeness not proven")
+                raise RuntimeError(
+                    f"UY_ARCE PAC requires {total_pages} pages, above max_pages={max_pages}; snapshot completeness not proven"
+                )
             if expected_pages is None:
                 expected_pages = total_pages
             elif total_pages != expected_pages:
                 raise RuntimeError("UY_ARCE PAC totalPages changed during bounded snapshot")
+
             batch = [row for row in payload["content"] if isinstance(row, dict)]
             if page < total_pages and not batch:
                 raise RuntimeError("UY_ARCE PAC returned an empty page before snapshot completion")
             rows.extend(batch)
             if page + 1 >= total_pages:
                 return rows
-        raise RuntimeError(f"UY_ARCE PAC reached max_pages={max_pages}; snapshot completeness not proven")
+
+        raise RuntimeError(
+            f"UY_ARCE PAC reached max_pages={max_pages}; snapshot completeness not proven"
+        )
 
     def fetch_snapshot(self, *, now=None):
         current = now or datetime.now(timezone.utc)
