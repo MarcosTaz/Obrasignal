@@ -131,14 +131,25 @@
       "fact": "saved_watchlist",
       "owner": "Saved/Watchlist owner",
       "canonical_authority": "UNKNOWN_CURRENT_MAIN",
-      "status": "RECONSTRUCTION_PENDING"
+      "storage": ["mobile AsyncStorage @obrasignal/v1/saved exists as a client representation"],
+      "status": "RECONSTRUCTION_PENDING",
+      "unknown": ["server-side saved/watchlist authority on current main"]
     },
     {
       "fact": "mobile_private_cache",
-      "owner": "Mobile Session/Tenant State",
-      "canonical_authority": "backend remains authority; device cache is derived",
-      "status": "RECONSTRUCTION_PENDING",
-      "unknown": ["#322 tenant-scoped candidate is not canonical main"]
+      "owner": "Mobile Session/Tenant State #291/#322",
+      "canonical_authority": "backend APIs remain authority; AsyncStorage is derived only",
+      "storage": [
+        "@obrasignal/v1/opportunities-cache",
+        "@obrasignal/v1/profile",
+        "@obrasignal/v1/saved",
+        "@obrasignal/v1/settings"
+      ],
+      "client_copies": ["profile", "Radar opportunity cache", "saved", "settings"],
+      "tenant_key": "ABSENT_ON_CURRENT_MAIN_STORAGE_KEYS",
+      "status": "CANONICAL_DERIVED_RISK_OTHER_OWNER",
+      "current_invariant": "cached private state must bind to current authenticated tenant before hydration",
+      "unknown": ["#322 tenant-scoped candidate is not canonical main and therefore not counted as current canonical repair"]
     },
     {
       "fact": "web_client_state",
