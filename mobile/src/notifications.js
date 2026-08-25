@@ -44,12 +44,12 @@ export async function showLocalOpportunityAlert(item) {
 }
 
 export async function syncUnreadOpportunityAlerts() {
-  if (Platform.OS === 'web') return 0;
+  if (Platform.OS === 'web') return { status: 'unsupported', delivered: 0 };
   const settings = await storage.getSettings();
-  if (!settings.notifications) return 0;
+  if (!settings.notifications) return { status: 'disabled', delivered: 0 };
 
   const granted = await configureNotifications();
-  if (!granted) return 0;
+  if (!granted) return { status: 'permission_denied', delivered: 0 };
 
   const result = await api.alerts({ unreadOnly: true, limit: 10 });
   const items = result?.items || [];
@@ -65,5 +65,5 @@ export async function syncUnreadOpportunityAlerts() {
     }
   }
 
-  return delivered;
+  return { status: 'ready', delivered };
 }
