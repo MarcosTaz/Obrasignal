@@ -1,7 +1,7 @@
 """Repository-local observability signal truth for ObraSignal.
 
 This module is operational metadata, not a second product/domain truth and not a
-release GO/NO-GO decision.  It deliberately refuses to infer readiness from an
+release GO/NO-GO decision. It deliberately refuses to infer readiness from an
 HTTP 200, a process being alive, or a missing signal.
 """
 from __future__ import annotations
@@ -34,7 +34,7 @@ class ComponentSignal:
     """Bounded operational state for one component/dependency.
 
     ``critical`` means the component is required for the intended runtime
-    capability represented by this snapshot.  Optional dependencies remain
+    capability represented by this snapshot. Optional dependencies remain
     visible but do not silently turn the whole service unavailable.
     """
 
@@ -122,7 +122,7 @@ def _jsonify_has_unconditional_ok_true(node: ast.AST) -> bool:
 def scan_health_endpoint(app_source: str, render_source: str = "") -> HealthEndpointContract:
     """Classify what ``/api/v1/health`` actually proves from repository code.
 
-    The scanner intentionally has no path that infers FULL_READINESS.  A richer
+    The scanner intentionally has no path that infers FULL_READINESS. A richer
     endpoint requires an explicit reviewed contract rather than heuristic
     promotion by this scanner.
     """
@@ -172,7 +172,7 @@ def scan_health_endpoint(app_source: str, render_source: str = "") -> HealthEndp
 def scan_worker_contract(app_source: str) -> WorkerSignalContract:
     """Detect whether a background worker exposes progress/failure state.
 
-    A loop existing is not useful-progress evidence.  The scanner looks only for
+    A loop existing is not useful-progress evidence. The scanner looks only for
     explicit bounded state names; log text is not treated as a heartbeat.
     """
 
@@ -210,9 +210,10 @@ def scan_worker_contract(app_source: str) -> WorkerSignalContract:
 def build_operability_snapshot(signals: Iterable[ComponentSignal]) -> dict:
     """Aggregate component signal truth without producing release readiness.
 
-    Critical UNKNOWN/STALE stays UNKNOWN.  Critical UNAVAILABLE dominates.
-    Optional component failures remain explicit in ``components`` and
-    ``unknowns`` but do not by themselves claim the core runtime unavailable.
+    Critical UNKNOWN/STALE stays UNKNOWN. Critical UNAVAILABLE or DISABLED is
+    unavailable for that intended runtime capability. Optional component
+    failures remain explicit in ``components`` and ``unknowns`` but do not by
+    themselves claim the core runtime unavailable.
     """
 
     components = list(signals)
@@ -223,13 +224,13 @@ def build_operability_snapshot(signals: Iterable[ComponentSignal]) -> dict:
     critical = [item for item in components if item.critical]
     if not critical:
         overall = "UNKNOWN"
-    elif any(item.state == "UNAVAILABLE" for item in critical):
+    elif any(item.state in {"UNAVAILABLE", "DISABLED"} for item in critical):
         overall = "UNAVAILABLE"
     elif any(item.state in {"UNKNOWN", "STALE", "NOT_CONFIGURED"} for item in critical):
         overall = "UNKNOWN"
     elif any(item.state == "DEGRADED" for item in critical):
         overall = "DEGRADED"
-    elif all(item.state in {"HEALTHY", "DISABLED"} for item in critical):
+    elif all(item.state == "HEALTHY" for item in critical):
         overall = "FULL"
     else:
         overall = "UNKNOWN"
