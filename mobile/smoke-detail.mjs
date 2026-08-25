@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
+const storageSource = fs.readFileSync(new URL('./src/storage.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
@@ -25,6 +26,14 @@ const crossFileChecks = [
   ['API exposes alerts endpoint', /alerts:\s*\(\{\s*limit\s*=\s*20,\s*unreadOnly\s*=\s*false\s*\}/],
 ];
 
+const authIsolationChecks = [
+  ['auth gate blocks authenticated shell until private tenant binding completes', authGate, /setTenantStatus\('loading'\)[\s\S]*await storage\.bindPrivateTenant\(accountId\)[\s\S]*setTenantStatus\('ready'\)/],
+  ['authenticated subtree remounts when session identity changes', authGate, /<BillingGate key=\{accountId\}>\{children\}<\/BillingGate>/],
+  ['private storage facade clears the active identity before asynchronous rebind', storageSource, /activePrivateTenant = null;[\s\S]*await privateStorage\.bindTenant\(accountId\)/],
+  ['unbound Radar cache reads fail closed', storageSource, /getCache: \(\) => activePrivateTenant \? privateStorage\.getCache\(activePrivateTenant\) : Promise\.resolve\(null\)/],
+  ['unbound profile cache reads fail closed', storageSource, /getProfile: \(\) => activePrivateTenant \? privateStorage\.getProfile\(activePrivateTenant\) : Promise\.resolve\(null\)/],
+];
+
 const failures = [
   ...checks.slice(0, 5).filter(([, pattern]) => !pattern.test(app)),
   ...checks.slice(5).filter(([, pattern]) => !pattern.test(onboarding)),
@@ -34,9 +43,10 @@ const crossFailures = [
   ...crossFileChecks.slice(2, 4).filter(([, pattern]) => !pattern.test(notifications)),
   ...crossFileChecks.slice(4).filter(([, pattern]) => !pattern.test(api)),
 ];
+const authIsolationFailures = authIsolationChecks.filter(([, source, pattern]) => !pattern.test(source));
 
-if (failures.length || crossFailures.length) {
-  for (const [name] of [...failures, ...crossFailures]) console.error(`FAIL: ${name}`);
+if (failures.length || crossFailures.length || authIsolationFailures.length) {
+  for (const [name] of [...failures, ...crossFailures, ...authIsolationFailures]) console.error(`FAIL: ${name}`);
   process.exit(1);
 }
 
@@ -45,4 +55,4 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
+for (const [name] of [...checks, ...crossFileChecks, ...authIsolationChecks]) console.log(`PASS: ${name}`);
