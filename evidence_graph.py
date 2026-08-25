@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from enum import Enum
 import hashlib
 import json
+from types import MappingProxyType
 from typing import Any, Mapping
 
 from source_registry import SOURCES
@@ -94,8 +95,44 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def _canonical(value: Any) -> Any:
+    """Convert nested values to deterministic JSON-compatible structures."""
+    if isinstance(value, Mapping):
+        return {str(k): _canonical(v) for k, v in sorted(value.items(), key=lambda item: str(item[0]))}
+    if isinstance(value, (list, tuple)):
+        return [_canonical(v) for v in value]
+    if isinstance(value, (set, frozenset)):
+        items = [_canonical(v) for v in value]
+        return sorted(items, key=lambda item: json.dumps(item, sort_keys=True, default=str))
+    if isinstance(value, datetime):
+        return _iso(value)
+    return value
+
+
+def _freeze(value: Any) -> Any:
+    """Take an immutable snapshot so node content cannot change retroactively."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(k): _freeze(v) for k, v in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(v) for v in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(_freeze(v) for v in value)
+    return value
+
+
+def _view(value: Any) -> Any:
+    """Return a detached presentation/export copy of an immutable node value."""
+    if isinstance(value, Mapping):
+        return {str(k): _view(v) for k, v in value.items()}
+    if isinstance(value, tuple):
+        return [_view(v) for v in value]
+    if isinstance(value, frozenset):
+        return sorted((_view(v) for v in value), key=lambda item: json.dumps(item, sort_keys=True, default=str))
+    return value
+
+
 def _stable_id(prefix: str, payload: Mapping[str, Any]) -> str:
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+    raw = json.dumps(_canonical(payload), ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
     return f"{prefix}_{hashlib.sha256(raw.encode('utf-8')).hexdigest()[:20]}"
 
 
@@ -114,12 +151,15 @@ class Provenance:
     quality: str | None = None
     legal_reuse: str | None = None
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "locator", _freeze(dict(self.locator)))
+
     def identity_key(self) -> tuple:
         return (
             self.source.strip().upper(),
             self.external_id.strip(),
             self.raw_identifier or "",
-            json.dumps(dict(self.locator), sort_keys=True, default=str),
+            json.dumps(_canonical(self.locator), sort_keys=True, default=str),
         )
 
 
@@ -131,6 +171,9 @@ class EvidenceNode:
     value: Any
     field_name: str | None = None
     unit: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "value", _freeze(self.value))
 
 
 @dataclass(frozen=True)
@@ -146,6 +189,10 @@ class ClaimNode:
     calculation_version: str | None = None
     valid_at: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "value", _freeze(self.value))
+        object.__setattr__(self, "metadata", _freeze(dict(self.metadata)))
 
 
 @dataclass(frozen=True)
@@ -180,11 +227,7 @@ class EvidencePolicy:
 
 
 class EvidenceGraph:
-    """Tenant-scoped, deterministic lineage graph.
-
-    IDs are content-derived. Freshness is deterministic for the same explicit
-    ``as_of`` value and policy version.
-    """
+    """Tenant-scoped, deterministic lineage graph."""
 
     def __init__(self, tenant_id: str, *, policy: EvidencePolicy | None = None):
         self.tenant_id = str(tenant_id or "default")
@@ -200,37 +243,54 @@ class EvidenceGraph:
     def add_evidence(self, provenance: Provenance, value: Any, *, field_name: str | None = None, unit: str | None = None) -> str:
         if not provenance.source.strip() or not provenance.external_id.strip():
             raise ValueError("evidence source and external_id are required")
-        dedup_key = provenance.identity_key() + (field_name or "", json.dumps(value, sort_keys=True, default=str))
+        value_snapshot = _freeze(value)
+        dedup_key = provenance.identity_key() + (
+            field_name or "",
+            json.dumps(_canonical(value_snapshot), sort_keys=True, default=str),
+        )
         if dedup_key in self._evidence_identity:
             return self._evidence_identity[dedup_key]
         payload = {
             "tenant": self.tenant_id,
             "provenance": provenance.identity_key(),
             "field": field_name,
-            "value": value,
+            "value": _canonical(value_snapshot),
             "unit": unit,
         }
         node_id = _stable_id("ev", payload)
-        node = EvidenceNode(node_id, self.tenant_id, provenance, value, field_name, unit)
-        self.nodes[node_id] = node
+        self.nodes[node_id] = EvidenceNode(node_id, self.tenant_id, provenance, value_snapshot, field_name, unit)
         self._evidence_identity[dedup_key] = node_id
         return node_id
 
-    def add_claim(self, claim_type: NodeType | str, subject: str, predicate: str, value: Any = None, *, unit: str | None = None, method: str | None = None, calculation_version: str | None = None, valid_at: Any = None, metadata: Mapping[str, Any] | None = None) -> str:
+    def add_claim(
+        self,
+        claim_type: NodeType | str,
+        subject: str,
+        predicate: str,
+        value: Any = None,
+        *,
+        unit: str | None = None,
+        method: str | None = None,
+        calculation_version: str | None = None,
+        valid_at: Any = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> str:
         kind = NodeType(claim_type)
         if kind == NodeType.EVIDENCE:
             raise ValueError("use add_evidence for evidence nodes")
+        value_snapshot = _freeze(value)
+        metadata_snapshot = _freeze(dict(metadata or {}))
         payload = {
             "tenant": self.tenant_id,
             "type": kind.value,
             "subject": subject,
             "predicate": predicate,
-            "value": value,
+            "value": _canonical(value_snapshot),
             "unit": unit,
             "method": method,
             "calculation_version": calculation_version,
             "valid_at": _iso(valid_at),
-            "metadata": dict(metadata or {}),
+            "metadata": _canonical(metadata_snapshot),
         }
         node_id = _stable_id("cl", payload)
         self.nodes.setdefault(
@@ -241,12 +301,12 @@ class EvidenceGraph:
                 claim_type=kind,
                 subject=str(subject),
                 predicate=str(predicate),
-                value=value,
+                value=value_snapshot,
                 unit=unit,
                 method=method,
                 calculation_version=calculation_version,
                 valid_at=_iso(valid_at),
-                metadata=dict(metadata or {}),
+                metadata=metadata_snapshot,
             ),
         )
         return node_id
@@ -299,9 +359,11 @@ class EvidenceGraph:
         )
 
     def _is_stale(self, evidence: EvidenceNode, as_of: datetime) -> bool:
-        # Reading old material now must not make it current: prefer source time;
-        # retrieved_at is only a fallback when source time is unavailable.
-        anchor = _dt(evidence.provenance.effective_at) or _dt(evidence.provenance.published_at) or _dt(evidence.provenance.retrieved_at)
+        anchor = (
+            _dt(evidence.provenance.effective_at)
+            or _dt(evidence.provenance.published_at)
+            or _dt(evidence.provenance.retrieved_at)
+        )
         if not anchor:
             return False
         age_minutes = (_utc(as_of) - anchor).total_seconds() / 60
@@ -350,8 +412,7 @@ class EvidenceGraph:
             score -= 2
         if status == ClaimStatus.STALE:
             score -= 2
-        depth = self._max_depth(claim_id)
-        if depth >= 4:
+        if self._max_depth(claim_id) >= 4:
             score -= 1
         return Confidence.HIGH if score >= 4 else Confidence.MEDIUM if score >= 2 else Confidence.LOW
 
@@ -375,13 +436,15 @@ class EvidenceGraph:
         ancestors = [self.nodes[n] for n in ancestor_ids]
         claims = [n for n in ancestors if isinstance(n, ClaimNode)]
         evidence = [n for n in ancestors if isinstance(n, EvidenceNode)]
-        conflicts = []
         lineage_scope = set(ancestor_ids) | {claim_id}
-        for edge in sorted(self.edges, key=lambda e: (e.relation.value, e.source_id, e.target_id)):
-            if edge.relation == EdgeType.CONTRADICTS and (edge.source_id in lineage_scope or edge.target_id in lineage_scope):
-                conflicts.append({"left": edge.source_id, "right": edge.target_id})
-        missing = []
+        conflicts = [
+            {"left": edge.source_id, "right": edge.target_id}
+            for edge in sorted(self.edges, key=lambda e: (e.relation.value, e.source_id, e.target_id))
+            if edge.relation == EdgeType.CONTRADICTS
+            and (edge.source_id in lineage_scope or edge.target_id in lineage_scope)
+        ]
         st = self.status(claim_id, as_of=as_of)
+        missing: list[str] = []
         if st == ClaimStatus.UNSUPPORTED:
             missing.append("material_support")
         if st == ClaimStatus.UNKNOWN:
@@ -408,12 +471,12 @@ class EvidenceGraph:
             "type": node.claim_type.value,
             "subject": node.subject,
             "predicate": node.predicate,
-            "value": node.value,
+            "value": _view(node.value),
             "unit": node.unit,
             "method": node.method,
             "calculation_version": node.calculation_version,
             "valid_at": node.valid_at,
-            "metadata": dict(node.metadata),
+            "metadata": _view(node.metadata),
         }
 
     def _evidence_view(self, node: EvidenceNode, *, as_of: datetime | None) -> dict[str, Any]:
@@ -429,9 +492,9 @@ class EvidenceGraph:
             "published_at": p.published_at,
             "effective_at": p.effective_at,
             "raw_identifier": p.raw_identifier,
-            "locator": dict(p.locator),
+            "locator": _view(p.locator),
             "field_name": node.field_name,
-            "value": node.value,
+            "value": _view(node.value),
             "unit": node.unit,
             "quality": self.policy.source_quality(p),
             "legal_reuse": p.legal_reuse,
@@ -456,7 +519,15 @@ class EvidenceGraph:
         return {"node_type": node.claim_type.value, **self._claim_view(node)}
 
 
-def signal_to_fact(graph: EvidenceGraph, signal: Mapping[str, Any], field_name: str, *, subject: str | None = None, publisher: str | None = None, retrieved_at: Any = None) -> str:
+def signal_to_fact(
+    graph: EvidenceGraph,
+    signal: Mapping[str, Any],
+    field_name: str,
+    *,
+    subject: str | None = None,
+    publisher: str | None = None,
+    retrieved_at: Any = None,
+) -> str:
     """Generic Signal -> Evidence -> FACT adapter; connectors need no graph knowledge."""
     source = str(signal.get("source") or "").strip()
     external_id = str(signal.get("external_id") or "").strip()
@@ -488,21 +559,56 @@ def signal_to_fact(graph: EvidenceGraph, signal: Mapping[str, Any], field_name: 
     return claim_id
 
 
-def economic_fit_lineage(graph: EvidenceGraph, signal: Mapping[str, Any], profile: Mapping[str, Any], economic_result: Mapping[str, Any]) -> str:
-    """Minimal demonstration adapter for ``economic_fit.evaluate_economic_fit`` output."""
+def _signal_dependency(graph: EvidenceGraph, signal: Mapping[str, Any], field_name: str, subject: str) -> str:
+    """Represent a calculation input even when the normalized Signal lacks it."""
+    if field_name in signal and signal.get(field_name) is not None:
+        return signal_to_fact(graph, signal, field_name, subject=subject)
+    return graph.add_claim(NodeType.FACT, subject, field_name, None, metadata={"missing": True})
+
+
+def economic_fit_lineage(
+    graph: EvidenceGraph,
+    signal: Mapping[str, Any],
+    profile: Mapping[str, Any],
+    economic_result: Mapping[str, Any],
+) -> str:
+    """Minimal demonstration adapter for ``economic_fit.evaluate_economic_fit`` output.
+
+    It records every material Signal/profile dependency used by the current
+    economic-fit rule family, while leaving the existing economic engine intact.
+    """
     opportunity_id = str(signal.get("external_id") or "opportunity")
-    value_fact = signal_to_fact(graph, signal, "value", subject=opportunity_id)
-    dependencies = [value_fact]
-    for key in ("min_value", "max_value", "min_deadline_days", "max_deadline_days", "economic_min_score"):
-        if profile.get(key) is not None:
-            assumption_id = graph.add_claim(
-                NodeType.ASSUMPTION,
-                opportunity_id,
-                f"company_rule.{key}",
-                profile[key],
-                method="company_profile",
+    dependencies = [_signal_dependency(graph, signal, "value", opportunity_id)]
+
+    deadline_rules = any(profile.get(key) is not None for key in ("min_deadline_days", "max_deadline_days"))
+    procedure_rules = bool(profile.get("preferred_procedure_types") or profile.get("excluded_procedure_types"))
+    if deadline_rules:
+        dependencies.append(_signal_dependency(graph, signal, "deadline", opportunity_id))
+    if procedure_rules:
+        dependencies.append(_signal_dependency(graph, signal, "procedure_type", opportunity_id))
+
+    profile_keys = (
+        "min_value",
+        "max_value",
+        "min_deadline_days",
+        "max_deadline_days",
+        "economic_min_score",
+        "preferred_procedure_types",
+        "excluded_procedure_types",
+    )
+    for key in profile_keys:
+        value = profile.get(key)
+        if value is not None and value != [] and value != () and value != set():
+            dependencies.append(
+                graph.add_claim(
+                    NodeType.ASSUMPTION,
+                    opportunity_id,
+                    f"company_rule.{key}",
+                    value,
+                    method="company_profile",
+                )
             )
-            dependencies.append(assumption_id)
+
     estimate_id = graph.add_claim(
         NodeType.ESTIMATE,
         opportunity_id,
@@ -511,7 +617,11 @@ def economic_fit_lineage(graph: EvidenceGraph, signal: Mapping[str, Any], profil
         unit="/100",
         method="evaluate_economic_fit",
         calculation_version=economic_result.get("rule_version"),
-        metadata={"status": economic_result.get("status"), "reason": economic_result.get("reason")},
+        metadata={
+            "status": economic_result.get("status"),
+            "reason": economic_result.get("reason"),
+            "rules": economic_result.get("rules") or [],
+        },
     )
     for dependency in dependencies:
         dependency_node = graph.nodes[dependency]
@@ -521,6 +631,7 @@ def economic_fit_lineage(graph: EvidenceGraph, signal: Mapping[str, Any], profil
             else EdgeType.DERIVED_FROM
         )
         graph.add_edge(dependency, estimate_id, relation)
+
     inference_id = graph.add_claim(
         NodeType.INFERENCE,
         opportunity_id,
