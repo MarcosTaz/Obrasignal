@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -121,3 +121,103 @@ def test_economic_fit_lineage_represents_missing_material_deadline_explicitly():
     deadline = next(item for item in explanation["facts"] if item["predicate"] == "deadline")
     assert deadline["value"] is None
     assert deadline["metadata"]["missing"] is True
+
+
+def test_blank_tenant_fails_closed():
+    for tenant in ("", "   ", None):
+        with pytest.raises(ValueError, match="tenant_id"):
+            EvidenceGraph(tenant)
+
+
+def test_retrieval_time_cannot_launder_unknown_publisher_freshness():
+    graph = EvidenceGraph("company-a")
+    provenance = Provenance(
+        source="TED",
+        external_id="freshness-unknown",
+        retrieved_at=NOW.isoformat(),
+    )
+    evidence_id = graph.add_evidence(provenance, "Buyer", field_name="buyer")
+    fact_id = graph.add_claim("FACT", "freshness-unknown", "buyer", "Buyer")
+    graph.add_edge(evidence_id, fact_id, "SUPPORTS")
+
+    explanation = graph.explain(fact_id, as_of=NOW)
+    assert explanation["status"] == "SUPPORTED"
+    assert explanation["confidence"] != "HIGH"
+    assert explanation["evidence"][0]["stale"] is None
+    assert "source_freshness" in explanation["missing"]
+
+
+def test_future_publisher_timestamp_is_unknown_freshness_not_false_fresh():
+    graph = EvidenceGraph("company-a")
+    provenance = Provenance(
+        source="TED",
+        external_id="future-time",
+        published_at=(NOW + timedelta(days=1)).isoformat(),
+        retrieved_at=NOW.isoformat(),
+    )
+    evidence_id = graph.add_evidence(provenance, 10, field_name="value")
+    fact_id = graph.add_claim("FACT", "future-time", "value", 10)
+    graph.add_edge(evidence_id, fact_id, "SUPPORTS")
+
+    explanation = graph.explain(fact_id, as_of=NOW)
+    assert explanation["evidence"][0]["stale"] is None
+    assert "source_freshness" in explanation["missing"]
+
+
+def test_publisher_revision_is_distinct_but_retrieval_retry_does_not_inflate_evidence():
+    graph = EvidenceGraph("company-a")
+    first = Provenance(
+        source="TED",
+        external_id="revision-1",
+        published_at="2026-08-20T00:00:00+00:00",
+        effective_at="2026-08-20T00:00:00+00:00",
+        retrieved_at="2026-08-20T01:00:00+00:00",
+        raw_identifier="revision-1",
+        locator={"field": "buyer"},
+    )
+    revised = Provenance(
+        source="TED",
+        external_id="revision-1",
+        published_at="2026-08-20T00:00:00+00:00",
+        effective_at="2026-08-21T00:00:00+00:00",
+        retrieved_at="2026-08-21T01:00:00+00:00",
+        raw_identifier="revision-1",
+        locator={"field": "buyer"},
+    )
+    retry = Provenance(
+        source="TED",
+        external_id="revision-1",
+        published_at="2026-08-20T00:00:00+00:00",
+        effective_at="2026-08-21T00:00:00+00:00",
+        retrieved_at="2026-08-25T00:00:00+00:00",
+        raw_identifier="revision-1",
+        locator={"field": "buyer"},
+    )
+
+    first_id = graph.add_evidence(first, "Buyer", field_name="buyer")
+    revised_id = graph.add_evidence(revised, "Buyer", field_name="buyer")
+    retry_id = graph.add_evidence(retry, "Buyer", field_name="buyer")
+
+    assert revised_id != first_id
+    assert retry_id == revised_id
+    assert len(graph.nodes) == 2
+
+
+def test_malformed_provenance_timestamp_fails_closed():
+    with pytest.raises(ValueError, match="published_at"):
+        Provenance(source="TED", external_id="bad-time", published_at="not-a-time")
+
+
+def test_graph_execution_limits_fail_closed_without_corrupting_existing_state():
+    graph = EvidenceGraph("company-a", max_nodes=2, max_edges=1)
+    a = graph.add_claim("FACT", "a", "value", 1)
+    b = graph.add_claim("FACT", "b", "value", 2)
+    graph.add_edge(a, b, "DERIVED_FROM")
+
+    with pytest.raises(ValueError, match="node limit"):
+        graph.add_claim("FACT", "c", "value", 3)
+    with pytest.raises(ValueError, match="edge limit"):
+        graph.add_edge(b, a, "CONTRADICTS")
+
+    assert len(graph.nodes) == 2
+    assert len(graph.edges) == 1
