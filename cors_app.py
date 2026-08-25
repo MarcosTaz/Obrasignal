@@ -21,8 +21,9 @@ _QUERY_TEXT_MAX = 200
 
 def _origin():
     value = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
+    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
     if value == "*":
-        return value
+        return "*" if auth_mode == "development" else None
     parsed = urlsplit(value)
     if not parsed.scheme or not parsed.netloc:
         return None
