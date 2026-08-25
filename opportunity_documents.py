@@ -48,6 +48,7 @@ _REQUIRED = {"REQUIRED", "NOT_REQUIRED", "UNKNOWN"}
 _RELATIONSHIPS = {"SUPERSEDES", "AMENDS", "APPENDS_TO", "RELATED_TO"}
 _MAX_TEXT = 4096
 _MAX_METADATA_BYTES = 65536
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 _FALSE_POSITIVE_MARKERS = (
     "guidance", "example", "examples", "sample", "how to", "manual", "instructions",
@@ -218,7 +219,9 @@ def _identity_basis(reference: Mapping[str, object], metadata_hash: str) -> tupl
     version = _text(reference.get("version"), limit=200)
     explicit_content_hash = _text(reference.get("content_fingerprint"), limit=128).lower()
     fingerprint_kind = _enum(reference.get("fingerprint_kind"), {"CONTENT", "METADATA"}, "")
-    if explicit_content_hash and fingerprint_kind == "CONTENT":
+    if fingerprint_kind == "CONTENT":
+        if not _SHA256_RE.fullmatch(explicit_content_hash):
+            raise ValueError("CONTENT fingerprint must be a SHA-256 hex digest")
         native_prefix = f"native:{source}:{native}:" if native else ""
         return f"{native_prefix}content:{explicit_content_hash}", "CONTENT"
     if native:
@@ -257,6 +260,7 @@ def normalize_document_reference(reference: Mapping[str, object]) -> Opportunity
     if raw_url and source_url is None:
         raw.setdefault("unsafe_source_url_rejected", True)
 
+    explicit_fingerprint = _text(reference.get("content_fingerprint"), limit=128).lower()
     return OpportunityDocument(
         document_id=document_id,
         opportunity_source=opportunity_source,
@@ -279,7 +283,7 @@ def normalize_document_reference(reference: Mapping[str, object]) -> Opportunity
         mime_type=_text(reference.get("mime_type"), limit=200) or None,
         language=_text(reference.get("language"), limit=100) or None,
         version=_text(reference.get("version"), limit=200) or None,
-        content_fingerprint=_text(reference.get("content_fingerprint"), limit=128).lower() or metadata_hash,
+        content_fingerprint=explicit_fingerprint if fingerprint_kind == "CONTENT" else metadata_hash,
         fingerprint_kind=fingerprint_kind,
         file_size=file_size,
         package_reference=_text(reference.get("package_reference"), limit=1000) or None,
@@ -296,8 +300,15 @@ def _with_relationships(document: OpportunityDocument, relationships: Iterable[D
     return OpportunityDocument(**data)
 
 
+def _same_opportunity(left: OpportunityDocument, right: OpportunityDocument) -> bool:
+    return (
+        left.opportunity_source.casefold() == right.opportunity_source.casefold()
+        and left.opportunity_external_id == right.opportunity_external_id
+    )
+
+
 def normalize_document_references(references: Iterable[Mapping[str, object]]) -> tuple[OpportunityDocument, ...]:
-    """Normalize/dedupe and resolve only relations defensible inside one batch."""
+    """Normalize/dedupe and resolve only same-opportunity defensible relations."""
     normalized: dict[str, OpportunityDocument] = {}
     raw_by_id: dict[str, Mapping[str, object]] = {}
     for reference in references or ():
@@ -306,10 +317,14 @@ def normalize_document_references(references: Iterable[Mapping[str, object]]) ->
             normalized[document.document_id] = document
             raw_by_id[document.document_id] = reference
 
-    native_index: dict[tuple[str, str], list[str]] = {}
+    native_index: dict[tuple[str, str, str, str], list[str]] = {}
     for document in normalized.values():
         if document.external_id:
-            native_index.setdefault((document.source.casefold(), document.external_id), []).append(document.document_id)
+            key = (
+                document.opportunity_source.casefold(), document.opportunity_external_id,
+                document.source.casefold(), document.external_id,
+            )
+            native_index.setdefault(key, []).append(document.document_id)
 
     result = dict(normalized)
     superseded_targets: set[str] = set()
@@ -317,18 +332,25 @@ def normalize_document_references(references: Iterable[Mapping[str, object]]) ->
         raw = raw_by_id[document_id]
         relationships: list[DocumentRelationship] = []
         explicit_target = _text(raw.get("supersedes_document_id"), limit=200)
+        target_doc = normalized.get(explicit_target)
+        target_id = explicit_target if target_doc and explicit_target != document_id and _same_opportunity(document, target_doc) else ""
         native_target = _text(raw.get("supersedes_external_id"), limit=1000)
-        target_id = explicit_target if explicit_target in normalized and explicit_target != document_id else ""
         if not target_id and native_target:
-            candidates = [candidate for candidate in native_index.get((document.source.casefold(), native_target), ()) if candidate != document_id]
+            key = (
+                document.opportunity_source.casefold(), document.opportunity_external_id,
+                document.source.casefold(), native_target,
+            )
+            candidates = [candidate for candidate in native_index.get(key, ()) if candidate != document_id]
             if len(candidates) == 1:
                 target_id = candidates[0]
         if target_id:
             relationships.append(DocumentRelationship("SUPERSEDES", target_id))
             superseded_targets.add(target_id)
+
         relation_type = _enum(raw.get("relationship_type"), _RELATIONSHIPS, "")
         relation_target = _text(raw.get("related_document_id"), limit=200)
-        if relation_type and relation_target in normalized and relation_target != document_id:
+        related_doc = normalized.get(relation_target)
+        if relation_type and related_doc and relation_target != document_id and _same_opportunity(document, related_doc):
             relationships.append(DocumentRelationship(relation_type, relation_target))
         if relationships:
             result[document_id] = _with_relationships(document, relationships)
@@ -473,9 +495,8 @@ def ingest_document_references(conn, references: Iterable[Mapping[str, object]],
                 source_document_id, relationship_type, target_document_id) VALUES(?,?,?)''',
                 (document.document_id, relationship.relationship_type, relationship.target_document_id))
 
-    # A new amendment/revision often arrives in a later sync than the document it
-    # supersedes. Resolve only explicit, unambiguous targets already persisted for
-    # the same opportunity; never infer replacement from names, dates or ordering.
+    # Revisions often arrive after the original document. Resolve only explicit,
+    # unambiguous targets already persisted for this same opportunity.
     for document in documents:
         raw = raw_by_id.get(document.document_id, {})
         target_id = _persisted_relation_target(conn, document, raw, "supersedes")
