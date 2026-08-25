@@ -22,6 +22,7 @@ jobs:
       TARGET_BUILD: ${{ github.sha }}
     steps:
       - name: Wake and check exact API deployment health
+        id: backend
         run: |
           set -euo pipefail
           # Render services can cold-start or still be replacing the previous
@@ -64,6 +65,8 @@ jobs:
           done
 
       - name: Check protected API boundary
+        id: protected
+        if: ${{ always() }}
         run: |
           set -euo pipefail
           status="$(curl --silent --output /tmp/body --write-out '%{http_code}' --max-time 30 \
@@ -72,6 +75,8 @@ jobs:
           grep -q 'authentication_required' /tmp/body
 
       - name: Check browser CORS preflight
+        id: cors
+        if: ${{ always() }}
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 30 \
@@ -85,6 +90,8 @@ jobs:
           grep -qi '^Access-Control-Allow-Headers: .*Authorization' /tmp/headers
 
       - name: Check exact deployed Web build
+        id: web
+        if: ${{ always() }}
         run: |
           set -euo pipefail
           expected="${TARGET_BUILD:0:7}"
@@ -106,3 +113,93 @@ jobs:
             echo "Waiting for exact Web build $expected (attempt $attempt/18)…"
             sleep 10
           done
+
+      - name: Write bounded production release evidence
+        if: ${{ always() }}
+        env:
+          BACKEND_OUTCOME: ${{ steps.backend.outcome }}
+          PROTECTED_OUTCOME: ${{ steps.protected.outcome }}
+          CORS_OUTCOME: ${{ steps.cors.outcome }}
+          WEB_OUTCOME: ${{ steps.web.outcome }}
+          RUN_ID: ${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          target = os.environ['TARGET_BUILD']
+          outcomes = {
+              'backend_exact_build_and_auth': os.environ.get('BACKEND_OUTCOME'),
+              'protected_api_boundary': os.environ.get('PROTECTED_OUTCOME'),
+              'cors_preflight': os.environ.get('CORS_OUTCOME'),
+              'web_exact_build': os.environ.get('WEB_OUTCOME'),
+          }
+          verified = all(value == 'success' for value in outcomes.values())
+
+          health = {}
+          health_path = Path('/tmp/health.json')
+          if health_path.exists():
+              try:
+                  health = json.loads(health_path.read_text(encoding='utf-8'))
+              except Exception:
+                  health = {}
+
+          auth = health.get('auth') if isinstance(health, dict) else {}
+          if not isinstance(auth, dict):
+              auth = {}
+          safe_auth = {name: auth.get(name) for name in (
+              'mode', 'config_present', 'provider_status', 'provider_kind', 'provider_error'
+          )}
+
+          web_build = None
+          web_path = Path('/tmp/web.html')
+          if web_path.exists():
+              match = re.search(
+                  r'<meta\s+name=["\']obrasignal-build["\']\s+content=["\']([^"\']+)["\']',
+                  web_path.read_text(encoding='utf-8', errors='replace'),
+                  flags=re.I,
+              )
+              if match:
+                  web_build = match.group(1)
+
+          proof = {
+              'schema_version': 1,
+              'verification': 'VERIFIED' if verified else 'FAILED',
+              'failure_class': None if verified else 'UNKNOWN',
+              'target_sha': target,
+              'backend_sha': health.get('build') if isinstance(health, dict) else None,
+              'web_sha_short': web_build,
+              'verified_at': datetime.now(timezone.utc).isoformat(),
+              'event': os.environ.get('EVENT_NAME'),
+              'github_run_id': os.environ.get('RUN_ID'),
+              'scope': ['backend', 'auth-config', 'protected-api-boundary', 'cors', 'web'],
+              'outcomes': outcomes,
+              'safe_auth': safe_auth,
+              'known_limitations': [
+                  'does_not_prove_authenticated_customer_journey',
+                  'does_not_prove_billing_or_entitlement_lifecycle',
+                  'does_not_prove_source_freshness_or_market_completeness',
+                  'does_not_prove_native_mobile_or_physical_device_delivery',
+              ],
+              'rollback': {
+                  'status': 'UNPROVEN',
+                  'target_sha': None,
+                  'reason': 'No rollback target is inferred from deploy history; data/config compatibility must be proven before rollback.',
+              },
+          }
+          Path('release-proof.json').write_text(json.dumps(proof, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print(json.dumps(proof, sort_keys=True, separators=(',', ':')))
+          PY
+
+      - name: Upload production release evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-production-proof-${{ github.sha }}
+          path: release-proof.json
+          if-no-files-found: error
