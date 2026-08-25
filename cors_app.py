@@ -12,6 +12,7 @@ import api as _api_module
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
+import notification_privacy_lifecycle as _notification_privacy_lifecycle
 
 # api.py owns the mobile API blueprint; account_privacy owns only the bounded
 # account export/deletion surface and cross-API deletion-state guard.
