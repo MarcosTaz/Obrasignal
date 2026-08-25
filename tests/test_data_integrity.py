@@ -161,7 +161,7 @@ def test_integrity_scanner_detects_workflow_and_decision_opportunity_orphans():
     conn.close()
 
 
-def test_integrity_scanner_detects_event_tender_orphan_and_source_mismatch():
+def test_integrity_scanner_detects_event_tender_source_and_tenant_key_drift():
     from account_registry import ensure_account
     from data_integrity import scan_canonical_integrity
     from notification_events import ensure_event_table
@@ -179,11 +179,16 @@ def test_integrity_scanner_detects_event_tender_orphan_and_source_mismatch():
         """INSERT INTO opportunity_events(account_id,event_key,tender_id,source,event_type,score,created_at)
            VALUES('tenant-a','tenant-a:orphan',999,'TED','new_high_match',90,'2026-08-25T00:00:00+00:00')"""
     )
+    conn.execute(
+        """INSERT INTO opportunity_events(account_id,event_key,tender_id,source,event_type,score,created_at)
+           VALUES('tenant-a','tenant-b:wrong-namespace',1,'TED','new_high_match',90,'2026-08-25T00:00:00+00:00')"""
+    )
     conn.commit()
 
     invariants = {item.invariant for item in scan_canonical_integrity(conn)}
     assert "OPPORTUNITY_EVENT_TENDER_ORPHAN" in invariants
     assert "OPPORTUNITY_EVENT_SOURCE_MISMATCH" in invariants
+    assert "OPPORTUNITY_EVENT_TENANT_KEY_MISMATCH" in invariants
     conn.close()
 
 
