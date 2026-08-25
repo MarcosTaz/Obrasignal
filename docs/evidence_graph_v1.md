@@ -89,21 +89,21 @@ This provides in-process immutability only. V1 still makes no claim of persisted
 - optional explicit quality metadata;
 - legal/reuse metadata.
 
-The generic `signal_to_fact()` adapter maps normalized Signals to Evidence + FACT without making individual connectors know Evidence Graph internals. Existing source registry metadata is referenced for quality/freshness/reuse policy instead of cloning registry structures into the graph.
+Publisher timestamps are normalized to UTC and malformed timestamps fail closed. The generic `signal_to_fact()` adapter maps normalized Signals to Evidence + FACT without making individual connectors know Evidence Graph internals. Existing source registry metadata is referenced for quality/freshness/reuse policy instead of cloning registry structures into the graph.
 
 For document evidence, `locator` is deliberately generic and can contain fields such as `page`, `section`, `field`, `json_path`, or `xml_path`. V1 does not implement OCR or document AI.
 
 ## Freshness
 
-Freshness treats source time separately from retrieval time:
+Freshness treats publisher/source time separately from observation time:
 
 1. `effective_at` when available;
 2. otherwise `published_at`;
-3. otherwise `retrieved_at` as a fallback.
+3. if neither publisher timestamp is available, freshness is **unknown**.
 
-This prevents an old publication from becoming apparently current merely because ObraSignal fetched it today. Source-specific `stale_after_minutes` is reused from `source_registry.py`; the policy has an explicit fallback when the source has no registered threshold.
+`retrieved_at` proves when ObraSignal observed the record; it is never used as a substitute for publisher freshness. This prevents an old or undated publication from becoming apparently current merely because ObraSignal fetched it today. A future publisher timestamp is likewise treated as unknown freshness rather than false-fresh. Source-specific `stale_after_minutes` is reused from `source_registry.py`; the policy has an explicit positive fallback when the source has no registered threshold.
 
-Historical nodes are retained. A stale claim is marked `STALE`; it is not deleted.
+When freshness cannot be established, `explain()` includes `source_freshness` in its missing indicators and confidence is degraded. Historical nodes are retained. A stale claim is marked `STALE`; it is not deleted.
 
 ## Conflicts and supersession
 
@@ -115,7 +115,9 @@ Supersession preserves both versions. `new_claim -> old_claim : SUPERSEDES` mark
 
 ## Deduplication
 
-Evidence is deduplicated by underlying provenance identity plus locator/field/value. Re-reading or receiving another copy of the same underlying notice field does not produce another independent evidence node and therefore cannot increase confidence merely through duplication.
+Evidence is deduplicated by publisher-native provenance identity, publisher semantic timestamps, locator/field and value. Re-reading the same publisher revision — including a later `retrieved_at` caused only by retry/re-observation — does not produce another independent evidence node and therefore cannot increase confidence through duplication.
+
+A publisher revision with a different `effective_at`/`published_at` remains a distinct evidence node even when the field value did not change. This preserves lifecycle history rather than silently retaining stale provenance for a genuinely revised record.
 
 V1 does not attempt semantic cross-publisher entity resolution. Two genuinely different records that mirror the same upstream document require a future canonical-document identity adapter if the existing source identity cannot express that relationship.
 
@@ -129,10 +131,10 @@ It is an auditable policy heuristic, not a probability. The default policy consi
 - presence/absence of evidence;
 - number of assumptions;
 - contradictions;
-- staleness;
+- staleness or unknown source freshness;
 - transformation depth.
 
-A directly supported FACT from a registered official, machine-verified, reuse-green source can reach `HIGH`. Unsupported and unknown material claims return `UNKNOWN`. Assumptions, conflicts, staleness, and deeper transformations degrade confidence.
+A directly supported FACT from a registered official, machine-verified, reuse-green source can reach `HIGH` when freshness is established. Unsupported and unknown material claims return `UNKNOWN`. Assumptions, conflicts, staleness, unknown freshness, and deeper transformations degrade confidence.
 
 The policy is versioned (`evidence-policy-v1`) so it can later be replayed or replaced without pretending historical scores used a different rule.
 
@@ -147,7 +149,7 @@ Material claims can be:
 - `UNKNOWN`;
 - `SUPERSEDED`.
 
-A FACT without evidence is `UNSUPPORTED`. An ESTIMATE or INFERENCE without dependencies is `UNSUPPORTED`. A `None` value is `UNKNOWN`.
+A FACT without evidence is `UNSUPPORTED`. An ESTIMATE or INFERENCE without dependencies is `UNSUPPORTED`. A `None` value is `UNKNOWN`. Unknown freshness does not masquerade as `STALE` or as proven freshness; it is represented in the explanation's missing indicators.
 
 ## Explanation contract
 
@@ -162,7 +164,7 @@ A FACT without evidence is `UNSUPPORTED`. An ESTIMATE or INFERENCE without depen
 - ASSUMPTIONS;
 - evidence provenance suitable for SHOW ME;
 - conflicts;
-- explicit missing support/value indicators;
+- explicit missing support/value/freshness indicators;
 - dependency IDs suitable for future WHAT-IF traversal;
 - model and policy versions.
 
@@ -218,15 +220,21 @@ This is **decision support**, not a new Decision Ledger and not a claim that opp
 
 ## Tenant isolation
 
-Every node ID incorporates `tenant_id`, and graph instances reject cross-graph endpoint references. In-memory graphs therefore cannot accidentally connect Company A nodes to Company B nodes through the supported API.
+`tenant_id` is mandatory and blank/default tenant fallback is forbidden. Every node ID incorporates the validated tenant identity, and graph instances reject cross-graph endpoint references. In-memory graphs therefore cannot accidentally connect Company A nodes to Company B nodes through the supported API.
 
 This is an application-level V1 boundary only. There is no new persistence layer in this work, so no database row-level security or persistent tenant-isolation claim is made.
 
+## Bounded execution
+
+The in-process graph is explicitly bounded. Defaults are 10,000 nodes and 50,000 edges per graph instance, with positive constructor overrides available to a trusted caller. New nodes/edges fail closed once the configured bound is reached; existing graph state is preserved.
+
+Identifiers/labels/URLs are length-bounded, locators/claim metadata/values are size-bounded, and a single serialized material value is capped at 256 KiB. Traversal is iterative for reachability, ancestry and depth so long legal chains do not rely on Python recursion depth.
+
 ## Security properties
 
-Evidence text, labels, locators, URLs, and values are treated as data. The graph executes none of them and performs no templating, SQL construction, deserialization of arbitrary object graphs, or HTML rendering.
+Evidence text, labels, locators, URLs, and values are treated as data. The graph executes none of them and performs no templating, SQL construction, deserialization of arbitrary object graphs, URL fetching, or HTML rendering.
 
-Presentation consumers must continue to escape untrusted text/URLs according to their rendering context.
+Tenant identity, publisher timestamps, mappings and graph capacity fail closed when malformed. Presentation consumers must continue to escape untrusted text/URLs according to their rendering context.
 
 ## Capability state
 
