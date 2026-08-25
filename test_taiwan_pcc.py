@@ -32,6 +32,11 @@ RECRUITMENT_XML = """<root><row>
 <Date_of_public_solicitation>2026-08-25</Date_of_public_solicitation>
 </row></root>"""
 
+CONTRACT_XML = """<root>
+<row><標案案號>A-2026-001</標案案號><標案名稱>道路改善工程</標案名稱><機關名稱>測試市政府</機關名稱><廠商代碼>V001</廠商代碼><廠商名稱>甲公司</廠商名稱><得標金額>1000000</得標金額></row>
+<row><標案案號>A-2026-001</標案案號><標案名稱>道路改善工程</標案名稱><機關名稱>測試市政府</機關名稱><廠商代碼>V002</廠商代碼><廠商名稱>乙公司</廠商名稱><得標金額>500000</得標金額></row>
+</root>"""
+
 
 class FakeResponse:
     def __init__(self, content, *, error=None):
@@ -65,7 +70,7 @@ def test_parse_snapshot_preserves_native_identity_and_text():
     assert record["lineage_key"] == "A-2026-001"
     assert record["title"] == "道路改善工程"
     assert record["buyer"] == "測試市政府"
-    assert record["target_date"] == "2026-09-01"  # ROC year 115 -> 2026
+    assert record["target_date"] == "2026-09-01"
     assert record["source_updated_at"] is None
 
 
@@ -77,6 +82,24 @@ def test_lineage_key_survives_signal_stage_change_without_identity_collision():
     assert plan["source_reference"] == dialogue["source_reference"] == "A-2026-001"
     assert plan["lineage_key"] == dialogue["lineage_key"] == "A-2026-001"
     assert plan["external_id"] != dialogue["external_id"]
+
+
+def test_contract_identity_preserves_multiple_native_vendors_per_case():
+    source = PCCSnapshotSource(7264, "large_procurement_suppliers_in_performance", "CONTRACT", "https://example.invalid")
+    rows = parse_snapshot_xml(CONTRACT_XML)
+    records = [normalize_pcc_row(row, source=source) for row in rows]
+    assert [record["external_id"] for record in records] == [
+        "contract:A-2026-001:V001",
+        "contract:A-2026-001:V002",
+    ]
+    assert {record["lineage_key"] for record in records} == {"A-2026-001"}
+    assert {record["vendor_code"] for record in records} == {"V001", "V002"}
+
+
+def test_contract_without_native_vendor_code_is_rejected():
+    source = PCCSnapshotSource(7264, "large_procurement_suppliers_in_performance", "CONTRACT", "https://example.invalid")
+    row = {"tendernumber": "A-2026-001", "vendorname": "甲公司"}
+    assert normalize_pcc_row(row, source=source) is None
 
 
 def test_missing_native_case_number_is_rejected_instead_of_synthesized():
@@ -142,8 +165,8 @@ def test_empty_success_payload_fails_closed_instead_of_advancing_as_zero():
         connector.fetch_snapshot()
 
 
-def test_production_gate_stays_closed_until_live_contract_is_proven():
+def test_full_source_set_remains_gated_but_live_slice_no_longer_requires_payload_proof():
     reasons = production_gate_reasons()
     assert "raw_url_unverified:6574,7261" in reasons
-    assert "live_payload_contract_unverified" in reasons
-    assert "runtime_not_enabled" in reasons
+    assert "runtime_not_integrated" in reasons
+    assert all("live_payload_contract" not in reason for reason in reasons)
