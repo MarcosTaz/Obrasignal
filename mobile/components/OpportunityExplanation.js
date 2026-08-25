@@ -33,6 +33,7 @@ function fieldLabel(value) {
     title: 'Título', description: 'Descrição', buyer: 'Entidade', country: 'País',
     cpv: 'CPV', value: 'Valor', deadline: 'Prazo', procedure_type: 'Procedimento',
     source_freshness: 'Atualidade da fonte', material_support: 'Suporte material', claim_value: 'Valor da conclusão',
+    company_specialization: 'Especialização da empresa',
   }[value] || value;
 }
 
@@ -53,10 +54,13 @@ function EvidenceSummary({ evidence }) {
       <Text style={styles.confidence}>Confiança {confidenceLabel(evidence.confidence)}</Text>
     </View>
     <Text style={styles.evidenceLead}>{sources.length} campo(s) suportado(s) por proveniência registada</Text>
-    {sources.slice(0, 8).map((source, index) => <View key={`${source.source}-${source.external_id}-${source.field_name}-${index}`} style={styles.sourceRow}>
-      <View style={styles.sourceDot} />
-      <Text style={styles.sourceText}><Text style={styles.sourceStrong}>{source.source || 'Fonte'}</Text>{source.field_name ? ` · ${fieldLabel(source.field_name)}` : ''}{source.stale === true ? ' · desatualizada' : source.stale == null ? ' · atualidade por confirmar' : ''}</Text>
-    </View>)}
+    {sources.slice(0, 8).map((source, index) => {
+      const reference = source.source_reference || source.external_id;
+      return <View key={`${source.source}-${source.external_id}-${source.field_name}-${index}`} style={styles.sourceRow}>
+        <View style={styles.sourceDot} />
+        <Text style={styles.sourceText}><Text style={styles.sourceStrong}>{source.source || 'Fonte'}</Text>{reference ? ` · ${reference}` : ''}{source.field_name ? ` · ${fieldLabel(source.field_name)}` : ''}{source.stale === true ? ' · desatualizada' : source.stale == null ? ' · atualidade por confirmar' : ''}</Text>
+      </View>;
+    })}
     {missing.length ? <View style={styles.missingBox}>
       <Text style={styles.missingTitle}>Falta confirmar</Text>
       <Text style={styles.missingText}>{missing.map(fieldLabel).join(' · ')}</Text>
