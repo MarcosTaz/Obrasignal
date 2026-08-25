@@ -164,6 +164,61 @@ def test_default_feed_fails_closed_for_expired_deadline_without_lifecycle(monkey
     assert detail["is_open"] is False
 
 
+def test_date_only_deadline_today_does_not_invent_midnight_closure(monkeypatch, tmp_path):
+    _seed(monkeypatch, tmp_path)
+    today = datetime.now(timezone.utc).date().isoformat()
+    conn = app.db()
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        cur = conn.execute(
+            """INSERT INTO tenders(
+                   source,external_id,title,description,buyer,country,cpv,value,
+                   deadline,publication_date,url,score,first_seen,last_seen,market
+               ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                "TEST_SOURCE",
+                "date-only-today",
+                "Date-only deadline today",
+                "Publisher did not provide a closing time",
+                "Buyer E",
+                "PRT",
+                "45200000",
+                "100000 EUR",
+                today,
+                today,
+                "https://example.test/date-only-today",
+                92,
+                now,
+                now,
+                "PT",
+            ),
+        )
+        opportunity_id = cur.lastrowid
+        record_decision(
+            conn,
+            "TEST_SOURCE",
+            "date-only-today",
+            "QUALIFIED",
+            "fixture",
+            score=92,
+            account_id=Identity.account_id,
+        )
+    finally:
+        conn.close()
+
+    client = _api_client(monkeypatch)
+    feed = client.get("/api/v1/opportunities?market=PT&limit=20").get_json()["items"]
+    item = next(row for row in feed if row["external_id"] == "date-only-today")
+    assert item["is_actionable"] is True
+    assert item["deadline_status"]["state"] == "unknown"
+    assert item["is_open"] is False
+
+    detail = client.get(f"/api/v1/opportunities/{opportunity_id}").get_json()
+    assert detail["deadline_status"]["state"] == "unknown"
+    assert detail["is_actionable"] is True
+    assert detail["is_open"] is False
+
+
 def test_explicit_source_lifecycle_has_precedence_over_deadline_inference(monkeypatch, tmp_path):
     ids = _seed(monkeypatch, tmp_path)
     client = _api_client(monkeypatch)
