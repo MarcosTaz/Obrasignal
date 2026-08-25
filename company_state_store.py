@@ -3,10 +3,19 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import re
 import sqlite3
 from typing import Any, Callable, Mapping
 
-from company_state import CompanyFact, CompanyState, CompanyStateError, CONTRACT_VERSION, MAX_FACTS, TenantBoundaryError, validate_account_id
+from company_state import (
+    CompanyFact,
+    CompanyState,
+    CompanyStateError,
+    CONTRACT_VERSION,
+    MAX_FACTS,
+    TenantBoundaryError,
+    validate_account_id,
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS company_state_snapshots (
@@ -23,6 +32,7 @@ CREATE TABLE IF NOT EXISTS company_state_snapshots (
 """
 INDEX = "CREATE INDEX IF NOT EXISTS idx_company_state_account_version ON company_state_snapshots(account_id, state_version DESC)"
 MAX_HISTORY_LIMIT = 100
+_FACT_ID_RE = re.compile(r"^cf_[0-9a-f]{24}$")
 
 
 class CompanyStateStorageError(RuntimeError):
@@ -34,15 +44,39 @@ class StaleCompanyStateWrite(CompanyStateStorageError):
 
 
 def ensure_company_state_schema(conn: sqlite3.Connection) -> None:
+    """Add the Company State snapshot schema without mutating existing tables."""
     conn.execute(SCHEMA)
     conn.execute(INDEX)
     conn.commit()
 
 
+def _clock_utc(value: datetime, name: str = "clock") -> datetime:
+    if not isinstance(value, datetime) or value.tzinfo is None:
+        raise CompanyStateError(f"{name} must be a timezone-aware datetime")
+    return value.astimezone(timezone.utc)
+
+
+def _validate_expected_version(value: int | None) -> None:
+    if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+        raise CompanyStateError("expected_version must be a non-negative integer")
+
+
 def _row_state(row: sqlite3.Row | Mapping[str, Any]) -> CompanyState:
+    """Deserialize a row and prove duplicated query metadata still agrees."""
     try:
         payload = json.loads(row["snapshot_json"])
-        return CompanyState.from_dict(payload, trusted_account_id=str(row["account_id"]))
+        state = CompanyState.from_dict(payload, trusted_account_id=str(row["account_id"]))
+        if state.state_version != int(row["state_version"]):
+            raise CompanyStateStorageError("stored company state version metadata mismatch")
+        if state.fingerprint != str(row["fingerprint"]):
+            raise CompanyStateStorageError("stored company state fingerprint metadata mismatch")
+        if state.contract_version != str(row["contract_version"]):
+            raise CompanyStateStorageError("stored company state contract metadata mismatch")
+        if state.to_dict()["as_of"] != str(row["as_of"]):
+            raise CompanyStateStorageError("stored company state as_of metadata mismatch")
+        return state
+    except CompanyStateStorageError:
+        raise
     except Exception as exc:
         raise CompanyStateStorageError("stored company state is invalid") from exc
 
@@ -88,13 +122,11 @@ def save_company_state(
     expected_version: int | None = None,
     clock: datetime | None = None,
 ) -> CompanyState:
-    """Append a snapshot with optimistic concurrency and consecutive replay idempotency."""
+    """Append a snapshot with optimistic concurrency and replay idempotency."""
     if not isinstance(state, CompanyState):
         raise CompanyStateError("state must be CompanyState")
-    now = (clock or datetime.now(timezone.utc))
-    if now.tzinfo is None:
-        raise CompanyStateError("clock must be timezone-aware")
-    now = now.astimezone(timezone.utc)
+    _validate_expected_version(expected_version)
+    now = _clock_utc(clock, "clock") if clock is not None else datetime.now(timezone.utc)
     ensure_company_state_schema(conn)
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -111,7 +143,6 @@ def save_company_state(
             conn.rollback()
             return current
         payload = candidate.to_dict()
-        # Fingerprint is independently recomputed by CompanyState.from_dict on read.
         conn.execute(
             """INSERT INTO company_state_snapshots(
                    account_id, state_version, fingerprint, contract_version, as_of, snapshot_json, created_at
@@ -121,7 +152,7 @@ def save_company_state(
                 candidate.state_version,
                 candidate.fingerprint,
                 CONTRACT_VERSION,
-                candidate.to_dict()["as_of"],
+                payload["as_of"],
                 json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False),
                 now.isoformat(),
             ),
@@ -136,12 +167,42 @@ def save_company_state(
         raise CompanyStateStorageError("company state persistence failed") from exc
 
 
+def _manual_fact(raw: Mapping[str, Any], *, observed_at: datetime) -> CompanyFact:
+    """Convert voluntary user input into server-owned DECLARED provenance."""
+    if not isinstance(raw, Mapping):
+        raise CompanyStateError("each fact must be an object")
+    provenance = raw.get("provenance")
+    if provenance is not None:
+        if not isinstance(provenance, Mapping):
+            raise CompanyStateError("fact provenance must be an object")
+        basis = str(provenance.get("basis") or "DECLARED").strip().upper()
+        if basis != "DECLARED":
+            raise CompanyStateError("manual facts cannot promote provenance beyond DECLARED")
+        if provenance.get("evidence_ref") or provenance.get("verified_at"):
+            raise CompanyStateError("manual facts cannot provide verification anchors")
+        source_ref = str(provenance.get("source_ref") or "").strip()
+        if source_ref and source_ref != "manual":
+            raise CompanyStateError("manual fact source_ref is server-owned")
+        if provenance.get("observed_at") not in (None, ""):
+            raise CompanyStateError("manual fact observed_at is server-owned")
+
+    normalized = dict(raw)
+    normalized["provenance"] = {
+        "basis": "DECLARED",
+        "source_ref": "manual",
+        "observed_at": observed_at.isoformat(),
+    }
+    return CompanyFact.from_dict(normalized)
+
+
 class CompanyStateService:
     """Application boundary that accepts only trusted tenant identity.
 
-    The payload cannot select account_id, fingerprint, version or persistence
-    metadata. Missing fields mean "leave current state unchanged". Revocation is
-    explicit through revoke_fact_ids; it is not represented by null or omission.
+    The payload cannot select account identity, fingerprint, version or storage
+    metadata. Missing fields mean leave current state unchanged. Revocation is
+    explicit through ``revoke_fact_ids``; null never means deletion. Voluntary
+    facts are always DECLARED at this boundary. Trusted providers use separate
+    server-side adapters rather than impersonating a manual write.
     """
 
     ALLOWED_PAYLOAD_KEYS = frozenset({"facts", "revoke_fact_ids", "as_of", "company_ref", "expected_version"})
@@ -183,21 +244,23 @@ class CompanyStateService:
             if unknown_keys & self.FORBIDDEN_IDENTITY_KEYS:
                 raise TenantBoundaryError("client-controlled tenant/state identity is forbidden")
             raise CompanyStateError(f"unsupported payload keys: {sorted(unknown_keys)}")
-        if clock.tzinfo is None:
-            raise CompanyStateError("clock must be timezone-aware")
+        observed_at = _clock_utc(clock)
 
         conn = self._connection_factory()
         try:
             ensure_company_state_schema(conn)
             current = current_company_state(conn, account)
             current_facts = {fact.fact_id: fact for fact in (current.facts if current else ())}
+
             if "revoke_fact_ids" in payload and payload["revoke_fact_ids"] is None:
                 raise CompanyStateError("revoke_fact_ids null is ambiguous; omit it or provide a list")
             revocations = payload.get("revoke_fact_ids", [])
-            if not isinstance(revocations, list) or len(revocations) > 256:
+            if not isinstance(revocations, list) or len(revocations) > MAX_FACTS:
                 raise CompanyStateError("revoke_fact_ids must be a bounded list")
             for fact_id in revocations:
-                current_facts.pop(str(fact_id), None)
+                if not isinstance(fact_id, str) or not _FACT_ID_RE.fullmatch(fact_id):
+                    raise CompanyStateError("revoke_fact_ids contains an invalid fact id")
+                current_facts.pop(fact_id, None)
 
             if "facts" in payload and payload["facts"] is None:
                 raise CompanyStateError("facts null is ambiguous; omit it or provide a list")
@@ -208,31 +271,26 @@ class CompanyStateService:
                 if len(raw_facts) > MAX_FACTS:
                     raise CompanyStateError("too many company facts")
                 for raw in raw_facts:
-                    fact = CompanyFact.from_dict(raw)
-                    # Upsert only an identical fact id; conflicting semantic facts
-                    # are deliberately retained until an explicit supersession.
+                    fact = _manual_fact(raw, observed_at=observed_at)
                     current_facts[fact.fact_id] = fact
 
             if "as_of" in payload and payload["as_of"] is None:
                 raise CompanyStateError("as_of null is ambiguous; omit it or provide an ISO datetime")
             as_of_raw = payload.get("as_of")
             if as_of_raw is None:
-                as_of = clock.astimezone(timezone.utc)
+                as_of = observed_at
             else:
                 probe = {"account_id": account, "as_of": as_of_raw, "facts": []}
                 as_of = CompanyState.from_dict(probe, trusted_account_id=account).as_of
             company_ref = payload.get("company_ref", current.company_ref if current else None)
             state = CompanyState(account_id=account, company_ref=company_ref, as_of=as_of, facts=tuple(current_facts.values()))
+
             if "expected_version" in payload and payload["expected_version"] is None:
                 raise CompanyStateError("expected_version null is ambiguous; omit it or provide an integer")
             expected = payload.get("expected_version")
-            if expected is not None and (isinstance(expected, bool) or not isinstance(expected, int) or expected < 0):
-                raise CompanyStateError("expected_version must be a non-negative integer")
-            # Even when the transport omits an explicit version token, bind the
-            # write to the exact snapshot this service just read. This prevents
-            # an interleaving writer from being silently overwritten.
+            _validate_expected_version(expected)
             if expected is None:
                 expected = current.state_version if current else 0
-            return save_company_state(conn, state, expected_version=expected, clock=clock)
+            return save_company_state(conn, state, expected_version=expected, clock=observed_at)
         finally:
             conn.close()
