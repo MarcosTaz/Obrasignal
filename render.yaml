@@ -23,8 +23,10 @@ services:
       # Supabase user access tokens use the authenticated audience.
       - key: OBRASIGNAL_JWT_AUDIENCE
         value: "authenticated"
-      - key: OBRASIGNAL_JWKS_URL
-        sync: false
+      # Native Supabase JWKS is derived from the canonicalized issuer. Keeping a
+      # second manually configured URL created a stale-key/configuration failure
+      # mode during asymmetric-key migration, so no Supabase JWKS override is
+      # declared by the production blueprint.
       # Production web client origin. This is not a secret.
       - key: OBRASIGNAL_CORS_ORIGIN
         value: "https://marcostaz.github.io"
