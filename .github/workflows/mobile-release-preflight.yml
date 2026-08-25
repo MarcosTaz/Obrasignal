@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact current main SHA authorized for the production build
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -11,11 +16,37 @@ permissions:
 jobs:
   preflight:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
     defaults:
       run:
         working-directory: mobile
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Confirm exact revision under test
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_TARGET_SHA"
+
+      - name: Refuse stale or non-canonical manual release target
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags --prune
+          canonical="$(git rev-parse origin/main)"
+          test "$canonical" = "$RELEASE_TARGET_SHA" || {
+            echo "Refusing production build: target $RELEASE_TARGET_SHA is not current canonical main $canonical."
+            exit 1
+          }
+          echo "canonical_release_sha=$RELEASE_TARGET_SHA"
 
       - uses: actions/setup-node@v4
         with:
@@ -84,13 +115,32 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
-          npx eas-cli@latest build --platform android --profile production --non-interactive --wait --json > eas-build.json
-          node -e "const fs=require('fs'); const v=JSON.parse(fs.readFileSync('eas-build.json','utf8')); fs.writeFileSync('eas-build-report.json', JSON.stringify(v, null, 2)); console.log(JSON.stringify(v, null, 2))"
+          npx --yes eas-cli@21.7.1 build --platform android --profile production --non-interactive --wait --json > eas-build.json
+          node <<'NODE'
+          const fs = require('fs');
+          const raw = JSON.parse(fs.readFileSync('eas-build.json', 'utf8'));
+          const builds = Array.isArray(raw) ? raw : [raw];
+          if (!builds.length || builds.some((build) => !build || !build.id)) {
+            console.error('EAS build report does not contain a build id.');
+            process.exit(1);
+          }
+          fs.writeFileSync('eas-build-report.json', JSON.stringify(raw, null, 2));
+          const evidence = {
+            target_sha: process.env.RELEASE_TARGET_SHA,
+            platform: 'android',
+            eas_cli: '21.7.1',
+            build_ids: builds.map((build) => build.id),
+          };
+          fs.writeFileSync('release-build-evidence.json', JSON.stringify(evidence, null, 2));
+          console.log(JSON.stringify(evidence));
+          NODE
 
       - name: Upload EAS build report
         if: ${{ github.event_name == 'workflow_dispatch' && always() && hashFiles('mobile/eas-build-report.json') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: obrasignal-eas-android-build-report
-          path: mobile/eas-build-report.json
+          name: obrasignal-eas-android-build-report-${{ inputs.target_sha }}
+          path: |
+            mobile/eas-build-report.json
+            mobile/release-build-evidence.json
           if-no-files-found: error
