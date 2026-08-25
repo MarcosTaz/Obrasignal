@@ -5,9 +5,9 @@ still processing any legacy TENDER projection. Advancing that watermark before
 persistence succeeds could permanently skip records after a database failure.
 
 This module therefore stages normalized signals in thread-local state and commits
-the canonical Signal record, opportunity history, source metadata, lifecycle state
-and source cursor in one source-side transaction after the legacy transaction has
-succeeded.
+the canonical Signal record, optional opportunity history, source metadata,
+lifecycle state and source cursor in one source-side transaction after the legacy
+transaction has succeeded.
 """
 from dataclasses import dataclass
 import threading
@@ -55,7 +55,7 @@ def discard_staged_source_syncs():
 
 
 def _change_history_runtime_enabled():
-    """PILOT may run internally; registry state remains the v0 disable boundary."""
+    """Only deliberately promoted PILOT/ENABLED states may execute history."""
     return capability("OPPORTUNITY_CHANGE_HISTORY").state in {"PILOT", "ENABLED"}
 
 
@@ -103,13 +103,15 @@ def _empty_commit_result():
 
 
 def commit_staged_source_syncs(conn):
-    """Atomically persist history, Signal, metadata, lifecycle and source cursors.
+    """Atomically persist optional history, Signal, metadata, lifecycle and cursors.
 
-    When Change History is PILOT/ENABLED it must observe the previous canonical
-    state before Signal upsert replaces it, so it runs first inside the transaction.
-    Registry states outside PILOT/ENABLED disable history without blocking Signal,
-    metadata, lifecycle or cursor persistence. Any enabled history failure still
-    rolls back the complete source-side transaction.
+    Change History is currently RESEARCH and therefore skipped by the canonical
+    registry. If a separate authorized maturity decision later promotes it to
+    PILOT/ENABLED, it must observe the previous canonical state before Signal upsert
+    replaces it, so it runs first inside the transaction. States outside
+    PILOT/ENABLED disable history without blocking Signal, metadata, lifecycle or
+    cursor persistence. Any deliberately enabled history failure still rolls back
+    the complete source-side transaction.
     """
     pending = staged_source_syncs()
     if not pending:
