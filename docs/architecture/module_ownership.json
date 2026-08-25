@@ -92,6 +92,24 @@
       "public_surface": "UNKNOWN",
       "side_effect_surface": "PROCESS_WIDE_THREAD_HOOK_AND_PERSISTENT_MUTATION",
       "evidence": ["sync_funnel_hook.py", "cors_app.py"]
+    },
+    {
+      "module": "mobile/src/billing.js",
+      "responsibility": "Mobile RevenueCat SDK integration, purchase/restore/offering access and entitlement inspection.",
+      "owner": "BILLING",
+      "ownership_state": "PROVEN",
+      "public_surface": ["BILLING_ENTITLEMENT", "BILLING_PRODUCT", "BILLING_SUPPORTED", "configureBilling", "hasProEntitlement", "activeEntitlement", "getCurrentOffering", "purchasePro", "restoreBilling", "refreshBilling"],
+      "side_effect_surface": "EXTERNAL_PROVIDER_SIDE_EFFECT",
+      "evidence": ["mobile/src/billing.js", "mobile/package.json"]
+    },
+    {
+      "module": "mobile/components/BillingGate.js",
+      "responsibility": "Mobile billing/evaluation presentation gate and purchase/restore UI orchestration.",
+      "owner": "BILLING_PRESENTATION",
+      "ownership_state": "PROVEN",
+      "public_surface": ["default:BillingGate"],
+      "side_effect_surface": "UI_ORCHESTRATION_WITH_PROVIDER_MODEL_LEAK",
+      "evidence": ["mobile/components/BillingGate.js", "mobile/src/billing.js"]
     }
   ]
 }
