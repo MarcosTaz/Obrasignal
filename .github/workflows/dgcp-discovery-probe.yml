@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import json, ssl, urllib.parse, urllib.request
+          import collections, json, ssl, urllib.parse, urllib.request
 
           ROOT = 'https://datosabiertos.dgcp.gob.do/api-dgcp/v1'
           CTX = ssl.create_default_context()
@@ -40,26 +40,31 @@ jobs:
               assert isinstance(content, list)
               return payload, content
 
-          processes_payload, processes = get('/procesos', {'page': 1, 'limit': 5})
+          processes_payload, processes = get('/procesos', {'page': 1, 'limit': 1000})
+          object_counts = collections.Counter(str(p.get('objeto_proceso') or '').strip() for p in processes)
+          subobject_counts = collections.Counter(str(p.get('subobjeto_proceso') or '').strip() for p in processes)
+          works = [p for p in processes if str(p.get('objeto_proceso') or '').strip().casefold() == 'obras']
           print(json.dumps({
               'process_meta': {k: processes_payload.get(k) for k in ('page','pages','limit','totalResults')},
               'process_count': len(processes),
               'process_keys': sorted(processes[0].keys()) if processes else [],
-              'process_sample': {k: processes[0].get(k) for k in sorted(processes[0].keys()) if k in {
-                  'codigo_proceso','titulo','descripcion','estado_proceso','fecha_publicacion','tipo_objeto','objeto_contratacion','modalidad'
-              }} if processes else {},
+              'object_counts': dict(sorted(object_counts.items())),
+              'subobject_top': subobject_counts.most_common(15),
+              'works_count': len(works),
+              'works_samples': [{k: p.get(k) for k in ('codigo_proceso','objeto_proceso','subobjeto_proceso','estado_proceso','fecha_publicacion','titulo')} for p in works[:5]],
           }, ensure_ascii=False, sort_keys=True))
 
-          for process in processes[:3]:
+          if not works:
+              raise AssertionError('bounded 1000-process sample contained no publisher-native Obras process')
+          for process in works[:3]:
               code = str(process.get('codigo_proceso') or '').strip()
-              if not code:
-                  continue
               articles_payload, articles = get('/procesos/articulos', {'proceso': code, 'page': 1, 'limit': 1000})
               print(json.dumps({
-                  'process_code': code,
+                  'works_process_code': code,
                   'article_meta': {k: articles_payload.get(k) for k in ('page','pages','limit','totalResults')},
                   'article_count': len(articles),
                   'article_keys': sorted(articles[0].keys()) if articles else [],
-                  'article_sample': articles[0] if articles else {},
+                  'article_classes': sorted({str(a.get('clase_unspsc') or '').strip() for a in articles if a.get('clase_unspsc')})[:30],
+                  'article_families': sorted({str(a.get('familia_unspsc') or '').strip() for a in articles if a.get('familia_unspsc')})[:30],
               }, ensure_ascii=False, sort_keys=True))
           PY
