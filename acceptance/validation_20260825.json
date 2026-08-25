@@ -1,130 +1,58 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "recorded_at": "2026-08-25",
   "canonical_main": {
-    "sha": "fce51d5b5524e09691f9187f7619ea0166217487",
-    "tree": "eac97dee4390ffba831241b7465df9e1e04f2fcc",
-    "change": "Auth PR #198 merged while Golden Path Lab was running",
+    "sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+    "tree": "28dc0119113a39d9179919e07de541e54d189062",
+    "change": "PR #214 merged; current main revalidated",
     "quality": "PASS",
-    "production_smoke": "FAIL",
-    "authenticated_e2e": "FAIL",
+    "production_smoke": "PASS",
+    "authenticated_e2e": "PASS",
     "product_status": "NOT_FULLY_ACCEPTED"
   },
   "current_main_deployed_truth": {
     "exact_merge_sha_deployed": true,
     "supabase_authentication": "PASS",
-    "real_token_algorithm": "ES256",
-    "provider_jwks_contains_matching_kid": true,
     "unauthenticated_boundary": "PASS_401",
     "malformed_bearer_boundary": "PASS_401",
-    "authenticated_api_identity": "FAIL_VALID_TOKEN_RETURNS_401",
-    "provider_health": {
-      "mode": "provider",
-      "config_present": true,
-      "provider_status": "degraded"
-    },
-    "root_cause_scope": "Render-side JWKS provider fetch/parse/validation boundary",
-    "exact_failure_category": "UNKNOWN",
-    "diagnostic_candidate": {
-      "pr": 211,
-      "head": "7017191fb1bc117d73d61b50c16b09ac0081604f",
-      "quality": "SUCCESS",
-      "jwt_verifier_live_gate": "SUCCESS",
-      "merged": false,
-      "deployed": false
-    },
-    "forbidden_inference": "do not claim missing configuration or a specific DNS/TLS/HTTP/JWKS category until bounded production diagnostics prove it"
+    "authenticated_api_identity": "PASS",
+    "profile_persistence_round_trip": "PASS",
+    "opportunity_access_account_scoping": "PASS",
+    "stats_and_workflow_stats": "PASS",
+    "detail_workflow_round_trip_when_data_exists": "PASS",
+    "production_smoke": "PASS",
+    "authenticated_e2e_run": 32867427570,
+    "production_smoke_run": 32867427628,
+    "quality_run": 32867427685,
+    "root_cause": "RESOLVED_FOR_CURRENT_MAIN"
   },
   "acceptance_infrastructure": {
     "canonical_pr": 212,
     "branch": "acceptance/golden-path-system-v2",
-    "baseline_main": "fce51d5b5524e09691f9187f7619ea0166217487",
-    "pre_gp02_head": "bbcc979a1cca532bfb48117f62fecff836cea5d6",
-    "pre_gp02_gates": {
-      "Golden Acceptance": "SUCCESS",
-      "ObraSignal Quality": "SUCCESS"
-    },
+    "baseline_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
     "automatic_merge": false
   },
   "gp01_historical_combination": {
     "classification": "HISTORICAL_EXACT_HEAD_INTEGRATION_CANDIDATE_EVIDENCE",
-    "integration_base_pr": 203,
-    "integration_base_head": "25f0d74f834a8f19e4ce13834c7f549c2ffef6cd",
     "acceptance_pr": 208,
     "tested_head": "2a8ab11c392d7d9ca64065ab89329f67f9b1bc92",
-    "gates": {
-      "Golden GP01 Combination": "SUCCESS",
-      "ObraSignal Quality": "SUCCESS"
-    },
     "positive_path_result": "PASS_L4_FIXTURE_CANDIDATE",
     "full_golden_path_result": "FAIL",
-    "full_golden_path_blocker": "BUG-GP-001",
+    "full_golden_path_blocker": "BUG-GP-001_AT_HISTORICAL_HEAD",
     "not_current_main_acceptance": true
   },
   "current_gp01": {
-    "AUTH": "IMPLEMENTED_MAIN_BUT_L5_FAIL",
-    "DISCOVER_DETAIL": "IMPLEMENTED_MAIN_WITH_FALSE_CLAIM_BUG",
+    "AUTH": "PRODUCTION_VALIDATED",
+    "DISCOVER_DETAIL": "IMPLEMENTED_MAIN",
     "SOURCE_PROVENANCE": "PARTIAL_CURRENT_MAIN",
-    "OPEN_CLOSED_TRUTH": "FAIL_BUG_GP_001",
-    "SAVE": "BLOCKED_BY_INTEGRATION_WATCHLIST_PR_150",
-    "TENANT_SAFE_READBACK": "GATED_UNTIL_CURRENT_MAIN_WATCHLIST_COMBINATION",
-    "overall": "FAIL"
+    "OPEN_CLOSED_TRUTH": "PASS_PR_214_REGRESSION",
+    "WORKFLOW": "PRODUCTION_VALIDATED_WHEN_DATA_EXISTS",
+    "WATCHLIST_SAVE": "GATED_BY_INTEGRATION_WATCHLIST",
+    "overall": "GATED"
   },
-  "compare_adversarial_status": {
-    "status": "FAIL",
-    "non_finite_bisection_pr": 201,
-    "precision_bisection_pr": 202,
-    "product_effect": "Compare excluded from product acceptance combinations until monetary contract is corrected and retested"
+  "resolved_defects": {
+    "BUG-GP-001": "PR #214 merged; permanent regression now passes",
+    "BUG-GP-003": "current exact-main Production Smoke and Authenticated E2E pass"
   },
-  "gp02_requirements_readiness": {
-    "classification": "CURRENT_MAIN_DERIVED_L0_L1_ACCEPTANCE_CANDIDATE",
-    "acceptance_pr": 215,
-    "tested_head": "1a2a9c5c4f66c663695905da0a693441f170738a",
-    "base_main": "fce51d5b5524e09691f9187f7619ea0166217487",
-    "transported_contracts": [
-      "opportunity_requirements.py from Requirements candidate",
-      "opportunity_readiness.py from Readiness candidate",
-      "readiness_requirements_adapter.py from Readiness candidate"
-    ],
-    "forbidden_transports": [
-      "cors_app.py",
-      "API/UI integration",
-      "capability registry promotion",
-      "Master Queue changes",
-      "production configuration"
-    ],
-    "golden_gp02_gate": {
-      "run": 32846762771,
-      "result": "SUCCESS",
-      "tests": "6 passed, 1 xfailed"
-    },
-    "quality_gate": {
-      "run": 32846762742,
-      "result": "SUCCESS"
-    },
-    "l1_truths_passed": [
-      "recorded certification can be MET",
-      "missing certification evidence remains UNKNOWN rather than NOT_MET",
-      "unsupported Company Profile facts remain UNKNOWN/NOT_EVALUATED",
-      "partial positive Requirements coverage cannot yield READY",
-      "tenant mismatch fails closed",
-      "same inputs plus injected clock replay identically",
-      "Readiness does not emit a PURSUE decision"
-    ],
-    "l0_truths_passed": [
-      "explicit mandatory NOT_MET remains a blocker and yields NOT_READY"
-    ],
-    "not_proven_by_l1_combination": [
-      "generation of a known blocker from current Company Profile facts; Requirements v0 deliberately does not infer missing company facts as negative facts"
-    ],
-    "known_failure": {
-      "id": "BUG-GP-READINESS-DATE-001",
-      "classification": ["FALSE-PRECISION BUG", "DATA SEMANTICS BUG"],
-      "status": "STRICT_XFAIL",
-      "observed": "date-only string is coerced to an exact midnight UTC instant while a Python date input follows a different invented end-of-day instant",
-      "required_truth": "date-only precision and unknown source timezone remain non-exact; no definitive open/expired instant may be fabricated",
-      "owner": "READINESS TEMPORAL CONTRACT / MILESTONES INTEGRATION OWNER"
-    },
-    "current_product_status": "GATED_NOT_IMPLEMENTED_ON_MAIN"
-  }
+  "remaining_sellability_blockers": ["SELL-002","SELL-003","SELL-004","SELL-005"]
 }
