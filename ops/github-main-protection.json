@@ -1,0 +1,38 @@
+{
+  "branch": "main",
+  "baseline_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "evidence": {
+    "protected": false,
+    "rulesets": 0,
+    "required_status_checks": [],
+    "validated_quality_check_names": ["python", "mobile"]
+  },
+  "recommended_branch_protection": {
+    "required_status_checks": {
+      "strict": true,
+      "contexts": ["python", "mobile"]
+    },
+    "enforce_admins": true,
+    "required_pull_request_reviews": {
+      "dismiss_stale_reviews": true,
+      "require_code_owner_reviews": false,
+      "require_last_push_approval": false,
+      "required_approving_review_count": 0
+    },
+    "restrictions": null,
+    "required_linear_history": false,
+    "allow_force_pushes": false,
+    "allow_deletions": false,
+    "block_creations": false,
+    "required_conversation_resolution": true,
+    "lock_branch": false,
+    "allow_fork_syncing": false
+  },
+  "notes": [
+    "Zero required approvals is intentional for the current solo-founder repository while still requiring the pull-request path.",
+    "python and mobile are the exact current ObraSignal Quality job check names observed on main.",
+    "Do not require post-merge production/deployment checks as pre-merge checks.",
+    "Do not require linear history because ObraSignal intentionally preserves merge-commit evidence.",
+    "Applying this configuration is a repository-settings mutation and is not authorized by this PR."
+  ]
+}

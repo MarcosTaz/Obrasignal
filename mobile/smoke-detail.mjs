@@ -4,6 +4,7 @@ const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
+const explanation = fs.readFileSync(new URL('./components/OpportunityExplanation.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 
 const checks = [
@@ -17,6 +18,14 @@ const checks = [
   ['internal economic fit is absent from onboarding', /Economic Fit/.test(onboarding) ? /$a/ : /contract_interests/],
 ];
 
+const explanationChecks = [
+  ['evidence is read from the existing explanation contract', /const evidence = explanation\?\.evidence/],
+  ['evidence confidence is customer-visible', /Confiança \{confidenceLabel\(evidence\.confidence\)\}/],
+  ['missing evidence is explicit', /Falta confirmar/],
+  ['unavailable evidence never masquerades as confirmation', /A ausência não é apresentada como confirmação/],
+  ['evidence conflicts are customer-visible', /conflito\(s\) de evidência por resolver/],
+];
+
 const crossFileChecks = [
   ['startup hydrates local cache before remote data', /Promise\.allSettled\(\[storage\.getSettings\(\),storage\.getCache\(\),storage\.getProfile\(\)\]\)/],
   ['startup loads independent API data concurrently', /Promise\.allSettled\(\[api\.profile\(\),api\.opportunities/],
@@ -28,6 +37,7 @@ const crossFileChecks = [
 const failures = [
   ...checks.slice(0, 5).filter(([, pattern]) => !pattern.test(app)),
   ...checks.slice(5).filter(([, pattern]) => !pattern.test(onboarding)),
+  ...explanationChecks.filter(([, pattern]) => !pattern.test(explanation)),
 ];
 const crossFailures = [
   ...crossFileChecks.slice(0, 2).filter(([, pattern]) => !pattern.test(app)),
@@ -45,4 +55,4 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
+for (const [name] of [...checks, ...explanationChecks, ...crossFileChecks]) console.log(`PASS: ${name}`);
