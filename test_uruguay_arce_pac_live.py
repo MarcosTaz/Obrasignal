@@ -13,6 +13,7 @@ import requests
 
 
 PAC_PUBLIC_URL = "https://www.comprasestatales.gub.uy/consultaplananual/"
+PAC_API_ROOT = "https://www.comprasestatales.gub.uy/api/v1"
 MAX_FRONTEND_BYTES = 12 * 1024 * 1024
 
 pytestmark = pytest.mark.skipif(
@@ -33,16 +34,18 @@ def _interesting(values):
     return found
 
 
-def _public_get(url, accept):
+def _public_get(url, accept, *, raise_status=True, params=None):
     response = requests.get(
         url,
+        params=params,
         headers={
             "Accept": accept,
             "User-Agent": "ObraSignal ARCE PAC public-contract probe/1.0",
         },
         timeout=45,
     )
-    response.raise_for_status()
+    if raise_status:
+        response.raise_for_status()
     return response
 
 
@@ -64,8 +67,6 @@ def test_live_uruguay_arce_public_pac_surface_contract():
     assert 0 < len(bundle) <= MAX_FRONTEND_BYTES, "ARCE PAC frontend bundle exceeded bounded research cap"
     js = bundle.decode("utf-8", errors="replace")
 
-    # Extract URL/route-like string literals only. Do not log arbitrary script
-    # source or data values.
     literals = re.findall(r'["\']([^"\']{2,300})["\']', js)
     route_literals = []
     for literal in literals:
@@ -84,4 +85,39 @@ def test_live_uruguay_arce_public_pac_surface_contract():
     print("UY_PAC_MAIN_JS=" + main_url)
     print("UY_PAC_ROUTE_LITERALS=" + " | ".join(route_literals[:120]))
 
+    assert "/api/v1/compra-procedimientos/" in route_literals
     assert response.url.startswith("https://www.comprasestatales.gub.uy/")
+
+
+def _shape(value):
+    if isinstance(value, dict):
+        return "dict:" + ",".join(sorted(map(str, value.keys())))
+    if isinstance(value, list):
+        sample = next((row for row in value if isinstance(row, dict)), None)
+        return "list:" + (",".join(sorted(map(str, sample.keys()))) if sample else "")
+    return type(value).__name__
+
+
+def test_live_uruguay_arce_public_pac_api_candidate():
+    url = f"{PAC_API_ROOT}/compra-procedimientos/"
+    response = _public_get(url, "application/json", raise_status=False)
+    content_type = response.headers.get("Content-Type", "")
+    print(f"UY_PAC_API_STATUS={response.status_code} content_type={content_type!r}")
+
+    if "json" in content_type.lower():
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if payload is not None:
+            print("UY_PAC_API_SHAPE=" + _shape(payload))
+            if isinstance(payload, dict):
+                for key in ("content", "data", "results", "items"):
+                    nested = payload.get(key)
+                    if nested is not None:
+                        print(f"UY_PAC_API_{key.upper()}_SHAPE=" + _shape(nested))
+
+    # This is the exact public route literal used by the unauthenticated SPA. A
+    # 2xx proves a candidate machine route; 4xx is retained as access-contract
+    # evidence and must not be bypassed.
+    assert response.status_code < 500, "ARCE PAC API candidate is server-failing"
