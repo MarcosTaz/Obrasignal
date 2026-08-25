@@ -200,9 +200,13 @@ def test_integrity_manifest_preserves_canonical_prebuild_and_test_only_boundarie
     assert by_fact["notification_device_and_delivery"]["status"] == "PREBUILD"
     assert by_fact["company_state"]["status"] == "PREBUILD"
     assert by_fact["fixture_state"]["status"] == "TEST_ONLY_NOT_CANONICAL"
-    assert by_fact["saved_watchlist"]["status"] == "RECONSTRUCTION_PENDING"
+    assert by_fact["saved_watchlist"]["status"] == "PREBUILD_OWNER_CONTRACT_STALE_BASE"
+    assert by_fact["saved_watchlist"]["candidate"]["head_sha"].startswith("879ef882")
     assert by_fact["mobile_private_cache"]["status"] == "CANONICAL_DERIVED_RISK_OTHER_OWNER"
     assert by_fact["mobile_private_cache"]["tenant_key"] == "ABSENT_ON_CURRENT_MAIN_STORAGE_KEYS"
+    account_writes = next(item for item in manifest["write_path_inventory"] if item["storage"] == "accounts")
+    assert account_writes["classification"] == "SHARED_ROW_SPLIT_FACTS"
+    assert account_writes["dual_truth"] is False
 
 
 def test_save_profile_failure_can_leave_event_state_drift(tmp_path, monkeypatch):
