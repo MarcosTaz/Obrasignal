@@ -27,12 +27,14 @@ def _slug(value: str) -> str:
 def company_state_from_profile(profile: Mapping[str, Any] | None, *, account_id: str, as_of: datetime) -> CompanyState:
     """Project only defensible profile facts; absence never becomes a negative fact.
 
-    Current profile persistence cannot distinguish every historical default from an
-    explicit user declaration. Default-only geography is therefore marked as an
-    ASSUMPTION with PROFILE provenance, while non-empty services/tags/
-    certifications are DECLARED facts. Commercial min/max values are not
-    imported as financial capacity because the profile stores them without an
-    explicit currency and they are preferences, not balance-sheet limits.
+    Company Profile is primarily a commercial-preference contract. Services,
+    capability tags and recorded certifications are explicit company declarations,
+    but profile market geography must not be relabelled as proven operational
+    geography. Countries/regions therefore become ``geography.preferred_*``
+    facts. An explicitly supplied operational radius keeps its narrower meaning.
+    Commercial min/max values are not imported as financial capacity because
+    they are preferences and the legacy profile has no explicit currency/capital
+    semantics.
     """
     data = dict(profile or {})
     stored_account = str(data.get("account_id") or account_id).strip()
@@ -78,20 +80,22 @@ def company_state_from_profile(profile: Mapping[str, Any] | None, *, account_id:
         is_legacy_default = countries == ("PRT",) and not (data.get("regions") or []) and data.get("geographic_radius_km") is None
         facts.append(CompanyFact(
             category=FactCategory.GEOGRAPHY,
-            code="geography.operating_countries",
+            code="geography.preferred_countries",
             knowledge=KnowledgeState.ASSUMPTION if is_legacy_default else KnowledgeState.FACT,
             value=list(countries),
             provenance=profile_default if is_legacy_default else declared,
         ))
+
     regions = [str(item).strip() for item in (data.get("regions") or []) if str(item).strip()]
     if regions:
         facts.append(CompanyFact(
             category=FactCategory.GEOGRAPHY,
-            code="geography.operating_regions",
+            code="geography.preferred_regions",
             knowledge=KnowledgeState.FACT,
             value=regions,
             provenance=declared,
         ))
+
     radius = data.get("geographic_radius_km")
     if radius is not None and not isinstance(radius, bool):
         try:
@@ -115,6 +119,7 @@ def company_state_from_profile(profile: Mapping[str, Any] | None, *, account_id:
         (FactCategory.AVAILABILITY, "crew.available_count", "workers"),
         (FactCategory.AVAILABILITY, "vehicle.available_count", "vehicles"),
         (FactCategory.GEOGRAPHY, "geography.base", None),
+        (FactCategory.GEOGRAPHY, "geography.operating_countries", None),
     ):
         if code not in present_codes:
             facts.append(CompanyFact(
