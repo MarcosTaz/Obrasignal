@@ -49,11 +49,34 @@ _PR_AT_SHA_RE = re.compile(
     r"#(?P<pr>\d+)\s*@\s*`?(?P<sha>[0-9a-f]{7,40})`?",
     re.I,
 )
-_PR_NEAR_SHA_RE = re.compile(
-    r"#(?P<pr>\d+)"
-    r"(?P<context>.{0,100}?)"
-    r"`(?P<sha>[0-9a-f]{7,40})`",
-    re.I,
+_PR_TOKEN_RE = re.compile(r"#(?P<pr>\d+)")
+_SHA_TOKEN_RE = re.compile(r"`?(?P<sha>[0-9a-f]{7,40})`?", re.I)
+
+_CURRENT_REFERENCE_TOKENS = (
+    "current",
+    "exact",
+    "input",
+    "head",
+    "base",
+    "compose",
+    "stacked",
+    "must use",
+    "depends",
+    "dependency",
+    "handoff",
+)
+_DIAGNOSTIC_REFERENCE_TOKENS = (
+    "historical",
+    "prior",
+    "earlier",
+    "older",
+    "previous",
+    "superseded",
+    "diagnostic",
+    "example",
+    "observed as",
+    "motivated",
+    "motivation",
 )
 
 _HEAD_LABELS = (
@@ -154,33 +177,93 @@ def _extract_labeled_sha(body: str, labels: Sequence[str]) -> str | None:
     return None
 
 
-def extract_declared_head(body: str) -> str | None:
-    return _extract_labeled_sha(body, _HEAD_LABELS)
+def extract_declared_head(body: str, *, self_pr: int | None = None) -> str | None:
+    """Return a declared self HEAD, ignoring HEAD statements about another PR."""
+    if not body:
+        return None
+    for line in body.splitlines():
+        lowered = line.lower()
+        if not any(re.search(rf"\b{re.escape(label)}\b", lowered) for label in _HEAD_LABELS):
+            continue
+        referenced_prs = {int(match.group("pr")) for match in _PR_TOKEN_RE.finditer(line)}
+        if self_pr is not None and referenced_prs and self_pr not in referenced_prs:
+            continue
+        matches = _FULL_SHA_RE.findall(line) or _SHORT_SHA_RE.findall(line)
+        if matches:
+            return matches[-1].lower()
+    return None
 
 
 def extract_declared_main(body: str) -> str | None:
     return _extract_labeled_sha(body, _MAIN_LABELS)
 
 
-def extract_dependency_refs(body: str, *, self_pr: int | None = None) -> list[dict[str, Any]]:
-    """Extract explicit PR->SHA references without treating bare PR mentions as pins."""
-    found: dict[tuple[int, str], dict[str, Any]] = {}
-    for match in _PR_AT_SHA_RE.finditer(body or ""):
-        pr = int(match.group("pr"))
-        if self_pr is not None and pr == self_pr:
-            continue
-        sha = match.group("sha").lower()
-        found[(pr, sha)] = {"pr": pr, "declared_sha": sha, "source": "pr_at_sha"}
+def _dependency_reference_role(line: str, section: str) -> str:
+    context = f"{section} {line}".lower()
+    if any(token in context for token in _DIAGNOSTIC_REFERENCE_TOKENS):
+        return "HISTORICAL_OR_DIAGNOSTIC"
+    if any(token in context for token in _CURRENT_REFERENCE_TOKENS):
+        return "CURRENT_PIN"
+    return "UNCLASSIFIED"
 
-    for match in _PR_NEAR_SHA_RE.finditer(body or ""):
-        pr = int(match.group("pr"))
-        if self_pr is not None and pr == self_pr:
+
+def extract_dependency_refs(body: str, *, self_pr: int | None = None) -> list[dict[str, Any]]:
+    """Extract only explicit current PR->SHA pins.
+
+    References in historical/diagnostic prose are preserved in the PR body but
+    are not allowed to invalidate downstream current proof. On a line with
+    multiple PR numbers, a SHA belongs only to the PR segment before the next
+    PR token; this prevents "#319 ... current #329 input <sha>" from falsely
+    pinning #319 to #329's SHA.
+    """
+    found: dict[tuple[int, str], dict[str, Any]] = {}
+    section = ""
+
+    for raw_line in (body or "").splitlines():
+        line = raw_line.strip()
+        if re.match(r"^#{1,6}\s+", line):
+            section = line
             continue
-        sha = match.group("sha").lower()
-        found.setdefault(
-            (pr, sha),
-            {"pr": pr, "declared_sha": sha, "source": "pr_same_line_sha"},
-        )
+
+        role = _dependency_reference_role(line, section)
+        if role != "CURRENT_PIN":
+            continue
+
+        # Direct #PR@SHA form is unambiguous within a current-intent line/section.
+        for match in _PR_AT_SHA_RE.finditer(line):
+            pr = int(match.group("pr"))
+            if self_pr is not None and pr == self_pr:
+                continue
+            sha = match.group("sha").lower()
+            found[(pr, sha)] = {
+                "pr": pr,
+                "declared_sha": sha,
+                "source": "pr_at_sha",
+                "role": role,
+            }
+
+        pr_matches = list(_PR_TOKEN_RE.finditer(line))
+        for index, match in enumerate(pr_matches):
+            pr = int(match.group("pr"))
+            if self_pr is not None and pr == self_pr:
+                continue
+            start = match.end()
+            end = pr_matches[index + 1].start() if index + 1 < len(pr_matches) else len(line)
+            segment = line[start:end]
+            sha_match = _SHA_TOKEN_RE.search(segment)
+            if not sha_match:
+                continue
+            sha = sha_match.group("sha").lower()
+            found.setdefault(
+                (pr, sha),
+                {
+                    "pr": pr,
+                    "declared_sha": sha,
+                    "source": "pr_segment_sha",
+                    "role": role,
+                },
+            )
+
     return sorted(found.values(), key=lambda item: (item["pr"], item["declared_sha"]))
 
 
@@ -330,6 +413,7 @@ def candidate_record(
     actual_heads: Mapping[int, str],
     workflow_runs: Iterable[Mapping[str, Any]] = (),
     collection_error: str | None = None,
+    ignored_dependency_prs: Iterable[int] = (),
 ) -> dict[str, Any]:
     number = int(pr["number"])
     body = str(pr.get("body") or "")
@@ -337,7 +421,7 @@ def candidate_record(
     base_sha = _normalized_sha(pr.get("base_sha"))
 
     self_ref = classify_reference(
-        extract_declared_head(body),
+        extract_declared_head(body, self_pr=number),
         actual_head,
         subject=f"PR #{number} body HEAD",
     )
@@ -346,7 +430,12 @@ def candidate_record(
         main_sha,
         subject=f"PR #{number} body main",
     )
-    dependency_refs = extract_dependency_refs(body, self_pr=number)
+    ignored = {int(value) for value in ignored_dependency_prs}
+    dependency_refs = [
+        ref
+        for ref in extract_dependency_refs(body, self_pr=number)
+        if int(ref["pr"]) not in ignored
+    ]
     dependencies = classify_dependencies(dependency_refs, actual_heads)
     workflows = normalize_workflow_runs(workflow_runs, candidate_head=actual_head)
     state, reason, reopen = _record_state(
@@ -403,6 +492,9 @@ def report_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
             actual_heads[int(key)] = sha
 
     runs_by_pr = snapshot.get("workflow_runs") or {}
+    ignored_dependency_prs = {
+        int(value) for value in (snapshot.get("ignored_dependency_prs") or ())
+    }
     records = [
         candidate_record(
             pr,
@@ -410,6 +502,7 @@ def report_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
             actual_heads=actual_heads,
             workflow_runs=runs_by_pr.get(str(pr["number"]), runs_by_pr.get(int(pr["number"]), ())),
             collection_error=(snapshot.get("collection_errors") or {}).get(str(pr["number"])),
+            ignored_dependency_prs=ignored_dependency_prs,
         )
         for pr in pulls
     ]
