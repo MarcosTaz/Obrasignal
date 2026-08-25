@@ -104,4 +104,4 @@ def personalized_score(row, base_score=None, profile=None):
         reasons.append("valor dentro do intervalo")
     if excludes:
         reasons.append("penalizado: " + ", ".join(dict.fromkeys(excludes[:2])))
-    return score, label, cls, "; ".join(reasons) if reasons else "correspondência pelo score comercial"
+    return score, label, cls, "; ".join(reasons) if reasons else "sem evidência adicional do perfil; preservado score comercial"
