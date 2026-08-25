@@ -53,12 +53,15 @@ def test_identity_is_stable_across_title_case_changes():
 
 def test_canonical_signal_store_idempotent_update():
     conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
     record = normalize_construction_tenders(parse_open_tenders(FIXTURE))[0]
     assert persist_signal_records(conn, [record], observed_at="2026-08-25T00:00:00+00:00", expected_source="QA_ASHGHAL") == 1
     updated = dict(record, title=record["title"] + " UPDATED")
     assert persist_signal_records(conn, [updated], observed_at="2026-08-25T01:00:00+00:00", expected_source="QA_ASHGHAL") == 1
     stored = get_signal_record(conn, "QA_ASHGHAL", "PWA/GTC/17/2026", "TENDER")
     assert stored["title"].endswith("UPDATED")
+    assert stored["first_observed"] == "2026-08-25T00:00:00+00:00"
+    assert stored["last_observed"] == "2026-08-25T01:00:00+00:00"
 
 
 def test_empty_or_changed_contract_is_error_not_zero():
