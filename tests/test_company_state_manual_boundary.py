@@ -111,10 +111,13 @@ def test_manual_fact_does_not_silently_supersede_trusted_fact():
         service = CompanyStateService(lambda: make_conn(fh.name))
         mixed = service.patch("tenant-a", {"facts": [manual_crew(5)]}, clock=NOW + timedelta(minutes=1))
         assert mixed.single_current_value("crew.available_count") is None
-        conflicts = mixed.to_dict()["conflicts"]
-        assert len(conflicts) == 1
-        values = sorted(item["value"] for item in conflicts[0]["facts"])
-        assert values == [5, 7]
+        manual = next(fact for fact in mixed.facts if fact.provenance.source_ref == "manual")
+        assert mixed.to_dict()["conflicts"] == [{
+            "category": "AVAILABILITY",
+            "code": "crew.available_count",
+            "scope": None,
+            "fact_ids": sorted([verified.fact_id, manual.fact_id]),
+        }]
 
 
 def test_duplicate_semantic_keys_in_one_manual_patch_are_rejected_not_last_write_wins():
