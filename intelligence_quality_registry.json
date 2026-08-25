@@ -1,0 +1,282 @@
+{
+  "schema_version": "intelligence-quality-registry-v1",
+  "mode": "observation_only",
+  "baseline_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "purpose": "Repository-observed map of Opportunity Intelligence inputs, authorities, semantics, decision surfaces and proof status. This registry is diagnostic metadata, not a second product truth.",
+  "status_vocabulary": ["PROVEN", "PARTIAL", "UNKNOWN", "STALE", "REGRESSED"],
+  "principles": {
+    "score_is_probability": false,
+    "score_is_confidence": false,
+    "missing_is_positive": false,
+    "missing_is_negative": false,
+    "unknown_may_be_coerced_to_relevant": false,
+    "unknown_may_be_coerced_to_actionable": false,
+    "relevant_implies_should_bid": false,
+    "review_implies_relevant": null
+  },
+  "pipeline": [
+    {
+      "stage": "company_profile",
+      "owner": "Company State / profile authority",
+      "implementation": ["company_profile.py", "unified_company_profile.py", "company_profile_validation.py"],
+      "input": "account-scoped company profile",
+      "output": "normalized profile fields",
+      "tenant_key": "account_id",
+      "status": "PROVEN",
+      "notes": "Opportunity Intelligence consumes this authority; it does not redefine company truth."
+    },
+    {
+      "stage": "opportunity_normalization",
+      "owner": "Sources / Data Integrity",
+      "implementation": ["source_registry.py", "tenders table", "source-specific ingestion"],
+      "input": "source records",
+      "output": "normalized tender/opportunity row",
+      "tenant_key": null,
+      "status": "PARTIAL",
+      "notes": "Source extraction and identity are external authorities; intelligence evaluates downstream decision impact."
+    },
+    {
+      "stage": "commercial_score",
+      "owner": "Opportunity Intelligence",
+      "implementation": ["commercial_score_v2.py"],
+      "input": ["title", "description", "buyer", "cpv", "deadline", "value_numeric", "procedure_type", "notice_type"],
+      "output": ["score", "priority_label", "components", "reasons", "rule_version", "deadline_days", "confidence", "missing_fields"],
+      "tenant_key": null,
+      "status": "PARTIAL",
+      "notes": "Rule-based procurement attractiveness. `confidence` is currently data-field coverage, not calibrated confidence or probability. Date-only deadline precision defect has exact-head GREEN draft #458 but is not canonical until merged."
+    },
+    {
+      "stage": "company_capability_match",
+      "owner": "Opportunity Intelligence consuming Company State",
+      "implementation": ["capability_profile.py", "opportunity_match_pipeline.py"],
+      "input": ["services", "capability_tags", "project_scales", "certifications", "hard_exclusions", "title", "description"],
+      "output": "capability_evidence",
+      "tenant_key": "profile/account context",
+      "status": "PROVEN",
+      "notes": "No explicit phrase evidence returns UNKNOWN rather than positive match."
+    },
+    {
+      "stage": "cpv_match",
+      "owner": "Opportunity Intelligence consuming Company State and Source CPV",
+      "implementation": ["opportunity_match_pipeline.py"],
+      "input": ["opportunity cpv", "profile cpv_prefixes"],
+      "output": "cpv_evidence",
+      "tenant_key": "profile/account context",
+      "status": "PROVEN",
+      "notes": "Two-digit family matches are WEAK/PARTIAL; four-or-more-digit prefix matches are STRONG/MATCH in current implementation."
+    },
+    {
+      "stage": "geography_match",
+      "owner": "Opportunity Intelligence consuming profile/source geography",
+      "implementation": ["geo_profile.py", "lot_matcher.py"],
+      "input": ["country", "locations", "profile coverage/cities/regions/postal prefixes"],
+      "output": "geography score/reason",
+      "tenant_key": "profile/account context",
+      "status": "PARTIAL",
+      "notes": "Country/region matching exists; international semantic quality remains source/country dependent."
+    },
+    {
+      "stage": "economic_fit",
+      "owner": "Economic-fit implementation / Product contract consumed by intelligence",
+      "implementation": ["economic_fit.py", "opportunity_match_pipeline.py"],
+      "input": ["opportunity value", "company min/max", "procedure/deadline fields where applicable"],
+      "output": "economic_fit status/score/rules/reason",
+      "tenant_key": "profile/account context",
+      "status": "PARTIAL",
+      "notes": "Economic fit is not itself proof of activity relevance."
+    },
+    {
+      "stage": "profile_score",
+      "owner": "Opportunity Intelligence",
+      "implementation": ["profile_scoring.py", "opportunity_match_pipeline.py"],
+      "input": ["commercial score", "keywords", "exclude_keywords", "countries", "cpv_prefixes", "min_value", "max_value"],
+      "output": "profile_score and profile reason",
+      "tenant_key": "account profile",
+      "status": "PARTIAL",
+      "notes": "Canonical explanation fallback can overstate profile correspondence; exact-head GREEN draft #466 repairs explanation faithfulness without changing score."
+    },
+    {
+      "stage": "decision",
+      "owner": "Opportunity Intelligence",
+      "implementation": ["opportunity_match_pipeline.py", "decision_log.py"],
+      "input": ["profile_score", "lot_score", "economic_fit", "hard blockers", "capability evidence", "cpv evidence"],
+      "output": ["QUALIFIED", "REVIEW", "REJECT"],
+      "tenant_key": "account_id",
+      "status": "PARTIAL",
+      "notes": "Final UNKNOWN/insufficient-information representation is unresolved (#471). REVIEW may exist without positive activity evidence and is consumed as relevant-shortlist activation; semantic authority is WAIT in #472."
+    },
+    {
+      "stage": "actionability",
+      "owner": "Actionability/Lifecycle owner",
+      "implementation": ["opportunity_lifecycle.py", "api.py"],
+      "input": ["lifecycle status", "deadline evidence"],
+      "output": "effective actionability",
+      "tenant_key": null,
+      "status": "PARTIAL",
+      "notes": "Canonical #214 preserves date-only deadline uncertainty; API `open=1` SQL reintroduces midnight coercion (#459)."
+    },
+    {
+      "stage": "web_radar_ranking",
+      "owner": "Opportunity Intelligence ranking semantics; Web consumes",
+      "implementation": ["lifecycle_read_model.py", "radar_decision_feed.py", "radar_web.py"],
+      "input": ["latest account decision score", "actionability", "publication date"],
+      "output": "ranked Radar candidate list",
+      "tenant_key": "account_id",
+      "status": "REGRESSED",
+      "notes": "Canonical main selects/orders by legacy `tenders.score` before account enrichment. Exact-head GREEN draft #461 repairs account-scoped ranking and deterministic tie break; not canonical until merged."
+    },
+    {
+      "stage": "mobile_api_ranking",
+      "owner": "Opportunity Intelligence ranking semantics; API/Mobile consume",
+      "implementation": ["api.py"],
+      "input": ["latest account decision score", "legacy tender score", "actionability", "minscore"],
+      "output": "ranked /api/v1/opportunities list",
+      "tenant_key": "account_id",
+      "status": "REGRESSED",
+      "notes": "Canonical main uses COALESCE(account decision score, legacy score), so UNKNOWN account fit can pass threshold/rank via legacy score (#465)."
+    },
+    {
+      "stage": "notification_candidate_quality",
+      "owner": "Notification owner consumes intelligence relevance/actionability",
+      "implementation": ["notification_events.py"],
+      "input": ["legacy tender score", "actionability", "account_id"],
+      "output": "new_high_match event candidates",
+      "tenant_key": "account_id for event storage",
+      "status": "REGRESSED",
+      "notes": "Candidate selection currently uses global `t.score` rather than account-specific decision evidence (#464)."
+    },
+    {
+      "stage": "customer_explanation",
+      "owner": "Web/Mobile presentation consumes Opportunity Intelligence evidence",
+      "implementation": ["decision_presentation.py", "radar_decision_feed.py", "opportunity_web.py", "mobile/App.js"],
+      "input": ["decision", "score", "features", "reason"],
+      "output": "customer-visible score/reason/evidence",
+      "tenant_key": "account_id via decision",
+      "status": "REGRESSED",
+      "notes": "Static positive profile wording and Mobile fallback from missing account score to legacy score are routed in #470/#462. Upstream explanation repair #466 is GREEN exact-head."
+    }
+  ],
+  "features": [
+    {
+      "feature": "company_activity_keywords",
+      "source": "company profile / derived activity rules",
+      "owner": "Company State for profile facts; Opportunity Intelligence for matching use",
+      "type": "text/list",
+      "missing_semantics": "UNKNOWN / no positive evidence",
+      "normalization": ["lowercase", "whitespace collapse", "substring matching in profile_scoring"],
+      "role": "positive/negative profile score contribution",
+      "status": "PARTIAL",
+      "risk": "substring matching can create semantic false positives; hard-negative corpus required"
+    },
+    {
+      "feature": "cpv",
+      "source": "normalized source opportunity + company profile prefixes",
+      "owner": "Source/Company State facts; Opportunity Intelligence match semantics",
+      "type": "classification code",
+      "missing_semantics": "UNKNOWN",
+      "normalization": "string prefix comparison; pipe-separated multi-values",
+      "role": "commercial score + company evidence + hard blocker",
+      "status": "PROVEN",
+      "risk": "same underlying CPV fact contributes through multiple layers; correlated/duplicate-feature influence remains PARTIAL"
+    },
+    {
+      "feature": "geography",
+      "source": "opportunity country/locations + company coverage",
+      "owner": "Source/International/Company State facts; Opportunity Intelligence matching use",
+      "type": "country/region/city/postal",
+      "missing_semantics": "UNKNOWN",
+      "normalization": "country aliases and repository geography rules",
+      "role": "lot/geography fit and possible hard blocker",
+      "status": "PARTIAL",
+      "risk": "international and sparse-source behavior not generally proven"
+    },
+    {
+      "feature": "contract_value",
+      "source": "normalized opportunity value + company min/max",
+      "owner": "Source/Company State facts; Opportunity Intelligence/economic-fit use",
+      "type": "numeric monetary value",
+      "missing_semantics": "UNKNOWN / zero contribution, not unsuitable",
+      "normalization": "numeric parsing",
+      "role": "commercial size fit, profile adjustment, hard blocker/economic fit",
+      "status": "PARTIAL",
+      "risk": "same fact contributes in multiple layers; correlated weighting needs explicit evaluation"
+    },
+    {
+      "feature": "deadline",
+      "source": "normalized source opportunity",
+      "owner": "Source/Contracts time semantics; Actionability authority; Opportunity Intelligence score use",
+      "type": "date or timestamp",
+      "missing_semantics": "UNKNOWN",
+      "normalization": "ISO parsing",
+      "role": "commercial urgency + hard expiry blocker + actionability",
+      "status": "REGRESSED",
+      "risk": "canonical intelligence path still coerces date-only today to midnight; GREEN repair draft #458"
+    },
+    {
+      "feature": "procedure_type",
+      "source": "normalized source opportunity",
+      "owner": "Source/International fact; Opportunity Intelligence use",
+      "type": "categorical text",
+      "missing_semantics": "UNKNOWN / zero contribution",
+      "normalization": "lowercased text matching",
+      "role": "commercial access component and optional hard exclusion",
+      "status": "PARTIAL",
+      "risk": "unknown/new international procedure semantics not generally proven"
+    },
+    {
+      "feature": "commercial_confidence",
+      "source": "commercial_score_v2 derived field",
+      "owner": "Opportunity Intelligence",
+      "type": "integer percentage",
+      "missing_semantics": "computed from count of known scoring fields",
+      "normalization": "known-field count / 5 * 100",
+      "role": "DATA_COVERAGE_PROXY_ONLY",
+      "status": "PARTIAL",
+      "risk": "field name `confidence` can be mistaken for calibrated confidence; no calibrated probability model exists and no current persisted top-level decision confidence is proven"
+    },
+    {
+      "feature": "legacy_tender_score",
+      "source": "tenders.score",
+      "owner": "legacy presentation state",
+      "type": "integer score",
+      "missing_semantics": "legacy",
+      "normalization": "legacy scorer",
+      "role": "must not become account-specific fit authority",
+      "status": "REGRESSED",
+      "risk": "still contaminates Web/API/notification candidate ordering in canonical main"
+    }
+  ],
+  "confidence_contract": {
+    "calibrated_confidence_model_exists": false,
+    "win_probability_model_exists": false,
+    "commercial_score_field_name": "confidence",
+    "observed_semantics": "percentage of five commercial input groups considered known",
+    "allowed_claim": "data coverage/completeness proxy only",
+    "forbidden_claims": ["probability of relevance", "probability of winning", "model certainty", "customer-fit confidence"],
+    "persistence": "nested inside commercial feature snapshot when persisted; opportunity_decisions has no top-level confidence column",
+    "customer_exposure": "UNKNOWN/UNPROVEN; current decision presentation reads a non-persisted top-level confidence value and no verified customer percent rendering was found",
+    "status": "PARTIAL"
+  },
+  "evaluation": {
+    "synthetic_harness_pr": 475,
+    "synthetic_harness_head": "da246f341d24daef988f72ba11ead8d0309a6c87",
+    "exact_head_ci": "PROVEN",
+    "scope": "7-case coarse-label invariant corpus; pairwise and known-debt aware",
+    "limitations": ["not production population", "not unbiased holdout", "not precision/recall estimate", "no customer outcome labels"]
+  },
+  "known_debt": [
+    {"issue": 459, "surface": "API open filter", "risk": "date-only midnight false exclusion", "owner": "Actionability/API", "status": "OPEN"},
+    {"issue": 462, "surface": "Mobile decision presentation", "risk": "UNKNOWN account score falls back to legacy/0 and generic match text", "owner": "Mobile", "status": "OPEN"},
+    {"issue": 464, "surface": "Notification candidates", "risk": "global score creates account high-match events", "owner": "Notification", "status": "OPEN"},
+    {"issue": 465, "surface": "Mobile API ranking", "risk": "UNKNOWN account fit ranks/passes threshold via legacy score", "owner": "Opportunity Intelligence/API", "status": "OPEN"},
+    {"issue": 470, "surface": "Web/detail explanation", "risk": "static positive profile compatibility wording", "owner": "Web/detail", "status": "OPEN"},
+    {"issue": 471, "surface": "Decision uncertainty", "risk": "insufficient information collapses into REJECT/numeric low", "owner": "Product + Data Contracts + Opportunity Intelligence", "status": "WAIT", "reopen": "canonical machine representation of insufficient information is approved"},
+    {"issue": 472, "surface": "REVIEW vs relevant shortlist", "risk": "no positive activity evidence can activate a path named relevant shortlist", "owner": "Product + Data Contracts + Evaluation/Analytics", "status": "WAIT", "reopen": "canonical REVIEW/relevance/value-exposure semantics are approved"}
+  ],
+  "safe_drafts": [
+    {"pr": 458, "head": "76913edefe535c8ae819fb6b6320ddf0855be95c", "surface": "date-only decision precision", "exact_head_ci": "PROVEN", "merged": false},
+    {"pr": 461, "head": "731b79ea684f10550ec3516adc963d78850ce738", "surface": "account-scoped Web Radar ranking", "exact_head_ci": "PROVEN", "merged": false},
+    {"pr": 466, "head": "6005b21f38eb2551e81b6ee65a4076c5be3a6b4e", "surface": "profile explanation faithfulness", "exact_head_ci": "PROVEN", "merged": false},
+    {"pr": 475, "head": "da246f341d24daef988f72ba11ead8d0309a6c87", "surface": "synthetic evaluation harness v1", "exact_head_ci": "PROVEN", "merged": false}
+  ]
+}
