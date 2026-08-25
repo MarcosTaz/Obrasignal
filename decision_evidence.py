@@ -9,8 +9,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import logging
 from typing import Any, Mapping
+from urllib.parse import urlsplit
 
 from capability_rollout import runtime_enabled
+from decision_log import DecisionFeaturesTooLarge, validate_features_payload
 from evidence_graph import EdgeType, EvidenceGraph, NodeType, signal_to_fact
 
 LOGGER = logging.getLogger(__name__)
@@ -51,6 +53,13 @@ _PROFILE_FIELDS = (
     "certifications",
     "hard_exclusions",
 )
+_SPECIALIZATION_FIELDS = (
+    "activity",
+    "contract_interests",
+    "services",
+    "capability_tags",
+    "cpv_prefixes",
+)
 
 
 def _as_of(value: str | datetime | None) -> datetime:
@@ -86,6 +95,7 @@ def _signal_view(row: Mapping[str, Any]) -> dict[str, Any]:
         "deadline": row.get("deadline"),
         "procedure_type": row.get("procedure_type") or row.get("notice_type"),
         "url": row.get("url"),
+        "publisher": row.get("publisher"),
         "source_reference": row.get("source_reference") or external_id,
         "published_at": row.get("published_at") or row.get("publication_date"),
         "source_updated_at": row.get("source_updated_at") or row.get("lifecycle_source_updated_at"),
@@ -107,6 +117,12 @@ def _profile_snapshot(profile: Mapping[str, Any], evaluation: Mapping[str, Any])
     return snapshot
 
 
+def _profile_missing_inputs(profile: Mapping[str, Any]) -> list[str]:
+    if any(profile.get(key) not in (None, "", [], (), {}) for key in _SPECIALIZATION_FIELDS):
+        return []
+    return ["company_specialization"]
+
+
 def _input_fact(graph: EvidenceGraph, signal: Mapping[str, Any], field_name: str) -> tuple[str, bool]:
     value = signal.get(field_name)
     subject = str(signal["external_id"])
@@ -121,7 +137,16 @@ def _input_fact(graph: EvidenceGraph, signal: Mapping[str, Any], field_name: str
             ),
             True,
         )
-    return signal_to_fact(graph, signal, field_name, subject=subject), False
+    return (
+        signal_to_fact(
+            graph,
+            signal,
+            field_name,
+            subject=subject,
+            publisher=signal.get("publisher"),
+        ),
+        False,
+    )
 
 
 def _derived_claim(
@@ -177,6 +202,7 @@ def build_decision_evidence(
         input_claims[field_name] = claim_id
         if missing:
             missing_inputs.append(field_name)
+    missing_inputs.extend(_profile_missing_inputs(profile))
 
     profile_claim = graph.add_claim(
         NodeType.ASSUMPTION,
@@ -326,7 +352,7 @@ def build_decision_evidence(
         "contract_version": EVIDENCE_CONTRACT_VERSION,
         "state": "READY",
         "decision_claim_id": decision_claim,
-        "missing_inputs": sorted(missing_inputs),
+        "missing_inputs": sorted(set(missing_inputs)),
         "explanation": graph.explain(decision_claim, as_of=as_of),
         "graph": graph.export(),
     }
@@ -384,6 +410,19 @@ def maybe_decision_evidence(
         return unavailable_decision_evidence()
 
 
+def _safe_source_url(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = urlsplit(text)
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        return None
+    return text
+
+
 def customer_evidence_view(snapshot: Mapping[str, Any] | None) -> dict[str, Any] | None:
     """Return the compact authenticated product view; never expose raw profile snapshots."""
     if not isinstance(snapshot, Mapping):
@@ -417,12 +456,13 @@ def customer_evidence_view(snapshot: Mapping[str, Any] | None) -> dict[str, Any]
             {
                 "source": item.get("source"),
                 "external_id": item.get("external_id"),
+                "source_reference": item.get("raw_identifier"),
                 "publisher": item.get("publisher"),
                 "field_name": item.get("field_name"),
                 "published_at": item.get("published_at"),
                 "effective_at": item.get("effective_at"),
                 "retrieved_at": item.get("retrieved_at"),
-                "source_url": item.get("source_url"),
+                "source_url": _safe_source_url(item.get("source_url")),
                 "quality": item.get("quality"),
                 "stale": item.get("stale"),
             }
@@ -450,3 +490,34 @@ def customer_evidence_view(snapshot: Mapping[str, Any] | None) -> dict[str, Any]
         "policy_version": explanation.get("policy_version"),
         "decision_claim_id": snapshot.get("decision_claim_id"),
     }
+
+
+def attach_persistable_decision_evidence(
+    features: dict[str, Any],
+    evidence: Mapping[str, Any] | None,
+) -> None:
+    """Attach Evidence without allowing an experimental snapshot to block a core decision.
+
+    The exact combined ``features_json`` envelope is validated before persistence.
+    If Evidence alone pushes an otherwise-valid decision over the canonical
+    512 KiB bound, the durable decision keeps a small explicit UNAVAILABLE
+    marker instead of either losing the decision or silently truncating lineage.
+    """
+    if evidence is None:
+        return
+    explanation = features.get("explanation")
+    if not isinstance(explanation, dict):
+        raise ValueError("decision features explanation must be a mapping")
+
+    features["decision_evidence"] = dict(evidence)
+    explanation["evidence"] = customer_evidence_view(evidence)
+    try:
+        validate_features_payload(features)
+        return
+    except DecisionFeaturesTooLarge:
+        fallback = unavailable_decision_evidence("evidence_payload_too_large")
+        features["decision_evidence"] = fallback
+        explanation["evidence"] = customer_evidence_view(fallback)
+        # If the baseline decision itself is oversized, preserve the canonical
+        # decision-log failure rather than falsely blaming or truncating Evidence.
+        validate_features_payload(features)
