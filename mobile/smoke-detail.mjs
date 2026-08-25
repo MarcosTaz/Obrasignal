@@ -36,6 +36,7 @@ const truthChecks = [
   ['cached stats start stale until server verification', /setStatsState\(hasStats\(cachedStats\)\?'stale':'loading'\)/],
   ['unknown score has an explicit renderer', /scoreText\(score\)/],
   ['missing source has an explicit renderer', /sourceText\(item\.source\)/],
+  ['missing match reason stays explicitly unavailable', /item\.decision_reason\|\|item\.match_reason\|\|'Sem explicação de relevância disponível\.'/],
   ['score is framed as compatibility, not a bid recommendation', /A pontuação expressa compatibilidade com o perfil; não é uma recomendação para concorrer\./],
   ['web notifications are disclosed as unavailable', /Notificações do navegador ainda não estão disponíveis\./],
   ['web notification switch is disabled', /<Switch disabled=\{webNotifications\} value=\{webNotifications\?false:/],
@@ -51,6 +52,7 @@ const forbiddenTruthPatterns = [
   ['detail score must not default UNKNOWN to zero', /current\.decision_score\?\?current\.score\?\?0/],
   ['card source must not fabricate TED', /item\.source\|\|'TED'/],
   ['detail source must not fabricate TED', /current\.source\|\|'TED'/],
+  ['missing match reason must not fabricate positive correspondence', /Correspondência com o perfil/],
   ['score must not be described as a recommendation', /O scoring é uma recomendação/],
   ['notification denial must not collapse to activated copy', /Notificações activadas\./],
 ];
