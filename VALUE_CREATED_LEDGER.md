@@ -25,17 +25,13 @@ The API is intentionally internal for V0. No public HTTP endpoint is added while
 
 `MEASURED` means an economic outcome directly demonstrated by observed facts. `ESTIMATED` means a calculated value using an explicit, traceable method. `QUALIFIED` is potential opportunity value and is **not** value created. `UNKNOWN` means the event is economically relevant but no defensible numeric value is available.
 
-These buckets are never combined into one total. This applies to money **and** non-monetary quantities such as hours or crew-days.
-
-`UNKNOWN` cannot carry a numeric amount. If a numeric value is defensible enough to store, it must be classified explicitly as `MEASURED`, `ESTIMATED`, or `QUALIFIED` where allowed.
+These buckets are never combined into one total. `UNKNOWN` cannot carry a numeric amount in V0.
 
 ## Event fields
 
 `ValueEvent` retains tenant, category, value type, amount, currency/unit, occurrence/recording timestamps, source, optional decision/opportunity/project references, method, confidence, evidence references, assumptions, notes, status, deduplication key, causal reference, and correction/supersession links.
 
-A numeric event is either monetary (`currency`) or non-monetary (`unit`), never both in the same event. This prevents ambiguous quantities such as a single amount being interpreted simultaneously as EUR and hours.
-
-References are intentionally shallow: the ledger does not duplicate company profiles, opportunities, projects, decisions, or evidence documents.
+References are intentionally shallow: the ledger does not duplicate company profiles, opportunities, projects, decisions, or evidence documents. A numeric event is either monetary (`currency`) or non-monetary (`unit`), never both.
 
 ## Categories in v0
 
@@ -56,9 +52,11 @@ A category being accepted by the ledger does not mean the corresponding producer
 
 ## Measured vs estimated
 
-An estimated event with a numeric amount must include `method`, whether the amount is monetary or non-monetary. For example, a MOBILIZE scenario delta can be recorded as `ESTIMATED` while unexecuted. If an actual outcome is later observed, a separate `MEASURED` event is appended. The original estimate remains intact for future calibration.
+An estimated numeric event with an amount must include `method`. For example, a MOBILIZE scenario delta can be recorded as `ESTIMATED` while unexecuted. If an actual outcome is later observed, a separate `MEASURED` event is appended. The original estimate remains intact for future calibration.
 
 Negative values are valid. A recommendation that was expected to create `+EUR 5,000` but later caused `-EUR 1,000` can retain both events. The ledger must not be structurally biased toward positive outcomes.
+
+Measured and estimated values remain separate for both monetary and non-monetary quantities. Time and other units are never combined across these value types in top-level summaries.
 
 ## Status and confidence
 
@@ -70,31 +68,27 @@ Confidence is deliberately coarse: `HIGH`, `MEDIUM`, `LOW`, or `UNKNOWN`. V0 doe
 
 Money is stored as decimal text and aggregated by currency. `EUR 1,000` and `USD 1,000` remain separate. V0 has no FX engine and therefore never reports them as `2,000` of an unspecified currency.
 
-## Time saved and other non-monetary value
+## Time saved
 
-Time can be recorded without money, e.g. `3 hours`. Measured time and estimated time are separate summary buckets. They are never added together.
-
-The same rule applies to other non-monetary quantities such as `crew_days`: measured quantities and estimated quantities are reported separately.
-
-If time is converted to money, the monetary observation must be a separate defensible `ESTIMATED` event with an explicit conversion method such as an hourly-value assumption. The original time event remains non-monetary.
+Time can be recorded without money, e.g. `3 hours`. Measured and estimated time are exposed in separate summary buckets. If time is converted to money, the monetary observation must be a separately defensible `ESTIMATED` event with a method such as an explicit hourly-value assumption.
 
 ## Qualified opportunity value
 
-A contract value discovered by ObraSignal is not automatically value created. `qualified_opportunity` accepts only `QUALIFIED` or `UNKNOWN` value types. This prevents a EUR 900,000 tender from becoming a false EUR 900,000 value-created claim.
+A contract value discovered by ObraSignal is not automatically value created. `qualified_opportunity` accepts only `QUALIFIED` or `UNKNOWN` value types. A numeric `QUALIFIED` event must be a monetary amount with a currency; non-monetary qualified quantities are rejected. `UNKNOWN` is used when no defensible numeric opportunity value exists. This prevents a EUR 900,000 tender from becoming a false EUR 900,000 value-created claim while keeping qualified pipeline value separately reportable.
 
 ## Immutability, correction, and lifecycle
 
 `record_value_event` is append-only. It contains no update path. Corrections use `corrects_event_id`; replacement semantics can use `supersedes_event_id`. The historical target remains stored. Current summaries exclude a corrected/superseded target when the replacement is in the reporting set.
 
-Correction/supersession references are tenant-scoped and cannot point at another account.
+Correction/supersession references are tenant-scoped and cannot point at another account. Period summaries intentionally evaluate replacement semantics within the selected reporting set; a later correction outside that period does not silently rewrite the historical window.
 
 ## Duplicate and double-counting controls
 
-`deduplication_key` is unique per account and rejects an exact producer-level duplicate.
+`deduplication_key` is unique per account and rejects a producer-level duplicate. Duplicate `event_id` values are reported separately from deduplication-key collisions.
 
 `causal_reference` identifies the same underlying economic benefit across labels or modules. Summary aggregation counts a causal benefit once per value type + currency/unit. This permits an estimate and later measured outcome to coexist, while preventing a known EUR 3,000 mobilization saving and the same EUR 3,000 margin-preserved effect from becoming EUR 6,000.
 
-If two active observations claim the same causal benefit, value type and dimension but disagree on the amount, summary generation **fails closed**. The ledger does not choose one amount based on row order; a producer must reconcile the conflict with an explicit correction or supersession event.
+If active observations use the same causal reference/value type/dimension but disagree on the amount, summary generation fails closed. The producer must reconcile the conflict with an explicit correction or supersession; row order never chooses the economic value.
 
 This is intentionally conservative. V0 does not attempt automatic causal inference when no causal reference is supplied.
 
@@ -109,15 +103,13 @@ Every persisted event has a mandatory `account_id`. Reads and summaries require 
 - measured monetary value by currency;
 - estimated monetary value by currency;
 - qualified opportunity value by currency;
-- measured time saved by unit (`time_saved_by_unit`);
-- estimated time saved by unit (`estimated_time_saved_by_unit`);
-- measured other non-monetary value by category/unit (`other_non_monetary`);
-- estimated other non-monetary value by category/unit (`estimated_other_non_monetary`);
+- measured time saved by unit;
+- estimated time saved by unit;
+- measured other non-monetary value by category/unit;
+- estimated other non-monetary value by category/unit;
 - deterministic category/value-type/currency-or-unit breakdown.
 
-No top-level summary bucket combines `MEASURED` and `ESTIMATED` quantities.
-
-It supports optional UTC-aware period filtering by `occurred_at`. Correction/supersession replacement semantics are evaluated within the selected reporting set; V0 does not silently rewrite historical windows using later out-of-window events.
+It supports optional UTC-aware period filtering by `occurred_at`.
 
 ## Examples
 
@@ -133,11 +125,9 @@ MOBILIZE predicts EUR 4,300 saving but no scenario has been executed. Record `ES
 
 ObraSignal identifies a EUR 900,000 opportunity. Record `QUALIFIED EUR 900,000` under `qualified_opportunity`. Value created remains unknown unless a separate defensible value event exists.
 
-### Example D — measured vs estimated time
+### Example D — time
 
-Tender review previously took 5 hours and the assisted process took 2 hours. Record `MEASURED 3 hours` under `time_saved`.
-
-A future workflow might separately predict `ESTIMATED 4 hours` saved using `method="workflow_baseline_v1"`. The summary exposes `3 measured hours` and `4 estimated hours`; it never reports `7 hours saved`.
+Tender review previously took 5 hours and the assisted process took 2 hours. Record `MEASURED 3 hours` under `time_saved`. Financial value remains unknown unless a separate explicit conversion method is supplied.
 
 ## Integration contract
 
@@ -147,9 +137,7 @@ For MOBILIZE, an unexecuted probable-cost delta is `ESTIMATED`; a later invoice/
 
 ## Known limitations
 
-V0 does not validate that referenced decision/opportunity/project/evidence IDs exist because the richer canonical ledgers are not yet production contracts. It also cannot detect double counting when producers fail to provide a deduplication or causal reference. Manual confirmation is representable by `source="MANUAL_CONFIRMATION"` but is not treated as external audit merely because of that label.
-
-V0 intentionally has no FX conversion and no automatic reconciliation policy for conflicting causal amounts. Conflicts must be corrected explicitly so the audit trail remains visible.
+V0 does not validate that referenced decision/opportunity/project/evidence IDs exist because the richer canonical ledgers are not yet production contracts. It also cannot detect double counting when producers fail to provide a deduplication or causal reference. Manual confirmation is representable by `source="MANUAL_CONFIRMATION"` but is not treated as external audit merely because of that label. There is no FX conversion or automatic policy for reconciling conflicting causal amounts.
 
 ## Future
 
