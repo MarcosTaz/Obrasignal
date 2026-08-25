@@ -1,9 +1,10 @@
 import sqlite3
+from types import SimpleNamespace
 
+import source_runtime as runtime
 from capability_registry import capability, enabled_capabilities
 from opportunity_change_history import get_change_history
 from source_health import ensure_source_health
-from source_runtime import commit_staged_source_syncs, discard_staged_source_syncs, stage_source_sync
 
 
 def _conn():
@@ -44,31 +45,36 @@ def _generic_revision(version):
     }
 
 
-def test_change_history_is_pilot_without_promoting_enabled_capabilities():
+def _enable_history_for_test(monkeypatch):
+    monkeypatch.setattr(runtime, "capability", lambda name: SimpleNamespace(state="PILOT"))
+
+
+def test_change_history_is_research_gated_without_promoting_enabled_capabilities():
     spec = capability("OPPORTUNITY_CHANGE_HISTORY")
-    assert spec.state == "PILOT"
+    assert spec.state == "RESEARCH"
     assert spec.dependencies == ("SIGNAL",)
     assert spec.feature_flag == "opportunity_change_history_v0"
     assert "opportunity.changed" in spec.publishes_events
     assert enabled_capabilities() == ("SIGNAL",)
 
 
-def test_source_runtime_preserves_canadabuys_native_amendment_identity():
+def test_source_runtime_preserves_canadabuys_native_amendment_identity_when_deliberately_activated(monkeypatch):
+    _enable_history_for_test(monkeypatch)
     conn = _conn()
-    discard_staged_source_syncs()
-    stage_source_sync(
+    runtime.discard_staged_source_syncs()
+    runtime.stage_source_sync(
         "CA_CANADABUYS",
         [_canada("2026-09-10T17:00:00Z", "0", "2026-08-24T12:00:00Z")],
         "cursor-a",
     )
-    commit_staged_source_syncs(conn)
+    runtime.commit_staged_source_syncs(conn)
 
-    stage_source_sync(
+    runtime.stage_source_sync(
         "CA_CANADABUYS",
         [_canada("2026-09-17T17:00:00Z", "3", "2026-08-25T12:00:00Z")],
         "cursor-b",
     )
-    commit_staged_source_syncs(conn)
+    runtime.commit_staged_source_syncs(conn)
 
     item = get_change_history(conn, "CA_CANADABUYS", "W1234-26TEST")[0]
     assert item["native_revision"] == "3"
@@ -79,14 +85,15 @@ def test_source_runtime_preserves_canadabuys_native_amendment_identity():
     assert deadline["detail"] == "EXTENDED"
 
 
-def test_source_runtime_preserves_revision_only_publisher_change():
+def test_source_runtime_preserves_revision_only_publisher_change_when_deliberately_activated(monkeypatch):
+    _enable_history_for_test(monkeypatch)
     conn = _conn()
-    discard_staged_source_syncs()
-    stage_source_sync("TEST_REVISION_SOURCE", [_generic_revision("r1")], "cursor-r1")
-    commit_staged_source_syncs(conn)
+    runtime.discard_staged_source_syncs()
+    runtime.stage_source_sync("TEST_REVISION_SOURCE", [_generic_revision("r1")], "cursor-r1")
+    runtime.commit_staged_source_syncs(conn)
 
-    stage_source_sync("TEST_REVISION_SOURCE", [_generic_revision("r2")], "cursor-r2")
-    commit_staged_source_syncs(conn)
+    runtime.stage_source_sync("TEST_REVISION_SOURCE", [_generic_revision("r2")], "cursor-r2")
+    runtime.commit_staged_source_syncs(conn)
 
     history = get_change_history(conn, "TEST_REVISION_SOURCE", "REV-1")
     assert len(history) == 1
