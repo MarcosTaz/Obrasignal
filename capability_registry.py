@@ -69,7 +69,7 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         private_data_owner="SIGNAL",
     ),
     "CONTRACT_EXPIRY": _c(
-        "CONTRACT_EXPIRY", "PILOT", "SIGNAL",
+        "CONTRACT_EXPIRY", "RESEARCH", "SIGNAL",
         contract_versions=("contract_expiry.v0",),
         dependencies=("SIGNAL",),
         feature_flag="contract_expiry_signals_v0",
