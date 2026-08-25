@@ -4,33 +4,72 @@ import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
 import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
+import { storage } from '../src/storage'
 
 export default function AuthGate({ children }) {
   const [authState, setAuthState] = useState(authSession.getState())
-
+  const [tenantStatus, setTenantStatus] = useState('loading')
 
   useEffect(() => {
     let active = true
+    let generation = 0
+    let bindingQueue = Promise.resolve()
+
     const update = (nextState) => {
       if (!active) return
-      setAuthState(nextState)
-      if (nextState.status === 'signed-in') ensureBackendReady().catch(() => {})
+      const currentGeneration = ++generation
+
+      // Account transitions immediately unmount the authenticated shell. The
+      // next account cannot hydrate anything until its private store is bound.
+      setTenantStatus('loading')
+
+      bindingQueue = bindingQueue
+        .catch(() => {})
+        .then(async () => {
+          const signedIn = nextState.status === 'signed-in'
+          const accountId = signedIn ? nextState.session?.user?.id : null
+          if (signedIn && !accountId) throw new Error('Authenticated session is missing user.id')
+
+          await storage.bindPrivateTenant(accountId)
+          if (!active || currentGeneration !== generation) return
+
+          setAuthState(nextState)
+          setTenantStatus('ready')
+          if (nextState.status === 'signed-in') ensureBackendReady().catch(() => {})
+        })
+        .catch(() => {
+          if (!active || currentGeneration !== generation) return
+          // A signed-out state is safe even if physical deletion failed: the
+          // in-memory tenant binding was already cleared and no private store
+          // can be read. Signed-in hydration fails closed.
+          if (nextState.status !== 'signed-in') {
+            setAuthState(nextState)
+            setTenantStatus('ready')
+            return
+          }
+          setTenantStatus('error')
+        })
     }
+
     const unsubscribe = authSession.subscribe(update)
-    authSession.start().then(update)
-    return () => { active = false; unsubscribe() }
+    authSession.start().then(update).catch(() => update({ status: 'signed-out', session: null }))
+    return () => { active = false; generation += 1; unsubscribe() }
   }, [])
 
-  if (authState.status === 'loading') {
+  if (authState.status === 'loading' || tenantStatus === 'loading') {
     return <View style={styles.loading}><Text style={styles.brand}>OBRA<Text style={styles.blue}>SIGNAL</Text></Text><ActivityIndicator size="small" color="#5E8BFF" /><Text style={styles.message}>A recuperar a sessão…</Text></View>
+  }
+
+  if (tenantStatus === 'error') {
+    return <View style={styles.loading}><Text style={styles.brand}>OBRA<Text style={styles.blue}>SIGNAL</Text></Text><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
   }
 
   if (authState.status !== 'signed-in') return <AuthScreen />
 
-  // Hard rule: once Supabase has authenticated the user, the application
-  // shell opens immediately. Profile, billing and API availability are
-  // background concerns and cannot gate the first authenticated render.
-  return <BillingGate>{children}</BillingGate>
+  // Supabase remains the authentication source of truth. This gate only binds
+  // local private state to the authenticated identity before hydration.
+  const accountId = authState.session?.user?.id
+  return <BillingGate key={accountId}>{children}</BillingGate>
 }
 
 const styles = StyleSheet.create({
@@ -38,4 +77,5 @@ const styles = StyleSheet.create({
   brand: { fontSize: 25, fontWeight: '900', color: '#F3F6FF' },
   blue: { color: '#5E8BFF' },
   message: { color: '#9BA8C0', fontSize: 12 },
+  error: { color: '#FF8998', fontSize: 12, textAlign: 'center', paddingHorizontal: 24 },
 })
