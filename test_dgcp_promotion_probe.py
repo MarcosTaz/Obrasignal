@@ -1,4 +1,4 @@
-"""TEMPORARY forensic probe; remove after validating /procesos discovery shape."""
+"""TEMPORARY forensic probe; remove after validating /procesos content shape."""
 from datetime import datetime, timedelta, timezone
 import json
 
@@ -7,7 +7,7 @@ import requests
 from dominican_republic_dgcp import DGCP_API_ROOT
 
 
-def test_temporary_dgcp_process_shape_probe():
+def test_temporary_dgcp_process_content_probe():
     day = datetime.now(timezone.utc).date() - timedelta(days=1)
     response = requests.get(
         f"{DGCP_API_ROOT}/procesos",
@@ -18,24 +18,25 @@ def test_temporary_dgcp_process_shape_probe():
     response.raise_for_status()
     envelope = response.json()
     payload = envelope.get("payload") if isinstance(envelope, dict) else None
-    if isinstance(payload, list):
-        first = payload[0] if payload and isinstance(payload[0], dict) else None
-        payload_summary = {"type": "list", "len": len(payload), "first_keys": sorted(first) if first else []}
-    elif isinstance(payload, dict):
-        first_list = next((value for value in payload.values() if isinstance(value, list)), None)
-        first = first_list[0] if first_list and isinstance(first_list[0], dict) else None
-        payload_summary = {
+    content = payload.get("content") if isinstance(payload, dict) else None
+    if isinstance(content, dict):
+        nested_list = next((value for value in content.values() if isinstance(value, list)), None)
+        first = nested_list[0] if nested_list and isinstance(nested_list[0], dict) else None
+        content_summary = {
             "type": "dict",
-            "keys": sorted(payload),
-            "first_list_len": len(first_list) if isinstance(first_list, list) else None,
+            "keys": sorted(content),
+            "nested_list_len": len(nested_list) if isinstance(nested_list, list) else None,
             "first_keys": sorted(first) if first else [],
         }
+    elif isinstance(content, list):
+        first = content[0] if content and isinstance(content[0], dict) else None
+        content_summary = {"type": "list", "len": len(content), "first_keys": sorted(first) if first else []}
     else:
-        payload_summary = {"type": type(payload).__name__}
+        content_summary = {"type": type(content).__name__, "preview": str(content)[:200]}
     summary = {
         "day": day.isoformat(),
         "envelope_keys": sorted(envelope) if isinstance(envelope, dict) else [],
         "meta": {key: envelope.get(key) for key in ("page", "limit", "pages", "totalResults") if isinstance(envelope, dict)},
-        "payload": payload_summary,
+        "content": content_summary,
     }
-    raise AssertionError("DGCP_PROCESS_SHAPE=" + json.dumps(summary, sort_keys=True, default=str))
+    raise AssertionError("DGCP_PROCESS_CONTENT=" + json.dumps(summary, sort_keys=True, default=str))
