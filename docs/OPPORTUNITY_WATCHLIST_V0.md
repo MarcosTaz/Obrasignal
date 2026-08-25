@@ -158,20 +158,24 @@ Current branch integration points are intentionally narrow:
 - `opportunity_lifecycle` read model for closed/archived semantics;
 - existing account identity/authentication;
 - existing opportunity namespace billing guard;
-- production WSGI registration in `cors_app.py`.
+- production WSGI registration in `cors_app.py`;
+- existing mobile opportunity-detail surface and central `mobile/src/api.js` client.
 
-The existing opportunity list/detail already embeds `get_workflow(...)`; after this migration that object includes `is_saved`, `priority`, and `saved_at`, so a frontend can render a one-tap Save/Saved control without duplicating business logic.
+The existing opportunity list/detail already embeds `get_workflow(...)`; after this migration that object includes `is_saved`, `priority`, and `saved_at`.
 
 ## UI
 
-No new screen is added in V0 on this branch. The backend contract is deliberately ready for a minimal accessible control:
+V0 adds a single touch-friendly control to the existing opportunity detail surface. It does not add a new navigation area or dashboard.
+
+Copy is deliberately explicit:
 
 - `Guardar oportunidade`
-- `Remover das guardadas`
+- `Guardada`
+- accessibility label `Remover das guardadas` when saved.
 
-A Saved view can be built directly from `GET /api/v1/opportunities/saved`.
+The control is not optimistic: local UI changes to saved/unsaved only after the backend returns success. A failed write preserves the previous state and renders an error message with alert semantics. The button exposes an accessibility role, contextual label, disabled state, and selected state.
 
-This branch avoids a larger mobile navigation change until the existing mobile component/test structure is integrated deliberately. The absence of UI is a known limitation, not a claim of completed product exposure.
+A dedicated Saved list screen is not added in this branch; the backend endpoint `GET /api/v1/opportunities/saved` is ready for that future surface.
 
 ## TESTS
 
@@ -196,19 +200,22 @@ This branch avoids a larger mobile navigation change until the existing mobile c
 - API account derivation rather than payload account id;
 - API validation/authentication behavior.
 
+`mobile/smoke-detail.mjs` additionally asserts that the detail surface contains the Save control, that save/unsave are wired to the API client, that the control carries an accessible contextual label/selected state, and that save failure has visible feedback.
+
 ## KNOWN LIMITATIONS
 
 - V0 stores current relationship state, not transition history.
 - `WON`/`LOST` remain in the legacy workflow vocabulary until Outcome Graph owns outcomes.
 - `tenders` is still the product opportunity persistence used by current API paths even though the strategic architecture is evolving toward generic Signal; Watchlist references existing canonical `(source, external_id)` identity and does not introduce another opportunity copy.
-- No new frontend Saved screen/button is shipped by this isolated branch.
+- There is no dedicated Saved list screen yet; list/filter/order/pagination are available through the API contract.
 - No analytics, alerting, DNA learning, COMMAND recommendation, or Value Created behavior is triggered.
 
 ## FUTURE
 
 Potential future integrations, explicitly out of scope for V0:
 
-- accessible Save/Saved button and Saved view;
+- dedicated Saved view using the existing list endpoint;
+- UI controls for priority/status filters where product evidence justifies them;
 - canonical engagement event after event infrastructure is stable;
 - transition history/audit ledger if product evidence justifies it;
 - Outcome Graph ownership of WON/LOST/NO_BID/BID_SUBMITTED outcomes;
@@ -217,4 +224,4 @@ Potential future integrations, explicitly out of scope for V0:
 
 ## ROLLBACK
 
-Runtime rollback is straightforward: stop importing/registering `opportunity_watchlist_api` and revert the workflow code. The additive SQLite columns/indexes can safely remain unused; destructive down-migration is intentionally unnecessary.
+Runtime rollback is straightforward: stop importing/registering `opportunity_watchlist_api`, remove the mobile Save control, and revert workflow behavior. The additive SQLite columns/indexes can safely remain unused; destructive down-migration is intentionally unnecessary.
