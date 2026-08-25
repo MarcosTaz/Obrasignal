@@ -65,6 +65,29 @@ def test_fixture_store_must_be_separate_from_primary_database(monkeypatch, tmp_p
     assert not database.exists()
 
 
+def test_public_fixture_startup_seam_is_idempotent_and_never_touches_primary(monkeypatch, tmp_path):
+    primary_db, fixture_db = _configure(monkeypatch, tmp_path)
+
+    first = e2e_fixture_api.initialize_fixture_store()
+    second = e2e_fixture_api.initialize_fixture_store()
+
+    assert first == fixture_db.resolve()
+    assert second == first
+    assert e2e_fixture_api.fixture_store_path() == first
+    assert fixture_db.exists()
+    assert not primary_db.exists()
+    conn = sqlite3.connect(str(fixture_db))
+    try:
+        tables = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        }
+        assert "e2e_opportunity_fixtures" in tables
+        assert "opportunity_workflow" in tables
+    finally:
+        conn.close()
+
+
 def test_fixture_contract_requires_authenticated_identity(monkeypatch, tmp_path):
     _, fixture_db = _configure(monkeypatch, tmp_path)
     monkeypatch.setattr(
