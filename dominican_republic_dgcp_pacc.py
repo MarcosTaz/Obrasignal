@@ -6,17 +6,21 @@ defines that field as a controlled choice including `Obras`, so construction
 admission is taxonomy-based rather than keyword-based.
 
 The endpoint does not expose a reliable row-level modified timestamp or an
-incremental cursor. This connector therefore performs a bounded snapshot of one
-PACC year on every run. `signal_records` upserts by stable source/type/identity,
-so replay is intentional and safe. Pagination fails closed if the configured
-bound is exhausted while pages remain full.
+incremental cursor. Live validation on 2026-08-25 showed that the official API
+publishes top-level page/limit/pages/totalResults metadata and accepts limit=1000.
+The connector therefore performs a bounded annual snapshot, validates that
+metadata across every page, and fails closed if completeness cannot be proven.
+Runtime composition is responsible for avoiding more than one PACC snapshot per
+Dominican calendar day.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+import math
 import unicodedata
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -29,14 +33,15 @@ from dominican_republic_dgcp import (
 
 
 DGCP_PACC_ACQUISITIONS_URL = f"{DGCP_API_ROOT}/pacc/adquisiciones"
+DGCP_TIMEZONE = ZoneInfo("America/Santo_Domingo")
 
 
 @dataclass(frozen=True)
 class DGCPPACCConfig:
     source: str = "DO_DGCP"
     country: str = "DOM"
-    page_size: int = 100
-    max_pages: int = 500
+    page_size: int = 1000
+    max_pages: int = 60
     timeout: int = 45
 
 
@@ -79,6 +84,15 @@ def _version(value):
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _metadata_int(envelope, key):
+    if key not in envelope:
+        return None
+    try:
+        return int(envelope.get(key))
+    except (TypeError, ValueError):
+        raise RuntimeError(f"DGCP PACC pagination field {key} is not an integer") from None
 
 
 def normalize_dgcp_pacc_acquisition(row):
@@ -138,12 +152,26 @@ def normalize_dgcp_pacc_acquisition(row):
 class DGCPPACCConnector:
     def __init__(self, config=DGCPPACCConfig(), *, session=None):
         self.config = config
+        if str(config.source or "").strip().upper() != "DO_DGCP":
+            raise RuntimeError("DGCP PACC source identity must remain DO_DGCP")
+        if str(config.country or "").strip().upper() != "DOM":
+            raise RuntimeError("DGCP PACC country identity must remain DOM")
+        if not 1 <= int(config.page_size) <= 1000:
+            raise RuntimeError("DGCP PACC page_size must stay within the live-verified bound 1..1000")
+        if not 1 <= int(config.max_pages) <= 100:
+            raise RuntimeError("DGCP PACC max_pages must stay within the bounded contract 1..100")
+        if not 1 <= int(config.timeout) <= 120:
+            raise RuntimeError("DGCP PACC timeout must stay within 1..120 seconds")
         self.session = session or requests.Session()
 
     def _rows(self, *, year):
-        page_size = max(1, int(self.config.page_size))
-        max_pages = max(1, int(self.config.max_pages))
+        page_size = int(self.config.page_size)
+        max_pages = int(self.config.max_pages)
         all_rows = []
+        expected_pages = None
+        expected_total = None
+        metadata_seen = None
+
         for page in range(1, max_pages + 1):
             response = self.session.get(
                 DGCP_PACC_ACQUISITIONS_URL,
@@ -162,18 +190,75 @@ class DGCPPACCConnector:
             rows = payload.get("content") if isinstance(payload, dict) else None
             if not isinstance(rows, list):
                 raise RuntimeError("DGCP PACC payload has no content list")
-            batch = [row for row in rows if isinstance(row, dict)]
-            all_rows.extend(batch)
-            if len(rows) < page_size:
+
+            present = [key in envelope for key in ("page", "limit", "pages", "totalResults")]
+            if any(present) and not all(present):
+                raise RuntimeError("DGCP PACC returned incomplete pagination metadata")
+            has_metadata = all(present)
+            if metadata_seen is None:
+                metadata_seen = has_metadata
+            elif metadata_seen != has_metadata:
+                raise RuntimeError("DGCP PACC pagination metadata disappeared during snapshot")
+
+            if has_metadata:
+                returned_page = _metadata_int(envelope, "page")
+                returned_limit = _metadata_int(envelope, "limit")
+                pages = _metadata_int(envelope, "pages")
+                total = _metadata_int(envelope, "totalResults")
+                if returned_page != page:
+                    raise RuntimeError(
+                        f"DGCP PACC returned page={returned_page} while page={page} was requested"
+                    )
+                if returned_limit != page_size:
+                    raise RuntimeError(
+                        f"DGCP PACC returned limit={returned_limit} while limit={page_size} was requested"
+                    )
+                if pages < 0 or total < 0:
+                    raise RuntimeError("DGCP PACC returned negative pagination metadata")
+                calculated_pages = math.ceil(total / page_size) if total else 0
+                if pages != calculated_pages:
+                    raise RuntimeError(
+                        f"DGCP PACC pages={pages} is inconsistent with totalResults={total} and limit={page_size}"
+                    )
+                if pages > max_pages:
+                    raise RuntimeError(
+                        f"DGCP PACC requires pages={pages}, above max_pages={max_pages}; snapshot completeness not proven"
+                    )
+                if expected_pages is None:
+                    expected_pages = pages
+                    expected_total = total
+                elif pages != expected_pages or total != expected_total:
+                    raise RuntimeError("DGCP PACC pagination totals changed during bounded snapshot")
+
+            all_rows.extend(rows)
+
+            if has_metadata:
+                if expected_pages == 0:
+                    if rows or expected_total != 0:
+                        raise RuntimeError("DGCP PACC zero-page metadata conflicts with returned content")
+                    return all_rows
+                if page >= expected_pages:
+                    if len(all_rows) != expected_total:
+                        raise RuntimeError(
+                            f"DGCP PACC fetched {len(all_rows)} rows but totalResults={expected_total}; snapshot completeness not proven"
+                        )
+                    return all_rows
+                if not rows:
+                    raise RuntimeError("DGCP PACC returned an empty page before snapshot completion")
+            elif len(rows) < page_size:
                 return all_rows
+
         raise RuntimeError(
             f"DGCP PACC reached max_pages={max_pages} for year={year}; snapshot completeness not proven"
         )
 
     def fetch_snapshot(self, *, year=None, now=None):
         current = now or datetime.now(timezone.utc)
-        selected_year = int(year or current.year)
-        today = current.date().isoformat()
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        local_today = current.astimezone(DGCP_TIMEZONE).date()
+        selected_year = int(year or local_today.year)
+        today = local_today.isoformat()
         rows = self._rows(year=selected_year)
         by_identity = {}
         for row in rows:
