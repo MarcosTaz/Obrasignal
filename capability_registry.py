@@ -68,6 +68,13 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         publishes_events=("opportunity.updated", "signal.lifecycle_changed"),
         private_data_owner="SIGNAL",
     ),
+    "CONTRACT_EXPIRY": _c(
+        "CONTRACT_EXPIRY", "RESEARCH", "SIGNAL",
+        contract_versions=("contract_expiry.v0",),
+        dependencies=("SIGNAL",),
+        feature_flag="contract_expiry_signals_v0",
+        private_data_owner="SIGNAL",
+    ),
     "EVIDENCE": _c(
         "EVIDENCE", "EXPERIMENT", "COMMAND",
         contract_versions=("evidence.v1-draft",),
@@ -167,7 +174,6 @@ def enabled_capabilities() -> tuple[str, ...]:
 
 
 def dependency_cycles() -> tuple[tuple[str, ...], ...]:
-    """Return detected dependency cycles; empty tuple is the required steady state."""
     cycles: list[tuple[str, ...]] = []
     visiting: list[str] = []
     visited: set[str] = set()
