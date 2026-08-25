@@ -89,6 +89,27 @@ def _headers(response):
 
 
 def _deadline_state(value):
+    raw = str(value or "").strip()
+    if len(raw) == 10:
+        try:
+            deadline_date = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+        else:
+            days = (deadline_date - datetime.now(timezone.utc).date()).days
+            if days < 0:
+                return {"state": "closed", "label": "Terminado", "days_remaining": days}
+            if days == 0:
+                # Date-only publisher evidence proves the calendar day, not an
+                # exact closing instant or timezone. Do not invent midnight or
+                # 23:59 and do not claim definitely open/closed on that day.
+                return {"state": "unknown", "label": "Prazo hoje — hora não indicada", "days_remaining": 0}
+            if days <= 2:
+                return {"state": "urgent", "label": "Urgente", "days_remaining": days}
+            if days <= 7:
+                return {"state": "urgent", "label": "Prazo curto", "days_remaining": days}
+            return {"state": "open", "label": "Aberto", "days_remaining": days}
+
     dt = _deadline_dt(value)
     if not dt:
         return {"state": "unknown", "label": "Prazo não indicado", "days_remaining": None}
