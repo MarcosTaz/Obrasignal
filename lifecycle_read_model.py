@@ -1,11 +1,14 @@
-"""Lifecycle-aware commercial read model for legacy ObraSignal surfaces.
+"""Lifecycle-aware compatibility layer for legacy ObraSignal surfaces.
 
 The canonical ``tenders`` table remains historical. Current commercial surfaces
 must hide rows that are not effectively actionable, while direct detail remains
 available with lifecycle and deadline state attached.
 
 This module is installed additively at the production WSGI boundary so the
-legacy ingestion/ranking core does not need a rewrite.
+legacy ingestion/ranking core does not need a broad rewrite. In addition to the
+read-model replacements, it corrects only the temporal component of legacy
+commercial scoring for date-only deadlines: calendar precision must not become
+an invented midnight timestamp.
 """
 from datetime import datetime, timezone, timedelta
 
@@ -19,8 +22,51 @@ from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
 
 
+_ORIGINAL_COMMERCIAL_SCORE = _app.commercial_score
+
+
 def _ensure(conn):
     ensure_lifecycle_table(conn)
+
+
+def commercial_score(title, description, cpv, deadline=None):
+    """Preserve DATE precision when applying the legacy deadline score policy.
+
+    The legacy scorer converts ``YYYY-MM-DD`` to midnight UTC before computing a
+    fractional day distance. That can penalize a deadline on the current day as
+    expired and can shift the 7/21-day policy boundaries depending on the current
+    clock time. For date-only evidence, use calendar-day distance instead. Exact
+    timestamps continue through the original scorer unchanged.
+    """
+    raw = str(deadline or "").strip()
+    if len(raw) == 10:
+        try:
+            deadline_date = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+        else:
+            days = (deadline_date - datetime.now(timezone.utc).date()).days
+            score, _label, _css, reason = _ORIGINAL_COMMERCIAL_SCORE(
+                title, description, cpv, None
+            )
+            if 0 <= days <= 7:
+                score += 10
+            elif 7 < days <= 21:
+                score += 5
+            elif days < 0:
+                score -= 30
+            score = max(0, min(100, score))
+            if score >= 75:
+                label, css = "PRIORIDADE MÁXIMA", "hot"
+            elif score >= 55:
+                label, css = "BOA OPORTUNIDADE", "good"
+            else:
+                label, css = "BAIXA PRIORIDADE", "low"
+            if 0 <= days <= 7:
+                suffix = "prazo hoje; hora não indicada" if days == 0 else f"prazo em {days} dias; hora não indicada"
+                reason += "; " + suffix
+            return score, label, css, reason
+    return _ORIGINAL_COMMERCIAL_SCORE(title, description, cpv, deadline)
 
 
 def query_tenders(market, q, country, minscore, limit=60):
@@ -187,7 +233,8 @@ def opportunity_detail(tender_id):
 
 
 def install(preload_module):
-    """Install lifecycle-aware readers without changing legacy write paths."""
+    """Install lifecycle-aware compatibility without replacing canonical owners."""
+    _app.commercial_score = commercial_score
     _app.query_tenders = query_tenders
     _app.stats_for = stats_for
     preload_module._record_account_decisions = lambda conn: record_account_decisions(
