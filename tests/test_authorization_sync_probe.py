@@ -31,5 +31,8 @@ def test_authenticated_principal_alone_cannot_trigger_global_sync(monkeypatch):
 
     response = api.APP.test_client().post("/sync")
 
-    assert response.status_code in {403, 404}
+    # Side-effect reachability is the primary authorization invariant. Keep it
+    # before the transport assertion so failing-before evidence cannot be
+    # misread as a redirect-shape defect.
     assert calls == []
+    assert response.status_code in {403, 404}
