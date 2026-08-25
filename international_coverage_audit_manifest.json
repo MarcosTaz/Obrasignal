@@ -4,7 +4,7 @@
     "python international_coverage_audit.py --json",
     "python international_coverage_audit.py --markdown",
     "python international_coverage_audit.py --strict",
-    "pytest test_international_coverage_audit.py"
+    "pytest test_international_coverage_audit.py test_international_coverage_audit_regressions.py"
   ],
   "contract": "OBRASIGNAL_REPOSITORY_STATE_INTERNATIONAL_COVERAGE_AUDIT_V1",
   "files_added": [
@@ -14,16 +14,18 @@
     "international_coverage_audit.py",
     "international_coverage_audit_core.py",
     "international_coverage_audit_manifest.json",
-    "test_international_coverage_audit.py"
+    "test_international_coverage_audit.py",
+    "test_international_coverage_audit_regressions.py"
   ],
   "files_modified": [],
   "global_registry_changes": [],
   "integration_notes": [
-    "The canonical CLI remains international_coverage_audit.py; the engine and ISO table are internal small modules, not alternate runtimes.",
+    "The canonical public boundary remains international_coverage_audit.py; engine and ISO data are internal small modules, not alternate runtimes.",
     "The auditor imports existing market/source/shared-family registries and performs no network I/O.",
-    "Short ISO tokens are matched only as path segments to avoid provenance collisions such as AUT -> auth_*.",
+    "Path provenance uses contiguous exact slug segments: AUT cannot match auth_* and BASE cannot match database.",
     "Test files are excluded from code/runtime provenance.",
-    "TED_EFORMS market membership is projected through the concrete active TED registry source; strategic shared families without a concrete active source are not promoted to executable coverage.",
+    "TED_EFORMS membership is projected only through the concrete active TED registry source; strategic shared families without a concrete active source are not promoted to executable coverage.",
+    "BUILD/SHARED markets without an active production source receive NO_ACTIVE_PRODUCTION_SOURCE and a matching missing-integration entry.",
     "The dedicated workflow generates deterministic JSON and Markdown artifacts and validates their contract.",
     "No country/source state, runtime registry, production deployment, or Master Queue item is modified."
   ],
@@ -34,11 +36,25 @@
       "python": "674 passed, 2 skipped, 2 warnings",
       "mobile": "success"
     },
-    "generated_artifact_run": {
+    "first_artifact_run": {
       "run_id": 32836631969,
       "artifact_id": 9558853777,
       "result": "success",
-      "note": "first artifact exposed provenance/ISO defects and was treated as a test finding, not canonical truth"
+      "note": "exposed ISO/provenance defects and was rejected as canonical truth"
+    },
+    "corrected_artifact_run": {
+      "run_id": 32837201615,
+      "artifact_id": 9559069455,
+      "result": "success",
+      "summary": {
+        "country_count": 135,
+        "source_count": 24,
+        "contradiction_count": 0,
+        "missing_integration_count": 34,
+        "production_path_countries": 26,
+        "gated_countries": 110
+      },
+      "iso_unknown_count": 0
     },
     "container_repo_clone": "blocked_dns_resolution"
   },
