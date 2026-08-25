@@ -62,6 +62,15 @@
       "sources": [
         {"source": "FI_HILMA", "country": "Finland", "implemented": true, "tested": true, "runtime_wired": true, "ready": false, "planned": true, "gated_rights": false, "gated_machine_access": false, "gated_credential": true, "gated_completeness": false, "tech_lab": false}
       ]
+    },
+    {
+      "pr": 274,
+      "head": "cbe82f71ef914cafac79280fa6917b045963ec63",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32873015235, "head": "cbe82f71ef914cafac79280fa6917b045963ec63"},
+      "sources": [
+        {"source": "RS:PUBLIC_PROCUREMENT_OFFICE:PUBLIC_PROCUREMENT_PORTAL", "country": "Serbia", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": false, "gated_rights": true, "gated_machine_access": true, "gated_credential": false, "gated_completeness": true, "tech_lab": true}
+      ]
     }
   ],
   "supersession": [
