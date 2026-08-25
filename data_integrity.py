@@ -149,7 +149,6 @@ def scan_canonical_integrity(conn, *, exact_sha: str = "UNKNOWN") -> list[Integr
     that are present and therefore observable.
     """
     findings: list[IntegrityFinding] = []
-    has_accounts = _table_exists(conn, "accounts")
     has_profiles = _table_exists(conn, "company_profiles")
     has_events = _table_exists(conn, "evaluation_events")
 
@@ -203,6 +202,28 @@ def scan_canonical_integrity(conn, *, exact_sha: str = "UNKNOWN") -> list[Integr
         owner="Opportunity Workflow + Opportunity owner",
         exact_sha=exact_sha,
     ))
+
+    if _table_exists(conn, "opportunity_events"):
+        rows = conn.execute(
+            """SELECT account_id
+               FROM opportunity_events
+               WHERE substr(event_key, 1, length(account_id) + 1) <> account_id || ':'
+               GROUP BY account_id
+               ORDER BY account_id"""
+        ).fetchall()
+        for row in rows:
+            findings.append(_finding(
+                invariant="OPPORTUNITY_EVENT_TENANT_KEY_MISMATCH",
+                severity="HIGH",
+                account_id=row[0],
+                stores=("opportunity_events",),
+                expected="event_key tenant namespace agrees with event account_id",
+                observed="event_key is outside the account_id tenant namespace",
+                owner="Notification Events",
+                repairable=False,
+                unknown=False,
+                exact_sha=exact_sha,
+            ))
 
     if _table_exists(conn, "opportunity_events") and _table_exists(conn, "tenders"):
         rows = conn.execute(
