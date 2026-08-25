@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 
@@ -5,6 +6,8 @@ import pytest
 
 import app
 import api
+import cors_app
+from opportunity_lifecycle import persist_lifecycle_observations
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,6 +109,29 @@ def _items(client, query=""):
     return response.get_json()["items"]
 
 
+def _insert_deadline_fixture(external_id, deadline):
+    conn = app.db()
+    try:
+        cur = conn.execute(
+            """INSERT INTO tenders(source, external_id, title, description, buyer, country,
+               cpv, value, deadline, publication_date, url, score, first_seen, last_seen, market)
+               VALUES ('TED',?,?,?,?, 'PRT','45442100','100000 EUR',?,'2026-08-25',?,80,
+               '2026-08-25','2026-08-25','PT')""",
+            (
+                external_id,
+                f"Fixture {external_id}",
+                "Golden temporal precision fixture",
+                "Município Delta",
+                deadline,
+                f"https://example.test/{external_id.lower()}",
+            ),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
 def test_persona_contract_keeps_required_facts_and_unknowns_explicit():
     data = _load(PERSONAS)
     personas = data["personas"]
@@ -177,14 +203,6 @@ def test_closed_opportunity_is_never_open(golden_db):
     assert all(item["external_id"] != "GOLD-CLOSED-1" for item in _items(client, "?open=1"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "FALSE-CLAIM BUG: main defaults missing lifecycle actionability to true, so an "
-        "expired tender can be returned as is_actionable=true. Acceptance contract requires "
-        "closed work not to be labelled actionable without stronger current evidence."
-    ),
-)
 def test_expired_opportunity_is_not_actionable_without_stronger_current_evidence(golden_db):
     client = api.APP.test_client()
     closed = client.get(
@@ -192,6 +210,92 @@ def test_expired_opportunity_is_not_actionable_without_stronger_current_evidence
     ).get_json()
     assert closed["deadline_status"]["state"] == "closed"
     assert closed["is_actionable"] is False
+    assert closed["is_open"] is False
+    assert all(
+        item["external_id"] != "GOLD-CLOSED-1"
+        for item in _items(client)
+    )
+
+
+def test_explicit_source_lifecycle_open_closed_precedence(golden_db):
+    conn = app.db()
+    try:
+        persist_lifecycle_observations(
+            conn,
+            [
+                {
+                    "source": "BASE",
+                    "external_id": "GOLD-CLOSED-1",
+                    "is_actionable": True,
+                    "lifecycle_status": "open",
+                    "lifecycle_reason": "publisher explicitly reopened",
+                },
+                {
+                    "source": "TED",
+                    "external_id": "GOLD-OPEN-1",
+                    "is_actionable": False,
+                    "lifecycle_status": "cancelled",
+                    "lifecycle_reason": "publisher explicitly cancelled",
+                },
+            ],
+        )
+    finally:
+        conn.close()
+
+    client = api.APP.test_client()
+    reopened = client.get(
+        f"/api/v1/opportunities/{golden_db['GOLD-CLOSED-1']}"
+    ).get_json()
+    cancelled = client.get(
+        f"/api/v1/opportunities/{golden_db['GOLD-OPEN-1']}"
+    ).get_json()
+
+    assert reopened["deadline_status"]["state"] == "closed"
+    assert reopened["is_actionable"] is True
+    assert reopened["lifecycle_status"] == "open"
+    assert cancelled["deadline_status"]["state"] == "open"
+    assert cancelled["is_actionable"] is False
+    assert cancelled["lifecycle_status"] == "cancelled"
+
+
+def test_missing_and_unparseable_deadlines_remain_unknown_compatible(golden_db):
+    client = api.APP.test_client()
+    missing = client.get(
+        f"/api/v1/opportunities/{golden_db['GOLD-UNKNOWN-1']}"
+    ).get_json()
+    assert missing["deadline_status"]["state"] == "unknown"
+    assert missing["is_actionable"] is True
+    assert missing["is_open"] is False
+
+    invalid_id = _insert_deadline_fixture("GOLD-INVALID-DEADLINE", "not-a-date")
+    invalid = client.get(f"/api/v1/opportunities/{invalid_id}").get_json()
+    assert invalid["deadline_status"]["state"] == "unknown"
+    assert invalid["is_actionable"] is True
+    assert invalid["is_open"] is False
+
+
+def test_date_only_current_day_does_not_fabricate_exact_closing_time(golden_db):
+    today = datetime.now(timezone.utc).date().isoformat()
+    opportunity_id = _insert_deadline_fixture("GOLD-DATE-ONLY-TODAY", today)
+    client = api.APP.test_client()
+    detail = client.get(f"/api/v1/opportunities/{opportunity_id}").get_json()
+
+    assert detail["deadline"] == today
+    assert detail["deadline_status"]["state"] == "unknown"
+    assert detail["is_actionable"] is True
+    assert detail["is_open"] is False
+
+
+def test_production_composition_has_exactly_one_api_owned_opportunity_detail_route():
+    rules = [
+        rule
+        for rule in cors_app.APP.url_map.iter_rules()
+        if rule.rule == "/api/v1/opportunities/<int:opportunity_id>"
+    ]
+    assert len(rules) == 1
+    assert rules[0].endpoint == "mobile_api.opportunity_detail"
+    assert cors_app.APP.view_functions[rules[0].endpoint] is api.opportunity_detail
+    assert not hasattr(cors_app, "_opportunity_detail")
 
 
 def test_private_workflow_state_is_tenant_isolated_but_is_not_called_watchlist(golden_db, monkeypatch):

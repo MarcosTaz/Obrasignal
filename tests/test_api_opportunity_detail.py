@@ -61,5 +61,23 @@ def test_feed_applies_open_source_and_buyer_search_filters(monkeypatch, tmp_path
 
     open_items = client.get("/api/v1/opportunities?open=1").get_json()["items"]
     assert [item["external_id"] for item in open_items] == ["OPEN-1"]
-    assert client.get("/api/v1/opportunities?source=BASE").get_json()["items"][0]["external_id"] == "CLOSED-1"
+
+    # A source filter narrows the current actionable feed; it must not reopen
+    # historical work whose known submission deadline is already expired.
+    assert client.get("/api/v1/opportunities?source=BASE").get_json()["items"] == []
+
+    # Historical detail remains available even when the record is excluded from
+    # current actionable surfaces.
+    conn = app.db()
+    try:
+        closed_id = conn.execute(
+            "SELECT id FROM tenders WHERE external_id='CLOSED-1'"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    closed = client.get(f"/api/v1/opportunities/{closed_id}").get_json()
+    assert closed["external_id"] == "CLOSED-1"
+    assert closed["deadline_status"]["state"] == "closed"
+    assert closed["is_actionable"] is False
+
     assert client.get("/api/v1/opportunities?q=munic%C3%ADpio").get_json()["items"][0]["external_id"] == "OPEN-1"
