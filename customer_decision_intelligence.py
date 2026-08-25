@@ -190,7 +190,13 @@ def company_state_input(snapshot: Mapping[str, Any] | None, *, account_id: str) 
         raise TenantBoundaryError("company state belongs to a different account")
     conflicts = list(snapshot.get("conflicts") or ())
     unknowns = list(snapshot.get("unknowns") or ())
-    truth = "CONFLICTED" if conflicts else "KNOWN"
+    facts = snapshot.get("facts")
+    if conflicts:
+        truth = "CONFLICTED"
+    elif isinstance(facts, (list, tuple)) and not facts and unknowns:
+        truth = "UNKNOWN"
+    else:
+        truth = "KNOWN"
     return decision_input(
         "company_state",
         truth,
@@ -216,13 +222,15 @@ def readiness_input(assessment: Mapping[str, Any] | None, *, account_id: str) ->
         or assessment.get("status")
         or "UNKNOWN"
     ).strip().upper()
-    items = assessment.get("items") or ()
-    conflicts = [
-        item for item in items
+    contract_conflicts = assessment.get("conflict_items") or ()
+    contract_unknowns = assessment.get("unknown_items") or ()
+    legacy_items = assessment.get("items") or ()
+    conflicts = list(contract_conflicts) or [
+        item for item in legacy_items
         if isinstance(item, Mapping) and str(item.get("status") or "").upper() == "CONFLICT"
     ]
-    unknown_items = [
-        item for item in items
+    unknown_items = list(contract_unknowns) or [
+        item for item in legacy_items
         if isinstance(item, Mapping) and str(item.get("status") or "").upper() == "UNKNOWN"
     ]
     if conflicts:
@@ -236,7 +244,7 @@ def readiness_input(assessment: Mapping[str, Any] | None, *, account_id: str) ->
     unknowns = [
         item.get("code") or item.get("description")
         for item in unknown_items
-        if item.get("code") or item.get("description")
+        if isinstance(item, Mapping) and (item.get("code") or item.get("description"))
     ]
     return decision_input(
         "readiness",
