@@ -8,30 +8,44 @@
   ],
   "contract": "OBRASIGNAL_REPOSITORY_STATE_INTERNATIONAL_COVERAGE_AUDIT_V1",
   "files_added": [
-    "international_coverage_audit.py",
-    "test_international_coverage_audit.py",
+    ".github/workflows/international-coverage-audit.yml",
     "INTERNATIONAL_COVERAGE_AUDIT.md",
-    "international_coverage_audit_manifest.json"
+    "international_country_codes.py",
+    "international_coverage_audit.py",
+    "international_coverage_audit_core.py",
+    "international_coverage_audit_manifest.json",
+    "test_international_coverage_audit.py"
   ],
   "files_modified": [],
   "global_registry_changes": [],
   "integration_notes": [
-    "The module imports existing registries when run inside the repository.",
-    "The audit scans filenames only for repository provenance and performs no network I/O.",
-    "The PR is additive and does not promote any country/source state."
+    "The canonical CLI remains international_coverage_audit.py; the engine and ISO table are internal small modules, not alternate runtimes.",
+    "The auditor imports existing market/source/shared-family registries and performs no network I/O.",
+    "Short ISO tokens are matched only as path segments to avoid provenance collisions such as AUT -> auth_*.",
+    "Test files are excluded from code/runtime provenance.",
+    "TED_EFORMS market membership is projected through the concrete active TED registry source; strategic shared families without a concrete active source are not promoted to executable coverage.",
+    "The dedicated workflow generates deterministic JSON and Markdown artifacts and validates their contract.",
+    "No country/source state, runtime registry, production deployment, or Master Queue item is modified."
   ],
-  "local_validation": {
-    "container_repo_clone": "blocked_dns_resolution",
-    "full_pytest": "not_run_container_could_not_clone_repo",
-    "syntax_compile": [
-      "python -m py_compile international_coverage_audit.py",
-      "python -m py_compile test_international_coverage_audit.py"
-    ]
+  "validation": {
+    "initial_quality_run": {
+      "run_id": 32803189036,
+      "result": "success",
+      "python": "674 passed, 2 skipped, 2 warnings",
+      "mobile": "success"
+    },
+    "generated_artifact_run": {
+      "run_id": 32836631969,
+      "artifact_id": 9558853777,
+      "result": "success",
+      "note": "first artifact exposed provenance/ISO defects and was treated as a test finding, not canonical truth"
+    },
+    "container_repo_clone": "blocked_dns_resolution"
   },
   "master_queue_changes": [],
   "module": "GLOBAL COUNTRY GAP & COVERAGE AUDITOR",
   "rollback": [
-    "git revert the PR commit, or delete the four added files listed in files_added."
+    "Revert PR #192, or delete all files listed in files_added. No pre-existing global registry/runtime file requires restoration."
   ],
   "runtime_changes": [],
   "scope": "repository-state-only international coverage audit"
