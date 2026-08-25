@@ -34,9 +34,15 @@ export async function configureNotifications() {
 }
 
 export async function registerRemoteOpportunityPush() {
-  if (Platform.OS === 'web') return { registered: false, reason: 'web' };
+  if (Platform.OS === 'web') return { status: 'unsupported', registered: false, reason: 'web' };
   const granted = await configureNotifications();
-  if (!granted) return { registered: false, reason: 'permission' };
+  if (!granted) {
+    // Permission truth is independent from registration truth. If permission was
+    // revoked after an earlier registration, invalidate that binding locally and
+    // make a bounded best-effort server revoke rather than leaving it tap-valid.
+    await unregisterRemoteOpportunityPush().catch(() => {});
+    return { status: 'permission_denied', registered: false, reason: 'permission' };
+  }
 
   const existingBinding = await storage.getPushBinding();
   // A tenant change purges the old private binding in #291. Clear any already
@@ -47,23 +53,24 @@ export async function registerRemoteOpportunityPush() {
 
   const tokenResult = await Notifications.getExpoPushTokenAsync({ projectId: EXPO_PROJECT_ID });
   const expoPushToken = String(tokenResult?.data || '').trim();
-  if (!expoPushToken) return { registered: false, reason: 'token' };
+  if (!expoPushToken) return { status: 'remote_unavailable', registered: false, reason: 'token' };
   const installationId = await storage.ensurePushInstallationId();
   const response = await api.registerPushDevice({ installationId, expoPushToken, platform: Platform.OS });
   const bindingId = String(response?.binding_id || '').trim();
   if (!bindingId) throw new Error('push_binding_missing');
   await storage.setPushBinding({ bindingId, installationId, expoPushToken });
-  return { registered: true, bindingId, installationId };
+  return { status: 'registered', registered: true, bindingId, installationId };
 }
 
 export async function unregisterRemoteOpportunityPush() {
   if (Platform.OS === 'web') return;
   const binding = await storage.getPushBinding();
+  // Local tap authority is revoked before any network call. A slow/offline
+  // unregister cannot leave a disabled or signed-out account locally tap-valid.
+  try { await storage.clearPushBinding(); } catch (_) {}
   try {
     if (binding?.installationId) await api.unregisterPushDevice(binding.installationId);
   } finally {
-    // Even if the network is unavailable, remove Account A notifications from
-    // the local tray before the session is allowed to leave the device.
     try { await Notifications.dismissAllNotificationsAsync(); } catch (_) {}
   }
 }
@@ -83,12 +90,12 @@ export async function showLocalOpportunityAlert(item) {
 }
 
 export async function syncUnreadOpportunityAlerts() {
-  if (Platform.OS === 'web') return 0;
+  if (Platform.OS === 'web') return { status: 'unsupported', delivered: 0 };
   const settings = await storage.getSettings();
-  if (!settings.notifications) return 0;
+  if (!settings.notifications) return { status: 'disabled', delivered: 0 };
 
   const granted = await configureNotifications();
-  if (!granted) return 0;
+  if (!granted) return { status: 'permission_denied', delivered: 0 };
 
   const result = await api.alerts({ unreadOnly: true, limit: 10 });
   const items = result?.items || [];
@@ -104,7 +111,7 @@ export async function syncUnreadOpportunityAlerts() {
     }
   }
 
-  return delivered;
+  return { status: 'ready', delivered };
 }
 
 export async function notificationOpportunityTarget(response) {
@@ -113,6 +120,11 @@ export async function notificationOpportunityTarget(response) {
   const eventId = Number(data.eventId);
   const bindingId = String(data.bindingId || '').trim();
   if (!Number.isInteger(opportunityId) || opportunityId <= 0 || !bindingId) return null;
+
+  // A user-level notification disable is itself a fail-closed navigation gate,
+  // even if physical storage cleanup or server revoke previously failed.
+  const settings = await storage.getSettings();
+  if (!settings.notifications) return null;
 
   const current = await storage.getPushBinding();
   if (!current?.bindingId || current.bindingId !== bindingId) {
