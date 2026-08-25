@@ -12,6 +12,7 @@ succeeded.
 from dataclasses import dataclass
 import threading
 
+from capability_registry import capability
 from opportunity_change_history import persist_change_observations
 from opportunity_lifecycle import persist_lifecycle_observations
 from signal_store import persist_signal_records
@@ -51,6 +52,11 @@ def staged_source_syncs():
 
 def discard_staged_source_syncs():
     _pending().clear()
+
+
+def _change_history_runtime_enabled():
+    """PILOT may run internally; registry state remains the v0 disable boundary."""
+    return capability("OPPORTUNITY_CHANGE_HISTORY").state in {"PILOT", "ENABLED"}
 
 
 def _history_projection(records):
@@ -99,10 +105,11 @@ def _empty_commit_result():
 def commit_staged_source_syncs(conn):
     """Atomically persist history, Signal, metadata, lifecycle and source cursors.
 
-    Change history must observe the previous canonical state before Signal upsert
-    replaces it. It therefore runs first, but in the same transaction. Any history,
-    Signal, metadata/lifecycle or cursor failure rolls back the complete source-side
-    transaction, preserving both audit continuity and fail-closed cursor semantics.
+    When Change History is PILOT/ENABLED it must observe the previous canonical
+    state before Signal upsert replaces it, so it runs first inside the transaction.
+    Registry states outside PILOT/ENABLED disable history without blocking Signal,
+    metadata, lifecycle or cursor persistence. Any enabled history failure still
+    rolls back the complete source-side transaction.
     """
     pending = staged_source_syncs()
     if not pending:
@@ -111,13 +118,15 @@ def commit_staged_source_syncs(conn):
     metadata_records = 0
     lifecycle_records = 0
     cursors = 0
+    history_enabled = _change_history_runtime_enabled()
     try:
         for item in pending:
-            persist_change_observations(
-                conn,
-                _history_projection(item.records),
-                commit=False,
-            )
+            if history_enabled:
+                persist_change_observations(
+                    conn,
+                    _history_projection(item.records),
+                    commit=False,
+                )
             signal_records += persist_signal_records(
                 conn,
                 item.records,
