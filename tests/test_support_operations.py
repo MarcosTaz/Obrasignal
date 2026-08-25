@@ -14,6 +14,28 @@ from support_operations import (
 )
 
 
+def _support_pack(**overrides):
+    values = {
+        "correlation_id": "req_20260825_abcd",
+        "observed_at": "2026-08-25T19:30:00+00:00",
+        "service_area": ServiceArea.SOURCES,
+        "failure_class": CustomerFailureClass.STALE,
+        "service_readiness": ServiceReadiness.DEGRADED,
+        "recovery_state": RecoveryState.IN_PROGRESS,
+        "build": "66d43f6",
+        "version": "support.v1",
+        "dependency_state": "STALE",
+        "details": {
+            "http_status": 503,
+            "operation": "radar_refresh",
+            "error_code": "SOURCE_STALE",
+            "retry_after_seconds": 60,
+        },
+    }
+    values.update(overrides)
+    return SupportEvidencePack(**values)
+
+
 def test_customer_failure_taxonomy_is_exact_and_bounded():
     assert {item.value for item in CustomerFailureClass} == {
         "RETRYABLE",
@@ -95,24 +117,18 @@ def test_root_cause_cannot_be_closed_before_verified_recovery():
         )
 
 
+def test_recovery_flags_require_real_booleans():
+    with pytest.raises(ValueError, match="booleans"):
+        recovery_state(
+            started=1,
+            service_restored=False,
+            recovery_verified=False,
+            root_cause_closed=False,
+        )
+
+
 def test_support_evidence_pack_contains_only_bounded_operational_metadata():
-    pack = SupportEvidencePack(
-        correlation_id="req_20260825_abcd",
-        observed_at="2026-08-25T19:30:00+00:00",
-        service_area=ServiceArea.SOURCES,
-        failure_class=CustomerFailureClass.STALE,
-        service_readiness=ServiceReadiness.DEGRADED,
-        recovery_state=RecoveryState.IN_PROGRESS,
-        build="66d43f6",
-        version="support.v1",
-        dependency_state="STALE",
-        details={
-            "http_status": 503,
-            "operation": "radar_refresh",
-            "error_code": "SOURCE_STALE",
-            "retry_after_seconds": 60,
-        },
-    ).as_dict()
+    pack = _support_pack().as_dict()
 
     assert pack["failure_class"] == "STALE"
     assert pack["service_readiness"] == "DEGRADED"
@@ -125,30 +141,44 @@ def test_support_evidence_pack_contains_only_bounded_operational_metadata():
 
 
 def test_support_evidence_rejects_any_non_allowlisted_detail_field():
-    pack = SupportEvidencePack(
-        correlation_id="req_20260825_abcd",
-        observed_at="2026-08-25T19:30:00+00:00",
-        service_area=ServiceArea.SUPPORT,
-        failure_class=CustomerFailureClass.UNKNOWN,
-        service_readiness=ServiceReadiness.UNKNOWN,
-        recovery_state=RecoveryState.NOT_STARTED,
-        details={"unexpected_private_field": "not-allowed"},
-    )
+    pack = _support_pack(details={"unexpected_private_field": "not-allowed"})
     with pytest.raises(ValueError, match="unsupported support evidence fields"):
         pack.as_dict()
 
 
-def test_support_evidence_requires_timezone_aware_timestamp():
-    pack = SupportEvidencePack(
-        correlation_id="req_20260825_abcd",
-        observed_at="2026-08-25T19:30:00",
-        service_area=ServiceArea.SUPPORT,
-        failure_class=CustomerFailureClass.UNKNOWN,
-        service_readiness=ServiceReadiness.UNKNOWN,
-        recovery_state=RecoveryState.NOT_STARTED,
-    )
-    with pytest.raises(ValueError, match="timezone-aware"):
+def test_support_evidence_rejects_free_form_text_in_allowlisted_string_fields():
+    pack = _support_pack(details={"operation": "free form customer text"})
+    with pytest.raises(ValueError, match="unsupported characters"):
         pack.as_dict()
+
+
+@pytest.mark.parametrize(
+    ("details", "match"),
+    [
+        ({"http_status": 999}, "100..599"),
+        ({"retry_after_seconds": -1}, "0..86400"),
+        ({"attempt": True}, "integer"),
+        ({"state_version": 2**63}, "0..9223372036854775807"),
+    ],
+)
+def test_support_evidence_rejects_unbounded_or_wrong_type_integers(details, match):
+    with pytest.raises(ValueError, match=match):
+        _support_pack(details=details).as_dict()
+
+
+def test_support_evidence_rejects_noncanonical_enum_inputs():
+    with pytest.raises(ValueError, match="canonical support enum"):
+        _support_pack(service_area="SOURCES").as_dict()
+
+
+def test_support_evidence_rejects_email_like_dependency_state():
+    with pytest.raises(ValueError, match="unsupported characters"):
+        _support_pack(dependency_state="person@example.invalid").as_dict()
+
+
+def test_support_evidence_requires_timezone_aware_timestamp():
+    with pytest.raises(ValueError, match="timezone-aware"):
+        _support_pack(observed_at="2026-08-25T19:30:00").as_dict()
 
 
 def test_customer_error_payload_does_not_invent_success_retryability_or_root_cause():
