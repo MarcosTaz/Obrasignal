@@ -14,6 +14,7 @@ from notification_events import record_new_opportunities
 from source_health import get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
 from source_registry import production_gate_reasons
 from canada_buys_runtime import install_canadabuys_runtime
+from us_sam_runtime import install_us_sam_runtime
 from source_runtime import commit_staged_source_syncs, discard_staged_source_syncs, stage_source_sync
 from latency_metrics import record_stage, latency_snapshot, latency_summary
 from latency_health import latency_health
@@ -264,6 +265,12 @@ def fetch_base_with_national_sources():
 _app.fetch_base = fetch_base_with_national_sources
 
 install_canadabuys_runtime(
+    _app,
+    source_enabled=_global_source_enabled,
+    record_blocked=_record_blocked_global_source,
+)
+
+install_us_sam_runtime(
     _app,
     source_enabled=_global_source_enabled,
     record_blocked=_record_blocked_global_source,
