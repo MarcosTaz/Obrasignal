@@ -89,19 +89,15 @@ _SEVERITY_ORDER = {
 }
 
 _CORRELATION_ID = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
-_SAFE_TOKEN = re.compile(r"^[A-Za-z0-9._:/@+-]{1,256}$")
-_DETAIL_KEYS = frozenset(
-    {
-        "http_status",
-        "operation",
-        "error_code",
-        "component",
-        "dependency_status",
-        "retry_after_seconds",
-        "attempt",
-        "state_version",
-    }
-)
+_SAFE_TOKEN = re.compile(r"^[A-Za-z0-9._:/+-]{1,256}$")
+_STRING_DETAIL_KEYS = frozenset({"operation", "error_code", "component", "dependency_status"})
+_INTEGER_DETAIL_RANGES = {
+    "http_status": (100, 599),
+    "retry_after_seconds": (0, 86_400),
+    "attempt": (0, 1_000),
+    "state_version": (0, (2**63) - 1),
+}
+_DETAIL_KEYS = _STRING_DETAIL_KEYS | frozenset(_INTEGER_DETAIL_RANGES)
 _MAX_DETAIL_ITEMS = 8
 _MAX_TEXT = 256
 
@@ -130,6 +126,14 @@ def recovery_state(
     root_cause_closed: bool,
 ) -> RecoveryState:
     """Represent recovery without collapsing restoration into verified closure."""
+    flags = {
+        "started": started,
+        "service_restored": service_restored,
+        "recovery_verified": recovery_verified,
+        "root_cause_closed": root_cause_closed,
+    }
+    if any(type(value) is not bool for value in flags.values()):
+        raise ValueError("recovery state inputs must be booleans")
     if root_cause_closed and not recovery_verified:
         raise ValueError("root cause cannot be closed before recovery is verified")
     if recovery_verified and not service_restored:
@@ -162,8 +166,9 @@ def _bounded_text(name: str, value: str | None, *, token: bool = False) -> str |
 def _observed_at(value: str) -> str:
     value = _bounded_text("observed_at", value)  # type: ignore[assignment]
     assert value is not None
+    iso_value = value[:-1] + "+00:00" if value.endswith("Z") else value
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(iso_value)
     except ValueError as exc:
         raise ValueError("observed_at must be ISO-8601") from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
@@ -172,8 +177,10 @@ def _observed_at(value: str) -> str:
 
 
 def _safe_details(details: Mapping[str, Any] | None) -> dict[str, Any]:
-    if not details:
+    if details is None:
         return {}
+    if not isinstance(details, Mapping):
+        raise ValueError("support evidence details must be a mapping")
     if len(details) > _MAX_DETAIL_ITEMS:
         raise ValueError("too many support evidence details")
     unknown = set(details) - _DETAIL_KEYS
@@ -181,14 +188,15 @@ def _safe_details(details: Mapping[str, Any] | None) -> dict[str, Any]:
         raise ValueError(f"unsupported support evidence fields: {sorted(unknown)}")
     clean: dict[str, Any] = {}
     for key, value in details.items():
-        if value is None or isinstance(value, bool):
-            clean[key] = value
-        elif isinstance(value, int):
-            clean[key] = value
-        elif isinstance(value, str):
-            clean[key] = _bounded_text(key, value)
-        else:
-            raise ValueError(f"{key} must be a scalar support-safe value")
+        if key in _STRING_DETAIL_KEYS:
+            if not isinstance(value, str):
+                raise ValueError(f"{key} must be a bounded token-like string")
+            clean[key] = _bounded_text(key, value, token=True)
+            continue
+        lower, upper = _INTEGER_DETAIL_RANGES[key]
+        if not isinstance(value, int) or isinstance(value, bool) or not (lower <= value <= upper):
+            raise ValueError(f"{key} must be an integer in range {lower}..{upper}")
+        clean[key] = value
     return clean
 
 
@@ -209,6 +217,15 @@ class SupportEvidencePack:
         """Return only bounded operational metadata; no tenant selector/payload."""
         if not isinstance(self.correlation_id, str) or not _CORRELATION_ID.fullmatch(self.correlation_id):
             raise ValueError("correlation_id must be an opaque bounded identifier")
+        enum_fields = {
+            "service_area": (self.service_area, ServiceArea),
+            "failure_class": (self.failure_class, CustomerFailureClass),
+            "service_readiness": (self.service_readiness, ServiceReadiness),
+            "recovery_state": (self.recovery_state, RecoveryState),
+        }
+        for name, (value, enum_type) in enum_fields.items():
+            if not isinstance(value, enum_type):
+                raise ValueError(f"{name} must use the canonical support enum")
         observed_at = _observed_at(self.observed_at)
         build = _bounded_text("build", self.build, token=True)
         version = _bounded_text("version", self.version, token=True)
