@@ -112,7 +112,6 @@ SOURCES = {
         stale_after_minutes=4320,
         capabilities=("incremental_sync", "contracts", "historical_data", "suppliers"),
         signal_types=("CONTRACT",),
-        wave=1,
         adapter="FranceDECPConnector",
         realtime_capable=False,
     ),
