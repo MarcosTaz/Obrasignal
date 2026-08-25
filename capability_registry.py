@@ -74,6 +74,13 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         feature_flag="evidence_graph_v1",
         kill_switch_required=True,
     ),
+    "REQUIREMENTS": _c(
+        "REQUIREMENTS", "RESEARCH", "COMMAND",
+        dependencies=("SIGNAL",),
+        contract_versions=("opportunity_requirements.v0",),
+        feature_flag="opportunity_requirements_v0",
+        private_data_owner="REQUIREMENTS",
+    ),
     "OFFICE": _c(
         "OFFICE", "RESEARCH", "OFFICE",
         contract_versions=("company_state.v1-draft",),
