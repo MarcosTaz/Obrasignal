@@ -27,6 +27,26 @@ class JwksUnavailableError(Exception):
     """The signing-key service is unavailable and no cached key can verify the token."""
 
 
+def _is_absolute_provider_url(value: str) -> bool:
+    """Return whether a configured provider URL is structurally fetchable.
+
+    Provider configuration is operator-controlled, but malformed values should be
+    rejected as configuration errors rather than surfacing later as opaque network
+    failures. Credentials and URL fragments are intentionally not accepted.
+    """
+    try:
+        parsed = urlsplit((value or "").strip())
+    except ValueError:
+        return False
+    return (
+        parsed.scheme in {"http", "https"}
+        and bool(parsed.hostname)
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.fragment
+    )
+
+
 def _is_native_supabase_url(value: str) -> bool:
     parsed = urlsplit((value or "").strip())
     hostname = (parsed.hostname or "").lower()
@@ -60,6 +80,18 @@ def _effective_jwks_url(issuer: str, override: str = "") -> str:
     if _is_native_supabase_url(issuer):
         return _default_jwks_url(issuer)
     return (override or _default_jwks_url(issuer)).strip()
+
+
+def _provider_configuration_diagnostics(issuer: str, jwks_override: str = "") -> tuple[str, str | None]:
+    """Classify provider configuration without exposing provider identifiers."""
+    normalized = _normalize_supabase_issuer(issuer)
+    if not _is_absolute_provider_url(normalized):
+        return "invalid", "invalid_issuer_url"
+    provider_kind = "supabase" if _is_native_supabase_url(normalized) else "oidc"
+    effective_jwks = _effective_jwks_url(normalized, jwks_override)
+    if not _is_absolute_provider_url(effective_jwks):
+        return provider_kind, "invalid_jwks_url"
+    return provider_kind, None
 
 
 def _provider_failure_category(exc: BaseException) -> str:
@@ -109,6 +141,10 @@ class JwtVerifier:
         self.issuer = _normalize_supabase_issuer(issuer)
         self.audience = (audience or "authenticated").strip()
         self.jwks_url = _effective_jwks_url(self.issuer, jwks_url)
+        provider_kind, config_error = _provider_configuration_diagnostics(self.issuer, jwks_url)
+        if config_error:
+            raise RuntimeError(f"JWT provider configuration is invalid: {config_error}")
+        self.provider_kind = provider_kind
         self.cache_seconds = max(30, int(cache_seconds))
         self.stale_max_seconds = max(0, int(stale_max_seconds))
         self._keys = None
@@ -176,7 +212,7 @@ class JwtVerifier:
                 status = "uninitialized"
             return {
                 "provider_status": status,
-                "provider_kind": "supabase" if _is_native_supabase_url(self.issuer) else "oidc",
+                "provider_kind": self.provider_kind,
                 "provider_error": self._provider_error if status == "degraded" else None,
             }
 
@@ -298,6 +334,7 @@ def authentication_health() -> dict:
 
     issuer = os.getenv("OBRASIGNAL_JWT_ISSUER", "").strip()
     audience = os.getenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated").strip()
+    jwks_override = os.getenv("OBRASIGNAL_JWKS_URL", "")
     config_present = bool(issuer and audience)
     if not config_present:
         return {
@@ -305,6 +342,17 @@ def authentication_health() -> dict:
             "config_present": False,
             "provider_status": "misconfigured",
         }
+
+    provider_kind, config_error = _provider_configuration_diagnostics(issuer, jwks_override)
+    if config_error:
+        return {
+            "mode": "provider",
+            "config_present": False,
+            "provider_status": "misconfigured",
+            "provider_kind": provider_kind,
+            "provider_error": config_error,
+        }
+
     try:
         verifier = production_verifier()
     except (RuntimeError, TypeError, ValueError):
@@ -312,6 +360,8 @@ def authentication_health() -> dict:
             "mode": "provider",
             "config_present": False,
             "provider_status": "misconfigured",
+            "provider_kind": provider_kind,
+            "provider_error": "invalid_provider_config",
         }
     health = {
         "mode": "provider",
