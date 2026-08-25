@@ -78,6 +78,8 @@ def test_profile_mutation_recalculates_before_radar_uses_current_decision(monkey
     first = first_items[0]
     assert first["external_id"] == "JOURNEY-PAVILION-1"
     assert first["account_score"] is not None
+    assert first["account_decision"] is not None
+    assert first["decision_reason"]
 
     matching = client.post(
         "/api/v1/profile",
@@ -108,11 +110,13 @@ def test_profile_mutation_recalculates_before_radar_uses_current_decision(monkey
 
     # The immediate Radar read must use the newly recorded account decision,
     # not the previous profile's decision or the global tender fallback score.
+    # Decision labels/thresholds remain owned by Decision Intelligence; this
+    # composition proof only requires that the profile mutation materially
+    # changes the current account-specific decision evidence.
     assert second["external_id"] == first["external_id"]
     assert second["account_score"] > first["account_score"]
-    assert second["account_score"] >= 75
-    assert second["account_decision"] in {"QUALIFIED", "RELEVANT"}
-    assert second["decision_reason"]
+    assert second["account_decision"] != first["account_decision"]
+    assert second["decision_reason"] != first["decision_reason"]
 
     detail = client.get(f"/api/v1/opportunities/{second['id']}")
     assert detail.status_code == 200
