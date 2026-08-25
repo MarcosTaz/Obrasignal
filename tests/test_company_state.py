@@ -240,7 +240,15 @@ def test_quality_summary_is_counts_not_fake_score():
     known = fact(FactCategory.CAPACITY, "crew.total_count", 10, unit="workers")
     unknown = CompanyFact(FactCategory.AVAILABILITY, "crew.available_count", KnowledgeState.UNKNOWN, None, DECLARED, unit="workers")
     summary = state(known, unknown).quality_summary()
-    assert summary == {"known": 1, "unknown": 1, "stale": 0, "conflict": 0}
+    assert summary == {
+        "known": 1,
+        "estimate": 0,
+        "assumption": 0,
+        "inference": 0,
+        "unknown": 1,
+        "stale": 0,
+        "conflict": 0,
+    }
     assert "score" not in summary and "percent" not in summary
 
 
