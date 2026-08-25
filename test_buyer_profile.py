@@ -90,8 +90,8 @@ def test_values_are_type_and_currency_separated_with_procedure_dedup_and_lots():
         _record("OP-ORIGINAL", value="1000000", currency="EUR", published_at="2026-04-01T00:00:00Z", ocid="ocds-1", lot_id="lot-1", **common),
         _record("OP-AMEND", value="1200000", currency="EUR", published_at="2026-05-01T00:00:00Z", ocid="ocds-1", lot_id="lot-2", **common),
         _record("OP-GBP", value="500000", currency="GBP", ocid="ocds-2", category_code="45300000", **common),
-        _record("AW-1", signal_type="AWARD", value="900000", currency="EUR", ocid="ocds-1", **common),
-        _record("CT-1", signal_type="CONTRACT", value="875000", currency="EUR", ocid="ocds-1", **common),
+        _record("AW-1", signal_type="AWARD", value="900000", currency="EUR", ocid="ocds-1", award_id="award-1", **common),
+        _record("CT-1", signal_type="CONTRACT", value="875000", currency="EUR", ocid="ocds-1", contract_id="contract-1", **common),
         _record("OLD", value="999", currency="EUR", published_at="2024-01-01T00:00:00Z", ocid="old-1", **common),
     )
     buyer_id = _identity(conn, "OP-ORIGINAL").buyer_id
@@ -109,6 +109,46 @@ def test_values_are_type_and_currency_separated_with_procedure_dedup_and_lots():
     all_observed = build_buyer_profile_snapshot(conn, buyer_id, "all", now=NOW)
     assert all_observed.known_opportunity_count == 3
     assert all_observed.known_published_opportunity_values_by_currency["EUR"] == "1200999"
+
+
+def test_multiple_awards_and_contracts_for_one_procedure_remain_distinct():
+    conn = _db()
+    common = {"buyer_identifier": {"scheme": "TEST-ID", "id": "BUYER-MULTI"}, "ocid": "ocds-multi"}
+    _add(
+        conn,
+        _record("OP", **common),
+        _record("AW-1-V1", signal_type="AWARD", award_id="award-1", value="100", currency="EUR", published_at="2026-06-01T00:00:00Z", **common),
+        _record("AW-1-V2", signal_type="AWARD", award_id="award-1", value="110", currency="EUR", published_at="2026-06-02T00:00:00Z", **common),
+        _record("AW-2", signal_type="AWARD", award_id="award-2", value="200", currency="EUR", **common),
+        _record("CT-1-V1", signal_type="CONTRACT", contract_id="contract-1", value="90", currency="EUR", published_at="2026-06-01T00:00:00Z", **common),
+        _record("CT-1-V2", signal_type="CONTRACT", contract_id="contract-1", value="95", currency="EUR", published_at="2026-06-02T00:00:00Z", **common),
+        _record("CT-2", signal_type="CONTRACT", contract_id="contract-2", value="180", currency="EUR", **common),
+    )
+    buyer_id = _identity(conn, "OP").buyer_id
+    snapshot = build_buyer_profile_snapshot(conn, buyer_id, now=NOW)
+    assert snapshot.known_opportunity_count == 1
+    assert snapshot.known_award_count == 2
+    assert snapshot.known_contract_count == 2
+    assert snapshot.known_award_values_by_currency == {"EUR": "310"}
+    assert snapshot.known_contract_values_by_currency == {"EUR": "275"}
+
+
+def test_award_and_contract_without_native_ids_fall_back_to_external_identity():
+    conn = _db()
+    common = {"buyer_identifier": {"scheme": "TEST-ID", "id": "BUYER-FALLBACK"}, "ocid": "same-procedure"}
+    _add(
+        conn,
+        _record("OP", **common),
+        _record("AW-A", signal_type="AWARD", value="10", currency="GBP", **common),
+        _record("AW-B", signal_type="AWARD", value="20", currency="GBP", **common),
+        _record("CT-A", signal_type="CONTRACT", value="30", currency="GBP", **common),
+        _record("CT-B", signal_type="CONTRACT", value="40", currency="GBP", **common),
+    )
+    snapshot = build_buyer_profile_snapshot(conn, _identity(conn, "OP").buyer_id, now=NOW)
+    assert snapshot.known_award_count == 2
+    assert snapshot.known_contract_count == 2
+    assert snapshot.known_award_values_by_currency == {"GBP": "30"}
+    assert snapshot.known_contract_values_by_currency == {"GBP": "70"}
 
 
 def test_zero_known_activity_is_not_claimed_as_real_world_inactivity():
