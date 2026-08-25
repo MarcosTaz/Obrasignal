@@ -105,6 +105,7 @@ def test_values_are_type_and_currency_separated_with_procedure_dedup_and_lots():
     assert snapshot.known_contract_values_by_currency == {"EUR": "875000"}
     assert {item["code"] for item in snapshot.known_categories} == {"45200000", "45300000"}
     assert any(ref["reference"] == "ref-OP-AMEND" for ref in snapshot.source_refs)
+    assert snapshot.known_locations == ({"kind": "source_record_location", "value": "Springfield"},)
 
     all_observed = build_buyer_profile_snapshot(conn, buyer_id, "all", now=NOW)
     assert all_observed.known_opportunity_count == 3
@@ -149,6 +150,21 @@ def test_award_and_contract_without_native_ids_fall_back_to_external_identity():
     assert snapshot.known_contract_count == 2
     assert snapshot.known_award_values_by_currency == {"GBP": "30"}
     assert snapshot.known_contract_values_by_currency == {"GBP": "70"}
+
+
+def test_noncanonical_amount_strings_are_not_silently_reinterpreted():
+    conn = _db()
+    common = {"buyer_identifier": {"scheme": "TEST-ID", "id": "BUYER-AMOUNT"}}
+    _add(
+        conn,
+        _record("GOOD", value="1000.50", currency="EUR", **common),
+        _record("AMBIGUOUS", value="1,000.50", currency="EUR", **common),
+        _record("NEGATIVE", value="-5", currency="EUR", **common),
+        _record("HUGE", value="1e999", currency="EUR", **common),
+    )
+    snapshot = build_buyer_profile_snapshot(conn, _identity(conn, "GOOD").buyer_id, now=NOW)
+    assert snapshot.known_opportunity_count == 4
+    assert snapshot.known_published_opportunity_values_by_currency == {"EUR": "1000.5"}
 
 
 def test_zero_known_activity_is_not_claimed_as_real_world_inactivity():
