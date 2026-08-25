@@ -22,10 +22,9 @@ def test_authenticated_e2e_tenant_binding_coexists_with_q080_safe_defaults():
     assert 'OBRASIGNAL_JWKS_URL' not in render
 
 
-def test_authenticated_e2e_does_not_claim_branch_deployment_identity():
+def test_authenticated_e2e_waits_for_exact_deployed_revision_before_identity_traffic():
     workflow = AUTH_E2E.read_text(encoding='utf-8')
-    # The production E2E harness validates the deployed service; it must not
-    # pretend the current PR SHA is deployed merely because its test contract
-    # is present in this integration tree.
-    assert 'RENDER_GIT_COMMIT' in workflow
-    assert 'Confirm deployed backend revision' in workflow
+    assert 'name: Wait for target production deployment' in workflow
+    assert 'TARGET_BUILD: ${{ github.sha }}' in workflow
+    assert "assert health.get('build') == os.environ['TARGET_BUILD']" in workflow
+    assert 'Production never served target build' in workflow
