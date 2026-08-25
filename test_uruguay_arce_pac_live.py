@@ -49,23 +49,24 @@ def _public_get(url, accept, *, raise_status=True, params=None):
     return response
 
 
-def test_live_uruguay_arce_public_pac_surface_contract():
+def _frontend_contract():
     response = _public_get(PAC_PUBLIC_URL, "text/html,application/xhtml+xml")
     text = response.text
     assert text, "ARCE PAC public search returned an empty document"
-
     hrefs = re.findall(r'href=["\']([^"\']+)["\']', text, flags=re.I)
     scripts = re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', text, flags=re.I)
     actions = re.findall(r'<form[^>]+action=["\']([^"\']*)["\']', text, flags=re.I)
-
     script_urls = [urljoin(PAC_PUBLIC_URL, value) for value in scripts]
     main_url = next((url for url in script_urls if "/main." in url and url.endswith(".js")), None)
     assert main_url, "ARCE PAC public SPA did not expose a main frontend bundle"
-
     bundle_response = _public_get(main_url, "application/javascript,text/javascript,*/*;q=0.1")
     bundle = bundle_response.content
     assert 0 < len(bundle) <= MAX_FRONTEND_BYTES, "ARCE PAC frontend bundle exceeded bounded research cap"
-    js = bundle.decode("utf-8", errors="replace")
+    return response, hrefs, scripts, actions, main_url, bundle.decode("utf-8", errors="replace")
+
+
+def test_live_uruguay_arce_public_pac_surface_contract():
+    response, hrefs, scripts, actions, main_url, js = _frontend_contract()
 
     literals = re.findall(r'["\']([^"\']{2,300})["\']', js)
     route_literals = []
@@ -85,7 +86,14 @@ def test_live_uruguay_arce_public_pac_surface_contract():
     print("UY_PAC_MAIN_JS=" + main_url)
     print("UY_PAC_ROUTE_LITERALS=" + " | ".join(route_literals[:120]))
 
-    assert "/api/v1/compra-procedimientos/" in route_literals
+    # Bounded source-code context is temporary research evidence to locate the
+    # public API base used by the SPA. It contains no user data or credentials.
+    needle = "/api/v1/compra-procedimientos/"
+    position = js.find(needle)
+    assert position >= 0
+    context = re.sub(r"\s+", " ", js[max(0, position - 500): position + 700])
+    print("UY_PAC_ROUTE_CONTEXT=" + context)
+
     assert response.url.startswith("https://www.comprasestatales.gub.uy/")
 
 
@@ -103,7 +111,6 @@ def test_live_uruguay_arce_public_pac_api_candidate():
     response = _public_get(url, "application/json", raise_status=False)
     content_type = response.headers.get("Content-Type", "")
     print(f"UY_PAC_API_STATUS={response.status_code} content_type={content_type!r}")
-
     if "json" in content_type.lower():
         try:
             payload = response.json()
@@ -116,8 +123,4 @@ def test_live_uruguay_arce_public_pac_api_candidate():
                     nested = payload.get(key)
                     if nested is not None:
                         print(f"UY_PAC_API_{key.upper()}_SHAPE=" + _shape(nested))
-
-    # This is the exact public route literal used by the unauthenticated SPA. A
-    # 2xx proves a candidate machine route; 4xx is retained as access-contract
-    # evidence and must not be bypassed.
     assert response.status_code < 500, "ARCE PAC API candidate is server-failing"
