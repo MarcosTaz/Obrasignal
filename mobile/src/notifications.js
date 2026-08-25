@@ -144,15 +144,27 @@ export function listenForOpportunityNotificationResponses(onTarget) {
   const handle = async (response) => {
     const responseId = String(response?.notification?.request?.identifier || '').trim();
     if (responseId && handledResponseIds.has(responseId)) return;
+    // Claim the native response before any async storage/API work so the initial
+    // response and live listener cannot race into duplicate navigation.
+    if (responseId) handledResponseIds.add(responseId);
     try {
       const opportunityId = await notificationOpportunityTarget(response);
       if (!active || !opportunityId) return;
-      if (responseId) handledResponseIds.add(responseId);
       onTarget(opportunityId);
-    } catch (_) {}
+    } catch (_) {
+      // A response is intentionally consumed fail-closed. It must not become
+      // tap-valid later merely because a different tenant/session is mounted.
+    } finally {
+      // Expo persists the most recent response across startup. Consume it after
+      // one validation attempt so a future process/remount cannot replay an old
+      // tap without a new user interaction.
+      try { await Notifications.clearLastNotificationResponseAsync(); } catch (_) {}
+    }
   };
   const subscription = Notifications.addNotificationResponseReceivedListener(handle);
-  Notifications.getLastNotificationResponseAsync().then(handle).catch(() => {});
+  Notifications.getLastNotificationResponseAsync().then((response) => {
+    if (response) handle(response);
+  }).catch(() => {});
   return () => {
     active = false;
     subscription.remove();
