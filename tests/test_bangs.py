@@ -75,9 +75,46 @@ def test_provider_failure_is_failed_not_empty():
     assert result.status == BangStatus.FAILED and result.data is None
 
 
+def test_availability_exception_is_failed_not_unavailable():
+    class BrokenAvailability(FakeProvider):
+        def availability(self): raise RuntimeError("availability backend failed")
+    providers = ProviderRegistry(); providers.register("SEARCH", BrokenAvailability())
+    result = fixed_executor(providers).execute("!search roads", ctx(perms={"opportunities:read"}))
+    assert result.status == BangStatus.FAILED
+    assert result.message == "capability availability check failed"
+
+
 def test_invalid_availability_contract_is_failed():
     provider = FakeProvider(); provider._availability = object(); providers = ProviderRegistry(); providers.register("SEARCH", provider)
     assert fixed_executor(providers).execute("!search roads", ctx(perms={"opportunities:read"})).status == BangStatus.FAILED
+
+
+def test_semantically_invalid_availability_contract_is_failed():
+    provider = FakeProvider(); provider._availability = ProviderAvailability(present="yes")
+    providers = ProviderRegistry(); providers.register("SEARCH", provider)
+    assert fixed_executor(providers).execute("!search roads", ctx(perms={"opportunities:read"})).status == BangStatus.FAILED
+
+
+def test_malformed_provider_result_is_failed_without_escaping_executor():
+    malformed = ProviderResult("SUCCESS", "ok")
+    provider = FakeProvider(result=malformed); providers = ProviderRegistry(); providers.register("SEARCH", provider)
+    result = fixed_executor(providers).execute("!search roads", ctx(perms={"opportunities:read"}))
+    assert result.status == BangStatus.FAILED
+    assert result.message == "provider returned invalid contract"
+
+
+def test_malformed_provider_result_collections_are_failed():
+    malformed = ProviderResult(BangStatus.SUCCESS, "ok", warnings=["not-a-tuple"])
+    provider = FakeProvider(result=malformed); providers = ProviderRegistry(); providers.register("SEARCH", provider)
+    assert fixed_executor(providers).execute("!search roads", ctx(perms={"opportunities:read"})).status == BangStatus.FAILED
+
+
+def test_provider_name_metadata_failure_is_isolated():
+    class BrokenName(FakeProvider):
+        @property
+        def name(self): raise RuntimeError("metadata broken")
+    providers = ProviderRegistry(); providers.register("SEARCH", BrokenName())
+    assert fixed_executor(providers).execute("!search roads", ctx(perms={"opportunities:read"})).status == BangStatus.SUCCESS
 
 
 def test_provenance_is_preserved():
@@ -164,6 +201,18 @@ def test_observer_never_receives_raw_arguments_or_result_data():
     ex.execute("!search super-secret-query", ctx(perms={"opportunities:read"}))
     event = observer.events[-1]
     assert "super-secret-query" not in repr(event) and "data" not in event
+    assert event["command_type"] == "READ_ONLY"
+
+
+def test_observer_records_tenant_write_command_type_without_private_payload():
+    class Observer:
+        def __init__(self): self.events = []
+        def record(self, event): self.events.append(dict(event))
+    observer = Observer(); providers = ProviderRegistry(); providers.register("WATCHLIST", FakeProvider())
+    fixed_executor(providers, observer=observer).execute("!watch opp-secret", ctx(perms={"watchlist:write"}))
+    event = observer.events[-1]
+    assert event["command_type"] == "TENANT_WRITE"
+    assert "opp-secret" not in repr(event)
 
 
 def test_observer_failure_does_not_break_command_execution():
