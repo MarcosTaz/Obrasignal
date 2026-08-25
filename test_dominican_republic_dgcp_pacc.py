@@ -95,16 +95,17 @@ def test_invalid_or_negative_value_does_not_poison_signal():
     assert negative["value"] == ""
 
 
-def test_snapshot_paginates_filters_and_deduplicates():
-    config = replace(DGCPPACCConfig(), page_size=2, max_pages=3)
-    first = acquisition()
-    duplicate = acquisition(descripcion="updated copy in later page")
+def test_snapshot_paginates_filters_latest_versions_and_expired_plans():
+    config = replace(DGCPPACCConfig(), page_size=2, max_pages=4)
+    first = acquisition(version=2, descripcion="old version")
     goods = acquisition(id_adquisicion="GOODS", objeto_adquisicion="Bienes")
+    latest = acquisition(version=4, descripcion="latest version")
     second = acquisition(id_adquisicion="ADQ-43")
+    expired = acquisition(id_adquisicion="OLD", fecha_inicio_proceso_compra="2026-08-24")
     session = FakeSession([
         envelope([first, goods]),
-        envelope([duplicate, second]),
-        envelope([]),
+        envelope([latest, second]),
+        envelope([expired]),
     ])
     connector = DGCPPACCConnector(config, session=session)
     rows = connector.fetch_snapshot(now=datetime(2026, 8, 25, tzinfo=timezone.utc))
@@ -113,9 +114,18 @@ def test_snapshot_paginates_filters_and_deduplicates():
         "PACC-2026-UC-10001:ADQ-42",
         "PACC-2026-UC-10001:ADQ-43",
     ]
+    assert rows[0]["pacc_version"] == 4
+    assert rows[0]["title"] == "latest version"
     assert [call[1]["page"] for call in session.calls] == [1, 2, 3]
     assert all(call[0] == DGCP_PACC_ACQUISITIONS_URL for call in session.calls)
     assert all(call[1]["año"] == 2026 for call in session.calls)
+
+
+def test_plan_targeted_today_remains_actionable():
+    session = FakeSession([envelope([acquisition(fecha_inicio_proceso_compra="2026-08-25")])])
+    connector = DGCPPACCConnector(replace(DGCPPACCConfig(), page_size=10), session=session)
+    rows = connector.fetch_snapshot(now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+    assert len(rows) == 1
 
 
 def test_snapshot_fails_closed_when_page_bound_cannot_prove_completeness():
@@ -123,7 +133,7 @@ def test_snapshot_fails_closed_when_page_bound_cannot_prove_completeness():
     session = FakeSession([envelope([acquisition()]), envelope([acquisition(id_adquisicion="ADQ-43")])])
     connector = DGCPPACCConnector(config, session=session)
     with pytest.raises(RuntimeError, match="snapshot completeness not proven"):
-        connector.fetch_snapshot(year=2026)
+        connector.fetch_snapshot(year=2026, now=datetime(2026, 8, 25, tzinfo=timezone.utc))
 
 
 def test_snapshot_fails_closed_on_bad_envelope_or_content_shape():
@@ -131,10 +141,10 @@ def test_snapshot_fails_closed_on_bad_envelope_or_content_shape():
         {"code": 500, "hasError": True, "payload": {"content": []}},
     ]))
     with pytest.raises(RuntimeError, match="invalid API envelope"):
-        connector.fetch_snapshot(year=2026)
+        connector.fetch_snapshot(year=2026, now=datetime(2026, 8, 25, tzinfo=timezone.utc))
 
     connector = DGCPPACCConnector(replace(DGCPPACCConfig(), page_size=10), session=FakeSession([
         {"code": 200, "hasError": False, "payload": {"content": "wrong"}},
     ]))
     with pytest.raises(RuntimeError, match="no content list"):
-        connector.fetch_snapshot(year=2026)
+        connector.fetch_snapshot(year=2026, now=datetime(2026, 8, 25, tzinfo=timezone.utc))
