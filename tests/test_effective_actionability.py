@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import api
 import app
@@ -217,6 +217,34 @@ def test_date_only_deadline_today_does_not_invent_midnight_closure(monkeypatch, 
     assert detail["deadline_status"]["state"] == "unknown"
     assert detail["is_actionable"] is True
     assert detail["is_open"] is False
+
+
+def test_date_only_commercial_score_uses_calendar_precision_not_midnight():
+    today = datetime.now(timezone.utc).date()
+    base_score = lifecycle_read_model.commercial_score(
+        "obra", "", "45200000", None
+    )[0]
+
+    today_score, _, _, today_reason = lifecycle_read_model.commercial_score(
+        "obra", "", "45200000", today.isoformat()
+    )
+    eight_days_score = lifecycle_read_model.commercial_score(
+        "obra", "", "45200000", (today + timedelta(days=8)).isoformat()
+    )[0]
+    yesterday_score = lifecycle_read_model.commercial_score(
+        "obra", "", "45200000", (today - timedelta(days=1)).isoformat()
+    )[0]
+
+    assert today_score == min(100, base_score + 10)
+    assert eight_days_score == min(100, base_score + 5)
+    assert yesterday_score == max(0, base_score - 30)
+    assert "prazo hoje" in today_reason
+    assert "hora não indicada" in today_reason
+
+
+def test_install_replaces_only_legacy_score_entrypoint_with_precision_adapter():
+    lifecycle_read_model.install(preload)
+    assert app.commercial_score is lifecycle_read_model.commercial_score
 
 
 def test_explicit_source_lifecycle_has_precedence_over_deadline_inference(monkeypatch, tmp_path):
