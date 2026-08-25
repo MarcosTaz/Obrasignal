@@ -326,16 +326,21 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
     for index, row in enumerate(rows):
         ticket = tickets[index] if index < len(tickets) else None
         status = ticket.get("status") if isinstance(ticket, dict) else None
-        if status == "ok":
-            ticket_id = ticket.get("id")
+        ticket_id = str(ticket.get("id") or "").strip() if isinstance(ticket, dict) else ""
+        if status == "ok" and ticket_id:
             _record_push_attempt(conn, row, ticket_id=ticket_id, submitted_at=now, attempted_at=now)
             conn.execute("UPDATE push_devices SET last_error=NULL WHERE id=?", (row["push_device_id"],))
             submitted += 1
             continue
 
-        details = ticket.get("details") if isinstance(ticket, dict) else {}
-        error = (details or {}).get("error") or (ticket.get("message") if isinstance(ticket, dict) else None) or "push_response_missing_ticket"
-        error = str(error)[:240]
+        if status == "ok":
+            # A provider acknowledgement without a ticket id cannot be reconciled
+            # to a receipt, so never record it as a successful submission.
+            error = "push_response_missing_ticket"
+        else:
+            details = ticket.get("details") if isinstance(ticket, dict) else {}
+            error = (details or {}).get("error") or (ticket.get("message") if isinstance(ticket, dict) else None) or "push_response_missing_ticket"
+            error = str(error)[:240]
         if error == "DeviceNotRegistered":
             _record_push_attempt(conn, row, error=error, attempted_at=now, failed_at=now)
             _revoke_device_row(conn, row["push_device_id"], expected_token=row["expo_push_token"], error=error)
