@@ -120,19 +120,21 @@ def _create_fixture(conn: sqlite3.Connection, account_id: str, run_id: str):
     external_id = fixture_id
     created_at = datetime.now(timezone.utc).isoformat()
     with conn:
-        existing = _fixture_row(conn, account_id, fixture_id)
-        if existing is not None:
-            return existing, False
-        conn.execute(
-            """INSERT INTO e2e_opportunity_fixtures(
+        cursor = conn.execute(
+            """INSERT OR IGNORE INTO e2e_opportunity_fixtures(
                    fixture_id, account_id, run_id, source, external_id, created_at
                ) VALUES (?, ?, ?, ?, ?, ?)""",
             (fixture_id, account_id, run_id, _SOURCE, external_id, created_at),
         )
-    row = _fixture_row(conn, account_id, fixture_id)
-    if row is None:
-        raise RuntimeError("fixture creation did not persist")
-    return row, True
+        row = conn.execute(
+            """SELECT fixture_id, account_id, run_id, source, external_id, created_at
+               FROM e2e_opportunity_fixtures
+               WHERE account_id=? AND run_id=?""",
+            (account_id, run_id),
+        ).fetchone()
+    if row is None or row["fixture_id"] != fixture_id:
+        raise RuntimeError("fixture identity conflict")
+    return row, cursor.rowcount == 1
 
 
 def _cleanup_fixture(conn: sqlite3.Connection, account_id: str, run_id: str) -> tuple[str, bool]:
