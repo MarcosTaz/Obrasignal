@@ -1,0 +1,51 @@
+name: International Coverage Audit
+
+on:
+  pull_request:
+    paths:
+      - 'international_coverage_audit.py'
+      - 'test_international_coverage_audit.py'
+      - 'international_coverage_audit_manifest.json'
+      - 'INTERNATIONAL_COVERAGE_AUDIT.md'
+      - '.github/workflows/international-coverage-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate repository-state audit
+        run: |
+          python international_coverage_audit.py --json > international_coverage_audit.json
+          python international_coverage_audit.py --markdown > international_coverage_audit.generated.md
+      - name: Validate generated audit contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('international_coverage_audit.json').read_text(encoding='utf-8'))
+          assert report['audit_contract'] == 'OBRASIGNAL_REPOSITORY_STATE_INTERNATIONAL_COVERAGE_AUDIT_V1'
+          assert isinstance(report['countries'], list)
+          assert isinstance(report['contradictions'], list)
+          assert isinstance(report['missing_integrations'], list)
+          assert report['summary']['country_count'] == len(report['countries'])
+          assert report['summary']['contradiction_count'] == len(report['contradictions'])
+          assert report['summary']['missing_integration_count'] == len(report['missing_integrations'])
+          PY
+      - name: Upload deterministic audit artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: international-coverage-audit
+          path: |
+            international_coverage_audit.json
+            international_coverage_audit.generated.md
+          if-no-files-found: error
+          retention-days: 30
