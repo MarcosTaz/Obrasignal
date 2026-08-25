@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 STATUSES = ("NEW", "REVIEWING", "PREPARING", "SUBMITTED", "WON", "LOST")
+MAX_NOTE_CHARS = 4000
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS opportunity_workflow (
@@ -44,7 +45,11 @@ def get_workflow(conn, account_id, source, external_id):
 def set_workflow(conn, account_id, source, external_id, status, note=None):
     status = str(status or "").upper()
     if status not in STATUSES:
-        raise ValueError(f"invalid workflow status: {status}")
+        raise ValueError("invalid workflow status")
+    if note is not None and not isinstance(note, str):
+        raise ValueError("workflow note must be text")
+    if note is not None and len(note) > MAX_NOTE_CHARS:
+        raise ValueError("workflow note too long")
     ensure_workflow_table(conn)
     account_id = str(account_id or "default")
     ts = _now()
