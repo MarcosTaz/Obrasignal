@@ -9,6 +9,7 @@ permissions:
 env:
   SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
   SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
   E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
 
 jobs:
@@ -16,81 +17,97 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check password input without exposing it
+      - name: Require diagnostic credentials without exposing them
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import os, hashlib
-          password=os.environ['E2E_PASSWORD']
-          print('password_present:', bool(password))
-          print('password_byte_length:', len(password.encode()))
-          print('password_has_outer_whitespace:', password != password.strip())
-          print('password_has_cr_or_lf:', '\r' in password or '\n' in password)
-          print('password_sha256:', hashlib.sha256(password.encode()).hexdigest())
+          for name in SUPABASE_URL SUPABASE_KEY E2E_EMAIL E2E_PASSWORD; do
+            test -n "${!name}" || { echo "Missing required diagnostic secret: $name"; exit 1; }
+          done
+          echo "Required diagnostic credentials are present."
+
+      - name: Resolve configured Supabase project boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY' >/tmp/base-url
+          import os
+          from urllib.parse import urlsplit, urlunsplit
+
+          configured = os.environ['SUPABASE_URL'].strip()
+          parsed = urlsplit(configured)
+          if parsed.scheme not in {'http', 'https'} or not parsed.netloc:
+              raise SystemExit('SUPABASE_URL is not a valid absolute URL')
+          print(urlunsplit((parsed.scheme, parsed.netloc, '', '', '')).rstrip('/'))
           PY
+          test -s /tmp/base-url
+          echo "Supabase project boundary parsed successfully."
 
       - name: Probe Auth configuration
         run: |
           set -euo pipefail
-          BASE_URL="${SUPABASE_URL%/}"
-          BASE_URL="${BASE_URL%/rest/v1}"
+          BASE_URL="$(cat /tmp/base-url)"
           status="$(curl --silent --show-error --output /tmp/settings.json --write-out '%{http_code}' --max-time 30 \
             -H "apikey: $SUPABASE_KEY" "$BASE_URL/auth/v1/settings")"
-          test "$status" = "200"
+          test "$status" = "200" || { echo "Supabase Auth settings probe failed with HTTP $status."; exit 1; }
           python - <<'PY'
           import json
-          p=json.load(open('/tmp/settings.json'))
-          ext=p.get('external') or {}
-          print('email_provider_enabled:', ext.get('email'))
-          print('disable_signup:', p.get('disable_signup'))
-          print('autoconfirm:', p.get('autoconfirm'))
+          payload=json.load(open('/tmp/settings.json'))
+          external=payload.get('external') or {}
+          print('email_provider_enabled:', external.get('email'))
+          print('disable_signup:', payload.get('disable_signup'))
+          print('autoconfirm:', payload.get('autoconfirm'))
           PY
 
-      - name: Test target account
+      - name: Authenticate dedicated E2E account
         run: |
           set -euo pipefail
-          BASE_URL="${SUPABASE_URL%/}"
-          BASE_URL="${BASE_URL%/rest/v1}"
+          BASE_URL="$(cat /tmp/base-url)"
           python - <<'PY'
           import json, os
-          open('/tmp/body.json','w').write(json.dumps({
-              'email': 'obrasignal.pt@gmail.com',
-              'password': os.environ['E2E_PASSWORD']
-          }))
+          with open('/tmp/auth-body.json', 'w', encoding='utf-8') as stream:
+              json.dump({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}, stream)
           PY
-          status="$(curl --silent --show-error --output /tmp/auth-target.json --write-out '%{http_code}' --max-time 30 \
+          status="$(curl --silent --show-error --output /tmp/auth.json --write-out '%{http_code}' --max-time 30 \
             -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
-            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' -H 'Accept: application/json' \
-            --data-binary @/tmp/body.json)"
-          echo "target_http_status=$status"
-          if [ "$status" = "200" ]; then
-            echo 'TARGET_AUTH_OK'
-            exit 0
+            -H "apikey: $SUPABASE_KEY" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            --data-binary @/tmp/auth-body.json)"
+          if [ "$status" != "200" ]; then
+            echo "Supabase authentication failed with HTTP $status."
+            python - <<'PY'
+          import json
+          try:
+              payload=json.load(open('/tmp/auth.json'))
+          except Exception:
+              payload={}
+          safe={k: payload.get(k) for k in ('error','error_code','msg','message') if payload.get(k)}
+          print(json.dumps(safe, ensure_ascii=False))
+          PY
+            exit 1
           fi
-          cat /tmp/auth-target.json
-          exit 1
+          python - <<'PY'
+          import json
+          payload=json.load(open('/tmp/auth.json'))
+          assert payload.get('access_token'), 'Supabase did not return an access token'
+          print('Dedicated E2E account authenticated successfully.')
+          PY
 
-      - name: Test secondary known account with same password
-        if: failure()
+      - name: Probe public JWKS shape
         run: |
           set -euo pipefail
-          BASE_URL="${SUPABASE_URL%/}"
-          BASE_URL="${BASE_URL%/rest/v1}"
+          BASE_URL="$(cat /tmp/base-url)"
+          curl --fail --silent --show-error --max-time 30 \
+            -H "apikey: $SUPABASE_KEY" \
+            "$BASE_URL/auth/v1/.well-known/jwks.json" >/tmp/jwks.json
           python - <<'PY'
-          import json, os
-          open('/tmp/body-secondary.json','w').write(json.dumps({
-              'email': 'marcostrigomoutinho@gmail.com',
-              'password': os.environ['E2E_PASSWORD']
-          }))
+          import json
+          payload=json.load(open('/tmp/jwks.json'))
+          keys=payload.get('keys') or []
+          if not keys:
+              raise SystemExit('Provider JWKS contains no public signing keys')
+          algorithms=sorted({str(key.get('alg')) for key in keys if key.get('alg')})
+          key_types=sorted({str(key.get('kty')) for key in keys if key.get('kty')})
+          print('jwks_key_count:', len(keys))
+          print('jwks_algorithms:', ','.join(algorithms) or 'unspecified')
+          print('jwks_key_types:', ','.join(key_types) or 'unspecified')
           PY
-          status="$(curl --silent --show-error --output /tmp/auth-secondary.json --write-out '%{http_code}' --max-time 30 \
-            -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
-            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' -H 'Accept: application/json' \
-            --data-binary @/tmp/body-secondary.json)"
-          echo "secondary_http_status=$status"
-          if [ "$status" = "200" ]; then
-            echo 'SECONDARY_AUTH_OK_SAME_PASSWORD'
-          else
-            echo 'SECONDARY_AUTH_NOT_OK'
-          fi
-          exit 1
