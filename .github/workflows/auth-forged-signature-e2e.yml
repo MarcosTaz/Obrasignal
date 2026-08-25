@@ -87,6 +87,21 @@ jobs:
           print('Real token acquired for private boundary construction.')
           PY
 
+      - name: Require real token acceptance baseline
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --output /tmp/valid-profile --write-out '%{http_code}' --max-time 30 \
+            -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            "$API_URL/profile")"
+          test "$status" = "200"
+          python - <<'PY'
+          import json
+          payload=json.load(open('/tmp/valid-profile', encoding='utf-8'))
+          assert payload.get('authenticated') is True
+          assert payload.get('account_id')
+          print('Real JWT accepted before forged-signature probe.')
+          PY
+
       - name: Forge signature without changing header or claims
         run: |
           set -euo pipefail
