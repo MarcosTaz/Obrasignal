@@ -4,6 +4,7 @@ These tests intentionally verify integration boundaries rather than live source
 availability. Production promotion remains a separate, explicit operation.
 """
 from datetime import date
+from pathlib import Path
 
 from dominican_republic_dgcp import normalize_dgcp_signals
 from dominican_republic_dgcp_pacc import normalize_dgcp_pacc_acquisition
@@ -28,13 +29,23 @@ def test_dominican_republic_is_one_planned_source_in_shared_ocds_family():
     assert FAMILIES["OCDS_PAGE_API"].members.count("DO_DGCP") == 1
 
 
-def test_uruguay_pac_deepens_existing_source_without_false_runtime_claim():
+def test_uruguay_pac_deepens_existing_ready_source_without_duplicate_identity():
     assert "UY_ARCE" in SOURCES
     assert "UY_ARCE_PAC" not in SOURCES
-    assert SOURCES["UY_ARCE"]["status"] == "ready"
-    # PAC code is staged behind integration. Registry still truthfully describes
-    # the currently wired runtime until atomic RSS+PAC composition lands.
-    assert SOURCES["UY_ARCE"]["signal_types"] == ("TENDER",)
+    source = SOURCES["UY_ARCE"]
+    assert source["source_id"] == "uy_arce_ocds"
+    assert source["status"] == "ready"
+    assert "plans" in source["capabilities"]
+    assert source["signal_types"] == ("PROCUREMENT_PLAN", "TENDER")
+    assert source["adapter"] == "ARCEOCDSRSSAdapter+ARCEPACConnector"
+
+
+def test_uruguay_preload_stages_all_signals_but_returns_only_legacy_tenders():
+    text = Path("preload.py").read_text(encoding="utf-8")
+    assert "import uruguay_arce_runtime as _uruguay_arce_runtime" in text
+    assert "batch = _uruguay_arce_runtime.fetch_arce_runtime_batch(watermark=watermark)" in text
+    assert 'stage_source_sync("UY_ARCE", batch.signals, batch.cursor)' in text
+    assert "return list(batch.legacy_tenders)" in text
 
 
 def test_uruguay_pac_signal_keeps_canonical_source_identity():
