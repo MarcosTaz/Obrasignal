@@ -8,11 +8,13 @@ import api as _api_module
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
+from e2e_fixture_api import install as install_e2e_fixture_api
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
+install_e2e_fixture_api(APP)
 
 
 _API_JSON_WRITE_MAX_BYTES = 64 * 1024
