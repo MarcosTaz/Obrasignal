@@ -229,6 +229,26 @@ jobs:
               separators=(',', ':'),
           ))
           PY
+            if curl --fail --silent --show-error --max-time 30 \
+              "$API_URL/health" > /tmp/auth-failure-health.json; then
+              python - <<'PY'
+          import json
+          try:
+              payload=json.load(open('/tmp/auth-failure-health.json', encoding='utf-8'))
+          except Exception:
+              payload={}
+          auth=payload.get('auth') if isinstance(payload, dict) else {}
+          auth=auth if isinstance(auth, dict) else {}
+          safe={
+              key: auth.get(key)
+              for key in ('mode','config_present','provider_status','provider_kind','provider_error')
+              if key in auth
+          }
+          print('API_AUTH_HEALTH=' + json.dumps(safe, separators=(',', ':')))
+          PY
+            else
+              echo "API_AUTH_HEALTH_UNAVAILABLE"
+            fi
             exit 1
           fi
           python - <<'PY'
@@ -302,9 +322,13 @@ jobs:
         run: |
           set -euo pipefail
           for endpoint in stats workflow/stats; do
+            filename="$(printf '%s' "$endpoint" | tr '/' '_')"
+            case "$filename" in
+              */*) echo "Unsafe E2E output filename: $filename"; exit 1 ;;
+            esac
             curl --fail --silent --show-error --max-time 30 \
               -H "Authorization: Bearer $(cat /tmp/access_token)" \
-              "$API_URL/$endpoint" > "/tmp/$(echo "$endpoint" | tr / /_).json"
+              "$API_URL/$endpoint" > "/tmp/${filename}.json"
           done
           python - <<'PY'
           import json
