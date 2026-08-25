@@ -13,6 +13,9 @@ create a source identity, cursor, runtime, registry entry, or production switch.
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import time
+
+import requests
 
 from dominican_republic_dgcp import (
     DGCP_API_ROOT,
@@ -25,6 +28,7 @@ from ocds_release_lifecycle import OCDSReleasePackageConnector
 DGCP_PROCESSES_URL = f"{DGCP_API_ROOT}/procesos"
 DGCP_OCID_PREFIX = "ocds-6550wx-"
 DGCP_WORKS_OBJECT = "obras"
+DGCP_DETAIL_5XX_ATTEMPTS = 3
 
 
 def dgcp_process_search_params(start, end):
@@ -99,6 +103,20 @@ class DGCPProcessDiscoveryConnector(OCDSReleasePackageConnector):
             params_factory=dgcp_process_search_params,
             session=session,
         )
+
+    def _hydrate_candidate(self, candidate):
+        """Retry only transient publisher 5xx detail failures, then fail closed."""
+        for attempt in range(DGCP_DETAIL_5XX_ATTEMPTS):
+            try:
+                return super()._hydrate_candidate(candidate)
+            except requests.HTTPError as exc:
+                response = getattr(exc, "response", None)
+                status = getattr(response, "status_code", None)
+                retryable = isinstance(status, int) and 500 <= status <= 599
+                if not retryable or attempt + 1 >= DGCP_DETAIL_5XX_ATTEMPTS:
+                    raise
+                time.sleep(0.25 * (attempt + 1))
+        raise AssertionError("unreachable")
 
     def _process_page(self, start, end, page):
         params = dict(dgcp_process_search_params(start, end))
