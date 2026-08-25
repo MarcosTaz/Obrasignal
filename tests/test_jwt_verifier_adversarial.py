@@ -196,3 +196,8 @@ def test_too_old_stale_key_does_not_mask_provider_outage(monkeypatch):
 
     with pytest.raises(JwksUnavailableError):
         verifier._key_for("stale-key")
+
+
+def test_integration_lab_exact_head_live_gate_trigger_marker():
+    """Keep product behavior unchanged while forcing the live JWT path gate."""
+    assert JwtVerifier is not None
