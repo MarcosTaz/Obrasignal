@@ -36,9 +36,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install auditor test dependency
+        run: python -m pip install pytest
       - name: Run auditor regressions
         run: >-
-          pytest -q
+          python -m pytest -q
           test_international_coverage_audit.py
           test_international_coverage_audit_regressions.py
           test_international_audit_provenance.py
