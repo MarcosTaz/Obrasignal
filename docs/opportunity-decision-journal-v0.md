@@ -34,11 +34,15 @@ Freeform notes are optional and capped; this is not a CRM/comments subsystem.
 
 Writes are append-only. A new decision stores `supersedes_decision_id` pointing at the current journal entry. Earlier rows remain intact. The current read model resolves the tip of the supersession chain. History is deterministic by `decided_at`, then `created_at`, then internal row id.
 
-A backdated imported decision can therefore sort earlier in chronology while still being current when it was the later journal action that superseded the previous tip.
+`decided_at` must be timezone-aware ISO-8601 and is normalized to UTC before persistence so chronological ordering is stable across offsets. A backdated imported decision can therefore sort earlier in chronology while still be current when it was the later journal action that superseded the previous tip.
+
+The read-current + append operation is serialized with an SQLite immediate write transaction. This prevents simultaneous decisions from reading the same current tip and creating a forked supersession chain.
 
 ## Tenant isolation and actors
 
-All reads/writes are scoped by authenticated `account_id`. The API derives account identity from the request context; payload `account_id` is not authority. In provider mode, the authenticated subject is used as actor id. Actor types are `HUMAN`, `SYSTEM_SUGGESTED`, and `IMPORTED`.
+All reads/writes are scoped by authenticated `account_id`. The API derives account identity from the request context; payload `account_id` is not authority. In provider mode, the authenticated subject is used as actor id.
+
+The public authenticated decision endpoint is explicitly a human-decision boundary and records `HUMAN`. Client attempts to claim `SYSTEM_SUGGESTED` or `IMPORTED` are rejected. Those actor types remain available to trusted internal/import paths through the domain service, where provenance can be controlled separately.
 
 ## API v0
 
