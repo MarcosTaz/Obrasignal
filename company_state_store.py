@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import sqlite3
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Callable, Mapping
 
 from company_state import CompanyFact, CompanyState, CompanyStateError, CONTRACT_VERSION, MAX_FACTS, TenantBoundaryError, validate_account_id
 
@@ -111,6 +111,7 @@ def save_company_state(
             conn.rollback()
             return current
         payload = candidate.to_dict()
+        # Fingerprint is independently recomputed by CompanyState.from_dict on read.
         conn.execute(
             """INSERT INTO company_state_snapshots(
                    account_id, state_version, fingerprint, contract_version, as_of, snapshot_json, created_at
@@ -190,12 +191,16 @@ class CompanyStateService:
             ensure_company_state_schema(conn)
             current = current_company_state(conn, account)
             current_facts = {fact.fact_id: fact for fact in (current.facts if current else ())}
-            revocations = payload.get("revoke_fact_ids") or []
+            if "revoke_fact_ids" in payload and payload["revoke_fact_ids"] is None:
+                raise CompanyStateError("revoke_fact_ids null is ambiguous; omit it or provide a list")
+            revocations = payload.get("revoke_fact_ids", [])
             if not isinstance(revocations, list) or len(revocations) > 256:
                 raise CompanyStateError("revoke_fact_ids must be a bounded list")
             for fact_id in revocations:
                 current_facts.pop(str(fact_id), None)
 
+            if "facts" in payload and payload["facts"] is None:
+                raise CompanyStateError("facts null is ambiguous; omit it or provide a list")
             raw_facts = payload.get("facts")
             if raw_facts is not None:
                 if not isinstance(raw_facts, list):
@@ -204,8 +209,12 @@ class CompanyStateService:
                     raise CompanyStateError("too many company facts")
                 for raw in raw_facts:
                     fact = CompanyFact.from_dict(raw)
+                    # Upsert only an identical fact id; conflicting semantic facts
+                    # are deliberately retained until an explicit supersession.
                     current_facts[fact.fact_id] = fact
 
+            if "as_of" in payload and payload["as_of"] is None:
+                raise CompanyStateError("as_of null is ambiguous; omit it or provide an ISO datetime")
             as_of_raw = payload.get("as_of")
             if as_of_raw is None:
                 as_of = clock.astimezone(timezone.utc)
@@ -214,9 +223,14 @@ class CompanyStateService:
                 as_of = CompanyState.from_dict(probe, trusted_account_id=account).as_of
             company_ref = payload.get("company_ref", current.company_ref if current else None)
             state = CompanyState(account_id=account, company_ref=company_ref, as_of=as_of, facts=tuple(current_facts.values()))
+            if "expected_version" in payload and payload["expected_version"] is None:
+                raise CompanyStateError("expected_version null is ambiguous; omit it or provide an integer")
             expected = payload.get("expected_version")
             if expected is not None and (isinstance(expected, bool) or not isinstance(expected, int) or expected < 0):
                 raise CompanyStateError("expected_version must be a non-negative integer")
+            # Even when the transport omits an explicit version token, bind the
+            # write to the exact snapshot this service just read. This prevents
+            # an interleaving writer from being silently overwritten.
             if expected is None:
                 expected = current.state_version if current else 0
             return save_company_state(conn, state, expected_version=expected, clock=clock)
