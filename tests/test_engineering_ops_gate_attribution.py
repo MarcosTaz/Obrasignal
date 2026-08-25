@@ -3,6 +3,7 @@ from engineering_ops_gate_attribution import (
     classify_gate_attribution,
     complete_required_gates,
     evaluate_owner_gate_state,
+    extract_pull_request_paths,
 )
 
 
@@ -123,3 +124,30 @@ def test_explicit_requirement_overrides_path_or_incidental_context():
         candidate_pr=407,
     )
     assert attribution.state == "REQUIRED"
+
+
+def test_unfiltered_present_workflow_is_required():
+    attribution = classify_gate_attribution(
+        workflow="ObraSignal Quality",
+        workflow_path=".github/workflows/quality.yml",
+        changed_paths={"engineering_ops.py"},
+        candidate_workflow_paths={".github/workflows/quality.yml"},
+        path_filters=None,
+        candidate_pr=407,
+        run_trigger_pr=407,
+    )
+    assert attribution.state == "REQUIRED"
+
+
+def test_extract_pull_request_paths_distinguishes_unfiltered_and_filtered():
+    assert extract_pull_request_paths("name: Quality\non:\n  pull_request:\n  workflow_dispatch:\n") is None
+    assert extract_pull_request_paths(
+        "name: Ops\non:\n  pull_request:\n    paths:\n      - engineering_ops.py\n      - 'tests/**'\n"
+    ) == ("engineering_ops.py", "tests/**")
+
+
+def test_ambiguous_path_filter_parse_fails_closed():
+    filters = extract_pull_request_paths(
+        "name: Ops\non:\n  pull_request:\n    paths: [engineering_ops.py]\n"
+    )
+    assert filters is None or filters == ()
