@@ -4,6 +4,7 @@ import sqlite3
 import pytest
 
 from search_profiles import (
+    CANONICAL_SORT,
     FILTER_SCHEMA_VERSION,
     SearchProfileError,
     SearchProfileNeedsUpdate,
@@ -104,7 +105,12 @@ def test_old_schema_profile_is_marked_invalid_and_run_fails_closed():
         with pytest.raises(SearchProfileNeedsUpdate):
             get_search_profile(conn, "account-a", profile["profile_id"], require_runnable=True)
 
-        repaired = update_search_profile(conn, "account-a", profile["profile_id"], {"filters": {"q": "roofing"}})
+        repaired = update_search_profile(
+            conn,
+            "account-a",
+            profile["profile_id"],
+            {"filters": {"q": "roofing"}, "sort": CANONICAL_SORT},
+        )
         assert repaired["status"] == "ACTIVE"
         assert repaired["filter_schema_version"] == FILTER_SCHEMA_VERSION
     finally:
