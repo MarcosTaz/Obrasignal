@@ -1,168 +1,150 @@
 # Production & Customer Readiness Factory
 
-Status: **EVIDENCE / READINESS ORCHESTRATION ONLY — NOT MERGE AUTHORIZATION**
+Status: **EVIDENCE / READINESS ORCHESTRATION ONLY — NOT MERGE OR DEPLOY AUTHORIZATION**
 
-This factory answers one narrow question:
+This factory answers one narrow question: what still separates the exact canonical product from a product that can truthfully be called deployable, customer-usable, operable, recoverable and supportable?
 
-> What still separates the exact canonical product from a product that can be truthfully called deployable, customer-usable, operable, recoverable and supportable?
-
-It does not own feature implementation already assigned to Auth, Billing, Evaluation, Mobile, Notifications, Source Health, Data Reliability, Golden, Integration Lab, Assembly or another specialist. It does not own the Master Queue, capability/source promotion, deployment, production configuration, secrets, repository settings or merge authorization.
+It does not take implementation ownership already assigned to Auth, Billing, Evaluation, Mobile, Notifications, Source Health, Data Reliability, Golden, Integration Lab, Assembly or another specialist. It never owns production configuration, secrets, repository settings, Master Queue/capability/source promotion, merge or deploy authority.
 
 ## Truth hierarchy
 
 `GREEN CODE != INTEGRATED SYSTEM != DEPLOYED PRODUCT != REAL CUSTOMER PROOF != SUPPORTABLE SAAS`
 
-The executable source of this factory's current release snapshot is `production_readiness_manifest.json`, validated by `production_readiness.py` and `tests/test_production_readiness.py`.
+The executable release snapshot is `production_readiness_manifest.json`, validated by `production_readiness.py`. The snapshot is stale as soon as canonical `main` moves; `--current-main-sha` rejects drift instead of transferring historical green evidence.
 
-The snapshot is deliberately stale as soon as canonical `main` moves. Historical green evidence must then be reconciled rather than transferred by assumption. When a freshly observed main SHA is available, pass it through `--current-main-sha`; any mismatch is a contract error rather than an implicit rebase of evidence.
+Canonical snapshot basis: `66d43f6fd51cf9cea08016dad335aaa04b711a24`.
 
-## Classification
+Release targets:
 
-Every gate uses the same gap classification vocabulary:
+- `CURRENT_WEB_SAAS` — Web customer release; Mobile/remote push remain visible but are not prerequisites.
+- `FULL_MULTI_CHANNEL` — includes Mobile and Notifications as blocking gates.
 
-- `PROVEN` — bounded evidence exists for the stated current scope;
-- `UNKNOWN` — proof is insufficient; missing evidence is not success;
-- `DEFECT` — a reproduced implementation or acceptance failure exists;
-- `EXTERNAL` — the next legitimate proof requires an authorization, credential, provider, physical device or other external condition;
-- `READY` — the gate has the evidence required by the release target, without implying merge/deploy authorization.
+`UNKNOWN` fails closed. A candidate PR, prebuild, mergeable tree, Quality/CodeQL green or Golden result on a noncanonical tree cannot become production release proof through this contract.
 
-Release gates are separately `PASS`, `NO_GO` or `UNKNOWN`. `UNKNOWN` fails closed for release.
+## Current first-order truth
 
-A branch/PR candidate, prebuild, mergeable tree, Quality green, CodeQL green or Golden result on a non-canonical tree is useful evidence but can never be promoted by this contract into production release proof.
+- **AUTH — PASS (bounded):** current-main Production Smoke + Authenticated E2E prove the current provider-mode Auth scope.
+- **TENANT — UNKNOWN:** #335 current HEAD `91d3fd53` now supplies an isolated test-only tenant-safe fixture seam and is Quality+CodeQL green, but it is noncanonical; #289 still needs the nested workflow-response parser repair and FULL no-skip consumption; #68 real-browser A/B proof remains open. Mobile A→B remains physical Golden when Mobile is in target scope.
+- **WEB — NO_GO:** #68 still needs the real production-configured browser journey. `web_production_browser_preflight.json` + `web_production_browser_preflight.py` now make the config, journey, evidence and GO/NO-GO rules executable. Saved/watch is explicitly nonblocking unless canonical product scope changes; current Web billing may remain informational but must be truthful.
+- **BILLING — NO_GO:** #83 current HEAD `3c00cff4` remains RED with Billing Security failure and Quality `18 failed / 720 passed / 2 skipped`.
+- **EVALUATION — NO_GO:** #333 `f6d4e8a0` is green candidate evidence but noncanonical and still depends on repaired Billing + Golden lifecycle composition.
+- **PRIVACY — NO_GO:** #292 still lacks/proves neither provider recovery, tenant-safe export nor account deletion postconditions.
+- **SECURITY — NO_GO:** GitHub `main` remains unprotected with no required checks/rulesets. Applying branch protection is a founder/settings authorization boundary. #248 is green candidate hardening, not canonical proof.
+- **SOURCES — UNKNOWN:** #327 `be8bda85` and #331 `ba339435` provide green source-health contract/integration preproof; #281 remains open until canonical integration + independent Golden customer acceptance.
+- **DATA/RECOVERY — UNKNOWN/NO_GO:** #238/#319 provide strong candidate mechanics but not canonical/off-disk/provider recovery proof.
+- **GOLDEN/CUSTOMER_PROOF — NO_GO:** the minimum sellable customer spine is not yet accepted on one exact canonical deployed release.
 
-## Release targets
+## Executable operability acceptance
 
-Two explicit targets prevent Mobile from silently blocking a Web-only commercial release while still preserving the complete product matrix:
+`operability_acceptance.py` + `operability_acceptance_observation.json` encode the anti-false-ready rule that liveness is not readiness.
 
-- `CURRENT_WEB_SAAS` — the current customer-facing Web SaaS baseline. Mobile and remote push remain visible in the full matrix but are not prerequisites for this target.
-- `FULL_MULTI_CHANNEL` — adds Mobile and Notifications as blocking gates.
+Current main can return `ok=true` while DB, worker and aggregate critical dependencies remain unproven. The worker catches sync exceptions, prints them and continues sleeping without a canonical heartbeat/stalled/degraded readiness state.
 
-Changing which gates belong to either target is a product/release policy decision, not a test repair.
+The acceptance contract fails closed for:
 
-## Exact snapshot reconstructed 2026-08-25
+- DB `DEGRADED / UNAVAILABLE / UNKNOWN`;
+- worker `DEGRADED / STALLED / UNAVAILABLE / UNKNOWN`;
+- critical dependency `DEGRADED / UNAVAILABLE / UNKNOWN`;
+- support correlation `UNSAFE / UNKNOWN`;
+- canonical-main drift.
 
-Canonical `main`: `66d43f6fd51cf9cea08016dad335aaa04b711a24`.
+A support correlation identifier can be `READY` only if it is opaque and explicitly excludes bearer/JWT/secrets, private profile/note payloads and raw account identifiers. Even full operability `READY` prints `release_go=no`.
 
-Current-main evidence already proves bounded pieces:
+Exact runtime implementation gaps were routed to Security/Operability #248 in comment `5415723385`; #337 does not duplicate #248 implementation.
 
-- Production Smoke succeeds against the exact deployed build and provider-mode Auth health.
-- Authenticated E2E succeeds for the current authenticated account spine.
-- Web Preview deploys and serves the exact current-main build marker.
-- Mobile Release Preflight succeeds.
+## #68 production-browser preflight
 
-These successes are intentionally insufficient for `GO`.
+`web_production_browser_preflight.py` + `web_production_browser_preflight.json` require all blocking observations on the same exact deployed canonical build.
 
-Current first-order release blockers/gaps include:
+Configuration proof covers production Web origin, public Supabase build inputs without recording values, production API origin, Supabase redirect behavior, backend provider Auth, exact CORS origin, deterministic tenant-safe customer data and isolated A/B principals.
 
-- **WEB — NO_GO:** issue #68 still requires the real production-configured browser journey. Shell deployment and curl checks are not browser customer acceptance.
-- **BILLING — NO_GO:** PR #83 is red at its current exact head.
-- **EVALUATION — NO_GO:** PR #333 repairs a real activation-path gap but is not canonical and still needs Billing composition + Golden lifecycle proof.
-- **PRIVACY — NO_GO:** issue #292 records missing/unproven recovery, export and deletion customer controls.
-- **RECOVERY — NO_GO:** candidate backup/restore mechanics do not yet prove the complete canonical operational and account-recovery path.
-- **SECURITY — NO_GO:** visible GitHub `main` protection is disabled, no required checks are configured and no ruleset exists; applying repository settings remains an explicit founder/settings authorization boundary. Security hardening #248 is candidate evidence, not canonical proof.
-- **TENANT — UNKNOWN:** current API account scoping is proven, but #277 permits a conditional detail/workflow skip when no deterministic opportunity exists; real-browser account isolation and, for Mobile, physical A-to-B isolation remain separate acceptance.
-- **DATA/SOURCES/OBSERVABILITY — UNKNOWN:** strong specialist candidates exist, but their canonical/current-production release evidence is incomplete.
-- **GOLDEN/CUSTOMER_PROOF — NO_GO:** the minimum sellable customer spine is not yet proven end-to-end on one exact canonical deployed release.
+Browser journey proof covers signup/login, hard reload/session restore, onboarding/profile save, first truthful Radar, deterministic detail/source, workflow persistence, A/B isolation, logout/relogin/return, degraded/offline/partial states, responsive/accessibility and truthful informational Web billing.
 
-For the full multi-channel target, Mobile and Notifications add further physical-device/external proof requirements.
+Any required `FAIL`, `UNKNOWN`, `BLOCKED_EXTERNAL`, conditional skip, build mismatch, tenant leak, secret/private evidence capture or false empty/degraded state => #68 `NO_GO`.
 
-## Operability findings on current main
+## First-value measurement — measure before optimize
 
-Current main has useful bounded latency primitives but not a complete production operability proof:
+The current customer path is synchronous:
 
-- `latency_metrics.py` stores observed fetch/pipeline timings rather than inventing publisher-to-discovery timestamps;
-- `latency_health.py` can classify relative stage degradation from recent versus historical samples;
-- `/api/v1/health` is currently process/build liveness only: it returns `ok=true` without testing DB/readiness/dependency state;
-- the background sync worker catches failures and prints the raw exception before sleeping, so worker degradation is not represented as a bounded readiness state;
-- the repository file named `test_alert_feed.py` tests opportunity delivery-state idempotency, not operational alerting.
+`POST /api/v1/profile -> save_profile -> bootstrap_account -> immediate GET /api/v1/radar`
 
-Security/Operability #248 already owns the adjacent hardening and incident contract. This factory therefore routes, rather than duplicates, the missing liveness-vs-readiness, privacy-safe worker failure classification, metrics/alerts and support-diagnosis semantics.
+A disposable-SQLite benchmark on readiness HEAD `1007f984`, 20 iterations per case, preserved account scope, classified every seeded row, matched persisted decision count and required the first Radar to contain no `SEM DECISÃO` benchmark rows.
 
-No SLO, rate-limit threshold or alert threshold is considered proven merely because a telemetry primitive exists.
+Observed on that runner:
 
-## Performance proof boundary
+- synthetic 25 rows: first-value p50/p95 ≈ **245 / 514 ms**;
+- bounded 250 rows (`MAX_BOOTSTRAP_ROWS`): p50/p95 ≈ **2342 / 4375 ms**;
+- Radar GET was ~2–4 ms and `save_profile` ~3 ms p50, localizing latency to synchronous bootstrap.
 
-The first-value account bootstrap is explicitly bounded to at most 250 recent/actionable tenders, which prevents an unbounded onboarding scan. The current path classifies rows synchronously and persists decisions through the existing decision log, which commits decision writes individually.
+Those absolute numbers are **not a production SLO**. A second CI runner produced materially faster absolute values, proving runner variance is significant and preventing false customer-latency claims.
 
-That is a **measurement target, not a proven defect**. Before optimization, measure the exact customer-critical path for representative and upper-bounded datasets:
+A same-run 12-iteration phase measurement on the 250-row bound is still decision-useful because it compares phases inside the same executions:
 
-`profile save -> bootstrap classification -> first truthful Radar response`
+- `record_decision`: ~**61.49%** of bootstrap p50;
+- repeated `load_profile`: ~**22.24%**;
+- `evaluate_row`: ~**12.89%**;
+- other bootstrap work: ~**3.25%**.
 
-Capture p50/p95, evaluated row count, database write count and failure/degradation semantics. Do not weaken transactional/tenant truth merely to improve latency.
+Current `record_decision()` ensures the table and commits every row; `persist_and_classify()` reloads the same account profile per row. The persistence hotspot was routed to Data Reliability #238 in comment `5415862736`. Any optimization must preserve tenant binding, decision history, failure atomicity, migration/corruption guards and synchronous first-Radar truth. #337 will consume specialist evidence rather than mixing production persistence changes into the readiness PR.
 
 ## ACTIVE -> NEXT -> WAIT
 
 ### ACTIVE
 
-1. Keep the release matrix reconciled against exact current `main`.
-2. Treat #68 real-browser acceptance as the highest-value current Web readiness proof.
-3. Track #83 Billing and #333 Evaluation as owned defects; never duplicate their implementation.
-4. Keep #292 account/privacy lifecycle as a hard customer-readiness gate.
-5. Keep branch protection as a visible release `NO_GO` until explicitly authorized and verified.
-6. Fail closed if the observed canonical main differs from the readiness snapshot SHA.
+1. Keep #337 reconciled against exact current `main` and fail closed on drift.
+2. Keep #68 real-browser acceptance as the highest-value Web readiness proof and execute only when the required production-browser environment/account access is legitimately available.
+3. Track #83 Billing RED, #333 Evaluation candidate, #292 privacy lifecycle and branch protection NO_GO without stealing owner implementation.
+4. Consume #335/#289 movement so deterministic fixture coverage cannot silently regress to `UNKNOWN_NO_DATA` or be promoted before canonical/Golden proof.
+5. Keep the performance evidence measurement-only inside #337; consume Data Reliability repair if/when it appears and remeasure before accepting improvement.
 
 ### NEXT
 
-1. Prove the current-main operability gap: health/readiness, privacy-safe structured failure evidence, metrics, alerting, dependency degradation, timeout/retry behavior and support diagnosis.
-2. Measure first-value and Radar/detail/workflow customer-path latency before proposing performance changes.
-3. Reconcile #327/#331 source-health evidence into the release view after canonical/Golden movement.
-4. Reconcile #238 recovery evidence only after its canonical integration/operational proof changes.
-5. Consume #277 deterministic fixture proof once available so authenticated E2E cannot pass the full journey through a no-data skip.
+1. Consume #248/Support implementation of DB readiness, worker heartbeat/stall state, critical dependency degradation and privacy-safe support correlation; rerun executable operability acceptance.
+2. Execute #68 preflight on the exact deployed canonical build: signup/login -> reload -> onboarding -> first truthful Radar -> detail/source -> workflow -> A/B negative proof -> logout/return, plus degraded/offline/partial and responsive/accessibility cases.
+3. Consume #281/#327/#331 only after canonical/Golden movement; never infer zero-market from stale/unknown source coverage.
+4. Reconcile #238/#319 recovery only after canonical and operational/off-disk proof changes.
+5. Continue consuming #83/#333/#292 and refresh the matrix on every material owner/main movement.
 
 ### WAIT / EXTERNAL
 
-- repository branch/ruleset mutation — requires explicit founder authorization;
-- production/provider/secret/config mutation — requires explicit authorization;
-- FCM/EAS real push configuration + physical-device acceptance — external condition owned by Notification/Mobile/Golden;
-- real production-browser account interaction when credentials/interactive execution are unavailable to this factory;
-- real provider/off-disk backup guarantees and production recovery operations — external/operator boundary.
+- branch protection/ruleset/required-check settings — explicit founder authorization;
+- production/provider/secrets/config mutation — explicit authorization;
+- real FCM/EAS configuration and physical-device push acceptance — Notification/Mobile/Golden external boundary;
+- real production-browser interaction when legitimate credentials/interactive environment are unavailable;
+- provider/off-disk backup guarantees and production recovery operations — operator/external boundary;
+- GitHub Dependency Graph enablement — repository setting required before Dependency Review can be proven.
 
-`REPAIRABLE != BLOCKED`, `OTHER_OWNER != STOP`, and `GREEN PR != FINISH`: when one path is external or owned elsewhere, this factory advances the next independent readiness proof.
+`REPAIRABLE != BLOCKED`, `OTHER_OWNER != STOP`, `GREEN PR != READY`.
 
 ## Commands
 
-Validate the contract and print every target:
+Release matrix with fresh main verification:
 
 ```bash
-python production_readiness.py
+python production_readiness.py --current-main-sha "$(git rev-parse origin/main)"
 ```
 
-Validate the snapshot against a freshly observed canonical main SHA:
+Operability acceptance:
 
 ```bash
-python production_readiness.py \
-  --current-main-sha 66d43f6fd51cf9cea08016dad335aaa04b711a24
+python operability_acceptance.py \
+  --current-main-sha "$(git rev-parse origin/main)" \
+  --require-ready
 ```
 
-Machine-readable result:
+#68 browser preflight audit:
 
 ```bash
-python production_readiness.py --json
-```
-
-Release assertion for an explicitly selected target, with exact-main verification:
-
-```bash
-python production_readiness.py \
-  --current-main-sha 66d43f6fd51cf9cea08016dad335aaa04b711a24 \
-  --target CURRENT_WEB_SAAS \
+python web_production_browser_preflight.py \
+  --current-main-sha "$(git rev-parse origin/main)" \
   --require-go
 ```
 
-`--require-go` is a release evidence assertion only. A zero exit code never merges, deploys, changes settings, promotes a queue/capability/source or substitutes for founder authorization.
+Disposable measurement only:
 
-## Handoff rule
+```bash
+python measure_first_value_latency.py --iterations 20
+python measure_bootstrap_phases.py --iterations 12
+```
 
-For each movement:
-
-1. reconstruct current main;
-2. inspect exact specialist head/evidence;
-3. classify `PROVEN / UNKNOWN / DEFECT / EXTERNAL / READY`;
-4. repair only unowned readiness logic;
-5. route specialist defects with exact contract/evidence;
-6. retest the readiness contract;
-7. reconcile the snapshot;
-8. hand canonical candidates to Integration Lab / Golden / Assembly as appropriate;
-9. select the next highest-value independent gap.
-
-This document is descriptive. The manifest and executable guard are the machine-checkable anti-false-ready contract.
+None of these commands merges, deploys, changes settings/config/secrets, promotes a queue/capability/source or substitutes for explicit authorization.
