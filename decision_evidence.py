@@ -1,15 +1,19 @@
 """Decision-lineage adapter between commercial evaluation and Evidence Graph v1.
 
-The graph remains a reusable domain model.  This module owns the product
+The graph remains a reusable domain model. This module owns the product
 boundary: construct one bounded account-scoped lineage snapshot for a persisted
 commercial decision and derive a compact customer-safe view from it.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 from typing import Any, Mapping
 
+from capability_rollout import runtime_enabled
 from evidence_graph import EdgeType, EvidenceGraph, NodeType, signal_to_fact
+
+LOGGER = logging.getLogger(__name__)
 
 EVIDENCE_CONTRACT_VERSION = "evidence.v1"
 DECISION_GRAPH_MAX_NODES = 128
@@ -90,7 +94,11 @@ def _signal_view(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _profile_snapshot(profile: Mapping[str, Any], evaluation: Mapping[str, Any]) -> dict[str, Any]:
-    snapshot = {key: profile.get(key) for key in _PROFILE_FIELDS if profile.get(key) not in (None, "", [], (), {})}
+    snapshot = {
+        key: profile.get(key)
+        for key in _PROFILE_FIELDS
+        if profile.get(key) not in (None, "", [], (), {})
+    }
     # Capability profile is normalized and therefore often more useful for
     # replay than legacy aliases in the raw company profile.
     capability = evaluation.get("capability")
@@ -125,6 +133,7 @@ def _derived_claim(
     method: str,
     rule_version: str,
     dependencies: list[str],
+    assumptions: list[str] | None = None,
     metadata: Mapping[str, Any] | None = None,
     inference: bool = False,
 ) -> str:
@@ -139,6 +148,8 @@ def _derived_claim(
     )
     for dependency in dependencies:
         graph.add_edge(dependency, claim_id, EdgeType.DERIVED_FROM)
+    for assumption in assumptions or []:
+        graph.add_edge(assumption, claim_id, EdgeType.USES_ASSUMPTION)
     return claim_id
 
 
@@ -184,7 +195,15 @@ def build_decision_evidence(
         value=evaluation.get("profile_score"),
         method="personalized_score",
         rule_version=rule_version,
-        dependencies=[input_claims["title"], input_claims["description"], input_claims["buyer"], input_claims["country"], input_claims["cpv"], input_claims["value"], profile_claim],
+        dependencies=[
+            input_claims["title"],
+            input_claims["description"],
+            input_claims["buyer"],
+            input_claims["country"],
+            input_claims["cpv"],
+            input_claims["value"],
+        ],
+        assumptions=[profile_claim],
     )
     lot_score = _derived_claim(
         graph,
@@ -193,7 +212,8 @@ def build_decision_evidence(
         value=evaluation.get("lot_score"),
         method="match_lot",
         rule_version=rule_version,
-        dependencies=list(input_claims.values()) + [profile_claim],
+        dependencies=list(input_claims.values()),
+        assumptions=[profile_claim],
     )
     geography = evaluation.get("geography") or {}
     geography_claim = _derived_claim(
@@ -203,7 +223,8 @@ def build_decision_evidence(
         value=geography.get("reason"),
         method="match_lot.geography",
         rule_version=rule_version,
-        dependencies=[input_claims["country"], profile_claim],
+        dependencies=[input_claims["country"]],
+        assumptions=[profile_claim],
         metadata={"score": geography.get("score")},
         inference=True,
     )
@@ -212,10 +233,12 @@ def build_decision_evidence(
         graph,
         subject=subject,
         predicate="commercial.capability",
-        value=capability_evidence.get("status") or ("MATCH" if capability_evidence.get("matched") else "UNKNOWN"),
+        value=capability_evidence.get("status")
+        or ("MATCH" if capability_evidence.get("matched") else "UNKNOWN"),
         method="capability_matches_text",
         rule_version=rule_version,
-        dependencies=[input_claims["title"], input_claims["description"], profile_claim],
+        dependencies=[input_claims["title"], input_claims["description"]],
+        assumptions=[profile_claim],
         metadata={
             "reason": capability_evidence.get("reason"),
             "matched_services": capability_evidence.get("matched_services") or [],
@@ -231,7 +254,8 @@ def build_decision_evidence(
         value=cpv_evidence.get("status") or "UNKNOWN",
         method="cpv_evidence",
         rule_version=rule_version,
-        dependencies=[input_claims["cpv"], profile_claim],
+        dependencies=[input_claims["cpv"]],
+        assumptions=[profile_claim],
         metadata={
             "reason": cpv_evidence.get("reason"),
             "strength": cpv_evidence.get("strength"),
@@ -247,7 +271,12 @@ def build_decision_evidence(
         value=economics.get("status") or "UNKNOWN",
         method="evaluate_economic_fit",
         rule_version=str(economics.get("rule_version") or rule_version),
-        dependencies=[input_claims["value"], input_claims["deadline"], input_claims["procedure_type"], profile_claim],
+        dependencies=[
+            input_claims["value"],
+            input_claims["deadline"],
+            input_claims["procedure_type"],
+        ],
+        assumptions=[profile_claim],
         metadata={
             "score": economics.get("score"),
             "reason": economics.get("reason"),
@@ -274,7 +303,15 @@ def build_decision_evidence(
         value=evaluation.get("decision"),
         method="evaluate_row",
         rule_version=rule_version,
-        dependencies=[profile_score, lot_score, geography_claim, capability_claim, cpv_claim, economic_claim, blocker_claim],
+        dependencies=[
+            profile_score,
+            lot_score,
+            geography_claim,
+            capability_claim,
+            cpv_claim,
+            economic_claim,
+            blocker_claim,
+        ],
         metadata={
             "reason": evaluation.get("reason"),
             "profile_score": evaluation.get("profile_score"),
@@ -303,6 +340,50 @@ def unavailable_decision_evidence(reason: str = "evidence_contract_rejected") ->
     }
 
 
+def maybe_decision_evidence(
+    account_id: str,
+    row: Mapping[str, Any],
+    profile: Mapping[str, Any],
+    evaluation: Mapping[str, Any],
+    *,
+    rule_version: str,
+    decided_at: str | datetime | None = None,
+) -> dict[str, Any] | None:
+    """Build evidence only when rollout policy enables it.
+
+    Rollout misconfiguration disables this experimental capability instead of
+    collapsing core decisioning. Contract-invalid source/profile data is
+    explicitly persisted as UNAVAILABLE so a customer is never shown invented
+    evidence. Unexpected programming/runtime failures are deliberately not
+    swallowed.
+    """
+    try:
+        enabled = runtime_enabled("EVIDENCE")
+    except RuntimeError as exc:
+        LOGGER.error("Evidence rollout disabled by invalid configuration: %s", exc)
+        return None
+    if not enabled:
+        return None
+
+    try:
+        return build_decision_evidence(
+            account_id,
+            row,
+            profile,
+            evaluation,
+            rule_version=rule_version,
+            decided_at=decided_at,
+        )
+    except ValueError as exc:
+        LOGGER.warning(
+            "Evidence snapshot unavailable source=%s external_id=%s reason=%s",
+            str(row.get("source") or "")[:64],
+            str(row.get("external_id") or row.get("id") or "")[:128],
+            exc,
+        )
+        return unavailable_decision_evidence()
+
+
 def customer_evidence_view(snapshot: Mapping[str, Any] | None) -> dict[str, Any] | None:
     """Return the compact authenticated product view; never expose raw profile snapshots."""
     if not isinstance(snapshot, Mapping):
@@ -324,26 +405,39 @@ def customer_evidence_view(snapshot: Mapping[str, Any] | None) -> dict[str, Any]
     for item in explanation.get("evidence") or []:
         if not isinstance(item, Mapping):
             continue
-        key = (str(item.get("source") or ""), str(item.get("external_id") or ""), item.get("field_name"))
+        key = (
+            str(item.get("source") or ""),
+            str(item.get("external_id") or ""),
+            item.get("field_name"),
+        )
         if key in seen:
             continue
         seen.add(key)
-        sources.append({
-            "source": item.get("source"),
-            "external_id": item.get("external_id"),
-            "publisher": item.get("publisher"),
-            "field_name": item.get("field_name"),
-            "published_at": item.get("published_at"),
-            "effective_at": item.get("effective_at"),
-            "retrieved_at": item.get("retrieved_at"),
-            "source_url": item.get("source_url"),
-            "quality": item.get("quality"),
-            "stale": item.get("stale"),
-        })
+        sources.append(
+            {
+                "source": item.get("source"),
+                "external_id": item.get("external_id"),
+                "publisher": item.get("publisher"),
+                "field_name": item.get("field_name"),
+                "published_at": item.get("published_at"),
+                "effective_at": item.get("effective_at"),
+                "retrieved_at": item.get("retrieved_at"),
+                "source_url": item.get("source_url"),
+                "quality": item.get("quality"),
+                "stale": item.get("stale"),
+            }
+        )
         if len(sources) >= 12:
             break
 
-    missing = sorted({str(value) for value in (snapshot.get("missing_inputs") or []) + (explanation.get("missing") or []) if value})
+    missing = sorted(
+        {
+            str(value)
+            for value in (snapshot.get("missing_inputs") or [])
+            + (explanation.get("missing") or [])
+            if value
+        }
+    )
     return {
         "contract_version": snapshot.get("contract_version") or EVIDENCE_CONTRACT_VERSION,
         "state": "READY",
