@@ -1,11 +1,9 @@
 """Deterministic opportunity record completeness evaluation.
 
-This module answers only: "what do we know about this opportunity record?"
-It deliberately does not score commercial quality, win probability, relevance,
-readiness, economic fit, or recommendation confidence.
-
-V0 is an on-demand pure evaluator over canonical/normalized mappings.  It owns no
-storage and performs no enrichment or external calls.
+Answers only: "what do we know about this opportunity record?" It does not
+score commercial quality, win probability, relevance, readiness, economic fit,
+or recommendation confidence. V0 is an on-demand pure evaluator over
+canonical/normalized mappings with no storage, enrichment, or external calls.
 """
 
 from __future__ import annotations
@@ -16,17 +14,10 @@ from decimal import Decimal, InvalidOperation
 from typing import Callable, Literal, Mapping
 import re
 
-
 FieldState = Literal[
-    "AVAILABLE",
-    "MISSING",
-    "UNKNOWN",
-    "INVALID",
-    "STALE",
-    "NOT_APPLICABLE",
-    "NOT_PROVIDED_BY_SOURCE",
+    "AVAILABLE", "MISSING", "UNKNOWN", "INVALID", "STALE",
+    "NOT_APPLICABLE", "NOT_PROVIDED_BY_SOURCE",
 ]
-
 POLICY_VERSION = "opportunity-data-quality.v0"
 MAX_COVERAGE_NOTE_LENGTH = 1000
 
@@ -75,10 +66,8 @@ class OpportunityDataQuality:
             "opportunity_id": self.opportunity_id,
             "summary": {
                 "applicable_expected": (
-                    len(self.available_fields)
-                    + len(self.missing_fields)
-                    + len(self.unknown_fields)
-                    + len(self.invalid_fields)
+                    len(self.available_fields) + len(self.missing_fields)
+                    + len(self.unknown_fields) + len(self.invalid_fields)
                     + len(self.stale_fields)
                 ),
                 "present": len(self.available_fields) + len(self.stale_fields),
@@ -98,14 +87,6 @@ class OpportunityDataQuality:
         }
 
 
-def _first(record: Mapping, *keys: str):
-    for key in keys:
-        value = record.get(key)
-        if _usable(value):
-            return value
-    return None
-
-
 def _usable(value: object) -> bool:
     if value is None:
         return False
@@ -114,6 +95,14 @@ def _usable(value: object) -> bool:
     if isinstance(value, (list, tuple, set, frozenset, dict)):
         return bool(value)
     return True
+
+
+def _first(record: Mapping, *keys: str):
+    for key in keys:
+        value = record.get(key)
+        if _usable(value):
+            return value
+    return None
 
 
 def _valid_identifier(value: object) -> bool:
@@ -135,8 +124,7 @@ def _parse_datetime(value: object) -> datetime | None:
     if not _usable(value):
         return None
     text = str(value).strip().replace("Z", "+00:00")
-    candidates = (text, text[:10], text[:8])
-    for candidate in candidates:
+    for candidate in (text, text[:10], text[:8]):
         try:
             if len(candidate) == 8 and candidate.isdigit():
                 dt = datetime.strptime(candidate, "%Y%m%d")
@@ -205,22 +193,29 @@ def _provenance(record: Mapping):
 
 
 def _updated_at(record: Mapping):
-    return _first(record, "source_updated_at", "lifecycle_source_updated_at", "last_observed", "last_seen")
+    return _first(
+        record, "source_updated_at", "lifecycle_source_updated_at",
+        "last_observed", "last_seen",
+    )
 
 
 def _separate_currency_applicable(record: Mapping, context: Mapping) -> bool:
-    expected = set(context.get("expected_fields") or ())
-    return "currency" in record or "currency" in expected
+    return "currency" in record or "currency" in set(context.get("expected_fields") or ())
 
 
 def _deadline_applicable(record: Mapping, context: Mapping) -> bool:
-    signal_type = str(record.get("signal_type") or context.get("signal_type") or "TENDER").strip().upper()
-    return signal_type in {"TENDER", "FORECAST"} or "deadline" in set(context.get("expected_fields") or ())
+    signal_type = str(
+        record.get("signal_type") or context.get("signal_type") or "TENDER"
+    ).strip().upper()
+    return signal_type in {"TENDER", "FORECAST"} or "deadline" in set(
+        context.get("expected_fields") or ()
+    )
 
 
 def _updated_at_applicable(record: Mapping, context: Mapping) -> bool:
-    expected = set(context.get("expected_fields") or ())
-    return _updated_at(record) is not None or "updated_at" in expected
+    return _updated_at(record) is not None or "updated_at" in set(
+        context.get("expected_fields") or ()
+    )
 
 
 FIELD_REGISTRY: tuple[FieldDefinition, ...] = (
@@ -256,9 +251,7 @@ def _iso_utc(value: datetime | str | None) -> str:
     if value is None:
         return datetime.now(timezone.utc).isoformat()
     if isinstance(value, datetime):
-        dt = value
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+        dt = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
         return dt.astimezone(timezone.utc).isoformat()
     dt = _parse_datetime(value)
     if dt is None:
@@ -273,43 +266,39 @@ def evaluate_opportunity_data_quality(
     *,
     evaluated_at: datetime | str | None = None,
 ) -> OpportunityDataQuality:
-    """Evaluate one normalized record without mutating it.
+    """Evaluate one normalized record without mutation or external enrichment.
 
-    ``source_context`` may explicitly declare ``unknown_fields`` when the
-    connector cannot determine a field's state, and ``not_provided_fields`` when
-    the publisher structurally does not publish a field.  The latter is excluded
-    from the completeness denominator rather than masquerading as connector loss.
-
-    Freshness is evaluated only for a registered source timestamp and only when
-    the policy defines ``stale_after_days``.  Stale data remains *present* for the
-    completeness ratio; freshness and completeness are separate dimensions.
+    Source context can explicitly declare unknown fields and publisher structural
+    omissions. Freshness is applied only to a registered timestamp when the
+    policy explicitly defines a stale threshold. Stale means present-but-old and
+    therefore remains present for the completeness ratio.
     """
     if not isinstance(opportunity, Mapping):
         raise TypeError("opportunity must be a mapping")
-    context = source_context or {}
+    context = {} if source_context is None else source_context
     if not isinstance(context, Mapping):
         raise TypeError("source_context must be a mapping")
     active_policy = policy or DataQualityPolicy()
+    if not isinstance(active_policy, DataQualityPolicy):
+        raise TypeError("policy must be a DataQualityPolicy")
+
     generated_at = _iso_utc(evaluated_at)
     evaluated_dt = _parse_datetime(generated_at)
     assert evaluated_dt is not None
-
     unknown_declared = {str(key) for key in context.get("unknown_fields") or ()}
     unavailable_declared = {str(key) for key in context.get("not_provided_fields") or ()}
 
     buckets: dict[FieldState, list[str]] = {
-        "AVAILABLE": [],
-        "MISSING": [],
-        "UNKNOWN": [],
-        "INVALID": [],
-        "STALE": [],
-        "NOT_APPLICABLE": [],
-        "NOT_PROVIDED_BY_SOURCE": [],
+        "AVAILABLE": [], "MISSING": [], "UNKNOWN": [], "INVALID": [],
+        "STALE": [], "NOT_APPLICABLE": [], "NOT_PROVIDED_BY_SOURCE": [],
     }
     critical_missing: list[str] = []
 
     for definition in FIELD_REGISTRY:
-        applicable = definition.applicable(opportunity, context) if definition.applicable else True
+        applicable = (
+            definition.applicable(opportunity, context)
+            if definition.applicable else True
+        )
         if not applicable:
             state: FieldState = "NOT_APPLICABLE"
         elif definition.key in unavailable_declared:
@@ -317,7 +306,10 @@ def evaluate_opportunity_data_quality(
         elif definition.key in unknown_declared:
             state = "UNKNOWN"
         else:
-            value = definition.extractor(opportunity) if definition.extractor else opportunity.get(definition.key)
+            value = (
+                definition.extractor(opportunity)
+                if definition.extractor else opportunity.get(definition.key)
+            )
             if not _usable(value):
                 state = "MISSING"
             elif definition.validator and not definition.validator(value):
@@ -326,7 +318,8 @@ def evaluate_opportunity_data_quality(
                 definition.freshness_timestamp
                 and active_policy.stale_after_days is not None
                 and (timestamp := _parse_datetime(value)) is not None
-                and (evaluated_dt - timestamp).total_seconds() > active_policy.stale_after_days * 86400
+                and (evaluated_dt - timestamp).total_seconds()
+                    > active_policy.stale_after_days * 86400
             ):
                 state = "STALE"
             else:
@@ -336,14 +329,14 @@ def evaluate_opportunity_data_quality(
             critical_missing.append(definition.key)
 
     denominator = sum(
-        len(buckets[state]) for state in ("AVAILABLE", "MISSING", "UNKNOWN", "INVALID", "STALE")
+        len(buckets[state])
+        for state in ("AVAILABLE", "MISSING", "UNKNOWN", "INVALID", "STALE")
     )
     present = len(buckets["AVAILABLE"]) + len(buckets["STALE"])
     ratio = round(present / denominator, 4) if denominator else 1.0
 
-    opportunity_id = str(_identity(opportunity) or "").strip()
     return OpportunityDataQuality(
-        opportunity_id=opportunity_id,
+        opportunity_id=str(_identity(opportunity) or "").strip(),
         available_fields=tuple(buckets["AVAILABLE"]),
         missing_fields=tuple(buckets["MISSING"]),
         unknown_fields=tuple(buckets["UNKNOWN"]),
