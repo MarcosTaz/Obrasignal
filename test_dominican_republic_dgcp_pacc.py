@@ -119,7 +119,7 @@ def test_snapshot_uses_official_metadata_filters_latest_versions_and_expired_pla
         envelope([expired], page=3, limit=2, pages=3, total=5),
     ])
     connector = DGCPPACCConnector(config, session=session)
-    rows = connector.fetch_snapshot(now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+    rows = connector.fetch_snapshot(now=datetime(2026, 8, 25, 12, tzinfo=timezone.utc))
 
     assert [row["external_id"] for row in rows] == [
         "PACC-2026-UC-10001:ADQ-42",
