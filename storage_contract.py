@@ -7,6 +7,8 @@ explicit and fail-closed.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import re
 import sqlite3
 from typing import Iterable
@@ -73,6 +75,34 @@ def declared_persistent_tables(source_text: str) -> set[str]:
 
 def altered_persistent_tables(source_text: str) -> set[str]:
     return {m.group(1) for m in _ALTER_TABLE_RE.finditer(source_text)}
+
+
+def _contract_payload(contracts: dict[str, TableContract]) -> list[dict]:
+    return [
+        {
+            "table": table,
+            "owner": contract.owner,
+            "tenant_column": contract.tenant_column,
+            "required_columns": sorted(contract.required_columns),
+            "unique_keys": [list(key) for key in contract.unique_keys],
+            "required_indexes": list(contract.required_indexes),
+        }
+        for table, contract in sorted(contracts.items())
+    ]
+
+
+def contract_fingerprint(*, include_runtime: bool = True) -> str:
+    """Return a deterministic fingerprint of expected structure/ownership.
+
+    This is observability only, not a migration version or authoritative ledger.
+    A changed fingerprint means the reviewed storage contract changed; database
+    compatibility is still decided by the executable verifier below.
+    """
+    contracts = dict(STARTUP_CONTRACTS)
+    if include_runtime:
+        contracts.update(RUNTIME_CONTRACTS)
+    payload = json.dumps(_contract_payload(contracts), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def table_columns(conn: sqlite3.Connection, table: str) -> tuple[str, ...]:
