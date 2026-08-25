@@ -47,6 +47,7 @@ const pushChecks = [
   ['cold-start notification response is consumed', notifications, /getLastNotificationResponseAsync\(\)/],
   ['live notification response listener is installed', notifications, /addNotificationResponseReceivedListener\(handle\)/],
   ['tap return fetches current opportunity truth before opening detail', app, /openNotificationOpportunity[\s\S]*api\.opportunity\(opportunityId\)/],
+  ['closed or non-actionable tapped opportunity returns to current Radar', app, /fresh\?\.is_actionable===false\|\|fresh\?\.deadline_status\?\.state==='closed'[\s\S]*já não está acionável[\s\S]*loadRef\.current\?\.\(\{manual:true\}\)/],
   ['unavailable tapped opportunity fails honestly', app, /notificação já não está disponível/],
   ['tap return refreshes current Radar truth', app, /loadRef\.current\?\.\(\{preserve:true\}\)/],
   ['sign-out attempts server unregister before Supabase sign-out', app, /unregisterRemoteOpportunityPush\(\)[\s\S]*supabase\.auth\.signOut\(\)/],
