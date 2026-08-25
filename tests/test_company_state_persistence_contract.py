@@ -17,6 +17,11 @@ from storage_migration_lock import run_serialized_schema_init
 from storage_recovery import create_backup_artifact, verified_restore_drill
 
 
+COMPANY_STATE_PREBUILD = {
+    "company_state_snapshots": PREBUILD_CONTRACTS["company_state_snapshots"],
+}
+
+
 def _company_state_schema(conn: sqlite3.Connection) -> None:
     # Mirror the #240 owner schema without importing/copying its storage writer.
     # This file tests the #238 persistence contract only; company_state_store.py
@@ -91,11 +96,11 @@ def test_company_state_prebuild_contract_is_exact_and_noncanonical_by_default():
 def test_company_state_prebuild_schema_verifies_owner_columns_unique_and_index():
     conn = sqlite3.connect(":memory:")
     _company_state_schema(conn)
-    verify_schema(conn, PREBUILD_CONTRACTS)
+    verify_schema(conn, COMPANY_STATE_PREBUILD)
 
     conn.execute("DROP INDEX idx_company_state_account_version")
     with pytest.raises(StorageContractError, match="missing_index=idx_company_state_account_version"):
-        verify_schema(conn, PREBUILD_CONTRACTS)
+        verify_schema(conn, COMPANY_STATE_PREBUILD)
 
 
 def test_company_state_prebuild_first_startup_is_serialized_and_rerunnable(tmp_path):
@@ -114,7 +119,7 @@ def test_company_state_prebuild_first_startup_is_serialized_and_rerunnable(tmp_p
 
     conn = sqlite3.connect(path)
     try:
-        verify_schema(conn, PREBUILD_CONTRACTS)
+        verify_schema(conn, COMPANY_STATE_PREBUILD)
     finally:
         conn.close()
 
@@ -144,7 +149,7 @@ def test_company_state_prebuild_tenant_identity_and_version_are_isolated(tmp_pat
     with pytest.raises(sqlite3.IntegrityError):
         _insert_snapshot(conn, "tenant-a", 1, "duplicate")
     conn.rollback()
-    verify_schema(conn, PREBUILD_CONTRACTS)
+    verify_schema(conn, COMPANY_STATE_PREBUILD)
     conn.close()
 
 
@@ -184,7 +189,7 @@ def test_company_state_prebuild_is_preserved_by_verified_backup_restore(tmp_path
 
     conn = sqlite3.connect(restored)
     try:
-        verify_schema(conn, PREBUILD_CONTRACTS)
+        verify_schema(conn, COMPANY_STATE_PREBUILD)
         verify_json_integrity(conn)
         rows = conn.execute(
             "SELECT account_id,state_version,snapshot_json FROM company_state_snapshots ORDER BY account_id,state_version"
