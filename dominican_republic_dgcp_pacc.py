@@ -65,8 +65,6 @@ def _date(value):
     text = str(value or "").strip()
     if not text:
         return ""
-    # Publisher currently emits an ISO-like date; retain only a validated date
-    # component and fail closed to blank if the shape changes.
     try:
         return datetime.fromisoformat(text.replace("Z", "+00:00")).date().isoformat()
     except ValueError:
@@ -74,6 +72,13 @@ def _date(value):
             return datetime.strptime(text[:10], "%Y-%m-%d").date().isoformat()
         except ValueError:
             return ""
+
+
+def _version(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def normalize_dgcp_pacc_acquisition(row):
@@ -168,19 +173,18 @@ class DGCPPACCConnector:
     def fetch_snapshot(self, *, year=None, now=None):
         current = now or datetime.now(timezone.utc)
         selected_year = int(year or current.year)
+        today = current.date().isoformat()
         rows = self._rows(year=selected_year)
-        normalized = []
-        seen = set()
+        by_identity = {}
         for row in rows:
             item = normalize_dgcp_pacc_acquisition(row)
-            if not item:
+            if not item or item["target_date"] < today:
                 continue
             identity = item["external_id"]
-            if identity in seen:
-                continue
-            seen.add(identity)
-            normalized.append(item)
-        return normalized
+            existing = by_identity.get(identity)
+            if existing is None or _version(item.get("pacc_version")) > _version(existing.get("pacc_version")):
+                by_identity[identity] = item
+        return list(by_identity.values())
 
 
 def fetch_dgcp_procurement_plans(*, year=None, now=None, connector=None):
