@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "baseline_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "product_status": "NOT_YET_SELF_SERVICE_SELLABLE",
+  "minimum_sellable_spine": [
+    "SIGNUP",
+    "AUTH",
+    "PROFILE",
+    "FIRST_RELEVANT_SHORTLIST",
+    "OPPORTUNITY_DETAIL",
+    "OFFICIAL_SOURCE",
+    "WORKFLOW_SAVE",
+    "RETURNING_USER",
+    "EVALUATION",
+    "PRO_ENTITLEMENT"
+  ],
+  "customer_lifecycle": {
+    "SIGNUP": "IMPLEMENTED",
+    "AUTH": "IMPLEMENTED_PRODUCTION_UNPROVEN",
+    "FIRST_SESSION": "IMPLEMENTED",
+    "ONBOARDING": "IMPLEMENTED",
+    "COMPANY_PROFILE": "IMPLEMENTED",
+    "FIRST_RELEVANT_SHORTLIST": "IMPLEMENTED_RUNTIME_UNPROVEN",
+    "OPPORTUNITY_DETAIL": "IMPLEMENTED",
+    "OFFICIAL_SOURCE": "IMPLEMENTED",
+    "WORKFLOW_SAVE": "IMPLEMENTED",
+    "RETURNING_USER": "IMPLEMENTED_UNPROVEN_E2E",
+    "EVALUATION": "POLICY_AND_PRODUCT_SURFACE",
+    "ENTITLEMENT": "IMPLEMENTED_EXTERNAL_CONFIG_REQUIRED",
+    "PAYMENT": "IMPLEMENTED_CLIENT_EXTERNAL_CONFIG_UNPROVEN",
+    "RENEWAL": "EXTERNALLY_MANAGED_UNPROVEN",
+    "FAILED_PAYMENT": "UNPROVEN",
+    "CANCELLATION": "PARTIAL_UNPROVEN",
+    "RESTORE_PURCHASE": "IMPLEMENTED_UNPROVEN_REAL_STORE",
+    "PASSWORD_RECOVERY": "MISSING_CUSTOMER_SURFACE",
+    "DATA_EXPORT": "MISSING_OR_UNPROVEN",
+    "ACCOUNT_DELETION": "MISSING_OR_UNPROVEN",
+    "SUPPORT_RECOVERY": "PARTIAL_OR_MISSING"
+  },
+  "commercial_truth": {
+    "evaluation_days": 21,
+    "evaluation_starts_at_signup": false,
+    "evaluation_activation_requires": [
+      "profile_ready",
+      "market_data_available",
+      "first_relevant_shortlist_generated"
+    ],
+    "credit_card_before_evaluation": false,
+    "paid_entitlement": "pro",
+    "paid_product": "obrasignal_pro_monthly",
+    "store_price_must_be_localized": true,
+    "web_checkout_supported": false
+  },
+  "blocking_acceptance": [
+    {
+      "id": "SELL-001",
+      "owner": "PRODUCTION_AUTH",
+      "required_proof": "real authenticated customer can traverse profile -> opportunities -> detail -> workflow -> return on deployed production",
+      "status": "BLOCKED_EXTERNAL_OWNER"
+    },
+    {
+      "id": "SELL-002",
+      "owner": "BILLING",
+      "required_proof": "RevenueCat webhook authority and product/entitlement gating are safe; current repair PR #83 must be reconciled before commercial acceptance",
+      "status": "BLOCKED_EXTERNAL_OWNER"
+    },
+    {
+      "id": "SELL-003",
+      "owner": "BILLING",
+      "required_proof": "real store purchase -> backend entitlement -> cancellation/grace/expiry -> restore -> second-device consistency",
+      "status": "BLOCKED_EXTERNAL_CONFIGURATION_AND_OWNER"
+    },
+    {
+      "id": "SELL-004",
+      "owner": "ACCOUNT_PRIVACY",
+      "required_proof": "password recovery, account deletion and data export have explicit customer-safe contracts",
+      "status": "MISSING_EXTERNAL_OWNER"
+    },
+    {
+      "id": "SELL-005",
+      "owner": "SOURCE_PRODUCT",
+      "required_proof": "customer-visible source/coverage wording cannot imply national or full-market completeness from partial coverage",
+      "status": "ACCEPTANCE_REQUIRED"
+    }
+  ],
+  "forbidden_commercial_claims": [
+    "production_ready_without_current_production_acceptance",
+    "complete_market_coverage_without_explicit_coverage_contract",
+    "all_portuguese_tenders_without_proof",
+    "billing_secure_while_known_authority_repair_is_unmerged",
+    "evaluation_starts_at_signup",
+    "web_processes_store_subscription_purchase",
+    "branch_only_capability_is_customer_available",
+    "missing_evidence_means_negative_evidence"
+  ]
+}
