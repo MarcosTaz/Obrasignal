@@ -18,14 +18,14 @@ class _Conn:
         normalized = " ".join(sql.lower().split())
         if "from sync_runs" in normalized:
             return _Rows(one={"finished_at": "sync-1"})
-        if "from tenders where last_seen" in normalized:
+        if "from tenders t" in normalized and "where t.last_seen" in normalized:
             assert params == ("sync-1",)
             return _Rows(many=self.rows)
         raise AssertionError(f"unexpected sql: {sql}")
 
 
 def test_worker_hydrates_profile_once_per_account_and_keeps_all_decisions(monkeypatch):
-    import preload
+    import lifecycle_read_model
 
     accounts = ["account-a", "account-b", "account-c"]
     rows = [
@@ -35,7 +35,7 @@ def test_worker_hydrates_profile_once_per_account_and_keeps_all_decisions(monkey
     profile_loads = []
     classifications = []
 
-    monkeypatch.setattr(preload, "list_active_accounts", lambda conn: accounts)
+    monkeypatch.setattr(lifecycle_read_model, "_ensure", lambda conn: None)
 
     def load_profile(account_id):
         profile_loads.append(account_id)
@@ -48,10 +48,12 @@ def test_worker_hydrates_profile_once_per_account_and_keeps_all_decisions(monkey
         classifications.append((account_id, item["external_id"], profile["marker"]))
         return "REVIEW", "test"
 
-    monkeypatch.setattr(preload, "load_profile", load_profile)
-    monkeypatch.setattr(preload, "persist_and_classify", classify)
+    monkeypatch.setattr(lifecycle_read_model, "load_profile", load_profile)
+    monkeypatch.setattr(lifecycle_read_model, "persist_and_classify", classify)
 
-    recorded = preload._record_account_decisions(_Conn(rows))
+    recorded = lifecycle_read_model.record_account_decisions(
+        _Conn(rows), list_active_accounts=lambda conn: accounts
+    )
 
     assert recorded == len(accounts) * len(rows)
     assert len(classifications) == len(accounts) * len(rows)
