@@ -260,11 +260,10 @@ def _normalize(row):
 
 
 def _request_page(session, *, offset, since):
-    # ODSQL v2.1 requires the explicit date: cast form. The current DECP 2022
-    # modification-publication field is text, so it is intentionally not used as
-    # a server-side cursor predicate: claiming complete amendment incrementality
-    # from that field would be unsafe. Re-observed IDs remain update-safe locally.
-    since_literal = f"date:'{since.isoformat()}'"
+    # Live validation against the official DECP v2.1 endpoint (2026-08-25)
+    # proves this dataset accepts ISO date literals as quoted strings and rejects
+    # the generic ``date:`` cast syntax. Keep the predicate dataset-specific.
+    since_literal = f"'{since.isoformat()}'"
     params = {
         "select": "*",
         "where": f'startswith(codecpv, "45") and datepublicationdonnees >= {since_literal}',
