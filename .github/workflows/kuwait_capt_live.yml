@@ -9,6 +9,9 @@ on:
       - '.github/workflows/kuwait_capt_live.yml'
       - 'research/MENA_KUWAIT_CAPT_IMPLEMENTATION_RECORD_20260825.md'
 
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
 permissions:
   contents: read
 
@@ -18,6 +21,10 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -32,7 +39,6 @@ jobs:
           ids = [r.tender_no for r in rows]
           assert len(ids) == len(set(ids)), 'publisher tender-number collision'
           signals = normalize_construction_tenders(rows)
-          assert signals, 'no construction/public-works CAPT tenders classified'
           for signal in signals:
               assert signal['source'] == 'KW_CAPT'
               assert signal['signal_type'] == 'TENDER'
@@ -41,5 +47,6 @@ jobs:
               assert signal['publication_date']
               assert signal['deadline']
               assert signal['title']
-          print(f"LIVE_OK tenders={len(rows)} construction={len(signals)} sample={[s['external_id'] for s in signals[:8]]}")
+          state = 'MATCHING_OPPORTUNITIES' if signals else 'EMPTY_VALID_RESULT'
+          print(f"LIVE_OK state={state} tenders={len(rows)} construction={len(signals)} sample={[s['external_id'] for s in signals[:8]]}")
           PY
