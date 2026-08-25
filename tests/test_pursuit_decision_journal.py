@@ -100,7 +100,10 @@ def test_decided_at_is_normalized_for_chronological_ordering():
 def test_domain_tenant_isolation_and_idempotency():
     conn = _conn()
     a, created = record_pursuit_decision(conn, account_id="a", opportunity_id=5, decision_type="PURSUE", idempotency_key="same")
-    retry, retry_created = record_pursuit_decision(conn, account_id="a", opportunity_id=5, decision_type="PURSUE", idempotency_key="same")
+    retry, retry_created = record_pursuit_decision(
+        conn, account_id="a", opportunity_id=5, decision_type="PURSUE",
+        opportunity_state={"score": 99}, opportunity_revision_ref="later", idempotency_key="same",
+    )
     record_pursuit_decision(conn, account_id="b", opportunity_id=5, decision_type="NO_BID", idempotency_key="same")
     assert created is True and retry_created is False and retry["decision_id"] == a["decision_id"]
     assert current_decision(conn, "a", 5)["decision_type"] == "PURSUE"
@@ -184,9 +187,18 @@ def test_api_tenant_isolation_invalid_missing_and_idempotent_retry(monkeypatch, 
     headers = {"Idempotency-Key": "retry-1"}
     payload = {"decision_type": "NO_BID", "reason_codes": ["MARGIN_CONCERN"]}
     first = client.post("/api/v1/opportunities/1/decision", headers=headers, json=payload)
+    assert first.status_code == 201
+    first_id = first.get_json()["decision"]["decision_id"]
+    first_snapshot = first.get_json()["decision"]["opportunity_state"]
+    conn = connect()
+    conn.execute("UPDATE tenders SET score=42, last_seen='2026-08-26' WHERE id=1")
+    conn.commit()
+    conn.close()
     retry = client.post("/api/v1/opportunities/1/decision", headers=headers, json=payload)
-    assert first.status_code == 201 and retry.status_code == 200
+    assert retry.status_code == 200
     assert retry.get_json()["created"] is False
+    assert retry.get_json()["decision"]["decision_id"] == first_id
+    assert retry.get_json()["decision"]["opportunity_state"] == first_snapshot
     assert client.post("/api/v1/opportunities/1/decision", json={"decision_type": "READY"}).status_code == 400
     assert client.post("/api/v1/opportunities/1/decision", json={"decision_type": "HOLD", "decided_at": "not-a-date"}).status_code == 400
     assert client.post("/api/v1/opportunities/1/decision", json={"decision_type": "HOLD", "actor_type": "SYSTEM_SUGGESTED"}).status_code == 400
