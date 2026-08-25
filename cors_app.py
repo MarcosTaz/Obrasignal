@@ -7,6 +7,7 @@ from flask import jsonify, request
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
+from opportunity_compare import ComparisonError, OpportunityNotFoundError, compare_opportunities
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
@@ -71,6 +72,39 @@ def _protect_radar_api():
     return None
 
 
+def _opportunity_compare():
+    """Compare existing opportunities using only authenticated account context."""
+    identity = getattr(request, "obrasignal_identity", None)
+    if identity is None:
+        try:
+            identity = configured_identity()
+        except (RuntimeError, InvalidTokenError):
+            return jsonify({"error": "authentication_required"}), 401
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid_comparison", "detail": "JSON object required"}), 400
+
+    # Client account selectors never choose private decision state. The verified
+    # server identity is the sole account authority for comparison features.
+    from api import _db
+    c = _db()
+    try:
+        result = compare_opportunities(
+            c,
+            identity,
+            payload.get("opportunity_ids"),
+            payload.get("options"),
+        )
+        return jsonify(result)
+    except OpportunityNotFoundError as exc:
+        return jsonify({"error": "not_found", "detail": str(exc)}), 404
+    except ComparisonError as exc:
+        return jsonify({"error": "invalid_comparison", "detail": str(exc)}), 400
+    finally:
+        c.close()
+
+
 def _opportunity_detail(opportunity_id):
     """Fallback authenticated detail including current source lifecycle."""
     try:
@@ -105,9 +139,17 @@ def _opportunity_detail(opportunity_id):
         c.close()
 
 
-# Keep this route at the production WSGI boundary because the API blueprint
-# predates the detail endpoint. It is still protected by the same verified
-# provider identity and uses the same account-scoped decision/workflow helpers.
+# Keep these routes at the production WSGI boundary because the API blueprint
+# predates them. They are protected by the same verified provider identity and
+# reuse account-scoped decision data without adding another source of truth.
+if not any(rule.rule == "/api/v1/opportunities/compare" for rule in APP.url_map.iter_rules()):
+    APP.add_url_rule(
+        "/api/v1/opportunities/compare",
+        endpoint="mobile_api.opportunity_compare",
+        view_func=_opportunity_compare,
+        methods=["POST"],
+    )
+
 if not any(rule.rule == "/api/v1/opportunities/<int:opportunity_id>" for rule in APP.url_map.iter_rules()):
     APP.add_url_rule(
         "/api/v1/opportunities/<int:opportunity_id>",
