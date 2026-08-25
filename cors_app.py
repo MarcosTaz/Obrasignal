@@ -4,13 +4,19 @@ import os
 from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
+# Register the account/privacy guard before api.py imports account_registry and
+# installs Billing's app-level guard. A deletion-state identity must be blocked
+# before any ordinary request path can mutate/recreate customer state.
+from account_privacy import bp as ACCOUNT_PRIVACY_BP
 import api as _api_module
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
 
-# api.py owns the mobile API blueprint; register it here because this is the
-# production WSGI entrypoint and keeps registration explicit at the boundary.
+# api.py owns the mobile API blueprint; account_privacy owns only the bounded
+# account export/deletion surface and cross-API deletion-state guard.
+if "account_privacy" not in APP.blueprints:
+    APP.register_blueprint(ACCOUNT_PRIVACY_BP)
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
 
