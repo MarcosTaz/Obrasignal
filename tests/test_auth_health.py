@@ -3,8 +3,10 @@ import socket
 import ssl
 from urllib.error import HTTPError, URLError
 
+import pytest
+
 import auth_context_jwt as auth_jwt
-from auth_context_jwt import JwksUnavailableError, authentication_health, production_verifier
+from auth_context_jwt import JwksUnavailableError, JwtVerifier, authentication_health, production_verifier
 
 
 def _reset_verifier():
@@ -16,6 +18,7 @@ def _configured_provider(monkeypatch, issuer="https://project-a.supabase.co"):
     monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
     monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", issuer)
     monkeypatch.setenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated")
+    monkeypatch.delenv("OBRASIGNAL_JWKS_URL", raising=False)
     _reset_verifier()
     return production_verifier()
 
@@ -45,6 +48,60 @@ def test_authentication_health_reports_missing_provider_config(monkeypatch):
         "config_present": False,
         "provider_status": "misconfigured",
     }
+
+
+def test_authentication_health_reports_malformed_issuer_before_network(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", "project-a.supabase.co/auth/v1")
+    monkeypatch.setenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated")
+    monkeypatch.delenv("OBRASIGNAL_JWKS_URL", raising=False)
+    _reset_verifier()
+
+    assert authentication_health() == {
+        "mode": "provider",
+        "config_present": False,
+        "provider_status": "misconfigured",
+        "provider_kind": "invalid",
+        "provider_error": "invalid_issuer_url",
+    }
+    with pytest.raises(RuntimeError, match="invalid_issuer_url"):
+        production_verifier()
+
+
+def test_authentication_health_rejects_provider_url_credentials(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", "https://user:password@identity.example.test/issuer")
+    monkeypatch.setenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated")
+    monkeypatch.delenv("OBRASIGNAL_JWKS_URL", raising=False)
+    _reset_verifier()
+
+    health = authentication_health()
+    assert health["config_present"] is False
+    assert health["provider_status"] == "misconfigured"
+    assert health["provider_error"] == "invalid_issuer_url"
+    assert "user" not in json.dumps(health)
+    assert "password" not in json.dumps(health)
+
+
+def test_authentication_health_rejects_malformed_oidc_jwks_override(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_JWT_ISSUER", "https://identity.example.test/issuer")
+    monkeypatch.setenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated")
+    monkeypatch.setenv("OBRASIGNAL_JWKS_URL", "identity.example.test/jwks")
+    _reset_verifier()
+
+    assert authentication_health() == {
+        "mode": "provider",
+        "config_present": False,
+        "provider_status": "misconfigured",
+        "provider_kind": "oidc",
+        "provider_error": "invalid_jwks_url",
+    }
+
+
+def test_jwt_verifier_rejects_invalid_provider_url_without_fetching():
+    with pytest.raises(RuntimeError, match="invalid_issuer_url"):
+        JwtVerifier("not-an-absolute-provider-url")
 
 
 def test_authentication_health_is_passive_before_first_jwks_fetch(monkeypatch):
