@@ -1,10 +1,13 @@
 """Morocco public procurement portal construction-category connector.
 
-Coverage is a LIMITED HIGH-VALUE SLICE: the first current-results page returned
-by the official `Travaux de construction et d'aménagement` category search.
-The publisher uses JavaScript/WebForms-style postback pagination; v0 detects and
-records that pagination surface but deliberately does not emulate it. This is
-not every PMMP category/page/lifecycle surface and it is not runtime-enabled.
+Coverage is a LIMITED HIGH-VALUE SLICE of the official
+`Travaux de construction et d'aménagement` current-consultation category.
+Publisher-exposed ordinary HTTPS next links are followed with a strict page cap,
+host allow-list and cycle detection. JavaScript/WebForms postbacks are deliberately
+not emulated: encountering one fails closed rather than pretending the bounded
+observation is complete.
+
+This is not every PMMP category/lifecycle surface and it is not runtime-enabled.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ from datetime import datetime
 from html.parser import HTMLParser
 import re
 from typing import Iterable
+from urllib.parse import urljoin, urlsplit
 
 import requests
 
@@ -21,6 +25,9 @@ SOURCE = "MA_PMMP"
 SOURCE_URL = "https://www.marchespublics.gov.ma/index.php?AllCons=&EnCours=&domaineActivite=1.15&page=entreprise.EntrepriseAdvancedSearch"
 COUNTRY = "MAR"
 MAX_HTML_BYTES = 6_000_000
+DEFAULT_MAX_PAGES = 3
+HARD_MAX_PAGES = 20
+_ALLOWED_HOSTS = {"www.marchespublics.gov.ma", "marchespublics.gov.ma"}
 
 _WS = re.compile(r"\s+")
 _DATE = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
@@ -176,12 +183,12 @@ def parse_consultations_page(html: str) -> tuple[list[PMMPConsultation], str | N
 
 
 def pagination_state(next_href: str | None) -> str:
-    """Describe the publisher pagination contract without pretending to follow it."""
+    """Describe the publisher pagination contract without pretending support."""
     if not next_href:
         return "NONE"
     if next_href.strip().lower().startswith("javascript:"):
         return "WEBFORMS_POSTBACK_UNIMPLEMENTED_V0"
-    return "UNEXPECTED_LINK_PAGINATION"
+    return "HTTP_NEXT_LINK"
 
 
 def normalize_consultation(row: PMMPConsultation) -> dict:
@@ -209,7 +216,7 @@ def normalize_consultation(row: PMMPConsultation) -> dict:
         "place": row.location or "Morocco",
         "construction_relevant": True,
         "procedure": row.procedure,
-        "coverage_scope": "LIMITED_HIGH_VALUE_SLICE_MA_PMMP_CONSTRUCTION_AMENAGEMENT_PAGE1",
+        "coverage_scope": "LIMITED_HIGH_VALUE_SLICE_MA_PMMP_CONSTRUCTION_AMENAGEMENT_BOUNDED_PAGES_V1",
     }
 
 
@@ -226,25 +233,86 @@ def _get(client, url: str, *, timeout: float) -> str:
     return response.text
 
 
-def fetch_current_construction_consultations(*, session=None, timeout: float = 25.0) -> list[PMMPConsultation]:
-    """Fetch the public first page only; pagination is explicitly not emulated in v0."""
+def _resolve_next_url(current_url: str, next_href: str) -> str:
+    href = _clean(next_href)
+    if not href:
+        raise MoroccoPMMPSourceError("empty PMMP next-page link")
+    if href.casefold().startswith("javascript:"):
+        raise MoroccoPMMPSourceError("PMMP WebForms pagination is unsupported; refusing partial success")
+    candidate = urljoin(current_url, href)
+    parsed = urlsplit(candidate)
+    if parsed.scheme != "https" or (parsed.hostname or "").casefold() not in _ALLOWED_HOSTS:
+        raise MoroccoPMMPSourceError("PMMP next-page link escaped the official HTTPS host")
+    return candidate
+
+
+def fetch_current_construction_consultations(
+    *, session=None, timeout: float = 25.0, max_pages: int = DEFAULT_MAX_PAGES
+) -> list[PMMPConsultation]:
+    """Fetch a bounded sequence of publisher-declared ordinary next links.
+
+    Pagination is complete only within the explicit bound. If another ordinary
+    page exists after ``max_pages`` or the publisher requires a JavaScript
+    postback, the observation fails closed instead of returning a silent partial
+    success.
+    """
+    if isinstance(max_pages, bool) or not isinstance(max_pages, int) or not (1 <= max_pages <= HARD_MAX_PAGES):
+        raise ValueError(f"max_pages must be an integer from 1 to {HARD_MAX_PAGES}")
+
     client = session or requests
-    rows, _next_href = parse_consultations_page(_get(client, SOURCE_URL, timeout=timeout))
-    return rows
+    url = SOURCE_URL
+    seen_urls: set[str] = set()
+    unique: dict[str, PMMPConsultation] = {}
+
+    for page_number in range(1, max_pages + 1):
+        if url in seen_urls:
+            raise MoroccoPMMPSourceError("PMMP pagination cycle detected")
+        seen_urls.add(url)
+
+        rows, next_href = parse_consultations_page(_get(client, url, timeout=timeout))
+        for row in rows:
+            identity = f"{row.buyer}::{row.reference}"
+            existing = unique.get(identity)
+            if existing and existing != row:
+                raise MoroccoPMMPSourceError(f"conflicting PMMP duplicate {identity!r}")
+            unique[identity] = row
+
+        if not next_href:
+            return list(unique.values())
+        if page_number >= max_pages:
+            raise MoroccoPMMPSourceError(f"PMMP pagination exceeds max_pages={max_pages}")
+        url = _resolve_next_url(url, next_href)
+
+    raise MoroccoPMMPSourceError("PMMP pagination terminated without a complete observation")
 
 
-def fetch_normalized_construction_tenders(*, session=None, timeout: float = 25.0) -> list[dict]:
-    return normalize_consultations(fetch_current_construction_consultations(session=session, timeout=timeout))
+def fetch_normalized_construction_tenders(
+    *, session=None, timeout: float = 25.0, max_pages: int = DEFAULT_MAX_PAGES
+) -> list[dict]:
+    return normalize_consultations(
+        fetch_current_construction_consultations(
+            session=session,
+            timeout=timeout,
+            max_pages=max_pages,
+        )
+    )
 
 
 class MoroccoPMMPConnector:
-    """Registry-candidate adapter for the official page-1 construction slice."""
+    """Registry-candidate adapter for the bounded official construction slice."""
 
     source = SOURCE
 
-    def __init__(self, *, session=None, timeout: float = 25.0):
+    def __init__(
+        self, *, session=None, timeout: float = 25.0, max_pages: int = DEFAULT_MAX_PAGES
+    ):
         self.session = session
         self.timeout = timeout
+        self.max_pages = max_pages
 
     def fetch(self) -> list[dict]:
-        return fetch_normalized_construction_tenders(session=self.session, timeout=self.timeout)
+        return fetch_normalized_construction_tenders(
+            session=self.session,
+            timeout=self.timeout,
+            max_pages=self.max_pages,
+        )
