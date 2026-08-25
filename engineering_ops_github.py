@@ -26,10 +26,12 @@ from engineering_ops import (
 )
 from engineering_ops_gate_attribution import (
     classify_gate_attribution,
+    classify_trigger_awareness,
     complete_required_gates,
     evaluate_owner_gate_state,
     extract_pull_request_paths,
     required_workflows_for_changed_paths,
+    workflow_has_manual_dispatch,
 )
 
 
@@ -157,6 +159,7 @@ def _run_snapshot(run: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": run.get("id"),
         "run_number": run.get("run_number"),
+        "run_attempt": run.get("run_attempt") or 1,
         "name": run.get("name"),
         "path": run.get("path"),
         "head_sha": run.get("head_sha"),
@@ -176,29 +179,51 @@ def _run_snapshot(run: dict[str, Any]) -> dict[str, Any]:
 
 def _raw_gate_state(run: dict[str, Any], *, candidate_head: str) -> str:
     run_sha = str(run.get("head_sha") or "")
-    if not run_sha or not candidate_head.startswith(run_sha[:7]) and not run_sha.startswith(candidate_head[:7]):
+    if not run_sha or (
+        not candidate_head.startswith(run_sha[:7])
+        and not run_sha.startswith(candidate_head[:7])
+    ):
         return "HISTORICAL"
     status = str(run.get("status") or "").lower()
     conclusion = str(run.get("conclusion") or "").lower()
-    if status != "completed":
+    if status in {"queued", "pending", "in_progress", "requested", "waiting"}:
         return "IN_PROGRESS"
+    if status != "completed":
+        return "UNKNOWN"
     if conclusion == "success":
         return "PASS"
     if conclusion in {"skipped", "neutral"}:
         return "NOT_RUN"
-    if conclusion in {"failure", "cancelled", "timed_out", "action_required", "startup_failure"}:
+    if conclusion in {
+        "failure",
+        "cancelled",
+        "timed_out",
+        "action_required",
+        "startup_failure",
+    }:
         return "FAIL"
     return "UNKNOWN"
 
 
-def _candidate_workflows(client: ReadOnlyGitHub, *, head_sha: str) -> tuple[set[str], dict[str, tuple[str, ...] | None]]:
+def _candidate_workflows(
+    client: ReadOnlyGitHub,
+    *,
+    head_sha: str,
+) -> tuple[
+    set[str],
+    dict[str, tuple[str, ...] | None],
+    dict[str, bool],
+    dict[str, str],
+]:
     paths: set[str] = set()
     filters: dict[str, tuple[str, ...] | None] = {}
+    manual: dict[str, bool] = {}
+    texts: dict[str, str] = {}
     try:
         entries = client.directory(".github/workflows", ref=head_sha)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            return paths, filters
+            return paths, filters, manual, texts
         raise
     for item in entries:
         path = item.get("path")
@@ -206,10 +231,48 @@ def _candidate_workflows(client: ReadOnlyGitHub, *, head_sha: str) -> tuple[set[
             continue
         paths.add(path)
         try:
-            filters[path] = extract_pull_request_paths(client.text_file(path, ref=head_sha))
+            text = client.text_file(path, ref=head_sha)
+            texts[path] = text
+            filters[path] = extract_pull_request_paths(text)
+            manual[path] = workflow_has_manual_dispatch(text)
         except Exception:
             filters[path] = ()
-    return paths, filters
+            manual[path] = False
+    return paths, filters, manual, texts
+
+
+def _latest_runs_by_workflow(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the newest attempt/run per workflow without losing run identity."""
+    chosen: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        name = str(row.get("name") or "UNKNOWN")
+        rank = (
+            int(row.get("run_number") or 0),
+            int(row.get("run_attempt") or 1),
+            int(row.get("id") or 0),
+        )
+        current = chosen.get(name)
+        if current is None:
+            chosen[name] = row
+            continue
+        current_rank = (
+            int(current.get("run_number") or 0),
+            int(current.get("run_attempt") or 1),
+            int(current.get("id") or 0),
+        )
+        if rank > current_rank:
+            chosen[name] = row
+    return [chosen[name] for name in sorted(chosen)]
+
+
+def _owner_effect(*, attribution: str, gate_state: str) -> str:
+    if attribution == "REQUIRED" and gate_state == "PASS":
+        return "OWNER_PASS_INPUT"
+    if attribution == "REQUIRED" and gate_state == "FAIL":
+        return "OWNER_RED"
+    if attribution in {"REQUIRED", "REQUIRED_NOT_RUN", "NEEDS_RECHECK"}:
+        return "OWNER_NEEDS_RECHECK"
+    return "EXCLUDED_FROM_OWNER_PASS_RED"
 
 
 def collect(client: ReadOnlyGitHub) -> dict[str, Any]:
@@ -265,40 +328,80 @@ def collect(client: ReadOnlyGitHub) -> dict[str, Any]:
             continue
         try:
             changed_paths = client.pull_files(number)
-            candidate_workflow_paths, workflow_filters = _candidate_workflows(
-                client, head_sha=str(head_sha)
-            )
+            (
+                candidate_workflow_paths,
+                workflow_filters,
+                workflow_manual,
+                _workflow_texts,
+            ) = _candidate_workflows(client, head_sha=str(head_sha))
             raw_runs = client.workflow_runs(str(head_sha))
-            run_rows = [_run_snapshot(run) for run in raw_runs]
+            all_run_rows = [_run_snapshot(run) for run in raw_runs]
+            run_rows = _latest_runs_by_workflow(all_run_rows)
             workflow_runs[str(number)] = run_rows
 
             required = required_workflows_for_changed_paths(changed_paths)
             attributed: list[dict[str, Any]] = []
             observed_states: dict[str, str] = {}
+            workflow_path_by_name: dict[str, str] = {}
             for row in run_rows:
                 workflow = str(row.get("name") or "UNKNOWN")
                 gate_state = _raw_gate_state(row, candidate_head=str(head_sha))
                 observed_states[workflow] = gate_state
                 workflow_path = row.get("path")
+                if workflow_path:
+                    workflow_path_by_name[workflow] = str(workflow_path)
                 attribution = classify_gate_attribution(
                     workflow=workflow,
                     workflow_path=str(workflow_path) if workflow_path else None,
                     changed_paths=changed_paths,
                     explicit_required_workflows=required,
                     candidate_workflow_paths=candidate_workflow_paths,
-                    path_filters=workflow_filters.get(str(workflow_path)) if workflow_path in candidate_workflow_paths else None,
+                    path_filters=(
+                        workflow_filters.get(str(workflow_path))
+                        if workflow_path in candidate_workflow_paths
+                        else None
+                    ),
                     run_trigger_pr=row.get("trigger_pr"),
                     candidate_pr=number,
                 )
+                present = bool(workflow_path and workflow_path in candidate_workflow_paths)
+                trigger_awareness = classify_trigger_awareness(
+                    attribution=attribution.state,
+                    gate_state=gate_state,
+                    workflow_present=present,
+                    path_filters=(
+                        workflow_filters.get(str(workflow_path))
+                        if present
+                        else None
+                    ),
+                    changed_paths=changed_paths,
+                    manual_dispatch_available=(
+                        workflow_manual.get(str(workflow_path), False)
+                        if present
+                        else False
+                    ),
+                )
                 attributed.append(
                     {
+                        "gate": workflow,
                         "workflow": workflow,
                         "run_id": row.get("id"),
+                        "run_number": row.get("run_number"),
+                        "run_attempt": row.get("run_attempt"),
+                        "run_sha": row.get("head_sha"),
+                        "run_state": row.get("status"),
+                        "conclusion": row.get("conclusion"),
                         "gate_state": gate_state,
                         "attribution": attribution.state,
+                        "trigger_awareness": trigger_awareness,
+                        "owner_effect": _owner_effect(
+                            attribution=attribution.state,
+                            gate_state=gate_state,
+                        ),
                         "reason": attribution.reason,
                         "workflow_path": workflow_path,
                         "trigger_pr": row.get("trigger_pr"),
+                        "operator_hint": None,
                     }
                 )
 
@@ -308,15 +411,51 @@ def collect(client: ReadOnlyGitHub) -> dict[str, Any]:
             ):
                 if missing.state != "REQUIRED_NOT_RUN":
                     continue
+                known_path = workflow_path_by_name.get(missing.workflow)
+                present = bool(known_path and known_path in candidate_workflow_paths)
+                manual_available = bool(
+                    known_path and workflow_manual.get(known_path, False)
+                )
+                awareness = classify_trigger_awareness(
+                    attribution=missing.state,
+                    gate_state="NOT_RUN",
+                    workflow_present=present,
+                    path_filters=(
+                        workflow_filters.get(known_path) if known_path else None
+                    ),
+                    changed_paths=changed_paths,
+                    manual_dispatch_available=manual_available,
+                )
+                if not present:
+                    awareness = "WORKFLOW_MISSING"
+                operator_hint = None
+                if manual_available:
+                    operator_hint = {
+                        "workflow": missing.workflow,
+                        "reason": "required exact-head evidence is absent and manual dispatch is declared",
+                        "target_sha": str(head_sha),
+                        "target_ref": pr.get("head_ref"),
+                        "automatic_dispatch": False,
+                    }
+                    awareness = "MANUAL_DISPATCH_AVAILABLE"
                 attributed.append(
                     {
+                        "gate": missing.workflow,
                         "workflow": missing.workflow,
                         "run_id": None,
+                        "run_number": None,
+                        "run_attempt": None,
+                        "run_sha": None,
+                        "run_state": "NOT_RUN",
+                        "conclusion": None,
                         "gate_state": "NOT_RUN",
                         "attribution": missing.state,
+                        "trigger_awareness": awareness,
+                        "owner_effect": "OWNER_NEEDS_RECHECK",
                         "reason": missing.reason,
-                        "workflow_path": None,
+                        "workflow_path": known_path,
                         "trigger_pr": None,
+                        "operator_hint": operator_hint,
                     }
                 )
 
@@ -353,7 +492,9 @@ def collect(client: ReadOnlyGitHub) -> dict[str, Any]:
     }
 
 
-def enrich_report_with_gate_attribution(report: dict[str, Any], snapshot: dict[str, Any]) -> dict[str, Any]:
+def enrich_report_with_gate_attribution(
+    report: dict[str, Any], snapshot: dict[str, Any]
+) -> dict[str, Any]:
     by_pr = snapshot.get("gate_attribution") or {}
     for candidate in report.get("candidates") or []:
         key = str(candidate.get("pr"))
@@ -381,17 +522,32 @@ def _failure_report(repository: str, error: Exception) -> dict[str, Any]:
     }
 
 
-def _write_outputs(report: dict[str, Any], *, json_out: Path, markdown_out: Path) -> None:
-    json_out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def _write_outputs(
+    report: dict[str, Any], *, json_out: Path, markdown_out: Path
+) -> None:
+    json_out.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     markdown_out.write_text(render_markdown(report), encoding="utf-8")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"), help="owner/repository (defaults to GITHUB_REPOSITORY)")
-    parser.add_argument("--api-url", default=os.environ.get("GITHUB_API_URL", "https://api.github.com"))
-    parser.add_argument("--json-out", type=Path, default=Path("engineering-ops-status.json"))
-    parser.add_argument("--markdown-out", type=Path, default=Path("engineering-ops-status.md"))
+    parser.add_argument(
+        "--repository",
+        default=os.environ.get("GITHUB_REPOSITORY"),
+        help="owner/repository (defaults to GITHUB_REPOSITORY)",
+    )
+    parser.add_argument(
+        "--api-url",
+        default=os.environ.get("GITHUB_API_URL", "https://api.github.com"),
+    )
+    parser.add_argument(
+        "--json-out", type=Path, default=Path("engineering-ops-status.json")
+    )
+    parser.add_argument(
+        "--markdown-out", type=Path, default=Path("engineering-ops-status.md")
+    )
     args = parser.parse_args()
 
     if not args.repository or "/" not in args.repository:
@@ -415,7 +571,9 @@ def main() -> int:
                 "default_branch": snapshot.get("default_branch"),
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "collector_state": (
-                    "NEEDS_RECHECK" if snapshot.get("collection_errors") else "COMPLETE"
+                    "NEEDS_RECHECK"
+                    if snapshot.get("collection_errors")
+                    else "COMPLETE"
                 ),
             }
         )
