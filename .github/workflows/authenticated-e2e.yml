@@ -229,6 +229,26 @@ jobs:
               separators=(',', ':'),
           ))
           PY
+            if curl --fail --silent --show-error --max-time 30 \
+              "$API_URL/health" > /tmp/auth-failure-health.json; then
+              python - <<'PY'
+          import json
+          try:
+              payload=json.load(open('/tmp/auth-failure-health.json', encoding='utf-8'))
+          except Exception:
+              payload={}
+          auth=payload.get('auth') if isinstance(payload, dict) else {}
+          auth=auth if isinstance(auth, dict) else {}
+          safe={
+              key: auth.get(key)
+              for key in ('mode','config_present','provider_status','provider_kind','provider_error')
+              if key in auth
+          }
+          print('API_AUTH_HEALTH=' + json.dumps(safe, separators=(',', ':')))
+          PY
+            else
+              echo "API_AUTH_HEALTH_UNAVAILABLE"
+            fi
             exit 1
           fi
           python - <<'PY'
