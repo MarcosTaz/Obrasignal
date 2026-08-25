@@ -381,11 +381,13 @@ jobs:
           import json
           items=json.load(open('/tmp/opportunities.json')).get('items') or []
           if not items:
-              print('No opportunity available; detail/workflow round-trip skipped without treating empty data as failure.')
+              print('No opportunity available; detail/workflow round-trip coverage is UNKNOWN_NO_DATA.')
               open('/tmp/tender_id','w').write('')
+              open('/tmp/authenticated_e2e_coverage','w').write('UNKNOWN_NO_DATA')
           else:
               tender_id=str(items[0]['id'])
               open('/tmp/tender_id','w').write(tender_id)
+              open('/tmp/authenticated_e2e_coverage','w').write('PENDING')
           PY
           if test -s /tmp/tender_id; then
             ID="$(cat /tmp/tender_id)"
@@ -442,6 +444,20 @@ jobs:
           actual=json.load(open('/tmp/workflow-after-write.json'))
           assert actual.get('status') == expected['status']
           assert actual.get('note') == expected['note']
+          open('/tmp/authenticated_e2e_coverage','w').write('FULL')
           print('Authenticated workflow write/read persistence verified.')
           PY
           fi
+
+      - name: Classify authenticated journey coverage
+        id: journey-coverage
+        run: |
+          set -euo pipefail
+          coverage="$(cat /tmp/authenticated_e2e_coverage)"
+          case "$coverage" in
+            FULL|UNKNOWN_NO_DATA) ;;
+            *) echo "Invalid authenticated E2E coverage state: $coverage"; exit 1 ;;
+          esac
+          echo "coverage=$coverage" >> "$GITHUB_OUTPUT"
+          echo "AUTHENTICATED_E2E_COVERAGE=$coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "AUTHENTICATED_E2E_COVERAGE=$coverage"
