@@ -8,7 +8,9 @@ not production-enabled: callers must provide/verify concrete source URLs before
 runtime promotion.
 
 Identity policy:
-- preserve native tender/case number as ``source_reference`` and ``lineage_key``;
+- require and preserve the native tender/case number as ``source_reference`` and
+  ``lineage_key``;
+- never synthesize procurement identity from mutable title/buyer text;
 - keep one signal per semantic stage using the same tender/case identity;
 - repeated snapshots upsert idempotently via (source, signal_type, external_id).
 """
@@ -16,7 +18,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from hashlib import sha256
 import re
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -136,11 +137,6 @@ def _stable_external_id(signal_type: str, case_number: str) -> str:
     return f"{signal_type.lower()}:{case_number}"
 
 
-def _fallback_case_id(source_name: str, buyer: str, title: str) -> str:
-    material = f"{source_name}|{buyer}|{title}".encode("utf-8")
-    return "derived-" + sha256(material).hexdigest()[:24]
-
-
 def _scheduled_target(value: str) -> str:
     digits = re.findall(r"\d+", value or "")
     if len(digits) >= 2:
@@ -154,12 +150,13 @@ def _scheduled_target(value: str) -> str:
 
 def normalize_pcc_row(mapping: dict[str, str], *, source: PCCSnapshotSource, observed_at=None):
     case_number = _field(mapping, "case_number")
+    if not case_number:
+        # The audited PCC datasets advertise a publisher-native tender/case
+        # number. Reject rows that lack it rather than fabricating unstable
+        # identity from mutable title/buyer fields.
+        return None
     title = _field(mapping, "title")
     buyer = _field(mapping, "buyer")
-    if not case_number:
-        if not title or not buyer:
-            return None
-        case_number = _fallback_case_id(source.name, buyer, title)
     observed = observed_at or datetime.now(timezone.utc).isoformat()
     event_date = _field(mapping, "event_date")
     scheduled = _field(mapping, "scheduled_month")
@@ -176,7 +173,11 @@ def normalize_pcc_row(mapping: dict[str, str], *, source: PCCSnapshotSource, obs
         "country": COUNTRY,
         "publication_date": event_date,
         "published_at": event_date or None,
-        "source_updated_at": observed,
+        # PCC catalogue freshness is daily, but observation time is not the
+        # same thing as a publisher-declared update timestamp. Keep that
+        # distinction explicit; signal_store owns first/last observation time.
+        "source_updated_at": None,
+        "_observed_at": observed,
         "target_date": _scheduled_target(scheduled),
         "taxonomy": "TW_PCC_PROCUREMENT_NATURE" if procurement_nature else "",
         "category_code": procurement_nature,
