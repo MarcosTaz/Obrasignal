@@ -7,6 +7,7 @@ from kuwait_capt import (
     CAPTTender,
     KuwaitCAPTConnector,
     KuwaitCAPTSourceError,
+    fetch_normalized_construction_tenders,
     fetch_open_tenders,
     is_construction_relevant,
     normalize_construction_tenders,
@@ -22,6 +23,14 @@ PAGE1 = """
 <div>الموضوع</div><div>اعمال صيانة و ترميم المباني و الاعمال الانشائية في مواقع مختلفة للطيران المدني</div>
 <div>تاريخ الطلب</div><div>أغسطس 23, 2026</div><div>اخر موعد للعطاء</div><div>نوفمبر 17, 2026</div>
 <div>تاريخ الإجتماع التمهيدي</div><div>سبتمبر 27, 2026</div>
+<div>الرقم</div><div>2147428</div><div>الجهة</div><div>شركة نفط الكويت</div>
+<div>الموضوع</div><div>تقديم خدمات الامن السيبراني المدارة</div>
+<div>تاريخ الطلب</div><div>أغسطس 23, 2026</div><div>اخر موعد للعطاء</div><div>نوفمبر 17, 2026</div>
+</body></html>
+"""
+
+PAGE_NON_CONSTRUCTION = """
+<html><body><h1>المناقصات المطروحة</h1>
 <div>الرقم</div><div>2147428</div><div>الجهة</div><div>شركة نفط الكويت</div>
 <div>الموضوع</div><div>تقديم خدمات الامن السيبراني المدارة</div>
 <div>تاريخ الطلب</div><div>أغسطس 23, 2026</div><div>اخر موعد للعطاء</div><div>نوفمبر 17, 2026</div>
@@ -77,6 +86,11 @@ class _Session:
         return _Response(PAGE1)
 
 
+class _NonConstructionSession:
+    def get(self, url, timeout, headers):
+        return _Response(PAGE_NON_CONSTRUCTION)
+
+
 def test_pagination_is_bounded_and_stops_on_repeat():
     session = _Session()
     rows = fetch_open_tenders(session=session, timeout=7, max_pages=5)
@@ -84,6 +98,16 @@ def test_pagination_is_bounded_and_stops_on_repeat():
     assert len(session.urls) == 3
     signals = KuwaitCAPTConnector(session=_Session(), timeout=7, max_pages=5).fetch()
     assert {s["external_id"] for s in signals} == {"6/2025/2026", "و ك م /14/2024/2025"}
+
+
+def test_valid_source_response_with_zero_construction_matches_is_healthy_empty():
+    signals = fetch_normalized_construction_tenders(
+        session=_NonConstructionSession(), timeout=7, max_pages=1
+    )
+    assert signals == []
+    assert KuwaitCAPTConnector(
+        session=_NonConstructionSession(), timeout=7, max_pages=1
+    ).fetch() == []
 
 
 def test_canonical_signal_store_idempotent_update():
