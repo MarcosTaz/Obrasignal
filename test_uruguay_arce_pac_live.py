@@ -4,6 +4,7 @@ Research-only until machine stability and structured works admission are proven.
 Uses the same unauthenticated same-origin session model as the public SPA; no
 credentials, bypasses or hidden/private endpoints.
 """
+from datetime import datetime, timezone
 import os
 import re
 from urllib.parse import urljoin
@@ -72,6 +73,7 @@ def test_live_uruguay_arce_public_pac_frontend_contract():
         "/api/v1/compra-procedimientos/excel?sort=",
         "/api/v1/familias/all",
         "codFamilia", "codSubfamilia", "codClase", "codSubclase", "codArticuloServObra",
+        "fechaConvocatoriaFinDesde", "fechaModificacionIni", "fechaModificacionFin",
         "./assets/config.json", "apiUrl",
     ):
         assert token in js
@@ -85,6 +87,7 @@ def test_live_uruguay_arce_public_pac_frontend_contract():
     print("UY_PAC_MAIN_JS=" + main_url)
     print("UY_PAC_FILTER_NAMES=" + ",".join(filter_names))
     assert "codFamilia" in filter_names
+    assert "fechaConvocatoriaFinDesde" in filter_names
 
 
 def test_live_uruguay_arce_public_pac_same_origin_stability_and_detail():
@@ -141,7 +144,48 @@ def test_live_uruguay_arce_public_pac_native_family_taxonomy_and_filter():
     assert sample is not None
     plan = sample.get("planAnual") if isinstance(sample.get("planAnual"), dict) else {}
     print("UY_PAC_WORKS_SAMPLE_ID=" + str(sample.get("id")))
-    print("UY_PAC_WORKS_SAMPLE_OBJECT=" + str(sample.get("objetoCompra")))
     print("UY_PAC_WORKS_SAMPLE_START=" + str(sample.get("periodoConvFechaIni")))
     print("UY_PAC_WORKS_SAMPLE_END=" + str(sample.get("periodoConvFechaFin")))
     print("UY_PAC_WORKS_SAMPLE_PLAN_YEAR=" + str(plan.get("anioPlan")))
+
+
+def test_live_uruguay_arce_public_pac_future_works_bound():
+    api_url = _api_url()
+    search_url = api_url + "/api/v1/compra-procedimientos"
+    today = datetime.now(timezone.utc).date()
+    base_params = {"sort": "periodoConvFechaIni,asc", "page": 0, "size": 5, "codFamilia": WORKS_FAMILY_CODE}
+    base = _get(search_url, params=base_params, raise_status=False)
+    assert base.status_code == 200 and "json" in base.headers.get("Content-Type", "").lower()
+    base_total = int(base.json().get("totalElements") or 0)
+    assert base_total > 0
+
+    candidates = [today.isoformat(), today.strftime("%d/%m/%Y")]
+    accepted = []
+    for value in candidates:
+        response = _get(
+            search_url,
+            params={**base_params, "fechaConvocatoriaFinDesde": value},
+            raise_status=False,
+        )
+        content_type = response.headers.get("Content-Type", "")
+        record = {"value": value, "status": response.status_code, "content_type": content_type, "total": None}
+        if response.status_code == 200 and "json" in content_type.lower():
+            payload = response.json()
+            if isinstance(payload, dict):
+                record["total"] = int(payload.get("totalElements") or 0)
+                rows = payload.get("content") if isinstance(payload.get("content"), list) else []
+                record["rows"] = rows
+        accepted.append(record)
+    print("UY_PAC_FUTURE_FILTER_RESULTS=" + repr([{k: v for k, v in item.items() if k != "rows"} for item in accepted]))
+
+    usable = [item for item in accepted if item.get("status") == 200 and item.get("total") is not None and 0 < item["total"] < base_total]
+    assert usable, "ARCE PAC future-date filter did not produce a bounded subset"
+    chosen = min(usable, key=lambda item: item["total"])
+    print("UY_PAC_FUTURE_FILTER_CHOSEN=" + str(chosen["value"]))
+    print("UY_PAC_FUTURE_TOTAL=" + str(chosen["total"]))
+    for row in chosen.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        end = str(row.get("periodoConvFechaFin") or "")[:10]
+        if end:
+            assert end >= today.isoformat(), "publisher future filter returned an already-ended planned call"
