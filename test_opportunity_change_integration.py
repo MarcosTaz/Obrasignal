@@ -29,6 +29,21 @@ def _canada(deadline, amendment_number, amendment_date):
     }
 
 
+def _generic_revision(version):
+    return {
+        "source": "TEST_REVISION_SOURCE",
+        "signal_type": "TENDER",
+        "external_id": "REV-1",
+        "title": "Stable title",
+        "deadline": "2026-09-30T12:00:00Z",
+        "source_status": "Open",
+        "source_reference": "REV-1",
+        "revision_id": version,
+        "is_actionable": True,
+        "lifecycle_status": "open",
+    }
+
+
 def test_change_history_is_pilot_without_promoting_enabled_capabilities():
     spec = capability("OPPORTUNITY_CHANGE_HISTORY")
     assert spec.state == "PILOT"
@@ -59,5 +74,24 @@ def test_source_runtime_preserves_canadabuys_native_amendment_identity():
     assert item["native_revision"] == "3"
     assert item["source_updated_at"] == "2026-08-25T12:00:00Z"
     assert item["source_ref"] == "REF-123"
-    assert item["changed_fields"] == ["deadline"]
-    assert item["changes"][0]["detail"] == "EXTENDED"
+    assert item["changed_fields"] == ["deadline", "source_version"]
+    deadline = next(change for change in item["changes"] if change["field"] == "deadline")
+    assert deadline["detail"] == "EXTENDED"
+
+
+def test_source_runtime_preserves_revision_only_publisher_change():
+    conn = _conn()
+    discard_staged_source_syncs()
+    stage_source_sync("TEST_REVISION_SOURCE", [_generic_revision("r1")], "cursor-r1")
+    commit_staged_source_syncs(conn)
+
+    stage_source_sync("TEST_REVISION_SOURCE", [_generic_revision("r2")], "cursor-r2")
+    commit_staged_source_syncs(conn)
+
+    history = get_change_history(conn, "TEST_REVISION_SOURCE", "REV-1")
+    assert len(history) == 1
+    item = history[0]
+    assert item["native_revision"] == "r2"
+    assert item["changed_fields"] == ["source_version"]
+    assert item["changes"][0]["old_value"] == "r1"
+    assert item["changes"][0]["new_value"] == "r2"
