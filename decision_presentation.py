@@ -54,6 +54,8 @@ def present_decision(decision: dict | None) -> dict:
     """Convert persisted decision data into a stable UI payload."""
     decision = decision or {}
     features = decision.get("features") or {}
+    explanation = features.get("explanation") or {}
+    evidence = explanation.get("evidence") if isinstance(explanation, dict) else None
     return {
         "status": _status_text(decision),
         "reason": decision.get("reason") or "Não existe uma razão registada.",
@@ -62,4 +64,5 @@ def present_decision(decision: dict | None) -> dict:
         "rule_version": decision.get("rule_version"),
         "decided_at": decision.get("decided_at"),
         "lines": _feature_lines(features),
+        "evidence": evidence if isinstance(evidence, dict) else None,
     }
