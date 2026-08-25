@@ -12,6 +12,7 @@ import api as _api_module
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
+import notification_privacy_lifecycle as _notification_privacy_lifecycle
 
 # api.py owns the mobile API blueprint; account_privacy owns only the bounded
 # account export/deletion surface and cross-API deletion-state guard.
@@ -128,10 +129,6 @@ def _global_api_input_bounds():
         return None
 
     if _json_write_path():
-        # Preserve fail-closed authentication precedence: unauthenticated callers
-        # do not receive detailed body-validation feedback before identity is
-        # established. Use api.py's canonical identity reference so provider
-        # unavailability still propagates to the API's 503 handler.
         try:
             identity = _api_module.configured_identity()
         except (RuntimeError, InvalidTokenError):
@@ -183,9 +180,6 @@ def _global_api_cors(response):
     return response
 
 
-# Gunicorn imports this module before it starts accepting requests. Complete all
-# persistent startup schema work behind one serialization boundary so current or
-# future additive migrations cannot escape the concurrency contract.
 import app as _app
 from app import db, init_db, start_background_worker
 from storage_migration_lock import run_serialized_schema_init
