@@ -70,8 +70,79 @@ def _finding(
     )
 
 
+def _scan_account_orphan(
+    conn,
+    *,
+    table: str,
+    invariant: str,
+    owner: str,
+    exact_sha: str,
+) -> list[IntegrityFinding]:
+    if not (_table_exists(conn, "accounts") and _table_exists(conn, table)):
+        return []
+    rows = conn.execute(
+        f"""SELECT child.account_id
+            FROM {table} child
+            LEFT JOIN accounts a ON a.account_id=child.account_id
+            WHERE a.account_id IS NULL
+            GROUP BY child.account_id
+            ORDER BY child.account_id"""
+    ).fetchall()
+    return [
+        _finding(
+            invariant=invariant,
+            severity="HIGH",
+            account_id=row[0],
+            stores=(table, "accounts"),
+            expected=f"every tenant-private {table} row resolves to one canonical local account",
+            observed=f"{table} references a missing local account",
+            owner=owner,
+            repairable=False,
+            unknown=True,
+            exact_sha=exact_sha,
+        )
+        for row in rows
+    ]
+
+
+def _scan_opportunity_identity_orphans(
+    conn,
+    *,
+    table: str,
+    invariant: str,
+    owner: str,
+    exact_sha: str,
+) -> list[IntegrityFinding]:
+    if not (_table_exists(conn, "tenders") and _table_exists(conn, table)):
+        return []
+    rows = conn.execute(
+        f"""SELECT child.account_id
+            FROM {table} child
+            LEFT JOIN tenders t
+              ON t.source=child.source AND t.external_id=child.external_id
+            WHERE t.id IS NULL
+            GROUP BY child.account_id
+            ORDER BY child.account_id"""
+    ).fetchall()
+    return [
+        _finding(
+            invariant=invariant,
+            severity="HIGH",
+            account_id=row[0],
+            stores=(table, "tenders"),
+            expected=f"every {table} opportunity identity resolves to canonical source + external_id",
+            observed=f"{table} references an opportunity identity absent from tenders",
+            owner=owner,
+            repairable=False,
+            unknown=True,
+            exact_sha=exact_sha,
+        )
+        for row in rows
+    ]
+
+
 def scan_canonical_integrity(conn, *, exact_sha: str = "UNKNOWN") -> list[IntegrityFinding]:
-    """Scan canonical-main account/profile/evaluation relations without mutation.
+    """Scan canonical-main relationships without mutating or normalizing state.
 
     Missing tables are not created and are not reported as corruption: this scanner
     can be run against partial disposable fixtures. Findings describe only relations
@@ -82,46 +153,97 @@ def scan_canonical_integrity(conn, *, exact_sha: str = "UNKNOWN") -> list[Integr
     has_profiles = _table_exists(conn, "company_profiles")
     has_events = _table_exists(conn, "evaluation_events")
 
-    if has_accounts and has_profiles:
-        rows = conn.execute(
-            """SELECT p.account_id
-               FROM company_profiles p
-               LEFT JOIN accounts a ON a.account_id=p.account_id
-               WHERE a.account_id IS NULL
-               ORDER BY p.account_id"""
-        ).fetchall()
-        for row in rows:
-            findings.append(_finding(
-                invariant="PROFILE_ACCOUNT_ORPHAN",
-                severity="HIGH",
-                account_id=row[0],
-                stores=("company_profiles", "accounts"),
-                expected="every tenant-private profile resolves to one canonical local account",
-                observed="profile row has no local account owner",
-                owner="Company Profile + Account Registry",
-                repairable=False,
-                unknown=True,
-                exact_sha=exact_sha,
-            ))
+    findings.extend(_scan_account_orphan(
+        conn,
+        table="company_profiles",
+        invariant="PROFILE_ACCOUNT_ORPHAN",
+        owner="Company Profile + Account Registry",
+        exact_sha=exact_sha,
+    ))
+    findings.extend(_scan_account_orphan(
+        conn,
+        table="evaluation_events",
+        invariant="EVALUATION_EVENT_ACCOUNT_ORPHAN",
+        owner="Evaluation + Account Registry",
+        exact_sha=exact_sha,
+    ))
+    findings.extend(_scan_account_orphan(
+        conn,
+        table="opportunity_decisions",
+        invariant="DECISION_ACCOUNT_ORPHAN",
+        owner="Decision Log + Account Registry",
+        exact_sha=exact_sha,
+    ))
+    findings.extend(_scan_account_orphan(
+        conn,
+        table="opportunity_workflow",
+        invariant="WORKFLOW_ACCOUNT_ORPHAN",
+        owner="Opportunity Workflow + Account Registry",
+        exact_sha=exact_sha,
+    ))
+    findings.extend(_scan_account_orphan(
+        conn,
+        table="opportunity_events",
+        invariant="OPPORTUNITY_EVENT_ACCOUNT_ORPHAN",
+        owner="Notification Events + Account Registry",
+        exact_sha=exact_sha,
+    ))
 
-    if has_accounts and has_events:
+    findings.extend(_scan_opportunity_identity_orphans(
+        conn,
+        table="opportunity_decisions",
+        invariant="DECISION_OPPORTUNITY_ORPHAN",
+        owner="Decision Log + Opportunity owner",
+        exact_sha=exact_sha,
+    ))
+    findings.extend(_scan_opportunity_identity_orphans(
+        conn,
+        table="opportunity_workflow",
+        invariant="WORKFLOW_OPPORTUNITY_ORPHAN",
+        owner="Opportunity Workflow + Opportunity owner",
+        exact_sha=exact_sha,
+    ))
+
+    if _table_exists(conn, "opportunity_events") and _table_exists(conn, "tenders"):
         rows = conn.execute(
             """SELECT e.account_id
-               FROM evaluation_events e
-               LEFT JOIN accounts a ON a.account_id=e.account_id
-               WHERE a.account_id IS NULL
+               FROM opportunity_events e
+               LEFT JOIN tenders t ON t.id=e.tender_id
+               WHERE e.tender_id IS NOT NULL AND t.id IS NULL
                GROUP BY e.account_id
                ORDER BY e.account_id"""
         ).fetchall()
         for row in rows:
             findings.append(_finding(
-                invariant="EVALUATION_EVENT_ACCOUNT_ORPHAN",
+                invariant="OPPORTUNITY_EVENT_TENDER_ORPHAN",
                 severity="HIGH",
                 account_id=row[0],
-                stores=("evaluation_events", "accounts"),
-                expected="every tenant evaluation event resolves to one canonical local account",
-                observed="evaluation ledger references a missing local account",
-                owner="Evaluation + Account Registry",
+                stores=("opportunity_events", "tenders"),
+                expected="non-null opportunity event tender_id resolves to canonical tender",
+                observed="opportunity event tender_id references no canonical tender",
+                owner="Notification Events + Opportunity owner",
+                repairable=False,
+                unknown=True,
+                exact_sha=exact_sha,
+            ))
+
+        rows = conn.execute(
+            """SELECT e.account_id
+               FROM opportunity_events e
+               JOIN tenders t ON t.id=e.tender_id
+               WHERE e.source IS NOT NULL AND e.source<>t.source
+               GROUP BY e.account_id
+               ORDER BY e.account_id"""
+        ).fetchall()
+        for row in rows:
+            findings.append(_finding(
+                invariant="OPPORTUNITY_EVENT_SOURCE_MISMATCH",
+                severity="HIGH",
+                account_id=row[0],
+                stores=("opportunity_events", "tenders"),
+                expected="event source agrees with canonical tender source for its tender_id",
+                observed="event source and canonical tender source disagree",
+                owner="Notification Events + Opportunity owner",
                 repairable=False,
                 unknown=True,
                 exact_sha=exact_sha,
