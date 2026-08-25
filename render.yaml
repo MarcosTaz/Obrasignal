@@ -39,3 +39,10 @@ services:
       # Keep the first production sync bounded; subsequent 60s polls keep it fresh.
       - key: TED_MAX_PAGES
         value: "4"
+      # Evidence remains EXPERIMENT/Q080 until explicitly promoted. Declare both
+      # controls so deployment defaults cannot accidentally enable the surface and
+      # an immediate read-time kill switch remains available after later rollout.
+      - key: OBRASIGNAL_FEATURE_EVIDENCE_GRAPH_V1
+        value: "false"
+      - key: OBRASIGNAL_KILL_EVIDENCE_GRAPH_V1
+        value: "false"
