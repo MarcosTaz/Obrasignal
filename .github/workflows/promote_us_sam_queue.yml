@@ -1,0 +1,43 @@
+name: Promote US SAM Queue
+
+on:
+  push:
+    branches: [codex/us-sam-q050]
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/us-sam-q050
+      - name: Promote Q050 and evidence
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('master_execution_queue.py')
+          s=p.read_text()
+          s=s.replace('CURRENT_ITEM_ID = "Q050_US_SAM"','CURRENT_ITEM_ID = "Q060_CHILE_MERCADOPUBLICO"',1)
+          old='''    _q("Q050_US_SAM", "SAM.gov federal construction opportunities connector", "SIGNAL", "ACTIVE", "PRODUCTION",\n       ("Q020_SIGNAL_CONTRACT_V1",),\n       "Highest absolute commercial upside; federal opportunities first, SLED only if later justified."),\n    _q("Q060_CHILE_MERCADOPUBLICO", "Chile Mercado Público construction connector", "SIGNAL", "QUEUED", "PRODUCTION",\n'''
+          new='''    _q("Q050_US_SAM", "SAM.gov federal construction opportunities connector", "SIGNAL", "DONE", "PRODUCTION",\n       ("Q020_SIGNAL_CONTRACT_V1",),\n       "Official public Contract Opportunities bulk path validated: strict 47-column schema, NAICS 23 construction admission, NoticeId identity, opt-in runtime wiring, fail-closed disappearance semantics, exact-head CI and live production-path proof."),\n    _q("Q060_CHILE_MERCADOPUBLICO", "Chile Mercado Público construction connector", "SIGNAL", "ACTIVE", "PRODUCTION",\n'''
+          if old not in s:
+              raise SystemExit('Q050/Q060 queue target missing')
+          p.write_text(s.replace(old,new,1))
+
+          p=Path('US_SAM_EVIDENCE.md'); s=p.read_text()
+          s=s.replace('Status: IMPLEMENTATION IN PROGRESS.','Status: PRODUCTION PATH VALIDATED.',1)
+          appendix='''\n## Validation closeout — 2026-08-25\n\n- Exact clean head `388c1d66cb739d244ed2ec4e36f1648997282b29` passed ObraSignal Quality run #1049 (Python + Mobile/Expo).\n- The same head passed SAM.gov Live Gate run #6, including deterministic connector tests and a real full-extract production-path ingestion.\n- An earlier live failure exposed a Requests raw-stream wrapper bug (`I/O operation on closed file`). The adapter was corrected to use `response.iter_lines()` and a regression test covers publisher descriptions beyond Python csv's default 128 KiB field limit.\n- SAM.gov Terms of Use explicitly identify public APIs/extracts as supported automated data channels and distinguish them from prohibited website scraping. ObraSignal uses only the public extract path.\n- API v2 remains an optional future freshness accelerator; Q050 completion does not depend on an API key.\n'''
+          if '## Validation closeout — 2026-08-25' not in s:
+              s += appendix
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add master_execution_queue.py US_SAM_EVIDENCE.md
+          git diff --cached --quiet || git commit -m "Complete US SAM and activate Chile Mercado Publico"
+          git push origin HEAD:codex/us-sam-q050
