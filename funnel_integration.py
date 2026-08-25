@@ -1,4 +1,7 @@
+from datetime import datetime, timezone
+
 from company_profile import load_profile
+from decision_evidence import customer_evidence_view, maybe_decision_evidence
 from decision_log import record_decision
 from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
@@ -30,8 +33,21 @@ def persist_and_classify(conn, item, is_new, account_id='default'):
         "capability_evidence": evaluation["capability_evidence"],
         "cpv_evidence": evaluation["cpv_evidence"],
         "hard_capability_blockers": evaluation["hard_capability_blockers"],
-        "explanation": evaluation["explanation"],
+        "explanation": dict(evaluation["explanation"]),
     }
+
+    decided_at = datetime.now(timezone.utc).isoformat()
+    evidence = maybe_decision_evidence(
+        account_id,
+        enriched,
+        profile,
+        evaluation,
+        rule_version=RULE_VERSION,
+        decided_at=decided_at,
+    )
+    if evidence is not None:
+        features["decision_evidence"] = evidence
+        features["explanation"]["evidence"] = customer_evidence_view(evidence)
 
     record_decision(
         conn,
@@ -42,6 +58,7 @@ def persist_and_classify(conn, item, is_new, account_id='default'):
         score=evaluation["profile_score"],
         features=features,
         rule_version=RULE_VERSION,
+        decided_at=decided_at,
         account_id=account_id,
     )
     return evaluation["decision"], evaluation["reason"]
