@@ -49,11 +49,25 @@
     "UNKNOWN",
     "HISTORICAL"
   ],
+  "owner_gate_states": [
+    "OWNER_CURRENT_GREEN",
+    "RED",
+    "NEEDS_RECHECK"
+  ],
+  "trigger_awareness_states": [
+    "AUTO_TRIGGER_EXPECTED",
+    "AUTO_TRIGGER_FILTERED_LEGITIMATELY",
+    "MANUAL_DISPATCH_AVAILABLE",
+    "WORKFLOW_MISSING",
+    "REQUIRED_NOT_RUN",
+    "ATTRIBUTION_UNKNOWN"
+  ],
   "owned_automation": [
     "repository observation",
     "status normalization",
     "exact-reference drift detection",
     "gate attribution",
+    "path-filter and manual-dispatch awareness",
     "evidence invalidation metadata",
     "handoff preparation",
     "routing metadata",
@@ -92,8 +106,10 @@
     "INCIDENTALLY_TRIGGERED failure != owner RED",
     "required failed gate = owner RED",
     "REQUIRED_NOT_RUN != GREEN",
+    "legitimately path-filtered automatic workflow != REQUIRED_NOT_RUN",
     "unknown gate attribution = NEEDS_RECHECK",
     "historical success != current proof",
+    "OWNER_CURRENT_GREEN != integration green",
     "CURRENT operational metadata != product readiness",
     "green workflow != merge authorization"
   ]
