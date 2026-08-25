@@ -9,12 +9,18 @@ class _Conn:
         pass
 
 
-def test_compare_endpoint_uses_server_identity_and_ignores_payload_account(monkeypatch):
-    identity = SimpleNamespace(account_id="verified-account", authenticated=True)
-    captured = {}
-
+def _authenticated(monkeypatch, account_id="verified-account"):
+    identity = SimpleNamespace(account_id=account_id, authenticated=True)
+    monkeypatch.setattr(api, "_identity", lambda: identity)
+    monkeypatch.setattr(api, "ensure_account", lambda conn, value: None)
     monkeypatch.setattr(cors_app, "configured_identity", lambda: identity)
     monkeypatch.setattr(api, "_db", lambda: _Conn())
+    return identity
+
+
+def test_compare_endpoint_uses_server_identity_and_ignores_payload_account(monkeypatch):
+    _authenticated(monkeypatch)
+    captured = {}
 
     def fake_compare(conn, account_context, opportunity_ids, options=None):
         captured["account_id"] = account_context.account_id
@@ -46,6 +52,7 @@ def test_compare_endpoint_requires_identity(monkeypatch):
     def no_identity():
         raise RuntimeError("missing identity")
 
+    monkeypatch.setattr(api, "_identity", no_identity)
     monkeypatch.setattr(cors_app, "configured_identity", no_identity)
     client = cors_app.APP.test_client()
     response = client.post("/api/v1/opportunities/compare", json={"opportunity_ids": [1, 2]})
@@ -55,8 +62,7 @@ def test_compare_endpoint_requires_identity(monkeypatch):
 
 
 def test_compare_endpoint_rejects_non_object_json(monkeypatch):
-    identity = SimpleNamespace(account_id="verified-account", authenticated=True)
-    monkeypatch.setattr(cors_app, "configured_identity", lambda: identity)
+    _authenticated(monkeypatch)
     client = cors_app.APP.test_client()
 
     response = client.post("/api/v1/opportunities/compare", json=[1, 2])
@@ -66,9 +72,7 @@ def test_compare_endpoint_rejects_non_object_json(monkeypatch):
 
 
 def test_compare_endpoint_maps_domain_validation_and_not_found(monkeypatch):
-    identity = SimpleNamespace(account_id="verified-account", authenticated=True)
-    monkeypatch.setattr(cors_app, "configured_identity", lambda: identity)
-    monkeypatch.setattr(api, "_db", lambda: _Conn())
+    _authenticated(monkeypatch)
     client = cors_app.APP.test_client()
 
     monkeypatch.setattr(
