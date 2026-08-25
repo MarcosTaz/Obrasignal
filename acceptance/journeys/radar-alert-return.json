@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "journey_id": "GP16_RADAR_ALERT_RETURN",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "segments": [
+    {"step":"AUTH","classification":"PROVEN_PRODUCTION_API","evidence":"Authenticated E2E run 32867427570"},
+    {"step":"PROFILE","classification":"PROVEN_PRODUCTION_API","evidence":"Authenticated E2E profile persistence round-trip"},
+    {"step":"PERSONALIZED_RADAR","classification":"PARTIAL","evidence":"production API access proven; customer-visible unknown-as-zero defect BUG-GP-006 remains"},
+    {"step":"ALERT_API","classification":"PROVEN_AUTOMATED","evidence":"repository alert-feed/actionability coverage"},
+    {"step":"PUSH_PERMISSION","classification":"READY_FOR_DEVICE","evidence":"requires physical/native permission path"},
+    {"step":"ACTUAL_PUSH_DELIVERY","classification":"READY_FOR_DEVICE","evidence":"requires physical/native notification delivery"},
+    {"step":"FOREGROUND_RETURN_REFRESH","classification":"PROVEN_AUTOMATED","evidence":"mobile implementation/smoke coverage exists; real-device restart/return still required"},
+    {"step":"RESTART_SESSION_PERSISTENCE","classification":"READY_FOR_DEVICE","evidence":"requires real-device restart/session continuity acceptance"}
+  ],
+  "overall":"FAILED",
+  "blocking_defects":["BUG-GP-006"],
+  "device_procedure":[
+    "Use a physical Android device with a test account and notification permission initially unset.",
+    "Authenticate, complete profile and verify personalized Radar values are truthful before enabling notifications.",
+    "Enable notifications and record OS permission result; denial must not be represented as push enabled.",
+    "Create/obtain one unread high-match alert for the same tenant and prove another tenant cannot receive/read it.",
+    "Background the app, deliver the alert, tap it, return to the app and verify refreshed current opportunity truth.",
+    "Force-stop/restart the app and verify authenticated session/cache behavior does not convert unavailable data to zero or current truth.",
+    "Record exact app build, API deployment SHA, device/OS, account, alert event id and screenshots/log evidence."
+  ]
+}
