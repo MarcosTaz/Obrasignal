@@ -1,7 +1,8 @@
 """Canonical CLI/public interface for the ObraSignal international coverage audit.
 
-The internal core gathers repository evidence.  This public boundary applies the
-strict path-token and final gating policy so callers have one canonical result.
+The internal core gathers repository evidence. This public boundary applies the
+strict path-token, final gating and repository-provenance policy so callers have
+one canonical result.
 """
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ import re
 from pathlib import Path
 
 import international_coverage_audit_core as _core
+from international_audit_provenance import enrich_audit
 
 
 def _slug(value: str) -> str:
@@ -18,12 +20,7 @@ def _slug(value: str) -> str:
 
 
 def _exact_path_token_match(path: Path, token: str) -> bool:
-    """Match token segments contiguously; never match inside another word.
-
-    Examples: ``AUT`` must not match ``auth`` and ``BASE`` must not match
-    ``database``. Multi-segment tokens such as ``at_kerndaten`` still match
-    filenames containing those exact adjacent segments.
-    """
+    """Match token segments contiguously; never match inside another word."""
     wanted = tuple(part for part in _slug(token).split("_") if part)
     actual = tuple(part for part in _slug(str(path.with_suffix(""))).split("_") if part)
     if not wanted or len(wanted) > len(actual):
@@ -32,13 +29,12 @@ def _exact_path_token_match(path: Path, token: str) -> bool:
     return any(actual[index : index + width] == wanted for index in range(len(actual) - width + 1))
 
 
-# The core is internal to this module. Install the canonical matcher before any
-# audit runs so every provenance classification uses the same fail-closed rule.
 _core._matches_token = _exact_path_token_match
 
 
 def run_audit(repo_root=None):
-    result = _core.run_audit(repo_root)
+    root = Path(repo_root or Path(__file__).resolve().parent)
+    result = _core.run_audit(root)
     missing = set(result["missing_integrations"])
     for row in result["countries"]:
         if row["MARKET_CLASSIFICATION"] not in {"BUILD", "SHARED"}:
@@ -51,14 +47,58 @@ def run_audit(repo_root=None):
         missing.add(f"{row['COUNTRY']}:no_active_production_source")
     result["missing_integrations"] = sorted(missing)
     result["summary"]["missing_integration_count"] = len(result["missing_integrations"])
-    return result
+    return enrich_audit(result, root)
 
 
 def to_markdown(result):
-    return _core.to_markdown(result)
+    lines = [
+        "# ObraSignal International Coverage Audit",
+        "",
+        "Generated from repository state only; chat memory and external research are excluded.",
+        "",
+        "## Summary",
+        "",
+    ]
+    lines.extend(f"- **{key}**: {value}" for key, value in result["summary"].items())
+    lines.extend(["", "## Capability states", ""])
+    if result.get("capabilities"):
+        lines.append("| Capability | State | Health | Owner |")
+        lines.append("|---|---|---|---|")
+        for item in result["capabilities"]:
+            lines.append(
+                f"| {item['name']} | {item['state']} | {item['health']} | {item['owner_domain']} |"
+            )
+    else:
+        lines.append("- None proven")
+
+    lines.extend(["", "## Countries", ""])
+    lines.append(
+        "| Country | ISO2 | ISO3 | Market | Sources | Signals | Research only | PR | Implemented | Tested | Live | Runtime | Production | Gated | Gaps |"
+    )
+    lines.append("|---|---|---|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---|")
+    for row in result["countries"]:
+        lines.append(
+            "| {COUNTRY} | {ISO2} | {ISO3} | {MARKET_CLASSIFICATION} | {sources} | "
+            "{signals} | {RESEARCH_ONLY} | {prs} | {IMPLEMENTED} | {TESTED} | "
+            "{LIVE_VALIDATED} | {RUNTIME_WIRED} | {PRODUCTION_PATH} | {GATED} | {gaps} |".format(
+                **row,
+                sources=", ".join(row["SOURCES"]) or "-",
+                signals=", ".join(row["SIGNAL_TYPES"]) or "-",
+                prs=", ".join(f"#{value}" for value in row["PR"]) or "-",
+                gaps=", ".join(row["KNOWN_GAPS"]) or "-",
+            )
+        )
+    lines.extend(["", "## Research-only countries", ""])
+    lines.extend(f"- {item}" for item in result.get("research_only_countries", []) or ["None"])
+    lines.extend(["", "## Explicit PR references", ""])
+    lines.extend(f"- #{item}" for item in result.get("explicit_pr_references", []) or ["None found in local git history"])
+    lines.extend(["", "## Contradictions", ""])
+    lines.extend(f"- {item}" for item in result["contradictions"] or ["None"])
+    lines.extend(["", "## Missing integrations", ""])
+    lines.extend(f"- {item}" for item in result["missing_integrations"] or ["None"])
+    return "\n".join(lines) + "\n"
 
 
-# Backwards-compatible internal name from the first implementation.
 _to_markdown = to_markdown
 
 
