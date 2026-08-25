@@ -9,6 +9,7 @@ import preload as _preload
 from preload import APP, _deadline_dt
 from auth_context import configured_identity
 from auth_context_jwt import JwksUnavailableError
+from capability_rollout import runtime_enabled
 from company_profile import load_profile, save_profile, derive_profile
 from source_registry import SOURCES
 from account_registry import ensure_account
@@ -102,6 +103,15 @@ def _deadline_state(value):
     return {"state": "open", "label": "Aberto", "days_remaining": int(days)}
 
 
+def _evidence_runtime_enabled():
+    try:
+        return runtime_enabled("EVIDENCE")
+    except RuntimeError:
+        # Malformed rollout configuration must not expose an experimental
+        # capability that the operator cannot reliably disable.
+        return False
+
+
 def _row(row, decision=None, workflow=None):
     d = dict(row)
     lifecycle_value = d.get("is_actionable")
@@ -109,19 +119,25 @@ def _row(row, decision=None, workflow=None):
     d["deadline_status"] = _deadline_state(d.get("deadline"))
     d["is_open"] = d["is_actionable"] and d["deadline_status"]["state"] in ("open", "urgent")
     if decision:
+        features = decision.get("features", {})
+        explanation = features.get("explanation")
+        if isinstance(explanation, dict):
+            explanation = dict(explanation)
+            if not _evidence_runtime_enabled():
+                explanation.pop("evidence", None)
         d["account_decision"] = decision.get("decision")
         d["account_reason"] = decision.get("reason")
         d["account_score"] = decision.get("score")
         d["account_rule_version"] = decision.get("rule_version")
         d["account_decided_at"] = decision.get("decided_at")
-        d["explanation"] = decision.get("features", {}).get("explanation")
-        d["economic_fit"] = decision.get("features", {}).get("economic_fit")
-        d["capability_evidence"] = decision.get("features", {}).get("capability_evidence")
-        d["cpv_evidence"] = decision.get("features", {}).get("cpv_evidence")
-        d["hard_capability_blockers"] = decision.get("features", {}).get("hard_capability_blockers", [])
-        d["profile_score"] = decision.get("features", {}).get("profile_score", d.get("profile_score"))
-        d["lot_score"] = decision.get("features", {}).get("lot_score", d.get("lot_score"))
-        d["geography"] = decision.get("features", {}).get("geography")
+        d["explanation"] = explanation
+        d["economic_fit"] = features.get("economic_fit")
+        d["capability_evidence"] = features.get("capability_evidence")
+        d["cpv_evidence"] = features.get("cpv_evidence")
+        d["hard_capability_blockers"] = features.get("hard_capability_blockers", [])
+        d["profile_score"] = features.get("profile_score", d.get("profile_score"))
+        d["lot_score"] = features.get("lot_score", d.get("lot_score"))
+        d["geography"] = features.get("geography")
     else:
         d["account_decision"] = None
         d["account_reason"] = None
