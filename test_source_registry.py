@@ -191,3 +191,16 @@ def test_austria_registry_declares_only_proven_distributed_tender_contract():
 def test_staleness_is_source_specific():
     assert stale_after_minutes_for("PY_DNCP") == 180
     assert stale_after_minutes_for("UNKNOWN", 77) == 77
+
+
+def test_chile_mercadopublico_is_prebuilt_but_credential_gated():
+    source = SOURCES["CL_MERCADOPUBLICO"]
+    assert source["status"] == "planned"
+    assert source["machine_access"] == "CREDENTIAL_REQUIRED"
+    assert source["access"] == "personal_ticket_required"
+    assert source["adapter"] == "MercadoPublicoConnector"
+    assert set(source["capabilities"]) == {"incremental_sync", "detail", "lifecycle"}
+    assert "CL_MERCADOPUBLICO" not in production_ready_sources()
+    assert set(production_gate_reasons("CL_MERCADOPUBLICO")) == {
+        "machine_access_not_verified", "runtime_not_enabled"
+    }
