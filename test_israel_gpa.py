@@ -78,10 +78,34 @@ def test_detail_parse_filter_and_normalize():
     assert record["source_updated_at"] == "2026-08-20"
     assert record["deadline"] == "2026-09-06T14:00"
     assert record["coverage_scope"].startswith("LIMITED_HIGH_VALUE_SLICE")
+    assert record["taxonomy"] == "IL_GPA_TITLE_ONLY_V1"
 
 
 def test_nonconstruction_notice_is_rejected_by_classifier():
     assert is_construction_relevant(parse_detail(DETAIL_NON_CONSTRUCTION)) is False
+
+
+def test_subject_only_construction_label_cannot_admit_unrelated_title():
+    # Regression for live false positive 4000621188 (gift vouchers). The portal
+    # can expose broad/hidden taxonomy text; subject metadata alone must not admit.
+    notice = GPANotice(
+        "Public Tender",
+        "Gift vouchers for court system",
+        "Buyer",
+        "4000621188",
+        "6/26",
+        "published",
+        "24/08/2026",
+        "24/08/2026",
+        "12/10/2026 12:00",
+        ("Building and maintenance services",),
+    )
+    assert is_construction_relevant(notice) is False
+
+
+def test_english_word_boundaries_avoid_broadband_road_false_positive():
+    notice = GPANotice("Public Tender", "Broadband services roadmap", "Buyer", "4000621199", "7/26", "published", "24/08/2026", "24/08/2026", "12/10/2026 12:00", ())
+    assert is_construction_relevant(notice) is False
 
 
 def test_unsupported_rfi_not_silently_reclassified_as_tender():
