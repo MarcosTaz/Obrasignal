@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from company_profile import load_profile
 from capability_profile import build_capability_profile, capability_matches_text
-from decision_evidence import maybe_decision_evidence
+from decision_evidence import customer_evidence_view, maybe_decision_evidence
 from decision_log import record_decision
 from lot_matcher import match_lot
 from economic_fit import evaluate_economic_fit, parse_contract_value
@@ -215,7 +215,7 @@ def _decision_features(evaluation):
         "capability_evidence": evaluation["capability_evidence"],
         "cpv_evidence": evaluation["cpv_evidence"],
         "hard_capability_blockers": evaluation["hard_capability_blockers"],
-        "explanation": evaluation["explanation"],
+        "explanation": dict(evaluation["explanation"]),
     }
 
 
@@ -237,6 +237,7 @@ def evaluate_and_record(conn, row, profile=None, account_id="default"):
     )
     if evidence is not None:
         features["decision_evidence"] = evidence
+        features["explanation"]["evidence"] = customer_evidence_view(evidence)
 
     record_decision(
         conn,
