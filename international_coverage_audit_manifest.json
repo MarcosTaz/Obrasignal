@@ -4,29 +4,35 @@
     "python international_coverage_audit.py --json",
     "python international_coverage_audit.py --markdown",
     "python international_coverage_audit.py --strict",
-    "pytest test_international_coverage_audit.py test_international_coverage_audit_regressions.py"
+    "pytest test_international_coverage_audit.py test_international_coverage_audit_regressions.py test_international_audit_provenance.py"
   ],
   "contract": "OBRASIGNAL_REPOSITORY_STATE_INTERNATIONAL_COVERAGE_AUDIT_V1",
   "files_added": [
     ".github/workflows/international-coverage-audit.yml",
     "INTERNATIONAL_COVERAGE_AUDIT.md",
+    "international_audit_provenance.py",
     "international_country_codes.py",
     "international_coverage_audit.py",
     "international_coverage_audit_core.py",
     "international_coverage_audit_manifest.json",
+    "test_international_audit_provenance.py",
     "test_international_coverage_audit.py",
     "test_international_coverage_audit_regressions.py"
   ],
   "files_modified": [],
   "global_registry_changes": [],
   "integration_notes": [
-    "The canonical public boundary remains international_coverage_audit.py; engine and ISO data are internal small modules, not alternate runtimes.",
-    "The auditor imports existing market/source/shared-family registries and performs no network I/O.",
+    "international_coverage_audit.py is the single canonical public CLI; core, country-code and provenance modules are internal helpers, not alternate runtimes.",
+    "The auditor imports existing market, source, shared-family and capability registries; it does not mutate them.",
+    "Source/runtime evidence performs no network I/O. PR provenance uses local git history only and reports only explicit pull-request references present in commit messages.",
+    "The audit workflow checks out full local git history (fetch-depth 0) so PR provenance can be proven rather than guessed.",
+    "Research-only status requires country-specific evidence filename provenance or a regional RESEARCH/GATE document naming the country; broad portfolio/scope documents do not qualify.",
+    "ISO3 codes are never matched against prose because valid codes such as ARE can collide with ordinary language.",
     "Path provenance uses contiguous exact slug segments: AUT cannot match auth_* and BASE cannot match database.",
     "Test files are excluded from code/runtime provenance.",
     "TED_EFORMS membership is projected only through the concrete active TED registry source; strategic shared families without a concrete active source are not promoted to executable coverage.",
     "BUILD/SHARED markets without an active production source receive NO_ACTIVE_PRODUCTION_SOURCE and a matching missing-integration entry.",
-    "The dedicated workflow generates deterministic JSON and Markdown artifacts and validates their contract.",
+    "The dedicated workflow generates deterministic JSON and Markdown artifacts and validates country, contradiction, missing-integration, research, capability and PR-provenance contracts.",
     "No country/source state, runtime registry, production deployment, or Master Queue item is modified."
   ],
   "validation": {
@@ -42,9 +48,11 @@
       "result": "success",
       "note": "exposed ISO/provenance defects and was rejected as canonical truth"
     },
-    "corrected_artifact_run": {
-      "run_id": 32837201615,
-      "artifact_id": 9559069455,
+    "pre_final_provenance_artifact": {
+      "head_sha": "e616d6af787965f9557478af10f9664a9ad1ec6a",
+      "run_id": 32837969387,
+      "artifact_id": 9559356978,
+      "artifact_digest": "sha256:ae6ed147ba091bb71e9090c7135e873b4ba34872b039050065a27ef57cc4e773",
       "result": "success",
       "summary": {
         "country_count": 135,
@@ -52,11 +60,21 @@
         "contradiction_count": 0,
         "missing_integration_count": 34,
         "production_path_countries": 26,
-        "gated_countries": 110
+        "gated_countries": 110,
+        "research_only_countries": 1,
+        "explicit_pr_reference_count": 0
       },
+      "capability_summary": {
+        "ENABLED": 1,
+        "EXPERIMENT": 1,
+        "RESEARCH": 13
+      },
+      "research_only_countries": ["Ukraine"],
+      "pr_provenance": "full local git history available; no explicit PR references associated with audited files",
       "iso_unknown_count": 0
     },
-    "container_repo_clone": "blocked_dns_resolution"
+    "container_repo_clone": "blocked_dns_resolution",
+    "final_exact_head_ci": "recorded in PR body after this manifest commit to avoid self-invalidating the recorded head"
   },
   "master_queue_changes": [],
   "module": "GLOBAL COUNTRY GAP & COVERAGE AUDITOR",
