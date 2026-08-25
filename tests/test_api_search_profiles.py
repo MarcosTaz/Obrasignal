@@ -80,6 +80,11 @@ def test_crud_is_tenant_scoped_and_payload_cannot_choose_account(monkeypatch, tm
     profile_id = created.get_json()["profile"]["profile_id"]
     assert created.get_json()["account_id"] == "account-a"
 
+    assert client.post(
+        f"/api/v1/search-profiles/{profile_id}/run",
+        json={"account_id": "account-b"},
+    ).status_code == 400
+
     monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "account-b")
     assert client.get(f"/api/v1/search-profiles/{profile_id}").status_code == 404
     assert client.patch(f"/api/v1/search-profiles/{profile_id}", json={"name": "stolen"}).status_code == 404
