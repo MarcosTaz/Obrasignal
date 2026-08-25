@@ -1,32 +1,83 @@
 name: ObraSignal Production Smoke
 
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact current main SHA authorized for post-deploy verification
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
   group: production-smoke
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   production:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      TARGET_BUILD: ${{ github.sha }}
     steps:
-      - name: Wake and check exact API deployment health
-        id: backend
+      - name: Resolve canonical main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Resolve verification target without assuming main is deployed
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_TARGET: ${{ inputs.target_sha }}
         run: |
           set -euo pipefail
-          # Render services can cold-start or still be replacing the previous
-          # instance. A smoke run is green only for the exact revision under test.
+          canonical="$(git rev-parse HEAD)"
+          echo "CANONICAL_MAIN_SHA=$canonical" >> "$GITHUB_ENV"
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            target="$MANUAL_TARGET"
+            test -n "$target" || { echo 'target_sha is required for release verification.'; exit 1; }
+            test "$target" = "$canonical" || {
+              echo "Refusing post-deploy release verification: target $target is not current canonical main $canonical."
+              exit 1
+            }
+            intent="RELEASE_VERIFY"
+          else
+            curl --fail --silent --show-error --max-time 30 \
+              https://obrasignal.onrender.com/api/v1/health > /tmp/initial-health.json
+            target="$(python - <<'PY'
+          import json
+          health=json.load(open('/tmp/initial-health.json', encoding='utf-8'))
+          value=str(health.get('build') or '').strip().lower()
+          print(value)
+          PY
+            )"
+            printf '%s' "$target" | grep -Eq '^[0-9a-f]{40}$' || {
+              echo "Production health did not expose a full immutable deployed SHA."
+              exit 1
+            }
+            intent="MONITOR_DEPLOYED"
+          fi
+
+          echo "TARGET_BUILD=$target" >> "$GITHUB_ENV"
+          echo "RELEASE_INTENT=$intent" >> "$GITHUB_ENV"
+          echo "verification_target=$target"
+          echo "canonical_main=$canonical"
+          echo "release_intent=$intent"
+
+      - name: Wake and check exact API deployment health
+        id: backend
+        if: ${{ steps.target.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          # Manual release verification may begin while a separately authorized
+          # deployment is converging. Scheduled monitoring instead locks onto the
+          # immutable SHA it observed at run start. In both cases, never silently
+          # switch targets mid-run.
           for attempt in $(seq 1 18); do
             if curl --fail --silent --show-error --max-time 30 \
               https://obrasignal.onrender.com/api/v1/health > /tmp/health.json \
@@ -40,8 +91,6 @@ jobs:
           assert health.get('service') == 'obrasignal-api'
           assert health.get('build') == os.environ['TARGET_BUILD']
           auth=health.get('auth') or {}
-          # These fields are deliberately bounded by the API contract: no provider
-          # URL, issuer, token, JWK material, credentials or exception strings.
           safe_auth={name: auth.get(name) for name in (
               'mode', 'config_present', 'provider_status', 'provider_kind', 'provider_error'
           )}
@@ -57,16 +106,16 @@ jobs:
               break
             fi
             if [ "$attempt" = 18 ]; then
-              echo "Production never served a healthy target build ${TARGET_BUILD:0:7}."
+              echo "Production never served a healthy verification target ${TARGET_BUILD:0:7}."
               exit 1
             fi
-            echo "Waiting for healthy target production build ${TARGET_BUILD:0:7} (attempt $attempt/18)…"
+            echo "Waiting for exact verification target ${TARGET_BUILD:0:7} (attempt $attempt/18)…"
             sleep 10
           done
 
       - name: Check protected API boundary
         id: protected
-        if: ${{ always() }}
+        if: ${{ always() && steps.target.outcome == 'success' }}
         run: |
           set -euo pipefail
           status="$(curl --silent --output /tmp/body --write-out '%{http_code}' --max-time 30 \
@@ -76,7 +125,7 @@ jobs:
 
       - name: Check browser CORS preflight
         id: cors
-        if: ${{ always() }}
+        if: ${{ always() && steps.target.outcome == 'success' }}
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 30 \
@@ -91,14 +140,11 @@ jobs:
 
       - name: Check exact deployed Web build
         id: web
-        if: ${{ always() }}
+        if: ${{ always() && steps.target.outcome == 'success' }}
         run: |
           set -euo pipefail
           expected="${TARGET_BUILD:0:7}"
           marker="<meta name=\"obrasignal-build\" content=\"${expected}\">"
-          # The Pages deploy runs independently from the backend rollout. Retry a
-          # bounded window so a normal concurrent rollout does not become a false
-          # negative, but never accept an old/stale Web shell as production-green.
           for attempt in $(seq 1 18); do
             if curl --fail --silent --show-error --location --max-time 30 \
               https://marcostaz.github.io/Obrasignal/ > /tmp/web.html \
@@ -107,7 +153,7 @@ jobs:
               exit 0
             fi
             if [ "$attempt" = 18 ]; then
-              echo "GitHub Pages never served exact target Web build $expected."
+              echo "GitHub Pages never served exact verification target $expected."
               exit 1
             fi
             echo "Waiting for exact Web build $expected (attempt $attempt/18)…"
@@ -117,6 +163,7 @@ jobs:
       - name: Write bounded production release evidence
         if: ${{ always() }}
         env:
+          TARGET_OUTCOME: ${{ steps.target.outcome }}
           BACKEND_OUTCOME: ${{ steps.backend.outcome }}
           PROTECTED_OUTCOME: ${{ steps.protected.outcome }}
           CORS_OUTCOME: ${{ steps.cors.outcome }}
@@ -132,14 +179,18 @@ jobs:
           from datetime import datetime, timezone
           from pathlib import Path
 
-          target = os.environ['TARGET_BUILD']
+          target = os.environ.get('TARGET_BUILD') or None
+          canonical = os.environ.get('CANONICAL_MAIN_SHA') or None
+          intent = os.environ.get('RELEASE_INTENT') or 'UNKNOWN'
           outcomes = {
+              'target_resolution': os.environ.get('TARGET_OUTCOME'),
               'backend_exact_build_and_auth': os.environ.get('BACKEND_OUTCOME'),
               'protected_api_boundary': os.environ.get('PROTECTED_OUTCOME'),
               'cors_preflight': os.environ.get('CORS_OUTCOME'),
               'web_exact_build': os.environ.get('WEB_OUTCOME'),
           }
           verified = all(value == 'success' for value in outcomes.values())
+          main_drift = None if not target or not canonical else target != canonical
 
           health = {}
           health_path = Path('/tmp/health.json')
@@ -167,13 +218,24 @@ jobs:
               if match:
                   web_build = match.group(1)
 
+          if main_drift is None:
+              alignment = 'UNKNOWN'
+          elif main_drift:
+              alignment = 'DEPLOYED_BEHIND_OR_DIFFERENT_FROM_MAIN'
+          else:
+              alignment = 'ALIGNED_WITH_MAIN'
+
           proof = {
-              'schema_version': 1,
+              'schema_version': 2,
               'verification': 'VERIFIED' if verified else 'FAILED',
               'failure_class': None if verified else 'UNKNOWN',
+              'release_intent': intent,
+              'canonical_main_sha': canonical,
               'target_sha': target,
               'backend_sha': health.get('build') if isinstance(health, dict) else None,
               'web_sha_short': web_build,
+              'main_drift': main_drift,
+              'production_alignment': alignment,
               'verified_at': datetime.now(timezone.utc).isoformat(),
               'event': os.environ.get('EVENT_NAME'),
               'github_run_id': os.environ.get('RUN_ID'),
@@ -181,6 +243,7 @@ jobs:
               'outcomes': outcomes,
               'safe_auth': safe_auth,
               'known_limitations': [
+                  'health_is_liveness_not_full_db_worker_dependency_readiness',
                   'does_not_prove_authenticated_customer_journey',
                   'does_not_prove_billing_or_entitlement_lifecycle',
                   'does_not_prove_source_freshness_or_market_completeness',
@@ -200,6 +263,6 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: obrasignal-production-proof-${{ github.sha }}
+          name: obrasignal-production-proof-${{ github.run_id }}
           path: release-proof.json
           if-no-files-found: error
