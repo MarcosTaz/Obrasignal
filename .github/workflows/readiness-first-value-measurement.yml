@@ -3,6 +3,7 @@ name: Readiness First Value Measurement
 on:
   pull_request:
     paths:
+      - 'production_readiness_manifest.json'
       - 'measure_first_value_latency.py'
       - 'measure_bootstrap_phases.py'
       - '.github/workflows/readiness-first-value-measurement.yml'
