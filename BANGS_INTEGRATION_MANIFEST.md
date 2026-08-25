@@ -6,7 +6,7 @@ BRANCH: feature/bangs-command-layer-v0
 
 BASE HEAD: 52e011083545a2e69526cd8e0a294cfb61682884
 
-PR: opened from branch to `main`; no auto-merge.
+PR: #193 — https://github.com/MarcosTaz/Obrasignal/pull/193 — open against `main`; no auto-merge.
 
 OWNED FILES:
 - `bangs/__init__.py`
@@ -31,7 +31,7 @@ CONFLICT RISKS: low. New package/docs/tests only. Integration conflicts can aris
 
 MERGE ORDER: domain capability branches may merge first or independently; Bangs may merge without them because missing providers fail closed. Provider wiring should happen only after each domain public contract is merged.
 
-TEST STATUS: 50 Bangs tests passed locally against the exact module files before publication. Repository-wide CI remains the exact-head gate.
+TEST STATUS: 50 tests from the initial module version passed locally before publication. The hardened PR head defines 68 Bangs test cases; the repository-wide GitHub Actions run on the exact PR head is the authoritative quality gate and must be green before integration.
 
 PRODUCTION STATUS: NOT CLAIMED.
 
