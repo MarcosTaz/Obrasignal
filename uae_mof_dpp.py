@@ -239,10 +239,15 @@ def fetch_current_opportunities(*, session=None, timeout: float = 20.0, max_page
 
 
 def fetch_normalized_construction_tenders(*, session=None, timeout: float = 20.0, max_pages: int = MAX_PAGES) -> list[dict]:
+    """Return the conservative federal construction slice after a valid observation.
+
+    A valid publisher response can legitimately contain zero RFQs admitted by
+    the conservative construction classifier. That is returned as an empty list,
+    while transport, schema, parsing, pagination and identity failures continue
+    to raise UAEMoFSourceError.
+    """
     raw = fetch_current_opportunities(session=session, timeout=timeout, max_pages=max_pages)
     normalized = normalize_construction_opportunities(raw)
-    if not normalized:
-        raise UAEMoFSourceError("UAE MoF fetch succeeded but construction classifier admitted zero records")
     ids = [r["external_id"] for r in normalized]
     if len(ids) != len(set(ids)):
         raise UAEMoFSourceError("duplicate UAE MoF RFQ identity after normalization")
