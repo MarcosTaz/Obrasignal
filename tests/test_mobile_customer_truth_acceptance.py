@@ -57,3 +57,27 @@ def test_mobile_never_claims_notifications_active_from_ambiguous_zero_result():
         "BUG-GP-007: an ambiguous zero result is rendered as notifications active. "
         "OS permission denial must never be presented as success."
     )
+
+
+def test_mobile_relevance_score_is_not_described_as_customer_recommendation():
+    source = _app_source()
+    assert "O scoring é uma recomendação baseada no perfil da tua empresa." not in source, (
+        "BUG-GP-009: relevance/match scoring is presented as a recommendation. "
+        "Ranking evidence must remain separate from the customer's explicit pursuit decision."
+    )
+
+
+def test_mobile_card_never_fabricates_ted_when_source_is_missing():
+    source = _app_source()
+    assert "item.source||'TED'" not in source, (
+        "BUG-GP-010: absent source identity is fabricated as TED on opportunity cards. "
+        "Missing provenance must remain unknown."
+    )
+
+
+def test_mobile_detail_never_fabricates_ted_when_source_is_missing():
+    source = _app_source()
+    assert "current.source||'TED'" not in source, (
+        "BUG-GP-010: absent source identity is fabricated as TED on opportunity detail. "
+        "Missing provenance must remain unknown."
+    )
