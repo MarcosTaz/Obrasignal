@@ -8,8 +8,6 @@ from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
 
-# api.py owns the mobile API blueprint; register it here because this is the
-# production WSGI entrypoint and keeps registration explicit at the boundary.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
 
@@ -39,7 +37,6 @@ def _cors(response):
 
 
 def _decorate_health(response):
-    """Add bounded auth readiness metadata without exposing provider secrets."""
     if request.path != "/api/v1/health" or not response.is_json:
         return response
     payload = response.get_json(silent=True)
@@ -79,10 +76,11 @@ def _global_api_cors(response):
 
 
 # Gunicorn imports this module before it starts accepting requests. Complete all
-# idempotent schema/read-model work and install additive global-source runtimes
-# before allowing the ingestion worker to run.
+# idempotent schema/read-model work behind one serialization boundary so the
+# inherited PRAGMA-table_info -> ALTER migrations cannot race at first startup.
 import app as _app
 from app import db, init_db, start_background_worker
+from storage_migration_lock import run_serialized_schema_init
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
 from latvia_runtime import install as install_latvia_runtime
@@ -99,7 +97,7 @@ from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 import preload as _preload
 
-init_db()
+run_serialized_schema_init(init_db, _app.DB)
 _lifecycle_conn = db()
 try:
     ensure_lifecycle_table(_lifecycle_conn)
