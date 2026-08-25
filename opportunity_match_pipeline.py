@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from company_profile import load_profile
 from capability_profile import build_capability_profile, capability_matches_text
+from decision_evidence import maybe_decision_evidence
 from decision_log import record_decision
 from lot_matcher import match_lot
 from economic_fit import evaluate_economic_fit, parse_contract_value
@@ -156,7 +157,7 @@ def evaluate_row(row, profile=None):
     if not positive_commercial_evidence:
         profile_score = min(profile_score, 59)
     # A score shown to a customer must agree with deterministic eligibility
-    # rules.  Previously a CPV/value/deadline blocker could say REJECT while
+    # rules. Previously a CPV/value/deadline blocker could say REJECT while
     # the same card still displayed e.g. 90/100.
     if hard_blockers:
         profile_score = min(profile_score, 35)
@@ -201,8 +202,42 @@ def evaluate_row(row, profile=None):
     }
 
 
+def _decision_features(evaluation):
+    return {
+        "profile_score": evaluation["profile_score"],
+        "lot_score": evaluation["lot_score"],
+        "lot_id": evaluation["lot_id"],
+        "match": evaluation["match"],
+        "geography": evaluation["geography"],
+        "commercial": evaluation["commercial"],
+        "economic_fit": evaluation["economic_fit"],
+        "capability": evaluation["capability"],
+        "capability_evidence": evaluation["capability_evidence"],
+        "cpv_evidence": evaluation["cpv_evidence"],
+        "hard_capability_blockers": evaluation["hard_capability_blockers"],
+        "explanation": evaluation["explanation"],
+    }
+
+
 def evaluate_and_record(conn, row, profile=None, account_id="default"):
-    evaluation = evaluate_row(row, profile)
+    # The persisted decision is account-scoped, so its implicit profile lookup
+    # must be account-scoped too. Falling back to load_profile() here used to
+    # evaluate a non-default tenant against the default tenant's profile.
+    effective_profile = profile or load_profile(account_id)
+    evaluation = evaluate_row(row, effective_profile)
+    features = _decision_features(evaluation)
+    decided_at = datetime.now(timezone.utc).isoformat()
+    evidence = maybe_decision_evidence(
+        account_id,
+        row,
+        effective_profile,
+        evaluation,
+        rule_version=RULE_VERSION,
+        decided_at=decided_at,
+    )
+    if evidence is not None:
+        features["decision_evidence"] = evidence
+
     record_decision(
         conn,
         row.get("source") or "UNKNOWN",
@@ -210,20 +245,9 @@ def evaluate_and_record(conn, row, profile=None, account_id="default"):
         evaluation["decision"],
         evaluation["reason"],
         score=evaluation["profile_score"],
-        features={
-            "profile_score": evaluation["profile_score"],
-            "lot_score": evaluation["lot_score"],
-            "lot_id": evaluation["lot_id"],
-            "match": evaluation["match"],
-            "geography": evaluation["geography"],
-            "commercial": evaluation["commercial"],
-            "economic_fit": evaluation["economic_fit"],
-            "capability_evidence": evaluation["capability_evidence"],
-            "cpv_evidence": evaluation["cpv_evidence"],
-            "hard_capability_blockers": evaluation["hard_capability_blockers"],
-            "explanation": evaluation["explanation"],
-        },
+        features=features,
         rule_version=RULE_VERSION,
+        decided_at=decided_at,
         account_id=account_id,
     )
     # Real normalized market data has reached the account-specific decision path.
