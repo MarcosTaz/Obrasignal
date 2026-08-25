@@ -68,6 +68,7 @@ V0 diffs only centrally registered product fields:
 - `currency`;
 - `source_status`;
 - `lifecycle_status`;
+- `source_version` (publisher-native amendment/revision identity);
 - `title`;
 - `description`;
 - `buyer`;
@@ -76,7 +77,7 @@ V0 diffs only centrally registered product fields:
 - structured `documents`;
 - structured `requirements`.
 
-Technical timestamps, retrieval hashes and connector-private fields are absent from the registry and cannot create user-facing noise.
+Technical timestamps, retrieval hashes and connector-private fields are absent from the registry and cannot create user-facing noise. Publisher-native revision identity is deliberately not treated as a technical timestamp: a real amendment/revision transition is itself material provenance and must not disappear merely because other normalized fields happen to be unchanged.
 
 ## NORMALIZATION
 
@@ -84,8 +85,8 @@ Comparison uses canonical monitored values, never raw HTML/XML.
 
 Rules are intentionally narrow:
 
-- collapse whitespace;
-- ignore capitalization only for policy-approved fields;
+- collapse whitespace before any large-text digest is calculated;
+- ignore capitalization only for policy-approved fields and do so before large-text digesting;
 - normalize safe/unambiguous dates deterministically;
 - normalize decimal values without guessing locale separators;
 - keep currency semantically independent from amount;
@@ -96,7 +97,7 @@ Rules are intentionally narrow:
 
 ## MATERIALITY
 
-V0 uses explicit registry rules. It does not use an LLM or opaque score. Current monitored business fields are `MATERIAL`; unresolved missing-state ambiguity in the pure engine is `UNKNOWN`.
+V0 uses explicit registry rules. It does not use an LLM or opaque score. Current monitored business fields, including publisher-native source revision/amendment identity, are `MATERIAL`; unresolved missing-state ambiguity in the pure engine is `UNKNOWN`.
 
 ## NULL / MISSING SEMANTICS
 
@@ -116,13 +117,15 @@ Stable identity is resolved only from configured safe identity keys. Add/remove 
 
 `A -> B -> A` produces two real change sets.
 
-`A -> B -> A -> B` preserves all three real transitions. Duplicate delivery is suppressed by comparing the incoming fingerprint with the latest persisted snapshot before creating anything.
+`A -> B -> A -> B` preserves all three real transitions. Duplicate delivery is suppressed by comparing the incoming fingerprint with the latest persisted snapshot before creating anything. Because `source_version` is monitored when present, `revision r1 -> r2` is a real transition even if all other monitored business values are unchanged.
 
 ## NATIVE AMENDMENTS / SOURCE VERSION
 
-Native revision identity wins when explicitly normalized. Supported generic names include `source_version`, `revision_id`, `amendment_id`, `corrigendum_id`, `native_revision`, and `release_id`.
+Native revision identity wins when explicitly normalized. The source transaction boundary projects supported aliases into `source_version`: `amendment_number`, `revision_id`, `amendment_id`, `corrigendum_id`, `native_revision`, and `release_id`.
 
 CanadaBuys already normalizes `amendment_number` and `amendment_date`; the source transaction boundary aliases those values into the generic history contract without altering current Signal persistence or fabricating a source version.
+
+A publisher-native revision-only change therefore creates a material change set with `changed_fields = ["source_version"]`. This closes the audit gap where a real amendment could otherwise be suppressed because no other normalized field changed.
 
 ## PERSISTENCE AND TRANSACTION SAFETY
 
@@ -148,6 +151,10 @@ Persisted history carries:
 - `schema_version = 1`;
 - `normalizer_version = canonical-change-normalizer-v0`;
 - `diff_policy_version = opportunity-material-diff-v0`.
+
+## DEADLINE DIRECTION SAFETY
+
+When both normalized deadline values are directly comparable, changes are annotated as `EXTENDED` or `SHORTENED`. Mixed offset-aware/offset-naive representations remain a material deadline change but do **not** assert direction; direction becomes `null` rather than allowing a Python timezone-comparison `TypeError` to abort source ingestion.
 
 ## EVENT CONTRACT
 
@@ -184,6 +191,7 @@ Source content is untrusted.
 - history never evaluates source strings;
 - JSON uses the standard encoder;
 - giant text and total snapshot size are bounded;
+- whitespace/case normalization happens before large-text hashing, preventing false material changes caused only by formatting noise;
 - raw publisher HTML/XML is not stored here;
 - connector-private keys are not monitored;
 - no new private/account data is introduced.
@@ -192,7 +200,7 @@ A future HTML UI must escape values at render time; persistence deliberately doe
 
 ## TESTING
 
-Dedicated tests cover identical-state idempotency, deadline extension/shortening/reversal, repeated real transitions, date equivalence, value/currency/status changes, whitespace/case noise suppression, real title changes, collection reorder, document/lot add/remove, multi-field grouping, missing vs explicit null, duplicate delivery, bootstrap from existing Signal state, native amendment provenance, deterministic fingerprints, material-only reads, event projection, hostile source strings, oversized-state fail-closed behavior and transaction rollback.
+Dedicated tests cover identical-state idempotency, deadline extension/shortening/reversal, mixed aware/naive deadline safety, repeated real transitions, date equivalence, value/currency/status changes, whitespace/case noise suppression including oversized text, real title changes, collection reorder, document/lot add/remove, multi-field grouping, missing vs explicit null, duplicate delivery, bootstrap from existing Signal state, native amendment provenance, revision-only publisher amendments, deterministic fingerprints, material-only reads, event projection, hostile source strings, oversized-state fail-closed behavior and transaction rollback.
 
 Repository quality gates additionally compile root Python modules and run the full Python suite plus Expo/mobile checks. CI status is evidence attached to the PR/head under test; documentation does not convert a passing branch test into a production claim.
 
@@ -200,6 +208,7 @@ Repository quality gates additionally compile root Python modules and run the fu
 
 - Only fields already normalized by a connector can be compared.
 - Connectors vary in structured lots/documents/requirements coverage.
+- A native revision proves that the publisher revised the opportunity; it does not by itself explain unnormalized document-body semantics.
 - No semantic LLM/PDF redline.
 - No cross-source authority reconciliation.
 - No user seen/unseen state.
