@@ -1,3 +1,4 @@
+import concurrent.futures
 import os
 import sqlite3
 
@@ -84,6 +85,34 @@ def test_public_fixture_startup_seam_is_idempotent_and_never_touches_primary(mon
         }
         assert "e2e_opportunity_fixtures" in tables
         assert "opportunity_workflow" in tables
+    finally:
+        conn.close()
+
+
+def test_concurrent_create_is_idempotent_after_owner_schema_init(monkeypatch, tmp_path):
+    _, fixture_db = _configure(monkeypatch, tmp_path)
+    e2e_fixture_api.initialize_fixture_store()
+
+    def create_once():
+        conn = e2e_fixture_api._connect()
+        try:
+            row, created = e2e_fixture_api._create_fixture(conn, "tenant-a", "concurrent-run")
+            return row["fixture_id"], created
+        finally:
+            conn.close()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda _: create_once(), range(24)))
+
+    fixture_ids = {fixture_id for fixture_id, _ in results}
+    assert len(fixture_ids) == 1
+    assert sum(1 for _, created in results if created) == 1
+    conn = sqlite3.connect(str(fixture_db))
+    try:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM e2e_opportunity_fixtures WHERE account_id=? AND run_id=?",
+            ("tenant-a", "concurrent-run"),
+        ).fetchone()[0] == 1
     finally:
         conn.close()
 
