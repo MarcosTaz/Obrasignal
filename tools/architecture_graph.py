@@ -2,8 +2,9 @@
 """Deterministic internal dependency graph for ObraSignal.
 
 The scanner is intentionally dependency-free. It discovers production Python
-imports, relative Mobile JS/TS imports and the Render WSGI entrypoint. Edges are
-UNKNOWN unless a narrow repository-proven policy classifies them.
+imports, literal dynamic Python imports, relative Mobile JS/TS imports and the
+Render WSGI entrypoint. Edges are UNKNOWN unless a narrow repository-proven
+policy classifies them.
 """
 from __future__ import annotations
 
@@ -70,7 +71,10 @@ def discover_production_files(root: Path) -> list[Path]:
 class _ImportVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
         self.function_depth = 0
-        self.imports: list[tuple[str, str]] = []
+        self.imports: list[tuple[str, str, str]] = []
+
+    def _scope(self) -> str:
+        return "LAZY" if self.function_depth else "MODULE_LOAD"
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self.function_depth += 1
@@ -80,14 +84,25 @@ class _ImportVisitor(ast.NodeVisitor):
     visit_AsyncFunctionDef = visit_FunctionDef
 
     def visit_Import(self, node: ast.Import) -> None:
-        scope = "LAZY" if self.function_depth else "MODULE_LOAD"
         for alias in node.names:
-            self.imports.append((alias.name, scope))
+            self.imports.append((alias.name, self._scope(), "PYTHON_IMPORT"))
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module:
-            scope = "LAZY" if self.function_depth else "MODULE_LOAD"
-            self.imports.append((node.module, scope))
+            self.imports.append((node.module, self._scope(), "PYTHON_IMPORT"))
+
+    def visit_Call(self, node: ast.Call) -> None:
+        if (
+            isinstance(node.func, ast.Name)
+            and node.func.id == "__import__"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            self.imports.append(
+                (node.args[0].value, self._scope(), "PYTHON_DYNAMIC_IMPORT")
+            )
+        self.generic_visit(node)
 
 
 def _python_module_map(files: Iterable[Path], root: Path) -> dict[str, str]:
@@ -106,7 +121,7 @@ def _python_edges(path: Path, root: Path, module_map: dict[str, str]) -> list[di
     visitor.visit(ast.parse(path.read_text(encoding="utf-8")))
     source = _rel(path, root)
     edges = []
-    for module, scope in visitor.imports:
+    for module, scope, kind in visitor.imports:
         target = module_map.get(module.split(".", 1)[0])
         if not target or target == source:
             continue
@@ -114,7 +129,7 @@ def _python_edges(path: Path, root: Path, module_map: dict[str, str]) -> list[di
             {
                 "source": source,
                 "target": target,
-                "kind": "PYTHON_IMPORT",
+                "kind": kind,
                 "scope": scope,
                 "classification": EDGE_POLICY.get((source, target), "UNKNOWN"),
             }
@@ -259,7 +274,12 @@ def build_graph(root: Path) -> dict:
     return {
         "schema_version": 1,
         "repository_sha": os.getenv("OBRASIGNAL_TEST_SHA", "UNKNOWN"),
-        "coverage": ["ROOT_PYTHON", "MOBILE_RELATIVE_JS_TS", "RENDER_WSGI_ENTRYPOINT"],
+        "coverage": [
+            "ROOT_PYTHON",
+            "LITERAL_PYTHON_DYNAMIC_IMPORTS",
+            "MOBILE_RELATIVE_JS_TS",
+            "RENDER_WSGI_ENTRYPOINT",
+        ],
         "nodes": nodes,
         "edges": edges,
         "cycles": _cycles(nodes, edges),
