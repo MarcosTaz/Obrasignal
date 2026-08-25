@@ -44,6 +44,23 @@ def test_enrich_rows_exposes_persisted_decision_and_layers():
     assert layers["economic_fit"]["score"] == 100
     assert layers["capability"]["kind"] == "evidence"
     assert layers["capability"]["score"] is None
+    assert layers["capability"]["evidence_count"] == 2
+
+
+def test_enrich_rows_preserves_unknown_capability_evidence_count():
+    conn = _db()
+    record_decision(
+        conn,
+        "TED",
+        "X-UNKNOWN",
+        "REVIEW",
+        "rever evidência",
+        features={"capability_evidence": {"reason": "contagem ainda não disponível"}},
+    )
+
+    summary = enrich_rows(conn, [{"source": "TED", "external_id": "X-UNKNOWN"}])[0]["decision_summary"]
+    capability = next(layer for layer in summary["layers"] if layer["key"] == "capability")
+    assert capability["evidence_count"] is None
 
 
 def test_enrich_rows_does_not_invent_decision():

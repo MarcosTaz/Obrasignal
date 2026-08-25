@@ -7,12 +7,6 @@ const COLORS = {
   blue: '#5E8BFF', green: '#6FE39A', amber: '#FFD66B', red: '#FF8998',
 };
 
-function toneForFactor(key) {
-  if (key === 'economic_fit') return COLORS.green;
-  if (key === 'geography' || key === 'capability') return COLORS.green;
-  return COLORS.blue;
-}
-
 function Factor({ title, text, score, tone = COLORS.blue }) {
   if (!text && score == null) return null;
   return <View style={styles.row}>
@@ -87,7 +81,7 @@ export default function OpportunityExplanation({ item }) {
   return <>
     {visibleFactors.length || blockers.length || negativeFactors.length || evidence ? <View style={styles.card}>
       <Text style={styles.heading}>Porque esta oportunidade</Text>
-      {visibleFactors.map((factor) => <Factor key={factor.key} title={factor.label} text={factor.reason} score={factor.score} tone={toneForFactor(factor.key)} />)}
+      {visibleFactors.map((factor) => <Factor key={factor.key} title={factor.label} text={factor.reason} score={factor.score} />)}
       {blockers.length ? <View style={styles.risk}><Text style={styles.riskTitle}>Atenção</Text>{blockers.map((blocker, index) => <Text key={`${blocker}-${index}`} style={styles.riskText}>• {blocker}</Text>)}</View> : null}
       {negativeFactors.length ? <View style={styles.risk}><Text style={styles.riskTitle}>Factores negativos</Text>{negativeFactors.map((factor, index) => <Text key={`${factor.reason}-${index}`} style={styles.riskText}>• {factor.reason}</Text>)}</View> : null}
       <EvidenceSummary evidence={evidence} />
