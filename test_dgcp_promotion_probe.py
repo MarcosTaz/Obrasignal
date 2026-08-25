@@ -1,48 +1,22 @@
-"""TEMPORARY forensic probe; remove after observing live pagination economics."""
-from datetime import datetime, timedelta, timezone
+"""TEMPORARY forensic probe; remove after measuring full PACC snapshot economics."""
+from datetime import datetime, timezone
 import json
+import time
 
-import requests
-
-from dominican_republic_dgcp import DGCP_OCDS_RELEASES_URL
-from dominican_republic_dgcp_pacc import DGCP_PACC_ACQUISITIONS_URL
+from dominican_republic_dgcp_pacc import DGCPPACCConfig, DGCPPACCConnector
 
 
-def _summary(url, params):
-    response = requests.get(
-        url,
-        params=params,
-        headers={"Accept": "application/json", "User-Agent": "ObraSignal temporary promotion probe/1.0"},
-        timeout=45,
-    )
-    response.raise_for_status()
-    envelope = response.json()
-    payload = envelope.get("payload") if isinstance(envelope, dict) else None
-    content = payload.get("content") if isinstance(payload, dict) else None
-    return {
-        "content_len": len(content) if isinstance(content, list) else None,
-        "meta": {
-            key: envelope.get(key)
-            for key in ("page", "limit", "pages", "totalResults")
-            if isinstance(envelope, dict) and key in envelope
-        },
+def test_temporary_dgcp_full_pacc_snapshot_probe():
+    now = datetime.now(timezone.utc)
+    connector = DGCPPACCConnector(DGCPPACCConfig(page_size=1000, max_pages=60, timeout=45))
+    started = time.perf_counter()
+    signals = connector.fetch_snapshot(now=now)
+    elapsed = round(time.perf_counter() - started, 3)
+    summary = {
+        "elapsed_seconds": elapsed,
+        "signals": len(signals),
+        "unique_ids": len({row.get("external_id") for row in signals}),
+        "all_works": all(row.get("category_code") == "OBRAS" for row in signals),
+        "all_future": all((row.get("target_date") or "") >= now.date().isoformat() for row in signals),
     }
-
-
-def test_temporary_dgcp_promotion_metadata_probe():
-    today = datetime.now(timezone.utc).date()
-    yesterday = today - timedelta(days=1)
-    ocds = _summary(
-        DGCP_OCDS_RELEASES_URL,
-        {
-            "page": 1,
-            "limit": 1000,
-            "start_date": yesterday.isoformat(),
-            "end_date": yesterday.isoformat(),
-        },
-    )
-    pacc = _summary(
-        DGCP_PACC_ACQUISITIONS_URL,
-        {"page": 1, "limit": 1000, "año": today.year},
-    )
-    raise AssertionError("DGCP_PROMOTION_META=" + json.dumps({"ocds": ocds, "pacc": pacc}, sort_keys=True, default=str))
+    raise AssertionError("DGCP_PACC_FULL_SNAPSHOT=" + json.dumps(summary, sort_keys=True))
