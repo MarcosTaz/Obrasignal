@@ -87,7 +87,21 @@ PREBUILD_CONTRACTS: dict[str, TableContract] = {
     ),
 }
 
-KNOWN_TABLE_OWNERS = {**STARTUP_CONTRACTS, **RUNTIME_CONTRACTS, **PREBUILD_CONTRACTS}
+# Explicitly owned persistence that is test infrastructure only. These tables are
+# classified for the root ownership guard but are never included in canonical or
+# PREBUILD fingerprints/verification, so registration cannot promote fixture data
+# into product persistence truth.
+TEST_ONLY_CONTRACTS: dict[str, TableContract] = {
+    "e2e_opportunity_fixtures": TableContract(
+        "E2E fixture / e2e_fixture_api [TEST_ONLY]",
+        frozenset({"fixture_id", "account_id", "run_id", "source", "external_id", "created_at"}),
+        tenant_column="account_id",
+        unique_keys=(("fixture_id",), ("account_id", "run_id"), ("account_id", "source", "external_id")),
+        required_indexes=("idx_e2e_fixture_account_run",),
+    ),
+}
+
+KNOWN_TABLE_OWNERS = {**STARTUP_CONTRACTS, **RUNTIME_CONTRACTS, **PREBUILD_CONTRACTS, **TEST_ONLY_CONTRACTS}
 
 JSON_COLUMNS: tuple[tuple[str, str], ...] = (
     ("company_profiles","profile_json"),
