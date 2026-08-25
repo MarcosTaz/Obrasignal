@@ -10,30 +10,77 @@ from company_state import CompanyState, FactCategory, FreshnessState, KnowledgeS
 
 @dataclass(frozen=True)
 class AdapterValue:
+    """Consumer-safe value envelope that preserves epistemic/source basis."""
+
     state: str
     value: Any = None
     fact_ids: tuple[str, ...] = ()
     reason: str | None = None
+    knowledge_states: tuple[str, ...] = ()
+    provenance_bases: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         value = self.value.to_dict() if isinstance(self.value, Money) else self.value
-        return {"state": self.state, "value": value, "fact_ids": list(self.fact_ids), "reason": self.reason}
+        return {
+            "state": self.state,
+            "value": value,
+            "fact_ids": list(self.fact_ids),
+            "reason": self.reason,
+            "knowledge_states": list(self.knowledge_states),
+            "provenance_bases": list(self.provenance_bases),
+        }
+
+
+def _metadata(facts) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    return (
+        tuple(sorted({fact.knowledge.value for fact in facts})),
+        tuple(sorted({fact.provenance.basis.value for fact in facts})),
+    )
 
 
 def _extract(state: CompanyState, code: str, category: FactCategory, *, as_of: datetime | None = None) -> AdapterValue:
     at = as_of or state.as_of
-    facts = [fact for fact in state.active_facts(as_of=at) if fact.code == code and fact.category is category]
-    if not facts:
+    matching = [fact for fact in state.active_facts(as_of=at) if fact.code == code and fact.category is category]
+    if not matching:
         return AdapterValue("UNKNOWN", reason="fact_not_recorded")
-    if any(fact.freshness(at) is FreshnessState.STALE for fact in facts):
-        return AdapterValue("UNKNOWN", fact_ids=tuple(f.fact_id for f in facts), reason="fact_stale")
-    known = [fact for fact in facts if fact.knowledge is not KnowledgeState.UNKNOWN]
+
+    current = [fact for fact in matching if fact.freshness(at) is not FreshnessState.STALE]
+    if not current:
+        knowledge, provenance = _metadata(matching)
+        return AdapterValue(
+            "UNKNOWN",
+            fact_ids=tuple(sorted(f.fact_id for f in matching)),
+            reason="fact_stale",
+            knowledge_states=knowledge,
+            provenance_bases=provenance,
+        )
+
+    knowledge, provenance = _metadata(current)
+    known = [fact for fact in current if fact.knowledge is not KnowledgeState.UNKNOWN]
     if not known:
-        return AdapterValue("UNKNOWN", fact_ids=tuple(f.fact_id for f in facts), reason="explicit_unknown")
+        return AdapterValue(
+            "UNKNOWN",
+            fact_ids=tuple(sorted(f.fact_id for f in current)),
+            reason="explicit_unknown",
+            knowledge_states=knowledge,
+            provenance_bases=provenance,
+        )
     first = known[0].value
     if any(fact.value != first for fact in known[1:]):
-        return AdapterValue("CONFLICT", fact_ids=tuple(sorted(f.fact_id for f in known)), reason="conflicting_current_facts")
-    return AdapterValue("KNOWN", first, tuple(sorted(f.fact_id for f in known)))
+        return AdapterValue(
+            "CONFLICT",
+            fact_ids=tuple(sorted(f.fact_id for f in known)),
+            reason="conflicting_current_facts",
+            knowledge_states=knowledge,
+            provenance_bases=provenance,
+        )
+    return AdapterValue(
+        "KNOWN",
+        first,
+        tuple(sorted(f.fact_id for f in known)),
+        knowledge_states=knowledge,
+        provenance_bases=provenance,
+    )
 
 
 def readiness_inputs(state: CompanyState) -> dict[str, Any]:
@@ -54,7 +101,8 @@ def mobilize_inputs(state: CompanyState, *, as_of: datetime | None = None) -> di
 
     Workers and own vehicles are returned as explicit KNOWN/UNKNOWN/CONFLICT
     values. Ownership never implies availability: only dedicated availability
-    facts populate the availability outputs.
+    facts populate the availability outputs. Epistemic/provenance metadata is
+    retained so ESTIMATE/ASSUMPTION/INFERENCE cannot masquerade as verified fact.
     """
     return {
         "account_id": state.account_id,
