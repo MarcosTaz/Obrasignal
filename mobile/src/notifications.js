@@ -6,6 +6,14 @@ import { storage } from './storage';
 const EXPO_PROJECT_ID = 'c277466b-a418-45f7-b070-4fc3f96386b7';
 const handledResponseIds = new Set();
 
+function newLocalBindingId() {
+  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
+function isRemoteBinding(binding) {
+  return Boolean(binding?.bindingId && binding?.installationId && binding?.expoPushToken);
+}
+
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -45,9 +53,10 @@ export async function registerRemoteOpportunityPush() {
   }
 
   const existingBinding = await storage.getPushBinding();
-  // A tenant change purges the old private binding in #291. Clear any already
-  // presented notifications before binding this installation to the new tenant.
-  if (!existingBinding) {
+  // A tenant change purges the old private binding in #291. A local-only fallback
+  // binding is also superseded by remote registration, so dismiss its presented
+  // notifications before replacing the tap authority with a server binding.
+  if (!isRemoteBinding(existingBinding)) {
     try { await Notifications.dismissAllNotificationsAsync(); } catch (_) {}
   }
 
@@ -58,7 +67,7 @@ export async function registerRemoteOpportunityPush() {
   const response = await api.registerPushDevice({ installationId, expoPushToken, platform: Platform.OS });
   const bindingId = String(response?.binding_id || '').trim();
   if (!bindingId) throw new Error('push_binding_missing');
-  await storage.setPushBinding({ bindingId, installationId, expoPushToken });
+  await storage.setPushBinding({ bindingId, installationId, expoPushToken, kind: 'remote' });
   return { status: 'registered', registered: true, bindingId, installationId };
 }
 
@@ -77,12 +86,18 @@ export async function unregisterRemoteOpportunityPush() {
 
 export async function showLocalOpportunityAlert(item) {
   if (Platform.OS === 'web') return null;
-  const binding = await storage.getPushBinding();
+  let binding = await storage.getPushBinding();
+  if (!binding?.bindingId) {
+    // Local fallback still needs tenant-bound tap authority. Never emit an
+    // unbound local notification merely because remote FCM/EAS is unavailable.
+    binding = { bindingId: newLocalBindingId(), kind: 'local' };
+    await storage.setPushBinding(binding);
+  }
   return Notifications.scheduleNotificationAsync({
     content: {
       title: 'Nova oportunidade ObraSignal',
       body: item?.title || 'Foi encontrada uma oportunidade relevante.',
-      data: { opportunityId: item?.id, eventId: item?.event_id, bindingId: binding?.bindingId || null },
+      data: { opportunityId: item?.id, eventId: item?.event_id, bindingId: binding.bindingId },
       ...(Platform.OS === 'android' ? { channelId: 'opportunities' } : {}),
     },
     trigger: null,
