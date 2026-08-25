@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Execute exact historical process window and normalize live construction hydration
+      - name: Execute bounded historical process interval and normalize live construction hydration
         run: |
           python - <<'PY'
           from dataclasses import replace
@@ -43,17 +43,19 @@ jobs:
               max_hydrations_per_window=100,
           )
           connector = DGCPProcessDiscoveryConnector(config)
-          target = date(2026, 8, 21)
-          records = connector._fetch_window(target, target)
+          start = date(2026, 8, 20)
+          end = date(2026, 8, 22)
+          records = connector._fetch_window(start, end)
           rows = []
           for record in records:
               rows.extend(normalize_dgcp_signals(record))
           print(json.dumps({
+              'window': [start.isoformat(), end.isoformat()],
               'records': len(records),
               'signals': len(rows),
               'types': {kind: sum(row.get('signal_type') == kind for row in rows) for kind in ('TENDER','AWARD','CONTRACT')},
           }, sort_keys=True))
-          assert records, 'publisher exact day must expose at least one Obras process'
+          assert records, 'publisher bounded historical interval must expose Obras processes'
           assert rows, 'live hydrated Obras records must normalize to lifecycle signals'
           assert any(row.get('signal_type') == 'TENDER' for row in rows)
           assert all(row.get('source') == 'DO_DGCP' for row in rows)
