@@ -131,6 +131,8 @@ def search_profile_item(profile_id):
     except SearchProfileNotFound:
         # Deliberately identical for nonexistent and other-tenant IDs.
         return jsonify({"error": "not_found"}), 404
+    except SearchProfileNeedsUpdate as exc:
+        return jsonify({"error": exc.code, "detail": str(exc)}), 409
     except SearchProfileError as exc:
         return jsonify({"error": exc.code, "detail": str(exc)}), 400
     finally:
@@ -141,6 +143,7 @@ def search_profile_item(profile_id):
 def run_profile(profile_id):
     identity = request.obrasignal_identity
     try:
+        _payload(set())
         raw_limit = request.args.get("limit", 20) or 20
         limit = int(raw_limit)
         if not 1 <= limit <= 100:
