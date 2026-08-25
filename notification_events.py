@@ -561,8 +561,8 @@ def push_devices_api():
                 payload.get("expo_push_token"),
                 payload.get("platform"),
             )
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+        except ValueError:
+            return jsonify({"error": "invalid_push_device_request"}), 400
         return jsonify({"ok": True, **registered})
     finally:
         conn.close()
