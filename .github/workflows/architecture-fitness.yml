@@ -1,0 +1,37 @@
+name: ObraSignal Architecture Fitness
+
+on:
+  pull_request:
+    paths:
+      - 'architecture_audit.py'
+      - 'master_execution_queue.py'
+      - 'capability_registry.py'
+      - 'source_registry.py'
+      - 'app.py'
+      - 'api.py'
+      - 'cors_app.py'
+      - 'render.yaml'
+      - 'docs/adr/**'
+      - '.github/workflows/architecture-fitness.yml'
+  workflow_dispatch:
+
+# This workflow is intentionally smaller than ObraSignal Quality. It protects
+# architectural invariants without duplicating the full repository/mobile suite.
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  architecture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run strict architecture audit
+        run: python architecture_audit.py --strict
