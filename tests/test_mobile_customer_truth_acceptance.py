@@ -99,3 +99,11 @@ def test_partial_stats_failure_is_not_silently_presented_as_current_state():
         "stats are silently retained with no partial-failure disclosure. Retained values "
         "must be marked stale/error or replaced by UNKNOWN."
     )
+
+
+def test_radar_card_never_fabricates_positive_match_reason_when_reason_is_missing():
+    source = _app_source()
+    assert "item.decision_reason||item.match_reason||'Correspondência com o perfil'" not in source, (
+        "BUG-GP-012: missing WHY evidence is replaced with a positive profile-match claim. "
+        "No explanation evidence must remain unknown/unavailable, not become a fabricated reason."
+    )
