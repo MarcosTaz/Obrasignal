@@ -77,9 +77,12 @@ def test_live_uruguay_arce_public_pac_backend_contract():
     config_response = _public_get(PAC_CONFIG_URL, "application/json")
     config = config_response.json()
     assert isinstance(config, dict)
-    api_url = str(config.get("apiUrl") or "").strip().rstrip("/")
-    assert api_url.startswith("https://"), "ARCE PAC config has no HTTPS apiUrl"
+    api_base = str(config.get("apiUrl") or "").strip().rstrip("/")
+    assert api_base.startswith("/"), "ARCE PAC public config changed apiUrl semantics"
+    api_url = urljoin(PAC_PUBLIC_URL, api_base + "/") .rstrip("/")
+    assert api_url.startswith("https://www.comprasestatales.gub.uy/consultaplananual")
     print("UY_PAC_CONFIG_KEYS=" + ",".join(sorted(map(str, config.keys()))))
+    print("UY_PAC_API_BASE=" + api_base)
     print("UY_PAC_API_URL=" + api_url)
 
     search_url = api_url + "/api/v1/compra-procedimientos"
@@ -102,7 +105,6 @@ def test_live_uruguay_arce_public_pac_backend_contract():
     assert sample is not None
     print("UY_PAC_PROCEDURE_FIELDS=" + ",".join(sorted(map(str, sample.keys()))))
 
-    # Validate the public export transport without downloading the whole file.
     export_url = api_url + "/api/v1/compra-procedimientos/excel"
     with _public_get(
         export_url,
