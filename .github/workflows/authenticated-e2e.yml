@@ -337,6 +337,19 @@ jobs:
           assert str(payload.get('account_id')) == expected_account_id
           assert payload.get('authenticated') is True
           PY
+            curl --fail --silent --show-error --max-time 30 \
+              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+              "$API_URL/profile" >/tmp/profile-restored.json
+            python - <<'PY'
+          import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
+          original=json.load(open('/tmp/profile-original-response.json'))
+          restored=json.load(open('/tmp/profile-restored.json'))
+          assert str(restored.get('account_id')) == expected_account_id
+          assert restored.get('authenticated') is True
+          assert restored.get('profile') == original.get('profile')
+          print('Authenticated profile rollback verified.')
+          PY
           }
           trap restore_profile EXIT
           curl --fail --silent --show-error --max-time 30 \
@@ -451,6 +464,17 @@ jobs:
                 -H "Authorization: Bearer $(cat /tmp/access_token)" \
                 -H 'Content-Type: application/json' \
                 --data-binary @/tmp/workflow-restore.json >/tmp/workflow-restore-response.json
+              curl --fail --silent --show-error --max-time 30 \
+                -H "Authorization: Bearer $(cat /tmp/access_token)" \
+                "$API_URL/opportunities/$ID/workflow" >/tmp/workflow-restored.json
+              python - <<'PY'
+          import json
+          original=json.load(open('/tmp/workflow-original.json'))
+          restored=json.load(open('/tmp/workflow-restored.json'))
+          assert restored.get('status') == original.get('status')
+          assert restored.get('note') == original.get('note')
+          print('Authenticated workflow rollback verified.')
+          PY
             }
             trap restore_workflow EXIT
             python - <<'PY'
