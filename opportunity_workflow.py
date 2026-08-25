@@ -113,23 +113,21 @@ def set_workflow(conn, account_id, source, external_id, status, note=None):
 
 
 def save_opportunity(conn, account_id, opportunity_id):
-    """Idempotently save a canonical opportunity for one account."""
+    """Atomically and idempotently save a canonical opportunity for one account."""
     ensure_workflow_table(conn)
     source, external_id = _opportunity_identity(conn, opportunity_id)
     account_id = _account_id(account_id)
-    existing = conn.execute(
-        '''SELECT saved_at FROM opportunity_workflow
-           WHERE account_id=? AND source=? AND external_id=?''',
-        (account_id, source, external_id),
-    ).fetchone()
-    if existing is not None and existing["saved_at"] is not None:
-        return get_saved_opportunity(conn, account_id, opportunity_id)
     ts = _now()
     conn.execute(
         '''INSERT INTO opportunity_workflow(account_id, source, external_id, status, note, priority, saved_at, updated_at)
            VALUES (?, ?, ?, 'NEW', NULL, 'NORMAL', ?, ?)
            ON CONFLICT(account_id, source, external_id)
-           DO UPDATE SET saved_at=excluded.saved_at, updated_at=excluded.updated_at''',
+           DO UPDATE SET
+               saved_at=COALESCE(opportunity_workflow.saved_at, excluded.saved_at),
+               updated_at=CASE
+                   WHEN opportunity_workflow.saved_at IS NULL THEN excluded.updated_at
+                   ELSE opportunity_workflow.updated_at
+               END''',
         (account_id, source, external_id, ts, ts),
     )
     conn.commit()
