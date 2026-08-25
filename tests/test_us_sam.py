@@ -16,6 +16,10 @@ class FakeResponse:
         if self.status_code >= 400:
             raise RuntimeError(f"http {self.status_code}")
 
+    def iter_lines(self, decode_unicode=False):
+        for line in self.raw.getvalue().splitlines():
+            yield line
+
 
 class FakeSession:
     def __init__(self, response):
@@ -126,3 +130,10 @@ def test_missing_notice_identity_fails_closed():
     body = csv_bytes([construction_row(NoticeId="")])
     with pytest.raises(RuntimeError, match="missing NoticeId"):
         SAMGovConnector(session=FakeSession(FakeResponse(body))).fetch()
+
+
+def test_large_publisher_description_exceeding_csv_default_limit_streams_safely():
+    large = "x" * 200000
+    body = csv_bytes([construction_row(Description=large)])
+    rows, _ = SAMGovConnector(session=FakeSession(FakeResponse(body))).fetch()
+    assert rows[0]["description"] == large

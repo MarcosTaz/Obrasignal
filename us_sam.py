@@ -21,7 +21,6 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import io
 import json
 
 import requests
@@ -205,12 +204,25 @@ class SAMGovConnector:
         response.raise_for_status()
         etag = _text(response.headers.get("ETag"))
         last_modified = _text(response.headers.get("Last-Modified"))
-        # SAM's extract has historically included Windows-1252 bytes in free text.
-        # utf-8-sig with replacement keeps the strict header contract while avoiding
-        # a full 250MB decode in memory.
-        response.raw.decode_content = True
-        text = io.TextIOWrapper(response.raw, encoding="utf-8-sig", errors="replace", newline="")
-        reader = csv.DictReader(text)
+        # Requests owns response.raw and may close that object while a wrapper is
+        # still iterating after the publisher redirect. Use Requests' supported
+        # streaming iterator instead. Re-add line terminators so csv can preserve
+        # quoted multiline descriptions without materialising the ~250 MB extract.
+        def decoded_lines():
+            first = True
+            for chunk in response.iter_lines(decode_unicode=False):
+                if isinstance(chunk, bytes):
+                    line = chunk.decode("utf-8", errors="replace")
+                else:
+                    line = str(chunk)
+                if first:
+                    line = line.lstrip("\ufeff")
+                    first = False
+                yield line + "\n"
+
+        # SAM descriptions can exceed Python csv's conservative 128 KiB default.
+        csv.field_size_limit(64 * 1024 * 1024)
+        reader = csv.DictReader(decoded_lines())
         if tuple(reader.fieldnames or ()) != CSV_FIELDS:
             raise RuntimeError(
                 f"{SOURCE} CSV schema drift: expected {len(CSV_FIELDS)} publisher columns; cursor not advanced"
