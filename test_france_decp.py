@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+import requests
 
 import france_decp as fr
 
@@ -13,7 +14,6 @@ class Response:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            import requests
             raise requests.HTTPError(str(self.status_code))
 
     def json(self):
@@ -29,7 +29,10 @@ class Session:
         self.calls.append((url, kwargs))
         if not self.responses:
             raise AssertionError("unexpected request")
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 def _works(**overrides):
@@ -72,7 +75,7 @@ def test_emits_contract_not_tender_and_uses_native_cpv():
     assert "Entreprise Bâtiment" in row["description"]
 
 
-def test_server_query_is_bounded_to_construction_and_incremental_window():
+def test_server_query_is_bounded_to_construction_and_all_update_dates():
     session = Session([Response({"total_count": 0, "results": []})])
     rows, cursor = fr.fetch_france_decp_contracts(
         watermark="2026-08-20", session=session, today=date(2026, 8, 25)
@@ -80,8 +83,10 @@ def test_server_query_is_bounded_to_construction_and_incremental_window():
     assert rows == []
     assert cursor == "2026-08-20"
     params = session.calls[0][1]["params"]
-    assert 'startswith(codecpv, "45")' in params["where"]
-    assert "2026-08-18" in params["where"]
+    where = params["where"]
+    assert 'startswith(codecpv, "45")' in where
+    assert "datepublicationdonnees >= date'2026-08-18'" in where
+    assert "datepublicationdonneesmodification >= date'2026-08-18'" in where
     assert params["limit"] <= 100
 
 
@@ -113,6 +118,16 @@ def test_modification_updates_same_contract_identity():
     assert rows[0]["value"] == "1250000"
 
 
+def test_string_false_modification_flag_is_not_truthy():
+    session = Session([
+        Response({"total_count": 1, "results": [_works(booleanmodification="0")]})
+    ])
+    rows, _ = fr.fetch_france_decp_contracts(
+        watermark="2026-08-20", session=session, today=date(2026, 8, 25)
+    )
+    assert rows[0]["has_modification"] is False
+
+
 def test_missing_identity_or_update_fails_closed():
     session = Session([Response({"total_count": 1, "results": [_works(id="")]})])
     with pytest.raises(RuntimeError, match="missing id/update date"):
@@ -131,12 +146,37 @@ def test_untrusted_record_url_is_not_forwarded():
     assert rows[0]["url"] == fr.DECP_HUMAN
 
 
-def test_schema_error_is_transport_failure_not_empty_success():
+def test_schema_error_is_transport_failure_not_empty_success(monkeypatch):
+    monkeypatch.setattr(fr.time, "sleep", lambda _seconds: None)
     session = Session([Response({"unexpected": []})] * (fr.DECP_RETRIES + 1))
     with pytest.raises(RuntimeError, match="unexpected response schema"):
         fr.fetch_france_decp_contracts(
             watermark="2026-08-20", session=session, today=date(2026, 8, 25)
         )
+
+
+def test_timeout_retries_are_bounded_and_fail(monkeypatch):
+    monkeypatch.setattr(fr.time, "sleep", lambda _seconds: None)
+    session = Session([requests.Timeout("slow")] * (fr.DECP_RETRIES + 1))
+    with pytest.raises(requests.Timeout):
+        fr.fetch_france_decp_contracts(
+            watermark="2026-08-20", session=session, today=date(2026, 8, 25)
+        )
+    assert len(session.calls) == fr.DECP_RETRIES + 1
+
+
+def test_rate_limit_retry_recovers(monkeypatch):
+    monkeypatch.setattr(fr.time, "sleep", lambda _seconds: None)
+    session = Session([
+        Response({}, status=429, headers={"Retry-After": "0"}),
+        Response({"total_count": 1, "results": [_works()]}),
+    ])
+    rows, cursor = fr.fetch_france_decp_contracts(
+        watermark="2026-08-20", session=session, today=date(2026, 8, 25)
+    )
+    assert len(session.calls) == 2
+    assert rows[0]["external_id"] == "FR-CONTRACT-1"
+    assert cursor == "2026-08-22"
 
 
 def test_pagination_cap_fails_closed(monkeypatch):
