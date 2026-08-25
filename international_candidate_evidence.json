@@ -71,6 +71,15 @@
       "sources": [
         {"source": "RS:PUBLIC_PROCUREMENT_OFFICE:PUBLIC_PROCUREMENT_PORTAL", "country": "Serbia", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": false, "gated_rights": true, "gated_machine_access": true, "gated_credential": false, "gated_completeness": true, "tech_lab": true}
       ]
+    },
+    {
+      "pr": 290,
+      "head": "9df1bac74250db9e5182ee07a0ef1b5d64fc9fc3",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32874326591, "head": "9df1bac74250db9e5182ee07a0ef1b5d64fc9fc3"},
+      "sources": [
+        {"source": "UK_PROCUREMENT", "country": "United Kingdom", "implemented": true, "tested": true, "runtime_wired": true, "ready": true, "planned": false, "gated_rights": false, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32874326617, "head": "9df1bac74250db9e5182ee07a0ef1b5d64fc9fc3", "result_kind": "MATCHING_SIGNALS"}}
+      ]
     }
   ],
   "supersession": [
