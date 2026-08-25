@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "bug_id": "GAP-GP-011",
+  "customer_journey": "PROFILE -> PERSONALIZED_RADAR -> EMPTY_STATE / REFRESH",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "classification": [
+    "CUSTOMER_TRUTH_GAP",
+    "SOURCE_DEGRADATION_AMBIGUITY",
+    "PARTIAL_FAILURE_AMBIGUITY",
+    "MOBILE"
+  ],
+  "severity": "HIGH",
+  "owners": ["SOURCE_HEALTH_FRESHNESS_OWNER", "MOBILE_PRODUCT_OWNER", "INTEGRATION_LAB"],
+  "canonical_context": {
+    "main_source_health": "source_health.py already distinguishes healthy/degraded/stale/unknown using source-specific SLAs",
+    "branch_candidate": "PR #165 defines deterministic FRESH/AGING/STALE/UNKNOWN separately from HEALTHY/DEGRADED/UNAVAILABLE/UNKNOWN but has no API/UI wiring and is not canonical",
+    "current_opportunities_api": "returns items/count without source-health or freshness context",
+    "current_stats_api": "returns global last_sync, but mobile does not use it to qualify empty/current-state claims"
+  },
+  "reproduction": [
+    "Have no matching rows for the selected Radar filters while source freshness is stale/unknown/degraded, or while there has been no proven recent sync.",
+    "Load the Radar successfully enough for `/opportunities` to return an empty list.",
+    "Observe the unconditional empty copy `Sem resultados com estes filtros.` and filter-reduction guidance.",
+    "Separately, let `/stats` fail while `/opportunities` succeeds; the client retains the previous/in-memory stats without a stats-specific stale/error disclosure."
+  ],
+  "observed_result": [
+    "The customer cannot distinguish `no matching opportunities in sufficiently current observed data` from `coverage/freshness is not currently provable`.",
+    "A partial stats failure can leave old values visible without disclosing that the stats refresh failed."
+  ],
+  "expected_truth": [
+    "An empty Radar must be qualified by the evidence actually available: current observed-data empty, stale/aging, degraded/unavailable source, or UNKNOWN when freshness cannot be established.",
+    "No-source/no-recent-sync is not equivalent to a valid zero-market observation.",
+    "A failed stats refresh must never silently present retained values as current; preserve them only with stale/error disclosure or render UNKNOWN.",
+    "Historical opportunities remain readable when a source degrades; source failure does not erase the market."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: fresh-empty, stale-empty, unknown-freshness and degraded-source states remain distinguishable.",
+    "PROVEN_AUTOMATED: stats failure plus opportunities success discloses partial failure instead of silently retaining current-looking values.",
+    "PROVEN_AUTOMATED: source failure does not delete/hide historical opportunity solely because the source is unavailable.",
+    "PROVEN_REAL_DEVICE: customer empty state communicates evidence limits without implying complete/current market coverage."
+  ],
+  "hard_boundary": "Golden defines customer acceptance only. Source-health read-model integration, API wiring and mobile implementation remain with their existing owners."
+}

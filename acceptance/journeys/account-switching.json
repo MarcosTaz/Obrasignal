@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "journey_id": "GP17_ACCOUNT_SWITCHING_TENANT_ISOLATION",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "segments": [
+    {"step":"ACCOUNT_A_AUTH","classification":"PROVEN_PRODUCTION_API","evidence":"Authenticated E2E proves server-derived authenticated identity"},
+    {"step":"ACCOUNT_A_PRIVATE_API_STATE","classification":"PROVEN_PRODUCTION_API","evidence":"profile/workflow/opportunity access is account-scoped in deployed E2E"},
+    {"step":"ACCOUNT_A_LOCAL_PRIVATE_CACHE","classification":"FAILED","evidence":"profile and personalized Radar cache are stored under global device keys"},
+    {"step":"SIGN_OUT","classification":"FAILED","evidence":"current sign-out does not purge/rebind globally-addressed private cache"},
+    {"step":"ACCOUNT_B_AUTH","classification":"PROVEN_PRODUCTION_API","evidence":"server identity changes correctly; local cache boundary is separate"},
+    {"step":"ACCOUNT_B_FIRST_RENDER","classification":"FAILED","evidence":"Main hydrates cached profile/opportunities before Account B network reconciliation; BUG-GP-015"},
+    {"step":"ACCOUNT_B_OFFLINE_OR_SLOW_NETWORK","classification":"FAILED","evidence":"no identity-bound fallback prevents Account A cached private state from remaining visible"},
+    {"step":"REAL_DEVICE_ACCOUNT_SWITCH","classification":"BLOCKED","evidence":"must not be promoted to device-ready until automated private-cache isolation is repaired"}
+  ],
+  "overall":"FAILED",
+  "blocking_defects":["BUG-GP-015"],
+  "required_device_procedure_after_repair":[
+    "Account A signs in and loads profile, Radar and one workflow state.",
+    "Force offline/slow network after A data is cached.",
+    "A signs out and Account B signs in on the same physical device.",
+    "Capture every B first-render frame/state before network success.",
+    "Verify zero A profile, opportunities, workflow notes or other private tenant data is visible.",
+    "Restore network and verify B receives only B tenant state.",
+    "Record build SHA, API deployment SHA, A/B account identifiers in redacted form and device/OS evidence."
+  ]
+}

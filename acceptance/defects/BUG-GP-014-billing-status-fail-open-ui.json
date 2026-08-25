@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "bug_id": "BUG-GP-014",
+  "customer_journey": "AUTH -> EVALUATION/BILLING STATUS -> PRODUCT ACCESS",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "classification": ["FALSE_SUCCESS", "BILLING_TRUTH", "MOBILE", "FAIL_OPEN_PRESENTATION"],
+  "severity": "HIGH",
+  "owner": "MOBILE_BILLING_OWNER",
+  "reproduction": [
+    "Authenticate a non-Pro user.",
+    "Make `/api/v1/billing/status` unavailable or return an error while RevenueCat customer info does not contain active `pro`.",
+    "Allow BillingGate.refresh() to continue after its inner billing-status catch.",
+    "Observe the derived plan and customer plan pill/product shell."
+  ],
+  "observed_result": [
+    "The billing-status API error is silently swallowed.",
+    "Plan falls back to `evaluation` when local RevenueCat info does not prove Pro.",
+    "The customer can therefore be shown an Evaluation state even though server evaluation/expiry status was not verified."
+  ],
+  "expected_truth": [
+    "Unable to verify server billing/evaluation status is UNKNOWN/UNAVAILABLE, never inferred as active Evaluation.",
+    "A known RevenueCat Pro entitlement may be shown as local/store evidence, but absence of Pro is not evidence of active Evaluation.",
+    "Protected API access remains server-authoritative and customer copy must distinguish verification failure from a valid plan state."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: billing-status failure cannot produce plan=evaluation solely from absence of Pro entitlement.",
+    "PROVEN_AUTOMATED: known expired server state remains expired even if local RevenueCat state is empty.",
+    "PROVEN_AUTOMATED: verified Evaluation state is rendered only from successful server evaluation evidence.",
+    "PROVEN_REAL_DEVICE: temporary backend billing-status outage is shown as verification unavailable, not an active Evaluation claim."
+  ],
+  "hard_boundary": "Golden Path owns acceptance/regression only; Mobile Billing implementation repair remains with its specialist owner."
+}

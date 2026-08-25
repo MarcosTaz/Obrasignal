@@ -1,0 +1,104 @@
+{
+  "schema_version": 3,
+  "manifest_version": "acceptance-integration.v3",
+  "baseline": {
+    "branch": "main",
+    "head_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+    "tree_sha": "28dc0119113a39d9179919e07de541e54d189062",
+    "acceptance_scope": "CURRENT_MAIN_PLUS_EXPLICITLY_NAMED_BRANCH_CANDIDATES",
+    "automatic_merge": false,
+    "production_mutation": false,
+    "master_queue_mutation": false
+  },
+  "main_change_observed_during_lab": {
+    "change": "PR #214 merged and current main revalidated",
+    "effect": "expired-opportunity actionability repair is canonical; production Auth/Smoke now pass on exact main",
+    "post_merge_quality": "PASS",
+    "post_merge_production_smoke": "PASS",
+    "post_merge_authenticated_e2e": "PASS",
+    "root_cause": "RESOLVED_FOR_CURRENT_MAIN"
+  },
+  "product_completeness": {
+    "DISCOVER": {"implementation":"IMPLEMENTED","acceptance":"PASS","reason":"closed/actionability regression now passes on canonical main"},
+    "SAVE": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"Watchlist PR #150"},
+    "COMPARE": {"implementation":"INTEGRATION_BLOCKED","acceptance":"FAIL","candidate":"PR #151","reason":"monetary adversarial failures #201/#202 remain unresolved"},
+    "REQUIREMENTS": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #152/current successor"},
+    "DOCUMENTS": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #156/current successor"},
+    "READINESS": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #153/current successor"},
+    "EVIDENCE": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"Q080 / Evidence integration"},
+    "MILESTONES": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #170/current successor"},
+    "ECONOMICS": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #169/current successor"},
+    "MOBILIZATION": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #146/current successor"},
+    "BANGS": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #195/current successor"},
+    "DECISION": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #160/current successor"},
+    "WORKSPACE": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #172/current successor"},
+    "OUTCOME": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #163/current successor"},
+    "BUYER": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #164/current successor"},
+    "LIFECYCLE": {"implementation":"INTEGRATION_BLOCKED","acceptance":"GATED","candidate":"PR #167/#166/#168 current successors"}
+  },
+  "cross_cutting_capabilities": {
+    "AUTH": {
+      "implementation": "IMPLEMENTED",
+      "main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "domain_api_quality": "PASS",
+      "deployed_acceptance": "PASS",
+      "evidence": [
+        "Quality run 32867427685 PASS",
+        "Production Smoke run 32867427628 PASS",
+        "Authenticated E2E run 32867427570 PASS",
+        "profile persistence round-trip PASS",
+        "opportunity access/account scoping PASS",
+        "detail/workflow round-trip when data exists PASS"
+      ]
+    }
+  },
+  "acceptance_matrix_scope": "CURRENT_MAIN",
+  "acceptance_matrix": [
+    {"journey":"AUTH_LIST_DETAIL_PROVENANCE","domain":"NOT_APPLICABLE","combination":"NOT_APPLICABLE","api":"PASS","tenant":"PASS","system":"GATED","live":"PASS","notes":["current main production Auth passes","source identity/source URL deterministic coverage passes","full Evidence remains gated"]},
+    {"journey":"SAVE_TENANT_READBACK","domain":"NOT_IMPLEMENTED","combination":"GATED","api":"NOT_IMPLEMENTED","tenant":"NOT_IMPLEMENTED","system":"GATED","live":"NOT_IMPLEMENTED","notes":["Watchlist remains integration-gated"]},
+    {"journey":"COMPARE","domain":"NOT_IMPLEMENTED","combination":"FAIL","api":"NOT_IMPLEMENTED","tenant":"NOT_IMPLEMENTED","system":"GATED","live":"NOT_IMPLEMENTED","notes":["monetary adversarial defects remain"]},
+    {"journey":"REQUIREMENTS_READINESS","domain":"NOT_IMPLEMENTED","combination":"GATED","api":"NOT_IMPLEMENTED","tenant":"NOT_IMPLEMENTED","system":"GATED","live":"NOT_IMPLEMENTED","notes":["current public-contract combination required"]},
+    {"journey":"DOCUMENTS_CHANGE_EVIDENCE","domain":"NOT_IMPLEMENTED","combination":"GATED","api":"NOT_IMPLEMENTED","tenant":"NOT_APPLICABLE","system":"GATED","live":"NOT_IMPLEMENTED","notes":["Evidence/Documents/History combination required"]},
+    {"journey":"MILESTONES","domain":"NOT_IMPLEMENTED","combination":"GATED","api":"NOT_IMPLEMENTED","tenant":"NOT_APPLICABLE","system":"GATED","live":"NOT_IMPLEMENTED","notes":["temporal contract remains branch candidate"]},
+    {"journey":"ECONOMICS_MOBILIZATION_BANGS","domain":"NOT_IMPLEMENTED","combination":"GATED","api":"NOT_IMPLEMENTED","tenant":"NOT_IMPLEMENTED","system":"GATED","live":"NOT_IMPLEMENTED","notes":["current exact integration evidence required"]},
+    {"journey":"DECISION_WORKSPACE_OUTCOME","domain":"NOT_IMPLEMENTED","combination":"GATED","api":"NOT_IMPLEMENTED","tenant":"NOT_IMPLEMENTED","system":"GATED","live":"NOT_IMPLEMENTED","notes":["branch-only"]},
+    {"journey":"PROCUREMENT_LIFECYCLE","domain":"NOT_IMPLEMENTED","combination":"GATED","api":"NOT_IMPLEMENTED","tenant":"NOT_APPLICABLE","system":"GATED","live":"NOT_IMPLEMENTED","notes":["current exact lifecycle combination required"]},
+    {"journey":"BUYER_PROFILE","domain":"NOT_IMPLEMENTED","combination":"GATED","api":"NOT_IMPLEMENTED","tenant":"NOT_APPLICABLE","system":"GATED","live":"NOT_IMPLEMENTED","notes":["branch-only"]}
+  ],
+  "release_golden_subset": [
+    {"id":"RELEASE_GOLDEN_01","journey":"authenticated discover/detail","status":"PASS","scope":"exact current main production Auth + account-scoped API"},
+    {"id":"RELEASE_GOLDEN_02","journey":"tenant save/read isolation","status":"GATED","blocking":["Watchlist not integrated on current main"]},
+    {"id":"RELEASE_GOLDEN_03","journey":"unknown-vs-zero","status":"PASS","scope":"deterministic API fixture"},
+    {"id":"RELEASE_GOLDEN_04","journey":"closed opportunity protection","status":"PASS","scope":"canonical PR #214 regression coverage"},
+    {"id":"RELEASE_GOLDEN_05","journey":"decision/outcome separation","status":"GATED","blocking":["Decision and Outcome not integrated on current main"]},
+    {"id":"RELEASE_GOLDEN_06","journey":"evidence/provenance","status":"GATED","scope":"source identity/source URL testable; full Evidence product contract not canonical","blocking":["Evidence integration not product accepted"]}
+  ],
+  "defects": [
+    {"id":"GAP-GP-002","classification":["CONTRACT BUG","ACCEPTANCE TESTABILITY GAP"],"scenario":"temporal replayability","expected":"temporal acceptance can use explicit injected clock","observed":"Opportunity presentation still derives current time internally","root_cause":"no canonical clock seam at current Opportunity read-model boundary","owner_cell":"ASSEMBLY / SIGNAL API CONTRACT","fix_required":"add narrow injectable clock seam without altering source precision/lifecycle ownership","retest":["GP01A_DISCOVER_DETAIL_TRUTH","ADV_STALE_DATA"]},
+    {"id":"GAP-GP-004","classification":["INTEGRATION BUG"],"scenario":"GP01B_SAVE_TENANT_READBACK","expected":"real Watchlist Save and tenant-safe readback on current main","observed":"Watchlist remains branch-only","root_cause":"Watchlist not integrated/revalidated on current main","owner_cell":"INTEGRATION LAB + WATCHLIST OWNER","fix_required":"minimum current-main + Watchlist combination","retest":["GP01B_SAVE_TENANT_READBACK","RELEASE_GOLDEN_02"]},
+    {"id":"BUG-GP-005","classification":["DATA SEMANTICS BUG","INTEGRATION BUG"],"scenario":"COMPARE","expected":"money comparison fails closed for non-finite/unsafe precision","observed":"historical adversarial bisections #201/#202 fail","root_cause":"Compare monetary normalization/precision contract","owner_cell":"COMPARE OWNER","fix_required":"correct parsing/comparison before ranking language","retest":["COMPARE","ADV_MULTI_CURRENCY"]}
+  ],
+  "resolved_defects": [
+    {"id":"BUG-GP-001","resolved_by":"PR #214 merged","main_sha":"66d43f6fd51cf9cea08016dad335aaa04b711a24","regression":"test_expired_opportunity_is_not_actionable_without_stronger_current_evidence"},
+    {"id":"BUG-GP-003","resolved_on":"current deployed main","main_sha":"66d43f6fd51cf9cea08016dad335aaa04b711a24","evidence_runs":[32867427570,32867427628,32867427685]}
+  ],
+  "integration_lab_handoffs": [
+    {"handoff_id":"INT-GP-01","purpose":"Watchlist save/return","required_modules":["current main","Watchlist successor","Golden harness"],"minimum_combination":"current main + Watchlist only","acceptance_tests":["GP01B_SAVE_TENANT_READBACK"],"expected_contracts":["server-derived tenant","Save tenant isolated","closed not actionable","unknown remains unknown"]},
+    {"handoff_id":"INT-GP-02","purpose":"Requirements to Readiness","required_modules":["current main","Requirements","Readiness","Company State public contract","Golden harness"],"minimum_combination":"public contracts on one current-main-derived tree","acceptance_tests":["GP02_REQUIREMENTS_READINESS"],"expected_contracts":["missing company facts UNKNOWN","partial not READY","known blocker stays blocker","Readiness not PURSUE"]},
+    {"handoff_id":"INT-GP-03","purpose":"Economics and operational truth","required_modules":["current main","Bid Economics","MOBILIZE","BANGS","Golden harness"],"minimum_combination":"public/domain contracts first","acceptance_tests":["GP05_ECONOMICS","GP06_MOBILIZATION","GP07_BANGS_KNOWN_EXECUTION_COST","ADV_MULTI_CURRENCY"],"expected_contracts":["unknown cost not zero","mixed currency fail closed","observed price not availability","partial known cost not total"]},
+    {"handoff_id":"INT-GP-04","purpose":"Procurement lifecycle truth","required_modules":["current main","Procurement Plan","Lineage","Contract Expiry","Golden harness"],"minimum_combination":"canonical lifecycle contracts before source expansion","acceptance_tests":["GP11_PROCUREMENT_LIFECYCLE","ADV_SIMILAR_TITLES"],"expected_contracts":["plan not tender","award not contract","expiry not retender","similarity not lineage"]}
+  ],
+  "historical_exact_head_evidence": {
+    "gp01_auth_watchlist_candidate": {"pr":208,"head":"2a8ab11c392d7d9ca64065ab89329f67f9b1bc92","classification":"HISTORICAL_ONLY"},
+    "pre_214_main": {"sha":"fce51d5b5524e09691f9187f7619ea0166217487","classification":"HISTORICAL_ONLY"}
+  },
+  "release_policy": {
+    "release_gate_must_be_fast": true,
+    "full_suite_broader_than_release_gate": true,
+    "product_accepted_requires_exact_tested_head": true,
+    "branch_candidate_is_not_available_in_product": true,
+    "fixture_pass_is_not_live_pass": true,
+    "live_pass_is_not_deployed_pass": true,
+    "historical_pass_is_not_current_main_pass": true
+  }
+}

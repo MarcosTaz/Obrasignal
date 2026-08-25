@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "bug_id": "BUG-GP-006",
+  "customer_journey": "PROFILE -> PERSONALIZED_RADAR -> OPPORTUNITY -> RETURN",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "tested_candidate_branch": "acceptance/golden-path-system-v2",
+  "classification": [
+    "FALSE_CLAIM",
+    "UNKNOWN_AS_ZERO",
+    "CUSTOMER_INTERPRETATION_BUG",
+    "MOBILE"
+  ],
+  "severity": "HIGH",
+  "owner": "MOBILE_PRODUCT_OWNER",
+  "reproduction": [
+    "Authenticate and open the Radar with no previously loaded stats, or let the stats request fail while the opportunity request succeeds.",
+    "Observe the top statistics row.",
+    "Observe an opportunity whose decision_score and score are both absent/unknown.",
+    "Open the opportunity detail and observe the score presentation."
+  ],
+  "observed_result": [
+    "Stats renders missing values through `v ?? 0`, presenting unknown/unavailable counts as zero.",
+    "Opportunity card renders missing decision_score/score as `0/100`.",
+    "Opportunity detail renders missing decision_score/score as `0/100`."
+  ],
+  "expected_truth": [
+    "Missing or unavailable statistics remain visibly UNKNOWN/UNAVAILABLE and are never presented as measured zero.",
+    "Missing scores remain visibly UNKNOWN/NOT SCORED and are never presented as an actual 0/100 score.",
+    "A failed stats request must not create the customer interpretation that there are zero opportunities/open/high-relevance items."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: mobile source regression rejects missing-to-zero fallbacks for customer-facing stats and scores.",
+    "PROVEN_REAL_DEVICE or READY_FOR_DEVICE: network/stats failure preserves last known values with stale/error disclosure, or UNKNOWN when no prior truth exists.",
+    "PROVEN_REAL_DEVICE or READY_FOR_DEVICE: unknown opportunity score is rendered without numeric false precision."
+  ],
+  "hard_boundary": "Golden Path owns acceptance and regression only. Mobile implementation repair belongs to MOBILE_PRODUCT_OWNER."
+}

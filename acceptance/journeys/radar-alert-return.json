@@ -1,0 +1,31 @@
+{
+  "schema_version": 2,
+  "journey_id": "GP16_RADAR_ALERT_RETURN",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "segments": [
+    {"step":"AUTH","classification":"PROVEN_PRODUCTION_API","evidence":"Authenticated E2E run 32867427570"},
+    {"step":"PROFILE","classification":"PROVEN_PRODUCTION_API","evidence":"Authenticated E2E profile persistence round-trip"},
+    {"step":"PERSONALIZED_RADAR","classification":"FAILED","evidence":"production API access is proven, but customer-visible UNKNOWN is converted to numeric zero by BUG-GP-006"},
+    {"step":"ALERT_API","classification":"PROVEN_AUTOMATED","evidence":"alert feed is account-scoped; delivered marking requires matching authenticated account_id; closed opportunities are excluded by canonical actionability"},
+    {"step":"NOTIFICATION_PERMISSION","classification":"FAILED","evidence":"BUG-GP-007: denied OS permission collapses to delivered=0 and is displayed as Notificações activadas"},
+    {"step":"LOCAL_NOTIFICATION_WHILE_SYNC_EXECUTES","classification":"PROVEN_AUTOMATED","evidence":"native client schedules a local notification only after polling unread alerts and preserves server unread state if local scheduling fails"},
+    {"step":"REMOTE_PUSH_REGISTRATION","classification":"BLOCKED","evidence":"no Expo/native remote push token registration contract found on current main"},
+    {"step":"ACTUAL_BACKGROUND_PUSH_DELIVERY","classification":"BLOCKED","evidence":"current implementation polls unread API then schedules a local notification; no remote push delivery path is present to exercise on a closed/background app"},
+    {"step":"NOTIFICATION_TAP_TO_OPPORTUNITY","classification":"BLOCKED","evidence":"no notification-response listener/deep-link handler found on current main"},
+    {"step":"FOREGROUND_RETURN_REFRESH","classification":"PROVEN_AUTOMATED","evidence":"Radar load/cache refresh behavior exists; real-device foreground transition remains unproven"},
+    {"step":"RESTART_SESSION_PERSISTENCE","classification":"READY_FOR_DEVICE","evidence":"session coordinator preserves Supabase as authority and has race-safe startup logic; physical restart continuity still requires device proof"}
+  ],
+  "overall":"FAILED",
+  "blocking_defects":["BUG-GP-006","BUG-GP-007"],
+  "implementation_gaps":["REMOTE_PUSH_REGISTRATION","ACTUAL_BACKGROUND_PUSH_DELIVERY","NOTIFICATION_TAP_TO_OPPORTUNITY"],
+  "device_procedure_after_implementation_gaps_close":[
+    "Use a physical Android device with a test account and notification permission initially unset.",
+    "Authenticate, complete profile and verify personalized Radar values are truthful before enabling notifications.",
+    "Enable notifications and record OS permission result; denial must be visibly non-success.",
+    "With permission granted, create/obtain one unread high-match alert for the same tenant and prove another tenant cannot receive/read it.",
+    "Background/close the app, deliver a real push, record receipt, tap it and verify navigation to the exact current opportunity without cross-tenant leakage.",
+    "Return to Radar and verify refreshed current truth rather than stale/zero fabrication.",
+    "Force-stop/restart the app and verify authenticated session/cache continuity and honest unavailable-state handling.",
+    "Record exact app build, API deployment SHA, device/OS, account, event id, push id and screenshots/log evidence."
+  ]
+}
