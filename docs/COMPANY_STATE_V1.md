@@ -6,7 +6,7 @@ Contract: `company-state.v1`
 
 ## Purpose
 
-Company State answers only: **what is this tenant's company currently known, assumed, estimated, or unknown to have or be able to execute?** It is a decision-support input contract. It is not Company Profile, ERP, eligibility, Readiness, Bid Economics, MOBILIZE, SHADOW, COMMAND or ACTION.
+Company State answers only: **what is this tenant's company currently known, assumed, estimated, inferred, or unknown to have or be able to execute?** It is a decision-support input contract. It is not Company Profile, ERP, eligibility, Readiness, Bid Economics, MOBILIZE, SHADOW, COMMAND or ACTION.
 
 The permanent product principle is **minimum data required, maximum intelligence extracted**. Company-level facts and voluntary inputs are sufficient for v1; no bank, payroll, email, continuous GPS or employee-surveillance integration is required.
 
@@ -19,17 +19,17 @@ The permanent product principle is **minimum data required, maximum intelligence
 - append-only `state_version` assigned by persistence;
 - deterministic tenant-aware `fingerprint` for lineage/replay/cache keys;
 - bounded `facts`;
-- explicit `unknowns`, `conflicts` and non-scoring quality counts.
+- explicit `unknowns`, `conflicts` and non-scoring epistemic quality counts.
 
 A `CompanyFact` contains:
 - category and stable extensible code;
-- epistemic state: `FACT`, `ASSUMPTION`, `ESTIMATE`, `UNKNOWN`;
+- epistemic state: `FACT`, `ASSUMPTION`, `ESTIMATE`, `INFERENCE`, `UNKNOWN`;
 - value and optional unit/scope;
 - provenance;
 - `effective_from`, `effective_until`, `freshness_until` when relevant;
 - explicit `supersedes` references.
 
-Provenance basis is one of `DECLARED`, `PROFILE`, `VERIFIED`, `PUBLIC_REGISTRY`, `INTEGRATION`, `LEARNED`, `UNAVAILABLE`. `DECLARED` is legitimate evidence but is never external verification. `VERIFIED` requires a verification timestamp or evidence reference.
+Provenance basis is one of `DECLARED`, `PROFILE`, `VERIFIED`, `PUBLIC_REGISTRY`, `INTEGRATION`, `LEARNED`, `UNAVAILABLE`. `DECLARED` is legitimate evidence but is never external verification. `VERIFIED` requires a verification timestamp or evidence reference. `LEARNED` can only represent `INFERENCE`; it cannot masquerade as `FACT`. `UNAVAILABLE` can only represent `UNKNOWN`.
 
 ## Truth and UNKNOWN semantics
 
@@ -42,9 +42,11 @@ Tests lock the following distinctions:
 - no ISO 9001 record does not mean not certified;
 - explicit zero available crew/vehicle count remains a known zero;
 - stale/expired/future availability does not silently become current;
-- two conflicting current values remain `CONFLICT` until explicit supersession resolves them.
+- a stale observation remains visible but does not override or conflict with a usable current observation;
+- two incompatible **current** values remain `CONFLICT` until explicit supersession resolves them;
+- estimates, assumptions and learned inferences are never counted as `FACT` merely because they have a value.
 
-V1 deliberately has **no universal source-precedence hierarchy**. User declarations, registries and integrations can each be relevant. Material disagreement remains visible instead of being averaged or silently overwritten.
+V1 deliberately has **no universal source-precedence hierarchy**. User declarations, registries and integrations can each be relevant. Material current disagreement remains visible instead of being averaged or silently overwritten.
 
 ## Time and freshness
 
@@ -56,7 +58,7 @@ All domain datetimes are timezone-aware and normalized to UTC. `as_of` participa
 - a valid temporal/verification anchor => `CURRENT`;
 - otherwise => `UNKNOWN` freshness.
 
-Effective interval endpoints are inclusive. Retrieval/storage time is not treated as proof of source freshness.
+Effective interval endpoints are inclusive. Retrieval/storage time is not treated as proof of source freshness. `active_facts()` retains stale observations for explainability/unknown reporting; `current_facts()`, current-value resolution and conflict detection exclude stale observations.
 
 ## Money
 
@@ -92,11 +94,14 @@ Q090 uses the caller-provided canonical SQLite connection. It does not create an
 Persistence rules:
 - repeated schema initialization is safe;
 - existing unrelated DB content is preserved;
+- a pre-existing partial/incompatible `company_state_snapshots` table fails closed instead of being treated as migrated;
+- the `(account_id, state_version)` uniqueness invariant is verified, not assumed from column names;
 - same consecutive semantic snapshot is idempotent;
 - A -> B -> A remains historical when time/state materially changed;
 - `BEGIN IMMEDIATE` + optimistic expected version prevents lost updates;
 - row query metadata must match snapshot JSON version/fingerprint/contract/as-of;
 - corrupt storage is an explicit error, never an empty company state;
+- persistence errors after transaction start roll back before propagating;
 - queries are tenant-scoped and parameterized;
 - history reads are bounded.
 
@@ -106,7 +111,7 @@ This is snapshot history, not event sourcing.
 
 `CompanyStateService` accepts a **trusted** account id supplied by the caller's auth boundary. Client-controlled `account_id`, `tenant_id`, fingerprint, state version or contract metadata is forbidden.
 
-The public application write seam is specifically the **voluntary/manual** input boundary:
+The public application `patch()` seam is specifically the **voluntary/manual** input boundary:
 - voluntary facts are server-labelled `DECLARED` with source `manual`;
 - the client cannot self-promote a fact to `VERIFIED`, `PUBLIC_REGISTRY`, `INTEGRATION`, `LEARNED` or `PROFILE`;
 - the client cannot forge `verified_at`, evidence refs, observation time or source identity;
@@ -117,13 +122,29 @@ The public application write seam is specifically the **voluntary/manual** input
 - revoking the newest manual declaration removes its manual supersession chain from the current snapshot, so an older revoked value cannot silently reappear; historical snapshots remain immutable;
 - duplicate semantic keys in one patch are rejected instead of last-write-wins.
 
-Trusted registry/integration/OFFICE/learned inputs require a separate explicit server-side adapter with appropriate provenance controls; they must not impersonate the manual transport boundary.
-
 PATCH field semantics:
 - omitted field = leave state unchanged, except omitted `as_of` uses the explicitly injected operation clock;
 - `facts: null`, `revoke_fact_ids: null`, `as_of: null`, `expected_version: null` = invalid/ambiguous;
 - `company_ref: null` may explicitly clear the optional reference;
 - expected version is optimistic concurrency; when omitted, the service binds the write to the exact snapshot it just read.
+
+## Trusted OFFICE/provider ingestion seam
+
+`CompanyStateService.ingest_trusted_facts()` is the narrow server-side target for future OFFICE/Q120, official-registry and verified-integration observations. It is deliberately **not** a generic provider framework and registers no new runtime.
+
+Rules:
+- tenant identity is a trusted server argument, not provider/client payload authority;
+- input values must already be validated `CompanyFact` objects;
+- accepted provider bases are `VERIFIED`, `PUBLIC_REGISTRY`, `INTEGRATION`, `LEARNED`, `UNAVAILABLE`;
+- every provider fact requires explicit `source_ref` and `observed_at`;
+- `observed_at` and `verified_at` cannot be in the future relative to the injected operation clock;
+- an empty batch is not treated as successful evidence;
+- providers cannot select arbitrary supersession targets;
+- the server supersedes only the previous current observation with the same semantic key, provenance basis and source identity;
+- a different source does not silently replace another source; incompatible current observations remain `CONFLICT`;
+- learned provider values remain `INFERENCE`, never `FACT`;
+- expected-version semantics prevent stale/lost provider writes;
+- same fact + same clock replay is idempotent and preserves the same snapshot version/fingerprint.
 
 No HTTP endpoint is registered in this queued branch. A future HTTP adapter must derive tenant identity from canonical `configured_identity()` and may never authorize with payload/query tenant data.
 
@@ -132,21 +153,29 @@ No HTTP endpoint is registered in this queued branch. A future HTTP adapter must
 `company_state_adapters.py` provides neutral public projections only:
 - `requirements_facts`: operational capability/qualification/geography/capacity/equipment facts; excludes `geography.preferred_*`; Requirements owns MET/NOT_MET/UNKNOWN assessment.
 - `readiness_inputs`: neutral state/facts/unknown/conflict envelope; Readiness owns readiness status.
-- `economics_constraints`: known company financial limits only; Bid Economics owns opportunity calculations.
+- `economics_constraints`: company financial constraints only; Bid Economics owns opportunity calculations.
 - `mobilize_inputs`: **available** workers, **available** own vehicles and base; ownership alone never populates availability.
 - `bangs_inputs`: capacity/availability/equipment/geography/operational facts only; no price/cost observation is manufactured.
 
-OFFICE/Q120 can later write validated facts through a trusted provider seam with explicit provenance and temporal bounds. No separate sensor database or plugin framework is needed.
+Scalar consumer envelopes expose `KNOWN`/`UNKNOWN`/`CONFLICT` as **value usability**, while also carrying `knowledge_states` and `provenance_bases`. Therefore an `ESTIMATE`, `ASSUMPTION` or `INFERENCE` can be transported without being relabelled as verified `FACT`. A stale source cannot poison a separate current observation of the same semantic fact.
 
 ## Failure semantics
 
-No state row means Company State is not yet persisted; it does not assert zero capability. Corrupt/unreadable storage raises `CompanyStateStorageError`. Consumer integration should translate subsystem failure to explicit `UNKNOWN`/`UNAVAILABLE` according to the consumer's public contract, never to a favourable or negative fact.
+No state row means Company State is not yet persisted; it does not assert zero capability. Corrupt/unreadable/incompatible storage raises `CompanyStateStorageError`. Provider absence must be represented as explicit `UNAVAILABLE`/`UNKNOWN` data when material; an empty provider batch is not evidence. Consumer integration should translate subsystem failure to explicit `UNKNOWN`/`UNAVAILABLE` according to the consumer's public contract, never to a favourable or negative fact.
 
 ## Security/privacy bounds
 
 The domain bounds fact counts, string sizes, mappings, nesting and snapshot size. Invalid enum/code/date/currency, negative constrained quantities, binary floats, NaN/Infinity and control-character abuse fail closed. HTML-like strings remain data; Q090 renders no HTML. There is no network, secret, browser, shell or expression execution in the domain.
 
 V1 stores company-level operational facts. It does not require bank/accounting/payroll/email/continuous location or employee productivity data. Future integrations must remain optional, purpose-bound, least-privilege, revocable and inspectable.
+
+## Product acceptance
+
+Executable acceptance fixtures demonstrate both:
+1. a realistic small contractor with trade, base, 10 total workers, 6 available workers in a bounded window, one available vehicle, unknown certification and unknown cash constraint; and
+2. a minimal contractor with only trade + base, where crew/equipment/finance remain unknown to consumers without forcing a giant onboarding form.
+
+The same semantic state at the same `as_of` remains order-independent and fingerprint-stable.
 
 ## Deliberate non-goals
 
