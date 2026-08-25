@@ -33,6 +33,26 @@ RECRUITMENT_XML = """<root><row>
 </row></root>"""
 
 
+class FakeResponse:
+    def __init__(self, content, *, error=None):
+        self.content = content
+        self.error = error
+
+    def raise_for_status(self):
+        if self.error:
+            raise self.error
+
+
+class FakeSession:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+
+    def get(self, url, timeout):
+        self.calls.append((url, timeout))
+        return self.response
+
+
 def test_parse_snapshot_preserves_native_identity_and_text():
     rows = parse_snapshot_xml(PLAN_XML)
     assert len(rows) == 1
@@ -87,6 +107,31 @@ def test_invalid_or_unrecognizable_xml_fails_closed():
 def test_prepared_connector_refuses_missing_live_verified_urls_before_network():
     connector = TaiwanPCCPreparedConnector()
     with pytest.raises(RuntimeError, match="dataset 6574"):
+        connector.fetch_snapshot()
+
+
+def test_transport_uses_bounded_timeout_and_normalizes_complete_snapshot():
+    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://official.example/snapshot.xml")
+    session = FakeSession(FakeResponse(PLAN_XML.encode("utf-8")))
+    connector = TaiwanPCCPreparedConnector(sources=(source,), session=session, timeout=12)
+    records = connector.fetch_snapshot(observed_at="2026-08-25T00:00:00+00:00")
+    assert session.calls == [("https://official.example/snapshot.xml", 12)]
+    assert len(records) == 1
+    assert records[0]["external_id"] == "procurement_plan:A-2026-001"
+
+
+def test_transport_http_error_propagates_and_never_becomes_zero_results():
+    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://official.example/snapshot.xml")
+    session = FakeSession(FakeResponse(b"", error=RuntimeError("503 upstream")))
+    connector = TaiwanPCCPreparedConnector(sources=(source,), session=session)
+    with pytest.raises(RuntimeError, match="503 upstream"):
+        connector.fetch_snapshot()
+
+
+def test_empty_success_payload_fails_closed_instead_of_advancing_as_zero():
+    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://official.example/snapshot.xml")
+    connector = TaiwanPCCPreparedConnector(sources=(source,), session=FakeSession(FakeResponse(b"")))
+    with pytest.raises(RuntimeError, match="snapshot was empty"):
         connector.fetch_snapshot()
 
 
