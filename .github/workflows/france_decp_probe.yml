@@ -1,0 +1,48 @@
+name: France DECP query probe
+
+on:
+  pull_request:
+    paths:
+      - "france_decp.py"
+      - ".github/workflows/france_decp_probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+      - name: Probe official API query variants
+        run: |
+          python - <<'PY'
+          from datetime import date, timedelta
+          import requests
+          from france_decp import DECP_API
+
+          since = (date.today() - timedelta(days=30)).isoformat()
+          variants = {
+              "base": {"limit": 1},
+              "cpv": {"where": 'startswith(codecpv, "45")', "limit": 1},
+              "date_cast": {"where": f"datepublicationdonnees >= date:'{since}'", "limit": 1},
+              "date_quote": {"where": f"datepublicationdonnees >= '{since}'", "limit": 1},
+              "combo_cast": {"where": f'startswith(codecpv, "45") and datepublicationdonnees >= date:\'{since}\'', "limit": 1},
+              "combo_quote": {"where": f'startswith(codecpv, "45") and datepublicationdonnees >= \'{since}\'', "limit": 1},
+          }
+          ok = []
+          for name, params in variants.items():
+              r = requests.get(DECP_API, params=params, timeout=20)
+              print(f"PROBE {name}: {r.status_code} {r.url}")
+              print(r.text[:1000].replace("\n", " "))
+              if r.ok:
+                  ok.append(name)
+          assert "base" in ok, f"basic DECP endpoint unavailable; successes={ok}"
+          print("SUCCESSFUL_VARIANTS", ",".join(ok))
+          PY
