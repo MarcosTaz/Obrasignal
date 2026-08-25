@@ -4,6 +4,7 @@ import pytest
 import requests
 
 from qatar_ashghal import (
+    MAX_HTML_BYTES,
     AshghalSourceError,
     AshghalTender,
     fetch_open_tenders,
@@ -45,10 +46,23 @@ def test_parse_filter_normalize_uses_publisher_identity():
     assert record["coverage_scope"].startswith("LIMITED_HIGH_VALUE_SLICE")
 
 
+def test_classifier_uses_token_boundaries_not_substrings():
+    false_positive = AshghalTender("PWA/STC/77/2026", "STC", "Corporate technology roadmap and broadband services", "13 August 2026", "13 September 2026")
+    true_positive = AshghalTender("PWA/STC/78/2026", "STC", "Road maintenance works package", "13 August 2026", "13 September 2026")
+    assert is_construction_relevant(false_positive) is False
+    assert is_construction_relevant(true_positive) is True
+
+
 def test_identity_is_stable_across_title_case_changes():
     base = AshghalTender("PWA/GTC/17/2026", "GTC", "Roads and Infrastructure Works", "30 July 2026", "22 September 2026")
     changed = AshghalTender("PWA/GTC/17/2026", "GTC", "ROADS AND INFRASTRUCTURE WORKS - UPDATED", "30 July 2026", "22 September 2026")
     assert normalize_tender(base)["external_id"] == normalize_tender(changed)["external_id"]
+
+
+def test_chronology_violation_is_source_error():
+    bad = AshghalTender("PWA/GTC/99/2026", "GTC", "Road works", "22 September 2026", "30 July 2026")
+    with pytest.raises(AshghalSourceError, match="closing date precedes issuing date"):
+        normalize_tender(bad)
 
 
 def test_canonical_signal_store_idempotent_update():
@@ -64,9 +78,11 @@ def test_canonical_signal_store_idempotent_update():
     assert stored["last_observed"] == "2026-08-25T01:00:00+00:00"
 
 
-def test_empty_or_changed_contract_is_error_not_zero():
+def test_empty_changed_or_oversized_contract_is_error_not_zero():
     with pytest.raises(AshghalSourceError):
         parse_open_tenders("<html><body>No tender table</body></html>")
+    with pytest.raises(AshghalSourceError, match="exceeds safety limit"):
+        parse_open_tenders("x" * (MAX_HTML_BYTES + 1))
 
 
 class _Response:
@@ -85,6 +101,9 @@ class _Session:
 def test_fetch_contract_and_timeout_are_explicit():
     rows = fetch_open_tenders(session=_Session(), timeout=7)
     assert [r.tender_no for r in rows] == ["PWA/GTC/17/2026", "PWA/STC/32/2026"]
+    for invalid in (0, -1, 61, True, "7"):
+        with pytest.raises(ValueError):
+            fetch_open_tenders(session=_Session(), timeout=invalid)
 
 
 class _FailingSession:
