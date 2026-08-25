@@ -45,7 +45,10 @@ def test_api_hides_persisted_evidence_when_feature_is_disabled(monkeypatch):
 
     assert "evidence" not in rendered["explanation"]
     assert "decision_evidence" not in rendered
-    assert "graph" not in repr(rendered)
+    serialized = repr(rendered)
+    assert "tenant_id" not in serialized
+    assert "company-a" not in serialized
+    assert "'private': 'profile'" not in serialized
 
 
 def test_api_exposes_only_redacted_evidence_when_enabled(monkeypatch):
