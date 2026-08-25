@@ -1,0 +1,115 @@
+{
+  "contract_version": "resilience.v1",
+  "execution_scope": "TEST_ONLY_NON_RUNTIME",
+  "canonical_basis_at_creation": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "factory_issue": 428,
+  "truth_rules": [
+    "UNKNOWN_NE_HEALTHY",
+    "PARTIAL_NE_COMPLETE",
+    "SERVICE_RESTORED_NE_RECOVERY_VERIFIED",
+    "UNKNOWN_COMMIT_NE_SAFE_RETRY",
+    "RETRYABLE_NE_RETRY_FOREVER",
+    "GREEN_PR_NE_CANONICAL_RESILIENCE"
+  ],
+  "scenarios": [
+    {
+      "id": "db.unavailable",
+      "owner": "Data Reliability #238 / Operability #248",
+      "failure_class": "DEPENDENCY_UNAVAILABLE",
+      "expected_service_state": "UNAVAILABLE",
+      "required_recovery_evidence": [
+        "expected_state_verified",
+        "tenant_isolation_verified",
+        "no_silent_data_loss_verified",
+        "retry_quiesced",
+        "customer_journey_verified"
+      ]
+    },
+    {
+      "id": "db.partial_migration_or_corruption",
+      "owner": "Data Reliability #238",
+      "failure_class": "CORRUPT_STATE",
+      "expected_service_state": "UNAVAILABLE",
+      "required_recovery_evidence": [
+        "expected_state_verified",
+        "tenant_isolation_verified",
+        "no_silent_data_loss_verified"
+      ]
+    },
+    {
+      "id": "source.timeout",
+      "owner": "Source Health #327/#281",
+      "failure_class": "TIMEOUT",
+      "expected_service_state": "DEGRADED",
+      "required_recovery_evidence": [
+        "expected_state_verified",
+        "no_silent_data_loss_verified",
+        "retry_quiesced"
+      ]
+    },
+    {
+      "id": "source.partial_response",
+      "owner": "Source Health #327/#281",
+      "failure_class": "PARTIAL_RESPONSE",
+      "expected_service_state": "DEGRADED",
+      "required_recovery_evidence": [
+        "expected_state_verified",
+        "no_silent_data_loss_verified"
+      ]
+    },
+    {
+      "id": "source.stale",
+      "owner": "Source Health #327/#281",
+      "failure_class": "SOURCE_STALE",
+      "expected_service_state": "DEGRADED",
+      "required_recovery_evidence": [
+        "expected_state_verified",
+        "customer_journey_verified"
+      ]
+    },
+    {
+      "id": "auth.provider_unavailable",
+      "owner": "Auth #289 / Operability #248",
+      "failure_class": "AUTH_UNAVAILABLE",
+      "expected_service_state": "UNAVAILABLE",
+      "required_recovery_evidence": [
+        "expected_state_verified",
+        "tenant_isolation_verified",
+        "retry_quiesced",
+        "customer_journey_verified"
+      ]
+    },
+    {
+      "id": "billing.provider_unavailable",
+      "owner": "Billing #83",
+      "failure_class": "BILLING_UNAVAILABLE",
+      "expected_service_state": "DEGRADED",
+      "required_recovery_evidence": [
+        "expected_state_verified",
+        "tenant_isolation_verified",
+        "no_silent_data_loss_verified",
+        "retry_quiesced"
+      ]
+    },
+    {
+      "id": "notification.delivery_failure",
+      "owner": "Notification Delivery #329/#263",
+      "failure_class": "NOTIFICATION_DELIVERY_FAILURE",
+      "expected_service_state": "DEGRADED",
+      "required_recovery_evidence": [
+        "expected_state_verified",
+        "tenant_isolation_verified",
+        "retry_quiesced",
+        "customer_journey_verified"
+      ]
+    }
+  ],
+  "external_wait": [
+    "DESTRUCTIVE_PRODUCTION_CHAOS",
+    "PRODUCTION_DATA_OR_DB_MUTATION",
+    "PROVIDER_OR_SECRET_CONFIG_MUTATION",
+    "DEPLOY_OR_ROLLBACK_EXECUTION",
+    "MERGE_OR_QUEUE_CAPABILITY_SOURCE_PROMOTION",
+    "REPOSITORY_SETTINGS_MUTATION"
+  ]
+}
