@@ -1,0 +1,65 @@
+name: DGCP Complete Connector Live
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'dominican_republic_dgcp*.py'
+      - 'test_dominican_republic_dgcp*.py'
+      - '.github/workflows/dgcp-complete-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact revision
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Execute bounded historical process interval and normalize live construction hydration
+        run: |
+          python - <<'PY'
+          from dataclasses import replace
+          from datetime import date
+          import json
+
+          from dominican_republic_dgcp import DGCP_CONFIG, normalize_dgcp_signals
+          from dominican_republic_dgcp_discovery import DGCPProcessDiscoveryConnector
+
+          config = replace(
+              DGCP_CONFIG,
+              page_size=1000,
+              max_pages_per_window=5,
+              max_hydrations_per_window=100,
+          )
+          connector = DGCPProcessDiscoveryConnector(config)
+          start = date(2026, 8, 20)
+          end = date(2026, 8, 22)
+          records = connector._fetch_window(start, end)
+          rows = []
+          for record in records:
+              rows.extend(normalize_dgcp_signals(record))
+          print(json.dumps({
+              'window': [start.isoformat(), end.isoformat()],
+              'records': len(records),
+              'signals': len(rows),
+              'types': {kind: sum(row.get('signal_type') == kind for row in rows) for kind in ('TENDER','AWARD','CONTRACT')},
+          }, sort_keys=True))
+          assert records, 'publisher bounded historical interval must expose Obras processes'
+          assert rows, 'live hydrated Obras records must normalize to lifecycle signals'
+          assert any(row.get('signal_type') == 'TENDER' for row in rows)
+          assert all(row.get('source') == 'DO_DGCP' for row in rows)
+          assert all(row.get('signal_type') in {'TENDER','AWARD','CONTRACT'} for row in rows)
+          identities = [(row.get('signal_type'), row.get('external_id')) for row in rows]
+          assert len(set(identities)) == len(identities)
+          PY

@@ -95,11 +95,27 @@ def _text(value):
 
 
 def _records_from_payload(payload):
-    """Extract OCDS record-like units from common API package shapes."""
+    """Extract OCDS record-like units from common API package shapes.
+
+    Some official publishers wrap their useful body in a generic API envelope,
+    e.g. ``{"payload": {"content": [...]}}``. Recursively unwrap only mapping
+    payloads; this remains conservative and does not reinterpret scalar metadata.
+    """
     if isinstance(payload, list):
         return [row for row in payload if isinstance(row, dict)]
     if not isinstance(payload, dict):
         raise RuntimeError("OCDS API response is not an object/list")
+
+    wrapped = payload.get("payload")
+    if isinstance(wrapped, dict):
+        content = wrapped.get("content")
+        if isinstance(content, list):
+            return [row for row in content if isinstance(row, dict)]
+        if isinstance(content, dict):
+            return _records_from_payload(content)
+        nested = _records_from_payload(wrapped)
+        if nested:
+            return nested
 
     records = payload.get("records")
     if isinstance(records, list):
