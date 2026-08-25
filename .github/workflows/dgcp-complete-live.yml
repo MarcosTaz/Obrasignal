@@ -1,0 +1,63 @@
+name: DGCP Complete Connector Live
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'dominican_republic_dgcp*.py'
+      - 'test_dominican_republic_dgcp*.py'
+      - '.github/workflows/dgcp-complete-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact revision
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Execute complete connector on bounded proven works day
+        run: |
+          python - <<'PY'
+          from dataclasses import replace
+          from datetime import datetime, timezone
+          import json
+
+          from dominican_republic_dgcp import DGCP_CONFIG
+          from dominican_republic_dgcp_discovery import DGCPProcessDiscoveryConnector, fetch_dgcp_signals_complete
+
+          config = replace(
+              DGCP_CONFIG,
+              page_size=1000,
+              initial_lookback_days=0,
+              overlap_days=0,
+              max_windows_per_sync=1,
+              max_pages_per_window=5,
+              max_hydrations_per_window=100,
+          )
+          rows, cursor = fetch_dgcp_signals_complete(
+              connector=DGCPProcessDiscoveryConnector(config),
+              now=datetime(2026, 8, 21, 23, 0, tzinfo=timezone.utc),
+          )
+          assert rows, 'bounded live day must produce at least one construction lifecycle signal'
+          assert any(row.get('signal_type') == 'TENDER' for row in rows)
+          assert all(row.get('source') == 'DO_DGCP' for row in rows)
+          assert all(row.get('signal_type') in {'TENDER','AWARD','CONTRACT'} for row in rows)
+          identities = [(row.get('signal_type'), row.get('external_id')) for row in rows]
+          assert len(set(identities)) == len(identities)
+          print(json.dumps({
+              'signals': len(rows),
+              'types': {kind: sum(row.get('signal_type') == kind for row in rows) for kind in ('TENDER','AWARD','CONTRACT')},
+              'cursor': cursor,
+          }, sort_keys=True))
+          PY
