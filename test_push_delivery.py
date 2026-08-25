@@ -14,8 +14,8 @@ def _conn():
     conn.row_factory = sqlite3.Row
     conn.execute("""CREATE TABLE tenders(
         id INTEGER PRIMARY KEY, source TEXT, external_id TEXT, title TEXT,
-        buyer TEXT, country TEXT, url TEXT, deadline TEXT, score INTEGER,
-        first_seen TEXT
+        buyer TEXT, country TEXT, url TEXT, deadline TEXT, publication_date TEXT,
+        score INTEGER, first_seen TEXT
     )""")
     ensure_event_table(conn)
     return conn
@@ -195,4 +195,33 @@ def test_device_not_registered_is_pruned_without_marking_event_delivered():
     assert attempt["attempt_count"] == 1
     assert attempt["last_attempt_at"]
     assert conn.execute("SELECT delivered_at FROM opportunity_events WHERE id=1").fetchone()[0] is None
+    conn.close()
+
+
+def test_account_bootstrap_events_dispatch_through_the_same_canonical_sender(monkeypatch):
+    import notification_events
+    from account_onboarding import _emit_bootstrap_events
+
+    conn = _conn()
+    conn.execute("""CREATE TABLE opportunity_decisions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        score INTEGER NOT NULL
+    )""")
+    conn.execute("INSERT INTO tenders(id,source,external_id,title,deadline,publication_date,score,first_seen) VALUES (5,'TED','A-5','Obra E','2099-01-01','2026-08-25',96,datetime('now'))")
+    conn.execute("INSERT INTO opportunity_decisions(account_id,source,external_id,score) VALUES ('account-a','TED','A-5',96)")
+    calls = []
+
+    def dispatch(dispatch_conn, account_id, **_kwargs):
+        assert dispatch_conn is conn
+        calls.append(account_id)
+        return 0
+
+    monkeypatch.setattr(notification_events, "submit_pending_pushes", dispatch)
+    assert _emit_bootstrap_events(conn, "account-a") == 1
+    assert calls == ["account-a"]
+    event = conn.execute("SELECT account_id,event_key,tender_id FROM opportunity_events").fetchone()
+    assert tuple(event) == ("account-a", "account-a:TED:A-5", 5)
     conn.close()
