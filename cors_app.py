@@ -5,6 +5,7 @@ from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
+import pursuit_workspace_api  # registers the additive tenant-private workspace blueprint
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
@@ -28,7 +29,7 @@ def _cors(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
