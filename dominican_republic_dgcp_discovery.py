@@ -117,19 +117,34 @@ class DGCPProcessDiscoveryConnector(OCDSReleasePackageConnector):
         if payload.get("code") != 200 or payload.get("hasError") is not False:
             raise RuntimeError("DO_DGCP process response reports an API error")
 
-        meta = {
-            "page": _int_field(payload, "page"),
-            "pages": _int_field(payload, "pages"),
-            "limit": _int_field(payload, "limit"),
-            "total": _int_field(payload, "totalResults"),
-        }
         body = payload.get("payload")
         rows = body.get("content") if isinstance(body, dict) else None
-        if rows is None and meta["total"] == 0:
+        page_value = _int_field(payload, "page")
+        limit_value = _int_field(payload, "limit")
+
+        # The live DGCP API has a distinct, proven no-results envelope:
+        # page + limit are present, payload.content is null, while pages and
+        # totalResults are omitted. Only that exact omission is normalized to
+        # an empty page; partial/contradictory metadata remains an error.
+        missing_pages = "pages" not in payload
+        missing_total = "totalResults" not in payload
+        if rows is None and missing_pages and missing_total:
             rows = []
+            meta = {"page": page_value, "pages": 0, "limit": limit_value, "total": 0}
+        else:
+            if missing_pages or missing_total:
+                raise RuntimeError("DO_DGCP process response has incomplete pagination metadata")
+            meta = {
+                "page": page_value,
+                "pages": _int_field(payload, "pages"),
+                "limit": limit_value,
+                "total": _int_field(payload, "totalResults"),
+            }
+            if rows is None and meta["total"] == 0:
+                rows = []
+
         if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
             raise RuntimeError("DO_DGCP process response has invalid payload.content")
-
         if meta["page"] != page:
             raise RuntimeError("DO_DGCP process response page does not match request")
         if meta["limit"] != int(self.config.page_size):
