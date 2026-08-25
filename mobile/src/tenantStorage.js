@@ -6,7 +6,7 @@ export const LEGACY_PRIVATE_KEYS = [
   '@obrasignal/v1/profile',
 ];
 
-const PRIVATE_KINDS = ['saved', 'opportunities-cache', 'profile'];
+const PRIVATE_KINDS = ['saved', 'opportunities-cache', 'profile', 'push-binding'];
 
 function normalizeIdentity(identity) {
   const value = String(identity || '').trim();
@@ -84,5 +84,8 @@ export function createTenantStorage(adapter, now = () => new Date().toISOString(
     setCache: (identity, payload) => writePrivate(identity, 'opportunities-cache', payload),
     getProfile: (identity) => readPrivate(identity, 'profile', null),
     setProfile: (identity, profile) => writePrivate(identity, 'profile', profile),
+    getPushBinding: (identity) => readPrivate(identity, 'push-binding', null),
+    setPushBinding: (identity, binding) => writePrivate(identity, 'push-binding', binding),
+    clearPushBinding: (identity) => purgeKind(adapter, identity, 'push-binding'),
   };
 }
