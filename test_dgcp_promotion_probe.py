@@ -1,22 +1,40 @@
-"""TEMPORARY forensic probe; remove after measuring full PACC snapshot economics."""
-from datetime import datetime, timezone
+"""TEMPORARY forensic probe; remove after measuring daily OCDS discovery volume."""
+from datetime import datetime, timedelta, timezone
 import json
-import time
 
-from dominican_republic_dgcp_pacc import DGCPPACCConfig, DGCPPACCConnector
+import requests
+
+from dominican_republic_dgcp import DGCP_OCDS_RELEASES_URL
 
 
-def test_temporary_dgcp_full_pacc_snapshot_probe():
-    now = datetime.now(timezone.utc)
-    connector = DGCPPACCConnector(DGCPPACCConfig(page_size=1000, max_pages=60, timeout=45))
-    started = time.perf_counter()
-    signals = connector.fetch_snapshot(now=now)
-    elapsed = round(time.perf_counter() - started, 3)
+def test_temporary_dgcp_daily_ocds_volume_probe():
+    today = datetime.now(timezone.utc).date()
+    counts = {}
+    for days_ago in range(1, 15):
+        day = today - timedelta(days=days_ago)
+        response = requests.get(
+            DGCP_OCDS_RELEASES_URL,
+            params={
+                "page": 1,
+                "limit": 1,
+                "start_date": day.isoformat(),
+                "end_date": day.isoformat(),
+            },
+            headers={"Accept": "application/json", "User-Agent": "ObraSignal temporary promotion probe/1.0"},
+            timeout=45,
+        )
+        response.raise_for_status()
+        envelope = response.json()
+        if not isinstance(envelope, dict) or envelope.get("hasError") is not False or envelope.get("code") != 200:
+            raise RuntimeError(f"unexpected DGCP envelope for {day}")
+        total = envelope.get("totalResults")
+        pages = envelope.get("pages")
+        counts[day.isoformat()] = {"totalResults": total, "pages_at_limit_1": pages}
+    totals = [int(item["totalResults"] or 0) for item in counts.values()]
     summary = {
-        "elapsed_seconds": elapsed,
-        "signals": len(signals),
-        "unique_ids": len({row.get("external_id") for row in signals}),
-        "all_works": all(row.get("category_code") == "OBRAS" for row in signals),
-        "all_future": all((row.get("target_date") or "") >= now.date().isoformat() for row in signals),
+        "days": counts,
+        "max_total": max(totals) if totals else 0,
+        "mean_total": round(sum(totals) / len(totals), 2) if totals else 0,
+        "days_above_250": sum(total > 250 for total in totals),
     }
-    raise AssertionError("DGCP_PACC_FULL_SNAPSHOT=" + json.dumps(summary, sort_keys=True))
+    raise AssertionError("DGCP_OCDS_DAILY_VOLUME=" + json.dumps(summary, sort_keys=True))
