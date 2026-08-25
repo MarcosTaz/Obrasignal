@@ -9,6 +9,7 @@ from production_readiness import (
     DEFAULT_MANIFEST,
     REQUIRED_GATES,
     ReadinessContractError,
+    assert_current_main,
     audit_target,
     load_manifest,
     validate_manifest,
@@ -142,6 +143,20 @@ def test_main_movement_must_not_be_silently_ignored():
     manifest["snapshot"]["stale_if_main_moves"] = False
     with pytest.raises(ReadinessContractError, match="become stale when main moves"):
         validate_manifest(manifest)
+
+
+def test_current_main_match_is_explicitly_accepted():
+    assert_current_main(_manifest(), EXPECTED_MAIN)
+
+
+def test_current_main_drift_fails_closed_until_reconstructed():
+    with pytest.raises(ReadinessContractError, match="snapshot is stale"):
+        assert_current_main(_manifest(), "f" * 40)
+
+
+def test_blank_observed_main_is_not_accepted():
+    with pytest.raises(ReadinessContractError, match="current_main_sha"):
+        assert_current_main(_manifest(), "   ")
 
 
 def test_inventory_cannot_drop_a_required_gate():
