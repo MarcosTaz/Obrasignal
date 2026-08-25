@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import hashlib
 import re
 
-from opportunity_lifecycle import ensure_lifecycle_table
+from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 
 
 def _norm(value):
@@ -47,13 +47,13 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
     ensure_event_table(conn)
     ensure_lifecycle_table(conn)
     rows = conn.execute(
-        """SELECT t.* FROM tenders t
+        f"""SELECT t.* FROM tenders t
            LEFT JOIN opportunity_lifecycle lc
              ON lc.source=t.source AND lc.external_id=t.external_id
            WHERE t.first_seen IS NOT NULL
              AND t.first_seen >= datetime('now','-2 minutes')
              AND t.score >= ?
-             AND COALESCE(lc.is_actionable,1)=1
+             AND {actionable_predicate('lc', 't')}
            ORDER BY t.score DESC, t.first_seen ASC""",
         (min_score,),
     ).fetchall()
