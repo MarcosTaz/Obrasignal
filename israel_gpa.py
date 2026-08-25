@@ -299,10 +299,15 @@ def fetch_recent_notices(*, session=None, timeout: float = 20.0, max_details: in
 
 
 def fetch_normalized_construction_tenders(*, session=None, timeout: float = 20.0, max_details: int = MAX_DETAIL_FETCHES) -> list[dict]:
+    """Return the conservative construction slice after a successful observation.
+
+    An empty list is a healthy, semantically meaningful result when the bounded
+    publisher response parses correctly but contains no notices admitted by the
+    conservative construction classifier. Transport, discovery, schema, detail
+    parsing and identity failures still raise IsraelGPASourceError.
+    """
     notices = fetch_recent_notices(session=session, timeout=timeout, max_details=max_details)
     normalized = normalize_construction_notices(notices)
-    if not normalized:
-        raise IsraelGPASourceError("GPA fetch succeeded but construction classifier admitted zero records")
     ids = [r["external_id"] for r in normalized]
     if len(ids) != len(set(ids)):
         raise IsraelGPASourceError("duplicate GPA publisher identity in one fetch")
