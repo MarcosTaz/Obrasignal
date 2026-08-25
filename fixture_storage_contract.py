@@ -28,6 +28,8 @@ FIXTURE_STORE_CONTRACTS: dict[str, TableContract] = {
     ),
 }
 
+_FIXTURE_SOURCE = "OBRASIGNAL_E2E_FIXTURE"
+
 
 def verify_fixture_store(conn: sqlite3.Connection) -> None:
     """Verify structure and the fixture->workflow tenant ownership chain."""
@@ -39,10 +41,21 @@ def verify_fixture_store(conn: sqlite3.Connection) -> None:
              ON f.source=w.source AND f.external_id=w.external_id
            WHERE f.account_id<>w.account_id"""
     ).fetchone()[0])
+    orphan = int(conn.execute(
+        """SELECT COUNT(*)
+           FROM opportunity_workflow w
+           LEFT JOIN e2e_opportunity_fixtures f
+             ON f.account_id=w.account_id AND f.source=w.source AND f.external_id=w.external_id
+           WHERE w.source=? AND f.fixture_id IS NULL""",
+        (_FIXTURE_SOURCE,),
+    ).fetchone()[0])
+    errors: list[str] = []
     if mismatch:
-        raise StorageContractError(
-            f"fixture store integrity failed: workflow_tenant_mismatch_rows={mismatch}"
-        )
+        errors.append(f"workflow_tenant_mismatch_rows={mismatch}")
+    if orphan:
+        errors.append(f"orphan_fixture_workflow_rows={orphan}")
+    if errors:
+        raise StorageContractError("fixture store integrity failed: " + "; ".join(errors))
 
 
 def fixture_tenant_owned_tables() -> dict[str, str]:
