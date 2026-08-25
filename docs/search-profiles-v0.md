@@ -63,7 +63,17 @@ Before RUN, the profile is revalidated against the current schema and sort contr
 1. the profile is marked `INVALID`;
 2. RUN fails with `search_profile_needs_update`;
 3. no unsupported criterion is silently dropped;
-4. an UPDATE with a valid current payload repairs the profile and moves it back to `ACTIVE` at the current schema version.
+4. repairing an `INVALID` profile requires an UPDATE that explicitly supplies both a current `filters` object and a supported `sort`;
+5. a rename/default-only update cannot implicitly replace unreadable or obsolete criteria with defaults;
+6. a successful explicit repair moves the profile back to `ACTIVE` at the current schema version.
+
+## Migration / startup contract
+
+`ensure_search_profile_table(conn)` is an explicit migration/bootstrap helper. The production WSGI startup (`cors_app.py`) invokes it before serving requests.
+
+Normal SearchProfile CREATE/READ/UPDATE/DELETE/RUN paths do **not** execute schema DDL. Focused tests trace SQL during CRUD and fail if `CREATE`, `ALTER`, or `DROP` is executed in those paths.
+
+The migration is additive and idempotent: it creates the table plus account lookup and one-default-per-account indexes without destructive data changes.
 
 ## API
 
@@ -80,7 +90,7 @@ Create payload fields: `name`, `filters`, `sort`, `is_default`.
 
 Update payload fields: `name`, `filters`, `sort`, `is_default`.
 
-Unknown top-level fields are rejected. In particular, `account_id` is never accepted as client authority.
+Unknown top-level fields are rejected. In particular, `account_id` is never accepted as client authority. RUN accepts no JSON fields; unexpected fields are rejected instead of ignored.
 
 RUN returns the existing opportunity-search result shape (`items`, `count`, `market`, `generated_at`, `account_id`) rather than introducing a competing result model.
 
@@ -125,11 +135,17 @@ The branch includes focused tests for:
 - unique default per account;
 - tenant isolation;
 - old/corrupt profile fail-closed behavior;
+- explicit repair of invalid profiles without silent criterion loss;
+- no schema DDL during normal CRUD paths;
 - hard delete;
 - direct-search versus saved-profile semantic equivalence;
 - rejection of client-supplied ownership and unsupported criteria.
 
 The repository's pull-request CI remains the authoritative execution gate: Python compile + full pytest suite and Expo/mobile checks. A test is only reported as TESTED after that workflow actually completes successfully.
+
+## Rollback
+
+Because the capability is additive and remains unmerged, rollback before integration is simply closing the PR/deleting the feature branch. After a future merge, runtime rollback can remove the API installation while leaving the additive `search_profiles` table inert; dropping persisted user profiles should require an explicit data-retention decision rather than being coupled to code rollback.
 
 ## Master Queue protection
 
