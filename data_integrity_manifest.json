@@ -1,0 +1,269 @@
+{
+  "contract_version": "data-integrity.v1",
+  "exact_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "mode": "READ_ONLY_FAIL_CLOSED",
+  "principles": [
+    "ONE_AUTHORITY_PER_FACT",
+    "CACHE_NOT_AUTHORITY",
+    "EVENT_NOT_CURRENT_STATE",
+    "PROJECTION_NOT_AUTHORITY",
+    "UNKNOWN_NOT_CONSISTENT"
+  ],
+  "state_families": [
+    {
+      "fact": "local_account_registry",
+      "owner": "Account Registry / Auth mapping consumer",
+      "canonical_authority": "accounts.account_id for local tenant mapping; external identity-provider mapping authority remains Auth-owned",
+      "storage": ["accounts"],
+      "derived": ["billing/evaluation projection columns on accounts"],
+      "tenant_key": "account_id",
+      "status": "CANONICAL",
+      "unknown": ["provider identity reconciliation path"]
+    },
+    {
+      "fact": "company_profile_configuration",
+      "owner": "Company Profile",
+      "canonical_authority": "company_profiles.profile_json",
+      "storage": ["company_profiles"],
+      "derived": ["normalized profile returned by company_profile.load_profile"],
+      "event_representation": ["evaluation_events.profile_ready"],
+      "tenant_key": "account_id",
+      "timestamp": "updated_at",
+      "status": "CANONICAL",
+      "reconciliation": "MISSING_CANONICAL_CONTRACT",
+      "current_invariant": "persisted profile <-> profile_ready lifecycle evidence"
+    },
+    {
+      "fact": "opportunity",
+      "owner": "Source/domain owners",
+      "canonical_authority": "tenders row keyed by source + external_id",
+      "storage": ["tenders"],
+      "derived": ["API/Radar/detail projections"],
+      "identity_key": ["source", "external_id"],
+      "status": "CANONICAL",
+      "unknown": ["cross-source logical dedupe authority"]
+    },
+    {
+      "fact": "workflow",
+      "owner": "Opportunity Workflow",
+      "canonical_authority": "opportunity_workflow",
+      "storage": ["opportunity_workflow"],
+      "tenant_key": "account_id",
+      "identity_key": ["source", "external_id"],
+      "timestamp": "updated_at",
+      "status": "CANONICAL",
+      "current_invariant": "workflow account exists and opportunity identity resolves"
+    },
+    {
+      "fact": "decision",
+      "owner": "Decision Log / Evaluation consumers",
+      "canonical_authority": "latest opportunity_decisions row per account_id + source + external_id",
+      "storage": ["opportunity_decisions"],
+      "tenant_key": "account_id",
+      "identity_key": ["source", "external_id"],
+      "timestamp": "decided_at",
+      "status": "CANONICAL",
+      "current_invariant": "decision account exists and opportunity identity resolves"
+    },
+    {
+      "fact": "opportunity_event",
+      "owner": "Notification Events",
+      "canonical_authority": "opportunity_events",
+      "storage": ["opportunity_events"],
+      "tenant_key": "account_id",
+      "identity_key": "event_key",
+      "timestamp": "created_at",
+      "status": "CANONICAL",
+      "current_invariant": "event account exists; event_key tenant namespace agrees; non-null tender_id resolves consistently"
+    },
+    {
+      "fact": "evaluation_lifecycle",
+      "owner": "Evaluation",
+      "canonical_authority": "Evaluation domain semantics; accounts carries current projection and evaluation_events carries event/history evidence",
+      "storage": ["accounts", "evaluation_events"],
+      "tenant_key": "account_id",
+      "status": "CANONICAL_MULTI_REPRESENTATION",
+      "reconciliation": "PARTIAL_EVENT_DRIFT_DETECTOR_ONLY",
+      "current_invariant": "profile_ready event must agree with canonical profile existence"
+    },
+    {
+      "fact": "billing_current_subscription",
+      "owner": "Billing",
+      "canonical_authority": "RevenueCat current subscriber state for normal accounts; accounts is local projection",
+      "storage": ["accounts", "billing_webhook_events"],
+      "event_representation": ["billing_webhook_events"],
+      "status": "CANONICAL_LOCAL_PROJECTION_WITH_EXTERNAL_AUTHORITY",
+      "unknown": ["safe external reconciliation proof on current main", "deletion-terminal semantics are not canonical on main"]
+    },
+    {
+      "fact": "source_freshness",
+      "owner": "Source Health",
+      "canonical_authority": "source_health",
+      "storage": ["source_health", "source_cursor"],
+      "timestamp": ["last_attempt", "last_success", "updated_at"],
+      "status": "CANONICAL",
+      "unknown": ["fetch-success vs durable-ingestion reconciliation is owner/integration work"]
+    },
+    {
+      "fact": "notification_device_and_delivery",
+      "owner": "Notification Delivery",
+      "canonical_authority": "NOT_CANONICAL_ON_MAIN",
+      "storage": ["push_devices PREBUILD", "push_deliveries PREBUILD"],
+      "status": "PREBUILD",
+      "unknown": ["not scanned as canonical until exact combined tree is selected"]
+    },
+    {
+      "fact": "company_state",
+      "owner": "Company State",
+      "canonical_authority": "NOT_CANONICAL_ON_MAIN",
+      "storage": ["company_state_snapshots PREBUILD"],
+      "status": "PREBUILD",
+      "unknown": ["runtime activation", "lifecycle composition"]
+    },
+    {
+      "fact": "fixture_state",
+      "owner": "E2E Fixture",
+      "canonical_authority": "TEST_ONLY separate store",
+      "storage": ["e2e_opportunity_fixtures TEST_ONLY"],
+      "status": "TEST_ONLY_NOT_CANONICAL"
+    },
+    {
+      "fact": "saved_watchlist",
+      "owner": "Saved/Watchlist #150",
+      "canonical_authority": "NO SERVER AUTHORITY ON CURRENT MAIN; #150 proposes opportunity_workflow.saved_at as the single server-side membership fact",
+      "storage": [
+        "mobile AsyncStorage @obrasignal/v1/saved current-main client representation",
+        "opportunity_workflow.saved_at PREBUILD #150"
+      ],
+      "tenant_key": "account_id on PREBUILD server relation; absent from current-main mobile storage key",
+      "status": "PREBUILD_OWNER_CONTRACT_STALE_BASE",
+      "candidate": {
+        "pr": 150,
+        "head_sha": "879ef88233d9b86f9905e7281409b8897e4f4a89",
+        "base_sha": "44f8928595513537110e50f1352b1519c8a82531",
+        "current_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+        "membership": "saved_at IS NOT NULL",
+        "duplicate_table_policy": "no saved_opportunities table"
+      },
+      "unknown": ["#150 behavior after reconciliation onto current main"]
+    },
+    {
+      "fact": "mobile_private_cache",
+      "owner": "Mobile Session/Tenant State #291/#322",
+      "canonical_authority": "backend APIs remain authority; AsyncStorage is derived only",
+      "storage": [
+        "@obrasignal/v1/opportunities-cache",
+        "@obrasignal/v1/profile",
+        "@obrasignal/v1/saved",
+        "@obrasignal/v1/settings"
+      ],
+      "client_copies": ["profile", "Radar opportunity cache", "saved", "settings"],
+      "tenant_key": "ABSENT_ON_CURRENT_MAIN_STORAGE_KEYS",
+      "status": "CANONICAL_DERIVED_RISK_OTHER_OWNER",
+      "current_invariant": "cached private state must bind to current authenticated tenant before hydration",
+      "unknown": ["#322 tenant-scoped candidate is not canonical main and therefore not counted as current canonical repair"]
+    },
+    {
+      "fact": "web_client_state",
+      "owner": "Web",
+      "canonical_authority": "backend contracts",
+      "status": "RECONSTRUCTION_PENDING"
+    },
+    {
+      "fact": "backup_restore_representation",
+      "owner": "Persistence/Data Reliability",
+      "canonical_authority": "live canonical DB; backups are recovery representations",
+      "status": "NONCANONICAL_OWNER_CANDIDATE",
+      "unknown": ["post-restore external reconciliation"]
+    }
+  ],
+  "write_path_inventory": [
+    {
+      "storage": "accounts",
+      "writers": [
+        "account_registry.ensure_account -> local account creation",
+        "account_registry.update_subscription -> billing projection fields",
+        "evaluation_policy.* -> evaluation projection fields"
+      ],
+      "classification": "SHARED_ROW_SPLIT_FACTS",
+      "dual_truth": false,
+      "reason": "multiple writers target different owned fact slices in one row; shared storage alone is not multiple authority"
+    },
+    {
+      "storage": "company_profiles",
+      "writers": ["company_profile._persist_profile_db via save_profile or one-time legacy import"],
+      "classification": "ONE_CANONICAL_WRITE_FUNCTION",
+      "dual_truth": false
+    },
+    {
+      "storage": "tenders",
+      "writers": ["app canonical ingest upsert keyed by source + external_id"],
+      "classification": "ONE_CANONICAL_INGEST_PATH_AT_CURRENT_MAIN",
+      "dual_truth": false
+    },
+    {
+      "storage": "opportunity_workflow",
+      "writers": ["opportunity_workflow.set_workflow"],
+      "classification": "ONE_CANONICAL_WRITE_FUNCTION",
+      "dual_truth": false
+    },
+    {
+      "storage": "opportunity_decisions",
+      "writers": ["decision_log.record_decision"],
+      "classification": "APPEND_HISTORY_CURRENT_BY_LATEST_ID",
+      "dual_truth": false
+    },
+    {
+      "storage": "opportunity_events",
+      "writers": ["notification_events.record_new_opportunities"],
+      "classification": "APPEND_EVENT_LEDGER_CURRENT_MAIN",
+      "dual_truth": false
+    },
+    {
+      "storage": "billing_webhook_events",
+      "writers": ["account_registry.billing_webhook"],
+      "classification": "EVENT_DEDUPE_LEDGER_NOT_SUBSCRIPTION_AUTHORITY",
+      "dual_truth": false
+    },
+    {
+      "storage": "source_health/source_cursor",
+      "writers": ["source_health.record_source_result", "source_health.set_source_cursor"],
+      "classification": "SOURCE_HEALTH_OWNED_STATE",
+      "dual_truth": false,
+      "unknown": ["durable-ingest versus checkpoint/health atomicity is not proven by this inventory"]
+    },
+    {
+      "storage": "mobile AsyncStorage private/client state",
+      "writers": ["mobile/src/storage.js setters invoked by current mobile client"],
+      "classification": "DERIVED_UNSCOPED_CACHE_OTHER_OWNER",
+      "dual_truth": false,
+      "reason": "client persistence is a derived copy, but current-main keying lacks tenant binding"
+    }
+  ],
+  "dual_truth_findings": [
+    {
+      "fact": "evaluation_lifecycle",
+      "classification": "MULTI_REPRESENTATION_RECONCILIATION_GAP",
+      "authority": "Evaluation domain semantics",
+      "representations": ["accounts evaluation columns", "evaluation_events"],
+      "dual_truth": false,
+      "drift": "profile persistence can succeed while profile_ready event/projection update fails"
+    },
+    {
+      "fact": "mobile_private_cache",
+      "classification": "DERIVED_RISK_OTHER_OWNER",
+      "authority": "backend",
+      "representations": ["backend", "AsyncStorage"],
+      "dual_truth": false,
+      "drift": "current-main cache keys do not encode tenant identity"
+    },
+    {
+      "fact": "saved_watchlist",
+      "classification": "PREBUILD_SINGLE_AUTHORITY_CONTRACT_STALE_BASE",
+      "authority": "current main has no server authority; #150 proposes opportunity_workflow.saved_at",
+      "representations": ["current-main mobile AsyncStorage saved", "#150 PREBUILD workflow.saved_at"],
+      "dual_truth": "UNKNOWN_UNTIL_INTEGRATED",
+      "drift": "do not reconcile client saved state against #150 until owner candidate is reconciled to current main"
+    }
+  ]
+}
