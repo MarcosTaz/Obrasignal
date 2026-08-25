@@ -17,7 +17,7 @@ This branch does not mark France or DECP as production-deployed. `FR_DECP` is re
 
 ## Commercial case
 
-France is already a canonical BUILD market in `market_scope_registry.py`, with strong demand intensity, construction relevance and monetization potential. The incremental engineering cost is justified because DECP adds buyer/supplier/contract-value/history and modification evidence that tender-only coverage cannot provide.
+France is already a canonical BUILD market in `market_scope_registry.py`, with strong demand intensity, construction relevance and monetization potential. The incremental engineering cost is justified because DECP adds buyer/supplier/contract-value/history evidence that tender-only coverage cannot provide.
 
 The market is competitive, not empty. Publicly visible French products range from low-cost BOAMP alerting to premium intelligence/response suites. Examples observed during this assessment include TenderWatch, MarchéRadar, Marchés Publics France, Marchey and Titulis. This reinforces that generic tender alerts are commoditized; ObraSignal should differentiate through construction-specific decision intelligence, lifecycle evidence and contractor fit rather than merely republishing notices.
 
@@ -71,17 +71,19 @@ No keyword-only construction classification is used.
 
 Canonical source identity is DECP `id`.
 
-A modification does **not** create a new opportunity/contract identity. The connector keeps the same `external_id` and derives `source_updated_at` from the newest available publication/notification modification date.
+If the same contract ID is re-observed with changed data, the connector keeps the same `external_id`; canonical Signal upsert therefore updates the same identity instead of creating a duplicate. Where a parseable modification publication/notification date is present on the record, it can contribute to that record's `source_updated_at`.
 
-Incremental queries overlap the prior cursor window and search both original publication date and modification-publication date. This prevents recent amendments to older contracts from being silently missed.
+Incremental discovery itself is deliberately narrower. The current DECP 2022 schema exposes its modification-publication field as text, so this connector uses the original `datepublicationdonnees` date as its safe server-side cursor with a small overlap. It therefore **does not claim complete incremental capture of amendments to old contracts**.
 
-Canonical storage primary key `(source, signal_type, external_id)` makes repeat ingestion idempotent and allows later DECP versions to update the same contract signal.
+A bounded live query probe on 2026-08-25 confirmed the actual DECP endpoint semantics: CPV `startswith` works, quoted ISO date comparison works (`datepublicationdonnees >= 'YYYY-MM-DD'`), while `date:` casts are rejected by the dataset's live ODSQL parser.
+
+Canonical storage primary key `(source, signal_type, external_id)` makes repeat ingestion idempotent and allows re-observed DECP versions to update the same contract signal.
 
 ## Freshness and historical utility
 
 - BOAMP: twice-daily publisher cadence; discovery use.
 - DECP: daily dataset cadence; contract/history use.
-- DECP provides materially better historical buyer/supplier/award-value evidence than tender notices alone and is therefore useful for Buyer Intelligence, competitor intelligence, benchmarking and future contract-expiry inference.
+- DECP provides materially better historical buyer/supplier/contract-value evidence than tender notices alone and is therefore useful for Buyer Intelligence, competitor intelligence, benchmarking and future contract-expiry inference.
 
 No claim is made that DECP is a real-time award source.
 
@@ -91,7 +93,7 @@ Connector: `france_decp.py`.
 
 Controls:
 
-- explicit connect/read timeout through `requests` timeout;
+- explicit HTTP timeout;
 - bounded retries;
 - 429 and 5xx retry handling, with bounded `Retry-After` respect;
 - bounded page size and maximum page count;
@@ -121,10 +123,10 @@ Because DECP is `CONTRACT`, the runtime stages it to canonical Signal persistenc
 - `ready`, not `active`;
 - public Explore API;
 - legal reuse `GREEN` based on the official Open Licence v2.0 metadata;
-- machine access `VERIFIED` based on official public API documentation/source availability;
+- machine access `VERIFIED` based on official public API/source validation;
 - expected refresh 1440 minutes;
 - signal type `CONTRACT`;
-- capabilities: incremental sync, contracts, historical data, amendments, suppliers.
+- capabilities: incremental sync, contracts, historical data, suppliers.
 
 `ready` means code/evidence is prepared behind the production gate. It does not mean deployed or actively ingesting.
 
@@ -136,9 +138,8 @@ Mock/unit coverage added for:
 - construction CPV filter;
 - amount/currency;
 - stable identity;
-- same-ID modification update;
-- publisher-derived cursor;
-- modification-date incremental query;
+- re-observed same-ID update safety;
+- publisher-derived publication cursor;
 - empty result semantics;
 - malformed schema;
 - missing identity/update date;
@@ -150,12 +151,13 @@ Mock/unit coverage added for:
 - runtime callback boundary;
 - canonical Signal idempotent update.
 
-A dedicated GitHub Actions live smoke (`.github/workflows/france_decp_live.yml`) performs a bounded, credential-free request against the official DECP API and validates that live construction records normalize to canonical `CONTRACT` signals. Its result must be inspected on the PR before this evidence is upgraded to `LIVE TESTED`.
+A dedicated GitHub Actions live smoke (`.github/workflows/france_decp_live.yml`) performs a bounded, credential-free request against the official DECP API and validates that live construction records normalize to canonical `CONTRACT` signals. The PR check is the authority for `LIVE TESTED`; production deployment is never inferred from this smoke.
 
 ## Known limitations
 
 - BOAMP legacy ingestion remains a separate pre-existing connector and was not redesigned in this branch.
 - DECP is post-award/contract data; it is not an early-signal or forecast source.
+- Complete incremental capture of amendments to older DECP 2022 contracts is not claimed because the current modification-publication field is text.
 - Procurement-plan / capital-pipeline coverage remains a separate future source question and is not invented from DECP.
 - `FR_DECP` is not automatically requested in production environment configuration by this branch.
 - Source-side schema changes remain a maintenance risk; live CI smoke is intentionally retained as an early warning.
