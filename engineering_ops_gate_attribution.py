@@ -36,6 +36,56 @@ def _matches_any_path(changed_paths: Iterable[str], filters: Sequence[str]) -> b
     return any(fnmatch.fnmatch(path, pattern) for path in paths for pattern in filters)
 
 
+def extract_pull_request_paths(workflow_text: str) -> tuple[str, ...] | None:
+    """Extract simple GitHub Actions pull_request.paths entries without YAML deps.
+
+    Returns None when pull_request has no paths restriction. The parser is narrow
+    by design: ambiguous constructs fail closed by returning an empty tuple,
+    which callers treat as NEEDS_RECHECK rather than applicability proof.
+    """
+    lines = workflow_text.splitlines()
+    in_pull_request = False
+    pull_indent = -1
+    in_paths = False
+    paths_indent = -1
+    found_paths_key = False
+    values: list[str] = []
+
+    for raw in lines:
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip())
+        if stripped.startswith("pull_request:"):
+            in_pull_request = True
+            pull_indent = indent
+            in_paths = False
+            continue
+        if in_pull_request and indent <= pull_indent and not stripped.startswith("pull_request:"):
+            break
+        if not in_pull_request:
+            continue
+        if stripped == "paths:":
+            found_paths_key = True
+            in_paths = True
+            paths_indent = indent
+            continue
+        if in_paths:
+            if indent <= paths_indent:
+                in_paths = False
+                continue
+            if stripped.startswith("-"):
+                value = stripped[1:].strip().strip("'\"")
+                if value:
+                    values.append(value)
+            else:
+                return ()
+
+    if not found_paths_key:
+        return None
+    return tuple(values)
+
+
 def classify_gate_attribution(
     *,
     workflow: str,
@@ -53,9 +103,10 @@ def classify_gate_attribution(
     1. an explicit owner/Assembly requirement makes the gate REQUIRED;
     2. a run triggered for a different PR, whose workflow is absent from the
        candidate tree, is incidental to this candidate;
-    3. a present workflow with deterministic path filters that cannot match the
-       candidate delta is NOT_APPLICABLE;
-    4. missing information is NEEDS_RECHECK rather than guessed applicability.
+    3. a present unfiltered pull_request workflow is REQUIRED;
+    4. a present workflow with deterministic path filters is REQUIRED only when
+       the candidate delta matches those filters, otherwise NOT_APPLICABLE;
+    5. missing/ambiguous information is NEEDS_RECHECK.
     """
     required = {str(name) for name in explicit_required_workflows}
     candidate_workflows = {str(path) for path in candidate_workflow_paths}
@@ -76,7 +127,19 @@ def classify_gate_attribution(
             "run belongs to another PR context and workflow is absent from candidate tree",
         )
 
-    if workflow_path and workflow_path in candidate_workflows and path_filters is not None:
+    if workflow_path and workflow_path in candidate_workflows:
+        if path_filters is None:
+            return GateAttribution(
+                workflow,
+                "REQUIRED",
+                "workflow is present in candidate tree with unfiltered pull_request contract",
+            )
+        if len(path_filters) == 0:
+            return GateAttribution(
+                workflow,
+                "NEEDS_RECHECK",
+                "workflow path filter contract could not be parsed safely",
+            )
         if not _matches_any_path(changed_paths, path_filters):
             return GateAttribution(
                 workflow,
