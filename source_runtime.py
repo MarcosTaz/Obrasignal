@@ -53,6 +53,28 @@ def discard_staged_source_syncs():
     _pending().clear()
 
 
+def _history_projection(records):
+    """Expose normalized native amendment semantics without connector coupling.
+
+    CanadaBuys already normalizes ``amendment_number``/``amendment_date``. The
+    generic change contract calls those concepts ``source_version`` and
+    ``source_updated_at``. Copying aliases here preserves the source-native value
+    without changing current Signal records or inventing an official revision.
+    """
+    projected = []
+    for record in records or []:
+        if not isinstance(record, dict):
+            projected.append(record)
+            continue
+        item = dict(record)
+        if not item.get("source_version") and item.get("amendment_number"):
+            item["source_version"] = item.get("amendment_number")
+        if not item.get("source_updated_at") and item.get("amendment_date"):
+            item["source_updated_at"] = item.get("amendment_date")
+        projected.append(item)
+    return projected
+
+
 def _empty_commit_result():
     return {
         "sources": 0,
@@ -82,7 +104,7 @@ def commit_staged_source_syncs(conn):
         for item in pending:
             persist_change_observations(
                 conn,
-                item.records,
+                _history_projection(item.records),
                 commit=False,
             )
             signal_records += persist_signal_records(
