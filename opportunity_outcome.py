@@ -1,6 +1,6 @@
 """Tenant-scoped, append-only opportunity outcome capture.
 
-Decision and outcome are intentionally separate.  This module records observed or
+Decision and outcome are intentionally separate. This module records observed or
 explicitly confirmed post-decision facts without inferring win/loss from pursuit,
 watchlist state, missing awards, or organization-name similarity.
 """
@@ -14,33 +14,16 @@ import re
 import uuid
 
 OUTCOME_TYPES = (
-    "BID_SUBMITTED",
-    "WON",
-    "LOST",
-    "WITHDRAWN",
-    "NO_SUBMISSION",
-    "CANCELLED",
-    "UNKNOWN",
+    "BID_SUBMITTED", "WON", "LOST", "WITHDRAWN",
+    "NO_SUBMISSION", "CANCELLED", "UNKNOWN",
 )
 SOURCE_TYPES = (
-    "OFFICIAL_SOURCE",
-    "USER_CONFIRMED",
-    "SYSTEM_DERIVED",
-    "IMPORTED",
-    "UNKNOWN",
+    "OFFICIAL_SOURCE", "USER_CONFIRMED", "SYSTEM_DERIVED", "IMPORTED", "UNKNOWN",
 )
 REASON_CODES = (
-    "PRICE",
-    "QUALIFICATION",
-    "TECHNICAL",
-    "CAPACITY",
-    "DEADLINE",
-    "WITHDRAWN",
-    "NO_SUBMISSION",
-    "BUYER_DECISION",
-    "CANCELLED_PROCEDURE",
-    "UNKNOWN",
-    "OTHER",
+    "PRICE", "QUALIFICATION", "TECHNICAL", "CAPACITY", "DEADLINE",
+    "WITHDRAWN", "NO_SUBMISSION", "BUYER_DECISION",
+    "CANCELLED_PROCEDURE", "UNKNOWN", "OTHER",
 )
 _CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -208,20 +191,13 @@ def _table_exists(conn, name):
 
 
 def _resolve_opportunity(conn, source, external_id):
-    """Resolve an existing Opportunity without mutating it.
-
-    The production product still has a legacy ``tenders`` projection while the
-    provenance-first Signal store is canonical for normalized signals.  Accept
-    either existing representation and return the legacy integer id when present
-    so a parallel Decision Journal reference can be verified safely.
-    """
+    """Resolve an existing Opportunity without mutating it."""
     source = _text(source, "source", 100, True)
     external_id = _text(external_id, "external_id", 250, True)
     tender_id = None
     if _table_exists(conn, "tenders"):
         row = conn.execute(
-            "SELECT id FROM tenders WHERE source=? AND external_id=?",
-            (source, external_id),
+            "SELECT id FROM tenders WHERE source=? AND external_id=?", (source, external_id)
         ).fetchone()
         tender_id = int(row[0]) if row else None
     signal_exists = False
@@ -306,11 +282,19 @@ def outcome_history(conn, account_id, source, external_id, lot_id=None):
             ORDER BY d.id ASC''',
         params,
     ).fetchall()
+    current = _current_row(conn, account_id, source, external_id, lot_id)
+    current_id = current["outcome_id"] if current is not None else None
     result = []
     for row in rows:
         item = dict(row)
         superseded = bool(item.pop("is_superseded"))
-        result.append(_decode(item, "SUPERSEDED" if superseded else "CURRENT"))
+        if superseded:
+            status = "SUPERSEDED"
+        elif item["outcome_id"] == current_id:
+            status = "CURRENT"
+        else:
+            status = "HISTORICAL"
+        result.append(_decode(item, status))
     return result
 
 
@@ -329,27 +313,11 @@ def _official_event_key(account_id, source, external_id, lot_id, outcome_type,
 
 
 def record_outcome(
-    conn,
-    *,
-    account_id,
-    source,
-    external_id,
-    outcome_type,
-    occurred_at=None,
-    source_type="USER_CONFIRMED",
-    lot_id=None,
-    decision_id=None,
-    source_ref=None,
-    source_publication=None,
-    source_native_id=None,
-    award_value=None,
-    currency=None,
-    reason_code=None,
-    note=None,
-    evidence_refs=None,
-    confidence=None,
-    supersedes_outcome_id=None,
-    idempotency_key=None,
+    conn, *, account_id, source, external_id, outcome_type, occurred_at=None,
+    source_type="USER_CONFIRMED", lot_id=None, decision_id=None, source_ref=None,
+    source_publication=None, source_native_id=None, award_value=None, currency=None,
+    reason_code=None, note=None, evidence_refs=None, confidence=None,
+    supersedes_outcome_id=None, idempotency_key=None,
 ):
     """Append one observed/confirmed outcome; never mutate Opportunity or Decision."""
     ensure_outcome_table(conn)
@@ -360,6 +328,7 @@ def record_outcome(
     outcome_type = _choice(outcome_type, OUTCOME_TYPES, "outcome_type")
     source_type = _choice(source_type, SOURCE_TYPES, "source_type")
     reason_code = _choice(reason_code, REASON_CODES, "reason_code") if reason_code else None
+    requested_occurred_at = occurred_at
     occurred_at = _timestamp(occurred_at, "occurred_at", default_now=True, reject_future=True)
     recorded_at = _now()
     source_ref = _text(source_ref, "source_ref", 500)
@@ -385,8 +354,7 @@ def record_outcome(
         ).fetchone()
         if previous is None:
             raise OutcomeValidationError("superseded outcome does not belong to this account/opportunity")
-        previous_lot = previous["lot_id"]
-        if (previous_lot or None) != (lot_id or None):
+        if (previous["lot_id"] or None) != (lot_id or None):
             raise OutcomeValidationError("correction must preserve lot scope")
         already = conn.execute(
             "SELECT 1 FROM opportunity_outcomes WHERE account_id=? AND supersedes_outcome_id=?",
@@ -395,13 +363,17 @@ def record_outcome(
         if already is not None:
             raise OutcomeValidationError("outcome has already been superseded")
 
+    fingerprint_occurred_at = (
+        _timestamp(requested_occurred_at, "occurred_at", reject_future=True)
+        if requested_occurred_at not in (None, "") else None
+    )
     normalized = {
         "source": source,
         "external_id": external_id,
         "lot_id": lot_id,
         "decision_id": decision_id,
         "outcome_type": outcome_type,
-        "occurred_at": occurred_at,
+        "occurred_at": fingerprint_occurred_at,
         "source_type": source_type,
         "source_ref": source_ref,
         "source_publication": source_publication,
@@ -443,7 +415,6 @@ def record_outcome(
             return _decode(existing, "CURRENT"), False
 
     outcome_id = str(uuid.uuid4())
-    created_at = recorded_at
     conn.execute(
         '''INSERT INTO opportunity_outcomes(
            outcome_id, account_id, source, external_id, lot_id, decision_id,
@@ -457,7 +428,7 @@ def record_outcome(
             outcome_type, occurred_at, recorded_at, source_type, source_ref,
             source_publication, source_native_id, award_value, currency, reason_code,
             note, json.dumps(evidence_refs, ensure_ascii=False), confidence,
-            supersedes_outcome_id, idempotency_key, fingerprint, official_key, created_at,
+            supersedes_outcome_id, idempotency_key, fingerprint, official_key, recorded_at,
         ),
     )
     conn.commit()
@@ -512,21 +483,14 @@ def correct_outcome(conn, *, account_id, outcome_id, **changes):
 
 
 def official_award_candidate(
-    *,
-    account_identifiers,
-    winner_identifiers=None,
-    procedure_cancelled=False,
-    source_ref=None,
-    source_native_id=None,
-    occurred_at=None,
-    award_value=None,
-    currency=None,
-    lot_id=None,
+    *, account_identifiers, winner_identifiers=None, procedure_cancelled=False,
+    source_ref=None, source_native_id=None, occurred_at=None,
+    award_value=None, currency=None, lot_id=None,
 ):
     """Return a safe candidate from official facts, or ``None`` when identity is uncertain.
 
     Identifiers are exact canonical strings (preferably ``scheme:id``). Names are
-    deliberately not accepted.  Another winner or the absence of an award is not
+    deliberately not accepted. Another winner or the absence of an award is not
     evidence that this account lost.
     """
     if procedure_cancelled:
