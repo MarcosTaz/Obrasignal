@@ -117,6 +117,21 @@ This is a classified source/runtime gate, not an implementation-success claim.
 - Temporary forensic promotion probes were removed after measurements; they are not part of the permanent test suite.
 - `master_execution_queue.py` remains untouched.
 
+## EXACT-HEAD QUALITY
+
+Permanent-code head before this documentation-only stamp: `54b0a22c0ea601d8261a60e8ca835fccb692bdf7`.
+ObraSignal Quality run `32845378661`:
+
+- exact revision guard: SUCCESS;
+- Python compile: SUCCESS;
+- full repository Python suite: `725 passed, 2 skipped, 2 pre-existing warnings`;
+- mobile install: SUCCESS;
+- Expo Doctor: SUCCESS;
+- critical detail wiring: SUCCESS;
+- Expo bundle smoke: SUCCESS.
+
+This manifest-only stamp does not change executable code. If the repository requires an exact-head CI result after documentation changes, use the subsequent PR-head run as the final integration check.
+
 ## ZERO-LOSS / ZERO-DUPLICATION / ZERO-SILENT-CONFLICT / ZERO-RUNTIME-FORK
 
 - ZERO-LOSS: cursor advancement is fail-closed for staged global sources; Uruguay and Dominican composers prevent snapshot failure from silently advancing their incremental cursor when the snapshot is due.
