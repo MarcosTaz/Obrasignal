@@ -30,16 +30,32 @@ def _config():
     return replace(DGCP_CONFIG, page_size=1000, max_pages_per_window=5)
 
 
-def test_null_content_is_valid_only_for_publisher_declared_empty_page():
-    payload = {"code": 200, "hasError": False, "page": 1, "pages": 0, "limit": 1000, "totalResults": 0, "payload": {"content": None}}
+def _page(payload):
     connector = DGCPProcessDiscoveryConnector(_config(), session=Session(payload))
-    rows, meta = connector._process_page(date(2026, 8, 25), date(2026, 8, 25), 1)
+    return connector._process_page(date(2026, 8, 25), date(2026, 8, 25), 1)
+
+
+def test_live_shape_null_content_with_omitted_pages_and_total_is_empty():
+    payload = {"code": 200, "hasError": False, "page": 1, "limit": 1000, "payload": {"content": None}}
+    rows, meta = _page(payload)
+    assert rows == []
+    assert meta == {"page": 1, "pages": 0, "limit": 1000, "total": 0}
+
+
+def test_explicit_zero_metadata_with_null_content_is_also_empty():
+    payload = {"code": 200, "hasError": False, "page": 1, "pages": 0, "limit": 1000, "totalResults": 0, "payload": {"content": None}}
+    rows, meta = _page(payload)
     assert rows == []
     assert meta["total"] == 0
 
 
 def test_null_content_with_positive_total_fails_closed():
     payload = {"code": 200, "hasError": False, "page": 1, "pages": 1, "limit": 1000, "totalResults": 1, "payload": {"content": None}}
-    connector = DGCPProcessDiscoveryConnector(_config(), session=Session(payload))
     with pytest.raises(RuntimeError, match="invalid payload.content"):
-        connector._process_page(date(2026, 8, 25), date(2026, 8, 25), 1)
+        _page(payload)
+
+
+def test_partial_pagination_omission_fails_closed():
+    payload = {"code": 200, "hasError": False, "page": 1, "pages": 0, "limit": 1000, "payload": {"content": None}}
+    with pytest.raises(RuntimeError, match="incomplete pagination metadata"):
+        _page(payload)
