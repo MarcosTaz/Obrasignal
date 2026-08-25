@@ -74,7 +74,7 @@
       "identity_key": "event_key",
       "timestamp": "created_at",
       "status": "CANONICAL",
-      "current_invariant": "event account exists; non-null tender_id resolves consistently"
+      "current_invariant": "event account exists; event_key tenant namespace agrees; non-null tender_id resolves consistently"
     },
     {
       "fact": "evaluation_lifecycle",
@@ -163,6 +163,95 @@
       "canonical_authority": "live canonical DB; backups are recovery representations",
       "status": "NONCANONICAL_OWNER_CANDIDATE",
       "unknown": ["post-restore external reconciliation"]
+    }
+  ],
+  "write_path_inventory": [
+    {
+      "storage": "accounts",
+      "writers": [
+        "account_registry.ensure_account -> local account creation",
+        "account_registry.update_subscription -> billing projection fields",
+        "evaluation_policy.* -> evaluation projection fields"
+      ],
+      "classification": "SHARED_ROW_SPLIT_FACTS",
+      "dual_truth": false,
+      "reason": "multiple writers target different owned fact slices in one row; shared storage alone is not multiple authority"
+    },
+    {
+      "storage": "company_profiles",
+      "writers": ["company_profile._persist_profile_db via save_profile or one-time legacy import"],
+      "classification": "ONE_CANONICAL_WRITE_FUNCTION",
+      "dual_truth": false
+    },
+    {
+      "storage": "tenders",
+      "writers": ["app canonical ingest upsert keyed by source + external_id"],
+      "classification": "ONE_CANONICAL_INGEST_PATH_AT_CURRENT_MAIN",
+      "dual_truth": false
+    },
+    {
+      "storage": "opportunity_workflow",
+      "writers": ["opportunity_workflow.set_workflow"],
+      "classification": "ONE_CANONICAL_WRITE_FUNCTION",
+      "dual_truth": false
+    },
+    {
+      "storage": "opportunity_decisions",
+      "writers": ["decision_log.record_decision"],
+      "classification": "APPEND_HISTORY_CURRENT_BY_LATEST_ID",
+      "dual_truth": false
+    },
+    {
+      "storage": "opportunity_events",
+      "writers": ["notification_events.record_new_opportunities"],
+      "classification": "APPEND_EVENT_LEDGER_CURRENT_MAIN",
+      "dual_truth": false
+    },
+    {
+      "storage": "billing_webhook_events",
+      "writers": ["account_registry.billing_webhook"],
+      "classification": "EVENT_DEDUPE_LEDGER_NOT_SUBSCRIPTION_AUTHORITY",
+      "dual_truth": false
+    },
+    {
+      "storage": "source_health/source_cursor",
+      "writers": ["source_health.record_source_result", "source_health.set_source_cursor"],
+      "classification": "SOURCE_HEALTH_OWNED_STATE",
+      "dual_truth": false,
+      "unknown": ["durable-ingest versus checkpoint/health atomicity is not proven by this inventory"]
+    },
+    {
+      "storage": "mobile AsyncStorage private/client state",
+      "writers": ["mobile/src/storage.js setters invoked by current mobile client"],
+      "classification": "DERIVED_UNSCOPED_CACHE_OTHER_OWNER",
+      "dual_truth": false,
+      "reason": "client persistence is a derived copy, but current-main keying lacks tenant binding"
+    }
+  ],
+  "dual_truth_findings": [
+    {
+      "fact": "evaluation_lifecycle",
+      "classification": "MULTI_REPRESENTATION_RECONCILIATION_GAP",
+      "authority": "Evaluation domain semantics",
+      "representations": ["accounts evaluation columns", "evaluation_events"],
+      "dual_truth": false,
+      "drift": "profile persistence can succeed while profile_ready event/projection update fails"
+    },
+    {
+      "fact": "mobile_private_cache",
+      "classification": "DERIVED_RISK_OTHER_OWNER",
+      "authority": "backend",
+      "representations": ["backend", "AsyncStorage"],
+      "dual_truth": false,
+      "drift": "current-main cache keys do not encode tenant identity"
+    },
+    {
+      "fact": "saved_watchlist",
+      "classification": "UNKNOWN_AUTHORITY",
+      "authority": "UNKNOWN_CURRENT_MAIN",
+      "representations": ["mobile AsyncStorage saved representation"],
+      "dual_truth": "UNKNOWN",
+      "drift": "not classified as consistent until server/domain authority is reconstructed"
     }
   ]
 }
