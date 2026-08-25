@@ -31,7 +31,7 @@
   "PUBLIC CONTRACTS PROVIDED": [
     "CompanyState / CompanyFact / Money / Provenance (company-state.v1)",
     "CompanyStateService trusted-tenant voluntary DECLARED read/write/history boundary",
-    "CompanyStateService.ingest_trusted_facts trusted provider ingestion boundary",
+    "CompanyStateService.ingest_trusted_facts",
     "company_state_from_profile",
     "requirements_facts",
     "readiness_inputs",
