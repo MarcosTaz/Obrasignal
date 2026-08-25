@@ -1,7 +1,7 @@
 """Decision-aware radar feed helpers."""
 from __future__ import annotations
 
-from decision_log import latest_decision
+from decision_log import latest_decisions
 from radar_decision_summary import summarize_decision
 
 
@@ -41,11 +41,17 @@ def _layers(decision: dict | None) -> list[dict]:
 
 
 def enrich_rows(conn, rows, account_id="default"):
-    """Enrich rows using only the decision belonging to the requested account."""
+    """Enrich rows using only the latest decisions belonging to the requested account."""
+    materialized_rows = list(rows)
+    decisions = latest_decisions(
+        conn,
+        [(row["source"], row["external_id"]) for row in materialized_rows],
+        account_id=account_id,
+    )
     enriched = []
-    for row in rows:
+    for row in materialized_rows:
         item = dict(row)
-        decision = latest_decision(conn, item.get("source"), item.get("external_id"), account_id=account_id)
+        decision = decisions.get((str(item.get("source") or ""), str(item.get("external_id") or "")))
         summary = summarize_decision(decision)
         summary["layers"] = _layers(decision)
         item["decision_summary"] = summary
