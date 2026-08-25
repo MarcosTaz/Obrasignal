@@ -12,7 +12,8 @@
     "AUTH_REQUIRED",
     "PERMISSION_DENIED",
     "NOT_FOUND",
-    "CONFLICT"
+    "CONFLICT",
+    "INVALID_INPUT"
   ],
   "service_readiness": ["HEALTHY", "DEGRADED", "BLOCKED", "UNKNOWN"],
   "service_areas": [
@@ -36,12 +37,12 @@
   },
   "journeys": [
     {"id": "signup_login", "owner_refs": [289], "recovery": "AUTH_OWNER_CONTRACT"},
-    {"id": "profile", "owner_refs": [341], "recovery": "READ_DURABLE_PROFILE_THEN_IDEMPOTENT_REFRESH"},
+    {"id": "profile", "owner_refs": [341, 360], "recovery": "READ_DURABLE_PROFILE_THEN_IDEMPOTENT_REFRESH"},
     {"id": "radar", "owner_refs": [281, 327], "recovery": "SOURCE_HEALTH_AND_RADAR_REFRESH"},
     {"id": "sources", "owner_refs": [281, 327], "recovery": "SOURCE_OWNER_CONTRACT"},
     {"id": "opportunity_detail", "owner_refs": [212], "recovery": "REFRESH_CURRENT_AUTHORIZED_TRUTH"},
     {"id": "evidence", "owner_refs": [212, 323], "recovery": "EVIDENCE_OWNER_PUBLIC_CONTRACT"},
-    {"id": "workflow", "owner_refs": [289, 335], "recovery": "READ_BEFORE_RETRY_AND_VERIFY_READBACK"},
+    {"id": "workflow", "owner_refs": [289, 335, 360], "recovery": "READ_BEFORE_RETRY_AND_VERIFY_READBACK"},
     {"id": "notifications", "owner_refs": [259, 263, 329], "recovery": "PERMISSION_REGISTRATION_DELIVERY_TAP_SEPARATE"},
     {"id": "evaluation", "owner_refs": [333], "recovery": "SERVER_LIFECYCLE_RECHECK"},
     {"id": "billing", "owner_refs": [83, 288], "recovery": "SERVER_AUTHORITATIVE_BILLING_RECHECK"},
