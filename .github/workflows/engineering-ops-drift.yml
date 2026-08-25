@@ -29,17 +29,16 @@ jobs:
     timeout-minutes: 15
     env:
       GITHUB_TOKEN: ${{ github.token }}
+      OBRASIGNAL_OPS_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout exact workflow revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ env.OBRASIGNAL_OPS_SHA }}
           persist-credentials: false
 
       - name: Confirm exact revision under test
-        if: ${{ github.event_name == 'pull_request' }}
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_OPS_SHA"
 
       - name: Compile orchestration tooling
         run: python3 -m py_compile engineering_ops.py engineering_ops_github.py
