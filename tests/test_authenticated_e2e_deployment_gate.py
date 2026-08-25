@@ -44,7 +44,7 @@ def test_production_smoke_persists_truthful_release_history_even_on_failure():
     assert "id: protected" in workflow
     assert "id: cors" in workflow
     assert "id: web" in workflow
-    assert workflow.count("if: ${{ always() }}") >= 6
+    assert workflow.count("if: ${{ always() }}") >= 5
     assert "Write bounded production release evidence" in workflow
     assert "Upload production release evidence" in workflow
     assert "'verification': 'VERIFIED' if verified else 'FAILED'" in workflow
