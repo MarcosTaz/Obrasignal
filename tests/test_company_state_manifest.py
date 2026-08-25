@@ -8,7 +8,7 @@ def test_machine_readable_integration_manifest_has_required_contract():
     data = json.loads((ROOT / "COMPANY_STATE_INTEGRATION_MANIFEST.json").read_text(encoding="utf-8"))
     required = {
         "CELL", "MODULE", "CONTRACT VERSION", "BRANCH", "PR", "BASE", "HEAD", "EXACT-HEAD RUNS",
-        "OWNS", "DOES NOT OWN", "PUBLIC CONTRACTS PROVIDED", "PUBLIC CONTRACTS CONSUMED",
+        "OWNS", "DOES NOT OWN", "PUBLIC CONTRACTS PROVIDED", "PUBLIC CONTRACTS CONSUMED", "CONSUMER MATRIX",
         "OPTIONAL DEPENDENCIES", "HARD DEPENDENCIES", "CANONICAL FILES TOUCHED", "MIGRATIONS",
         "FEATURE FLAGS", "RUNTIME REGISTRATION", "AUTH/TENANT IMPACT", "PERSISTENCE",
         "LIVE EXTERNAL DEPENDENCIES", "TEST STATUS", "LIVE STATUS", "PRODUCTION STATUS",
@@ -24,6 +24,12 @@ def test_machine_readable_integration_manifest_has_required_contract():
     assert "CompanyStateService.ingest_trusted_facts" in data["PUBLIC CONTRACTS PROVIDED"]
     assert "Q080" in " ".join(data["REQUIRED MERGE ORDER"])
     assert "final" in data["EXACT-HEAD RUNS"].lower()
+
+    matrix = data["CONSUMER MATRIX"]
+    assert matrix["crew.available_count"]["dependency"] == "OPTIONAL"
+    assert "MOBILIZE" in matrix["crew.available_count"]["consumers"]
+    assert "Requirements" not in matrix["geography.preferred_*"]["consumers"]
+    assert "zero distinct from unknown" in matrix["crew.available_count"]["semantics"]
 
 
 def test_docs_keep_q090_queued_and_no_merge_boundary_explicit():
