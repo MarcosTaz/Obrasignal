@@ -1,8 +1,9 @@
 """Conservative procurement lifecycle lineage for canonical ObraSignal signals.
 
 Lineage answers which canonical procurement events belong to the same lifecycle.
-It deliberately does not perform generic entity resolution, mutate source records,
-or infer relationships from title/value/location alone.
+It is deliberately narrower than entity resolution: source-native relations and
+strong procurement identifiers may confirm lineage; title, buyer, value, place or
+timing alone never do.
 """
 from __future__ import annotations
 
@@ -14,33 +15,23 @@ from typing import Iterable, Mapping, Sequence
 
 from signal_store import signal_type_of
 
-LINEAGE_RULE_VERSION = "lineage-v0.1"
+LINEAGE_RULE_VERSION = "lineage-v0.2"
 LINEAGE_SCHEMA_VERSION = 1
 
 NODE_TYPES = frozenset({
-    "PROCUREMENT_PLAN",
-    "MARKET_DIALOGUE",
-    "TENDER",
-    "AMENDMENT",
-    "CORRIGENDUM",
-    "AWARD",
-    "CONTRACT",
+    "PROCUREMENT_PLAN", "MARKET_DIALOGUE", "TENDER", "AMENDMENT",
+    "CORRIGENDUM", "AWARD", "CONTRACT",
 })
-
 RELATIONSHIP_TYPES = frozenset({
-    "PRECEDES",
-    "DERIVED_FROM",
-    "AMENDS",
-    "CORRECTS",
-    "SUPERSEDES",
-    "RESULTED_IN",
-    "CONTRACTED_AS",
-    "RELATED_TO",
+    "PRECEDES", "DERIVED_FROM", "AMENDS", "CORRECTS", "SUPERSEDES",
+    "RESULTED_IN", "CONTRACTED_AS", "RELATED_TO",
 })
-
 BASIS_TYPES = frozenset({"EXPLICIT", "DETERMINISTIC", "INFERRED", "UNKNOWN"})
 CONFIDENCE_TYPES = frozenset({"HIGH", "MEDIUM", "LOW", "UNKNOWN"})
-DAG_RELATIONSHIP_TYPES = frozenset({"PRECEDES", "DERIVED_FROM", "AMENDS", "CORRECTS", "SUPERSEDES", "RESULTED_IN", "CONTRACTED_AS"})
+DAG_RELATIONSHIP_TYPES = frozenset({
+    "PRECEDES", "DERIVED_FROM", "AMENDS", "CORRECTS", "SUPERSEDES",
+    "RESULTED_IN", "CONTRACTED_AS",
+})
 
 _STAGE_ORDER = {
     "PROCUREMENT_PLAN": 10,
@@ -51,7 +42,9 @@ _STAGE_ORDER = {
     "AWARD": 40,
     "CONTRACT": 50,
 }
-
+_SUBJECT_TO_TARGET_RELATIONS = frozenset({
+    "DERIVED_FROM", "AMENDS", "CORRECTS", "SUPERSEDES",
+})
 _MAX_IDENTIFIER = 512
 _MAX_REASON = 2048
 
@@ -138,7 +131,10 @@ def _lot_id(record: Mapping):
 
 
 def _date_value(record: Mapping):
-    for key in ("effective_at", "occurred_at", "published_at", "source_updated_at", "publication_date", "target_date"):
+    for key in (
+        "effective_at", "occurred_at", "published_at", "source_updated_at",
+        "publication_date", "target_date",
+    ):
         value = _text(record.get(key) or "", limit=128)
         if value:
             return value
@@ -157,7 +153,12 @@ def _record_snapshot(record: Mapping):
         "country": _text(record.get("country") or "", limit=128),
         "jurisdiction": _text(record.get("jurisdiction") or record.get("country") or "", limit=128),
         "ocid": _text(record.get("ocid") or ""),
-        "procurement_reference": _text(record.get("procurement_reference") or record.get("procedure_id") or record.get("procurement_id") or ""),
+        "procurement_reference": _text(
+            record.get("procurement_reference")
+            or record.get("procedure_id")
+            or record.get("procurement_id")
+            or ""
+        ),
         "source_reference": _text(record.get("source_reference") or ""),
         "lot_id": _lot_id(record),
         "event_date": _date_value(record),
@@ -165,14 +166,18 @@ def _record_snapshot(record: Mapping):
     }
 
 
-def _edge_id(from_id, to_id, relationship_type, basis, source_ref, native_relation_type, rule_version, lot_id):
-    raw = "\x1f".join(str(v or "") for v in (
-        from_id, to_id, relationship_type, basis, source_ref, native_relation_type, rule_version, lot_id
+def _edge_id(from_id, to_id, relationship_type, basis, source_ref,
+             native_relation_type, rule_version, lot_id):
+    raw = "\x1f".join(str(value or "") for value in (
+        from_id, to_id, relationship_type, basis, source_ref,
+        native_relation_type, rule_version, lot_id,
     ))
     return "lin_" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
-def _edge(from_record, to_record, relationship_type, *, basis, confidence, reasons, source_ref=None, native_relation_type=None, rule_version=LINEAGE_RULE_VERSION):
+def _edge(from_record, to_record, relationship_type, *, basis, confidence,
+          reasons, source_ref=None, native_relation_type=None,
+          rule_version=LINEAGE_RULE_VERSION):
     from_type = _node_type(from_record)
     to_type = _node_type(to_record)
     if not from_type or not to_type:
@@ -181,18 +186,30 @@ def _edge(from_record, to_record, relationship_type, *, basis, confidence, reaso
         raise ValueError(f"unsupported lineage relationship: {relationship_type}")
     if basis not in BASIS_TYPES or confidence not in CONFIDENCE_TYPES:
         raise ValueError("invalid lineage basis/confidence")
+
     from_id = _entity_id(from_record)
     to_id = _entity_id(to_record)
     if from_id == to_id:
         raise ValueError("self lineage edge is invalid")
+
     lot_from = _lot_id(from_record)
     lot_to = _lot_id(to_record)
     if lot_from and lot_to and lot_from != lot_to:
         raise ValueError("cross-lot lineage edge rejected")
     lot_id = lot_from or lot_to
-    safe_reasons = tuple(_text(reason, limit=_MAX_REASON) for reason in reasons if _text(reason, limit=_MAX_REASON))
+
+    safe_reasons = tuple(
+        _text(reason, limit=_MAX_REASON)
+        for reason in reasons
+        if _text(reason, limit=_MAX_REASON)
+    )
+    source_ref = _text(source_ref or "", limit=2000) or None
+    native_relation_type = _text(native_relation_type or "", limit=128) or None
     return LineageEdge(
-        edge_id=_edge_id(from_id, to_id, relationship_type, basis, source_ref, native_relation_type, rule_version, lot_id),
+        edge_id=_edge_id(
+            from_id, to_id, relationship_type, basis, source_ref,
+            native_relation_type, rule_version, lot_id,
+        ),
         from_entity_type=from_type,
         from_entity_id=from_id,
         to_entity_type=to_type,
@@ -201,8 +218,8 @@ def _edge(from_record, to_record, relationship_type, *, basis, confidence, reaso
         confidence=confidence,
         basis=basis,
         reasons=safe_reasons,
-        source_ref=_text(source_ref or "", limit=2000) or None,
-        native_relation_type=_text(native_relation_type or "", limit=128) or None,
+        source_ref=source_ref,
+        native_relation_type=native_relation_type,
         rule_version=rule_version,
         lot_id=lot_id,
     )
@@ -233,14 +250,34 @@ def _find_record(records_by_id, relation, source):
     if target_entity_id:
         return records_by_id.get(target_entity_id)
     target_source = _text(relation.get("target_source") or source)
-    target_external_id = _text(relation.get("target_external_id") or relation.get("related_notice_id") or relation.get("previous_notice_id") or "")
+    target_external_id = _text(
+        relation.get("target_external_id")
+        or relation.get("related_notice_id")
+        or relation.get("previous_notice_id")
+        or ""
+    )
     if target_source and target_external_id:
         return records_by_id.get(f"{target_source}:{target_external_id}")
     return None
 
 
+def _relation_direction(record, target, relationship, relation):
+    """Return semantically ordered (from, to) records for an explicit relation.
+
+    `target_is_parent` remains an explicit adapter override. Without that flag,
+    action-on-target relations (AMENDS/CORRECTS/SUPERSEDES/DERIVED_FROM) flow
+    from the current subject to its target; lifecycle-result relations flow from
+    the referenced parent/prior target to the current record.
+    """
+    if "target_is_parent" in relation:
+        target_is_parent = bool(relation.get("target_is_parent"))
+    else:
+        target_is_parent = relationship not in _SUBJECT_TO_TARGET_RELATIONS
+    return (target, record) if target_is_parent else (record, target)
+
+
 def explicit_relations(records: Sequence[Mapping]):
-    records_by_id = {_entity_id(r): r for r in records if _node_type(r)}
+    records_by_id = {_entity_id(record): record for record in records if _node_type(record)}
     edges = []
     unresolved = []
     for record in records:
@@ -257,20 +294,34 @@ def explicit_relations(records: Sequence[Mapping]):
                 unresolved.append({
                     "from_entity_id": _entity_id(record),
                     "target_source": _text(relation.get("target_source") or record.get("source")),
-                    "target_external_id": _text(relation.get("target_external_id") or relation.get("related_notice_id") or relation.get("previous_notice_id") or ""),
-                    "native_relation_type": _text(relation.get("native_relation_type") or relation.get("type") or ""),
+                    "target_external_id": _text(
+                        relation.get("target_external_id")
+                        or relation.get("related_notice_id")
+                        or relation.get("previous_notice_id")
+                        or ""
+                    ),
+                    "native_relation_type": _text(
+                        relation.get("native_relation_type") or relation.get("type") or ""
+                    ),
                     "status": "UNRESOLVED",
                     "reason": "explicit target not present in supplied canonical records",
                 })
                 continue
+
             relationship = _text(relation.get("relationship_type") or "").upper()
-            native_type = _text(relation.get("native_relation_type") or relation.get("type") or "", limit=128) or None
+            native_type = _text(
+                relation.get("native_relation_type") or relation.get("type") or "",
+                limit=128,
+            ) or None
             if not relationship:
                 relationship = _default_relation(_node_type(target), _node_type(record))
                 from_record, to_record = target, record
             else:
-                from_record = target if bool(relation.get("target_is_parent", True)) else record
-                to_record = record if bool(relation.get("target_is_parent", True)) else target
+                if relationship not in RELATIONSHIP_TYPES:
+                    raise ValueError(f"unsupported lineage relationship: {relationship}")
+                from_record, to_record = _relation_direction(
+                    record, target, relationship, relation
+                )
             edges.append(_edge(
                 from_record,
                 to_record,
@@ -278,30 +329,36 @@ def explicit_relations(records: Sequence[Mapping]):
                 basis="EXPLICIT",
                 confidence="HIGH",
                 reasons=("source-native relationship",),
-                source_ref=relation.get("source_ref") or record.get("source_reference") or record.get("url"),
+                source_ref=(
+                    relation.get("source_ref")
+                    or record.get("source_reference")
+                    or record.get("url")
+                ),
                 native_relation_type=native_type,
             ))
     return edges, unresolved
 
 
-def _same_strong_identity(a, b):
-    if a["ocid"] and a["ocid"] == b["ocid"]:
+def _same_strong_identity(left, right):
+    if left["ocid"] and left["ocid"] == right["ocid"]:
         return "same OCDS OCID"
     if (
-        a["procurement_reference"] and a["procurement_reference"] == b["procurement_reference"]
-        and a["jurisdiction"] and a["jurisdiction"] == b["jurisdiction"]
+        left["procurement_reference"]
+        and left["procurement_reference"] == right["procurement_reference"]
+        and left["jurisdiction"]
+        and left["jurisdiction"] == right["jurisdiction"]
     ):
         return "same official procurement reference within jurisdiction"
     return None
 
 
-def deterministic_relations(records: Sequence[Mapping], existing_edges: Iterable[LineageEdge] = ()):
-    canonical = [r for r in records if _node_type(r)]
-    snapshots = [_record_snapshot(r) for r in canonical]
-    by_id = {s["entity_id"]: r for s, r in zip(snapshots, canonical)}
-    existing_pairs = {(e.from_entity_id, e.to_entity_id) for e in existing_edges}
-    output = []
-    # Bounded blocking: only compare records sharing an OCID or official procurement reference.
+def deterministic_relations(records: Sequence[Mapping],
+                            existing_edges: Iterable[LineageEdge] = ()):
+    canonical = [record for record in records if _node_type(record)]
+    snapshots = [_record_snapshot(record) for record in canonical]
+    by_id = {snapshot["entity_id"]: record for snapshot, record in zip(snapshots, canonical)}
+    existing_pairs = {(edge.from_entity_id, edge.to_entity_id) for edge in existing_edges}
+
     buckets = {}
     for snapshot in snapshots:
         keys = []
@@ -311,6 +368,8 @@ def deterministic_relations(records: Sequence[Mapping], existing_edges: Iterable
             keys.append(("proc", snapshot["jurisdiction"], snapshot["procurement_reference"]))
         for key in keys:
             buckets.setdefault(key, []).append(snapshot)
+
+    output = []
     seen_pairs = set()
     for bucket in buckets.values():
         for index, left in enumerate(bucket):
@@ -320,25 +379,26 @@ def deterministic_relations(records: Sequence[Mapping], existing_edges: Iterable
                     continue
                 seen_pairs.add(pair_key)
                 if left["entity_type"] == right["entity_type"]:
-                    # Same-stage versions belong to Change History unless an explicit source relation says otherwise.
+                    # Same-stage versions belong to Change History unless source-linked.
                     continue
                 if left["lot_id"] and right["lot_id"] and left["lot_id"] != right["lot_id"]:
                     continue
                 reason = _same_strong_identity(left, right)
                 if not reason:
                     continue
-                l_order = _STAGE_ORDER[left["entity_type"]]
-                r_order = _STAGE_ORDER[right["entity_type"]]
-                if l_order == r_order:
+                left_order = _STAGE_ORDER[left["entity_type"]]
+                right_order = _STAGE_ORDER[right["entity_type"]]
+                if left_order == right_order:
                     continue
-                parent, child = (left, right) if l_order < r_order else (right, left)
-                relationship = _default_relation(parent["entity_type"], child["entity_type"])
+                parent, child = (
+                    (left, right) if left_order < right_order else (right, left)
+                )
                 if (parent["entity_id"], child["entity_id"]) in existing_pairs:
                     continue
                 output.append(_edge(
                     by_id[parent["entity_id"]],
                     by_id[child["entity_id"]],
-                    relationship,
+                    _default_relation(parent["entity_type"], child["entity_type"]),
                     basis="DETERMINISTIC",
                     confidence="HIGH",
                     reasons=(reason,),
@@ -346,16 +406,20 @@ def deterministic_relations(records: Sequence[Mapping], existing_edges: Iterable
     return output
 
 
-def candidate_relations(records: Sequence[Mapping], confirmed_edges: Iterable[LineageEdge] = ()):
-    canonical = [r for r in records if _node_type(r)]
-    snapshots = [_record_snapshot(r) for r in canonical]
-    linked = {tuple(sorted((e.from_entity_id, e.to_entity_id))) for e in confirmed_edges}
+def candidate_relations(records: Sequence[Mapping],
+                        confirmed_edges: Iterable[LineageEdge] = ()):
+    canonical = [record for record in records if _node_type(record)]
+    snapshots = [_record_snapshot(record) for record in canonical]
+    linked = {
+        tuple(sorted((edge.from_entity_id, edge.to_entity_id)))
+        for edge in confirmed_edges
+    }
     buckets = {}
     for snapshot in snapshots:
-        # Weak candidate blocking is buyer+jursidiction only; never global all-to-all.
         key = (snapshot["jurisdiction"], snapshot["buyer_id"] or snapshot["buyer"])
         if all(key):
             buckets.setdefault(key, []).append(snapshot)
+
     candidates = []
     seen = set()
     for bucket in buckets.values():
@@ -370,21 +434,33 @@ def candidate_relations(records: Sequence[Mapping], confirmed_edges: Iterable[Li
                 signals = []
                 if left["buyer_id"] and left["buyer_id"] == right["buyer_id"]:
                     signals.append("same buyer identifier")
-                elif left["buyer"] and left["buyer"].casefold() == right["buyer"].casefold():
+                elif (
+                    left["buyer"] and right["buyer"]
+                    and left["buyer"].casefold() == right["buyer"].casefold()
+                ):
                     signals.append("same buyer label")
-                if left["title"] and right["title"] and left["title"].casefold() == right["title"].casefold():
+                if (
+                    left["title"] and right["title"]
+                    and left["title"].casefold() == right["title"].casefold()
+                ):
                     signals.append("same normalized title")
-                if left["source_reference"] and left["source_reference"] == right["source_reference"]:
+                if (
+                    left["source_reference"]
+                    and left["source_reference"] == right["source_reference"]
+                ):
                     signals.append("same source reference")
-                # Weak evidence is surfaced only; it never creates a confirmed edge.
                 if len(signals) >= 2:
                     candidates.append(LineageCandidate(
                         from_entity_id=left["entity_id"],
                         to_entity_id=right["entity_id"],
                         signals=tuple(signals),
-                        strength="MEDIUM" if "same source reference" in signals else "LOW",
+                        strength=(
+                            "MEDIUM" if "same source reference" in signals else "LOW"
+                        ),
                     ))
-    candidates.sort(key=lambda c: (c.from_entity_id, c.to_entity_id, c.signals))
+    candidates.sort(key=lambda candidate: (
+        candidate.from_entity_id, candidate.to_entity_id, candidate.signals
+    ))
     return candidates
 
 
@@ -406,12 +482,16 @@ def reject_cycles(edges: Sequence[LineageEdge]):
     accepted = []
     rejected = []
     adjacency = {}
-    for edge in sorted(edges, key=lambda e: (e.basis != "EXPLICIT", e.edge_id)):
+    for edge in sorted(edges, key=lambda item: (item.basis != "EXPLICIT", item.edge_id)):
         if edge.relationship_type not in DAG_RELATIONSHIP_TYPES:
             accepted.append(edge)
             continue
         if _has_path(adjacency, edge.to_entity_id, edge.from_entity_id):
-            rejected.append({**edge.as_dict(), "status": "REJECTED", "reason": "cycle prevented"})
+            rejected.append({
+                **edge.as_dict(),
+                "status": "REJECTED",
+                "reason": "cycle prevented",
+            })
             continue
         accepted.append(edge)
         adjacency.setdefault(edge.from_entity_id, set()).add(edge.to_entity_id)
@@ -419,14 +499,23 @@ def reject_cycles(edges: Sequence[LineageEdge]):
 
 
 def detect_lineage_relations(records: Sequence[Mapping], policy: Mapping | None = None):
-    """Pure, deterministic detector. Source records are never mutated."""
+    """Pure deterministic detector; supplied canonical records are never mutated."""
+    del policy  # reserved for a future versioned policy surface
     records = tuple(records or ())
-    before = [json.dumps(dict(r), sort_keys=True, default=str) for r in records if isinstance(r, Mapping)]
+    before = [
+        json.dumps(dict(record), sort_keys=True, default=str)
+        for record in records
+        if isinstance(record, Mapping)
+    ]
     explicit, unresolved = explicit_relations(records)
     deterministic = deterministic_relations(records, explicit)
     accepted, rejected = reject_cycles(explicit + deterministic)
     candidates = candidate_relations(records, accepted)
-    after = [json.dumps(dict(r), sort_keys=True, default=str) for r in records if isinstance(r, Mapping)]
+    after = [
+        json.dumps(dict(record), sort_keys=True, default=str)
+        for record in records
+        if isinstance(record, Mapping)
+    ]
     if before != after:
         raise RuntimeError("lineage detector mutated source records")
     unique = {edge.edge_id: edge for edge in accepted}
@@ -434,7 +523,9 @@ def detect_lineage_relations(records: Sequence[Mapping], policy: Mapping | None 
         "rule_version": LINEAGE_RULE_VERSION,
         "confirmed_relations": [unique[key].as_dict() for key in sorted(unique)],
         "candidates": [candidate.as_dict() for candidate in candidates],
-        "unresolved": sorted(unresolved, key=lambda item: json.dumps(item, sort_keys=True)),
+        "unresolved": sorted(
+            unresolved, key=lambda item: json.dumps(item, sort_keys=True)
+        ),
         "rejected": sorted(rejected, key=lambda item: item["edge_id"]),
     }
 
@@ -470,75 +561,109 @@ def ensure_lineage_tables(conn):
         lot_id TEXT,
         created_at TEXT NOT NULL
     )''')
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_lineage_edges_from ON procurement_lineage_edges(from_entity_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_lineage_edges_to ON procurement_lineage_edges(to_entity_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_lineage_nodes_process ON procurement_lineage_nodes(canonical_process_id, jurisdiction)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_lineage_nodes_source ON procurement_lineage_nodes(source, external_id)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_lineage_edges_from "
+        "ON procurement_lineage_edges(from_entity_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_lineage_edges_to "
+        "ON procurement_lineage_edges(to_entity_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_lineage_nodes_process "
+        "ON procurement_lineage_nodes(canonical_process_id, jurisdiction)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_lineage_nodes_source "
+        "ON procurement_lineage_nodes(source, external_id)"
+    )
 
 
 def _canonical_process_id(snapshot):
-    if snapshot["ocid"]:
-        return snapshot["ocid"]
-    if snapshot["procurement_reference"]:
-        return snapshot["procurement_reference"]
-    return None
+    return snapshot["ocid"] or snapshot["procurement_reference"] or None
 
 
-def persist_lineage_relations(conn, records: Sequence[Mapping], detection: Mapping | None = None, *, observed_at=None, commit=True):
-    """Persist additive lineage nodes/edges idempotently; source records remain untouched."""
+def persist_lineage_relations(conn, records: Sequence[Mapping],
+                              detection: Mapping | None = None, *,
+                              observed_at=None, commit=True):
+    """Persist additive nodes/confirmed edges idempotently without source mutation."""
     ensure_lineage_tables(conn)
     observed = observed_at or datetime.now(timezone.utc).isoformat()
     canonical_records = [record for record in records if _node_type(record)]
     for record in canonical_records:
-        snap = _record_snapshot(record)
+        snapshot = _record_snapshot(record)
         conn.execute('''INSERT INTO procurement_lineage_nodes(
-            entity_id,entity_type,source,external_id,canonical_process_id,jurisdiction,lot_id,event_date,title,source_ref,first_observed,last_observed
+            entity_id,entity_type,source,external_id,canonical_process_id,
+            jurisdiction,lot_id,event_date,title,source_ref,first_observed,last_observed
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(entity_id) DO UPDATE SET
             entity_type=excluded.entity_type,
-            canonical_process_id=COALESCE(excluded.canonical_process_id,procurement_lineage_nodes.canonical_process_id),
+            canonical_process_id=COALESCE(
+                excluded.canonical_process_id,
+                procurement_lineage_nodes.canonical_process_id
+            ),
             jurisdiction=excluded.jurisdiction,
             lot_id=excluded.lot_id,
             event_date=excluded.event_date,
             title=excluded.title,
             source_ref=excluded.source_ref,
             last_observed=excluded.last_observed''', (
-            snap["entity_id"], snap["entity_type"], snap["source"], snap["external_id"],
-            _canonical_process_id(snap), snap["jurisdiction"], snap["lot_id"], snap["event_date"],
-            snap["title"], snap["source_reference"], observed, observed,
+            snapshot["entity_id"], snapshot["entity_type"], snapshot["source"],
+            snapshot["external_id"], _canonical_process_id(snapshot),
+            snapshot["jurisdiction"], snapshot["lot_id"], snapshot["event_date"],
+            snapshot["title"], snapshot["source_reference"], observed, observed,
         ))
+
     result = detection or detect_lineage_relations(canonical_records)
     written = 0
-    for edge in result.get("confirmed_relations", ()): 
+    for edge in result.get("confirmed_relations", ()):
         conn.execute('''INSERT OR IGNORE INTO procurement_lineage_edges(
-            edge_id,from_entity_type,from_entity_id,to_entity_type,to_entity_id,relationship_type,
-            confidence,basis,reasons_json,source_ref,native_relation_type,rule_version,lot_id,created_at
+            edge_id,from_entity_type,from_entity_id,to_entity_type,to_entity_id,
+            relationship_type,confidence,basis,reasons_json,source_ref,
+            native_relation_type,rule_version,lot_id,created_at
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (
-            edge["edge_id"], edge["from_entity_type"], edge["from_entity_id"], edge["to_entity_type"], edge["to_entity_id"],
-            edge["relationship_type"], edge["confidence"], edge["basis"], json.dumps(edge.get("reasons") or [], ensure_ascii=False),
-            edge.get("source_ref"), edge.get("native_relation_type"), edge.get("rule_version") or LINEAGE_RULE_VERSION, edge.get("lot_id"), observed,
+            edge["edge_id"], edge["from_entity_type"], edge["from_entity_id"],
+            edge["to_entity_type"], edge["to_entity_id"],
+            edge["relationship_type"], edge["confidence"], edge["basis"],
+            json.dumps(edge.get("reasons") or [], ensure_ascii=False),
+            edge.get("source_ref"), edge.get("native_relation_type"),
+            edge.get("rule_version") or LINEAGE_RULE_VERSION,
+            edge.get("lot_id"), observed,
         ))
         written += int(conn.execute("SELECT changes()").fetchone()[0])
     if commit:
         conn.commit()
-    return {"nodes_seen": len(canonical_records), "edges_inserted": written, "detection": result}
+    return {
+        "nodes_seen": len(canonical_records),
+        "edges_inserted": written,
+        "detection": result,
+    }
 
 
 def lineage_view(conn, *, entity_id: str):
-    """Build a deterministic family read model around one canonical entity."""
+    """Build a deterministic connected-family read model around one entity."""
     ensure_lineage_tables(conn)
     entity_id = _text(entity_id)
-    seed = conn.execute("SELECT * FROM procurement_lineage_nodes WHERE entity_id=?", (entity_id,)).fetchone()
+    seed = conn.execute(
+        "SELECT * FROM procurement_lineage_nodes WHERE entity_id=?", (entity_id,)
+    ).fetchone()
     if seed is None:
         return None
     seed = dict(seed)
-    rows = conn.execute("SELECT * FROM procurement_lineage_nodes").fetchall()
-    nodes_by_id = {row["entity_id"]: dict(row) for row in rows}
-    edge_rows = [dict(row) for row in conn.execute("SELECT * FROM procurement_lineage_edges").fetchall()]
+
+    nodes_by_id = {
+        row["entity_id"]: dict(row)
+        for row in conn.execute("SELECT * FROM procurement_lineage_nodes").fetchall()
+    }
+    edge_rows = [
+        dict(row)
+        for row in conn.execute("SELECT * FROM procurement_lineage_edges").fetchall()
+    ]
     adjacency = {}
     for edge in edge_rows:
         adjacency.setdefault(edge["from_entity_id"], set()).add(edge["to_entity_id"])
         adjacency.setdefault(edge["to_entity_id"], set()).add(edge["from_entity_id"])
+
     family_ids = set()
     stack = [entity_id]
     while stack:
@@ -547,18 +672,27 @@ def lineage_view(conn, *, entity_id: str):
             continue
         family_ids.add(current)
         stack.extend(adjacency.get(current, ()))
-    family_nodes = [nodes_by_id[node_id] for node_id in family_ids if node_id in nodes_by_id]
-    family_edges = [edge for edge in edge_rows if edge["from_entity_id"] in family_ids and edge["to_entity_id"] in family_ids]
-    family_nodes.sort(key=lambda n: (
-        n.get("event_date") is None,
-        n.get("event_date") or "",
-        _STAGE_ORDER.get(n.get("entity_type"), 999),
-        n["entity_id"],
+
+    family_nodes = [
+        nodes_by_id[node_id] for node_id in family_ids if node_id in nodes_by_id
+    ]
+    family_edges = [
+        edge for edge in edge_rows
+        if edge["from_entity_id"] in family_ids and edge["to_entity_id"] in family_ids
+    ]
+    family_nodes.sort(key=lambda node: (
+        node.get("event_date") is None,
+        node.get("event_date") or "",
+        _STAGE_ORDER.get(node.get("entity_type"), 999),
+        node["entity_id"],
     ))
     for edge in family_edges:
         edge["reasons"] = json.loads(edge.pop("reasons_json"))
-    family_edges.sort(key=lambda e: e["edge_id"])
-    stages = [node["entity_type"] for node in family_nodes if node.get("event_date")]
+    family_edges.sort(key=lambda edge: edge["edge_id"])
+
+    dated_stages = [
+        node["entity_type"] for node in family_nodes if node.get("event_date")
+    ]
     return {
         "canonical_process_id": seed.get("canonical_process_id"),
         "jurisdiction": seed.get("jurisdiction"),
@@ -575,6 +709,8 @@ def lineage_view(conn, *, entity_id: str):
             }
             for node in family_nodes
         ],
-        "current_known_stage": stages[-1] if stages else None,
-        "coverage_notes": ["nodes without a known event date are retained without inventing precise chronology"],
+        "current_known_stage": dated_stages[-1] if dated_stages else None,
+        "coverage_notes": [
+            "nodes without a known event date are retained without inventing precise chronology"
+        ],
     }
