@@ -26,6 +26,12 @@ SEARCH_FIXTURE = """
 </body></html>
 """
 
+SEARCH_NON_CONSTRUCTION_ONLY = """
+<html><body>
+<a href="/ilgstorefront/en/p/4000620190">IT tender</a>
+</body></html>
+"""
+
 DETAIL_CONSTRUCTION = """
 <html><body>
 <h1>Public Tender</h1>
@@ -159,11 +165,27 @@ class _Session:
         raise AssertionError(url)
 
 
+class _NonConstructionSession:
+    def get(self, url, timeout, headers):
+        assert timeout == 7
+        if url == SEARCH_URL:
+            return _Response(SEARCH_NON_CONSTRUCTION_ONLY)
+        if url == DETAIL_URL.format(serial="4000620190"):
+            return _Response(DETAIL_NON_CONSTRUCTION)
+        raise AssertionError(url)
+
+
 def test_bounded_fetch_and_adapter_contract():
     notices = fetch_recent_notices(session=_Session(), timeout=7, max_details=2)
     assert [n.serial for n in notices] == ["4000621193", "4000620190"]
     records = IsraelGPAConnector(session=_Session(), timeout=7, max_details=2).fetch()
     assert [r["external_id"] for r in records] == ["4000621193"]
+
+
+def test_valid_source_response_with_zero_construction_matches_is_healthy_empty():
+    notices = fetch_recent_notices(session=_NonConstructionSession(), timeout=7, max_details=1)
+    assert [n.serial for n in notices] == ["4000620190"]
+    assert IsraelGPAConnector(session=_NonConstructionSession(), timeout=7, max_details=1).fetch() == []
 
 
 class _FailingSession:
