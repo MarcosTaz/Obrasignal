@@ -48,7 +48,25 @@ RUNTIME_CONTRACTS: dict[str, TableContract] = {
     "opportunity_lifecycle": TableContract("opportunity_lifecycle", frozenset({"source","external_id","is_actionable","last_observed"}), unique_keys=(("source","external_id"),), required_indexes=("idx_opportunity_lifecycle_actionable",)),
 }
 
-KNOWN_TABLE_OWNERS = {**STARTUP_CONTRACTS, **RUNTIME_CONTRACTS}
+# Reviewed but not canonical-on-main persistence owners. These contracts exist so
+# Integration Lab can compose candidate branches without treating known owner
+# tables as unregistered storage. They are deliberately excluded from the
+# canonical verify_database()/contract_fingerprint() path unless explicitly
+# requested, so registration cannot silently promote a prebuild capability.
+PREBUILD_CONTRACTS: dict[str, TableContract] = {
+    "company_state_snapshots": TableContract(
+        "Company State / company_state_store",
+        frozenset({
+            "id", "account_id", "state_version", "fingerprint",
+            "contract_version", "as_of", "snapshot_json", "created_at",
+        }),
+        tenant_column="account_id",
+        unique_keys=(("account_id", "state_version"),),
+        required_indexes=("idx_company_state_account_version",),
+    ),
+}
+
+KNOWN_TABLE_OWNERS = {**STARTUP_CONTRACTS, **RUNTIME_CONTRACTS, **PREBUILD_CONTRACTS}
 
 JSON_COLUMNS: tuple[tuple[str, str], ...] = (
     ("company_profiles","profile_json"),
@@ -56,6 +74,7 @@ JSON_COLUMNS: tuple[tuple[str, str], ...] = (
     ("evaluation_events","metadata_json"),
     ("signal_records","normalized_json"),
     ("source_record_metadata","metadata_json"),
+    ("company_state_snapshots","snapshot_json"),
 )
 
 REGISTERED_ADDITIVE_MIGRATIONS: dict[str, tuple[str, ...]] = {
@@ -91,16 +110,20 @@ def _contract_payload(contracts: dict[str, TableContract]) -> list[dict]:
     ]
 
 
-def contract_fingerprint(*, include_runtime: bool = True) -> str:
+def contract_fingerprint(*, include_runtime: bool = True, include_prebuild: bool = False) -> str:
     """Return a deterministic fingerprint of expected structure/ownership.
 
     This is observability only, not a migration version or authoritative ledger.
     A changed fingerprint means the reviewed storage contract changed; database
-    compatibility is still decided by the executable verifier below.
+    compatibility is still decided by the executable verifier below. Prebuild
+    contracts are opt-in so registering a candidate owner cannot imply canonical
+    persistence or mutate the current-main contract fingerprint.
     """
     contracts = dict(STARTUP_CONTRACTS)
     if include_runtime:
         contracts.update(RUNTIME_CONTRACTS)
+    if include_prebuild:
+        contracts.update(PREBUILD_CONTRACTS)
     payload = json.dumps(_contract_payload(contracts), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -181,14 +204,24 @@ def verify_foreign_keys(conn: sqlite3.Connection) -> None:
         raise StorageContractError("foreign key integrity failed: tables=" + ",".join(tables) + f" violations={len(violations)}")
 
 
-def verify_database(conn: sqlite3.Connection, *, include_runtime: bool = False) -> None:
+def verify_database(
+    conn: sqlite3.Connection,
+    *,
+    include_runtime: bool = False,
+    include_prebuild: bool = False,
+) -> None:
     contracts = dict(STARTUP_CONTRACTS)
     if include_runtime:
         contracts.update(RUNTIME_CONTRACTS)
+    if include_prebuild:
+        contracts.update(PREBUILD_CONTRACTS)
     verify_schema(conn, contracts)
     verify_json_integrity(conn)
     verify_foreign_keys(conn)
 
 
-def tenant_owned_tables() -> dict[str, str]:
-    return {table: contract.tenant_column for table, contract in KNOWN_TABLE_OWNERS.items() if contract.tenant_column is not None}
+def tenant_owned_tables(*, include_prebuild: bool = False) -> dict[str, str]:
+    contracts = {**STARTUP_CONTRACTS, **RUNTIME_CONTRACTS}
+    if include_prebuild:
+        contracts.update(PREBUILD_CONTRACTS)
+    return {table: contract.tenant_column for table, contract in contracts.items() if contract.tenant_column is not None}
