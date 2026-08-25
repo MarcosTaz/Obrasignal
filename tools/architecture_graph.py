@@ -246,6 +246,31 @@ def _cycles(nodes: list[str], edges: list[dict]) -> list[list[str]]:
     return sorted(components)
 
 
+def _change_impact(nodes: list[str], edges: list[dict]) -> dict[str, dict]:
+    reverse: dict[str, set[str]] = defaultdict(set)
+    for edge in edges:
+        reverse[edge["target"]].add(edge["source"])
+
+    impact: dict[str, dict] = {}
+    for node in sorted(nodes):
+        direct = sorted(reverse.get(node, ()))
+        seen: set[str] = set()
+        stack = list(direct)
+        while stack:
+            dependent = stack.pop()
+            if dependent == node or dependent in seen:
+                continue
+            seen.add(dependent)
+            stack.extend(reverse.get(dependent, ()))
+        impact[node] = {
+            "direct_dependents": direct,
+            "direct_dependent_count": len(direct),
+            "transitive_dependents": sorted(seen),
+            "transitive_dependent_count": len(seen),
+        }
+    return impact
+
+
 def build_graph(root: Path) -> dict:
     root = root.resolve()
     files = discover_production_files(root)
@@ -283,6 +308,7 @@ def build_graph(root: Path) -> dict:
         "nodes": nodes,
         "edges": edges,
         "cycles": _cycles(nodes, edges),
+        "change_impact": _change_impact(nodes, edges),
     }
 
 
