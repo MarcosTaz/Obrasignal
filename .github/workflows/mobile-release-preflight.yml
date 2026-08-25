@@ -25,7 +25,7 @@ jobs:
 
       # This repository intentionally does not commit a package-lock.json.
       # npm ci therefore cannot work here; use npm install to resolve the
-      # declared Expo/RN dependency graph reproducibly enough for preflight.
+      # declared Expo/RN dependency graph for non-mutating release preflight.
       - run: npm install --no-audit --no-fund
 
       - name: Validate native release contract
@@ -69,28 +69,6 @@ jobs:
       - name: Verify production profile
         run: node -e "const e=require('./eas.json'); if(!e.build?.production) process.exit(1); console.log(JSON.stringify(e.build.production))"
 
-      - name: Require EAS token for manual release
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        shell: bash
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$EXPO_TOKEN" || { echo 'EXPO_TOKEN GitHub secret is required for a manual production release.'; exit 1; }
-
-      - name: Authenticated EAS production build
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: |
-          set -euo pipefail
-          npx eas-cli@latest build --platform android --profile production --non-interactive --wait --json > eas-build.json
-          node -e "const fs=require('fs'); const v=JSON.parse(fs.readFileSync('eas-build.json','utf8')); fs.writeFileSync('eas-build-report.json', JSON.stringify(v, null, 2)); console.log(JSON.stringify(v, null, 2))"
-
-      - name: Upload EAS build report
-        if: ${{ github.event_name == 'workflow_dispatch' && always() && hashFiles('mobile/eas-build-report.json') != '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: obrasignal-eas-android-build-report
-          path: mobile/eas-build-report.json
-          if-no-files-found: error
+      # Preflight is intentionally non-mutating. The only canonical production
+      # build path is eas-production.yml and requires explicit workflow_dispatch
+      # with an exact current-main SHA plus the protected EXPO_TOKEN credential.
