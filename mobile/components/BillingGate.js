@@ -4,10 +4,12 @@ import { supabase } from '../lib/supabase';
 import { api } from '../src/api';
 import {
   activeEntitlement,
+  BILLING_PRODUCT,
   BILLING_SUPPORTED,
   configureBilling,
   getCurrentOffering,
   hasProEntitlement,
+  isCanonicalBillingProduct,
   purchasePro,
   restoreBilling,
 } from '../src/billing';
@@ -15,32 +17,41 @@ import {
 const COLORS = { bg: '#070C18', panel: '#10182B', line: '#253553', text: '#F3F6FF', muted: '#9BA8C0', blue: '#5E8BFF', green: '#6FE39A', red: '#FF8998' };
 
 export default function BillingGate({ children }) {
-  const [billing, setBilling] = useState({ configured: false, pro: false, plan: 'evaluation', expiresAt: null, managementUrl: null, evaluation: null, metrics: null });
+  const [billing, setBilling] = useState({ configured: false, pro: false, plan: 'unknown', expiresAt: null, managementUrl: null, evaluation: null, metrics: null, providerStatus: null });
   const [modal, setModal] = useState(false);
   const [offering, setOffering] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const refresh = async () => {
+  const refresh = async ({ requireServer = false } = {}) => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) return { server: null, customerInfo: null };
     try {
       const result = await configureBilling(session.user.id);
       const info = result.customerInfo;
       let server = null;
-      try { server = await api.billingStatus(); } catch (_) {}
+      try { server = await api.billingStatus(); } catch (serverError) {
+        if (requireServer) throw serverError;
+      }
       const entitlement = activeEntitlement(info);
+      const serverPro = server?.plan === 'pro' && server?.active === true;
       setBilling({
         configured: result.configured,
-        pro: hasProEntitlement(info),
-        plan: server?.plan || (hasProEntitlement(info) ? 'pro' : 'evaluation'),
+        // The SDK state is useful purchase feedback, but only backend state may
+        // label the product as Pro or authorize protected product access.
+        pro: serverPro,
+        plan: server?.plan || 'unknown',
         expiresAt: server?.expires_at || entitlement?.expirationDate || server?.trial_ends_at || null,
         managementUrl: info?.managementURL || null,
         evaluation: server?.evaluation || null,
         metrics: server?.evaluation_metrics || null,
+        providerStatus: server?.provider_status || null,
       });
+      return { server, customerInfo: info };
     } catch (e) {
       setError(e?.message || 'Não foi possível verificar a subscrição.');
+      if (requireServer) throw e;
+      return { server: null, customerInfo: null };
     }
   };
 
@@ -57,7 +68,10 @@ export default function BillingGate({ children }) {
     try {
       const info = await purchasePro();
       if (!hasProEntitlement(info)) throw new Error('subscription_not_active');
-      await refresh();
+      const { server } = await refresh({ requireServer: true });
+      if (!(server?.plan === 'pro' && server?.active === true)) {
+        throw new Error('backend_subscription_not_recognized');
+      }
       setModal(false);
     } catch (e) {
       if (!e?.userCancelled) setError(e?.message || 'A compra não foi concluída.');
@@ -66,13 +80,20 @@ export default function BillingGate({ children }) {
 
   const restore = async () => {
     setBusy(true); setError('');
-    try { await restoreBilling(); await refresh(); } catch (e) { setError(e?.message || 'Não foi possível restaurar a subscrição.'); }
+    try {
+      const info = await restoreBilling();
+      const localPro = hasProEntitlement(info);
+      const { server } = await refresh({ requireServer: localPro });
+      if (localPro && !(server?.plan === 'pro' && server?.active === true)) {
+        throw new Error('backend_subscription_not_recognized');
+      }
+      if (!localPro) setError('Não foi encontrada uma subscrição Pro ativa para restaurar.');
+    } catch (e) { setError(e?.message || 'Não foi possível restaurar a subscrição.'); }
     finally { setBusy(false); }
   };
 
-  const packagePrice = offering?.availablePackages?.find(p => p?.product?.identifier === 'obrasignal_pro_monthly')?.product?.priceString
-    || offering?.availablePackages?.[0]?.product?.priceString
-    || 'Preço apresentado pelo Google Play/App Store';
+  const canonicalPackage = offering?.availablePackages?.find((pkg) => isCanonicalBillingProduct(pkg?.product?.identifier));
+  const packagePrice = canonicalPackage?.product?.priceString || 'Produto Pro ainda não configurado na loja';
   const expired = billing.plan === 'expired';
 
   return <View style={{ flex: 1 }}>
@@ -88,9 +109,9 @@ export default function BillingGate({ children }) {
         <Text style={styles.eyebrow}>OBRASIGNAL PRO</Text>
         <Text style={styles.title}>O radar completo continua a trabalhar por ti.</Text>
         <Text style={styles.body}>A subscrição desbloqueia o acesso contínuo ao radar personalizado, scoring por empresa, alertas e workflow comercial.</Text>
-        <View style={styles.priceBox}><Text style={styles.price}>{packagePrice}</Text><Text style={styles.priceNote}>Subscrição recorrente · cobrança pela {Platform.OS === 'android' ? 'Google Play' : 'App Store'}</Text></View>
+        <View style={styles.priceBox}><Text style={styles.price}>{packagePrice}</Text><Text style={styles.priceNote}>Subscrição recorrente · produto {BILLING_PRODUCT} · cobrança pela {Platform.OS === 'android' ? 'Google Play' : 'App Store'}</Text></View>
         <Text style={styles.terms}>A subscrição renova automaticamente até ser cancelada. O preço, período e condições apresentados pelo sistema de compra da loja aplicam-se à compra. Podes gerir ou cancelar a subscrição na loja.</Text>
-        {BILLING_SUPPORTED && billing.configured ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Subscrever</Text>}</Pressable> : <Text style={styles.setup}>{BILLING_SUPPORTED ? 'Billing ainda não está configurado neste build. Define a chave pública RevenueCat antes do teste real.' : 'A subscrição é activada através da Google Play/App Store na aplicação nativa. A versão Web permite consultar o estado do plano, mas não processa compras.'}</Text>}
+        {BILLING_SUPPORTED && billing.configured ? <Pressable disabled={busy || !canonicalPackage} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Subscrever</Text>}</Pressable> : <Text style={styles.setup}>{BILLING_SUPPORTED ? 'Billing ainda não está configurado neste build. Define a chave pública RevenueCat antes do teste real.' : 'A subscrição é activada através da Google Play/App Store na aplicação nativa. A versão Web permite consultar o estado do plano, mas não processa compras.'}</Text>}
         {BILLING_SUPPORTED ? <Pressable disabled={busy} onPress={restore} style={styles.secondary}><Text style={styles.secondaryText}>Restaurar compra</Text></Pressable> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Pressable disabled={busy} onPress={() => setModal(false)} style={styles.close}><Text style={styles.secondaryText}>Fechar</Text></Pressable>
