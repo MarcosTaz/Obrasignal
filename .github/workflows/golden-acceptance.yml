@@ -30,3 +30,4 @@ jobs:
           PYTHONPATH=. pytest -q --import-mode=importlib
           tests/test_system_acceptance_golden.py
           tests/test_acceptance_integration_manifest.py
+          tests/test_commercial_readiness_acceptance.py
