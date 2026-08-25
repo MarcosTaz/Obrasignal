@@ -4,9 +4,15 @@
   "ACTIVE": [
     {
       "step": "FIRST_VALUE_ACCEPTANCE_CORPUS",
-      "goal": "Convert the new deterministic outcome corpus into executable composition proof without stealing Decision or Source semantics.",
-      "current_evidence": "customer_first_value_corpus.json now distinguishes GOOD_MATCH, truthful NO_MATCH, insufficient information, stale source, partial coverage, closed opportunity, incomplete profile and system failure; only GOOD_MATCH is a first-value candidate.",
+      "goal": "Convert the deterministic outcome corpus into executable composition proof without stealing Decision or Source semantics.",
+      "current_evidence": "customer_first_value_corpus.json distinguishes GOOD_MATCH, truthful NO_MATCH, insufficient information, stale source, partial coverage, closed opportunity, incomplete profile and system failure; only GOOD_MATCH is a first-value candidate.",
       "next_material_proof": "Bind corpus scenarios to owner public contracts and supported Web render/Golden evidence; do not promote non-canonical #399 or owner semantics into canonical truth."
+    },
+    {
+      "step": "REPEAT_VALUE_ACCEPTANCE_CORPUS",
+      "goal": "Turn second/repeat-value candidates into executable current-truth journeys rather than engagement metrics.",
+      "current_evidence": "customer_repeat_value_corpus.json separates materially new opportunity/change/recovered coverage from notification delivery, return visits, cache hydration and billing-only changes; Saved remains PREBUILD and workflow continuation remains owner-semantics-required.",
+      "next_material_proof": "Prove one Web-first second-value scenario on current owner contracts after source-currentness and durable continuation dependencies are composition-safe."
     },
     {
       "step": "PROFILE_TO_RADAR_CAUSALITY",
@@ -38,10 +44,11 @@
       "action": "Owner must define lifecycle/actionability-aware legal transition/precondition matrix. Web/Mobile must not present an impossible next action, but Customer Journey must not invent which historical/progress transitions remain valid after source closure."
     },
     {
-      "step": "REPEAT_VALUE",
+      "step": "REPEAT_VALUE_RUNTIME_COMPOSITION",
       "owner": "Customer Journey composition",
-      "state": "DISCOVERED_UNKNOWN",
-      "action": "Define a deterministic second-value scenario only after current-source/return and at least one durable continuation path are composition-safe."
+      "state": "CORPUS_DEFINED_CANONICAL_JOURNEY_UNPROVEN",
+      "input": "customer_repeat_value_corpus.json",
+      "action": "Select highest-leverage Web-first scenario once owner currentness/continuation contracts are canonical or exact-tree integration evidence is available; notification count and return visits remain non-value."
     }
   ],
   "WAIT": [
