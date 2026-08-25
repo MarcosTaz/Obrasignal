@@ -34,7 +34,7 @@ def _q(id, title, domain, state, stage, dependencies=(), reason=""):
 
 
 CANONICAL_QUEUE_NAME = "OBRASIGNAL_MASTER_EXECUTION_QUEUE"
-CURRENT_ITEM_ID = "Q060_CHILE_MERCADOPUBLICO"
+CURRENT_ITEM_ID = "Q070_SHARED_FAMILIES"
 
 MASTER_EXECUTION_QUEUE = (
     _q("Q000_SCOPE_REBASE", "International market-scope rebase", "STRATEGY", "DONE", "PRODUCTION",
@@ -60,11 +60,12 @@ MASTER_EXECUTION_QUEUE = (
     _q("Q050_US_SAM", "SAM.gov federal construction opportunities connector", "SIGNAL", "DONE", "PRODUCTION",
        ("Q020_SIGNAL_CONTRACT_V1",),
        "Official public Contract Opportunities bulk path validated: strict 47-column schema, NAICS 23 construction admission, NoticeId identity, opt-in runtime wiring, fail-closed disappearance semantics, exact-head CI and live production-path proof."),
-    _q("Q060_CHILE_MERCADOPUBLICO", "Chile Mercado Público construction connector", "SIGNAL", "ACTIVE", "PRODUCTION",
-       ("Q020_SIGNAL_CONTRACT_V1",), "Strong official API and favourable value-to-effort ratio."),
-    _q("Q070_SHARED_FAMILIES", "Harden TED/eForms and OCDS shared-coverage families", "SIGNAL", "QUEUED", "PRODUCTION",
-       ("Q040_CANADA_BUYS", "Q050_US_SAM", "Q060_CHILE_MERCADOPUBLICO"),
-       "Maximise supported markets per maintained connector and remove country-specific duplication; a blocked Brazil source must not freeze unrelated shared coverage."),
+    _q("Q060_CHILE_MERCADOPUBLICO", "Chile Mercado Público construction connector", "SIGNAL", "GATED", "PRODUCTION",
+       ("Q020_SIGNAL_CONTRACT_V1",),
+       "Connector, publisher-native construction taxonomy, amount visibility, lifecycle and 429 controls are implemented and test-ticket validated; production activation is blocked until a real individual MERCADOPUBLICO_TICKET is provisioned. The public documentation ticket is test-only."),
+    _q("Q070_SHARED_FAMILIES", "Harden TED/eForms and OCDS shared-coverage families", "SIGNAL", "ACTIVE", "PRODUCTION",
+       ("Q040_CANADA_BUYS", "Q050_US_SAM"),
+       "Maximise supported markets per maintained connector and remove country-specific duplication; country-specific external gates such as Brazil transport reliability or Chile credentials must not freeze independent shared-family hardening."),
     _q("Q080_EVIDENCE_GRAPH_V1", "Proof / Evidence Graph v1", "COMMAND", "QUEUED", "PRODUCTION",
        ("Q020_SIGNAL_CONTRACT_V1",),
        "Material recommendations need traceable WHY / SHOW ME / WHAT IF evidence before higher autonomy is safe."),

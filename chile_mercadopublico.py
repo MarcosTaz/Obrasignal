@@ -20,7 +20,6 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 import time
-from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 import requests
