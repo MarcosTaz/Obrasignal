@@ -240,6 +240,23 @@ SOURCES = {
         adapter="CanadaBuysConnector",
         realtime_capable=False,
     ),
+    "QA_ASHGHAL": _source(
+        country="QAT",
+        jurisdiction="Qatar / Public Works Authority (Ashghal)",
+        source_id="qa_ashghal_open_etenders",
+        kind="OFFICIAL_PUBLIC_HTML_LIST",
+        access="public_open_etenders_html",
+        status="planned",
+        priority=1,
+        legal_reuse="YELLOW",
+        machine_access="VERIFIED",
+        expected_refresh_minutes=1440,
+        stale_after_minutes=4320,
+        capabilities=("search", "construction_filter"),
+        signal_types=("TENDER",),
+        adapter="AshghalOpenTenderConnector",
+        realtime_capable=False,
+    ),
 }
 
 
