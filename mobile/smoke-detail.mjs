@@ -41,6 +41,8 @@ const truthChecks = [
   ['missing sync keeps coverage explicitly unknown', /Atualidade da cobertura não confirmada\./],
   ['empty radar does not claim market absence', /Isto não prova ausência de oportunidades no mercado\./],
   ['unknown coverage empty state stays explicit', /A atualidade e cobertura das fontes não estão confirmadas\./],
+  ['official-source label requires preserved source identity', /sourceKnown\(current\.source\)\?'Abrir fonte oficial e documentos':'Abrir ligação disponível'/],
+  ['unknown link provenance is disclosed before decision', /A origem desta ligação não está identificada nos dados atuais; confirma o destino antes de tomar uma decisão\./],
   ['score is framed as compatibility, not a bid recommendation', /A pontuação expressa compatibilidade com o perfil; não é uma recomendação para concorrer\./],
   ['web notifications are disclosed as unavailable', /Notificações do navegador ainda não estão disponíveis\./],
   ['web notification switch is disabled', /<Switch disabled=\{webNotifications\} value=\{webNotifications\?false:/],
