@@ -2,9 +2,9 @@
 
 Production authentication is protected by distinct gates with non-overlapping responsibilities:
 
-1. `quality.yml` — unit/regression quality. It runs on pull requests and pushes to `main`, including Python compilation/tests and the repository's mobile/detail smoke gates.
-2. `auth-verifier-live.yml` — real Supabase JWT verifier gate. It logs into the configured dedicated E2E account, obtains the provider's current access token/JWKS, and verifies that token through the exact branch `JwtVerifier`. It does not call the deployed API and therefore is not production E2E.
-3. `production-smoke.yml` — deployed production smoke. The live Render `/api/v1/health` response must identify the exact `github.sha` under test before anonymous boundary, CORS, and GitHub Pages shell checks are accepted.
+1. `quality.yml` — unit/regression quality. Pull requests explicitly checkout the exact branch HEAD; pushes to `main` test the exact post-merge commit. It includes Python compilation/tests and the repository's mobile/detail smoke gates.
+2. `auth-verifier-live.yml` — real Supabase JWT verifier gate. It explicitly checks out the exact branch HEAD, logs into the configured dedicated E2E account, obtains the provider's current access token/JWKS, and verifies that token through that revision's `JwtVerifier`. It does not call the deployed API and therefore is not production E2E.
+3. `production-smoke.yml` — deployed production smoke. The live Render `/api/v1/health` response must identify the exact `github.sha`, provider auth configuration must be present, and provider status must not be degraded before anonymous boundary, CORS, and GitHub Pages shell checks are accepted.
 4. `authenticated-e2e.yml` — full authenticated deployed API gate. It waits for the exact `github.sha` to be reported by production, performs real Supabase login, verifies anonymous/malformed-token rejection, authenticated profile identity and persistence, account-scoped opportunities/stats/workflow stats, and detail/workflow reads when data exists.
 5. `auth-diagnostic.yml` — manual diagnostic only. It checks required secret presence without printing secret values or password-derived fingerprints, probes Supabase Auth settings, authenticates the dedicated `E2E_EMAIL`, and validates the public JWKS shape. It is not a release gate.
 
@@ -36,9 +36,17 @@ The production verifier accepts only `RS256` or `ES256` bearer JWTs and validate
 
 Runtime authentication logs emit bounded reason categories only (for example issuer mismatch, audience mismatch, unknown key, malformed/expired token, or JWKS unavailable). They do not log JWTs, passwords, signing material, credentials, or environment dumps. The public API response remains intentionally coarse (`401 authentication_required` or controlled `503 authentication_service_unavailable`).
 
-## Deployment provenance
+## Deployment provenance and safe auth health
 
-`/api/v1/health` returns the deployed build identifier from `OBRASIGNAL_BUILD` or Render's `RENDER_GIT_COMMIT`. Both `production-smoke.yml` and `authenticated-e2e.yml` require that value to equal the workflow's `github.sha` before their production assertions count. A green branch or a healthy older Render revision is therefore insufficient to claim production validation.
+`/api/v1/health` returns the deployed build identifier from `OBRASIGNAL_BUILD` or Render's `RENDER_GIT_COMMIT`. At the production WSGI boundary it also returns a deliberately bounded `auth` object containing only:
+
+- `mode` — `provider`, `development`, or `invalid`;
+- `config_present` — whether the required provider configuration is present;
+- `provider_status` — `misconfigured`, `uninitialized`, `ready`, `degraded`, or `not_applicable`.
+
+Health is passive and never contacts Supabase itself. `ready` means the running verifier currently holds usable public signing keys; `degraded` means its last JWKS refresh failed; `uninitialized` means provider configuration is present but no verification attempt has yet populated keys. The health response never exposes issuer URLs, JWKS URLs, JWTs, credentials, key material, or environment dumps.
+
+Both `production-smoke.yml` and `authenticated-e2e.yml` require the health build to equal the workflow's `github.sha` before their production assertions count. Production smoke additionally requires provider mode, present auth configuration, and a non-degraded provider state. A green branch or a healthy older Render revision is therefore insufficient to claim production validation.
 
 ## Verification policy
 
