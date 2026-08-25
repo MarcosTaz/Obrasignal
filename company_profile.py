@@ -37,8 +37,6 @@ DEFAULT_PROFILE = {
 }
 
 ACTIVITY_RULES = [
-    # Do not infer the whole works family (45) for a specialist metal profile:
-    # that made unrelated rehabilitation and electrical lots look compatible.
     ("metalomecanica", ["metalomecânica", "metalomecanica", "estrutura metálica", "estruturas metálicas", "serralharia", "steel", "aço", "aco"], ["4522", "443"]),
     ("construcao", ["construção", "construcao", "empreitada", "obras", "construction", "reabilitação", "reabilitacao"], ["45"]),
     ("coberturas", ["cobertura", "coberturas", "telhado", "roof", "fachada", "pavilhão", "pavilhao"], ["45", "44"]),
@@ -66,6 +64,10 @@ CREATE TABLE IF NOT EXISTS company_profiles (
     updated_at TEXT NOT NULL
 )
 """
+
+
+class CompanyProfileStorageError(RuntimeError):
+    """Durable company profile state cannot be interpreted safely."""
 
 
 def _db_path() -> str:
@@ -105,7 +107,6 @@ def _normalize_countries(values) -> list[str]:
 
 
 def _normalize_optional_number(value):
-    """Accept JSON/form numeric strings without persisting a second type."""
     if value in (None, ""):
         return None
     if isinstance(value, str):
@@ -115,7 +116,7 @@ def _normalize_optional_number(value):
         try:
             return float(token)
         except ValueError:
-            return value  # validation returns the existing field-specific error
+            return value
     return value
 
 
@@ -148,11 +149,7 @@ def derive_profile(activity: str, base: dict | None = None) -> dict:
 def _legacy_profile_path(account_id: str | None = None) -> str:
     account = str(account_id or "default").strip() or "default"
     if account == "default":
-        return (
-            os.getenv("OBRASIGNAL_PROFILE")
-            or os.getenv("OBRASIGNAL_PROFILE_FILE")
-            or "company_profile.json"
-        )
+        return os.getenv("OBRASIGNAL_PROFILE") or os.getenv("OBRASIGNAL_PROFILE_FILE") or "company_profile.json"
     root = os.getenv("OBRASIGNAL_PROFILE_DIR", "profiles")
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", account)
     return os.path.join(root, f"{safe}.json")
@@ -192,16 +189,15 @@ def load_profile(account_id: str | None = None) -> dict:
     if row:
         try:
             raw = json.loads(row["profile_json"])
+            if not isinstance(raw, dict):
+                raise TypeError("profile_json must contain an object")
             profile = dict(DEFAULT_PROFILE)
-            profile.update(raw or {})
+            profile.update(raw)
             profile["account_id"] = account
             return derive_profile(profile.get("activity", ""), profile)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            pass
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise CompanyProfileStorageError("persisted company profile is corrupt") from exc
 
-    # Backward compatibility for any profile written by an older deployment.
-    # Import it once into durable storage instead of continuing to depend on
-    # the Render filesystem.
     legacy = _load_legacy_profile(account)
     if legacy is not None:
         _persist_profile_db(legacy, account)
@@ -240,12 +236,7 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
     errors = validate_company_profile(validation_profile)
     if errors:
         raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": errors})
-
-    # Durable persistence is the critical operation. Do not write authenticated
-    # account profiles to Render's ephemeral filesystem.
     _persist_profile_db(normalized, account)
-    # A successfully validated and durably persisted company profile is the
-    # authoritative profile_ready event for the evaluation lifecycle.
     try:
         from account_registry import ensure_account
         from evaluation_policy import record_evaluation_event
@@ -256,8 +247,5 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
         finally:
             conn.close()
     except Exception:
-        # Profile persistence must not fail because evaluation telemetry fails.
-        # The missing event remains observable/recoverable via billing status.
         pass
-
     return normalized
