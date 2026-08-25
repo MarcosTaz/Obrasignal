@@ -6,8 +6,8 @@ Explore API. DECP is post-award/contract data, not tender discovery; this module
 therefore emits canonical ``CONTRACT`` signals and never legacy tender rows.
 
 Construction admission uses the publisher-native CPV main code (division 45).
-Contract identity is the publisher ``id``. Later DECP modifications update that
-same identity so re-ingestion remains idempotent in the canonical Signal store.
+Contract identity is the publisher ``id``. If a source record is re-observed with
+changed data, the same identity is updated idempotently in the canonical store.
 """
 from __future__ import annotations
 
@@ -154,10 +154,36 @@ def _place(row):
     )
 
 
+def _modification_publication_day(row):
+    return _iso_day(
+        _field(
+            row,
+            # Current 2022 dataset identifier observed in the official schema.
+            "datepublicationdonneesmodificationmodification",
+            # Older DECP v3 / source variants retained for forward/backfill tolerance.
+            "datepublicationdonneesmodification",
+            "datePublicationDonneesModificationModification",
+            "datePublicationDonneesModification",
+        )
+    )
+
+
+def _modification_notification_day(row):
+    return _iso_day(
+        _field(
+            row,
+            "datenotificationmodificationmodification",
+            "datenotificationmodification",
+            "dateNotificationModificationModification",
+            "dateNotificationModification",
+        )
+    )
+
+
 def _source_updated_day(row):
     candidates = [
-        _iso_day(_field(row, "datepublicationdonneesmodification", "datePublicationDonneesModification")),
-        _iso_day(_field(row, "datenotificationmodification", "dateNotificationModification")),
+        _modification_publication_day(row),
+        _modification_notification_day(row),
         _iso_day(_field(row, "datepublicationdonnees", "datePublicationDonnees")),
         _iso_day(_field(row, "datenotification", "dateNotification")),
     ]
@@ -178,7 +204,11 @@ def _normalize(row):
     amount = _text(_field(row, "montant"))
     supplier = _supplier(row)
     buyer_id = _buyer_id(row)
-    modification = _flag(_field(row, "booleanmodification", "booleanModification"))
+    modification = (
+        _flag(_field(row, "booleanmodification", "booleanModification"))
+        or bool(_modification_publication_day(row))
+        or bool(_modification_notification_day(row))
+    )
     duration = _text(_field(row, "dureemois", "dureeMois"))
     procedure = _text(_field(row, "procedure"))
     nature = _text(_field(row, "nature"))
@@ -230,14 +260,14 @@ def _normalize(row):
 
 
 def _request_page(session, *, offset, since):
-    since_literal = f"date'{since.isoformat()}'"
+    # ODSQL v2.1 requires the explicit date: cast form. The current DECP 2022
+    # modification-publication field is text, so it is intentionally not used as
+    # a server-side cursor predicate: claiming complete amendment incrementality
+    # from that field would be unsafe. Re-observed IDs remain update-safe locally.
+    since_literal = f"date:'{since.isoformat()}'"
     params = {
         "select": "*",
-        "where": (
-            f'startswith(codecpv, "45") and '
-            f"(datepublicationdonnees >= {since_literal} or "
-            f"datepublicationdonneesmodification >= {since_literal})"
-        ),
+        "where": f'startswith(codecpv, "45") and datepublicationdonnees >= {since_literal}',
         "order_by": "datepublicationdonnees desc",
         "limit": DECP_PAGE_SIZE,
         "offset": int(offset),
@@ -275,9 +305,10 @@ def _request_page(session, *, offset, since):
 def fetch_france_decp_contracts(*, watermark=None, session=None, today=None):
     """Return ``(construction CONTRACT signals, cursor)`` from official DECP.
 
-    The cursor is publisher-derived. We deliberately overlap recent days so late
-    republications/modifications are re-observed and idempotently update the same
-    contract identity instead of relying on wall-clock success time.
+    The cursor is publisher-derived from publication dates. A small overlap makes
+    re-publications near the watermark idempotent. The connector does not claim
+    complete incremental discovery of modifications to old contracts because the
+    current dataset exposes its modification-publication field as text.
     """
     current = today or datetime.now(timezone.utc).date()
     previous = _cursor_day(watermark)
@@ -298,9 +329,9 @@ def fetch_france_decp_contracts(*, watermark=None, session=None, today=None):
             if record is None:
                 continue
             observations.append(record)
-            record_day = record["source_updated_at"][:10]
-            if not newest or record_day > newest:
-                newest = record_day
+            publication_day = _iso_day(_field(row, "datepublicationdonnees", "datePublicationDonnees"))
+            if publication_day and (not newest or publication_day > newest):
+                newest = publication_day
         offset += len(batch)
         total = payload.get("total_count")
         if not batch or len(batch) < DECP_PAGE_SIZE or (isinstance(total, int) and offset >= total):
