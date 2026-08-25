@@ -1,0 +1,234 @@
+{
+  "version": "intelligence-eval-v1",
+  "purpose": "Synthetic invariant evaluation only; not a production-quality estimate or unbiased holdout.",
+  "cases": [
+    {
+      "id": "clear-match-pavilhao",
+      "label": "CLEAR_MATCH",
+      "rationale": "Declared industrial-building capability, specific CPV, supported country and in-range value all agree.",
+      "profile": {
+        "activity": "Construção e reabilitação de pavilhões industriais",
+        "contract_interests": ["Construção de pavilhões industriais", "Reabilitação de coberturas"],
+        "countries": ["PRT"],
+        "cpv_prefixes": ["4521"],
+        "services": ["construção de pavilhões industriais", "reabilitação de coberturas"],
+        "capability_tags": ["pavilhões industriais", "coberturas"],
+        "min_value": 50000,
+        "max_value": 500000
+      },
+      "opportunity": {
+        "source": "SYNTHETIC",
+        "external_id": "clear-match-pavilhao",
+        "title": "Construção de pavilhão industrial",
+        "description": "Empreitada para construção de pavilhões industriais e cobertura metálica",
+        "buyer": "Município",
+        "country": "PRT",
+        "cpv": "45213220",
+        "value": "250000",
+        "value_numeric": 250000,
+        "deadline": "2099-12-31",
+        "procedure_type": "open procedure"
+      },
+      "expected": {
+        "positive_company_evidence": true,
+        "hard_blocker": false,
+        "decision_in": ["QUALIFIED", "REVIEW"]
+      }
+    },
+    {
+      "id": "clear-nonmatch-specific-cpv",
+      "label": "CLEAR_NON_MATCH",
+      "rationale": "Same company, but the procurement is sewer-network work and its specific CPV is outside the declared 4521 family.",
+      "profile_ref": "clear-match-pavilhao",
+      "opportunity": {
+        "source": "SYNTHETIC",
+        "external_id": "clear-nonmatch-specific-cpv",
+        "title": "Manutenção de redes de saneamento",
+        "description": "Empreitada de manutenção e reparação de coletores de águas residuais",
+        "buyer": "Município",
+        "country": "PRT",
+        "cpv": "45232410",
+        "value": "250000",
+        "value_numeric": 250000,
+        "deadline": "2099-12-31",
+        "procedure_type": "open procedure"
+      },
+      "expected": {
+        "positive_company_evidence": false,
+        "hard_blocker": true,
+        "decision_in": ["REJECT"]
+      }
+    },
+    {
+      "id": "hard-negative-broad-cpv",
+      "label": "CLEAR_NON_MATCH",
+      "rationale": "A broad works CPV and generic procurement attractiveness must not be confused with declared industrial-building activity evidence.",
+      "profile": {
+        "activity": "Construção e reabilitação de pavilhões industriais",
+        "contract_interests": ["Construção de pavilhões industriais", "Reabilitação de coberturas"],
+        "countries": ["PRT"],
+        "cpv_prefixes": ["45"],
+        "services": ["construção de pavilhões industriais", "reabilitação de coberturas"],
+        "capability_tags": ["pavilhões industriais", "coberturas"],
+        "min_value": 50000,
+        "max_value": 500000
+      },
+      "opportunity": {
+        "source": "SYNTHETIC",
+        "external_id": "hard-negative-broad-cpv",
+        "title": "Manutenção de redes de saneamento",
+        "description": "Empreitada de manutenção e reparação de coletores de águas residuais",
+        "buyer": "Município",
+        "country": "PRT",
+        "cpv": "45232410",
+        "value": "248000",
+        "value_numeric": 248000,
+        "deadline": "2099-12-31",
+        "procedure_type": "open procedure"
+      },
+      "expected": {
+        "positive_company_evidence": false,
+        "hard_blocker": false,
+        "known_debt_issue": 472
+      }
+    },
+    {
+      "id": "hard-positive-specific-cpv",
+      "label": "CLEAR_MATCH",
+      "rationale": "A sufficiently specific declared CPV can be evidence even when wording is generic, preventing an exact-keyword-only oracle.",
+      "profile": {
+        "activity": "Construção de pavilhões industriais",
+        "contract_interests": ["Construção de pavilhões industriais"],
+        "countries": ["PRT"],
+        "cpv_prefixes": ["4521"],
+        "services": ["construção de pavilhões industriais"],
+        "capability_tags": [],
+        "min_value": 50000,
+        "max_value": 500000
+      },
+      "opportunity": {
+        "source": "SYNTHETIC",
+        "external_id": "hard-positive-specific-cpv",
+        "title": "Empreitada geral",
+        "description": "Execução dos trabalhos previstos no caderno de encargos",
+        "buyer": "Município",
+        "country": "PRT",
+        "cpv": "45213220",
+        "value": "250000",
+        "value_numeric": 250000,
+        "deadline": "2099-12-31",
+        "procedure_type": "open procedure"
+      },
+      "expected": {
+        "positive_company_evidence": true,
+        "hard_blocker": false,
+        "decision_in": ["QUALIFIED", "REVIEW"]
+      }
+    },
+    {
+      "id": "relevant-but-closed",
+      "label": "CLEAR_MATCH",
+      "rationale": "Fit evidence remains strong historically, but an expired deadline makes the opportunity non-actionable and prevents an active recommendation.",
+      "profile_ref": "clear-match-pavilhao",
+      "opportunity": {
+        "source": "SYNTHETIC",
+        "external_id": "relevant-but-closed",
+        "title": "Construção de pavilhão industrial",
+        "description": "Empreitada para construção de pavilhões industriais e cobertura metálica",
+        "buyer": "Município",
+        "country": "PRT",
+        "cpv": "45213220",
+        "value": "250000",
+        "value_numeric": 250000,
+        "deadline": "2000-01-01T12:00:00+00:00",
+        "procedure_type": "open procedure"
+      },
+      "expected": {
+        "positive_company_evidence": true,
+        "hard_blocker": true,
+        "decision_in": ["REJECT"],
+        "blocker_contains": "prazo de apresentação terminado"
+      }
+    },
+    {
+      "id": "insufficient-information",
+      "label": "INSUFFICIENT_INFORMATION",
+      "rationale": "Missing company/opportunity evidence is uncertainty, not proof of either fit or non-fit.",
+      "profile": {
+        "activity": "",
+        "contract_interests": [],
+        "countries": [],
+        "cpv_prefixes": [],
+        "services": [],
+        "capability_tags": [],
+        "min_value": null,
+        "max_value": null
+      },
+      "opportunity": {
+        "source": "SYNTHETIC",
+        "external_id": "insufficient-information",
+        "title": "",
+        "description": "",
+        "buyer": "",
+        "country": "",
+        "cpv": "",
+        "value": "",
+        "deadline": "",
+        "procedure_type": ""
+      },
+      "expected": {
+        "positive_company_evidence": false,
+        "hard_blocker": false,
+        "known_debt_issue": 471
+      }
+    },
+    {
+      "id": "ambiguous-geography-only",
+      "label": "AMBIGUOUS",
+      "rationale": "Geography and value may be compatible while the repository contains no declared activity evidence for the opportunity.",
+      "profile": {
+        "activity": "",
+        "contract_interests": [],
+        "countries": ["PRT"],
+        "cpv_prefixes": [],
+        "services": [],
+        "capability_tags": [],
+        "min_value": 100000,
+        "max_value": 1000000
+      },
+      "opportunity": {
+        "source": "SYNTHETIC",
+        "external_id": "ambiguous-geography-only",
+        "title": "Construção de estrutura metálica",
+        "description": "Empreitada de montagem",
+        "buyer": "Município",
+        "country": "PRT",
+        "cpv": "45223100-7",
+        "value": "150000",
+        "value_numeric": 150000,
+        "deadline": "2099-12-31",
+        "procedure_type": "open procedure",
+        "locations": [{"country": "PRT", "city": "Leiria"}]
+      },
+      "expected": {
+        "positive_company_evidence": false,
+        "hard_blocker": false,
+        "known_debt_issue": 472
+      }
+    }
+  ],
+  "pairwise": [
+    {
+      "higher": "clear-match-pavilhao",
+      "lower": "hard-negative-broad-cpv",
+      "field": "profile_score",
+      "rationale": "Explicit company-fit evidence must outrank a controlled hard negative under otherwise attractive procurement conditions."
+    },
+    {
+      "higher": "hard-positive-specific-cpv",
+      "lower": "insufficient-information",
+      "field": "profile_score",
+      "rationale": "Specific declared-category evidence must outrank a record with insufficient information."
+    }
+  ]
+}
