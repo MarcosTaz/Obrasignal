@@ -12,7 +12,11 @@ def _assert_identity(records, signal_type):
         assert record["source"] == "TW_PCC"
         assert record["signal_type"] == signal_type
         assert record["source_reference"]
-        assert record["external_id"] == prefix + record["source_reference"]
+        if signal_type == "CONTRACT":
+            assert record["vendor_code"]
+            assert record["external_id"] == prefix + record["source_reference"] + ":" + record["vendor_code"]
+        else:
+            assert record["external_id"] == prefix + record["source_reference"]
         assert record["lineage_key"] == record["source_reference"]
         assert record["title"] or record["buyer"]
 
