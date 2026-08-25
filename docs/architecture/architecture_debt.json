@@ -73,6 +73,18 @@
       "proof": ["app.py", "company_profile.py", "account_registry.py", "tools/architecture_graph.py"],
       "repair_path": "Keep the exact three-module SCC frozen. Stage explicit framework registration and persistence seams before removing upward app dependencies; route Company Profile -> Account/Evaluation semantic writes to Company State/Account owners; Account/Billing own entitlement semantics; Architecture owns dependency direction and cycle removal.",
       "status": "ACKNOWLEDGED_CYCLE_BASELINE"
+    },
+    {
+      "id": "ARCH-007",
+      "module": "mobile/src/billing.js -> mobile/components/BillingGate.js",
+      "owner": "ARCHITECTURE_WITH_BILLING_HANDOFF",
+      "violation": "The Mobile billing adapter is the sole direct react-native-purchases SDK importer, but raw RevenueCat model details still escape into BillingGate.js through managementURL, expirationDate, availablePackages, priceString and userCancelled.",
+      "blast_radius": "MOBILE_BILLING_UI_AND_PROVIDER_REPLACEMENT",
+      "customer_risk": "BILLING_UI_REGRESSION_AND_PROVIDER_LOCK_IN",
+      "change_frequency": "UNKNOWN",
+      "proof": ["mobile/src/billing.js", "mobile/components/BillingGate.js", "tests/test_architecture_mobile_provider_boundary.py"],
+      "repair_path": "Preserve the existing SDK import boundary and freeze the exact leaked provider-model surface. Billing should add behavioral proof for native purchase/restore/cancel flows before Architecture normalizes provider objects into a provider-neutral Mobile billing surface.",
+      "status": "ACKNOWLEDGED_PROVIDER_LEAK_BASELINE"
     }
   ]
 }
