@@ -15,6 +15,31 @@ SCHEMA = '''CREATE TABLE IF NOT EXISTS opportunity_decisions (
 )'''
 
 RULE_VERSION = 'commercial-v1'
+MAX_FEATURES_JSON_BYTES = 512_000
+
+
+class DecisionFeaturesTooLarge(ValueError):
+    """Raised before persistence when a decision feature payload exceeds its bound."""
+
+
+def _account_id(value):
+    account_id = str(value or '').strip()
+    if not account_id:
+        raise ValueError('account_id is required')
+    return account_id
+
+
+def _encode_features(features):
+    raw = json.dumps(features or {}, ensure_ascii=False, sort_keys=True)
+    if len(raw.encode('utf-8')) > MAX_FEATURES_JSON_BYTES:
+        raise DecisionFeaturesTooLarge('decision features exceed maximum serialized size')
+    return raw
+
+
+def validate_features_payload(features):
+    """Validate the exact persisted decision feature envelope without writing it."""
+    raw = _encode_features(features)
+    return len(raw.encode('utf-8'))
 
 
 def _ensure_account_column(conn):
@@ -34,24 +59,27 @@ def ensure_decision_table(conn):
 
 def record_decision(conn, source, external_id, decision, reason, score=None, features=None, rule_version=RULE_VERSION, decided_at=None, account_id='default'):
     ensure_decision_table(conn)
+    tenant = _account_id(account_id)
+    encoded_features = _encode_features(features)
     ts = decided_at or datetime.now(timezone.utc).isoformat()
     conn.execute(
         '''INSERT INTO opportunity_decisions
            (account_id, source, external_id, decision, reason, score, features_json, rule_version, decided_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-        (str(account_id or 'default'), source, external_id, decision, reason, score,
-         json.dumps(features or {}, ensure_ascii=False, sort_keys=True), rule_version, ts),
+        (tenant, source, external_id, decision, reason, score,
+         encoded_features, rule_version, ts),
     )
     conn.commit()
 
 
 def latest_decision(conn, source, external_id, account_id='default'):
     ensure_decision_table(conn)
+    tenant = _account_id(account_id)
     row = conn.execute(
         '''SELECT * FROM opportunity_decisions
            WHERE account_id=? AND source=? AND external_id=?
            ORDER BY id DESC LIMIT 1''',
-        (str(account_id or 'default'), source, external_id),
+        (tenant, source, external_id),
     ).fetchone()
     if row is None:
         return None
@@ -62,6 +90,7 @@ def latest_decision(conn, source, external_id, account_id='default'):
 
 def funnel_counts(conn, account_id='default'):
     """Return current funnel state, counting only the latest decision per opportunity."""
+    tenant = _account_id(account_id)
     rows = conn.execute(
         '''SELECT d.decision, COUNT(*) AS count
            FROM opportunity_decisions d
@@ -74,7 +103,6 @@ def funnel_counts(conn, account_id='default'):
            WHERE d.account_id=?
            GROUP BY d.decision
            ORDER BY d.decision''',
-        (str(account_id or 'default'), str(account_id or 'default')),
+        (tenant, tenant),
     ).fetchall()
     return {row['decision']: row['count'] for row in rows}
-    ensure_decision_table(conn)
