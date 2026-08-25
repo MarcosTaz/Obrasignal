@@ -107,7 +107,8 @@ def render_opportunity_detail(item, decision):
     score_suffix = "" if _is_missing(decision_score) else '<span style="font-size:16px;color:#64748b">/100</span>'
     value = _display(item.get("value"))
     deadline = _display(item.get("deadline"))
-    safe_url = _safe_url(item.get("url"))
+    raw_url = str(item.get("url") or "").strip()
+    safe_url = _safe_url(raw_url)
     reason = _display(decision.get("reason"), "Sem razão registada.")
     rule_version = _display(decision.get("rule_version"), "—")
     decided_at = _display(decision.get("decided_at"), "—")
@@ -130,8 +131,12 @@ def render_opportunity_detail(item, decision):
                             '<strong>Estado atual não confirmado</strong>'
                             '<div style="margin-top:6px;line-height:1.5">Os dados atuais não confirmam se esta oportunidade continua acionável. Confirma a situação na fonte antes de avançar.</div></section>')
 
-    source_action = (f'<a class="source" href="{_esc(safe_url)}" target="_blank" rel="noopener noreferrer">Abrir fonte →</a>' if safe_url
-                     else '<div class="source-unavailable">Ligação à fonte não disponível ou inválida nos dados atuais.</div>')
+    if safe_url:
+        source_action = f'<a class="source" href="{_esc(safe_url)}" target="_blank" rel="noopener noreferrer">Abrir fonte →</a>'
+    elif not raw_url:
+        source_action = '<div class="source-unavailable">Ligação à fonte não disponível nos dados atuais.</div>'
+    else:
+        source_action = '<div class="source-unavailable">Ligação à fonte original indisponível ou inválida.</div>'
 
     return f'''<!doctype html>
 <html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Análise · ObraSignal</title>

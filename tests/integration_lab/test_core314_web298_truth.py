@@ -47,8 +47,18 @@ def test_web_detail_preserves_q080_evidence_and_unknown_customer_truth():
     assert "Falta confirmar" in html
     assert "conflito(s) de evidência por resolver" in html
     assert "Fonte não identificada" in html
-    assert "Ligação à fonte não disponível ou inválida" in html
+    assert "Ligação à fonte original indisponível ou inválida" in html
     assert "javascript:alert(1)" not in html
+
+
+def test_missing_source_url_has_distinct_non_fake_state():
+    html = render_opportunity_detail(
+        {"title": "Sem fonte", "source": None, "url": None, "is_actionable": True},
+        {"status": "SEM DECISÃO", "score": None, "lines": []},
+    )
+    assert "Fonte não identificada" in html
+    assert "Ligação à fonte não disponível nos dados atuais." in html
+    assert 'href="#"' not in html
 
 
 def test_mobile_evidence_and_web_bounded_claims_coexist():
