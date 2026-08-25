@@ -56,7 +56,8 @@ def test_node_content_is_snapshot_immutable_and_export_is_detached():
         claim.metadata["method_inputs"]["rate"] = 1
 
     exported = graph.export()
-    exported["nodes"][0]["locator"]["field"] = "presentation-only"
+    exported_evidence = next(node for node in exported["nodes"] if node["node_type"] == "EVIDENCE")
+    exported_evidence["locator"]["field"] = "presentation-only"
     assert evidence.provenance.locator["field"] == "deadline"
 
 
