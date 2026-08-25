@@ -58,6 +58,17 @@ def test_known_runtime_cycle_is_exact_and_does_not_expand():
     assert dynamic_up["classification"] == "LEGACY"
 
 
+def test_change_impact_exposes_direct_and_transitive_dependents():
+    graph = build_graph(ROOT)
+    app_impact = graph["change_impact"]["app.py"]
+
+    assert "account_registry.py" in app_impact["direct_dependents"]
+    assert "cors_app.py" in app_impact["direct_dependents"]
+    assert "preload.py" in app_impact["direct_dependents"]
+    assert "render.yaml" in app_impact["transitive_dependents"]
+    assert app_impact["transitive_dependent_count"] >= app_impact["direct_dependent_count"]
+
+
 def test_unknown_edges_remain_unknown_instead_of_becoming_implicitly_allowed():
     graph = build_graph(ROOT)
     assert any(edge["classification"] == "UNKNOWN" for edge in graph["edges"])
