@@ -28,12 +28,15 @@ _DETAIL_HREF = re.compile(r"/ilgstorefront/(?:en|he)/p/(\d{6,})/?(?:[?#].*)?$", 
 _SERIAL = re.compile(r"^\d{6,}$")
 _WS = re.compile(r"\s+")
 _EN_CONSTRUCTION = re.compile(
-    r"\b(?:construction|infrastructure|roads?|bridges?|sewers?|sewage|drainage|architecture|architectural|renovation)\b",
+    r"\b(?:construction|infrastructure|roads?|bridges?|architecture|architectural|renovation|building works|civil works)\b",
     re.I,
 )
+# Strong physical-works terms only. Generic establishment, water/sewer and
+# drainage words were observed in consulting/service notices and are excluded.
 _HE_CONSTRUCTION_TERMS = (
-    "בנייה", "בניה", "הקמה", "תשתיות", "כביש", "כבישים", "גשר", "גשרים",
-    "ביוב", "ניקוז", "שיפוץ", "שיפוצים", "אדריכלות", "מבנה", "מבנים",
+    "בנייה", "בניה", "תשתיות", "כביש", "כבישים", "גשר", "גשרים",
+    "שיפוץ", "שיפוצים", "אדריכלות", "מבנה", "מבנים", "עבודות בנייה",
+    "עבודות בניה", "עבודות תשתית", "עבודות שיפוץ",
 )
 
 _NOTICE_TYPES = {"Public Tender", "Central Tender"}
@@ -212,12 +215,12 @@ def parse_detail(html: str) -> GPANotice:
 
 
 def is_construction_relevant(notice: GPANotice) -> bool:
-    """Fail closed on title evidence; subjects remain metadata only in v0.
+    """Fail closed on strong physical-works evidence in the publisher title.
 
-    The live portal can expose taxonomy text in hidden DOM regions. Using every
-    parsed subject token for admission caused false positives (for example gift
-    vouchers). Until the Subjects block is structurally isolated, v0 only admits
-    notices whose publisher title itself carries construction/public-works terms.
+    Subjects remain metadata only because the live portal can expose broad or
+    hidden taxonomy values. Ambiguous title terms observed in consulting notices
+    (e.g. establishment of corporations, water/sewer subject matter) are also
+    excluded. Precision is intentionally favored over recall in v0.
     """
     title = _clean(notice.title)
     if _EN_CONSTRUCTION.search(title):
@@ -249,7 +252,7 @@ def normalize_notice(notice: GPANotice) -> dict:
         "source_updated_at": updated,
         "deadline": deadline,
         "url": DETAIL_URL.format(serial=notice.serial),
-        "taxonomy": "IL_GPA_TITLE_ONLY_V1",
+        "taxonomy": "IL_GPA_STRONG_TITLE_WORKS_V1",
         "category_code": notice.notice_type,
         "place": "Israel",
         "construction_relevant": True,
