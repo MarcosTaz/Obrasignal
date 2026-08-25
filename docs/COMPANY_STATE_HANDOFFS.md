@@ -10,9 +10,11 @@ Combine current authorized base + Q090 #223 + Requirements #152 + Readiness #153
 Acceptance:
 1. known declared certification can be supplied as a fact, but Requirements owns whether it satisfies a named requirement;
 2. absent certification remains UNKNOWN, never NOT_MET;
-3. partial state does not produce READY through absence;
-4. tenant A facts cannot enter tenant B assessment;
-5. stale/conflicting company facts remain unknown/conflict at the Q090 boundary.
+3. Company Profile country/region preferences remain `geography.preferred_*` and are excluded from the Requirements seam; they never prove operational geography;
+4. `geography.operating_countries` stays UNKNOWN until supplied by an operational/trusted fact;
+5. partial state does not produce READY through absence;
+6. tenant A facts cannot enter tenant B assessment;
+7. stale/conflicting company facts remain unknown/conflict at the Q090 boundary.
 
 **Cross-cell bug:**
 
@@ -32,7 +34,8 @@ Combine Q090 #223 + Bid Economics #169 after queue authorization.
 Acceptance:
 - `finance.maximum_cash_exposure = EUR 50,000` is passed as a known constraint;
 - an estimated opportunity exposure of EUR 70,000 remains a Bid Economics/decision-consumer calculation; Q090 emits no pursue/no-bid decision;
-- absent or differently-currencied limits do not trigger silent FX/default EUR.
+- absent or differently-currencied limits do not trigger silent FX/default EUR;
+- Q090 and Bid Economics contract-local Money values translate through public `amount/currency` representations; neither capability imports the other's private Money class.
 
 ### INT-Q090-03 — MOBILIZE
 Combine Q090 #223 + MOBILIZE #146 after queue authorization.
@@ -41,7 +44,7 @@ Acceptance:
 - known owned van + unknown vehicle availability => Q090 adapter returns vehicle availability UNKNOWN;
 - known `vehicle.available_count=0` => known zero;
 - crew availability after its effective window => unavailable/unknown input, never extended;
-- base location absent => UNKNOWN, not inferred from historic work regions.
+- base location absent => UNKNOWN, not inferred from historic work regions or commercial market preferences.
 
 ### INT-Q090-04 — BANGS
 Combine Q090 #223 + BANGS #195 when authorized.
@@ -54,18 +57,19 @@ Acceptance:
 
 Use synthetic/fixture data and label it accordingly.
 
-1. **Small contractor / partial setup** — user gives services + region only. Company State is useful immediately and explicitly reports missing crew/vehicle/base facts; no “complete profile” pressure.
-2. **Known crew** — total 10, available 4 now. Consumers receive 4 available, not 10.
-3. **Unknown crew** — total 10, available UNKNOWN. Consumers receive UNKNOWN.
-4. **Zero crew** — available 0 explicitly. Preserve known zero.
-5. **Known certification** — user declares ISO 9001. Preserve basis DECLARED and validity UNKNOWN unless supplied/verified.
-6. **Unknown certification** — no record. Do not generate NOT CERTIFIED.
-7. **Financial constraint** — declared EUR 50,000 exposure ceiling. Preserve Money/currency; no autonomous decision.
-8. **Stale equipment/availability** — staleness visible; no assumption current.
-9. **Conflicting observations** — preserve conflict until explicit supersession.
-10. **Tenant isolation** — A create/read/update/history; B cannot read/update/list A; forged account data has no authority.
-11. **Legacy user** — old Company Profile continues functioning without mandatory Q090 form or migration.
-12. **Provider/storage failure** — UI/consumer shows unavailable/unknown, not “no capacity”.
+1. **Small contractor / partial setup** — user gives services + preferred region only. Company State is useful immediately, preserves that region as a preference, and explicitly reports missing crew/vehicle/base/operating-country facts; no “complete profile” pressure.
+2. **Preferred vs operational geography** — profile says Spain/Madrid. Requirements does not receive that as operating eligibility; `geography.operating_countries` remains UNKNOWN until separately attested.
+3. **Known crew** — total 10, available 4 now. Consumers receive 4 available, not 10.
+4. **Unknown crew** — total 10, available UNKNOWN. Consumers receive UNKNOWN.
+5. **Zero crew** — available 0 explicitly. Preserve known zero.
+6. **Known certification** — user declares ISO 9001. Preserve basis DECLARED and validity UNKNOWN unless supplied/verified.
+7. **Unknown certification** — no record. Do not generate NOT CERTIFIED.
+8. **Financial constraint** — declared EUR 50,000 exposure ceiling. Preserve Money/currency; no autonomous decision.
+9. **Stale equipment/availability** — staleness visible; no assumption current.
+10. **Conflicting observations** — preserve conflict until explicit supersession; a voluntary declaration cannot silently suppress a trusted fact.
+11. **Tenant isolation** — A create/read/update/history; B cannot read/update/list A; forged account data has no authority.
+12. **Legacy user** — old Company Profile continues functioning without mandatory Q090 form or migration.
+13. **Provider/storage failure** — UI/consumer shows unavailable/unknown, not “no capacity”.
 
 ## Architecture Sentinel
 
@@ -80,6 +84,9 @@ Tenant boundary: HTTP/application adapter must derive tenant from canonical auth
 Fitness opportunities / forbidden dependencies:
 - Q090 domain must not import Requirements, Readiness, Bid Economics, MOBILIZE, BANGS or economic-fit internals;
 - no client-controlled tenant id;
+- manual/client facts cannot self-promote provenance, forge verification or suppress trusted facts;
+- Company Profile market geography cannot become operational geography by projection;
+- Requirements adapter must not emit `geography.preferred_*` as eligibility evidence;
 - no eligibility/readiness/pursuit/action decision vocabulary or side effects;
 - UNKNOWN must stay distinct from zero/false/negative;
 - owned/employed must stay distinct from available;
