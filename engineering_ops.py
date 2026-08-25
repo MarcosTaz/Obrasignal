@@ -198,25 +198,35 @@ def extract_declared_main(body: str) -> str | None:
     return _extract_labeled_sha(body, _MAIN_LABELS)
 
 
-def _dependency_reference_role(line: str, section: str) -> str:
-    context = f"{section} {line}".lower()
-    if any(token in context for token in _DIAGNOSTIC_REFERENCE_TOKENS):
+def _latest_role_cue(text: str) -> str:
+    lowered = text.lower()
+    current_at = max((lowered.rfind(token) for token in _CURRENT_REFERENCE_TOKENS), default=-1)
+    diagnostic_at = max((lowered.rfind(token) for token in _DIAGNOSTIC_REFERENCE_TOKENS), default=-1)
+    if current_at < 0 and diagnostic_at < 0:
+        return "UNCLASSIFIED"
+    if diagnostic_at > current_at:
         return "HISTORICAL_OR_DIAGNOSTIC"
-    if any(token in context for token in _CURRENT_REFERENCE_TOKENS):
-        return "CURRENT_PIN"
-    return "UNCLASSIFIED"
+    return "CURRENT_PIN"
+
+
+def _dependency_reference_role(section: str, prefix: str, before_sha: str) -> str:
+    # Section is fallback context; nearby line cues come later and therefore
+    # override it. This handles mixed lines like "prior #238@old -> current
+    # #238@new" without throwing away the current pin.
+    context = f"{section}\n{prefix[-120:]}\n{before_sha}"
+    return _latest_role_cue(context)
 
 
 def extract_dependency_refs(body: str, *, self_pr: int | None = None) -> list[dict[str, Any]]:
-    """Extract only explicit current PR->SHA pins.
+    """Extract explicit *current* PR->SHA pins with bounded lexical proximity.
 
-    References in historical/diagnostic prose are preserved in the PR body but
-    are not allowed to invalidate downstream current proof. On a line with
-    multiple PR numbers, a SHA belongs only to the PR segment before the next
-    PR token; this prevents "#319 ... current #329 input <sha>" from falsely
-    pinning #319 to #329's SHA.
+    Historical/diagnostic references remain in the PR body but do not invalidate
+    current proof. A SHA must occur within 96 characters after its PR token and
+    before the next PR token. This prevents unrelated later SHAs (for example a
+    candidate's own HEAD later in the paragraph) from being attached to an
+    earlier owner mention.
     """
-    found: dict[tuple[int, str], dict[str, Any]] = {}
+    found: list[dict[str, Any]] = []
     section = ""
 
     for raw_line in (body or "").splitlines():
@@ -225,46 +235,54 @@ def extract_dependency_refs(body: str, *, self_pr: int | None = None) -> list[di
             section = line
             continue
 
-        role = _dependency_reference_role(line, section)
-        if role != "CURRENT_PIN":
-            continue
-
-        # Direct #PR@SHA form is unambiguous within a current-intent line/section.
-        for match in _PR_AT_SHA_RE.finditer(line):
-            pr = int(match.group("pr"))
-            if self_pr is not None and pr == self_pr:
-                continue
-            sha = match.group("sha").lower()
-            found[(pr, sha)] = {
-                "pr": pr,
-                "declared_sha": sha,
-                "source": "pr_at_sha",
-                "role": role,
-            }
-
         pr_matches = list(_PR_TOKEN_RE.finditer(line))
         for index, match in enumerate(pr_matches):
             pr = int(match.group("pr"))
             if self_pr is not None and pr == self_pr:
                 continue
+
             start = match.end()
             end = pr_matches[index + 1].start() if index + 1 < len(pr_matches) else len(line)
             segment = line[start:end]
-            sha_match = _SHA_TOKEN_RE.search(segment)
+            bounded_segment = segment[:96]
+            sha_match = _SHA_TOKEN_RE.search(bounded_segment)
             if not sha_match:
                 continue
+
+            before_sha = bounded_segment[:sha_match.start()]
+            prefix = line[:match.start()]
+            role = _dependency_reference_role(section, prefix, before_sha)
+            if role != "CURRENT_PIN":
+                continue
+
             sha = sha_match.group("sha").lower()
-            found.setdefault(
-                (pr, sha),
+            source = (
+                "pr_at_sha"
+                if re.match(r"\s*@\s*`?", before_sha)
+                else "pr_segment_sha"
+            )
+            found.append(
                 {
                     "pr": pr,
                     "declared_sha": sha,
-                    "source": "pr_segment_sha",
+                    "source": source,
                     "role": role,
-                },
+                }
             )
 
-    return sorted(found.values(), key=lambda item: (item["pr"], item["declared_sha"]))
+    # Prefer the longest equivalent SHA when a body repeats both short and full
+    # forms of the same current pin.
+    deduped: list[dict[str, Any]] = []
+    for item in sorted(found, key=lambda value: (value["pr"], -len(value["declared_sha"]))):
+        if any(
+            existing["pr"] == item["pr"]
+            and sha_matches(existing["declared_sha"], item["declared_sha"])
+            for existing in deduped
+        ):
+            continue
+        deduped.append(item)
+
+    return sorted(deduped, key=lambda item: (item["pr"], item["declared_sha"]))
 
 
 def classify_dependencies(
@@ -371,14 +389,12 @@ def _record_state(
     unknown = []
     if self_head.state == "STALE":
         stale.append("PR body HEAD")
-    elif self_head.state == "UNKNOWN":
-        unknown.append("PR body HEAD")
+    elif self_head.state == "UNKNOWN" and self_head.actual is None:
+        unknown.append("PR HEAD")
     if main_ref.state == "STALE":
         stale.append("PR body main")
-    elif main_ref.state == "UNKNOWN":
-        # Main may legitimately be omitted from a small PR body. Keep this as
-        # evidence uncertainty, but do not invent stale.
-        unknown.append("PR body main")
+    elif main_ref.state == "UNKNOWN" and main_ref.actual is None:
+        unknown.append("canonical main")
 
     for dep in dependencies:
         label = f"dependency #{dep['pr']}"
