@@ -19,7 +19,6 @@ from dominican_republic_dgcp import (
     DGCP_CONFIG,
     normalize_dgcp_signals,
 )
-from ocds_adapter import OCDSWindowCursor
 from ocds_release_lifecycle import OCDSReleasePackageConnector
 
 
@@ -117,10 +116,6 @@ class DGCPProcessDiscoveryConnector(OCDSReleasePackageConnector):
             raise RuntimeError("DO_DGCP process response is not an object")
         if payload.get("code") != 200 or payload.get("hasError") is not False:
             raise RuntimeError("DO_DGCP process response reports an API error")
-        body = payload.get("payload")
-        rows = body.get("content") if isinstance(body, dict) else None
-        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
-            raise RuntimeError("DO_DGCP process response has invalid payload.content")
 
         meta = {
             "page": _int_field(payload, "page"),
@@ -128,6 +123,13 @@ class DGCPProcessDiscoveryConnector(OCDSReleasePackageConnector):
             "limit": _int_field(payload, "limit"),
             "total": _int_field(payload, "totalResults"),
         }
+        body = payload.get("payload")
+        rows = body.get("content") if isinstance(body, dict) else None
+        if rows is None and meta["total"] == 0:
+            rows = []
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise RuntimeError("DO_DGCP process response has invalid payload.content")
+
         if meta["page"] != page:
             raise RuntimeError("DO_DGCP process response page does not match request")
         if meta["limit"] != int(self.config.page_size):
