@@ -1,11 +1,14 @@
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from dominican_republic_dgcp import (
+    DGCP_CONFIG,
     fetch_dgcp_signals,
     normalize_dgcp_lifecycle,
     normalize_dgcp_process,
     normalize_dgcp_signals,
 )
+from ocds_release_lifecycle import OCDSReleasePackageConnector
 
 
 class FakeResponse:
@@ -145,19 +148,26 @@ def test_fetch_dgcp_signals_uses_one_detail_hydration_for_three_signal_types():
         "payload": {"content": [{"ocid": ocid, "url": "https://example.test/detail"}]},
     }
     detail = {"code": 200, "hasError": False, "payload": {"content": package()}}
-    empty = {"code": 200, "hasError": False, "payload": {"content": []}}
-    # One date-window/page discovery + one hydration. Config page_size is 200, so
-    # the short discovery page closes pagination immediately.
     session = FakeSession([discovery, detail])
-
-    from dominican_republic_dgcp import dgcp_connector
-
-    connector = dgcp_connector(session=session)
+    config = replace(
+        DGCP_CONFIG,
+        initial_lookback_days=0,
+        overlap_days=0,
+        max_windows_per_sync=1,
+        page_size=10,
+    )
+    connector = OCDSReleasePackageConnector(
+        config,
+        params_factory=lambda start, end: {
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+        },
+        session=session,
+    )
     rows, cursor = fetch_dgcp_signals(
         connector=connector,
         now=datetime(2026, 8, 25, tzinfo=timezone.utc),
     )
     assert {row["signal_type"] for row in rows} == {"TENDER", "AWARD", "CONTRACT"}
-    # Default initial lookback spans multiple windows, so a controlled single-window
-    # connector is required for an exact request-count assertion in unit tests.
-    assert cursor is not None
+    assert len(session.calls) == 2
+    assert cursor == '{"completed_through":"2026-08-25"}'
