@@ -4,10 +4,6 @@ import os
 from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
-# Install the production worker-start gate explicitly at the WSGI composition
-# boundary before api/app imports can construct or start worker threads.
-import sync_funnel_hook  # noqa: F401
-
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
