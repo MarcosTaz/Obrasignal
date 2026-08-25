@@ -7,6 +7,7 @@ from flask import jsonify, request
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
+import notification_privacy_lifecycle as _notification_privacy_lifecycle
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
