@@ -139,7 +139,7 @@ jobs:
           print('API_AUTH_HEALTH=' + json.dumps(safe, separators=(',', ':')))
           PY
             else
-              echo 'API_AUTH_HEALTH=UNAVAILABLE'
+              echo 'API_AUTH_HEALTH_UNAVAILABLE API_AUTH_HEALTH=UNAVAILABLE'
             fi
             exit 1
           fi
@@ -220,6 +220,7 @@ jobs:
               raise SystemExit('automatic production E2E contains mutating patterns: '+', '.join(found))
           required=(
               'API_AUTH_HEALTH=',
+              'API_AUTH_HEALTH_UNAVAILABLE',
               'AUTHENTICATED_DETAIL_WORKFLOW=NOT_RUN_EMPTY_OPPORTUNITY',
               'TARGET_BUILD: ${{ github.sha }}',
           )
