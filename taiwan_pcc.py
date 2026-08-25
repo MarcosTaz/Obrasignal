@@ -1,17 +1,18 @@
-"""Prepared Taiwan PCC bounded early-signal connector.
+"""Taiwan PCC bounded procurement-signal connector.
 
-This module is intentionally source-specific. Taiwan's Public Construction
-Commission publishes several daily XML snapshots with strong pre-tender and
-contract-performance semantics, but the raw publisher payload contract has not
-been live-proven from this environment. Therefore this connector is PREPARED,
-not production-enabled: callers must provide/verify concrete source URLs before
-runtime promotion.
+This module is source-specific. Taiwan's Public Construction Commission publishes
+daily XML snapshots with pre-tender and contract-performance semantics. Dataset
+7260 (public viewing) and dataset 7264 (large procurement suppliers in
+performance) are live-validated in this branch; other configured PCC datasets
+remain gated until their raw contracts are verified.
 
 Identity policy:
 - require and preserve the native tender/case number as ``source_reference`` and
   ``lineage_key``;
 - never synthesize procurement identity from mutable title/buyer text;
-- keep one signal per semantic stage using the same tender/case identity;
+- procurement-plan identity is stage + case number;
+- contract identity is stage + case number + publisher-native vendor code so
+  multiple suppliers on one procurement are not collapsed;
 - repeated snapshots upsert idempotently via (source, signal_type, external_id).
 """
 from __future__ import annotations
@@ -133,8 +134,13 @@ def parse_snapshot_xml(payload: bytes | str) -> list[dict[str, str]]:
     return rows
 
 
-def _stable_external_id(signal_type: str, case_number: str) -> str:
-    return f"{signal_type.lower()}:{case_number}"
+def _stable_external_id(signal_type: str, case_number: str, vendor_code: str = "") -> str:
+    base = f"{signal_type.lower()}:{case_number}"
+    if signal_type == "CONTRACT":
+        if not vendor_code:
+            return ""
+        return f"{base}:{vendor_code}"
+    return base
 
 
 def _scheduled_target(value: str) -> str:
@@ -151,10 +157,15 @@ def _scheduled_target(value: str) -> str:
 def normalize_pcc_row(mapping: dict[str, str], *, source: PCCSnapshotSource, observed_at=None):
     case_number = _field(mapping, "case_number")
     if not case_number:
-        # The audited PCC datasets advertise a publisher-native tender/case
-        # number. Reject rows that lack it rather than fabricating unstable
-        # identity from mutable title/buyer fields.
         return None
+
+    vendor_code = _field(mapping, "vendor_code")
+    external_id = _stable_external_id(source.signal_type, case_number, vendor_code)
+    if not external_id:
+        # Dataset 7264 is supplier-level. Reject a contract row without native
+        # vendor identity rather than collapsing multiple suppliers by case number.
+        return None
+
     title = _field(mapping, "title")
     buyer = _field(mapping, "buyer")
     observed = observed_at or datetime.now(timezone.utc).isoformat()
@@ -165,7 +176,7 @@ def normalize_pcc_row(mapping: dict[str, str], *, source: PCCSnapshotSource, obs
     return {
         "source": SOURCE,
         "signal_type": source.signal_type,
-        "external_id": _stable_external_id(source.signal_type, case_number),
+        "external_id": external_id,
         "source_reference": case_number,
         "lineage_key": case_number,
         "title": title,
@@ -173,9 +184,6 @@ def normalize_pcc_row(mapping: dict[str, str], *, source: PCCSnapshotSource, obs
         "country": COUNTRY,
         "publication_date": event_date,
         "published_at": event_date or None,
-        # PCC catalogue freshness is daily, but observation time is not the
-        # same thing as a publisher-declared update timestamp. Keep that
-        # distinction explicit; signal_store owns first/last observation time.
         "source_updated_at": None,
         "_observed_at": observed,
         "target_date": _scheduled_target(scheduled),
@@ -184,7 +192,7 @@ def normalize_pcc_row(mapping: dict[str, str], *, source: PCCSnapshotSource, obs
         "procurement_method": _field(mapping, "method"),
         "value": amount,
         "currency": "TWD" if amount else "",
-        "vendor_code": _field(mapping, "vendor_code"),
+        "vendor_code": vendor_code,
         "vendor_name": _field(mapping, "vendor_name"),
         "performance_start": _field(mapping, "performance_start"),
         "performance_end": _field(mapping, "performance_end"),
@@ -206,7 +214,7 @@ class TaiwanPCCPreparedConnector:
         for source in self.sources:
             if not source.url:
                 raise RuntimeError(
-                    f"TW_PCC dataset {source.dataset_id} ({source.name}) has no live-verified raw URL; connector remains prepared, not production-ready"
+                    f"TW_PCC dataset {source.dataset_id} ({source.name}) has no live-verified raw URL"
                 )
             response = self.session.get(source.url, timeout=self.timeout)
             response.raise_for_status()
@@ -221,11 +229,10 @@ def prepared_sources():
     return {source.dataset_id: source for source in PCC_SOURCES}
 
 
-def production_gate_reasons():
+def production_gate_reasons(sources=PCC_SOURCES):
     reasons = []
-    missing = [str(source.dataset_id) for source in PCC_SOURCES if not source.url]
+    missing = [str(source.dataset_id) for source in sources if not source.url]
     if missing:
         reasons.append("raw_url_unverified:" + ",".join(missing))
-    reasons.append("live_payload_contract_unverified")
-    reasons.append("runtime_not_enabled")
+    reasons.append("runtime_not_integrated")
     return tuple(reasons)
