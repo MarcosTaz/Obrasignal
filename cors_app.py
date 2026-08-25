@@ -178,10 +178,11 @@ def _global_api_cors(response):
 
 
 # Gunicorn imports this module before it starts accepting requests. Complete all
-# idempotent schema/read-model work and install additive global-source runtimes
-# before allowing the ingestion worker to run.
+# persistent startup schema work behind one serialization boundary so current or
+# future additive migrations cannot escape the concurrency contract.
 import app as _app
 from app import db, init_db, start_background_worker
+from storage_migration_lock import run_serialized_schema_init
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
 from latvia_runtime import install as install_latvia_runtime
@@ -198,13 +199,18 @@ from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 import preload as _preload
 
-init_db()
-_lifecycle_conn = db()
-try:
-    ensure_lifecycle_table(_lifecycle_conn)
-    _lifecycle_conn.commit()
-finally:
-    _lifecycle_conn.close()
+
+def _initialize_persistent_schema():
+    init_db()
+    lifecycle_conn = db()
+    try:
+        ensure_lifecycle_table(lifecycle_conn)
+        lifecycle_conn.commit()
+    finally:
+        lifecycle_conn.close()
+
+
+run_serialized_schema_init(_initialize_persistent_schema, _app.DB)
 install_lifecycle_read_model(_preload)
 install_latvia_runtime()
 install_uk_runtime()
