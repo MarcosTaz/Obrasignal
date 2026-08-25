@@ -96,11 +96,11 @@ No API or UI is wired in this branch. That is intentional: the current repositor
 
 ## Capability state
 
-The canonical capability registry receives only an additive `BANGS` entry in `EXPERIMENT` state with feature flag `bangs_field_intelligence_v0` and a required kill switch. This does not alter the Master Queue or promote MOBILIZE, SUPPLY_EDGE, COMMAND, ACTION or SHADOW.
+The canonical capability registry receives only an additive `BANGS` entry in `RESEARCH` state with feature flag `bangs_field_intelligence_v0` and a required kill switch. The flag is a future rollout control, not an activation. This branch does not alter the Master Queue, bypass its gates, or promote MOBILIZE, SUPPLY_EDGE, COMMAND, ACTION or SHADOW.
 
 ## Testing
 
-The BANGS suite covers money/unit safety, freshness, quotes/list prices, outliers, provider failures, tenancy, landed cost, equipment, route arithmetic, accommodation, commute comparison, field expenses, true cost, scenarios, comparator semantics, executive output and all nine required product scenarios. The implementation was locally executed at 70/70 passing before publication; repository CI remains the exact-head authority after PR creation.
+The BANGS suite covers money/unit safety, freshness, quotes/list prices, outliers, provider failures, tenancy, landed cost, equipment, route arithmetic, accommodation, commute comparison, field expenses, true cost, scenarios, comparator semantics, executive output and all nine required product scenarios. The implementation was locally executed at 70/70 passing before publication; repository CI remains the exact-head authority after PR creation and after any later branch changes.
 
 ## Live validation
 
@@ -112,4 +112,4 @@ No live supplier/hotel/equipment provider is shipped; no FX/tax/customs engine; 
 
 ## Future integration
 
-The contracts are designed to accept future observations/adapters from Supply Edge, Build Optimizer, Crew Economics, MOBILIZE, Bid Economics and Company State without depending on unmerged implementations. COMMAND/ACTION/SHADOW remain future consumers, not dependencies or promoted capabilities.
+The contracts are designed to accept future observations/adapters from Supply Edge, Build Optimizer, Crew Economics, MOBILIZE, Bid Economics and Company State without depending on unmerged implementations. COMMAND/ACTION/SHADOW remain future consumers, not dependencies or promoted capabilities. Any maturity increase from `RESEARCH` requires a separate canonical queue/capability decision; tests alone never promote it.
