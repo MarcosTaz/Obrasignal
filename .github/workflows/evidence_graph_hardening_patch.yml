@@ -1,0 +1,146 @@
+name: Evidence Graph hardening patch
+
+on:
+  push:
+    branches:
+      - feature/evidence-graph-v1
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Harden Evidence Graph fail-closed semantics
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("evidence_graph.py")
+          text = path.read_text()
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one replacement, found {count}: {old[:80]!r}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              '        except (TypeError, ValueError):\n            return str(value)\n',
+              '        except (TypeError, ValueError):\n            return None\n',
+          )
+
+          replace_once(
+              '    def __post_init__(self) -> None:\n        object.__setattr__(self, "locator", _freeze(dict(self.locator)))\n\n    def identity_key(self) -> tuple:\n        return (\n            self.source.strip().upper(),\n            self.external_id.strip(),\n            self.raw_identifier or "",\n            json.dumps(_canonical(self.locator), sort_keys=True, default=str),\n        )\n',
+              '    def __post_init__(self) -> None:\n        object.__setattr__(self, "locator", _freeze(dict(self.locator)))\n        for field_name in ("retrieved_at", "published_at", "effective_at"):\n            raw = getattr(self, field_name)\n            if raw in (None, ""):\n                continue\n            normalized = _iso(raw)\n            if normalized is None:\n                raise ValueError(f"{field_name} must be ISO-8601")\n            object.__setattr__(self, field_name, normalized)\n\n    def identity_key(self) -> tuple:\n        return (\n            self.source.strip().upper(),\n            self.external_id.strip(),\n            self.raw_identifier or "",\n            self.published_at or "",\n            self.effective_at or "",\n            json.dumps(_canonical(self.locator), sort_keys=True, default=str),\n        )\n',
+          )
+
+          replace_once(
+              '    def __init__(self, tenant_id: str, *, policy: EvidencePolicy | None = None):\n        self.tenant_id = str(tenant_id or "default")\n',
+              '    def __init__(self, tenant_id: str, *, policy: EvidencePolicy | None = None):\n        tenant = str(tenant_id or "").strip()\n        if not tenant:\n            raise ValueError("tenant_id is required")\n        self.tenant_id = tenant\n',
+          )
+
+          replace_once(
+              '    def _is_stale(self, evidence: EvidenceNode, as_of: datetime) -> bool:\n        anchor = (\n            _dt(evidence.provenance.effective_at)\n            or _dt(evidence.provenance.published_at)\n            or _dt(evidence.provenance.retrieved_at)\n        )\n        if not anchor:\n            return False\n        age_minutes = (_utc(as_of) - anchor).total_seconds() / 60\n        return age_minutes > self.policy.stale_after_minutes(evidence.provenance)\n',
+              '    def _is_stale(self, evidence: EvidenceNode, as_of: datetime) -> bool | None:\n        # Retrieval time proves observation, never publisher freshness.\n        anchor = _dt(evidence.provenance.effective_at) or _dt(evidence.provenance.published_at)\n        if not anchor:\n            return None\n        age_minutes = (_utc(as_of) - anchor).total_seconds() / 60\n        return age_minutes > self.policy.stale_after_minutes(evidence.provenance)\n',
+          )
+
+          replace_once(
+              '        if evidence and as_of is not None and all(self._is_stale(ev, as_of) for ev in evidence):\n            return ClaimStatus.STALE\n',
+              '        if evidence and as_of is not None and all(self._is_stale(ev, as_of) is True for ev in evidence):\n            return ClaimStatus.STALE\n',
+          )
+
+          replace_once(
+              '        if st == ClaimStatus.UNKNOWN:\n            missing.append("claim_value")\n        return {\n',
+              '        if st == ClaimStatus.UNKNOWN:\n            missing.append("claim_value")\n        if evidence and as_of is not None and any(self._is_stale(ev, as_of) is None for ev in evidence):\n            missing.append("source_freshness")\n        return {\n',
+          )
+
+          path.write_text(text)
+
+          tests = Path("test_evidence_graph_hardening.py")
+          test_text = tests.read_text()
+          marker = "def test_blank_tenant_fails_closed():"
+          if marker not in test_text:
+              test_text += r'''
+
+
+def test_blank_tenant_fails_closed():
+    for tenant in ("", "   ", None):
+        with pytest.raises(ValueError, match="tenant_id"):
+            EvidenceGraph(tenant)
+
+
+def test_retrieval_time_cannot_launder_unknown_publisher_freshness():
+    graph = EvidenceGraph("company-a")
+    provenance = Provenance(
+        source="TED",
+        external_id="freshness-unknown",
+        retrieved_at=NOW.isoformat(),
+    )
+    evidence_id = graph.add_evidence(provenance, "Buyer", field_name="buyer")
+    fact_id = graph.add_claim("FACT", "freshness-unknown", "buyer", "Buyer")
+    graph.add_edge(evidence_id, fact_id, "SUPPORTS")
+
+    explanation = graph.explain(fact_id, as_of=NOW)
+    assert explanation["status"] == "SUPPORTED"
+    assert explanation["evidence"][0]["stale"] is None
+    assert "source_freshness" in explanation["missing"]
+
+
+def test_publisher_revision_is_distinct_but_retrieval_retry_does_not_inflate_evidence():
+    graph = EvidenceGraph("company-a")
+    first = Provenance(
+        source="TED",
+        external_id="revision-1",
+        published_at="2026-08-20T00:00:00+00:00",
+        effective_at="2026-08-20T00:00:00+00:00",
+        retrieved_at="2026-08-20T01:00:00+00:00",
+        raw_identifier="revision-1",
+        locator={"field": "buyer"},
+    )
+    revised = Provenance(
+        source="TED",
+        external_id="revision-1",
+        published_at="2026-08-20T00:00:00+00:00",
+        effective_at="2026-08-21T00:00:00+00:00",
+        retrieved_at="2026-08-21T01:00:00+00:00",
+        raw_identifier="revision-1",
+        locator={"field": "buyer"},
+    )
+    retry = Provenance(
+        source="TED",
+        external_id="revision-1",
+        published_at="2026-08-20T00:00:00+00:00",
+        effective_at="2026-08-21T00:00:00+00:00",
+        retrieved_at="2026-08-25T00:00:00+00:00",
+        raw_identifier="revision-1",
+        locator={"field": "buyer"},
+    )
+
+    first_id = graph.add_evidence(first, "Buyer", field_name="buyer")
+    revised_id = graph.add_evidence(revised, "Buyer", field_name="buyer")
+    retry_id = graph.add_evidence(retry, "Buyer", field_name="buyer")
+
+    assert revised_id != first_id
+    assert retry_id == revised_id
+    assert len(graph.nodes) == 2
+
+
+def test_malformed_provenance_timestamp_fails_closed():
+    with pytest.raises(ValueError, match="published_at"):
+        Provenance(source="TED", external_id="bad-time", published_at="not-a-time")
+'''
+              tests.write_text(test_text)
+          PY
+          rm .github/workflows/evidence_graph_hardening_patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add evidence_graph.py test_evidence_graph_hardening.py .github/workflows/evidence_graph_hardening_patch.yml
+          git commit -m "fix(evidence): fail closed on tenant and freshness provenance"
+          git push origin HEAD:${GITHUB_REF_NAME}
