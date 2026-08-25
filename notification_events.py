@@ -12,6 +12,7 @@ from jwt import InvalidTokenError
 from app import APP
 from auth_context import configured_identity
 from auth_context_jwt import JwksUnavailableError
+from decision_log import ensure_decision_table
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 
 
@@ -472,17 +473,26 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
     """Record high-value, currently actionable opportunities for one account."""
     account_id = str(account_id or "default")
     ensure_event_table(conn)
+    ensure_decision_table(conn)
     ensure_lifecycle_table(conn)
     rows = conn.execute(
-        f"""SELECT t.* FROM tenders t
+        f"""SELECT t.*, d.score AS account_score
+           FROM tenders t
+           JOIN (
+               SELECT source, external_id, MAX(id) AS max_id
+               FROM opportunity_decisions
+               WHERE account_id=?
+               GROUP BY source, external_id
+           ) latest ON latest.source=t.source AND latest.external_id=t.external_id
+           JOIN opportunity_decisions d ON d.id=latest.max_id
            LEFT JOIN opportunity_lifecycle lc
              ON lc.source=t.source AND lc.external_id=t.external_id
            WHERE t.first_seen IS NOT NULL
              AND t.first_seen >= datetime('now','-2 minutes')
-             AND t.score >= ?
+             AND d.score >= ?
              AND {actionable_predicate('lc', 't')}
-           ORDER BY t.score DESC, t.first_seen ASC""",
-        (min_score,),
+           ORDER BY d.score DESC, t.first_seen ASC""",
+        (account_id, min_score),
     ).fetchall()
     events = []
     now = _iso_now()
@@ -490,11 +500,12 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
         d = dict(row)
         base_key = _key(d)
         event_key = f"{account_id}:{base_key}"
+        account_score = d.get("account_score", 0)
         cur = conn.execute(
             """INSERT OR IGNORE INTO opportunity_events
                (account_id,event_key,tender_id,source,event_type,score,created_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (account_id, event_key, d.get("id"), d.get("source"), "new_high_match", d.get("score", 0), now),
+            (account_id, event_key, d.get("id"), d.get("source"), "new_high_match", account_score, now),
         )
         if cur.rowcount:
             events.append({
@@ -502,7 +513,7 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
                 "account_id": account_id,
                 "tender_id": d.get("id"),
                 "source": d.get("source"),
-                "score": d.get("score", 0),
+                "score": account_score,
                 "title": d.get("title"),
                 "country": d.get("country"),
                 "url": d.get("url"),
