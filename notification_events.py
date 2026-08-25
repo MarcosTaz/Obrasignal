@@ -1,5 +1,5 @@
 """Account-scoped opportunity eventing and remote push delivery for ObraSignal."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import os
 import re
@@ -16,6 +16,7 @@ from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts"
 _INSTALLATION_RE = re.compile(r"^[A-Za-z0-9._:-]{8,160}$")
 
 
@@ -34,6 +35,20 @@ def _key(row):
 
 def _iso_now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_iso(value):
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def _next_retry_at(attempt_count, now=None):
+    now = now or datetime.now(timezone.utc)
+    delay_seconds = min(3600, 30 * (2 ** min(max(0, int(attempt_count) - 1), 7)))
+    return (now + timedelta(seconds=delay_seconds)).isoformat()
 
 
 def ensure_event_table(conn):
@@ -84,14 +99,29 @@ def ensure_push_tables(conn):
             last_error TEXT,
             attempt_count INTEGER NOT NULL DEFAULT 0,
             last_attempt_at TEXT,
+            next_attempt_at TEXT,
+            expo_push_token TEXT,
+            receipt_status TEXT,
+            receipt_checked_at TEXT,
+            receipt_error TEXT,
+            failed_at TEXT,
             UNIQUE(event_id,push_device_id)
         )"""
     )
     delivery_cols = {row[1] for row in conn.execute("PRAGMA table_info(push_deliveries)").fetchall()}
-    if "attempt_count" not in delivery_cols:
-        conn.execute("ALTER TABLE push_deliveries ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0")
-    if "last_attempt_at" not in delivery_cols:
-        conn.execute("ALTER TABLE push_deliveries ADD COLUMN last_attempt_at TEXT")
+    additions = {
+        "attempt_count": "INTEGER NOT NULL DEFAULT 0",
+        "last_attempt_at": "TEXT",
+        "next_attempt_at": "TEXT",
+        "expo_push_token": "TEXT",
+        "receipt_status": "TEXT",
+        "receipt_checked_at": "TEXT",
+        "receipt_error": "TEXT",
+        "failed_at": "TEXT",
+    }
+    for column, ddl in additions.items():
+        if column not in delivery_cols:
+            conn.execute(f"ALTER TABLE push_deliveries ADD COLUMN {column} {ddl}")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_push_deliveries_event_device ON push_deliveries(event_id,push_device_id)")
 
 
@@ -173,7 +203,8 @@ def _pending_push_rows(conn, account_id, limit=100):
     ensure_lifecycle_table(conn)
     return conn.execute(
         f"""SELECT e.id AS event_id, e.tender_id,
-                   d.id AS push_device_id, d.expo_push_token, d.binding_id
+                   d.id AS push_device_id, d.expo_push_token, d.binding_id,
+                   COALESCE(pd.attempt_count,0) AS attempt_count
             FROM opportunity_events e
             JOIN tenders t ON t.id=e.tender_id
             LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
@@ -183,30 +214,42 @@ def _pending_push_rows(conn, account_id, limit=100):
               AND e.event_type='new_high_match'
               AND {actionable_predicate('lc', 't')}
               AND pd.submitted_at IS NULL
+              AND pd.failed_at IS NULL
+              AND (pd.next_attempt_at IS NULL OR datetime(pd.next_attempt_at) <= datetime('now'))
             ORDER BY e.created_at ASC, d.id ASC
             LIMIT ?""",
         (str(account_id), max(1, min(100, int(limit)))),
     ).fetchall()
 
 
-def _record_push_attempt(conn, row, *, ticket_id=None, submitted_at=None, error=None, attempted_at=None):
+def _record_push_attempt(conn, row, *, ticket_id=None, submitted_at=None, error=None, attempted_at=None, next_attempt_at=None, failed_at=None):
     attempted_at = attempted_at or _iso_now()
     conn.execute(
         """INSERT INTO push_deliveries(
-               event_id,push_device_id,ticket_id,submitted_at,last_error,attempt_count,last_attempt_at
-           ) VALUES (?,?,?,?,?,1,?)
+               event_id,push_device_id,ticket_id,submitted_at,last_error,attempt_count,last_attempt_at,
+               next_attempt_at,expo_push_token,receipt_status,receipt_checked_at,receipt_error,failed_at
+           ) VALUES (?,?,?,?,?,1,?,?,?,NULL,NULL,NULL,?)
            ON CONFLICT(event_id,push_device_id) DO UPDATE SET
              ticket_id=excluded.ticket_id,
              submitted_at=excluded.submitted_at,
              last_error=excluded.last_error,
              attempt_count=push_deliveries.attempt_count+1,
-             last_attempt_at=excluded.last_attempt_at""",
-        (row["event_id"], row["push_device_id"], ticket_id, submitted_at, error, attempted_at),
+             last_attempt_at=excluded.last_attempt_at,
+             next_attempt_at=excluded.next_attempt_at,
+             expo_push_token=excluded.expo_push_token,
+             receipt_status=NULL,
+             receipt_checked_at=NULL,
+             receipt_error=NULL,
+             failed_at=excluded.failed_at""",
+        (
+            row["event_id"], row["push_device_id"], ticket_id, submitted_at, error,
+            attempted_at, next_attempt_at, row["expo_push_token"], failed_at,
+        ),
     )
 
 
 def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
-    """Submit pending account-scoped events to Expo; failed attempts remain retryable and observable."""
+    """Submit pending account-scoped events to Expo; failed attempts remain bounded and observable."""
     rows = _pending_push_rows(conn, account_id, limit=limit)
     if not rows:
         return 0
@@ -236,18 +279,21 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
             tickets = []
     except Exception as exc:
         # Event persistence remains authoritative and ingestion/bootstrap must not
-        # fail. Persist a bounded error class for operational visibility; leaving
-        # submitted_at NULL makes every event/device pair retryable later.
-        now = _iso_now()
+        # fail. Persist a bounded error class; submitted_at stays NULL and an
+        # exponential retry window prevents a tight failure loop.
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat()
         error = f"transport_{type(exc).__name__}"[:240]
         for row in rows:
-            _record_push_attempt(conn, row, error=error, attempted_at=now)
+            retry_at = _next_retry_at(int(row["attempt_count"]) + 1, now_dt)
+            _record_push_attempt(conn, row, error=error, attempted_at=now, next_attempt_at=retry_at)
             conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (error, row["push_device_id"]))
         conn.commit()
         return 0
 
     submitted = 0
-    now = _iso_now()
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
     for index, row in enumerate(rows):
         ticket = tickets[index] if index < len(tickets) else None
         status = ticket.get("status") if isinstance(ticket, dict) else None
@@ -261,13 +307,132 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
         details = ticket.get("details") if isinstance(ticket, dict) else {}
         error = (details or {}).get("error") or (ticket.get("message") if isinstance(ticket, dict) else None) or "push_response_missing_ticket"
         error = str(error)[:240]
-        _record_push_attempt(conn, row, error=error, attempted_at=now)
         if error == "DeviceNotRegistered":
-            conn.execute("DELETE FROM push_devices WHERE id=?", (row["push_device_id"],))
+            _record_push_attempt(conn, row, error=error, attempted_at=now, failed_at=now)
+            conn.execute(
+                "DELETE FROM push_devices WHERE id=? AND expo_push_token=?",
+                (row["push_device_id"], row["expo_push_token"]),
+            )
+        elif error == "push_response_missing_ticket":
+            retry_at = _next_retry_at(int(row["attempt_count"]) + 1, now_dt)
+            _record_push_attempt(conn, row, error=error, attempted_at=now, next_attempt_at=retry_at)
+            conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (error, row["push_device_id"]))
         else:
+            # Individual ticket rejection means Expo did not accept the payload;
+            # retain the terminal error rather than spinning the same bad request.
+            _record_push_attempt(conn, row, error=error, attempted_at=now, failed_at=now)
             conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (error, row["push_device_id"]))
     conn.commit()
     return submitted
+
+
+def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, min_age_seconds=900):
+    """Reconcile Expo tickets to provider receipts without claiming device/user delivery."""
+    ensure_push_tables(conn)
+    candidates = conn.execute(
+        """SELECT pd.id,pd.event_id,pd.push_device_id,pd.ticket_id,pd.submitted_at,
+                  pd.receipt_checked_at,pd.expo_push_token,pd.attempt_count
+           FROM push_deliveries pd
+           JOIN opportunity_events e ON e.id=pd.event_id
+           WHERE e.account_id=?
+             AND pd.ticket_id IS NOT NULL
+             AND pd.submitted_at IS NOT NULL
+             AND pd.receipt_status IS NULL
+           ORDER BY pd.submitted_at ASC
+           LIMIT ?""",
+        (str(account_id), max(1, min(1000, int(limit)))),
+    ).fetchall()
+    if not candidates:
+        return 0
+
+    now_dt = datetime.now(timezone.utc)
+    due = []
+    for row in candidates:
+        reference = _parse_iso(row["receipt_checked_at"]) or _parse_iso(row["submitted_at"])
+        if reference is None or (now_dt - reference).total_seconds() >= max(0, int(min_age_seconds)):
+            due.append(row)
+    if not due:
+        return 0
+
+    try:
+        response = post(
+            EXPO_RECEIPTS_URL,
+            json={"ids": [row["ticket_id"] for row in due]},
+            headers=_push_headers(),
+            timeout=8,
+        )
+        response.raise_for_status()
+        payload = response.json() or {}
+        receipts = payload.get("data") or {}
+        if not isinstance(receipts, dict):
+            receipts = {}
+    except Exception as exc:
+        now = now_dt.isoformat()
+        error = f"receipt_transport_{type(exc).__name__}"[:240]
+        for row in due:
+            conn.execute(
+                "UPDATE push_deliveries SET receipt_checked_at=?,last_error=? WHERE id=?",
+                (now, error, row["id"]),
+            )
+        conn.commit()
+        return 0
+
+    reconciled = 0
+    now = now_dt.isoformat()
+    for row in due:
+        receipt = receipts.get(row["ticket_id"])
+        if not isinstance(receipt, dict):
+            # Expo documents missing receipts as possible while processing; after
+            # the recommended wait this is observable but remains re-checkable.
+            conn.execute(
+                "UPDATE push_deliveries SET receipt_checked_at=?,last_error=? WHERE id=?",
+                (now, "receipt_not_available", row["id"]),
+            )
+            continue
+
+        status = receipt.get("status")
+        if status == "ok":
+            # provider_accepted means FCM/APNs accepted the notification. It is
+            # deliberately not named delivered: the device/user may not receive it.
+            conn.execute(
+                """UPDATE push_deliveries
+                   SET receipt_status='provider_accepted',receipt_checked_at=?,receipt_error=NULL,last_error=NULL,next_attempt_at=NULL
+                   WHERE id=?""",
+                (now, row["id"]),
+            )
+            reconciled += 1
+            continue
+
+        details = receipt.get("details") or {}
+        error = str(details.get("error") or receipt.get("message") or "receipt_error")[:240]
+        if error == "MessageRateExceeded":
+            # Expo explicitly recommends exponential backoff and retry for this
+            # receipt state. Clear ticket submission only; event truth is intact.
+            retry_at = _next_retry_at(int(row["attempt_count"]) + 1, now_dt)
+            conn.execute(
+                """UPDATE push_deliveries
+                   SET ticket_id=NULL,submitted_at=NULL,last_error=?,next_attempt_at=?,
+                       receipt_status=NULL,receipt_checked_at=?,receipt_error=?,failed_at=NULL
+                   WHERE id=?""",
+                (error, retry_at, now, error, row["id"]),
+            )
+        else:
+            conn.execute(
+                """UPDATE push_deliveries
+                   SET receipt_status='error',receipt_checked_at=?,receipt_error=?,last_error=?,failed_at=?,next_attempt_at=NULL
+                   WHERE id=?""",
+                (now, error, error, now, row["id"]),
+            )
+            if error == "DeviceNotRegistered" and row["expo_push_token"]:
+                # Receipt is delayed. Only prune if this exact token is still on
+                # the stable device row; never delete a newly rotated valid token.
+                conn.execute(
+                    "DELETE FROM push_devices WHERE id=? AND expo_push_token=?",
+                    (row["push_device_id"], row["expo_push_token"]),
+                )
+        reconciled += 1
+    conn.commit()
+    return reconciled
 
 
 def record_new_opportunities(conn, account_id="default", min_score=75):
@@ -310,8 +475,12 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
                 "url": d.get("url"),
             })
     conn.commit()
-    # Event persistence is authoritative. Push transport is best-effort and can
-    # retry pending event/device pairs without duplicating an accepted submission.
+    # Reconcile older accepted tickets first, then retry/new-submit due pairs.
+    # Neither step can promote an Expo/FCM/APNs acknowledgement to user delivery.
+    try:
+        reconcile_push_receipts(conn, account_id)
+    except Exception as exc:
+        APP.logger.warning("push receipt reconciliation failed: %s", type(exc).__name__)
     submit_pending_pushes(conn, account_id)
     return events
 
