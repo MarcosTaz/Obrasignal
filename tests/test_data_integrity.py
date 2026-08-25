@@ -196,6 +196,8 @@ def test_integrity_manifest_preserves_canonical_prebuild_and_test_only_boundarie
     assert by_fact["company_state"]["status"] == "PREBUILD"
     assert by_fact["fixture_state"]["status"] == "TEST_ONLY_NOT_CANONICAL"
     assert by_fact["saved_watchlist"]["status"] == "RECONSTRUCTION_PENDING"
+    assert by_fact["mobile_private_cache"]["status"] == "CANONICAL_DERIVED_RISK_OTHER_OWNER"
+    assert by_fact["mobile_private_cache"]["tenant_key"] == "ABSENT_ON_CURRENT_MAIN_STORAGE_KEYS"
 
 
 def test_save_profile_failure_can_leave_event_state_drift(tmp_path, monkeypatch):
