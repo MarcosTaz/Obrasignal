@@ -13,10 +13,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_live_dgcp_pacc_acquisitions_contract():
+def _get(path, **params):
     response = requests.get(
-        f"{DGCP_API_ROOT}/pacc/adquisiciones",
-        params={"page": 1, "limit": 10},
+        f"{DGCP_API_ROOT}{path}",
+        params=params,
         headers={
             "Accept": "application/json",
             "User-Agent": "ObraSignal DGCP PACC live contract probe/1.0",
@@ -32,8 +32,26 @@ def test_live_dgcp_pacc_acquisitions_contract():
     assert isinstance(payload, dict)
     rows = payload.get("content")
     assert isinstance(rows, list)
+    return rows
+
+
+def test_live_dgcp_pacc_acquisitions_and_articles_contract():
+    rows = _get("/pacc/adquisiciones", page=1, limit=10)
     assert rows, "DGCP PACC acquisitions unexpectedly returned no rows"
-    sample = next((row for row in rows if isinstance(row, dict)), None)
-    assert sample is not None
-    # Kept intentionally: field names are contract evidence without logging values.
-    print("DGCP_PACC_FIELDS=" + ",".join(sorted(map(str, sample.keys()))))
+    acquisition = next(
+        (row for row in rows if isinstance(row, dict) and row.get("id_adquisicion")),
+        None,
+    )
+    assert acquisition is not None
+    print("DGCP_PACC_FIELDS=" + ",".join(sorted(map(str, acquisition.keys()))))
+
+    articles = _get(
+        "/pacc/articulos",
+        page=1,
+        limit=50,
+        adquisicion_id=acquisition["id_adquisicion"],
+    )
+    assert articles, "DGCP PACC acquisition unexpectedly returned no articles"
+    article = next((row for row in articles if isinstance(row, dict)), None)
+    assert article is not None
+    print("DGCP_PACC_ARTICLE_FIELDS=" + ",".join(sorted(map(str, article.keys()))))
