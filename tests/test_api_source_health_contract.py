@@ -53,7 +53,7 @@ def test_source_health_endpoint_exposes_source_specific_freshness_and_health(mon
         observed = datetime.now(timezone.utc) - timedelta(minutes=5)
         record_source_result(conn, 'TED', success=True, duration_ms=120, found=4, new_items=1, observed_at=observed)
 
-        response = api.APP.test_client().get('/api/v1/source-health?source=TED')
+        response = api.APP.test_client().get('/api/v1/source-health-contract?source=TED')
         assert response.status_code == 200
         body = response.get_json()
         assert body['contract_version'] == 'source-health-v1'
