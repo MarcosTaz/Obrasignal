@@ -5,7 +5,7 @@ compatible with the existing tender dictionaries.
 """
 from datetime import datetime, timezone
 
-RULE_VERSION = "commercial-v2"
+RULE_VERSION = "commercial-v2.1"
 
 WORKS_CPVS = ("45",)
 
@@ -17,7 +17,19 @@ def _text(*values):
 def _deadline_days(value):
     if not value:
         return None
-    s = str(value).strip().replace("Z", "+00:00")
+    raw = str(value).strip()
+    # DATE evidence proves only a calendar day. Preserve that precision instead
+    # of inventing midnight UTC, which would make today's deadline look expired
+    # for almost the entire day.
+    if len(raw) == 10:
+        try:
+            deadline_date = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+        else:
+            return (deadline_date - datetime.now(timezone.utc).date()).days
+
+    s = raw.replace("Z", "+00:00")
     for parser in (
         lambda: datetime.fromisoformat(s),
         lambda: datetime.strptime(s[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc),
@@ -70,6 +82,7 @@ def score_v2(item):
     elif not text:
         missing.append("title/description")
 
+    deadline_raw = str(item.get("deadline") or "").strip()
     days = _deadline_days(item.get("deadline"))
     if days is None:
         # Missing information is uncertainty, never positive evidence.
@@ -78,6 +91,11 @@ def score_v2(item):
     elif days < 0:
         components["deadline"] = 0
         reasons.append("prazo terminado")
+    elif days == 0 and len(deadline_raw) == 10:
+        # The calendar day is known but the closing instant is not. This is
+        # neither expired evidence nor positive urgency evidence.
+        components["deadline"] = 0
+        reasons.append("prazo hoje; hora não indicada")
     elif days <= 3:
         components["deadline"] = 15
         reasons.append("prazo muito próximo")
