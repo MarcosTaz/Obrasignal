@@ -95,4 +95,4 @@ A new capability is not architecturally complete until reviewers can answer posi
 - No direct vendor/API schema propagation into product logic.
 - No hidden automatic action without idempotency/authorization/audit appropriate to risk.
 - Architectural debt is corrected when it blocks the next economically valuable step, not through indiscriminate rewrites.
-- Q040 CanadaBuys remains active; this ADR is a cross-cutting guardrail, not a parallel roadmap.
+- Current execution priority remains owned exclusively by `master_execution_queue.py`; this ADR is a cross-cutting guardrail, not a parallel roadmap.
