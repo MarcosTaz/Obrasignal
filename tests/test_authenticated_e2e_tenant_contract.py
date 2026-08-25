@@ -42,6 +42,19 @@ def test_live_jwt_provider_diagnostics_are_fail_closed() -> None:
     assert "TOKEN_AUDIENCE_AUTHENTICATED=" in text
 
 
+def test_provider_health_is_ready_after_authenticated_identity() -> None:
+    text = _text()
+    assert 'Verify provider READY after authenticated identity' in text
+    assert '"$API_URL/health" > /tmp/post-auth-health.json' in text
+    assert "assert health.get('build') == os.environ['TARGET_BUILD']" in text
+    assert "assert auth.get('mode') == 'provider'" in text
+    assert "assert auth.get('config_present') is True" in text
+    assert "assert auth.get('provider_kind') == 'supabase'" in text
+    assert "assert auth.get('provider_status') == 'ready'" in text
+    assert "assert auth.get('provider_error') is None" in text
+    assert "POST_AUTH_PROVIDER_STATUS=ready" in text
+
+
 def test_profile_persistence_responses_bind_to_authenticated_identity() -> None:
     text = _text()
     assert "/tmp/profile-write-response.json" in text
