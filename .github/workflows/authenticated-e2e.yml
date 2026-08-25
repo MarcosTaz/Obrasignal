@@ -191,10 +191,18 @@ jobs:
                   print(f'{name}={value if value is not None else "none"}')
 
           audiences = audience if isinstance(audience, list) else [audience]
-          print(f'TOKEN_ALG_ALLOWED={str(alg in {"RS256", "ES256"}).lower()}')
-          print(f'TOKEN_KID_PRESENT_IN_PROVIDER_JWKS={str(kid is not None and str(kid) in provider_kids).lower()}')
-          print(f'TOKEN_ISSUER_MATCHES_SUPABASE_PROJECT={str(issuer == os.environ["EXPECTED_ISSUER"]).lower()}')
-          print(f'TOKEN_AUDIENCE_AUTHENTICATED={str("authenticated" in audiences).lower()}')
+          token_alg_allowed = alg in {"RS256", "ES256"}
+          token_kid_present = kid is not None and str(kid) in provider_kids
+          token_issuer_matches = issuer == os.environ["EXPECTED_ISSUER"]
+          token_audience_authenticated = "authenticated" in audiences
+          print(f'TOKEN_ALG_ALLOWED={str(token_alg_allowed).lower()}')
+          print(f'TOKEN_KID_PRESENT_IN_PROVIDER_JWKS={str(token_kid_present).lower()}')
+          print(f'TOKEN_ISSUER_MATCHES_SUPABASE_PROJECT={str(token_issuer_matches).lower()}')
+          print(f'TOKEN_AUDIENCE_AUTHENTICATED={str(token_audience_authenticated).lower()}')
+          assert token_alg_allowed, 'Supabase token algorithm is not supported'
+          assert token_kid_present, 'Supabase token key id is not present in provider JWKS'
+          assert token_issuer_matches, 'Supabase token issuer does not match project issuer'
+          assert token_audience_authenticated, 'Supabase token audience is not authenticated'
           PY
 
       - name: Verify unauthenticated boundary
