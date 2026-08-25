@@ -29,14 +29,51 @@ def test_radar_page_uses_open_future_visual_system():
     assert "#F5F8FC" in html
     assert "#FFFFFF" in html
     assert "#2166F3" in html
-    assert "Um radar comercial que explica cada oportunidade através do perfil da empresa, lote, geografia, capacidade e Economic Fit." in html
+    assert "O radar ordena oportunidades por compatibilidade e explica a evidência disponível." in html
+    assert "A decisão de concorrer continua a ser tua." in html
 
 
-def test_radar_page_has_explicit_empty_state():
-    assert "Nenhuma oportunidade encontrada." in render_radar_page([])
+def test_radar_page_has_explicit_valid_empty_state():
+    assert "Nenhuma oportunidade corresponde aos filtros atuais." in render_radar_page([])
 
 
 def test_radar_page_escapes_opportunity_fields():
     html = render_radar_page([{"title": '<script>alert(1)</script>', "decision_summary": {"status": "SEM DECISÃO", "reason": "sem dados"}}])
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "<script>alert(1)</script>" not in html
+
+
+def test_radar_page_preserves_unknown_score_and_evidence_count():
+    html = render_radar_page([{
+        "title": "Sem avaliação",
+        "decision_summary": {
+            "status": "SEM DECISÃO",
+            "score": None,
+            "layers": [{"label": "Capacidade", "kind": "evidence", "evidence_count": None, "detail": "sem contagem"}],
+        },
+    }])
+
+    assert "Não avaliada" in html
+    assert "Não indicado" in html
+    assert "0/100" not in html
+    assert "0 evidência(s)" not in html
+
+
+def test_radar_page_does_not_fabricate_source_or_source_link():
+    html = render_radar_page([{
+        "title": "Sem proveniência",
+        "source": None,
+        "url": None,
+        "decision_summary": {"status": "REVIEW", "score": 40, "reason": "rever"},
+    }])
+
+    assert "Fonte não identificada" in html
+    assert "Ligação à fonte não disponível nos dados atuais." in html
+    assert 'href="#"' not in html
+    assert "Abrir oportunidade →" not in html
+
+
+def test_radar_page_stacks_cards_on_narrow_web_screens():
+    html = render_radar_page([])
+    assert ".os-radar-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}" in html
+    assert "@media(max-width:760px){.os-radar-grid{grid-template-columns:1fr}}" in html
