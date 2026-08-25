@@ -141,9 +141,18 @@ export async function notificationOpportunityTarget(response) {
 export function listenForOpportunityNotificationResponses(onTarget) {
   if (Platform.OS === 'web') return () => {};
   let active = true;
+  const clearLastResponse = async () => {
+    try { await Notifications.clearLastNotificationResponseAsync(); } catch (_) {}
+  };
   const handle = async (response) => {
     const responseId = String(response?.notification?.request?.identifier || '').trim();
-    if (responseId && handledResponseIds.has(responseId)) return;
+    if (responseId && handledResponseIds.has(responseId)) {
+      // A remount can reread the same native last response after a live listener
+      // already consumed it. Clear native state before returning so a later app
+      // process cannot replay it after the in-memory Set is lost.
+      await clearLastResponse();
+      return;
+    }
     // Claim the native response before any async storage/API work so the initial
     // response and live listener cannot race into duplicate navigation.
     if (responseId) handledResponseIds.add(responseId);
@@ -158,7 +167,7 @@ export function listenForOpportunityNotificationResponses(onTarget) {
       // Expo persists the most recent response across startup. Consume it after
       // one validation attempt so a future process/remount cannot replay an old
       // tap without a new user interaction.
-      try { await Notifications.clearLastNotificationResponseAsync(); } catch (_) {}
+      await clearLastResponse();
     }
   };
   const subscription = Notifications.addNotificationResponseReceivedListener(handle);
