@@ -255,9 +255,11 @@ jobs:
           import json
           payload=json.load(open('/tmp/profile.json'))
           assert payload.get('authenticated') is True
-          assert payload.get('account_id')
+          account_id=payload.get('account_id')
+          assert account_id
           assert isinstance(payload.get('profile'), dict)
-          print('Authenticated API identity verified for account:', payload['account_id'])
+          open('/tmp/authenticated_account_id', 'w', encoding='utf-8').write(str(account_id))
+          print('Authenticated API identity verified.')
           PY
 
       - name: Verify authenticated profile persistence round-trip
@@ -267,6 +269,8 @@ jobs:
           python - <<'PY'
           import json, uuid
           payload=json.load(open('/tmp/profile.json'))
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
+          assert str(payload.get('account_id')) == expected_account_id
           profile=payload['profile']
           marker=f"__e2e_{uuid.uuid4().hex[:12]}"
           profile['keywords']=list(profile.get('keywords') or [])+[marker]
@@ -296,8 +300,10 @@ jobs:
             "$API_URL/profile" >/tmp/profile-after-write.json
           python - <<'PY'
           import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
           marker=json.load(open('/tmp/profile-marker.json'))['marker']
           payload=json.load(open('/tmp/profile-after-write.json'))
+          assert str(payload.get('account_id')) == expected_account_id
           assert marker in (payload.get('profile') or {}).get('keywords', [])
           assert payload.get('authenticated') is True
           print('Authenticated profile write/read persistence verified.')
@@ -311,10 +317,10 @@ jobs:
             "$API_URL/opportunities?limit=1" > /tmp/opportunities.json
           python - <<'PY'
           import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
           payload=json.load(open('/tmp/opportunities.json'))
           assert isinstance(payload.get('items'), list)
-          assert payload.get('account_id')
-          assert payload['account_id'] != ''
+          assert str(payload.get('account_id')) == expected_account_id
           print('Authenticated opportunity access verified.')
           PY
 
@@ -332,10 +338,11 @@ jobs:
           done
           python - <<'PY'
           import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
           stats=json.load(open('/tmp/stats.json'))
           workflow=json.load(open('/tmp/workflow_stats.json'))
-          assert stats.get('account_id')
-          assert workflow.get('account_id') == stats['account_id']
+          assert str(stats.get('account_id')) == expected_account_id
+          assert str(workflow.get('account_id')) == expected_account_id
           assert isinstance(workflow.get('counts'), dict)
           print('Account-scoped stats verified.')
           PY
