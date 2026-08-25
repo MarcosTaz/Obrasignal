@@ -173,13 +173,16 @@ def test_connector_unwraps_discovery_envelope_then_hydrates_each_ocid():
     assert cursor == '{"completed_through":"2026-08-25"}'
 
 
-def test_registry_is_live_machine_verified_but_still_fails_closed_for_runtime():
+def test_registry_stays_gated_until_full_ingestion_path_is_live_validated():
     source = SOURCES["DO_DGCP"]
     assert source["status"] == "planned"
-    assert source["machine_access"] == "VERIFIED"
+    assert source["machine_access"] == "DOCUMENTED_NOT_LIVE_VALIDATED"
     assert source["legal_reuse"] == "GREEN"
     assert source["adapter"] == "OCDSAPIConnector"
-    assert set(source["capabilities"]) == {"incremental_sync", "detail"}
+    assert set(source["capabilities"]) == {"incremental_sync"}
     assert source["signal_types"] == ("TENDER",)
-    assert production_gate_reasons("DO_DGCP") == ("runtime_not_enabled",)
+    assert set(production_gate_reasons("DO_DGCP")) == {
+        "machine_access_not_verified",
+        "runtime_not_enabled",
+    }
     assert "DO_DGCP" not in production_ready_sources()
