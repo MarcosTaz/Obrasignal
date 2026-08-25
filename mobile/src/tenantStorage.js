@@ -86,5 +86,6 @@ export function createTenantStorage(adapter, now = () => new Date().toISOString(
     setProfile: (identity, profile) => writePrivate(identity, 'profile', profile),
     getPushBinding: (identity) => readPrivate(identity, 'push-binding', null),
     setPushBinding: (identity, binding) => writePrivate(identity, 'push-binding', binding),
+    clearPushBinding: (identity) => purgeKind(adapter, identity, 'push-binding'),
   };
 }
