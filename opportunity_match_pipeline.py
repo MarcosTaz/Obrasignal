@@ -9,7 +9,7 @@ from lot_matcher import match_lot
 from economic_fit import evaluate_economic_fit, parse_contract_value
 from profile_scoring import personalized_score
 
-RULE_VERSION = "commercial-v2+lot-v1+capability-v2+economic-fit-v3"
+RULE_VERSION = "commercial-v2.1+lot-v1+capability-v2+economic-fit-v3"
 
 
 def _cpv_evidence(lot, capability):
@@ -49,20 +49,37 @@ def _lot_from_row(row):
     }
 
 
+def _deadline_is_expired(value):
+    """Return True only when deadline evidence proves expiry.
+
+    Date-only evidence has calendar precision. The deadline day itself therefore
+    cannot prove expiry because the publisher supplied no closing instant.
+    Exact timestamps retain instant precision. Missing/invalid values are UNKNOWN
+    and deliberately return False rather than becoming a blocker.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return False
+    if len(raw) == 10:
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date() < datetime.now(timezone.utc).date()
+        except ValueError:
+            return False
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc) < datetime.now(timezone.utc)
+
+
 def _hard_capability_checks(lot, capability):
     """Return deterministic blockers; missing data stays UNKNOWN, not PASS."""
     blockers = []
     deadline = lot.get("deadline")
-    if deadline:
-        try:
-            parsed = datetime.fromisoformat(str(deadline).strip().replace("Z", "+00:00"))
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            if parsed.astimezone(timezone.utc) < datetime.now(timezone.utc):
-                blockers.append("prazo de apresentação terminado")
-        except (TypeError, ValueError):
-            # An invalid deadline remains UNKNOWN rather than being guessed.
-            pass
+    if _deadline_is_expired(deadline):
+        blockers.append("prazo de apresentação terminado")
     amount = lot.get("value_numeric")
     try:
         amount = float(amount) if amount not in (None, "") else None
