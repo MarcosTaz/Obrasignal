@@ -37,7 +37,9 @@ def _identity_guard():
 
 @bp.after_request
 def _headers(response):
-    return _api._apply_cors(response)
+    response = _api._apply_cors(response)
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
+    return response
 
 
 def _payload(allowed):
