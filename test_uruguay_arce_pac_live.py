@@ -65,6 +65,12 @@ def test_live_uruguay_arce_public_pac_frontend_contract():
     response, main_url, js = _frontend_contract()
     assert "/api/v1/compra-procedimientos/" in js
     assert "/api/v1/compra-procedimientos/excel?sort=" in js
+    assert "/api/v1/familias/all" in js
+    assert "codFamilia" in js
+    assert "codSubfamilia" in js
+    assert "codClase" in js
+    assert "codSubclase" in js
+    assert "codArticuloServObra" in js
     assert "./assets/config.json" in js
     assert "apiUrl" in js
     routes = _api_route_literals(js)
@@ -76,7 +82,7 @@ def test_live_uruguay_arce_public_pac_frontend_contract():
     ]
     print("UY_PAC_STATUS=" + str(response.status_code))
     print("UY_PAC_MAIN_JS=" + main_url)
-    print("UY_PAC_FRONTEND_CONTRACT=search,detail,excel,pagination,public-config")
+    print("UY_PAC_FRONTEND_CONTRACT=search,detail,excel,pagination,catalog-filters,public-config")
     print("UY_PAC_RELEVANT_API_ROUTES=" + " | ".join(relevant[:120]))
 
 
@@ -143,9 +149,6 @@ def test_live_uruguay_arce_public_pac_backend_contract():
             if isinstance(value, (dict, list)):
                 print(f"UY_PAC_DETAIL_{str(key).upper()}_SHAPE=" + _shape(value))
 
-    # The SPA advertises an Excel export, but current production returned 404 on
-    # the literal route. Keep that negative evidence without making it a source
-    # gate: paginated JSON is the candidate ingestion transport.
     export_url = api_url + "/api/v1/compra-procedimientos/excel"
     with _public_get(
         export_url,
@@ -157,3 +160,34 @@ def test_live_uruguay_arce_public_pac_backend_contract():
         export_type = export_response.headers.get("Content-Type", "")
         print(f"UY_PAC_EXPORT_STATUS={export_response.status_code} content_type={export_type!r}")
         assert export_response.status_code < 500, "ARCE PAC export route is server-failing"
+
+
+def test_live_uruguay_arce_public_pac_native_catalog_family_contract():
+    api_url = _configured_api_url()
+    response = _public_get(api_url + "/api/v1/familias/all", "application/json", raise_status=False)
+    content_type = response.headers.get("Content-Type", "")
+    print(f"UY_PAC_FAMILIES_STATUS={response.status_code} content_type={content_type!r}")
+    assert response.status_code == 200
+    assert "json" in content_type.lower()
+    payload = response.json()
+    print("UY_PAC_FAMILIES_SHAPE=" + _shape(payload))
+    if isinstance(payload, dict):
+        rows = next((payload.get(key) for key in ("content", "data", "results", "items") if isinstance(payload.get(key), list)), [])
+    else:
+        rows = payload if isinstance(payload, list) else []
+    assert isinstance(rows, list) and rows, "ARCE PAC family catalogue returned no rows"
+    sample = next((row for row in rows if isinstance(row, dict)), None)
+    assert sample is not None
+    print("UY_PAC_FAMILY_FIELDS=" + ",".join(sorted(map(str, sample.keys()))))
+
+    # Research-only taxonomy observation: report publisher-controlled entries
+    # whose labels explicitly describe works/construction. Runtime admission, if
+    # implemented, must use the resulting stable codes rather than text matching.
+    candidates = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        flattened = " ".join(str(v or "") for v in row.values()).lower()
+        if any(token in flattened for token in ("obra", "construc", "edific", "vial")):
+            candidates.append(row)
+    print("UY_PAC_WORKS_FAMILY_CANDIDATES=" + repr(candidates[:20]))
