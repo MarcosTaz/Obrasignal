@@ -81,3 +81,21 @@ def test_mobile_detail_never_fabricates_ted_when_source_is_missing():
         "BUG-GP-010: absent source identity is fabricated as TED on opportunity detail. "
         "Missing provenance must remain unknown."
     )
+
+
+def test_radar_empty_state_does_not_attribute_unknown_market_state_to_filters():
+    source = _app_source()
+    assert "Sem resultados com estes filtros." not in source, (
+        "GAP-GP-011: the empty state attributes an empty Radar to customer filters even "
+        "though source freshness/coverage may be stale, degraded or unknown. The customer "
+        "must be told only what the available evidence proves."
+    )
+
+
+def test_partial_stats_failure_is_not_silently_presented_as_current_state():
+    source = _app_source()
+    assert "const freshStats=statsResult.status==='fulfilled'?statsResult.value:stats;" not in source, (
+        "GAP-GP-011: when stats refresh fails but opportunities succeeds, old/in-memory "
+        "stats are silently retained with no partial-failure disclosure. Retained values "
+        "must be marked stale/error or replaced by UNKNOWN."
+    )
