@@ -9,11 +9,18 @@
     },
     {
       "step": "PROFILE_TO_RADAR_CAUSALITY",
-      "goal": "Close the remaining gap between structural save/reload wiring and one executable profile-mutation -> recalculated decision -> rendered Radar journey.",
-      "next_material_proof": "Use synthetic account/profile/opportunity data only and preserve account isolation."
+      "goal": "Extend the candidate's exact-head backend/API profile-mutation proof through the actual supported Web render/Golden boundary without converting Decision score into a journey-owned classification.",
+      "next_material_proof": "Candidate test proves profile mutation -> new account decision -> immediate Radar/detail convergence using synthetic tenant-safe data; customer-facing render remains separate evidence."
     }
   ],
   "NEXT": [
+    {
+      "step": "CUSTOMER_VALUE_METRICS",
+      "owner": "Evaluation lifecycle + Product Analytics",
+      "state": "BROKEN_FALSE_FIRST_VALUE_OTHER_OWNER",
+      "input": "canonical evaluation_policy.py; routed to #333 comment 5418496096",
+      "action": "Require TIME_TO_FIRST_VALUE_SECONDS to use an explicitly meaningful customer-outcome event; alert_delivered alone must not establish first value. Activation/access semantics remain distinct from outcome metrics."
+    },
     {
       "step": "SAVE_REVIEW",
       "owner": "Watchlist/Saved",
