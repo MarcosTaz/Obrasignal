@@ -16,66 +16,52 @@ def _json(path, *, params=None):
     return payload
 
 
-def _safe_links(value):
-    if isinstance(value, dict):
-        return {str(k): str(v)[:1000] for k, v in value.items()}
-    return value
-
-
 def test_tanzania_nest_live_probe():
     package = _json("releases", params=PARAMS)
     releases = package.get("releases") if isinstance(package.get("releases"), list) else []
-
-    release_categories = {}
-    release_statuses = {}
-    releases_with_tender = 0
-    works_release_examples = []
+    ocids = []
     for release in releases:
-        if not isinstance(release, dict):
-            continue
-        tender = release.get("tender") if isinstance(release.get("tender"), dict) else {}
-        if not tender:
-            continue
-        releases_with_tender += 1
-        category = str(tender.get("mainProcurementCategory") or "<missing>")
-        status = str(tender.get("status") or "<missing>")
-        release_categories[category] = release_categories.get(category, 0) + 1
-        release_statuses[status] = release_statuses.get(status, 0) + 1
-        if category.lower() == "works" and len(works_release_examples) < 3:
-            works_release_examples.append({
-                "ocid": release.get("ocid"),
-                "status": tender.get("status"),
-                "endDate": (tender.get("tenderPeriod") or {}).get("endDate") if isinstance(tender.get("tenderPeriod"), dict) else None,
+        if isinstance(release, dict) and release.get("ocid") and release.get("ocid") not in ocids:
+            ocids.append(release.get("ocid"))
+        if len(ocids) >= 10:
+            break
+
+    samples = []
+    schemes = {}
+    additional_categories = {}
+    for ocid in ocids:
+        record = _json(f"records/{ocid}")
+        compiled = record.get("compiledRelease") if isinstance(record.get("compiledRelease"), dict) else {}
+        tender = compiled.get("tender") if isinstance(compiled.get("tender"), dict) else {}
+        categories = tender.get("additionalProcurementCategories") if isinstance(tender.get("additionalProcurementCategories"), list) else []
+        for category in categories:
+            key = str(category)
+            additional_categories[key] = additional_categories.get(key, 0) + 1
+
+        classifications = []
+        items = tender.get("items") if isinstance(tender.get("items"), list) else []
+        for item in items[:5]:
+            classification = item.get("classification") if isinstance(item, dict) and isinstance(item.get("classification"), dict) else {}
+            if not classification:
+                continue
+            scheme = str(classification.get("scheme") or "<missing>")
+            schemes[scheme] = schemes.get(scheme, 0) + 1
+            classifications.append({
+                "scheme": classification.get("scheme"),
+                "id": classification.get("id"),
+                "description": classification.get("description"),
             })
+        samples.append({
+            "ocid": ocid,
+            "status": tender.get("status"),
+            "additionalProcurementCategories": categories,
+            "classifications": classifications,
+            "description": str(tender.get("description") or "")[:200],
+        })
 
-    first_release = next((row for row in releases if isinstance(row, dict) and row.get("ocid")), {})
-    first_ocid = first_release.get("ocid")
-    hydrated = _json(f"records/{first_ocid}") if first_ocid else {}
-    record_rows = hydrated.get("records") if isinstance(hydrated.get("records"), list) else []
-    if record_rows:
-        record = record_rows[0] if isinstance(record_rows[0], dict) else {}
-    elif hydrated.get("ocid"):
-        record = hydrated
-    else:
-        record = {}
-    compiled = record.get("compiledRelease") if isinstance(record.get("compiledRelease"), dict) else {}
-    tender = compiled.get("tender") if isinstance(compiled.get("tender"), dict) else {}
-
-    metadata = {
-        "release_count": len(releases),
-        "release_links": _safe_links(package.get("links")),
-        "releases_with_tender": releases_with_tender,
-        "release_categories": release_categories,
-        "release_statuses": release_statuses,
-        "works_release_examples": works_release_examples,
-        "hydrated_top_keys": sorted(hydrated.keys()),
-        "hydrated_record_count": len(record_rows),
-        "hydrated_record_keys": sorted(record.keys()),
-        "hydrated_compiled_keys": sorted(compiled.keys()),
-        "hydrated_tender_keys": sorted(tender.keys()),
-        "hydrated_tender_status": tender.get("status"),
-        "hydrated_main_category": tender.get("mainProcurementCategory"),
-        "hydrated_ocid": record.get("ocid") or compiled.get("ocid"),
-        "publishedDate": package.get("publishedDate"),
-    }
-    pytest.fail("NEST_HYDRATION_SHAPE=" + json.dumps(metadata, sort_keys=True, default=str))
+    pytest.fail("NEST_TAXONOMY=" + json.dumps({
+        "sample_count": len(samples),
+        "schemes": schemes,
+        "additional_categories": additional_categories,
+        "samples": samples,
+    }, sort_keys=True, default=str))
