@@ -1,11 +1,18 @@
 import json
 from pathlib import Path
 
-from customer_journey_audit import FACTORY_TITLE, load_registry, validate_registry
+from customer_journey_audit import (
+    FACTORY_TITLE,
+    load_registry,
+    load_stack,
+    validate_registry,
+    validate_stack,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "customer_journey_registry.json"
+STACK = ROOT / "customer_journey_stack.json"
 CANONICAL_MAIN = "66d43f6fd51cf9cea08016dad335aaa04b711a24"
 
 
@@ -19,6 +26,19 @@ def test_registry_is_fail_closed_and_uses_exact_factory_title():
     assert registry["factory_title"] == FACTORY_TITLE
     assert registry["canonical_main_sha"] == CANONICAL_MAIN
     assert validate_registry(registry) == []
+
+
+def test_active_next_wait_stack_is_exact_head_and_every_wait_is_reopenable():
+    registry = load_registry(REGISTRY)
+    stack = load_stack(STACK)
+    assert stack["factory_title"] == FACTORY_TITLE
+    assert stack["canonical_main_sha"] == CANONICAL_MAIN
+    assert validate_stack(stack, registry) == []
+    assert stack["ACTIVE"]
+    assert stack["NEXT"]
+    assert stack["WAIT"]
+    assert all(item["reopen_condition"].strip() for item in stack["WAIT"])
+    assert all(item["boundary"] in {"GOLDEN", "REAL_DEVICE_GOLDEN"} for item in stack["WAIT"])
 
 
 def test_every_edge_is_classified_against_the_same_exact_canonical_main():
@@ -60,6 +80,16 @@ def test_workflow_persistence_is_not_equated_with_real_world_progress():
     workflow = edges["WORKFLOW_PURSUIT"]
     assert workflow["STATUS"] == "PARTIAL"
     assert "never claims real-world bid progress" in workflow["EXPECTED_CUSTOMER_TRUTH"]
+
+
+def test_notification_return_is_external_golden_and_has_wait_reopen_contract():
+    registry, edges = _by_step()
+    stack = load_stack(STACK)
+    assert edges["NOTIFICATION_RETURN"]["STATUS"] == "EXTERNAL_GOLDEN_ONLY"
+    waits = {item["step"]: item for item in stack["WAIT"]}
+    assert waits["NOTIFICATION_RETURN"]["boundary"] == "REAL_DEVICE_GOLDEN"
+    assert waits["NOTIFICATION_RETURN"]["reopen_condition"]
+    assert validate_stack(stack, registry) == []
 
 
 def test_repeat_value_stays_unknown_without_a_deterministic_second_value_scenario():
