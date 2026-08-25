@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "recorded_at": "2026-08-25",
+  "canonical_main": {
+    "sha": "fce51d5b5524e09691f9187f7619ea0166217487",
+    "tree": "eac97dee4390ffba831241b7465df9e1e04f2fcc",
+    "change": "Auth PR #198 merged while Golden Path Lab was running",
+    "quality": "PASS",
+    "production_smoke": "FAIL",
+    "authenticated_e2e": "FAIL",
+    "product_status": "NOT_FULLY_ACCEPTED"
+  },
+  "current_main_deployed_truth": {
+    "supabase_authentication": "PASS",
+    "unauthenticated_boundary": "PASS",
+    "malformed_bearer_boundary": "PASS",
+    "authenticated_api_identity": "FAIL",
+    "authenticated_follow_on_steps": "SKIPPED_AFTER_FAILURE",
+    "production_exact_api_deployment_health": "FAIL",
+    "root_cause": "UNKNOWN",
+    "forbidden_inference": "do not claim the current failure is definitely JWT verification or definitely application code without runtime/deployment evidence"
+  },
+  "acceptance_infrastructure": {
+    "pr": 207,
+    "branch": "acceptance/golden-path-system-v1",
+    "historical_tested_head": "f36f4ec2a114a9d6f5f3abe827bddc3514036e4e",
+    "historical_gates": {"Golden Acceptance": "SUCCESS", "ObraSignal Quality": "SUCCESS"},
+    "current_main_sync_commit": "063289da53d5abd8cfb374e24503c1f954d403b1",
+    "current_main_sync_tree": "364a9414c7975d879cdbdcd1f41547f46acb5f47",
+    "current_main_revalidation": "PENDING_EXACT_HEAD_CI_AFTER_MANIFEST_UPDATE"
+  },
+  "gp01_historical_combination": {
+    "classification": "HISTORICAL_EXACT_HEAD_INTEGRATION_CANDIDATE_EVIDENCE",
+    "integration_base_pr": 203,
+    "integration_base_head": "25f0d74f834a8f19e4ce13834c7f549c2ffef6cd",
+    "acceptance_pr": 208,
+    "tested_head": "2a8ab11c392d7d9ca64065ab89329f67f9b1bc92",
+    "tested_tree": "282cc87bc339165b92c5ebe67afe01f605cb7e53",
+    "capabilities_under_test": ["AUTH", "SIGNAL/OPPORTUNITY", "WATCHLIST", "SOURCE_PROVENANCE"],
+    "gates": {"Golden GP01 Combination": "SUCCESS", "ObraSignal Quality": "SUCCESS"},
+    "positive_path_result": "PASS_L4_FIXTURE_CANDIDATE",
+    "positive_path_truths": [
+      "open-filtered discovery excludes expired fixture",
+      "detail preserves source and source URL",
+      "unknown value remains null",
+      "unknown deadline remains unknown",
+      "real Watchlist POST Save succeeds",
+      "client-supplied account selection does not override server identity",
+      "tenant A can read/list saved state",
+      "tenant B cannot read/list/patch/delete tenant A saved state",
+      "provider mode without token returns 401"
+    ],
+    "full_golden_path_result": "FAIL",
+    "full_golden_path_blocker": "BUG-GP-001",
+    "issue": 210,
+    "not_current_main_acceptance": true,
+    "not_claimed": ["complete GP01 PRODUCT_ACCEPTED", "L5 deployed acceptance", "merge readiness", "capability promotion"]
+  },
+  "current_gp01": {
+    "AUTH": "IMPLEMENTED_MAIN_BUT_L5_FAIL",
+    "DISCOVER_DETAIL": "IMPLEMENTED_MAIN_WITH_FALSE_CLAIM_BUG",
+    "SOURCE_PROVENANCE": "PARTIAL_CURRENT_MAIN",
+    "OPEN_CLOSED_TRUTH": "FAIL_BUG_GP_001",
+    "SAVE": "BLOCKED_BY_INTEGRATION_WATCHLIST_PR_150",
+    "TENANT_SAFE_READBACK": "GATED_UNTIL_CURRENT_MAIN_WATCHLIST_COMBINATION",
+    "overall": "FAIL"
+  },
+  "compare_adversarial_status": {
+    "status": "FAIL",
+    "non_finite_bisection_pr": 201,
+    "non_finite_head": "39d700dca2bf275049fb28d70a79eb45d73d70d5",
+    "non_finite_quality": "FAILURE",
+    "precision_bisection_pr": 202,
+    "precision_head": "750f565dafe41a9736c1f26a0fe90d611691fc55",
+    "precision_quality": "FAILURE",
+    "product_effect": "Compare excluded from product acceptance combinations until monetary contract is corrected and retested"
+  },
+  "requirements_readiness_status": {
+    "requirements_integration_candidate_pr": 205,
+    "requirements_candidate_head": "20d2f2526941808de48d298edf63e2afda1fe679",
+    "requirements_candidate_quality": "SUCCESS",
+    "requirements_candidate_jwt_gate": "SUCCESS",
+    "readiness_pr": 153,
+    "readiness_head": "f9a6ae2fe55e4fc6291e7eb5fd2e502579a9bab0",
+    "readiness_quality": "SUCCESS",
+    "combined_current_main_product_acceptance": "GATED",
+    "reason": "Requirements and Readiness have not yet been proven together on one current-main-derived integration tree"
+  }
+}
