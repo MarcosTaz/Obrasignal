@@ -29,17 +29,17 @@ jobs:
           CTX = ssl.create_default_context()
           HEADERS = {'User-Agent': 'ObraSignal-DGCP-completeness-probe/1.0', 'Accept': 'application/json'}
 
-          def request_json(path, params):
+          def raw_json(path, params):
               url = ROOT + path + '?' + urllib.parse.urlencode(params)
               req = urllib.request.Request(url, headers=HEADERS, method='GET')
               with urllib.request.urlopen(req, timeout=30, context=CTX) as response:
                   payload = json.load(response)
-              assert response.status == 200
-              assert payload.get('code') == 200 and payload.get('hasError') is False
+                  assert response.status == 200
               return payload
 
           def content(path, params):
-              payload = request_json(path, params)
+              payload = raw_json(path, params)
+              assert payload.get('code') == 200 and payload.get('hasError') is False
               body = payload.get('payload') or {}
               rows = body.get('content')
               assert isinstance(rows, list)
@@ -74,10 +74,10 @@ jobs:
           sample = works[0]
           code = str(sample['codigo_proceso']).strip()
           derived = 'ocds-6550wx-' + code
-          ocds = request_json('/ocds/releases', {'ocid': derived})
-          ocds_payload = ocds.get('payload') or {}
-          ocds_content = ocds_payload.get('content', ocds_payload)
-          releases = ocds_content.get('releases') if isinstance(ocds_content, dict) else None
+          ocds = raw_json('/ocds/releases', {'ocid': derived})
+          if isinstance(ocds, dict) and isinstance(ocds.get('payload'), dict):
+              ocds = ocds['payload'].get('content', ocds['payload'])
+          releases = ocds.get('releases') if isinstance(ocds, dict) else None
           assert isinstance(releases, list) and releases
           actual_ocids = sorted({str(r.get('ocid') or '').strip() for r in releases if isinstance(r, dict)})
           print(json.dumps({'process_code': code, 'derived_ocid': derived, 'release_ocids': actual_ocids}, ensure_ascii=False, sort_keys=True))
