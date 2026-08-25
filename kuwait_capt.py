@@ -239,10 +239,7 @@ def fetch_open_tenders(*, session=None, timeout: float = 20.0, max_pages: int = 
 
 def fetch_normalized_construction_tenders(*, session=None, timeout: float = 20.0, max_pages: int = 3) -> list[dict]:
     rows = fetch_open_tenders(session=session, timeout=timeout, max_pages=max_pages)
-    signals = normalize_construction_tenders(rows)
-    if not signals:
-        raise KuwaitCAPTSourceError("CAPT fetch succeeded but construction classifier admitted zero records")
-    return signals
+    return normalize_construction_tenders(rows)
 
 
 class KuwaitCAPTConnector:
