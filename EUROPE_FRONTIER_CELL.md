@@ -23,8 +23,8 @@ This cell is subordinate to the canonical portfolio. It does **not** silently en
 
 | Priority | Market | Cell state | Immediate question | Promotion rule |
 | --- | --- | --- | --- | --- |
-| 1 | Turkey / Türkiye | HOLD_MACHINE_ACCESS | EKAP has exceptional national procurement depth, but is there a supported machine route suitable for production rather than the current interactive/captcha search surface? | Reopen immediately on official/stable API, feed or bulk export plus lawful commercial reuse |
-| 2 | Serbia | FORENSIC_RESEARCH | Can the national procurement portal add below-threshold / award / plan intelligence beyond European shared surfaces at acceptable maintenance cost? | Prefer shared/reusable transport; dedicated only if marginal value is material |
+| 1 | Turkey / Türkiye | HOLD_MACHINE_ACCESS | EKAP has exceptional national procurement depth, but the supported production machine route is unproven. | Reopen immediately on official/stable API, feed or bulk export plus lawful commercial reuse |
+| 2 | Serbia | TECH_LAB_CANDIDATE | Portal has unusually rich notices/procedures/decisions/plans/contracts; public API is unproven and available exports appear analytically useful but incomplete for live detail. | Promote only if an official/reliable incremental route and commercial reuse are closed |
 | 3 | Ukraine | CANONICAL_HOLD | Is there technical learning worth retaining without pretending normal commercial contractor execution is currently rational? | Do not promote while canonical geopolitical/execution blocker dominates |
 | 4 | Georgia | FORENSIC_RESEARCH | Is the national e-procurement surface automatable, reusable and construction-rich enough to justify entry? | Require live proof and commercial reuse evidence |
 | 5 | Moldova | FORENSIC_RESEARCH | Does MTender/national infrastructure provide reusable OCDS-like depth and enough market value? | Reuse an existing family only if transport/completeness semantics match |
@@ -35,62 +35,35 @@ This cell is subordinate to the canonical portfolio. It does **not** silently en
 
 ## Evidence standard
 
-For each market, record separately:
-
-1. **FACT** — official publisher, live endpoint/feed/export, observed fields and pagination/lifecycle behavior.
-2. **LEGAL** — commercial reuse/redistribution status and any timing/attribution restrictions.
-3. **DATA QUALITY** — freshness, completeness, identifiers, lots, amendments, awards/contracts, plans and documents.
-4. **CONSTRUCTION VALUE** — source-native works classification, CPV/local taxonomy, below-threshold depth and early-signal depth.
-5. **REUSE** — exact fit or non-fit with `TED_SEARCH`, `EFORMS_XML`, `OCDS_PAGE_API`, `OCDS_OPAQUE_CURSOR`, `OCDS_MONTHLY_BULK`, or a genuinely new repeated contract.
-6. **ECONOMICS** — commercial upside versus implementation + annual maintenance burden.
-7. **DECISION** — BUILD / SHARED / TECH_LAB / HOLD / REMOVE, with an objective reconsideration trigger where applicable.
-
-No source becomes `ready`, no market becomes commercially active, and no dedicated connector is authorized from documentation claims alone.
+For each market, record separately: official publisher/live access; legal reuse; freshness/completeness/identity/lifecycle; construction and early-signal value; exact shared-family fit; economics; and a final BUILD/SHARED/TECH_LAB/HOLD/REMOVE decision. No source becomes `ready`, no market becomes commercially active, and no dedicated connector is authorized from documentation claims alone.
 
 ## Hard implementation gates
 
-A connector may be implemented only after all of the following are demonstrated:
-
-- official source identity;
-- stable machine access without brittle CAPTCHA/manual workflow;
-- lawful commercial reuse or a documented gate that prevents production;
-- bounded pagination/completeness semantics;
-- durable identity and incremental cursor strategy;
-- construction filtering that does not depend primarily on guessed keywords;
-- lifecycle behavior sufficient to avoid presenting closed/revoked opportunities as live;
-- fail-closed behavior when completeness cannot be guaranteed;
-- material incremental product value versus current coverage;
-- expected engineering/maintenance cost beats the next-best use of the same effort.
+A connector may be implemented only after official source identity, stable non-manual machine access, lawful commercial reuse, bounded completeness semantics, durable identity/cursor strategy, source-native construction filtering, safe lifecycle closure, fail-closed behavior, material incremental value and acceptable engineering/maintenance opportunity cost are demonstrated.
 
 ## Turkey / Türkiye — forensic result 2026-08-25
 
-### FACT
+**FACT / VALUE.** KIK operates EKAP nationally. Official material states that the public tender search exposes more than 100,000 tender notices per year plus tender documents and contract information; the refreshed search adds full-document search and more than twenty filters. Current KIK statistics expose tender notices, tenders, reported contracts and reported contract value. Exception procurements are also increasingly executed electronically through EKAP. This is high national and lifecycle depth, including strong construction potential.
 
-The official Public Procurement Authority/Kamu İhale Kurumu operates EKAP as the national electronic procurement platform. Current official material says the public tender search gives access to more than 100,000 tender notices per year, tender documents and contract information. The refreshed search adds full-document search and more than twenty filters. Official KIK statistics expose current counts for tender notices, tenders, reported contracts and reported contract value. Official notices also confirm that exception procurements are increasingly executed electronically through EKAP, including invitation/notice, qualification information, electronic bids, evaluation, notifications and award-authority workflow.
+**MACHINE ACCESS.** The directly observable legacy public tender-search route is JavaScript-dependent and includes a human challenge/captcha. This cell did not establish an official stable public API/feed/bulk export suitable for production ingestion. ObraSignal must not build captcha bypassing or label browser automation as an API.
 
-The legacy public KSP tender-search surface is interactive, JavaScript-dependent and exposes a human challenge/captcha field. A separate result-notice search exists, so lifecycle depth is visibly present on the human surface.
+**LEGAL.** Free public access is established; commercial SaaS redistribution permission is not sufficiently established. Reuse is UNPROVEN.
 
-### DATA / CONSTRUCTION VALUE
+**DECISION: HOLD_MACHINE_ACCESS.** Reopen immediately when KIK/EKAP exposes/documents a stable API, feed or bulk export without human challenge and commercial reuse is established. Turkey then deserves a fresh BUILD-vs-HOLD economic comparison because the underlying product value is strong.
 
-Turkey therefore passes the **national depth** and **construction relevance potential** tests strongly. EKAP exposes tender type as a structured search dimension and the authority has a dedicated Works (`Yapım İşleri`) regulatory/workgroup domain. Tender documents, result/contract information and richer bidder/document metadata make the potential incremental intelligence materially deeper than a thin notice-only feed.
+## Serbia — forensic result 2026-08-25
 
-### MACHINE ACCESS
+**FACT / LIVE DEPTH.** The official Public Procurement Portal is live and national. At inspection it exposed 2026 counters for roughly 98k notices and 29k procedures, almost 10k procedures still within deadline, recent award/suspension decisions, and 3.7k procurement plans. The portal explicitly surfaces notices, procedures, decisions and plans. The Public Procurement Office states that from 1 January 2024 contracting authorities must publish contract and contract-amendment data on the portal. Unauthenticated users can search procedures, notices, plans, decisions and rights-protection decisions, and inspect procedure detail through the mobile/public experience.
 
-This investigation did **not** establish an official, stable, documented public API/feed/bulk export suitable for ObraSignal production ingestion. The directly observable public search path is a browser workflow with JavaScript and a challenge field. That fails the current production machine-access gate. ObraSignal must not implement brittle captcha bypassing or pretend that an interactive public website is a production API.
+**EARLY SIGNAL / LIFECYCLE.** Serbia is technically attractive because plans are first-class portal objects, while awards, suspensions, contracts and contract amendments provide downstream lifecycle. The legal framework uses CPV and standard publication forms. This is materially more useful for ObraSignal research than a notice-only portal.
 
-### LEGAL
+**MACHINE ACCESS.** This investigation did not prove a public official API. Independent 2024 open-data analysis reports that portal data can be downloaded in Excel/JSON, including lists of procedures, but detailed procedure data lacks a publicly available open API endpoint and exports are limited/not real-time. Treat that report as supporting evidence, not an official API contract. A production connector therefore remains blocked until the exact current export/endpoints, completeness, pagination and incremental semantics are live-validated.
 
-Official material establishes free public access to notices, documents, contract-result information and qualification information. It does not, by itself, establish a sufficiently explicit commercial redistribution licence for a SaaS ingestion/redistribution product. Commercial reuse therefore remains **UNPROVEN**, not RED and not GREEN.
+**LEGAL.** Free public search is established. Commercial redistribution/reuse for an automated SaaS feed remains UNPROVEN and must be closed separately.
 
-### REUSE
+**REUSE.** Do not claim OCDS/eForms family compatibility merely because JSON/export exists. Transport and lifecycle semantics are not yet proven to match any existing family.
 
-No existing shared source family can be claimed. There is no proven TED/eForms or OCDS transport contract here. A Turkey adapter would be source-specific unless a future official API/export proves a reusable contract.
-
-### DECISION
-
-**HOLD_MACHINE_ACCESS.** This is not a commercial rejection. Turkey is a high-value source trapped behind two unresolved production gates: supported machine access and commercial reuse. Do not spend connector engineering on scraping/captcha work.
-
-**Reconsideration trigger:** immediately reopen when KIK/EKAP exposes or documents a stable API, feed or bulk export usable without human challenge and commercial reuse/redistribution is established. At that point Turkey should receive a fresh BUILD-vs-HOLD economic comparison because the underlying national data depth is already strong.
+**DECISION: TECH_LAB_CANDIDATE, not commercial BUILD.** Serbia has enough plan + procedure + award/contract lifecycle depth to justify continued technical investigation. It does not yet justify a dedicated production connector. Reopen commercial promotion when a stable incremental machine route and lawful reuse are demonstrated; then compare marginal value against the 13-connector target rather than expanding it automatically.
 
 ## Switzerland — closed reference case
 
@@ -99,14 +72,14 @@ Switzerland is the reference for what "done" means in this cell, not an item to 
 ## Current decisions
 
 - **Switzerland:** DONE / BUILD reference; no duplicate work.
-- **Turkey / Türkiye:** HOLD_MACHINE_ACCESS; strong data/product potential, no production connector until machine-access + commercial-reuse gates are closed.
+- **Turkey / Türkiye:** HOLD_MACHINE_ACCESS; strong product potential, no connector until machine-access + commercial-reuse gates close.
+- **Serbia:** TECH_LAB_CANDIDATE; unusually useful plans/lifecycle, but public incremental API + reuse are unproven.
 - **Ukraine:** HOLD inherited; research may improve technical knowledge but must not silently promote commercial scope.
-- **Serbia, Georgia, Moldova, Albania, North Macedonia, Bosnia and Herzegovina, Montenegro:** not yet classified by this cell. Absence from the current 135-market canonical registry is not evidence of poor data; each requires source-forensic evaluation before any scope mutation.
+- **Georgia, Moldova, Albania, North Macedonia, Bosnia and Herzegovina, Montenegro:** still require source-forensic evaluation.
 
 ## Next executable sequence
 
-1. Serbia: official-source + machine-access + legal-reuse + works-depth probe.
-2. Ukraine: technical-source audit only; preserve HOLD unless the canonical blocker changes.
-3. Georgia and Moldova: prioritize reusable structured/OCDS-compatible routes.
-4. Albania, North Macedonia, Bosnia and Herzegovina, Montenegro: evaluate in descending expected value; stop early where fragmentation or tiny marginal value clearly fails the opportunity-cost test.
-5. Only after evidence exists, update portfolio/scope registries and tests in a separate implementation change; do not mix unverified research assertions into production registries.
+1. Ukraine: technical-source audit only; preserve HOLD unless the canonical blocker changes.
+2. Georgia and Moldova: prioritize reusable structured/OCDS-compatible routes.
+3. Albania, North Macedonia, Bosnia and Herzegovina, Montenegro: evaluate in descending expected value; stop early where fragmentation or tiny marginal value clearly fails the opportunity-cost test.
+4. Only after evidence exists, update canonical portfolio/scope registries and tests in a separate implementation change; do not mix unverified research assertions into production registries.
