@@ -1,6 +1,8 @@
 """Presentation helpers for auditable opportunity decisions."""
 from __future__ import annotations
 
+from capability_rollout import runtime_enabled
+
 
 def _status_text(decision: dict | None) -> str:
     if not decision:
@@ -30,11 +32,12 @@ def _feature_lines(features: dict | None) -> list[dict]:
 
     capability = features.get("capability_evidence") or {}
     if capability:
-        evidence_count = capability.get("evidence_count", 0)
-        detail = capability.get("reason") or "sem evidência explícita"
+        evidence_count = capability.get("evidence_count")
+        value = "Não indicado" if evidence_count is None else f"{evidence_count} evidência(s)"
+        detail = capability.get("reason") or ("contagem de evidência não indicada" if evidence_count is None else "sem evidência explícita")
         if capability.get("matched_services"):
             detail += ": " + ", ".join(capability["matched_services"][:3])
-        lines.append({"label": "Capacidade", "value": f"{evidence_count} evidência(s)", "detail": detail})
+        lines.append({"label": "Capacidade", "value": value, "detail": detail})
 
     economics = features.get("economic_fit") or {}
     if economics:
@@ -50,10 +53,19 @@ def _feature_lines(features: dict | None) -> list[dict]:
     return lines
 
 
+def _evidence_enabled() -> bool:
+    try:
+        return runtime_enabled("EVIDENCE")
+    except RuntimeError:
+        return False
+
+
 def present_decision(decision: dict | None) -> dict:
     """Convert persisted decision data into a stable UI payload."""
     decision = decision or {}
     features = decision.get("features") or {}
+    explanation = features.get("explanation") or {}
+    evidence = explanation.get("evidence") if isinstance(explanation, dict) and _evidence_enabled() else None
     return {
         "status": _status_text(decision),
         "reason": decision.get("reason") or "Não existe uma razão registada.",
@@ -62,4 +74,5 @@ def present_decision(decision: dict | None) -> dict:
         "rule_version": decision.get("rule_version"),
         "decided_at": decision.get("decided_at"),
         "lines": _feature_lines(features),
+        "evidence": evidence if isinstance(evidence, dict) else None,
     }
