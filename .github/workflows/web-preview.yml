@@ -4,26 +4,27 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact current main SHA authorized for GitHub Pages deployment
+        required: true
+        type: string
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages-preview
-  cancel-in-progress: true
+  group: pages-release
+  cancel-in-progress: false
 
 env:
   EXPO_PUBLIC_API_URL: https://obrasignal.onrender.com/api/v1
+  RELEASE_TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     defaults:
       run:
         working-directory: mobile
@@ -31,9 +32,34 @@ jobs:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       EXPO_PUBLIC_API_URL: https://obrasignal.onrender.com/api/v1
-      EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
+      EXPO_PUBLIC_BUILD_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact release candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TARGET_SHA }}
+          fetch-depth: 0
+
+      - name: Confirm exact revision under build
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_TARGET_SHA"
+
+      - name: Refuse stale or non-canonical manual deploy target
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags --prune
+          canonical="$(git rev-parse origin/main)"
+          test "$canonical" = "$RELEASE_TARGET_SHA" || {
+            echo "Refusing Pages release: target $RELEASE_TARGET_SHA is not current canonical main $canonical."
+            exit 1
+          }
+          echo "canonical_web_release_sha=$RELEASE_TARGET_SHA"
 
       - uses: actions/setup-node@v4
         with:
@@ -58,7 +84,7 @@ jobs:
       - name: Build web bundle
         run: npm run smoke:web
 
-      - name: Stamp deployed build into page
+      - name: Stamp release candidate into page
         shell: bash
         run: |
           set -euo pipefail
@@ -68,7 +94,7 @@ jobs:
           from pathlib import Path
           p = Path('.smoke-dist/index.html')
           s = p.read_text(encoding='utf-8')
-          build = os.environ['GITHUB_SHA'][:7]
+          build = os.environ['RELEASE_TARGET_SHA'][:7]
           marker = f'<meta name="obrasignal-build" content="{build}">'
           if '<meta name="obrasignal-build"' in s:
               s = re.sub(r'<meta name="obrasignal-build"[^>]*>', marker, s, count=1)
@@ -85,10 +111,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          expected="${RELEASE_TARGET_SHA:0:7}"
           test -s .smoke-dist/index.html
           grep -q "ObraSignal" .smoke-dist/index.html
           grep -q "obrasignal-build" .smoke-dist/index.html
-          grep -q "${GITHUB_SHA:0:7}" .smoke-dist/index.html
+          grep -q "$expected" .smoke-dist/index.html
           test -n "$(find .smoke-dist -type f | wc -l)"
 
       - name: Upload Pages artifact
@@ -96,29 +123,71 @@ jobs:
         with:
           path: mobile/.smoke-dist
 
-      - name: Deploy to GitHub Pages
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Reconfirm target is current canonical main before deploy
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha }}
+          fetch-depth: 0
+
+      - name: Fail closed on pre-deploy main drift
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          git fetch origin main --no-tags --prune
+          canonical="$(git rev-parse origin/main)"
+          test "$canonical" = "$TARGET_SHA" || {
+            echo "Refusing Pages deployment: main moved from target $TARGET_SHA to $canonical."
+            exit 1
+          }
+
+      - name: Deploy exact authorized build to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: Verify deployment URL
+      - name: Verify exact deployed Pages build and detect post-deploy drift
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          TARGET_SHA: ${{ inputs.target_sha }}
         run: |
           set -euo pipefail
           test -n "$PAGE_URL"
-          echo "Web preview deployed at $PAGE_URL"
+          expected="${TARGET_SHA:0:7}"
+          marker="<meta name=\"obrasignal-build\" content=\"${expected}\">"
           for attempt in 1 2 3 4 5 6 7 8; do
-            if curl --fail --silent --show-error --location --max-time 20 "$PAGE_URL" | grep -q "${GITHUB_SHA:0:7}"; then
-              echo "GitHub Pages deployment is serving build ${GITHUB_SHA:0:7}."
+            if curl --fail --silent --show-error --location --max-time 20 "$PAGE_URL" > /tmp/web.html \
+              && grep -Fq "$marker" /tmp/web.html; then
+              echo "GitHub Pages is serving exact authorized Web build $expected."
+              git fetch origin main --no-tags --prune
+              canonical="$(git rev-parse origin/main)"
+              test "$canonical" = "$TARGET_SHA" || {
+                echo "Pages deployed $TARGET_SHA but main moved to $canonical during deployment; release is STALE."
+                exit 1
+              }
               exit 0
             fi
-            echo "Waiting for Pages to serve build ${GITHUB_SHA:0:7} (attempt $attempt/8)…"
+            echo "Waiting for Pages to serve exact build $expected (attempt $attempt/8)…"
             sleep 10
           done
-          echo "GitHub Pages is not serving the newly deployed build marker."
+          echo "GitHub Pages is not serving exact authorized Web build $expected."
           exit 1
 
       - name: Report deployment URL
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
-        run: echo "Web preview deployed at $PAGE_URL"
+        run: echo "Web release verified at $PAGE_URL"
