@@ -4,6 +4,7 @@ from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
+import opportunity_watchlist_api  # noqa: F401 - registers the isolated watchlist blueprint
 from auth_context import configured_identity, InvalidTokenError
 
 # api.py owns the mobile API blueprint; register it here because this is the
@@ -28,7 +29,7 @@ def _cors(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
