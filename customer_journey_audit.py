@@ -30,14 +30,29 @@ REQUIRED_EDGE_FIELDS = {
     "STATUS",
     "EVIDENCE",
 }
-WAIT_STATUSES = {"EXTERNAL_GOLDEN_ONLY"}
 FAIL_CLOSED_STATUSES = {"BROKEN", "DISCOVERED_UNKNOWN", "STALE", "PREBUILD", "EXTERNAL_GOLDEN_ONLY"}
+EXTERNAL_WAIT_BOUNDARIES = {
+    "GOLDEN",
+    "REAL_DEVICE_GOLDEN",
+    "PROVIDER",
+    "PRODUCTION_EVIDENCE",
+    "CUSTOMER_EVIDENCE",
+    "FOUNDER_AUTHORIZATION",
+}
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
-def load_registry(path: str | Path = "customer_journey_registry.json") -> dict:
+def _load_json(path: str | Path) -> dict:
     with Path(path).open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def load_registry(path: str | Path = "customer_journey_registry.json") -> dict:
+    return _load_json(path)
+
+
+def load_stack(path: str | Path = "customer_journey_stack.json") -> dict:
+    return _load_json(path)
 
 
 def validate_registry(registry: dict) -> list[str]:
@@ -111,9 +126,6 @@ def validate_registry(registry: dict) -> list[str]:
             if any("no canonical" in str(item).lower() for item in edge["CURRENT_TEST"]):
                 errors.append(f"{step}: PROVEN cannot coexist with missing canonical evidence")
 
-        if status in WAIT_STATUSES and not str(edge.get("REOPEN_CONDITION") or "").strip():
-            errors.append(f"{step}: WAIT-classified status requires REOPEN_CONDITION")
-
         if status in {"BROKEN", "PREBUILD"} and edge.get("BLOCKER") and not str(edge.get("REOPEN_CONDITION") or "").strip():
             errors.append(f"{step}: blocked {status} requires REOPEN_CONDITION")
 
@@ -147,6 +159,43 @@ def validate_registry(registry: dict) -> list[str]:
     return errors
 
 
+def validate_stack(stack: dict, registry: dict) -> list[str]:
+    errors: list[str] = []
+    if stack.get("factory_title") != FACTORY_TITLE:
+        errors.append("stack factory_title must remain canonical and exact")
+    if stack.get("canonical_main_sha") != registry.get("canonical_main_sha"):
+        errors.append("stack canonical_main_sha must match journey registry exact head")
+
+    for section in ("ACTIVE", "NEXT", "WAIT"):
+        value = stack.get(section)
+        if not isinstance(value, list):
+            errors.append(f"stack {section} must be a list")
+
+    waits = stack.get("WAIT") if isinstance(stack.get("WAIT"), list) else []
+    for index, item in enumerate(waits):
+        if not isinstance(item, dict):
+            errors.append(f"WAIT[{index}] must be an object")
+            continue
+        for field in ("step", "boundary", "reason", "reopen_condition"):
+            if not isinstance(item.get(field), str) or not item[field].strip():
+                errors.append(f"WAIT[{index}] requires non-empty {field}")
+        if item.get("boundary") not in EXTERNAL_WAIT_BOUNDARIES:
+            errors.append(f"WAIT[{index}] boundary must be a genuine external boundary")
+
+    # EXTERNAL_GOLDEN_ONLY edges must be represented by a reopenable WAIT item.
+    external_steps = {
+        edge.get("STEP")
+        for edge in registry.get("edges", [])
+        if isinstance(edge, dict) and edge.get("STATUS") == "EXTERNAL_GOLDEN_ONLY"
+    }
+    wait_steps = {item.get("step") for item in waits if isinstance(item, dict)}
+    missing_waits = external_steps - wait_steps
+    if missing_waits:
+        errors.append(f"EXTERNAL_GOLDEN_ONLY edges missing WAIT reopen contract: {sorted(missing_waits)}")
+
+    return errors
+
+
 def status_counts(registry: dict) -> dict[str, int]:
     return dict(sorted(Counter(edge["STATUS"] for edge in registry.get("edges", []) if isinstance(edge, dict) and "STATUS" in edge).items()))
 
@@ -160,7 +209,6 @@ def critical_edges(registry: dict) -> list[dict[str, str]]:
             "step": str(edge.get("STEP")),
             "status": str(edge.get("STATUS")),
             "owner": str(edge.get("OWNER")),
-            "reopen_condition": str(edge.get("REOPEN_CONDITION") or ""),
         })
     return result
 
@@ -168,15 +216,18 @@ def critical_edges(registry: dict) -> list[dict[str, str]]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("registry", nargs="?", default="customer_journey_registry.json")
+    parser.add_argument("--stack", default="customer_journey_stack.json")
     args = parser.parse_args()
     registry = load_registry(args.registry)
-    errors = validate_registry(registry)
+    stack = load_stack(args.stack)
+    errors = validate_registry(registry) + validate_stack(stack, registry)
     payload = {
         "ok": not errors,
         "factory_title": registry.get("factory_title"),
         "canonical_main_sha": registry.get("canonical_main_sha"),
         "status_counts": status_counts(registry),
         "critical_edges": critical_edges(registry),
+        "wait": stack.get("WAIT", []),
         "errors": errors,
     }
     print(json.dumps(payload, indent=2, sort_keys=True))
