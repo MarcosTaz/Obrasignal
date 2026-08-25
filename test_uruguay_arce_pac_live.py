@@ -14,6 +14,7 @@ import requests
 PAC_PUBLIC_URL = "https://www.comprasestatales.gub.uy/consultaplananual/"
 PAC_CONFIG_URL = urljoin(PAC_PUBLIC_URL, "assets/config.json")
 MAX_FRONTEND_BYTES = 12 * 1024 * 1024
+WORKS_FAMILY_CODE = 6
 SESSION = requests.Session()
 SESSION.headers.update({
     "User-Agent": "ObraSignal ARCE PAC public-contract probe/1.0",
@@ -74,11 +75,16 @@ def test_live_uruguay_arce_public_pac_frontend_contract():
         "./assets/config.json", "apiUrl",
     ):
         assert token in js
-    position = js.find('/api/v1/familias/all')
-    context = re.sub(r"\s+", " ", js[max(0, position - 500):position + 900])
+    position = js.find("loadProcedureQueryParameters")
+    context = js[position:position + 4500]
+    filter_names = []
+    for name in re.findall(r'ak\([^,]+,["\']([^"\']+)["\']', context):
+        if name not in filter_names:
+            filter_names.append(name)
     print("UY_PAC_STATUS=" + str(response.status_code))
     print("UY_PAC_MAIN_JS=" + main_url)
-    print("UY_PAC_FAMILY_ROUTE_CONTEXT=" + context)
+    print("UY_PAC_FILTER_NAMES=" + ",".join(filter_names))
+    assert "codFamilia" in filter_names
 
 
 def test_live_uruguay_arce_public_pac_same_origin_stability_and_detail():
@@ -99,7 +105,6 @@ def test_live_uruguay_arce_public_pac_same_origin_stability_and_detail():
     sample = next((row for row in payload["content"] if isinstance(row, dict)), None)
     assert sample and sample.get("id") is not None
     print("UY_PAC_PROCEDURE_FIELDS=" + ",".join(sorted(map(str, sample.keys()))))
-
     detail = _get(api_url + "/api/v1/compra-procedimientos/" + str(sample["id"]), raise_status=False)
     print("UY_PAC_DETAIL_STATUS=" + str(detail.status_code))
     assert detail.status_code == 200 and "json" in detail.headers.get("Content-Type", "").lower()
@@ -109,26 +114,34 @@ def test_live_uruguay_arce_public_pac_same_origin_stability_and_detail():
         print("UY_PAC_PLAN_FIELDS=" + ",".join(sorted(map(str, detail_payload["planAnual"].keys()))))
 
 
-def test_live_uruguay_arce_public_pac_native_family_taxonomy():
+def test_live_uruguay_arce_public_pac_native_family_taxonomy_and_filter():
     api_url = _api_url()
-    response = _get(api_url + "/api/v1/familias/all", raise_status=False)
-    print(f"UY_PAC_FAMILIES_STATUS={response.status_code} content_type={response.headers.get('Content-Type', '')!r}")
-    assert response.status_code == 200, "ARCE PAC family taxonomy route is not stably readable"
-    assert "json" in response.headers.get("Content-Type", "").lower()
+    families = _get(api_url + "/api/v1/familias/all", raise_status=False)
+    print(f"UY_PAC_FAMILIES_STATUS={families.status_code} content_type={families.headers.get('Content-Type', '')!r}")
+    assert families.status_code == 200
+    rows = families.json()
+    assert isinstance(rows, list) and rows
+    match = next((row for row in rows if isinstance(row, dict) and int(row.get("codFamilia") or -1) == WORKS_FAMILY_CODE), None)
+    assert match is not None
+    print("UY_PAC_WORKS_FAMILY=" + repr(match))
+    assert "CONSTRUCCIONES" in str(match.get("descFamilia") or "").upper()
+
+    response = _get(
+        api_url + "/api/v1/compra-procedimientos",
+        params={"sort": "periodoConvFechaIni,desc", "page": 0, "size": 5, "codFamilia": WORKS_FAMILY_CODE},
+        raise_status=False,
+    )
+    print(f"UY_PAC_WORKS_FILTER_STATUS={response.status_code} content_type={response.headers.get('Content-Type', '')!r}")
+    assert response.status_code == 200 and "json" in response.headers.get("Content-Type", "").lower()
     payload = response.json()
-    print("UY_PAC_FAMILIES_SHAPE=" + _shape(payload))
-    if isinstance(payload, dict):
-        rows = next((payload.get(key) for key in ("content", "data", "results", "items") if isinstance(payload.get(key), list)), [])
-    else:
-        rows = payload if isinstance(payload, list) else []
-    assert rows
-    sample = next((row for row in rows if isinstance(row, dict)), None)
-    assert sample
-    print("UY_PAC_FAMILY_FIELDS=" + ",".join(sorted(map(str, sample.keys()))))
-    candidates = []
-    for row in rows:
-        if isinstance(row, dict):
-            label = " ".join(str(v or "") for v in row.values()).lower()
-            if any(token in label for token in ("obra", "construc", "edific", "vial")):
-                candidates.append(row)
-    print("UY_PAC_WORKS_FAMILY_CANDIDATES=" + repr(candidates[:30]))
+    assert isinstance(payload, dict) and isinstance(payload.get("content"), list)
+    print("UY_PAC_WORKS_TOTAL=" + str(payload.get("totalElements")))
+    print("UY_PAC_WORKS_TOTAL_PAGES=" + str(payload.get("totalPages")))
+    sample = next((row for row in payload["content"] if isinstance(row, dict)), None)
+    assert sample is not None
+    plan = sample.get("planAnual") if isinstance(sample.get("planAnual"), dict) else {}
+    print("UY_PAC_WORKS_SAMPLE_ID=" + str(sample.get("id")))
+    print("UY_PAC_WORKS_SAMPLE_OBJECT=" + str(sample.get("objetoCompra")))
+    print("UY_PAC_WORKS_SAMPLE_START=" + str(sample.get("periodoConvFechaIni")))
+    print("UY_PAC_WORKS_SAMPLE_END=" + str(sample.get("periodoConvFechaFin")))
+    print("UY_PAC_WORKS_SAMPLE_PLAN_YEAR=" + str(plan.get("anioPlan")))
