@@ -62,17 +62,20 @@ class FakeGitHub:
         return "name: ObraSignal Quality\non:\n  pull_request:\n"
 
     def workflow_runs(self, head_sha):
-        return [{
-            "id": 10,
-            "run_number": 2,
-            "name": "ObraSignal Quality",
-            "path": ".github/workflows/quality.yml",
-            "head_sha": head_sha,
-            "status": "completed",
-            "conclusion": "success",
-            "event": "pull_request",
-            "pull_requests": [],
-        }]
+        return [
+            {
+                "id": 10,
+                "run_number": 2,
+                "run_attempt": 1,
+                "name": "ObraSignal Quality",
+                "path": ".github/workflows/quality.yml",
+                "head_sha": head_sha,
+                "status": "completed",
+                "conclusion": "success",
+                "event": "pull_request",
+                "pull_requests": [],
+            }
+        ]
 
 
 def test_collect_is_read_only_snapshot_and_resolves_dependency_heads():
@@ -91,6 +94,7 @@ def test_gate_attribution_is_exposed_in_candidate_evidence():
     gate = report["candidates"][0]["evidence"]["gate_attribution"]
     assert gate["owner_gate_state"] == "OWNER_CURRENT_GREEN"
     assert gate["gates"][0]["attribution"] == "REQUIRED"
+    assert gate["gates"][0]["owner_effect"] == "OWNER_PASS_INPUT"
 
 
 class EngineeringOpsFake(FakeGitHub):
@@ -122,7 +126,15 @@ class EngineeringOpsFake(FakeGitHub):
 
     def text_file(self, path, *, ref):
         if path.endswith("engineering-ops-drift.yml"):
-            return "name: Engineering Ops Drift\non:\n  pull_request:\n    paths:\n      - engineering_ops_github.py\n      - 'tests/**'\n  workflow_dispatch:\n"
+            return (
+                "name: Engineering Ops Drift\n"
+                "on:\n"
+                "  pull_request:\n"
+                "    paths:\n"
+                "      - engineering_ops_github.py\n"
+                "      - 'tests/**'\n"
+                "  workflow_dispatch:\n"
+            )
         return f"name: {path}\non:\n  pull_request:\n"
 
     def workflow_runs(self, head_sha):
@@ -130,6 +142,7 @@ class EngineeringOpsFake(FakeGitHub):
             {
                 "id": 1,
                 "run_number": 1,
+                "run_attempt": 1,
                 "name": "Engineering Ops Drift",
                 "path": ".github/workflows/engineering-ops-drift.yml",
                 "head_sha": head_sha,
@@ -141,6 +154,7 @@ class EngineeringOpsFake(FakeGitHub):
             {
                 "id": 2,
                 "run_number": 2,
+                "run_attempt": 1,
                 "name": "ObraSignal Quality",
                 "path": ".github/workflows/quality.yml",
                 "head_sha": head_sha,
@@ -152,6 +166,7 @@ class EngineeringOpsFake(FakeGitHub):
             {
                 "id": 3,
                 "run_number": 3,
+                "run_attempt": 1,
                 "name": "Golden GP03 Economic Operational Truth",
                 "path": ".github/workflows/golden-gp03.yml",
                 "head_sha": head_sha,
@@ -167,7 +182,59 @@ def test_missing_required_codeql_is_required_not_run_and_incidental_gp03_is_not_
     snapshot = collect(EngineeringOpsFake())
     attribution = snapshot["gate_attribution"]["407"]
     by_name = {row["workflow"]: row for row in attribution["gates"]}
-    assert by_name["Golden GP03 Economic Operational Truth"]["attribution"] == "INCIDENTALLY_TRIGGERED"
-    assert by_name["Golden GP03 Economic Operational Truth"]["gate_state"] == "FAIL"
-    assert by_name["ObraSignal CodeQL"]["attribution"] == "REQUIRED_NOT_RUN"
+    gp03 = by_name["Golden GP03 Economic Operational Truth"]
+    codeql = by_name["ObraSignal CodeQL"]
+    assert gp03["attribution"] == "INCIDENTALLY_TRIGGERED"
+    assert gp03["gate_state"] == "FAIL"
+    assert gp03["owner_effect"] == "EXCLUDED_FROM_OWNER_PASS_RED"
+    assert codeql["attribution"] == "REQUIRED_NOT_RUN"
+    assert codeql["trigger_awareness"] == "WORKFLOW_MISSING"
+    assert codeql["owner_effect"] == "OWNER_NEEDS_RECHECK"
     assert attribution["owner_gate_state"] == "NEEDS_RECHECK"
+
+
+class DuplicateRunFake(EngineeringOpsFake):
+    def workflow_runs(self, head_sha):
+        rows = super().workflow_runs(head_sha)
+        rows.extend(
+            [
+                {
+                    "id": 11,
+                    "run_number": 4,
+                    "run_attempt": 1,
+                    "name": "Engineering Ops Drift",
+                    "path": ".github/workflows/engineering-ops-drift.yml",
+                    "head_sha": head_sha,
+                    "status": "in_progress",
+                    "conclusion": None,
+                    "event": "pull_request",
+                    "pull_requests": [{"number": 407}],
+                },
+                {
+                    "id": 12,
+                    "run_number": 4,
+                    "run_attempt": 2,
+                    "name": "Engineering Ops Drift",
+                    "path": ".github/workflows/engineering-ops-drift.yml",
+                    "head_sha": head_sha,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "event": "pull_request",
+                    "pull_requests": [{"number": 407}],
+                },
+            ]
+        )
+        return rows
+
+
+def test_latest_run_attempt_is_used_for_owner_evidence():
+    snapshot = collect(DuplicateRunFake())
+    drift = next(
+        row
+        for row in snapshot["gate_attribution"]["407"]["gates"]
+        if row["workflow"] == "Engineering Ops Drift"
+    )
+    assert drift["run_id"] == 12
+    assert drift["run_attempt"] == 2
+    assert drift["gate_state"] == "PASS"
+    assert drift["trigger_awareness"] == "AUTO_TRIGGER_EXPECTED"
