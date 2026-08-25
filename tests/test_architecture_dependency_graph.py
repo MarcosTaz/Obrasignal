@@ -33,6 +33,12 @@ def test_dependency_graph_covers_current_runtime_composition_boundaries():
     assert _edge(graph, "cors_app.py", "sync_funnel_hook.py")["classification"] == "EXPECTED"
     assert _edge(graph, "api.py", "preload.py")["classification"] == "LEGACY"
     assert _edge(graph, "preload.py", "app.py")["classification"] == "LEGACY"
+    assert _edge(
+        graph,
+        "mobile/components/BillingGate.js",
+        "mobile/src/billing.js",
+        kind="JS_RELATIVE_IMPORT",
+    )["classification"] == "EXPECTED"
 
 
 def test_lazy_schema_composition_edges_are_visible_and_classified():
