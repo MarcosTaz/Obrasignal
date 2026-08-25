@@ -20,13 +20,11 @@ def _summary(url, params):
     payload = envelope.get("payload") if isinstance(envelope, dict) else None
     content = payload.get("content") if isinstance(payload, dict) else None
     return {
-        "envelope_keys": sorted(envelope) if isinstance(envelope, dict) else [],
-        "payload_keys": sorted(payload) if isinstance(payload, dict) else [],
         "content_len": len(content) if isinstance(content, list) else None,
-        "payload_meta": {
-            key: payload.get(key)
-            for key in ("page", "number", "size", "limit", "total", "totalPages", "totalElements", "pages", "count", "last", "first")
-            if isinstance(payload, dict) and key in payload
+        "meta": {
+            key: envelope.get(key)
+            for key in ("page", "limit", "pages", "totalResults")
+            if isinstance(envelope, dict) and key in envelope
         },
     }
 
