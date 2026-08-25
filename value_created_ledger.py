@@ -136,7 +136,7 @@ class ValueSummary:
 
 
 def ensure_value_ledger_schema(conn) -> None:
-    """Idempotent, backwards-compatible schema initializer for the existing DB."""
+    """Idempotent, additive schema initializer for the existing SQLite DB."""
     conn.execute(SCHEMA)
     columns = {row[1] for row in conn.execute("PRAGMA table_info(value_events)").fetchall()}
     migrations = {
@@ -228,15 +228,28 @@ def _validate_currency(currency: str | None) -> str | None:
 def _row_to_event(row) -> ValueEvent:
     item = dict(row)
     return ValueEvent(
-        event_id=item["event_id"], account_id=item["account_id"], category=item["category"],
-        value_type=ValueType(item["value_type"]), amount=_decimal(item["amount_text"]),
-        currency=item["currency"], unit=item["unit"], occurred_at=item["occurred_at"],
-        recorded_at=item["recorded_at"], source=item["source"], decision_id=item["decision_id"],
-        opportunity_id=item["opportunity_id"], project_id=item["project_id"], method=item["method"],
-        confidence=Confidence(item["confidence"]), evidence_refs=tuple(json.loads(item["evidence_refs_json"] or "[]")),
-        assumptions=tuple(json.loads(item["assumptions_json"] or "[]")), notes=item["notes"],
-        status=ValueStatus(item["status"]), deduplication_key=item["deduplication_key"],
-        causal_reference=item["causal_reference"], corrects_event_id=item["corrects_event_id"],
+        event_id=item["event_id"],
+        account_id=item["account_id"],
+        category=item["category"],
+        value_type=ValueType(item["value_type"]),
+        amount=_decimal(item["amount_text"]),
+        currency=item["currency"],
+        unit=item["unit"],
+        occurred_at=item["occurred_at"],
+        recorded_at=item["recorded_at"],
+        source=item["source"],
+        decision_id=item["decision_id"],
+        opportunity_id=item["opportunity_id"],
+        project_id=item["project_id"],
+        method=item["method"],
+        confidence=Confidence(item["confidence"]),
+        evidence_refs=tuple(json.loads(item["evidence_refs_json"] or "[]")),
+        assumptions=tuple(json.loads(item["assumptions_json"] or "[]")),
+        notes=item["notes"],
+        status=ValueStatus(item["status"]),
+        deduplication_key=item["deduplication_key"],
+        causal_reference=item["causal_reference"],
+        corrects_event_id=item["corrects_event_id"],
         supersedes_event_id=item["supersedes_event_id"],
     )
 
@@ -248,24 +261,19 @@ def record_value_event(
     opportunity_id=None, project_id=None, event_id=None, deduplication_key=None,
     causal_reference=None, corrects_event_id=None, supersedes_event_id=None,
 ) -> ValueEvent:
-    """Append one immutable value observation.
-
-    Negative amounts are intentionally allowed: measured harm/regret must be
-    recordable. Historical events are never updated by this API.
-    """
+    """Append one immutable value observation."""
     ensure_value_ledger_schema(conn)
     account = _clean_ref(account_id, "account_id")
     if account is None:
         raise ValueError("account_id is required")
+
     category = str(category or "").strip().lower()
     if category not in ALLOWED_CATEGORIES:
         raise ValueError(f"unsupported value category: {category}")
     vt = _enum(ValueType, value_type, "value_type")
     conf = _enum(Confidence, confidence, "confidence")
-    if status is None:
-        st = ValueStatus.OBSERVED if vt != ValueType.UNKNOWN else ValueStatus.PROPOSED
-    else:
-        st = _enum(ValueStatus, status, "status")
+    st = (_enum(ValueStatus, status, "status") if status is not None
+          else (ValueStatus.OBSERVED if vt != ValueType.UNKNOWN else ValueStatus.PROPOSED))
     amt = _decimal(amount)
     curr = _validate_currency(currency)
     unit = _clean_ref(unit, "unit")
@@ -273,6 +281,7 @@ def record_value_event(
     source = _clean_ref(source, "source")
     if source is None:
         raise ValueError("source is required")
+
     if amt is not None and curr is None and unit is None:
         raise ValueError("non-monetary amount requires unit")
     if curr is not None and amt is None and vt != ValueType.UNKNOWN:
@@ -299,14 +308,16 @@ def record_value_event(
     supersedes = _clean_ref(supersedes_event_id, "supersedes_event_id")
 
     for relation, target in (("corrects", corrects), ("supersedes", supersedes)):
-        if target:
-            target_row = conn.execute(
-                "SELECT account_id FROM value_events WHERE event_id=?", (target,)
-            ).fetchone()
-            if target_row is None:
-                raise ValueError(f"{relation} target does not exist")
-            if target_row["account_id"] != account:
-                raise ValueError(f"{relation} target belongs to another account")
+        if not target:
+            continue
+        target_row = conn.execute(
+            "SELECT account_id FROM value_events WHERE event_id=?", (target,)
+        ).fetchone()
+        if target_row is None:
+            raise ValueError(f"{relation} target does not exist")
+        target_account = target_row["account_id"] if hasattr(target_row, "keys") else target_row[0]
+        if target_account != account:
+            raise ValueError(f"{relation} target belongs to another account")
 
     try:
         conn.execute(
@@ -316,19 +327,23 @@ def record_value_event(
                 method, confidence, evidence_refs_json, assumptions_json, notes, status,
                 deduplication_key, causal_reference, corrects_event_id, supersedes_event_id
             ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (eid, account, category, vt.value, _decimal_text(amt), curr, unit, occurred, recorded,
-             source, _clean_ref(decision_id, "decision_id"), _clean_ref(opportunity_id, "opportunity_id"),
-             _clean_ref(project_id, "project_id"), method, conf.value,
-             json.dumps(refs, ensure_ascii=False, separators=(",", ":")),
-             json.dumps(assumps, ensure_ascii=False, separators=(",", ":")), notes, st.value,
-             dedup, causal, corrects, supersedes),
+            (
+                eid, account, category, vt.value, _decimal_text(amt), curr, unit, occurred, recorded,
+                source, _clean_ref(decision_id, "decision_id"),
+                _clean_ref(opportunity_id, "opportunity_id"), _clean_ref(project_id, "project_id"),
+                method, conf.value, json.dumps(refs, ensure_ascii=False, separators=(",", ":")),
+                json.dumps(assumps, ensure_ascii=False, separators=(",", ":")), notes, st.value,
+                dedup, causal, corrects, supersedes,
+            ),
         )
     except Exception as exc:
         if dedup and "UNIQUE" in str(exc).upper():
             raise ValueError("duplicate value event for account/deduplication_key") from exc
         raise
     conn.commit()
-    row = conn.execute("SELECT * FROM value_events WHERE event_id=? AND account_id=?", (eid, account)).fetchone()
+    row = conn.execute(
+        "SELECT * FROM value_events WHERE event_id=? AND account_id=?", (eid, account)
+    ).fetchone()
     return _row_to_event(row)
 
 
@@ -351,8 +366,9 @@ def _add_nested(target, *keys, amount: Decimal):
 def get_value_summary(conn, *, account_id, start_at=None, end_at=None) -> ValueSummary:
     """Return deterministic, separated value buckets for exactly one tenant.
 
-    Causal duplicates are counted once per value_type/currency/unit. Estimated and
-    later measured outcomes remain separate and therefore calibratable.
+    Known causal duplicates are counted once per value_type/currency/unit. If two
+    active observations claim the same causal benefit but disagree on the amount,
+    reporting fails closed instead of selecting a value based on row order.
     """
     ensure_value_ledger_schema(conn)
     account = _clean_ref(account_id, "account_id")
@@ -362,6 +378,7 @@ def get_value_summary(conn, *, account_id, start_at=None, end_at=None) -> ValueS
     end = _utc_iso(end_at) if end_at is not None else None
     if start and end and start > end:
         raise ValueError("start_at must not be after end_at")
+
     clauses = ["account_id=?", "status IN ('OBSERVED','VERIFIED')"]
     params = [account]
     if start:
@@ -375,11 +392,13 @@ def get_value_summary(conn, *, account_id, start_at=None, end_at=None) -> ValueS
         tuple(params),
     ).fetchall()
 
-    excluded_ids = {r["corrects_event_id"] for r in rows if r["corrects_event_id"]} | {
-        r["supersedes_event_id"] for r in rows if r["supersedes_event_id"]
-    }
-    measured, estimated, qualified, time_saved, other, breakdown = {}, {}, {}, {}, {}, {}
-    seen_causal = set()
+    excluded_ids = {r["corrects_event_id"] for r in rows if r["corrects_event_id"]}
+    excluded_ids |= {r["supersedes_event_id"] for r in rows if r["supersedes_event_id"]}
+
+    measured, estimated, qualified = {}, {}, {}
+    time_saved, other, breakdown = {}, {}, {}
+    causal_amounts: dict[tuple[str, str, str, str], Decimal] = {}
+
     for row in rows:
         if row["event_id"] in excluded_ids:
             continue
@@ -387,34 +406,54 @@ def get_value_summary(conn, *, account_id, start_at=None, end_at=None) -> ValueS
         amount = event.amount
         if amount is None:
             continue
+
         if event.causal_reference:
-            causal_key = (event.causal_reference, event.value_type.value, event.currency or "", event.unit or "")
-            if causal_key in seen_causal:
+            causal_key = (
+                event.causal_reference,
+                event.value_type.value,
+                event.currency or "",
+                event.unit or "",
+            )
+            previous = causal_amounts.get(causal_key)
+            if previous is not None:
+                if previous != amount:
+                    raise ValueError(
+                        "conflicting amounts for causal_reference; reconcile with correction/supersession"
+                    )
                 continue
-            seen_causal.add(causal_key)
+            causal_amounts[causal_key] = amount
 
         if event.currency:
+            target = None
             if event.value_type == ValueType.MEASURED:
-                measured[event.currency] = measured.get(event.currency, Decimal("0")) + amount
+                target = measured
             elif event.value_type == ValueType.ESTIMATED:
-                estimated[event.currency] = estimated.get(event.currency, Decimal("0")) + amount
+                target = estimated
             elif event.value_type == ValueType.QUALIFIED:
-                qualified[event.currency] = qualified.get(event.currency, Decimal("0")) + amount
+                target = qualified
+            if target is not None:
+                target[event.currency] = target.get(event.currency, Decimal("0")) + amount
             _add_nested(breakdown, event.category, event.value_type.value, event.currency, amount=amount)
         else:
-            unit = event.unit or "unknown"
+            unit_key = event.unit or "unknown"
             if event.category == "time_saved":
-                time_saved[unit] = time_saved.get(unit, Decimal("0")) + amount
+                time_saved[unit_key] = time_saved.get(unit_key, Decimal("0")) + amount
             else:
-                other.setdefault(event.category, {})[unit] = other.setdefault(event.category, {}).get(unit, Decimal("0")) + amount
-            _add_nested(breakdown, event.category, event.value_type.value, unit, amount=amount)
+                bucket = other.setdefault(event.category, {})
+                bucket[unit_key] = bucket.get(unit_key, Decimal("0")) + amount
+            _add_nested(breakdown, event.category, event.value_type.value, unit_key, amount=amount)
 
     return ValueSummary(
-        account_id=account, start_at=start, end_at=end,
+        account_id=account,
+        start_at=start,
+        end_at=end,
         measured_by_currency=dict(sorted(measured.items())),
         estimated_by_currency=dict(sorted(estimated.items())),
         qualified_by_currency=dict(sorted(qualified.items())),
         time_saved_by_unit=dict(sorted(time_saved.items())),
         other_non_monetary={k: dict(sorted(v.items())) for k, v in sorted(other.items())},
-        breakdown={k: {t: dict(sorted(v.items())) for t, v in sorted(types.items())} for k, types in sorted(breakdown.items())},
+        breakdown={
+            k: {t: dict(sorted(v.items())) for t, v in sorted(types.items())}
+            for k, types in sorted(breakdown.items())
+        },
     )
