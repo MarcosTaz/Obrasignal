@@ -5,11 +5,15 @@ on:
     paths:
       - 'auth_context_jwt.py'
       - 'tests/test_supabase_jwt_compat.py'
+      - 'tests/test_jwt_verifier_adversarial.py'
       - '.github/workflows/auth-verifier-live.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   verify-real-supabase-token:
@@ -22,6 +26,10 @@ jobs:
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
