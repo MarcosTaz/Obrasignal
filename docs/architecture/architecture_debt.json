@@ -64,14 +64,14 @@
     },
     {
       "id": "ARCH-006",
-      "module": "app.py <-> account_registry.py",
-      "owner": "ARCHITECTURE_WITH_ACCOUNT_BILLING_HANDOFF",
-      "violation": "Runtime dependency cycle: app.init_db lazily imports account_registry for schema composition while account_registry imports app.APP at module load and dynamically reimports app for db(). Account and Billing routing/storage concerns therefore depend upward on the root application module that also depends back on them.",
-      "blast_radius": "STARTUP_ACCOUNT_AUTH_BILLING_API",
-      "customer_risk": "IMPORT_ORDER_STARTUP_AND_ENTITLEMENT_REGRESSION",
+      "module": "app.py <-> company_profile.py -> account_registry.py -> app.py",
+      "owner": "ARCHITECTURE_WITH_ACCOUNT_BILLING_COMPANY_STATE_HANDOFF",
+      "violation": "Runtime SCC spans app, company_profile and account_registry. app.init_db lazily imports both profile/account schema owners; company_profile.save_profile lazily writes into Account/Evaluation; account_registry imports app.APP at module load and dynamically reimports app for db(). Domain modules therefore depend upward on the root application while the root depends back on them.",
+      "blast_radius": "STARTUP_COMPANY_PROFILE_ACCOUNT_AUTH_BILLING_API",
+      "customer_risk": "IMPORT_ORDER_STARTUP_PROFILE_AND_ENTITLEMENT_REGRESSION",
       "change_frequency": "UNKNOWN",
-      "proof": ["app.py", "account_registry.py", "tools/architecture_graph.py"],
-      "repair_path": "Keep the exact SCC frozen; stage framework route registration and persistence access behind explicit composition seams before removing either edge. Account/Billing own semantic partitioning; Architecture owns dependency direction and cycle removal.",
+      "proof": ["app.py", "company_profile.py", "account_registry.py", "tools/architecture_graph.py"],
+      "repair_path": "Keep the exact three-module SCC frozen. Stage explicit framework registration and persistence seams before removing upward app dependencies; route Company Profile -> Account/Evaluation semantic writes to Company State/Account owners; Account/Billing own entitlement semantics; Architecture owns dependency direction and cycle removal.",
       "status": "ACKNOWLEDGED_CYCLE_BASELINE"
     }
   ]
