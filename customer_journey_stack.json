@@ -1,0 +1,53 @@
+{
+  "factory_title": "Customer Journey, First Value & Outcome Integrity",
+  "canonical_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "ACTIVE": [
+    {
+      "step": "FIRST_VALUE_ACCEPTANCE_CORPUS",
+      "goal": "Turn the current PARTIAL first-value definition into deterministic customer-journey scenarios without stealing Decision or Source semantics.",
+      "next_material_proof": "Build exact-head scenarios for good match, truthful no-match, profile incomplete, system failure and source-unconfirmed states using owner public contracts."
+    },
+    {
+      "step": "PROFILE_TO_RADAR_CAUSALITY",
+      "goal": "Close the remaining gap between structural save/reload wiring and one executable profile-mutation -> recalculated decision -> rendered Radar journey.",
+      "next_material_proof": "Use synthetic account/profile/opportunity data only and preserve account isolation."
+    }
+  ],
+  "NEXT": [
+    {
+      "step": "SAVE_REVIEW",
+      "owner": "Watchlist/Saved",
+      "state": "PREBUILD_OWNER_REANCHOR_REQUIRED",
+      "input": "#150@879ef88233d9b86f9905e7281409b8897e4f4a89",
+      "action": "Re-evaluate only after owner reanchors on current main; do not build a parallel saved truth."
+    },
+    {
+      "step": "WORKFLOW_PURSUIT",
+      "owner": "State Machine/Workflow",
+      "state": "PARTIAL_TRANSITION_SEMANTICS_UNPROVEN",
+      "action": "Consume owner-defined legal-transition contract when available; preserve current account-scoped persistence evidence."
+    },
+    {
+      "step": "REPEAT_VALUE",
+      "owner": "Customer Journey composition",
+      "state": "DISCOVERED_UNKNOWN",
+      "action": "Define a deterministic second-value scenario only after current-source/return and at least one durable continuation path are composition-safe."
+    }
+  ],
+  "WAIT": [
+    {
+      "step": "RADAR_ZERO_STATE",
+      "boundary": "GOLDEN",
+      "input": "#399@44ca24fbe2862e1a79231ec1f2b811bcbdbbbb3b",
+      "reason": "Exact integration is Quality-green but non-canonical; customer-visible fresh/aging/stale/unknown and false-zero behavior needs independent Golden acceptance.",
+      "reopen_condition": "Golden accepts/rejects #399, any #298/#327/#399 input head moves, or canonical main changes this dependency surface."
+    },
+    {
+      "step": "NOTIFICATION_RETURN",
+      "boundary": "REAL_DEVICE_GOLDEN",
+      "input": "#263 as referenced by #298",
+      "reason": "Background/closed-app delivery and tap-return cannot be established from repository-only evidence.",
+      "reopen_condition": "Physical-device Golden supplies a deterministic pass/fail reproducer or a relevant owner candidate changes the tap-return contract."
+    }
+  ]
+}
