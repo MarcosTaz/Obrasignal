@@ -3,6 +3,8 @@ import * as Notifications from 'expo-notifications';
 import { api } from './api';
 import { storage } from './storage';
 
+const EXPO_PROJECT_ID = 'c277466b-a418-45f7-b070-4fc3f96386b7';
+
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -30,13 +32,37 @@ export async function configureNotifications() {
   return requested.granted;
 }
 
+export async function registerRemoteOpportunityPush() {
+  if (Platform.OS === 'web') return { registered: false, reason: 'web' };
+  const granted = await configureNotifications();
+  if (!granted) return { registered: false, reason: 'permission' };
+
+  const existingBinding = await storage.getPushBinding();
+  // A tenant change purges the old private binding in #291. Clear any already
+  // presented notifications before binding this installation to the new tenant.
+  if (!existingBinding) {
+    try { await Notifications.dismissAllNotificationsAsync(); } catch (_) {}
+  }
+
+  const tokenResult = await Notifications.getExpoPushTokenAsync({ projectId: EXPO_PROJECT_ID });
+  const expoPushToken = String(tokenResult?.data || '').trim();
+  if (!expoPushToken) return { registered: false, reason: 'token' };
+  const installationId = await storage.ensurePushInstallationId();
+  const response = await api.registerPushDevice({ installationId, expoPushToken, platform: Platform.OS });
+  const bindingId = String(response?.binding_id || '').trim();
+  if (!bindingId) throw new Error('push_binding_missing');
+  await storage.setPushBinding({ bindingId, installationId, expoPushToken });
+  return { registered: true, bindingId, installationId };
+}
+
 export async function showLocalOpportunityAlert(item) {
   if (Platform.OS === 'web') return null;
+  const binding = await storage.getPushBinding();
   return Notifications.scheduleNotificationAsync({
     content: {
       title: 'Nova oportunidade ObraSignal',
       body: item?.title || 'Foi encontrada uma oportunidade relevante.',
-      data: { opportunityId: item?.id, eventId: item?.event_id },
+      data: { opportunityId: item?.id, eventId: item?.event_id, bindingId: binding?.bindingId || null },
       ...(Platform.OS === 'android' ? { channelId: 'opportunities' } : {}),
     },
     trigger: null,
@@ -66,4 +92,40 @@ export async function syncUnreadOpportunityAlerts() {
   }
 
   return delivered;
+}
+
+export async function notificationOpportunityTarget(response) {
+  const data = response?.notification?.request?.content?.data || {};
+  const opportunityId = Number(data.opportunityId);
+  const eventId = Number(data.eventId);
+  const bindingId = String(data.bindingId || '').trim();
+  if (!Number.isInteger(opportunityId) || opportunityId <= 0 || !bindingId) return null;
+
+  const current = await storage.getPushBinding();
+  if (!current?.bindingId || current.bindingId !== bindingId) {
+    // Stale Account A notification under Account B: fail closed and do not
+    // even request the opportunity with B credentials.
+    return null;
+  }
+  if (Number.isInteger(eventId) && eventId > 0) {
+    try { await api.markAlertDelivered(eventId); } catch (_) {}
+  }
+  return opportunityId;
+}
+
+export function listenForOpportunityNotificationResponses(onTarget) {
+  if (Platform.OS === 'web') return () => {};
+  let active = true;
+  const handle = async (response) => {
+    try {
+      const opportunityId = await notificationOpportunityTarget(response);
+      if (active && opportunityId) onTarget(opportunityId);
+    } catch (_) {}
+  };
+  const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+  Notifications.getLastNotificationResponseAsync().then(handle).catch(() => {});
+  return () => {
+    active = false;
+    subscription.remove();
+  };
 }
