@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "bug_id": "BUG-GP-009",
+  "customer_journey": "OPPORTUNITY -> WHY -> DECISION INTERPRETATION",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "classification": ["MISLEADING_CUSTOMER_CLAIM", "DECISION_SEMANTICS", "MOBILE"],
+  "severity": "HIGH",
+  "owner": "MOBILE_PRODUCT_OWNER / PRODUCT_COPY_OWNER",
+  "observed_result": "Opportunity detail states `O scoring é uma recomendação baseada no perfil da tua empresa.`",
+  "expected_truth": [
+    "A relevance/match score may explain ranking or fit but must not be described as a bid/pursuit recommendation unless a canonical decision contract explicitly supports that claim.",
+    "Readiness does not imply PURSUE; economics does not auto-decide NO_BID; the customer's pursuit decision remains explicit.",
+    "Customer-facing copy should describe score as relevance/match/fit evidence and direct the customer to source requirements and explicit decision inputs."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: mobile customer copy does not call relevance scoring a recommendation.",
+    "PROVEN_AUTOMATED: WHY surface preserves separation between match evidence and explicit pursuit decision.",
+    "PROVEN_REAL_DEVICE: opportunity detail presents relevance and uncertainty without implying ObraSignal decided the customer should bid."
+  ],
+  "hard_boundary": "Golden Path owns claim acceptance only. Product copy/mobile implementation repair belongs to its specialist owner."
+}
