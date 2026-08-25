@@ -321,6 +321,8 @@ def update_search_profile(conn, account_id: str, profile_id: str, changes: dict)
     if unknown:
         raise SearchProfileError("unsupported fields: " + ", ".join(sorted(unknown)))
     current = get_search_profile(conn, account_id, profile_id)
+    if current["status"] == "INVALID" and not {"filters", "sort"}.issubset(changes):
+        raise SearchProfileNeedsUpdate("repairing an invalid profile requires explicit filters and sort")
     name = validate_name(changes.get("name", current["name"]))
     filters = normalize_filters(changes.get("filters", current["filters"]))
     sort = validate_sort(changes.get("sort", current["sort"]))
