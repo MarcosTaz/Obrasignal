@@ -16,6 +16,16 @@ def test_authenticated_identity_is_persisted_privately_and_not_logged() -> None:
     assert 'cat /tmp/authenticated_account_id' not in text
 
 
+def test_jwt_subject_is_private_and_binds_api_identity() -> None:
+    text = _text()
+    assert "open('/tmp/token_subject', 'w', encoding='utf-8').write(str(subject))" in text
+    assert "token_subject=open('/tmp/token_subject', encoding='utf-8').read()" in text
+    assert "assert str(account_id) == token_subject" in text
+    assert 'cat /tmp/token_subject' not in text
+    assert "print(subject" not in text
+    assert "print('subject" not in text
+
+
 def test_profile_persistence_responses_bind_to_authenticated_identity() -> None:
     text = _text()
     assert "/tmp/profile-write-response.json" in text
