@@ -58,6 +58,17 @@ def test_account_scoped_responses_bind_to_authenticated_identity() -> None:
     assert "assert str(workflow.get('account_id')) == expected_account_id" in text
 
 
+def test_conditional_journey_coverage_is_explicit() -> None:
+    text = _text()
+    assert "open('/tmp/authenticated_e2e_coverage','w').write('UNKNOWN_NO_DATA')" in text
+    assert "open('/tmp/authenticated_e2e_coverage','w').write('PENDING')" in text
+    assert "open('/tmp/authenticated_e2e_coverage','w').write('FULL')" in text
+    assert 'coverage="$(cat /tmp/authenticated_e2e_coverage)"' in text
+    assert 'FULL|UNKNOWN_NO_DATA)' in text
+    assert 'echo "coverage=$coverage" >> "$GITHUB_OUTPUT"' in text
+    assert 'echo "AUTHENTICATED_E2E_COVERAGE=$coverage" >> "$GITHUB_STEP_SUMMARY"' in text
+
+
 def test_nested_endpoint_filename_guard_is_preserved() -> None:
     text = _text()
     assert "tr '/' '_'" in text
