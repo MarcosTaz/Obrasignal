@@ -52,20 +52,28 @@ def main():
         raise SystemExit("live PCC 7264 payload exposed no supplier/value contract evidence")
 
     records = plan_records + contract_records
+    unique = {(record["signal_type"], record["external_id"]) for record in records}
+    if len(unique) != len(records):
+        raise SystemExit(f"TW_PCC normalized identity collision fetched={len(records)} unique={len(unique)}")
+
     conn = sqlite3.connect(":memory:")
     first_written = persist_signal_records(conn, records, expected_source="TW_PCC")
+    count_after_first = conn.execute("SELECT COUNT(*) FROM signal_records WHERE source='TW_PCC'").fetchone()[0]
     persist_signal_records(conn, records, expected_source="TW_PCC")
-    count = conn.execute("SELECT COUNT(*) FROM signal_records WHERE source='TW_PCC'").fetchone()[0]
-    unique = len({(record["signal_type"], record["external_id"]) for record in records})
-    if count != unique:
-        raise SystemExit(f"TW_PCC idempotency mismatch persisted={count} unique={unique}")
+    count_after_second = conn.execute("SELECT COUNT(*) FROM signal_records WHERE source='TW_PCC'").fetchone()[0]
+
     if first_written != len(records):
         raise SystemExit(f"TW_PCC persistence write mismatch written={first_written} fetched={len(records)}")
+    if count_after_first != len(records) or count_after_second != len(records):
+        raise SystemExit(
+            "TW_PCC lossless/idempotency mismatch "
+            f"fetched={len(records)} first={count_after_first} second={count_after_second}"
+        )
 
     print(
         "TW_PCC_LIVE_OK "
         f"plans={len(plan_records)} contracts={len(contract_records)} "
-        f"persisted={count} idempotent=1"
+        f"persisted={count_after_second} lossless=1 idempotent=1"
     )
 
 
