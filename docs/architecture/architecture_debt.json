@@ -61,6 +61,18 @@
       "proof": ["api.py", "preload.py", "cors_app.py"],
       "repair_path": "Introduce or reuse an explicit public runtime/persistence seam, then remove private preload access with exact API behavior and startup-order proof.",
       "status": "ACKNOWLEDGED_DEBT"
+    },
+    {
+      "id": "ARCH-006",
+      "module": "app.py <-> account_registry.py",
+      "owner": "ARCHITECTURE_WITH_ACCOUNT_BILLING_HANDOFF",
+      "violation": "Runtime dependency cycle: app.init_db lazily imports account_registry for schema composition while account_registry imports app.APP at module load and dynamically reimports app for db(). Account and Billing routing/storage concerns therefore depend upward on the root application module that also depends back on them.",
+      "blast_radius": "STARTUP_ACCOUNT_AUTH_BILLING_API",
+      "customer_risk": "IMPORT_ORDER_STARTUP_AND_ENTITLEMENT_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["app.py", "account_registry.py", "tools/architecture_graph.py"],
+      "repair_path": "Keep the exact SCC frozen; stage framework route registration and persistence access behind explicit composition seams before removing either edge. Account/Billing own semantic partitioning; Architecture owns dependency direction and cycle removal.",
+      "status": "ACKNOWLEDGED_CYCLE_BASELINE"
     }
   ]
 }
