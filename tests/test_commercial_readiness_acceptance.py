@@ -20,7 +20,7 @@ def test_minimum_sellable_spine_is_bounded_and_customer_facing():
 def test_current_main_has_exact_production_auth_spine_proof():
     data = _contract()
     proven = {item["id"]: item for item in data["proven_acceptance"]}
-    assert {"SELL-001", "SELL-005-CONTRACT"} <= set(proven)
+    assert {"SELL-001", "SELL-004-CONTRACT", "SELL-005-CONTRACT"} <= set(proven)
     assert proven["SELL-001"]["main_sha"] == data["baseline_main_sha"]
     assert proven["SELL-001"]["status"] == "PASS_EXACT_MAIN"
     assert proven["SELL-001"]["authenticated_e2e_run"] == 32867427570
@@ -35,6 +35,17 @@ def test_source_coverage_contract_exists_without_claiming_customer_surface_is_do
     assert {"registered_not_active", "ready_not_active", "source_presence_not_national_completeness", "capability_scope_not_full_market_claim"} <= set(coverage["proof"])
     blockers = {item["id"]: item for item in data["blocking_acceptance"]}
     assert blockers["SELL-005"]["status"] == "IMPLEMENTATION_HANDOFF_AFTER_ACCEPTANCE_CONTRACT"
+
+
+def test_account_lifecycle_contract_is_owned_but_implementation_stays_external():
+    data = _contract()
+    proven = {item["id"]: item for item in data["proven_acceptance"]}
+    account = proven["SELL-004-CONTRACT"]
+    assert account["contract"] == "acceptance/account_lifecycle.json"
+    assert account["status"] == "ACCEPTANCE_CONTRACT_IMPLEMENTED_PENDING_EXACT_HEAD_GATE"
+    blockers = {item["id"]: item for item in data["blocking_acceptance"]}
+    assert blockers["SELL-004"]["owner"] == "ACCOUNT_PRIVACY_AUTH"
+    assert blockers["SELL-004"]["status"] == "IMPLEMENTATION_HANDOFF_AFTER_ACCEPTANCE_CONTRACT"
 
 
 def test_evaluation_cannot_start_at_signup_or_require_card():
@@ -62,7 +73,7 @@ def test_remaining_sellability_blockers_are_exact_and_non_green():
     assert billing["current_candidate_head"] == "3c00cff49211dad2cd54650aeb838dc5f5301f3f"
     assert billing["current_candidate_base"] == _contract()["baseline_main_sha"]
     assert billing["current_gates"] == {"billing_security": "FAIL", "quality": "FAIL"}
-    assert blockers["SELL-004"]["owner"] == "ACCOUNT_PRIVACY"
+    assert blockers["SELL-004"]["owner"] == "ACCOUNT_PRIVACY_AUTH"
     assert all(not item["status"].startswith("PASS") for item in blockers.values())
 
 
