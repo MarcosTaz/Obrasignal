@@ -7,11 +7,19 @@ ROOT = Path(__file__).resolve().parents[1]
 KNOWN_RUNTIME_CYCLES = [["account_registry.py", "app.py"]]
 
 
-def _edge(graph, source, target):
-    return next(
+def _edges(graph, source, target):
+    return [
         edge
         for edge in graph["edges"]
         if edge["source"] == source and edge["target"] == target
+    ]
+
+
+def _edge(graph, source, target, *, kind=None):
+    return next(
+        edge
+        for edge in _edges(graph, source, target)
+        if kind is None or edge["kind"] == kind
     )
 
 
@@ -29,8 +37,7 @@ def test_dependency_graph_covers_current_runtime_composition_boundaries():
 
 def test_lazy_schema_composition_edges_are_visible_and_classified():
     graph = build_graph(ROOT)
-    edge = _edge(graph, "app.py", "account_registry.py")
-    assert edge["kind"] == "PYTHON_IMPORT"
+    edge = _edge(graph, "app.py", "account_registry.py", kind="PYTHON_IMPORT")
     assert edge["scope"] == "LAZY"
     assert edge["classification"] == "LEGACY"
 
@@ -39,12 +46,16 @@ def test_known_runtime_cycle_is_exact_and_does_not_expand():
     graph = build_graph(ROOT)
     assert graph["cycles"] == KNOWN_RUNTIME_CYCLES
 
-    down = _edge(graph, "app.py", "account_registry.py")
-    up = _edge(graph, "account_registry.py", "app.py")
+    down = _edge(graph, "app.py", "account_registry.py", kind="PYTHON_IMPORT")
+    static_up = _edge(graph, "account_registry.py", "app.py", kind="PYTHON_IMPORT")
+    dynamic_up = _edge(graph, "account_registry.py", "app.py", kind="PYTHON_DYNAMIC_IMPORT")
+
     assert down["scope"] == "LAZY"
-    assert up["scope"] == "MODULE_LOAD"
+    assert static_up["scope"] == "MODULE_LOAD"
+    assert dynamic_up["scope"] == "LAZY"
     assert down["classification"] == "LEGACY"
-    assert up["classification"] == "LEGACY"
+    assert static_up["classification"] == "LEGACY"
+    assert dynamic_up["classification"] == "LEGACY"
 
 
 def test_unknown_edges_remain_unknown_instead_of_becoming_implicitly_allowed():
