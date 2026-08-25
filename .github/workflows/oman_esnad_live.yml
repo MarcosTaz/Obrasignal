@@ -6,8 +6,12 @@ on:
     paths:
       - 'oman_esnad.py'
       - 'test_oman_esnad.py'
+      - 'source_registry.py'
       - '.github/workflows/oman_esnad_live.yml'
       - 'research/MENA_OMAN_ESNAD_IMPLEMENTATION_RECORD_20260825.md'
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 permissions:
   contents: read
@@ -18,6 +22,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
