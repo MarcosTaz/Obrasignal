@@ -15,6 +15,7 @@ from ocds_adapter import normalize_ocds_record
 from ocds_jsonl_snapshot import OCDSJSONLGzipConfig, OCDSJSONLGzipSnapshotConnector
 
 
+SOURCE = "ZM_ZPPA"
 ZM_ZPPA_DATA_URL = "https://data.open-contracting.org/en/publication/3/download?name={year}.jsonl.gz"
 ZM_ZPPA_OFFICIAL_SOURCE = "https://www.zppa.org.zm/record-packages"
 ZM_ZPPA_PUBLICATION_POLICY = "https://www.zppa.org.zm/ocds-publication-policy"
@@ -80,7 +81,7 @@ def normalize_zm_release(record, *, now=None):
 
     item = normalize_ocds_record(
         record,
-        source="ZM_ZPPA",
+        source=SOURCE,
         country="ZMB",
         market="GLOBAL",
         require_active_tender=True,
@@ -101,7 +102,7 @@ def normalize_zm_release(record, *, now=None):
 
 def build_zm_connector(*, session=None):
     config = OCDSJSONLGzipConfig(
-        source="ZM_ZPPA",
+        source=SOURCE,
         country="ZMB",
         url_template=ZM_ZPPA_DATA_URL,
         market="GLOBAL",
