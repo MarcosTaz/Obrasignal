@@ -36,3 +36,4 @@ jobs:
           tests/test_mobile_customer_truth_acceptance.py
           tests/test_evaluation_customer_activation_acceptance.py
           tests/test_billing_customer_truth_acceptance.py
+          tests/test_mobile_tenant_cache_acceptance.py
