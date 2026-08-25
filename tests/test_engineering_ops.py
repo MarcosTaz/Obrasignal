@@ -225,3 +225,47 @@ def test_machine_readable_manifest_matches_runtime_contract():
     assert tuple(manifest["gate_states"]) == GATE_STATES
     assert tuple(manifest["required_candidate_fields"]) == REQUIRED_STATUS_FIELDS
     assert manifest["failure_semantics"]["may_mark_green"] is False
+
+
+def test_dependency_parser_stops_at_next_pr_token():
+    body = """
+## Persistence / Integration handoff — REQUIRED
+Integration Lab #319 must use current #329 input `d8b14d5656c1029d0ce0f6da208b8491640e5540` and current #238 persistence guards together.
+"""
+    refs = extract_dependency_refs(body, self_pr=329)
+    # #319 has no SHA in its own segment; #329 is self; #238 has no SHA.
+    assert refs == []
+
+
+def test_diagnostic_historical_examples_do_not_become_current_dependencies():
+    body = """
+## Current known drift that motivated this slice
+- PR #238 actual HEAD observed as `6519b9f368a229da2b2787caf178f8ef956bda5b`, while its body declared current owner HEAD `1e8005e68d41a8c45130693ebda28e1a57422256`.
+- PR #319 still pinned #238 at `2aa332112bf0497b698bfb8dabafcca4562ca1bd`.
+"""
+    assert extract_dependency_refs(body, self_pr=407) == []
+    assert extract_declared_head(body, self_pr=407) is None
+
+
+def test_non_pr_hash_number_can_be_ignored_without_false_unknown():
+    own_head = "35b273d2fe9e96ebe5eeeb0cdb8b9142213284cb"
+    body = f"""
+- canonical main `{MAIN}`
+- current owner HEAD `{own_head}`
+- ObraSignal Quality #2030 exact HEAD `{own_head}`: SUCCESS.
+"""
+    record = candidate_record(
+        {
+            "number": 382,
+            "title": "quality",
+            "body": body,
+            "head_sha": own_head,
+            "base_sha": MAIN,
+            "base_ref": "main",
+        },
+        main_sha=MAIN,
+        actual_heads={382: own_head},
+        ignored_dependency_prs={2030},
+    )
+    assert record["status"] == "ACTIVE"
+    assert record["evidence"]["dependencies"] == []
