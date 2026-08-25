@@ -39,8 +39,6 @@ PRO_ENTITLEMENT = 'pro'
 PRO_PRODUCT = 'obrasignal_pro_monthly'
 REVENUECAT_EVENT_TYPES = frozenset({
     'INITIAL_PURCHASE',
-    'TRIAL_STARTED',
-    'TRIAL_CONVERTED',
     'RENEWAL',
     'UNCANCELLATION',
     'PRODUCT_CHANGE',
@@ -126,7 +124,7 @@ def update_subscription(conn, account_id, *, plan, subscription_status,
 def subscription_state(account, *, now=None):
     """Return backend-authoritative access from persisted subscription/evaluation state.
 
-    ObraSignal Pro is monthly. A missing or malformed entitlement expiry never
+    ObraSignal Pro is recurring. A missing or malformed entitlement expiry never
     becomes indefinite paid access.
     """
     if not account:
@@ -168,7 +166,7 @@ def _is_pro_product(product_id):
 def _fetch_revenuecat_subscriber(account_id):
     """Fetch the authoritative RevenueCat subscriber snapshot.
 
-    Returns only bounded status categories; provider failures never mutate local
+    Returns bounded status categories; provider failures never mutate local
     subscription truth and never expose provider response bodies or secrets.
     """
     secret = (os.getenv('REVENUECAT_SECRET_API_KEY') or '').strip()
@@ -187,7 +185,9 @@ def _fetch_revenuecat_subscriber(account_id):
         return {'status': 'unavailable', 'subscriber': None}
     if not isinstance(payload, dict):
         return {'status': 'unavailable', 'subscriber': None}
-    subscriber = payload.get('subscriber') or (payload.get('value') or {}).get('subscriber')
+    subscriber = payload.get('subscriber')
+    if subscriber is None and isinstance(payload.get('value'), dict):
+        subscriber = payload['value'].get('subscriber')
     if not isinstance(subscriber, dict):
         return {'status': 'unavailable', 'subscriber': None}
     return {'status': 'ok', 'subscriber': subscriber}
@@ -230,11 +230,12 @@ def _pro_snapshot(subscriber, *, now=None):
     expires = max(expires_candidates)
     grace = max(grace_candidates)
     access_until = max(expires, grace)
-    if access_until == datetime.min.replace(tzinfo=timezone.utc) or access_until <= current:
+    minimum = datetime.min.replace(tzinfo=timezone.utc)
+    if access_until == minimum or access_until <= current:
         return {
             'active': False,
             'status': 'expired',
-            'expires_at': access_until.isoformat() if access_until > datetime.min.replace(tzinfo=timezone.utc) else None,
+            'expires_at': access_until.isoformat() if access_until > minimum else None,
             'store': subscription.get('store') or entitlement.get('store'),
             'product_id': product_id,
         }
@@ -334,6 +335,14 @@ def _validate_ms(event, key, *, required=False):
         return False
 
 
+def _event_targets_pro(event):
+    if _is_pro_product(event.get('product_id')):
+        return True
+    if str(event.get('type') or '').strip().upper() == 'PRODUCT_CHANGE':
+        return _is_pro_product(event.get('new_product_id'))
+    return False
+
+
 def _validate_revenuecat_event(event):
     """Classify a webhook event before any account or subscription mutation."""
     if not isinstance(event, dict):
@@ -347,7 +356,7 @@ def _validate_revenuecat_event(event):
     app_user_id = str(event.get('app_user_id') or '').strip()
     if not app_user_id or app_user_id.startswith('$RCAnonymousID:'):
         return {'state': 'invalid', 'reason': 'invalid_app_user_id'}
-    if not _is_pro_product(event.get('product_id')):
+    if not _event_targets_pro(event):
         return {'state': 'ignored', 'reason': 'unrelated_product'}
     entitlement_ids = event.get('entitlement_ids')
     if not isinstance(entitlement_ids, list) or PRO_ENTITLEMENT not in entitlement_ids:
@@ -356,9 +365,10 @@ def _validate_revenuecat_event(event):
         return {'state': 'invalid', 'reason': 'invalid_event_timestamp'}
     if not _validate_ms(event, 'expiration_at_ms', required=True):
         return {'state': 'invalid', 'reason': 'invalid_expiration_timestamp'}
-    for key in ('purchased_at_ms', 'grace_period_expiration_at_ms'):
-        if not _validate_ms(event, key, required=False):
-            return {'state': 'invalid', 'reason': f'invalid_{key}'}
+    if not _validate_ms(event, 'purchased_at_ms', required=True):
+        return {'state': 'invalid', 'reason': 'invalid_purchased_at_ms'}
+    if event_type == 'BILLING_ISSUE' and not _validate_ms(event, 'grace_period_expiration_at_ms', required=False):
+        return {'state': 'invalid', 'reason': 'invalid_grace_period_expiration_at_ms'}
     return {
         'state': 'relevant',
         'event_id': event_id,
@@ -386,22 +396,28 @@ def _verify_hmac(raw_body, signature, secret, *, now=None):
 
 
 def _verify_webhook(raw_body, authorization, signature, *, now=None):
-    """Authenticate RevenueCat using only RevenueCat-supported mechanisms.
+    """Authenticate only with RevenueCat-supported webhook mechanisms.
 
-    Production requires the configured Authorization header. Official RevenueCat
-    HMAC signing is an optional second factor when a signing secret is configured.
-    ``REVENUECAT_WEBHOOK_SECRET`` is accepted only as a legacy signing-secret alias.
+    RevenueCat supports an exact configured Authorization header and optional
+    HMAC signing. Existing ``REVENUECAT_WEBHOOK_SECRET`` remains a signing-secret
+    compatibility alias so the current supported HMAC contract is not broken.
+    If both mechanisms are configured, both must validate.
     """
-    auth_secret = (os.getenv('REVENUECAT_WEBHOOK_AUTHORIZATION_SECRET') or '').strip()
-    if not auth_secret or not authorization:
+    expected_authorization = (os.getenv('REVENUECAT_WEBHOOK_AUTHORIZATION') or '').strip()
+    signing_secret = (
+        os.getenv('REVENUECAT_WEBHOOK_SIGNING_SECRET')
+        or os.getenv('REVENUECAT_WEBHOOK_SECRET')
+        or ''
+    ).strip()
+    if not expected_authorization and not signing_secret:
         return False
-    expected_auth = f'Bearer {auth_secret}'
-    if not hmac.compare_digest(expected_auth.encode(), authorization.strip().encode()):
+    if expected_authorization:
+        if not authorization:
+            return False
+        if not hmac.compare_digest(expected_authorization.encode(), authorization.strip().encode()):
+            return False
+    if signing_secret and not _verify_hmac(raw_body, signature, signing_secret, now=now):
         return False
-
-    signing_secret = (os.getenv('REVENUECAT_WEBHOOK_SIGNING_SECRET') or '').strip()
-    if signing_secret:
-        return _verify_hmac(raw_body, signature, signing_secret, now=now)
     return True
 
 
