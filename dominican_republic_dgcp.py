@@ -20,7 +20,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from ocds_adapter import OCDSAPIConfig, normalize_ocds_record
-from ocds_release_lifecycle import OCDSReleasePackageConnector
+from ocds_release_lifecycle import (
+    OCDSReleasePackageConnector,
+    merge_nonempty_mapping,
+)
 
 
 DGCP_API_ROOT = "https://datosabiertos.dgcp.gob.do/api-dgcp/v1"
@@ -134,13 +137,7 @@ def normalize_dgcp_process(record):
 
 
 def _entity_versions(record, key):
-    """Return latest non-empty fields per OCDS entity id plus observation date.
-
-    OCDS releases are partial updates. A later release may omit fields that were
-    already published, so replacing an entity wholesale would lose provenance.
-    We preserve the latest non-empty value for each field while processing the
-    publisher's release history chronologically.
-    """
+    """Return merged partial OCDS entities plus their latest observation date."""
     merged = {}
     observed = {}
     for release in _release_history(record):
@@ -154,14 +151,13 @@ def _entity_versions(record, key):
             identity = str(value.get("id") or "").strip()
             if not identity:
                 continue
-            current = dict(merged.get(identity) or {})
-            for field, field_value in value.items():
-                if field_value not in (None, "", [], {}):
-                    current[field] = field_value
-            merged[identity] = current
+            merged[identity] = merge_nonempty_mapping(merged.get(identity), value)
             if release_date:
                 observed[identity] = release_date
-    return {identity: (value, observed.get(identity, "")) for identity, value in merged.items()}
+    return {
+        identity: (value, observed.get(identity, ""))
+        for identity, value in merged.items()
+    }
 
 
 def _supplier_names(award):
@@ -220,13 +216,17 @@ def normalize_dgcp_lifecycle(record):
     rows = []
 
     for award_id, (award, observed_at) in award_versions.items():
+        award_date = str(award.get("date") or "").strip()
         row = _lifecycle_common(
             base,
             signal_type="AWARD",
             external_id=f"{ocid}:award:{award_id}",
             source_reference=award_id,
-            observed_at=str(award.get("date") or observed_at or ""),
+            observed_at=observed_at or award_date,
         )
+        if award_date:
+            row["publication_date"] = award_date[:10]
+            row["published_at"] = award_date
         value = award.get("value") if isinstance(award.get("value"), dict) else {}
         row["value"] = str(value.get("amount") or "").strip()
         row["currency"] = str(value.get("currency") or "").strip()
