@@ -26,7 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Wait for target production deployment
         env:
@@ -100,17 +102,12 @@ jobs:
           print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
           PY
           )"
-
-          # New Supabase publishable keys are API keys, not user JWTs. The
-          # documented API-key-only form avoids making the gateway interpret
-          # the publishable key as a bearer token.
           status="$(curl --silent --show-error --output /tmp/auth.json --write-out '%{http_code}' --max-time 30 \
             -X POST "$AUTH_URL" \
             -H "apikey: $SUPABASE_KEY" \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json' \
             --data "$BODY")"
-
           if [ "$status" != "200" ]; then
             echo "Supabase authentication (apikey-only) failed with HTTP $status."
             python - <<'PY'
@@ -124,7 +121,6 @@ jobs:
           PY
             exit 1
           fi
-
           python - <<'PY'
           import json
           payload=json.load(open('/tmp/auth.json'))
@@ -146,11 +142,9 @@ jobs:
           import base64
           import json
           import os
-
           def decode_segment(value):
               padding = '=' * (-len(value) % 4)
               return json.loads(base64.urlsafe_b64decode(value + padding))
-
           token = open('/tmp/access_token', encoding='utf-8').read().strip()
           segments = token.split('.')
           if len(segments) != 3:
@@ -159,7 +153,6 @@ jobs:
           payload = decode_segment(segments[1])
           provider = json.load(open('/tmp/provider-jwks.json', encoding='utf-8'))
           keys = provider.get('keys') or []
-
           alg = header.get('alg')
           kid = header.get('kid')
           typ = header.get('typ')
@@ -169,7 +162,6 @@ jobs:
           subject = payload.get('sub')
           assert subject, 'Supabase access token subject is missing'
           open('/tmp/token_subject', 'w', encoding='utf-8').write(str(subject))
-
           print('JWT_DIAGNOSTIC')
           print(f'alg={alg if alg is not None else "none"}')
           print(f'kid={kid if kid is not None else "none"}')
@@ -180,7 +172,6 @@ jobs:
           print(f'role={role if role is not None else "none"}')
           print(f'iat={payload.get("iat") if payload.get("iat") is not None else "none"}')
           print(f'exp={payload.get("exp") if payload.get("exp") is not None else "none"}')
-
           provider_kids = set()
           for key in keys:
               public_metadata = {name: key.get(name) for name in ('kid', 'alg', 'kty', 'use')}
@@ -189,7 +180,6 @@ jobs:
               print('PROVIDER_JWKS')
               for name, value in public_metadata.items():
                   print(f'{name}={value if value is not None else "none"}')
-
           audiences = audience if isinstance(audience, list) else [audience]
           token_alg_allowed = alg in {"RS256", "ES256"}
           token_kid_present = kid is not None and str(kid) in provider_kids
@@ -223,10 +213,8 @@ jobs:
       - name: Verify authenticated API identity
         run: |
           set -euo pipefail
-          status="$(curl --silent --show-error --max-time 30 \
-            --output /tmp/profile.json --write-out '%{http_code}' \
-            -H "Authorization: Bearer $(cat /tmp/access_token)" \
-            "$API_URL/profile")"
+          status="$(curl --silent --show-error --max-time 30 --output /tmp/profile.json --write-out '%{http_code}' \
+            -H "Authorization: Bearer $(cat /tmp/access_token)" "$API_URL/profile")"
           echo "API_AUTH_STATUS=$status"
           if [ "$status" != "200" ]; then
             python - <<'PY'
@@ -235,13 +223,9 @@ jobs:
               payload=json.load(open('/tmp/profile.json', encoding='utf-8'))
           except Exception:
               payload={}
-          print('API_AUTH_BODY=' + json.dumps(
-              {'error': payload.get('error')} if payload.get('error') else {},
-              separators=(',', ':'),
-          ))
+          print('API_AUTH_BODY=' + json.dumps({'error': payload.get('error')} if payload.get('error') else {}, separators=(',', ':')))
           PY
-            if curl --fail --silent --show-error --max-time 30 \
-              "$API_URL/health" > /tmp/auth-failure-health.json; then
+            if curl --fail --silent --show-error --max-time 30 "$API_URL/health" > /tmp/auth-failure-health.json; then
               python - <<'PY'
           import json
           try:
@@ -250,11 +234,7 @@ jobs:
               payload={}
           auth=payload.get('auth') if isinstance(payload, dict) else {}
           auth=auth if isinstance(auth, dict) else {}
-          safe={
-              key: auth.get(key)
-              for key in ('mode','config_present','provider_status','provider_kind','provider_error')
-              if key in auth
-          }
+          safe={key: auth.get(key) for key in ('mode','config_present','provider_status','provider_kind','provider_error') if key in auth}
           print('API_AUTH_HEALTH=' + json.dumps(safe, separators=(',', ':')))
           PY
             else
@@ -280,18 +260,14 @@ jobs:
           TARGET_BUILD: ${{ github.sha }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 \
-            "$API_URL/health" > /tmp/post-auth-health.json
+          curl --fail --silent --show-error --max-time 30 "$API_URL/health" > /tmp/post-auth-health.json
           python - <<'PY'
           import json
           import os
-
           health=json.load(open('/tmp/post-auth-health.json', encoding='utf-8'))
           auth=health.get('auth') if isinstance(health, dict) else {}
           auth=auth if isinstance(auth, dict) else {}
-          safe_auth={name: auth.get(name) for name in (
-              'mode', 'config_present', 'provider_status', 'provider_kind', 'provider_error'
-          )}
+          safe_auth={name: auth.get(name) for name in ('mode', 'config_present', 'provider_status', 'provider_kind', 'provider_error')}
           print('POST_AUTH_HEALTH=' + json.dumps(safe_auth, sort_keys=True, separators=(',', ':')))
           assert health.get('ok') is True
           assert health.get('service') == 'obrasignal-api'
@@ -325,10 +301,8 @@ jobs:
           payload=json.load(open('/tmp/profile-original-response.json'))
           json.dump(payload.get('profile') or {}, open('/tmp/profile-restore.json','w'), ensure_ascii=False)
           PY
-            curl --fail --silent --show-error --max-time 30 \
-              -X POST "$API_URL/profile" \
-              -H "Authorization: Bearer $(cat /tmp/access_token)" \
-              -H 'Content-Type: application/json' \
+            curl --fail --silent --show-error --max-time 30 -X POST "$API_URL/profile" \
+              -H "Authorization: Bearer $(cat /tmp/access_token)" -H 'Content-Type: application/json' \
               --data-binary @/tmp/profile-restore.json >/tmp/profile-restore-response.json
             python - <<'PY'
           import json
@@ -337,8 +311,7 @@ jobs:
           assert str(payload.get('account_id')) == expected_account_id
           assert payload.get('authenticated') is True
           PY
-            curl --fail --silent --show-error --max-time 30 \
-              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $(cat /tmp/access_token)" \
               "$API_URL/profile" >/tmp/profile-restored.json
             python - <<'PY'
           import json
@@ -352,10 +325,8 @@ jobs:
           PY
           }
           trap restore_profile EXIT
-          curl --fail --silent --show-error --max-time 30 \
-            -X POST "$API_URL/profile" \
-            -H "Authorization: Bearer $(cat /tmp/access_token)" \
-            -H 'Content-Type: application/json' \
+          curl --fail --silent --show-error --max-time 30 -X POST "$API_URL/profile" \
+            -H "Authorization: Bearer $(cat /tmp/access_token)" -H 'Content-Type: application/json' \
             --data-binary @/tmp/profile-write.json >/tmp/profile-write-response.json
           python - <<'PY'
           import json
@@ -364,8 +335,7 @@ jobs:
           assert str(payload.get('account_id')) == expected_account_id
           assert payload.get('authenticated') is True
           PY
-          curl --fail --silent --show-error --max-time 30 \
-            -H "Authorization: Bearer $(cat /tmp/access_token)" \
+          curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $(cat /tmp/access_token)" \
             "$API_URL/profile" >/tmp/profile-after-write.json
           python - <<'PY'
           import json
@@ -381,8 +351,7 @@ jobs:
       - name: Verify authenticated opportunity access and account scoping
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 \
-            -H "Authorization: Bearer $(cat /tmp/access_token)" \
+          curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $(cat /tmp/access_token)" \
             "$API_URL/opportunities?limit=1" > /tmp/opportunities.json
           python - <<'PY'
           import json
@@ -401,8 +370,7 @@ jobs:
             case "$filename" in
               */*) echo "Unsafe E2E output filename: $filename"; exit 1 ;;
             esac
-            curl --fail --silent --show-error --max-time 30 \
-              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $(cat /tmp/access_token)" \
               "$API_URL/$endpoint" > "/tmp/${filename}.json"
           done
           python - <<'PY'
@@ -433,11 +401,9 @@ jobs:
           PY
           if test -s /tmp/tender_id; then
             ID="$(cat /tmp/tender_id)"
-            curl --fail --silent --show-error --max-time 30 \
-              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $(cat /tmp/access_token)" \
               "$API_URL/opportunities/$ID" > /tmp/detail.json
-            curl --fail --silent --show-error --max-time 30 \
-              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $(cat /tmp/access_token)" \
               "$API_URL/opportunities/$ID/workflow" > /tmp/workflow.json
             python - <<'PY'
           import json
@@ -459,13 +425,10 @@ jobs:
           w=json.load(open('/tmp/workflow-original.json'))
           json.dump({'status':w.get('status','NEW'),'note':w.get('note')}, open('/tmp/workflow-restore.json','w'))
           PY
-              curl --fail --silent --show-error --max-time 30 \
-                -X POST "$API_URL/opportunities/$ID/workflow" \
-                -H "Authorization: Bearer $(cat /tmp/access_token)" \
-                -H 'Content-Type: application/json' \
+              curl --fail --silent --show-error --max-time 30 -X POST "$API_URL/opportunities/$ID/workflow" \
+                -H "Authorization: Bearer $(cat /tmp/access_token)" -H 'Content-Type: application/json' \
                 --data-binary @/tmp/workflow-restore.json >/tmp/workflow-restore-response.json
-              curl --fail --silent --show-error --max-time 30 \
-                -H "Authorization: Bearer $(cat /tmp/access_token)" \
+              curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $(cat /tmp/access_token)" \
                 "$API_URL/opportunities/$ID/workflow" >/tmp/workflow-restored.json
               python - <<'PY'
           import json
@@ -483,13 +446,10 @@ jobs:
           next_status='REVIEWING' if w.get('status') != 'REVIEWING' else 'PREPARING'
           json.dump({'status':next_status,'note':'__e2e_roundtrip__'}, open('/tmp/workflow-write.json','w'))
           PY
-            curl --fail --silent --show-error --max-time 30 \
-              -X POST "$API_URL/opportunities/$ID/workflow" \
-              -H "Authorization: Bearer $(cat /tmp/access_token)" \
-              -H 'Content-Type: application/json' \
+            curl --fail --silent --show-error --max-time 30 -X POST "$API_URL/opportunities/$ID/workflow" \
+              -H "Authorization: Bearer $(cat /tmp/access_token)" -H 'Content-Type: application/json' \
               --data-binary @/tmp/workflow-write.json >/tmp/workflow-write-response.json
-            curl --fail --silent --show-error --max-time 30 \
-              -H "Authorization: Bearer $(cat /tmp/access_token)" \
+            curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $(cat /tmp/access_token)" \
               "$API_URL/opportunities/$ID/workflow" >/tmp/workflow-after-write.json
             python - <<'PY'
           import json
