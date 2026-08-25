@@ -31,3 +31,4 @@ jobs:
           tests/test_system_acceptance_golden.py
           tests/test_acceptance_integration_manifest.py
           tests/test_commercial_readiness_acceptance.py
+          tests/test_source_coverage_commercial_acceptance.py
