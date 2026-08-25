@@ -1,0 +1,251 @@
+"""Support-facing incident semantics for ObraSignal.
+
+This module is deliberately transport/runtime neutral. It does not own service
+health, authentication, billing, storage recovery, source health, or production
+mutation. It provides a bounded vocabulary that support tooling can consume
+without creating a second operational source of truth.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+import re
+from typing import Any, Iterable, Mapping
+
+
+class CustomerFailureClass(str, Enum):
+    RETRYABLE = "RETRYABLE"
+    UNAVAILABLE = "UNAVAILABLE"
+    DEGRADED = "DEGRADED"
+    STALE = "STALE"
+    UNKNOWN = "UNKNOWN"
+    AUTH_REQUIRED = "AUTH_REQUIRED"
+    PERMISSION_DENIED = "PERMISSION_DENIED"
+    NOT_FOUND = "NOT_FOUND"
+    CONFLICT = "CONFLICT"
+
+
+class IncidentSeverity(str, Enum):
+    SEV0 = "SEV0"
+    SEV1 = "SEV1"
+    SEV2 = "SEV2"
+    SEV3 = "SEV3"
+
+
+class IncidentImpact(str, Enum):
+    TENANT_LEAKAGE = "TENANT_LEAKAGE"
+    DATA_LOSS = "DATA_LOSS"
+    SECURITY_COMPROMISE = "SECURITY_COMPROMISE"
+    BILLING_ACCESS_OUTAGE = "BILLING_ACCESS_OUTAGE"
+    CUSTOMER_JOURNEY_OUTAGE = "CUSTOMER_JOURNEY_OUTAGE"
+    SOURCE_DEGRADATION = "SOURCE_DEGRADATION"
+    SINGLE_CUSTOMER_DEFECT = "SINGLE_CUSTOMER_DEFECT"
+
+
+class ServiceReadiness(str, Enum):
+    HEALTHY = "HEALTHY"
+    DEGRADED = "DEGRADED"
+    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ServiceArea(str, Enum):
+    AUTH = "AUTH"
+    DATA = "DATA"
+    SOURCES = "SOURCES"
+    WEB = "WEB"
+    MOBILE = "MOBILE"
+    NOTIFICATIONS = "NOTIFICATIONS"
+    BILLING = "BILLING"
+    PRIVACY = "PRIVACY"
+    RECOVERY = "RECOVERY"
+    OBSERVABILITY = "OBSERVABILITY"
+    SUPPORT = "SUPPORT"
+
+
+class RecoveryState(str, Enum):
+    NOT_STARTED = "NOT_STARTED"
+    IN_PROGRESS = "IN_PROGRESS"
+    SERVICE_RESTORED = "SERVICE_RESTORED"
+    VERIFIED = "VERIFIED"
+    ROOT_CAUSE_CLOSED = "ROOT_CAUSE_CLOSED"
+
+
+_SEVERITY_BY_IMPACT = {
+    IncidentImpact.TENANT_LEAKAGE: IncidentSeverity.SEV0,
+    IncidentImpact.DATA_LOSS: IncidentSeverity.SEV0,
+    IncidentImpact.SECURITY_COMPROMISE: IncidentSeverity.SEV0,
+    IncidentImpact.BILLING_ACCESS_OUTAGE: IncidentSeverity.SEV1,
+    IncidentImpact.CUSTOMER_JOURNEY_OUTAGE: IncidentSeverity.SEV1,
+    IncidentImpact.SOURCE_DEGRADATION: IncidentSeverity.SEV2,
+    IncidentImpact.SINGLE_CUSTOMER_DEFECT: IncidentSeverity.SEV3,
+}
+_SEVERITY_ORDER = {
+    IncidentSeverity.SEV0: 0,
+    IncidentSeverity.SEV1: 1,
+    IncidentSeverity.SEV2: 2,
+    IncidentSeverity.SEV3: 3,
+}
+
+_CORRELATION_ID = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
+_SAFE_TOKEN = re.compile(r"^[A-Za-z0-9._:/@+-]{1,256}$")
+_DETAIL_KEYS = frozenset(
+    {
+        "http_status",
+        "operation",
+        "error_code",
+        "component",
+        "dependency_status",
+        "retry_after_seconds",
+        "attempt",
+        "state_version",
+    }
+)
+_MAX_DETAIL_ITEMS = 8
+_MAX_TEXT = 256
+
+
+def classify_incident(impacts: Iterable[IncidentImpact | str]) -> IncidentSeverity:
+    """Return the highest supported severity from explicit observed impacts.
+
+    An empty impact set is not silently turned into a low-severity incident.
+    """
+    normalized: set[IncidentImpact] = set()
+    for impact in impacts:
+        try:
+            normalized.add(impact if isinstance(impact, IncidentImpact) else IncidentImpact(impact))
+        except ValueError as exc:
+            raise ValueError(f"unsupported incident impact: {impact!r}") from exc
+    if not normalized:
+        raise ValueError("incident impact evidence is required")
+    return min((_SEVERITY_BY_IMPACT[impact] for impact in normalized), key=_SEVERITY_ORDER.__getitem__)
+
+
+def recovery_state(
+    *,
+    started: bool,
+    service_restored: bool,
+    recovery_verified: bool,
+    root_cause_closed: bool,
+) -> RecoveryState:
+    """Represent recovery without collapsing restoration into verified closure."""
+    if root_cause_closed and not recovery_verified:
+        raise ValueError("root cause cannot be closed before recovery is verified")
+    if recovery_verified and not service_restored:
+        raise ValueError("recovery cannot be verified before service is restored")
+    if service_restored and not started:
+        raise ValueError("service cannot be restored before recovery starts")
+    if root_cause_closed:
+        return RecoveryState.ROOT_CAUSE_CLOSED
+    if recovery_verified:
+        return RecoveryState.VERIFIED
+    if service_restored:
+        return RecoveryState.SERVICE_RESTORED
+    if started:
+        return RecoveryState.IN_PROGRESS
+    return RecoveryState.NOT_STARTED
+
+
+def _bounded_text(name: str, value: str | None, *, token: bool = False) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value or len(value) > _MAX_TEXT:
+        raise ValueError(f"{name} must be a non-empty bounded string")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        raise ValueError(f"{name} contains control characters")
+    if token and not _SAFE_TOKEN.fullmatch(value):
+        raise ValueError(f"{name} contains unsupported characters")
+    return value
+
+
+def _observed_at(value: str) -> str:
+    value = _bounded_text("observed_at", value)  # type: ignore[assignment]
+    assert value is not None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("observed_at must be ISO-8601") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("observed_at must be timezone-aware")
+    return value
+
+
+def _safe_details(details: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not details:
+        return {}
+    if len(details) > _MAX_DETAIL_ITEMS:
+        raise ValueError("too many support evidence details")
+    unknown = set(details) - _DETAIL_KEYS
+    if unknown:
+        raise ValueError(f"unsupported support evidence fields: {sorted(unknown)}")
+    clean: dict[str, Any] = {}
+    for key, value in details.items():
+        if value is None or isinstance(value, bool):
+            clean[key] = value
+        elif isinstance(value, int):
+            clean[key] = value
+        elif isinstance(value, str):
+            clean[key] = _bounded_text(key, value)
+        else:
+            raise ValueError(f"{key} must be a scalar support-safe value")
+    return clean
+
+
+@dataclass(frozen=True)
+class SupportEvidencePack:
+    correlation_id: str
+    observed_at: str
+    service_area: ServiceArea
+    failure_class: CustomerFailureClass
+    service_readiness: ServiceReadiness
+    recovery_state: RecoveryState
+    build: str | None = None
+    version: str | None = None
+    dependency_state: str | None = None
+    details: Mapping[str, Any] | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return only bounded operational metadata; no tenant selector/payload."""
+        if not isinstance(self.correlation_id, str) or not _CORRELATION_ID.fullmatch(self.correlation_id):
+            raise ValueError("correlation_id must be an opaque bounded identifier")
+        observed_at = _observed_at(self.observed_at)
+        build = _bounded_text("build", self.build, token=True)
+        version = _bounded_text("version", self.version, token=True)
+        dependency_state = _bounded_text("dependency_state", self.dependency_state, token=True)
+        details = _safe_details(self.details)
+        return {
+            "correlation_id": self.correlation_id,
+            "observed_at": observed_at,
+            "service_area": self.service_area.value,
+            "failure_class": self.failure_class.value,
+            "service_readiness": self.service_readiness.value,
+            "recovery_state": self.recovery_state.value,
+            "build": build,
+            "version": version,
+            "dependency_state": dependency_state,
+            "details": details,
+        }
+
+
+def customer_error_payload(
+    failure_class: CustomerFailureClass | str,
+    *,
+    correlation_id: str,
+) -> dict[str, str]:
+    """Build a deliberately small customer-safe error envelope.
+
+    Retryability, root cause, success, tenant identity, and recovery are not
+    guessed here. Those require evidence from their owning contracts.
+    """
+    try:
+        failure = (
+            failure_class
+            if isinstance(failure_class, CustomerFailureClass)
+            else CustomerFailureClass(failure_class)
+        )
+    except ValueError as exc:
+        raise ValueError(f"unsupported customer failure class: {failure_class!r}") from exc
+    if not isinstance(correlation_id, str) or not _CORRELATION_ID.fullmatch(correlation_id):
+        raise ValueError("correlation_id must be an opaque bounded identifier")
+    return {"error_class": failure.value, "correlation_id": correlation_id}
