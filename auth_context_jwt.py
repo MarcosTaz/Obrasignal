@@ -102,6 +102,7 @@ class JwtVerifier:
         self._generation = 0
         self._lock = Lock()
         self._keys_source = None
+        self._provider_degraded = False
         if bootstrap_json:
             try:
                 payload = json.loads(bootstrap_json)
@@ -138,6 +139,15 @@ class JwtVerifier:
             payload = json.load(response)
         return self._validated_keys(payload)
 
+    def provider_status(self) -> str:
+        """Return a secret-free summary of the verifier's last known readiness."""
+        with self._lock:
+            if self._provider_degraded:
+                return "degraded"
+            if self._keys:
+                return "ready"
+            return "uninitialized"
+
     def _key_for(self, kid: str):
         """Return a cached public JWK, refreshing once when stale or unknown.
 
@@ -170,6 +180,7 @@ class JwtVerifier:
             except Exception as exc:
                 # Never replace the last known-good public keys with a failed or
                 # malformed response. Cached keys still perform full JWT validation.
+                self._provider_degraded = True
                 self._retry_at = time.time() + min(30, self.cache_seconds)
                 if kid in keys and time.time() - self._fetched_at <= self.stale_max_seconds:
                     return keys[kid]
@@ -181,6 +192,7 @@ class JwtVerifier:
             self._retry_at = 0.0
             self._generation += 1
             self._keys_source = "remote"
+            self._provider_degraded = False
             if kid not in refreshed:
                 raise InvalidTokenError("unknown JWT key id")
             return refreshed[kid]
@@ -242,3 +254,50 @@ def production_verifier() -> JwtVerifier:
             )
             _verifier_config = config
         return _verifier
+
+
+def authentication_health() -> dict:
+    """Return public-safe authentication configuration/readiness metadata.
+
+    This is intentionally passive: health never calls the identity provider. A
+    provider is ``ready`` only after the verifier has usable public keys,
+    ``degraded`` after a failed JWKS refresh, and ``uninitialized`` before the
+    first verification attempt. No issuer, JWKS URL, key material or secret is
+    returned.
+    """
+    mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
+    if mode == "development":
+        return {
+            "mode": "development",
+            "config_present": True,
+            "provider_status": "not_applicable",
+        }
+    if mode != "provider":
+        return {
+            "mode": "invalid",
+            "config_present": False,
+            "provider_status": "misconfigured",
+        }
+
+    issuer = os.getenv("OBRASIGNAL_JWT_ISSUER", "").strip()
+    audience = os.getenv("OBRASIGNAL_JWT_AUDIENCE", "authenticated").strip()
+    config_present = bool(issuer and audience)
+    if not config_present:
+        return {
+            "mode": "provider",
+            "config_present": False,
+            "provider_status": "misconfigured",
+        }
+    try:
+        verifier = production_verifier()
+    except (RuntimeError, TypeError, ValueError):
+        return {
+            "mode": "provider",
+            "config_present": False,
+            "provider_status": "misconfigured",
+        }
+    return {
+        "mode": "provider",
+        "config_present": True,
+        "provider_status": verifier.provider_status(),
+    }
