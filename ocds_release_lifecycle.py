@@ -12,9 +12,10 @@ It is transport/family infrastructure, not a regional runtime.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from urllib.parse import quote
 
-from ocds_adapter import OCDSAPIConnector, _records_from_payload
+from ocds_adapter import OCDSAPIConnector, OCDSWindowCursor, _records_from_payload
 
 
 def _text(value):
@@ -28,6 +29,31 @@ def _unwrap_mapping(payload):
         if isinstance(value.get("content"), dict):
             value = value["content"]
     return value
+
+
+def merge_nonempty_mapping(base, patch):
+    """Recursively preserve prior fields omitted by a later partial OCDS patch.
+
+    OCDS ReleasePackages may publish partial updates. Empty/missing values in a
+    later release must not erase previously observed normalized context. Mapping
+    children are merged recursively; non-empty scalar/list values replace the
+    previous value. This is deliberately narrower than a full OCDS merge engine
+    and is suitable for source normalizers that only read a bounded set of fields.
+    """
+    if not isinstance(base, Mapping):
+        base = {}
+    if not isinstance(patch, Mapping):
+        return deepcopy(dict(base))
+    merged = deepcopy(dict(base))
+    for key, value in patch.items():
+        if value in (None, "", [], {}):
+            continue
+        previous = merged.get(key)
+        if isinstance(previous, Mapping) and isinstance(value, Mapping):
+            merged[key] = merge_nonempty_mapping(previous, value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
 
 
 class OCDSReleasePackageConnector(OCDSAPIConnector):
@@ -125,7 +151,5 @@ class OCDSReleasePackageConnector(OCDSAPIConnector):
                             f"{self.config.source} multi-signal normalizer returned item without external_id"
                         )
                     rows.append(dict(item))
-            from ocds_adapter import OCDSWindowCursor
-
             cursor = OCDSWindowCursor(end.isoformat()).encode()
         return rows, cursor
