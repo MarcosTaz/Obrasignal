@@ -64,6 +64,27 @@ PREBUILD_CONTRACTS: dict[str, TableContract] = {
         unique_keys=(("account_id", "state_version"),),
         required_indexes=("idx_company_state_account_version",),
     ),
+    "push_devices": TableContract(
+        "Notification Delivery / notification_events",
+        frozenset({
+            "id", "account_id", "installation_id", "expo_push_token", "platform",
+            "binding_id", "created_at", "updated_at", "last_error", "revoked_at",
+        }),
+        tenant_column="account_id",
+        unique_keys=(("installation_id",), ("expo_push_token",)),
+        required_indexes=("idx_push_devices_account",),
+    ),
+    "push_deliveries": TableContract(
+        "Notification Delivery / notification_events",
+        frozenset({
+            "id", "event_id", "push_device_id", "ticket_id", "submitted_at",
+            "last_error", "attempt_count", "last_attempt_at", "next_attempt_at",
+            "expo_push_token", "receipt_status", "receipt_checked_at",
+            "receipt_error", "failed_at",
+        }),
+        unique_keys=(("event_id", "push_device_id"),),
+        required_indexes=("idx_push_deliveries_event_device",),
+    ),
 }
 
 KNOWN_TABLE_OWNERS = {**STARTUP_CONTRACTS, **RUNTIME_CONTRACTS, **PREBUILD_CONTRACTS}
@@ -82,6 +103,11 @@ REGISTERED_ADDITIVE_MIGRATIONS: dict[str, tuple[str, ...]] = {
     "accounts": ("trial_ends_at","entitlement_expires_at","store","product_id","original_transaction_id","subscription_status","billing_synced_at","evaluation_type","evaluation_status","evaluation_activated_at","evaluation_ends_at","evaluation_extension_days","evaluation_value_status","evaluation_activation_reason","evaluation_extension_reason"),
     "opportunity_decisions": ("account_id",),
     "opportunity_events": ("account_id",),
+    "push_devices": ("revoked_at",),
+    "push_deliveries": (
+        "attempt_count", "last_attempt_at", "next_attempt_at", "expo_push_token",
+        "receipt_status", "receipt_checked_at", "receipt_error", "failed_at",
+    ),
 }
 
 _CREATE_TABLE_RE = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[\"'`\[]?([A-Za-z_][A-Za-z0-9_]*)\b(?=\s*\()", re.IGNORECASE)
@@ -204,6 +230,79 @@ def verify_foreign_keys(conn: sqlite3.Connection) -> None:
         raise StorageContractError("foreign key integrity failed: tables=" + ",".join(tables) + f" violations={len(violations)}")
 
 
+def verify_push_delivery_integrity(conn: sqlite3.Connection) -> None:
+    """Fail closed on cross-owner corruption without creating another event truth."""
+    if not (_table_exists(conn, "push_devices") and _table_exists(conn, "push_deliveries")):
+        return
+    errors: list[str] = []
+    if _table_exists(conn, "opportunity_events"):
+        orphan_events = int(conn.execute(
+            """SELECT COUNT(*) FROM push_deliveries pd
+               LEFT JOIN opportunity_events e ON e.id=pd.event_id
+               WHERE e.id IS NULL"""
+        ).fetchone()[0])
+        tenant_mismatch = int(conn.execute(
+            """SELECT COUNT(*) FROM push_deliveries pd
+               JOIN opportunity_events e ON e.id=pd.event_id
+               JOIN push_devices d ON d.id=pd.push_device_id
+               WHERE e.account_id<>d.account_id"""
+        ).fetchone()[0])
+        if orphan_events:
+            errors.append(f"push_deliveries:orphan_event_rows={orphan_events}")
+        if tenant_mismatch:
+            errors.append(f"push_deliveries:tenant_chain_mismatch_rows={tenant_mismatch}")
+    orphan_devices = int(conn.execute(
+        """SELECT COUNT(*) FROM push_deliveries pd
+           LEFT JOIN push_devices d ON d.id=pd.push_device_id
+           WHERE d.id IS NULL"""
+    ).fetchone()[0])
+    if orphan_devices:
+        errors.append(f"push_deliveries:orphan_device_rows={orphan_devices}")
+
+    negative_attempts = int(conn.execute(
+        "SELECT COUNT(*) FROM push_deliveries WHERE attempt_count<0"
+    ).fetchone()[0])
+    attempted_without_time = int(conn.execute(
+        "SELECT COUNT(*) FROM push_deliveries WHERE attempt_count>0 AND last_attempt_at IS NULL"
+    ).fetchone()[0])
+    submission_without_ticket = int(conn.execute(
+        "SELECT COUNT(*) FROM push_deliveries WHERE submitted_at IS NOT NULL AND (ticket_id IS NULL OR length(trim(ticket_id))=0)"
+    ).fetchone()[0])
+    ticket_without_submission = int(conn.execute(
+        "SELECT COUNT(*) FROM push_deliveries WHERE ticket_id IS NOT NULL AND submitted_at IS NULL"
+    ).fetchone()[0])
+    retry_after_submission = int(conn.execute(
+        "SELECT COUNT(*) FROM push_deliveries WHERE next_attempt_at IS NOT NULL AND submitted_at IS NOT NULL"
+    ).fetchone()[0])
+    accepted_without_submission = int(conn.execute(
+        """SELECT COUNT(*) FROM push_deliveries
+           WHERE receipt_status='provider_accepted'
+             AND (submitted_at IS NULL OR ticket_id IS NULL)"""
+    ).fetchone()[0])
+    revoked_token_not_tombstoned = int(conn.execute(
+        """SELECT COUNT(*) FROM push_devices
+           WHERE revoked_at IS NOT NULL AND expo_push_token NOT LIKE 'revoked:%'"""
+    ).fetchone()[0])
+    active_tombstone = int(conn.execute(
+        """SELECT COUNT(*) FROM push_devices
+           WHERE revoked_at IS NULL AND expo_push_token LIKE 'revoked:%'"""
+    ).fetchone()[0])
+    for label, count in (
+        ("negative_attempt_count_rows", negative_attempts),
+        ("attempt_without_timestamp_rows", attempted_without_time),
+        ("submitted_without_ticket_rows", submission_without_ticket),
+        ("ticket_without_submission_rows", ticket_without_submission),
+        ("retry_after_submission_rows", retry_after_submission),
+        ("accepted_without_submission_rows", accepted_without_submission),
+        ("revoked_token_not_tombstoned_rows", revoked_token_not_tombstoned),
+        ("active_tombstone_rows", active_tombstone),
+    ):
+        if count:
+            errors.append(f"push_delivery_integrity:{label}={count}")
+    if errors:
+        raise StorageContractError("push delivery integrity failed: " + "; ".join(errors))
+
+
 def verify_database(
     conn: sqlite3.Connection,
     *,
@@ -218,6 +317,8 @@ def verify_database(
     verify_schema(conn, contracts)
     verify_json_integrity(conn)
     verify_foreign_keys(conn)
+    if include_prebuild:
+        verify_push_delivery_integrity(conn)
 
 
 def tenant_owned_tables(*, include_prebuild: bool = False) -> dict[str, str]:
