@@ -85,7 +85,7 @@ def test_server_query_is_bounded_to_construction_and_publication_window():
     params = session.calls[0][1]["params"]
     where = params["where"]
     assert 'startswith(codecpv, "45")' in where
-    assert "datepublicationdonnees >= date:'2026-08-18'" in where
+    assert "datepublicationdonnees >= '2026-08-18'" in where
     assert "modification" not in where
     assert params["limit"] <= 100
 
