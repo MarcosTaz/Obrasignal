@@ -25,6 +25,8 @@ _IDENTIFIER_KEYS = (
 )
 _IDENTITY_OBJECT_KEYS = ("buyer", "procuring_entity", "contracting_authority", "purchaser", "issuer")
 _PROCUREMENT_ID_KEYS = ("canonical_opportunity_id", "procurement_id", "procedure_id", "ocid", "tender_id")
+_AWARD_ID_KEYS = ("canonical_award_id", "award_id", "award_identifier")
+_CONTRACT_ID_KEYS = ("canonical_contract_id", "contract_id", "contract_identifier")
 _LOT_ID_KEYS = ("lot_id", "lot_identifier")
 
 
@@ -193,12 +195,40 @@ def _activity_dt(row: Mapping[str, Any]) -> datetime | None:
     return None
 
 
-def _procurement_key(row: Mapping[str, Any], payload: Mapping[str, Any]) -> str:
-    for key in _PROCUREMENT_ID_KEYS:
+def _payload_id(payload: Mapping[str, Any], keys: tuple[str, ...], nested_key: str | None = None) -> str:
+    for key in keys:
         value = _text(payload.get(key))
         if value:
-            return f"{_text(row.get('source'))}:{value}"
+            return value
+    if nested_key:
+        nested = payload.get(nested_key)
+        if isinstance(nested, Mapping):
+            value = _text(nested.get("id") or nested.get("identifier"))
+            if value:
+                return value
+    return ""
+
+
+def _procurement_key(row: Mapping[str, Any], payload: Mapping[str, Any]) -> str:
+    value = _payload_id(payload, _PROCUREMENT_ID_KEYS)
+    if value:
+        return f"{_text(row.get('source'))}:{value}"
     return f"{_text(row.get('source'))}:{_text(row.get('external_id'))}"
+
+
+def _activity_identity(row: Mapping[str, Any], payload: Mapping[str, Any]) -> str:
+    signal_type = _text(row.get("signal_type")).upper()
+    source = _text(row.get("source"))
+    external_id = _text(row.get("external_id"))
+    if signal_type == "TENDER":
+        return _procurement_key(row, payload)
+    if signal_type == "AWARD":
+        award_id = _payload_id(payload, _AWARD_ID_KEYS, "award")
+        return f"{source}:{award_id}" if award_id else f"{source}:{external_id}"
+    if signal_type == "CONTRACT":
+        contract_id = _payload_id(payload, _CONTRACT_ID_KEYS, "contract")
+        return f"{source}:{contract_id}" if contract_id else f"{source}:{external_id}"
+    return f"{source}:{external_id}"
 
 
 def _lot_key(payload: Mapping[str, Any]) -> str | None:
@@ -253,7 +283,10 @@ def _select_identity_rows(conn, parsed: Mapping[str, str]) -> list[dict[str, Any
     if parsed["mode"] == "name_scoped":
         where.append("buyer=?")
         params.append(parsed["name"])
-    rows = conn.execute(f"SELECT * FROM signal_records WHERE {' AND '.join(where)} ORDER BY last_observed DESC", tuple(params)).fetchall()
+    rows = conn.execute(
+        f"SELECT * FROM signal_records WHERE {' AND '.join(where)} ORDER BY last_observed DESC, signal_type, external_id",
+        tuple(params),
+    ).fetchall()
     candidates = [dict(row) for row in rows]
     if parsed["mode"] == "name_scoped":
         return [row for row in candidates if buyer_identity_from_record(row).buyer_id == _encode(parsed)]
@@ -266,14 +299,23 @@ def _dedupe(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     floor = datetime.min.replace(tzinfo=timezone.utc)
     for row in records:
         payload = _record_payload(row)
-        key = (_text(row.get("signal_type")).upper(), _procurement_key(row, payload))
-        lot = _lot_key(payload)
-        if lot:
-            lots.add((key[1], lot))
+        signal_type = _text(row.get("signal_type")).upper()
+        identity = _activity_identity(row, payload)
+        key = (signal_type, identity)
+        if signal_type == "TENDER":
+            lot = _lot_key(payload)
+            if lot:
+                lots.add((_procurement_key(row, payload), lot))
         current = selected.get(key)
-        if current is None or (_activity_dt(row) or floor) > (_activity_dt(current) or floor):
+        candidate_rank = (_activity_dt(row) or floor, _text(row.get("external_id")))
+        current_rank = (
+            (_activity_dt(current) or floor, _text(current.get("external_id")))
+            if current is not None else None
+        )
+        if current_rank is None or candidate_rank > current_rank:
             selected[key] = row
-    return list(selected.values()), len(lots)
+    ordered = [selected[key] for key in sorted(selected)]
+    return ordered, len(lots)
 
 
 def build_buyer_profile_snapshot(conn, buyer_id: str, window: str = "12m", context: Any = None, *, now: datetime | None = None, recent_limit: int = 10) -> BuyerProfileSnapshot | None:
@@ -316,39 +358,68 @@ def build_buyer_profile_snapshot(conn, buyer_id: str, window: str = "12m", conte
         taxonomy, code = _text(row.get("taxonomy")) or "UNKNOWN", _text(row.get("category_code"))
         if code:
             categories[(taxonomy, code)] = categories.get((taxonomy, code), 0) + 1
-    category_items = tuple({"taxonomy": t, "code": c, "known_opportunity_count": n} for (t, c), n in sorted(categories.items(), key=lambda item: (-item[1], item[0])))
+    category_items = tuple(
+        {"taxonomy": t, "code": c, "known_opportunity_count": n}
+        for (t, c), n in sorted(categories.items(), key=lambda item: (-item[1], item[0]))
+    )
 
     recent = []
     for row in deduped:
         dt = _activity_dt(row)
-        recent.append({"signal_type": _text(row.get("signal_type")).upper(), "source": _text(row.get("source")), "external_id": _text(row.get("external_id")), "title": _text(row.get("title")), "activity_date": dt.isoformat() if dt else None, "source_reference": _text(row.get("source_reference")) or None})
-    recent.sort(key=lambda item: item["activity_date"] or "", reverse=True)
+        recent.append({
+            "signal_type": _text(row.get("signal_type")).upper(),
+            "source": _text(row.get("source")),
+            "external_id": _text(row.get("external_id")),
+            "title": _text(row.get("title")),
+            "activity_date": dt.isoformat() if dt else None,
+            "source_reference": _text(row.get("source_reference")) or None,
+        })
+    recent.sort(
+        key=lambda item: (
+            item["activity_date"] or "",
+            item["signal_type"],
+            item["source"],
+            item["external_id"],
+        ),
+        reverse=True,
+    )
 
     dates = [dt for row in visible if (dt := _activity_dt(row))]
-    seen_refs: set[tuple[str, str]] = set()
-    source_refs = []
-    for row in visible:
-        source = _text(row.get("source"))
-        ref = _text(row.get("source_reference") or row.get("url") or row.get("external_id"))
-        if source and ref and (source, ref) not in seen_refs:
-            seen_refs.add((source, ref)); source_refs.append({"source": source, "reference": ref})
+    source_ref_pairs = sorted({
+        (_text(row.get("source")), _text(row.get("source_reference") or row.get("url") or row.get("external_id")))
+        for row in visible
+        if _text(row.get("source")) and _text(row.get("source_reference") or row.get("url") or row.get("external_id"))
+    })
+    source_refs = tuple({"source": source, "reference": ref} for source, ref in source_ref_pairs)
     sources = sorted({_text(row.get("source")) for row in matched if _text(row.get("source"))})
     notes = [
         "Known activity reflects only normalized procurement records currently available to ObraSignal; it is not the buyer's total real-world procurement activity.",
         f"Observed source scope: {', '.join(sources)}." if sources else "Observed source scope is unknown.",
         f"Activity window: {window}; records without a usable activity date are {'included' if cutoff is None else 'excluded'} from windowed activity metrics.",
         "Opportunity, award and contract published values are kept separate and currencies are never converted or summed together.",
-        "Opportunity counts use procedure-level canonical keys when present; observed lot identifiers are reported separately.",
+        "Opportunity counts use procedure-level canonical keys when present; awards/contracts use their own identifiers when present and otherwise source external IDs; observed lot identifiers are reported separately.",
     ]
     if parsed["mode"] == "name_scoped":
         notes.append("Buyer identity is source/jurisdiction/name scoped because no stronger identifier is present in the available normalized record; no fuzzy merge is performed.")
 
     return BuyerProfileSnapshot(
-        buyer_id=_encode(parsed), canonical_name=canonical_name,
-        identifiers=tuple(identifiers[key] for key in sorted(identifiers)), jurisdiction=parsed.get("country") or None,
-        known_locations=tuple(locations), known_opportunity_count=len(by_type["TENDER"]), known_award_count=len(by_type["AWARD"]), known_contract_count=len(by_type["CONTRACT"]), observed_lot_count=observed_lot_count,
-        known_published_opportunity_values_by_currency=_value_totals(by_type["TENDER"]), known_award_values_by_currency=_value_totals(by_type["AWARD"]), known_contract_values_by_currency=_value_totals(by_type["CONTRACT"]),
-        known_categories=category_items, recent_activity=tuple(recent[:recent_limit]),
-        observed_from=min(dates).isoformat() if dates else None, observed_to=max(dates).isoformat() if dates else None,
-        source_refs=tuple(source_refs), coverage_notes=tuple(notes), generated_at=now.isoformat(),
+        buyer_id=_encode(parsed),
+        canonical_name=canonical_name,
+        identifiers=tuple(identifiers[key] for key in sorted(identifiers)),
+        jurisdiction=parsed.get("country") or None,
+        known_locations=tuple(locations),
+        known_opportunity_count=len(by_type["TENDER"]),
+        known_award_count=len(by_type["AWARD"]),
+        known_contract_count=len(by_type["CONTRACT"]),
+        observed_lot_count=observed_lot_count,
+        known_published_opportunity_values_by_currency=_value_totals(by_type["TENDER"]),
+        known_award_values_by_currency=_value_totals(by_type["AWARD"]),
+        known_contract_values_by_currency=_value_totals(by_type["CONTRACT"]),
+        known_categories=category_items,
+        recent_activity=tuple(recent[:recent_limit]),
+        observed_from=min(dates).isoformat() if dates else None,
+        observed_to=max(dates).isoformat() if dates else None,
+        source_refs=source_refs,
+        coverage_notes=tuple(notes),
+        generated_at=now.isoformat(),
     )
