@@ -77,12 +77,23 @@ def economics_constraints(state: CompanyState, *, as_of: datetime | None = None)
 
 
 def requirements_facts(state: CompanyState) -> dict[str, Any]:
-    """Provide facts, never MET/NOT_MET eligibility conclusions."""
+    """Provide operational facts, never preferences or eligibility conclusions.
+
+    Company Profile market countries/regions are projected as
+    ``geography.preferred_*`` facts. They deliberately stay out of this seam so a
+    preference cannot accidentally satisfy an opportunity geography requirement.
+    """
     categories = {FactCategory.CAPABILITY, FactCategory.QUALIFICATION, FactCategory.GEOGRAPHY, FactCategory.CAPACITY, FactCategory.EQUIPMENT}
+    facts = [
+        fact
+        for fact in state.active_facts()
+        if fact.category in categories
+        and not (fact.category is FactCategory.GEOGRAPHY and fact.code.startswith("geography.preferred_"))
+    ]
     return {
         "account_id": state.account_id,
         "company_state_fingerprint": state.fingerprint,
-        "facts": [fact.to_dict(as_of=state.as_of) for fact in state.active_facts() if fact.category in categories],
+        "facts": [fact.to_dict(as_of=state.as_of) for fact in facts],
         "conflicts": list(state.conflicts()),
     }
 
