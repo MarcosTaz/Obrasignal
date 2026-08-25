@@ -61,6 +61,7 @@ export const storage = {
   setProfile: (profile) => privateStorage.setProfile(requirePrivateTenant(), profile),
   getPushBinding: () => activePrivateTenant ? privateStorage.getPushBinding(activePrivateTenant) : Promise.resolve(null),
   setPushBinding: (binding) => privateStorage.setPushBinding(requirePrivateTenant(), binding),
+  clearPushBinding: () => activePrivateTenant ? privateStorage.clearPushBinding(activePrivateTenant) : Promise.resolve(),
   async ensurePushInstallationId() {
     const current = (await AsyncStorage.getItem(KEYS.pushInstallation) || '').trim();
     if (current) return current;
