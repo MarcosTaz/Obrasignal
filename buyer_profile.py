@@ -46,7 +46,7 @@ class BuyerProfileSnapshot:
     canonical_name: str
     identifiers: tuple[dict[str, str], ...]
     jurisdiction: str | None
-    known_locations: tuple[str, ...]
+    known_locations: tuple[dict[str, str], ...]
     known_opportunity_count: int
     known_award_count: int
     known_contract_count: int
@@ -197,7 +197,11 @@ def _activity_dt(row: Mapping[str, Any]) -> datetime | None:
 
 def _payload_id(payload: Mapping[str, Any], keys: tuple[str, ...], nested_key: str | None = None) -> str:
     for key in keys:
-        value = _text(payload.get(key))
+        raw = payload.get(key)
+        if isinstance(raw, Mapping):
+            value = _text(raw.get("id") or raw.get("identifier") or raw.get("value"))
+        else:
+            value = _text(raw)
         if value:
             return value
     if nested_key:
@@ -240,19 +244,26 @@ def _lot_key(payload: Mapping[str, Any]) -> str | None:
 
 
 def _amount(value: Any) -> Decimal | None:
-    text = _text(value).replace(",", "")
-    if not text:
+    text = _text(value)
+    if not text or len(text) > 128:
         return None
     try:
         number = Decimal(text)
     except InvalidOperation:
         return None
-    return number if number.is_finite() and number >= 0 else None
+    if not number.is_finite() or number < 0:
+        return None
+    adjusted = number.adjusted() if number else 0
+    if adjusted > 30 or adjusted < -12:
+        return None
+    return number
 
 
 def _format_decimal(value: Decimal) -> str:
-    normalized = value.quantize(Decimal("0.01")) if value != value.to_integral() else value.quantize(Decimal("1"))
-    return format(normalized, "f")
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
 
 
 def _value_totals(records: list[Mapping[str, Any]]) -> dict[str, str]:
@@ -330,7 +341,11 @@ def build_buyer_profile_snapshot(conn, buyer_id: str, window: str = "12m", conte
         raise ValueError("recent_limit must be an integer") from exc
     if recent_limit < 1 or recent_limit > MAX_RECENT_LIMIT:
         raise ValueError(f"recent_limit must be between 1 and {MAX_RECENT_LIMIT}")
-    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    else:
+        now = now.astimezone(timezone.utc)
     months = SUPPORTED_WINDOWS[window]
     cutoff = _subtract_months(now, months) if months is not None else None
 
@@ -351,7 +366,8 @@ def build_buyer_profile_snapshot(conn, buyer_id: str, window: str = "12m", conte
     visible = [row for row in matched if _text(row.get("signal_type")).upper() in ACTIVITY_TYPES and in_window(row)]
     deduped, observed_lot_count = _dedupe(visible)
     by_type = {kind: [row for row in deduped if _text(row.get("signal_type")).upper() == kind] for kind in ACTIVITY_TYPES}
-    locations = sorted({_text(row.get("place")) for row in visible if _text(row.get("place"))})
+    location_values = sorted({_text(row.get("place")) for row in visible if _text(row.get("place"))})
+    locations = tuple({"kind": "source_record_location", "value": value} for value in location_values)
 
     categories: dict[tuple[str, str], int] = {}
     for row in by_type["TENDER"]:
@@ -398,6 +414,7 @@ def build_buyer_profile_snapshot(conn, buyer_id: str, window: str = "12m", conte
         f"Activity window: {window}; records without a usable activity date are {'included' if cutoff is None else 'excluded'} from windowed activity metrics.",
         "Opportunity, award and contract published values are kept separate and currencies are never converted or summed together.",
         "Opportunity counts use procedure-level canonical keys when present; awards/contracts use their own identifiers when present and otherwise source external IDs; observed lot identifiers are reported separately.",
+        "Locations are source-record locations only; the current Signal contract does not reliably distinguish buyer registered address from project/opportunity location, so no registered-location claim is made.",
     ]
     if parsed["mode"] == "name_scoped":
         notes.append("Buyer identity is source/jurisdiction/name scoped because no stronger identifier is present in the available normalized record; no fuzzy merge is performed.")
@@ -407,7 +424,7 @@ def build_buyer_profile_snapshot(conn, buyer_id: str, window: str = "12m", conte
         canonical_name=canonical_name,
         identifiers=tuple(identifiers[key] for key in sorted(identifiers)),
         jurisdiction=parsed.get("country") or None,
-        known_locations=tuple(locations),
+        known_locations=locations,
         known_opportunity_count=len(by_type["TENDER"]),
         known_award_count=len(by_type["AWARD"]),
         known_contract_count=len(by_type["CONTRACT"]),
