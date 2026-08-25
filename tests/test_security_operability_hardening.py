@@ -1,7 +1,9 @@
 import json
+import sqlite3
 
 import cors_app
 import preload
+from opportunity_workflow import ensure_workflow_table, set_workflow
 
 
 def _client(monkeypatch):
@@ -66,6 +68,22 @@ def test_profile_write_body_is_bounded(monkeypatch):
     response = client.post("/api/v1/profile", data=json.dumps(payload), content_type="application/json")
     assert response.status_code == 413
     assert response.get_json()["error"] == "request_too_large"
+
+
+def test_workflow_note_persistence_is_bounded():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    ensure_workflow_table(conn)
+    try:
+        set_workflow(conn, "tenant-a", "SRC", "1", "REVIEWING", "x" * 4000)
+        try:
+            set_workflow(conn, "tenant-a", "SRC", "1", "REVIEWING", "x" * 4001)
+        except ValueError as exc:
+            assert str(exc) == "workflow note too long"
+        else:
+            raise AssertionError("oversized workflow note was accepted")
+    finally:
+        conn.close()
 
 
 def test_security_errors_do_not_echo_request_body(monkeypatch):
