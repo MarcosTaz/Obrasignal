@@ -103,7 +103,7 @@ class Money:
     def from_dict(cls, data: Mapping[str, Any]) -> "Money":
         if not isinstance(data, Mapping) or "amount" not in data or "currency" not in data:
             raise CompanyStateError("money requires amount and currency")
-        return cls(Decimal(str(data["amount"])), str(data["currency"]))
+        return cls(data["amount"], str(data["currency"]))
 
 
 @dataclass(frozen=True)
@@ -369,12 +369,25 @@ class CompanyState:
             "facts": [fact.to_dict() for fact in self.facts],
         }
 
-    def _superseded_ids(self) -> set[str]:
-        return {item for fact in self.facts for item in fact.supersedes}
+    def _superseded_ids(self, *, as_of: datetime) -> set[str]:
+        """Return superseded ids whose replacing fact is already effective.
+
+        A future-dated replacement must not erase the current fact before its
+        effective window begins. Once the replacement becomes effective, its
+        supersession remains authoritative even if that replacement later becomes
+        stale or expires; historical truth must not be silently resurrected.
+        """
+        at = _utc(as_of, "as_of")
+        return {
+            item
+            for fact in self.facts
+            if fact.effective_from is None or at >= fact.effective_from
+            for item in fact.supersedes
+        }
 
     def active_facts(self, *, as_of: datetime | None = None) -> tuple[CompanyFact, ...]:
         at = _utc(as_of or self.as_of, "as_of")
-        superseded = self._superseded_ids()
+        superseded = self._superseded_ids(as_of=at)
         return tuple(
             fact for fact in self.facts
             if fact.fact_id not in superseded
@@ -563,7 +576,7 @@ def _validate_value(value: Any, *, depth: int = 0) -> None:
     if depth > MAX_VALUE_DEPTH:
         raise CompanyStateError("fact value nesting is too deep")
     if value is None or isinstance(value, (str, bool, int, Decimal, Money)):
-        if isinstance(value, str) and (len(value) > MAX_TEXT or "\x00" in value):
+        if isinstance(value, str) and (len(value) > MAX_TEXT or any(ord(ch) < 32 for ch in value)):
             raise CompanyStateError("fact text is invalid or too long")
         if isinstance(value, Decimal) and not value.is_finite():
             raise CompanyStateError("decimal value must be finite")
