@@ -17,7 +17,6 @@ from urllib.parse import urljoin
 
 import requests
 
-
 SOURCE = "MA_PMMP"
 SOURCE_URL = "https://www.marchespublics.gov.ma/index.php?AllCons=&EnCours=&domaineActivite=1.15&page=entreprise.EntrepriseAdvancedSearch"
 COUNTRY = "MAR"
@@ -26,9 +25,9 @@ MAX_PAGES = 5
 
 _WS = re.compile(r"\s+")
 _DATE = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
-_REF = re.compile(r"^\s*([^\s].*?)\s+-\s+(?:\.\.\.\s*)?Objet\s*:", re.I)
+_REF = re.compile(r"^\s*(.+?)\s+-\s+(?:\.\.\.\s*)?Objet\s*:", re.I)
 _TITLE = re.compile(r"Objet\s*:\s*(.*?)(?:\s+\.\.\.\s+|\s+Acheteur public\s*:)", re.I)
-_BUYER = re.compile(r"Acheteur public\s*:\s*(.+?)(?:\s*\||$)", re.I)
+_BUYER = re.compile(r"Acheteur public\s*:\s*(.+)$", re.I)
 _DEADLINE = re.compile(r"\b(\d{2}/\d{2}/\d{4})\s+(\d{1,2}:\d{2})\b")
 
 
@@ -137,35 +136,39 @@ def parse_consultations_page(html: str) -> tuple[list[PMMPConsultation], str | N
     results: list[PMMPConsultation] = []
 
     for cells in parser.rows:
-        row_text = " | ".join(cells)
-        if "Acheteur public" not in row_text or "Objet" not in row_text or "Travaux" not in row_text:
+        details_cell = next((cell for cell in cells if "Objet" in cell and "Acheteur public" in cell), None)
+        procedure_cell = next((cell for cell in cells if "Travaux" in cell and _DATE.search(cell)), None)
+        deadline_cell = next((cell for cell in cells if _DEADLINE.search(cell)), None)
+        if not details_cell or not procedure_cell or not deadline_cell:
             continue
-        published_match = _DATE.search(row_text)
-        ref_match = _REF.search(row_text)
-        title_match = _TITLE.search(row_text)
-        buyer_match = _BUYER.search(row_text)
-        deadline_matches = list(_DEADLINE.finditer(row_text))
-        if not (published_match and ref_match and title_match and buyer_match and deadline_matches):
+        ref_match = _REF.search(details_cell)
+        title_match = _TITLE.search(details_cell)
+        buyer_match = _BUYER.search(details_cell)
+        published_match = _DATE.search(procedure_cell)
+        if not (ref_match and title_match and buyer_match and published_match):
             continue
         reference = _clean(ref_match.group(1))
         title = _clean(title_match.group(1)).strip(" .")
-        buyer = _clean(buyer_match.group(1)).strip(" .")
-        procedure = "AOO" if "Appel d'offres ouvert" in row_text else "AOS" if "Appel d'offres ouvert simplifié" in row_text else "Travaux"
-        deadline_match = deadline_matches[-1]
+        buyer_text = _clean(buyer_match.group(1)).strip(" .")
+        # Some PMMP rows repeat the title immediately before the buyer marker;
+        # buyer extraction is anchored to the marker, so only trim UI tails.
+        buyer = buyer_text.split(" | ")[0].strip()
+        procedure = "AOS" if "Appel d'offres ouvert simplifié" in procedure_cell else "AOO" if "Appel d'offres ouvert" in procedure_cell else "Travaux"
+        deadline_match = _DEADLINE.search(deadline_cell)
         deadline = f"{deadline_match.group(1)} {deadline_match.group(2)}"
         location = ""
         for cell in cells:
-            if "Acheteur public" not in cell and "Objet" not in cell and _DEADLINE.search(cell) is None and len(cell) < 120 and cell not in {"Travaux", "AOO", "AOS"}:
-                if any(ch.isalpha() for ch in cell) and cell.upper() == cell and len(cell) > 2:
-                    location = cell
-        if not reference or not title or not buyer:
-            continue
-        results.append(PMMPConsultation(reference, title, buyer, published_match.group(1), deadline, procedure, location))
+            if cell in {details_cell, procedure_cell, deadline_cell}:
+                continue
+            candidate = _clean(cell).strip(" .-")
+            if 2 < len(candidate) < 100 and candidate.upper() == candidate and any(ch.isalpha() for ch in candidate):
+                location = candidate
+                break
+        if reference and title and buyer:
+            results.append(PMMPConsultation(reference, title, buyer, published_match.group(1), deadline, procedure, location))
 
     unique: dict[str, PMMPConsultation] = {}
     for row in results:
-        # PMMP references are not guaranteed globally unique across buyers; use
-        # an explicit publisher composite rather than a title hash.
         identity = f"{row.buyer}::{row.reference}"
         existing = unique.get(identity)
         if existing and existing != row:
