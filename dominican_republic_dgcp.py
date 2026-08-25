@@ -1,17 +1,19 @@
 """Dominican Republic DGCP OCDS construction procurement source.
 
-The official DGCP public API exposes OCDS release packages through a bounded
-page/date endpoint. This module is intentionally a thin market configuration on
-top of the reusable :mod:`ocds_adapter` family; it does not create another
-connector framework.
+The official DGCP API uses a two-step transport in live operation:
+``/ocds/releases/all`` returns a paginated generic envelope containing OCID/detail
+URL candidates, then ``/ocds/releases?ocid=...`` returns the OCDS release package.
+This module is intentionally a thin market configuration on top of the reusable
+:mod:`ocds_adapter` family; it does not create another connector framework.
 
 Publisher documentation (Swagger 2.0):
 https://datosabiertos.dgcp.gob.do/api-dgcp/docs/doc.json
 
 The API documentation declares Apache-2.0 and states that the backing data
-warehouse refreshes four times per day. Production promotion remains separately
-gated in ``source_registry.py`` until a real ingestion-path live probe confirms
-payload/pagination behaviour in the deployment environment.
+warehouse refreshes four times per day. Public discovery + detail machine access
+was live-proven from GitHub Actions on 2026-08-25. Production promotion remains
+separately gated until full-window pagination/completeness and sustainable
+hydration volume are validated.
 """
 from datetime import datetime, timezone
 
@@ -20,6 +22,7 @@ from ocds_adapter import OCDSAPIConfig, OCDSAPIConnector, normalize_ocds_record
 
 DGCP_API_ROOT = "https://datosabiertos.dgcp.gob.do/api-dgcp/v1"
 DGCP_OCDS_RELEASES_URL = f"{DGCP_API_ROOT}/ocds/releases/all"
+DGCP_OCDS_DETAIL_URL_TEMPLATE = f"{DGCP_API_ROOT}/ocds/releases?ocid={{ocid}}"
 DGCP_PORTAL_URL = "https://datosabiertos.dgcp.gob.do/"
 DGCP_LICENSE = "Apache-2.0"
 DGCP_ATTRIBUTION = "Dirección General de Contrataciones Públicas (DGCP) — República Dominicana"
@@ -31,9 +34,10 @@ DGCP_CONFIG = OCDSAPIConfig(
     search_url=DGCP_OCDS_RELEASES_URL,
     page_param="page",
     page_size_param="limit",
-    # The publisher documents a maximum limit of 1000. Use 500 to reduce
-    # response-size risk while keeping request volume bounded.
-    page_size=500,
+    # The publisher documents a maximum limit of 1000. A smaller page keeps
+    # response and per-request hydration pressure bounded while completeness is
+    # validated. The whole temporal window still fails closed above the bound.
+    page_size=200,
     max_pages_per_window=100,
     window_days=1,
     max_windows_per_sync=14,
@@ -41,6 +45,9 @@ DGCP_CONFIG = OCDSAPIConfig(
     overlap_days=1,
     market="GLOBAL",
     timeout=45,
+    record_url_template=DGCP_OCDS_DETAIL_URL_TEMPLATE,
+    hydrate_records=True,
+    max_hydrations_per_window=250,
 )
 
 
@@ -48,9 +55,9 @@ def dgcp_search_params(start, end):
     """Return only publisher-documented date filters.
 
     DGCP does not document a server-side ``works`` parameter on the OCDS
-    release endpoint, so construction admission happens on the publisher-native
-    OCDS ``mainProcurementCategory`` value after retrieval. We deliberately do
-    not substitute keyword matching.
+    discovery endpoint, so construction admission happens on the publisher-native
+    OCDS ``mainProcurementCategory`` after bounded detail hydration. We
+    deliberately do not substitute keyword matching.
     """
     return {
         "start_date": start.isoformat(),
@@ -79,9 +86,6 @@ def normalize_dgcp_process(record):
     if not isinstance(tender, dict):
         return None
 
-    # OCDS defines ``works`` as the canonical main procurement category. Keep
-    # this strict: a broader UNSPSC construction taxonomy can be added only
-    # after live source-profile validation proves the required source fields.
     if str(tender.get("mainProcurementCategory") or "").strip().lower() != "works":
         return None
 
