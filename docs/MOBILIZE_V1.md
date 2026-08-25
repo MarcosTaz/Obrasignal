@@ -55,7 +55,7 @@ The output is `MobilizationAssessment` (`contract_version="mobilize.v1"`) with:
 - optional local transport distance while staying near site;
 - currency.
 
-`MobilizePolicy` owns company/regional economics:
+`MobilizePolicy` owns company/regional economics and decision thresholds:
 
 - fuel price;
 - own/rental vehicle consumption;
@@ -66,7 +66,11 @@ The output is `MobilizationAssessment` (`contract_version="mobilize.v1"`) with:
 - per diem;
 - productive-hour value;
 - optional maximum daily travel/fatigue-risk thresholds;
+- `near_cost_ratio` for the maximum policy-approved premium over the cheapest probable scenario;
+- `material_travel_reduction_hours` for the minimum crew-hours reduction required before travel exposure can break an overlapping-cost tie;
 - explicit policy version.
+
+The policy defaults `near_cost_ratio` to `1.10` and `material_travel_reduction_hours` to `1.0`. They are explicit, validated, replaceable policy defaults — not universal economic facts.
 
 There are no live-price defaults. Unknown economic inputs remain `UNKNOWN`. A caller that knows a cost is zero should supply an explicit zero-valued `RangeInput`.
 
@@ -80,9 +84,30 @@ Every route/economic input is a `RangeInput` carrying `minimum`, `probable`, `pr
 - `ESTIMATED`
 - `UNKNOWN`
 
-Output evidence projects inputs to `KNOWN`, `ESTIMATED`, `ASSUMED`, or `UNKNOWN`. Partial ranges and negative values are rejected so the engine cannot manufacture apparently precise bounds.
+Output evidence projects inputs to `KNOWN`, `ESTIMATED`, `ASSUMED`, or `UNKNOWN`.
 
-Unknown components are visible in `missing_inputs`, reduce confidence, and generate a warning that reported costs exclude them. Missing essential values such as route distance, accommodation price for a stay scenario, or rental rate for a rental scenario make that scenario non-comparable.
+The contract rejects:
+
+- partial ranges;
+- negative values;
+- `NaN` or infinite values;
+- unsupported evidence-quality labels;
+- values marked `UNKNOWN` while simultaneously supplying a number.
+
+This prevents malformed inputs from entering ranking or confidence logic.
+
+Unknown components remain visible in `missing_inputs`, reduce confidence, and generate warnings. A scenario becomes non-comparable when an economically essential component is unknown. In V1, that includes:
+
+- route distance;
+- non-zero-distance fuel price;
+- non-zero-distance consumption for the selected vehicle mode;
+- own-vehicle cost/km for non-zero-distance own-vehicle scenarios;
+- rental price for rental scenarios;
+- accommodation price for stay scenarios.
+
+Tolls, parking, per diem, travel time and productive-hour value can remain unknown without crashing the engine, but are explicitly excluded from the reported cost and confidence is degraded. Consumers must not present such outputs as fully-loaded actual cost.
+
+For a true zero-distance project, propulsion and own-vehicle km costs are not required to compare the zero-distance commute because the underlying distance-driven quantity is zero.
 
 ## Scenario mechanics
 
@@ -109,14 +134,16 @@ MOBILIZE does **not** blindly select the smallest displayed cash number.
 1. unavailable or non-comparable scenarios cannot win;
 2. probable installed economic cost ranks viable scenarios;
 3. where leading uncertainty intervals overlap, simple cost ordering is treated as weak;
-4. when travel exposure is known, a near-cost option (within 10%) can win if it materially reduces crew travel;
+4. when travel exposure is known, a lower-travel scenario may break the tie only when both policy conditions are met:
+   - its probable cost is within `near_cost_ratio` of the cheapest probable scenario; and
+   - it reduces crew travel by at least `material_travel_reduction_hours`;
 5. otherwise materially overlapping leading ranges return `NO CLEAR WINNER`.
 
 Configured fatigue and maximum-travel thresholds add operational risks. There is no universal hard-coded fatigue percentage.
 
 ## Confidence
 
-Confidence is deterministic and auditable. It starts at 100 for a comparable scenario and is reduced for lower evidence quality, missing inputs, and explicit model assumptions. A non-comparable scenario has confidence 0. It is not an AI confidence score.
+Confidence is deterministic and auditable. It starts at 100 for a comparable scenario and is reduced for lower evidence quality, missing inputs and explicit model assumptions. A non-comparable scenario has confidence 0. It is not an AI confidence score and does not substitute for the evidence list.
 
 ## Example
 
@@ -167,6 +194,8 @@ policy = MobilizePolicy(
         15, 20, 25, quality="ESTIMATED", source="company economics"
     ),
     fatigue_risk_travel_hours=2.5,
+    near_cost_ratio=1.08,
+    material_travel_reduction_hours=10,
 )
 
 assessment = Mobilize.evaluate(ctx, policy)
@@ -204,6 +233,6 @@ Travel time for local site transport is not modeled separately. Availability is 
 
 ## Testing
 
-`test_mobilize.py` covers commute/accommodation/hybrid economics, own-vs-rental, zero distance, single and large crews, duration and worker scaling invariants, missing/unknown values, invalid inputs, deterministic output, confidence degradation, uncertainty propagation, availability, currency validation, ranking stability and policy-driven fatigue risk.
+The MOBILIZE tests cover commute/accommodation/hybrid economics, own-vs-rental, zero distance, single and large crews, equal-cost ambiguity, duration and worker scaling invariants, extreme durations, missing/unknown values, invalid and non-finite inputs, evidence-quality validation, deterministic output, confidence degradation, uncertainty propagation, availability, currency validation, ranking stability, policy-driven fatigue risk and policy-driven tie-breaking thresholds.
 
 The engine depends only on the Python standard library.
