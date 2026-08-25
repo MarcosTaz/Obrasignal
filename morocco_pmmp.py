@@ -1,9 +1,10 @@
 """Morocco public procurement portal construction-category connector.
 
-Coverage is a LIMITED HIGH-VALUE SLICE: current consultations returned by the
-official `Travaux de construction et d'aménagement` category search. The source
-already classifies these notices as Travaux. This is not every PMMP category or
-lifecycle surface and it is not runtime-enabled here.
+Coverage is a LIMITED HIGH-VALUE SLICE: the first current-results page returned
+by the official `Travaux de construction et d'aménagement` category search.
+The publisher uses JavaScript/WebForms-style postback pagination; v0 detects and
+records that pagination surface but deliberately does not emulate it. This is
+not every PMMP category/page/lifecycle surface and it is not runtime-enabled.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ from datetime import datetime
 from html.parser import HTMLParser
 import re
 from typing import Iterable
-from urllib.parse import urljoin
 
 import requests
 
@@ -21,7 +21,6 @@ SOURCE = "MA_PMMP"
 SOURCE_URL = "https://www.marchespublics.gov.ma/index.php?AllCons=&EnCours=&domaineActivite=1.15&page=entreprise.EntrepriseAdvancedSearch"
 COUNTRY = "MAR"
 MAX_HTML_BYTES = 6_000_000
-MAX_PAGES = 5
 
 _WS = re.compile(r"\s+")
 _DATE = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
@@ -149,10 +148,7 @@ def parse_consultations_page(html: str) -> tuple[list[PMMPConsultation], str | N
             continue
         reference = _clean(ref_match.group(1))
         title = _clean(title_match.group(1)).strip(" .")
-        buyer_text = _clean(buyer_match.group(1)).strip(" .")
-        # Some PMMP rows repeat the title immediately before the buyer marker;
-        # buyer extraction is anchored to the marker, so only trim UI tails.
-        buyer = buyer_text.split(" | ")[0].strip()
+        buyer = _clean(buyer_match.group(1)).strip(" .").split(" | ")[0].strip()
         procedure = "AOS" if "Appel d'offres ouvert simplifié" in procedure_cell else "AOO" if "Appel d'offres ouvert" in procedure_cell else "Travaux"
         deadline_match = _DEADLINE.search(deadline_cell)
         deadline = f"{deadline_match.group(1)} {deadline_match.group(2)}"
@@ -177,6 +173,15 @@ def parse_consultations_page(html: str) -> tuple[list[PMMPConsultation], str | N
     if not unique:
         raise MoroccoPMMPSourceError("PMMP source contract changed: no construction consultations parsed")
     return list(unique.values()), parser.next_href
+
+
+def pagination_state(next_href: str | None) -> str:
+    """Describe the publisher pagination contract without pretending to follow it."""
+    if not next_href:
+        return "NONE"
+    if next_href.strip().lower().startswith("javascript:"):
+        return "WEBFORMS_POSTBACK_UNIMPLEMENTED_V0"
+    return "UNEXPECTED_LINK_PAGINATION"
 
 
 def normalize_consultation(row: PMMPConsultation) -> dict:
@@ -204,7 +209,7 @@ def normalize_consultation(row: PMMPConsultation) -> dict:
         "place": row.location or "Morocco",
         "construction_relevant": True,
         "procedure": row.procedure,
-        "coverage_scope": "LIMITED_HIGH_VALUE_SLICE_MA_PMMP_CONSTRUCTION_AMENAGEMENT",
+        "coverage_scope": "LIMITED_HIGH_VALUE_SLICE_MA_PMMP_CONSTRUCTION_AMENAGEMENT_PAGE1",
     }
 
 
@@ -221,45 +226,25 @@ def _get(client, url: str, *, timeout: float) -> str:
     return response.text
 
 
-def fetch_current_construction_consultations(*, session=None, timeout: float = 25.0, max_pages: int = 2) -> list[PMMPConsultation]:
-    if not 1 <= int(max_pages) <= MAX_PAGES:
-        raise ValueError(f"max_pages must be between 1 and {MAX_PAGES}")
+def fetch_current_construction_consultations(*, session=None, timeout: float = 25.0) -> list[PMMPConsultation]:
+    """Fetch the public first page only; pagination is explicitly not emulated in v0."""
     client = session or requests
-    url = SOURCE_URL
-    collected: dict[str, PMMPConsultation] = {}
-    seen_urls: set[str] = set()
-    for _ in range(int(max_pages)):
-        if url in seen_urls:
-            break
-        seen_urls.add(url)
-        rows, next_href = parse_consultations_page(_get(client, url, timeout=timeout))
-        for row in rows:
-            identity = f"{row.buyer}::{row.reference}"
-            existing = collected.get(identity)
-            if existing and existing != row:
-                raise MoroccoPMMPSourceError(f"conflicting PMMP duplicate {identity!r} across pages")
-            collected[identity] = row
-        if not next_href:
-            break
-        url = urljoin(url, next_href)
-    if not collected:
-        raise MoroccoPMMPSourceError("PMMP fetch returned no construction consultations")
-    return list(collected.values())
+    rows, _next_href = parse_consultations_page(_get(client, SOURCE_URL, timeout=timeout))
+    return rows
 
 
-def fetch_normalized_construction_tenders(*, session=None, timeout: float = 25.0, max_pages: int = 2) -> list[dict]:
-    return normalize_consultations(fetch_current_construction_consultations(session=session, timeout=timeout, max_pages=max_pages))
+def fetch_normalized_construction_tenders(*, session=None, timeout: float = 25.0) -> list[dict]:
+    return normalize_consultations(fetch_current_construction_consultations(session=session, timeout=timeout))
 
 
 class MoroccoPMMPConnector:
-    """Registry-candidate adapter for the official construction-category search."""
+    """Registry-candidate adapter for the official page-1 construction slice."""
 
     source = SOURCE
 
-    def __init__(self, *, session=None, timeout: float = 25.0, max_pages: int = 2):
+    def __init__(self, *, session=None, timeout: float = 25.0):
         self.session = session
         self.timeout = timeout
-        self.max_pages = max_pages
 
     def fetch(self) -> list[dict]:
-        return fetch_normalized_construction_tenders(session=self.session, timeout=self.timeout, max_pages=self.max_pages)
+        return fetch_normalized_construction_tenders(session=self.session, timeout=self.timeout)
