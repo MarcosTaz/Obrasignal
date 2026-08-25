@@ -31,6 +31,9 @@ The support-facing semantic vocabulary is deliberately small:
 | `PERMISSION_DENIED` | identity exists but operation is not permitted | missing record |
 | `NOT_FOUND` | requested resource is not visible in the authorized scope | existence in another tenant |
 | `CONFLICT` | authoritative/current evidence conflicts | automatic winner or silent overwrite |
+| `INVALID_INPUT` | request validation is known to have failed | conflict, retryability, dependency failure or unknown root cause |
+
+`INVALID_INPUT` was added after reconstructing canonical profile/workflow validation behavior. Known validation failure cannot truthfully be collapsed into `CONFLICT` or `UNKNOWN` simply to preserve the initial vocabulary.
 
 Transport-specific HTTP mapping remains with the API/domain owner. Support must not manufacture a status mapping merely to make errors look uniform.
 
@@ -59,7 +62,7 @@ The repository contract permits only bounded operational metadata:
 - bounded dependency state;
 - allowlisted scalar diagnostic fields such as HTTP status, operation, bounded error code, component, retry-after, attempt and state version.
 
-It intentionally has no raw profile/workflow/customer payload, arbitrary headers, free-form dump, client-selected tenant scope or unrelated customer data. A specialist may keep additional private evidence under its own access controls, but it must not be copied into this support pack by default.
+It intentionally has no raw profile/workflow/customer payload, arbitrary headers, free-form dump, client-selected tenant scope or unrelated customer data. String diagnostics are token-like rather than free-form, and numeric diagnostics are explicitly ranged. A specialist may keep additional private evidence under its own access controls, but it must not be copied into this support pack by default.
 
 ## Supportability matrix
 
@@ -68,12 +71,12 @@ This matrix is a routing/diagnostic overlay. It does not replace specialist heal
 | Journey | Typical symptom classes | Safe evidence | Primary owner / evidence source | Customer-safe recovery principle |
 |---|---|---|---|---|
 | Signup / login | `AUTH_REQUIRED`, `UNAVAILABLE`, `PERMISSION_DENIED`, `UNKNOWN` | correlation id, build, bounded Auth health state | Production Auth / #289 | relogin only when session/auth evidence supports it; provider outage is not fixed by repeated login |
-| Profile | `RETRYABLE`, `UNAVAILABLE`, `CONFLICT`, `UNKNOWN` | profile write/read outcome, Radar recalculation state, correlation id | profile/API; GAP #341 for persist-before-bootstrap failure | re-read durable profile before asking customer to re-enter data; refresh/recalculate idempotently |
+| Profile | `INVALID_INPUT`, `RETRYABLE`, `UNAVAILABLE`, `CONFLICT`, `UNKNOWN` | bounded validation code, profile write/read outcome, Radar recalculation state, correlation id | profile/API; #341 and #360 | re-read durable profile before asking customer to re-enter data; invalid input stays a validation result; refresh/recalculate idempotently |
 | Radar | `STALE`, `DEGRADED`, `UNAVAILABLE`, `UNKNOWN` | source coverage/freshness, stats state, build | Source Health #327/#281 + Web/Mobile consumers | refresh only through public contract; stale/empty must not become zero-market |
 | Sources | `STALE`, `DEGRADED`, `UNAVAILABLE`, `UNKNOWN` | per-source health/freshness/cursor metadata from owner contract | Source Health #327 | retain historical opportunities; do not tell customer the market is empty from a failed source |
 | Opportunity / detail | `NOT_FOUND`, `STALE`, `CONFLICT`, `UNKNOWN` | authorized resource lookup, lifecycle/source state, build | Opportunity/Web/Source owners | refresh current opportunity truth; do not reveal whether another tenant can see a resource |
 | Evidence | `UNAVAILABLE`, `STALE`, `CONFLICT`, `UNKNOWN` | bounded customer Evidence status/provenance only | Q080 Evidence owner / Golden | hide/unavailable is preferable to fabricated explanation; never expose private graph/profile state |
-| Workflow | `RETRYABLE`, `NOT_FOUND`, `CONFLICT`, `UNKNOWN` | authorized read-before/write/readback, state version where available | workflow/API/Auth E2E | re-read before retry; preserve prior state on failed mutation; no direct production DB repair |
+| Workflow | `INVALID_INPUT`, `RETRYABLE`, `NOT_FOUND`, `CONFLICT`, `UNKNOWN` | bounded validation code, authorized read-before/write/readback, state version where available | workflow/API/Auth E2E; #360 | invalid status is not a conflict; re-read before retry; preserve prior state on failed mutation; no direct production DB repair |
 | Notifications | `PERMISSION_DENIED`, `UNAVAILABLE`, `DEGRADED`, `UNKNOWN` | permission state, registration state, bounded delivery/tap state | #259, #263/#329 | permission recovery and remote-delivery recovery are distinct; re-register only through owned path |
 | Evaluation | `UNKNOWN`, `CONFLICT`, `UNAVAILABLE` | real activation events + server lifecycle state | #287/#333 + lifecycle owner | retries/restarts must not reset activation; absence of billing proof must not invent Evaluation |
 | Billing | `UNAVAILABLE`, `CONFLICT`, `UNKNOWN`, `PERMISSION_DENIED` | server-authoritative billing state + bounded provider status | #83/#288 | recheck authoritative provider/server projection; client entitlement cannot unlock Pro |
@@ -135,6 +138,7 @@ These are **triage and escalation overlays**, not replacement specialist runbook
 
 These are repository findings, not live-production incident declarations:
 
+- #360: canonical profile/workflow validation does not yet expose one bounded support-safe `INVALID_INPUT` envelope; workflow currently derives a `ValueError` message from request input. Support owns the class; API/domain owners own route adoption.
 - #341: profile may persist before synchronous Radar bootstrap fails; support recovery must re-read durable profile before asking for another write.
 - #281/#327: source-specific freshness/coverage contract exists as a candidate; stale/partial data must not become market absence.
 - #288/#83: billing verification failure must not become Evaluation or client-authoritative access.
@@ -189,7 +193,7 @@ Communication templates may say that service is degraded, unavailable, delayed, 
 
 ## ACTIVE / NEXT / WAIT
 
-**ACTIVE:** bounded support semantics + safe evidence + owner routing + supportability/runbook overlays.
+**ACTIVE:** bounded support semantics + safe evidence + owner routing + supportability/runbook overlays + validation gap #360.
 
 **NEXT:** public error-contract integration through owner-safe seams; correlation-id operability handoff; failure injection; incident-to-regression automation; living known-issue ledger; evidence-supported service objectives.
 
