@@ -3,7 +3,10 @@ from datetime import datetime, timezone
 import pytest
 
 from ocds_adapter import OCDSAPIConfig
-from ocds_release_lifecycle import OCDSReleasePackageConnector
+from ocds_release_lifecycle import (
+    OCDSReleasePackageConnector,
+    merge_nonempty_mapping,
+)
 
 
 class FakeResponse:
@@ -87,6 +90,29 @@ def test_multi_signal_fetch_flattens_one_hydration_without_duplicate_requests():
     assert [row["signal_type"] for row in rows] == ["TENDER", "CONTRACT"]
     assert len(session.calls) == 2
     assert cursor == '{"completed_through":"2026-08-24"}'
+
+
+def test_recursive_nonempty_merge_preserves_nested_partial_fields():
+    base = {
+        "id": "c1",
+        "period": {"startDate": "2026-09-01", "endDate": "2027-01-01"},
+        "value": {"amount": 100, "currency": "DOP"},
+    }
+    patch = {
+        "id": "c1",
+        "period": {"endDate": "2027-02-01"},
+        "value": {"amount": 110},
+        "title": "Updated contract",
+    }
+    merged = merge_nonempty_mapping(base, patch)
+    assert merged["period"] == {
+        "startDate": "2026-09-01",
+        "endDate": "2027-02-01",
+    }
+    assert merged["value"] == {"amount": 110, "currency": "DOP"}
+    assert merged["title"] == "Updated contract"
+    # Helper must not mutate caller-owned input.
+    assert base["period"]["endDate"] == "2027-01-01"
 
 
 def test_multi_signal_normalizer_fails_closed_on_malformed_output():
