@@ -135,3 +135,28 @@ def test_replay_same_inputs_and_clock_is_identical():
 
     assert first == second
     assert first["generated_at"] == "2026-08-25T12:00:00+00:00"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "BUG-GP-READINESS-DATE-001: a date-only deadline string is coerced to an "
+        "invented midnight UTC instant instead of preserving date precision and unknown timezone"
+    ),
+)
+def test_date_only_deadline_cannot_become_an_exact_open_or_expired_instant():
+    opportunity = _opportunity(deadline="2026-08-25")
+    company = {"account_id": "tenant-a"}
+    requirements = [{"name": "fixture requirement", "mandatory": True, "status": "MET"}]
+
+    result = _readiness(opportunity, company, requirements)
+    deadline = result["dimensions"]["DEADLINE"]
+
+    # Product-truth contract: date precision without a source timezone cannot
+    # support an invented exact instant, therefore the temporal state must stay
+    # unresolved instead of being presented as definitively open or expired.
+    assert deadline["status"] == "UNKNOWN"
+    assert not any(
+        item["code"] in {"submission_deadline_expired", "submission_deadline_valid"}
+        for item in deadline["items"]
+    )
