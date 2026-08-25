@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 import json
 from typing import Any, Callable, Mapping, Sequence
@@ -129,8 +130,57 @@ def _confidence(_row, decision, _now):
     return decision.get("confidence") if decision else None
 
 
+def _decimal_amount(raw: Any) -> Decimal | None:
+    """Parse a money amount without binary-float comparison semantics.
+
+    The permissive comma/dot normalization is retained for compatibility with
+    the existing comparison input contract, but all material arithmetic and
+    ordering is Decimal-backed. Non-finite, boolean and negative amounts fail
+    closed instead of becoming comparable money.
+    """
+    if raw is None or raw == "" or isinstance(raw, bool):
+        return None
+    if isinstance(raw, Decimal):
+        amount = raw
+    else:
+        token: Any = raw
+        if isinstance(raw, str):
+            token = raw.strip().replace(" ", "")
+            if not token:
+                return None
+            if "," in token and "." in token:
+                decimal_mark = "," if token.rfind(",") > token.rfind(".") else "."
+                thousands_mark = "." if decimal_mark == "," else ","
+                token = token.replace(thousands_mark, "").replace(decimal_mark, ".")
+            elif "," in token:
+                parts = token.split(",")
+                token = "".join(parts) if len(parts) > 2 or len(parts[-1]) == 3 else ".".join(parts)
+        try:
+            amount = Decimal(str(token))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+    if not amount.is_finite() or amount < 0:
+        return None
+    return amount
+
+
+def _json_decimal(amount: Decimal) -> int | str:
+    """Return a JSON-safe exact representation without fabricating precision."""
+    if amount == amount.to_integral_value():
+        return int(amount)
+    return format(amount, "f")
+
+
+def _published_value(row, _decision, _now):
+    raw = _first(row, "value_numeric", "value")
+    amount = _decimal_amount(raw)
+    if amount is None:
+        return None
+    return {"amount": _json_decimal(amount), "currency": row.get("currency")}
+
+
 COMPARISON_DIMENSIONS: tuple[ComparisonDimension, ...] = (
-    ComparisonDimension("published_value", "Published value", "money", "informational; compare only within same currency", FACT, "opportunity.value + opportunity.currency", lambda r, d, n: {"amount": _first(r, "value_numeric", "value"), "currency": r.get("currency")} if _first(r, "value_numeric", "value") is not None else None),
+    ComparisonDimension("published_value", "Published value", "money", "informational; compare only within same currency", FACT, "opportunity.value + opportunity.currency", _published_value),
     ComparisonDimension("deadline", "Submission deadline", "datetime", "earlier/later informational", FACT, "opportunity.deadline", lambda r, d, n: r.get("deadline")),
     ComparisonDimension("days_remaining", "Days remaining", "integer", "lower means nearer deadline", DERIVED, "derived from opportunity.deadline and generated_at date", _days_remaining),
     ComparisonDimension("geography", "Geography", "object|string", "informational", FACT, "canonical opportunity place/location/region/country", _geography),
@@ -250,28 +300,17 @@ def _cell(value: Any, dimension: ComparisonDimension) -> dict[str, Any]:
     return {"status": KNOWN, "value": value, "origin": dimension.origin, "source": dimension.source}
 
 
-def _money_number(cell: Mapping[str, Any]) -> tuple[float, str] | None:
+def _money_number(cell: Mapping[str, Any]) -> tuple[Decimal, str] | None:
     if cell.get("status") != KNOWN or not isinstance(cell.get("value"), Mapping):
         return None
     value = cell["value"]
     currency = str(value.get("currency") or "").strip().upper()
     if not currency:
         return None
-    raw = value.get("amount")
-    try:
-        if isinstance(raw, str):
-            token = raw.strip().replace(" ", "")
-            if "," in token and "." in token:
-                decimal = "," if token.rfind(",") > token.rfind(".") else "."
-                thousands = "." if decimal == "," else ","
-                token = token.replace(thousands, "").replace(decimal, ".")
-            elif "," in token:
-                parts = token.split(",")
-                token = "".join(parts) if len(parts) > 2 or len(parts[-1]) == 3 else ".".join(parts)
-            raw = token
-        return float(raw), currency
-    except (TypeError, ValueError):
+    amount = _decimal_amount(value.get("amount"))
+    if amount is None:
         return None
+    return amount, currency
 
 
 def _highlights(values_by_opportunity: Mapping[str, Mapping[str, Mapping[str, Any]]]) -> list[dict[str, Any]]:
@@ -302,7 +341,7 @@ def _highlights(values_by_opportunity: Mapping[str, Mapping[str, Mapping[str, An
         nearest = min(value for value, _ in distances)
         highlights.append({"key": "lowest_known_distance", "opportunity_ids": [oid for value, oid in distances if value == nearest], "value": nearest})
 
-    money: dict[str, list[tuple[float, str]]] = {}
+    money: dict[str, list[tuple[Decimal, str]]] = {}
     for oid, dims in values_by_opportunity.items():
         parsed = _money_number(dims["published_value"])
         if parsed:
@@ -311,7 +350,7 @@ def _highlights(values_by_opportunity: Mapping[str, Mapping[str, Mapping[str, An
     if len(money) == 1:
         currency, entries = next(iter(money.items()))
         highest = max(value for value, _ in entries)
-        highlights.append({"key": "highest_published_value", "opportunity_ids": [oid for value, oid in entries if value == highest], "value": {"amount": highest, "currency": currency}})
+        highlights.append({"key": "highest_published_value", "opportunity_ids": [oid for value, oid in entries if value == highest], "value": {"amount": _json_decimal(highest), "currency": currency}})
     elif len(money) > 1:
         highlights.append({"key": "mixed_currencies", "opportunity_ids": [], "value": sorted(money)})
     return highlights
