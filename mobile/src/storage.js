@@ -6,6 +6,7 @@ const KEYS = {
   settings: '@obrasignal/v1/settings',
   cache: '@obrasignal/v1/opportunities-cache',
   profile: '@obrasignal/v1/profile',
+  pushInstallation: '@obrasignal/v1/push-installation',
 };
 
 const DEFAULT_SETTINGS = {
@@ -20,6 +21,10 @@ async function readJson(key, fallback) {
     const raw = await AsyncStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
   } catch (_) { return fallback; }
+}
+
+function newInstallationId() {
+  return `install-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 const privateStorage = createTenantStorage(AsyncStorage);
@@ -54,6 +59,15 @@ export const storage = {
   setCache: (payload) => privateStorage.setCache(requirePrivateTenant(), payload),
   getProfile: () => activePrivateTenant ? privateStorage.getProfile(activePrivateTenant) : Promise.resolve(null),
   setProfile: (profile) => privateStorage.setProfile(requirePrivateTenant(), profile),
+  getPushBinding: () => activePrivateTenant ? privateStorage.getPushBinding(activePrivateTenant) : Promise.resolve(null),
+  setPushBinding: (binding) => privateStorage.setPushBinding(requirePrivateTenant(), binding),
+  async ensurePushInstallationId() {
+    const current = (await AsyncStorage.getItem(KEYS.pushInstallation) || '').trim();
+    if (current) return current;
+    const generated = newInstallationId();
+    await AsyncStorage.setItem(KEYS.pushInstallation, generated);
+    return generated;
+  },
 };
 
 export { KEYS, DEFAULT_SETTINGS };
