@@ -1,14 +1,106 @@
 from html import escape
+from urllib.parse import urlsplit
 
 
 def _esc(value):
     return escape(str(value if value is not None else ""), quote=True)
 
 
+def _safe_url(value):
+    """Allow only absolute HTTP(S) source links from untrusted source data."""
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = urlsplit(text)
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        return None
+    return text
+
+
 def _actionable(value):
     if value is None:
         return True
     return value not in (False, 0, "0", "false", "False")
+
+
+def _field_label(value):
+    labels = {
+        "title": "Título",
+        "description": "Descrição",
+        "buyer": "Entidade",
+        "country": "País",
+        "cpv": "CPV",
+        "value": "Valor",
+        "deadline": "Prazo",
+        "procedure_type": "Procedimento",
+        "source_freshness": "Atualidade da fonte",
+        "material_support": "Suporte material",
+        "claim_value": "Valor da conclusão",
+    }
+    return labels.get(str(value), str(value or ""))
+
+
+def _render_lineage_evidence(decision):
+    evidence = decision.get("evidence") if isinstance(decision, dict) else None
+    if not isinstance(evidence, dict):
+        return ""
+    if evidence.get("state") != "READY":
+        return (
+            '<div class="lineage unavailable">'
+            '<strong>Evidência da decisão indisponível</strong>'
+            '<span>A ausência de evidência não é apresentada como confirmação.</span>'
+            '</div>'
+        )
+
+    confidence = {
+        "HIGH": "Alta",
+        "MEDIUM": "Média",
+        "LOW": "Baixa",
+        "UNKNOWN": "Por confirmar",
+    }.get(evidence.get("confidence"), "Por confirmar")
+    sources = evidence.get("sources") or []
+    source_rows = []
+    for item in sources[:8]:
+        if not isinstance(item, dict):
+            continue
+        freshness = ""
+        if item.get("stale") is True:
+            freshness = " · desatualizada"
+        elif item.get("stale") is None:
+            freshness = " · atualidade por confirmar"
+        source_rows.append(
+            '<div class="lineage-source">'
+            f'<strong>{_esc(item.get("source") or "Fonte")}</strong>'
+            f'<span>{_esc(_field_label(item.get("field_name")))}{_esc(freshness)}</span>'
+            '</div>'
+        )
+    missing = evidence.get("missing") or []
+    missing_html = ""
+    if missing:
+        labels = " · ".join(_field_label(value) for value in missing)
+        missing_html = (
+            '<div class="lineage-missing">'
+            '<strong>Falta confirmar</strong>'
+            f'<span>{_esc(labels)}</span>'
+            '</div>'
+        )
+    conflict_count = int(evidence.get("conflict_count") or 0)
+    conflict_html = ""
+    if conflict_count:
+        conflict_html = f'<div class="lineage-conflict">Existem {_esc(conflict_count)} conflito(s) de evidência por resolver.</div>'
+    return (
+        '<div class="lineage">'
+        '<div class="lineage-head">'
+        '<strong>Evidência da decisão</strong>'
+        f'<span>Confiança {_esc(confidence)}</span>'
+        '</div>'
+        f'<div class="lineage-lead">{_esc(len(sources))} campo(s) com proveniência registada</div>'
+        f'{"".join(source_rows)}{missing_html}{conflict_html}'
+        '</div>'
+    )
 
 
 def render_opportunity_detail(item, decision):
@@ -23,6 +115,7 @@ def render_opportunity_detail(item, decision):
             '</div>'
         )
     evidence_html = "".join(lines) or '<div class="empty">Ainda não existe avaliação auditável para esta oportunidade.</div>'
+    lineage_html = _render_lineage_evidence(decision)
     status = _esc(decision.get("status") or "SEM DECISÃO")
     status_class = {
         "QUALIFIED": "status-qualified",
@@ -37,7 +130,12 @@ def render_opportunity_detail(item, decision):
     score = _esc(item.get("score") or 0)
     value = _esc(item.get("value") or "não indicado")
     deadline = _esc(item.get("deadline") or "não indicado")
-    url = _esc(item.get("url") or "#")
+    safe_url = _safe_url(item.get("url"))
+    source_link = (
+        f'<a class="source" href="{_esc(safe_url)}" target="_blank" rel="noopener noreferrer">Abrir fonte original →</a>'
+        if safe_url
+        else '<div class="footer-meta">Ligação à fonte original indisponível ou inválida.</div>'
+    )
     reason = _esc(decision.get("reason") or "Sem razão registada.")
     rule_version = _esc(decision.get("rule_version") or "—")
     decided_at = _esc(decision.get("decided_at") or "—")
@@ -95,6 +193,15 @@ h1{{font-size:clamp(28px,4vw,46px);line-height:1.05;margin:8px 0 12px;letter-spa
 .evidence-row:first-child{{border-top:0}}
 .evidence-value{{font-weight:800}}
 .evidence-detail{{color:var(--muted);line-height:1.45}}
+.lineage{{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:16px;background:#fbfdff}}
+.lineage.unavailable{{display:flex;flex-direction:column;gap:5px;color:var(--muted)}}
+.lineage-head{{display:flex;justify-content:space-between;gap:12px;align-items:center}}
+.lineage-head span{{font-size:12px;color:var(--good);font-weight:800;text-transform:uppercase;letter-spacing:.04em}}
+.lineage-lead{{margin-top:5px;color:var(--muted);font-size:13px}}
+.lineage-source{{display:grid;grid-template-columns:140px 1fr;gap:10px;padding-top:9px;font-size:13px}}
+.lineage-source span{{color:var(--muted)}}
+.lineage-missing{{margin-top:12px;padding:10px;border:1px solid #f2d58b;background:var(--warn-soft);border-radius:10px;display:flex;flex-direction:column;gap:4px;font-size:13px}}
+.lineage-conflict{{margin-top:10px;color:var(--bad);font-weight:700;font-size:13px}}
 .meta{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}}
 .meta-card{{background:#fbfdff;border:1px solid var(--line);border-radius:16px;padding:14px}}
 .meta-label{{font-size:12px;color:var(--muted);margin-bottom:5px}}
@@ -103,7 +210,7 @@ h1{{font-size:clamp(28px,4vw,46px);line-height:1.05;margin:8px 0 12px;letter-spa
 .empty{{color:var(--muted);padding:12px 0}}
 .source{{display:inline-flex;margin-top:16px;padding:10px 14px;border-radius:12px;background:var(--accent);color:white;font-weight:750;text-decoration:none}}
 .source:hover{{text-decoration:none;filter:brightness(.97)}}
-@media(max-width:760px){{.hero-grid{{grid-template-columns:1fr}}.score{{width:100%}}.meta{{grid-template-columns:1fr 1fr}}.evidence-row{{grid-template-columns:1fr;gap:6px}}}}
+@media(max-width:760px){{.hero-grid{{grid-template-columns:1fr}}.score{{width:100%}}.meta{{grid-template-columns:1fr 1fr}}.evidence-row{{grid-template-columns:1fr;gap:6px}}.lineage-source{{grid-template-columns:1fr;gap:3px}}}}
 @media(max-width:480px){{.wrap{{padding:18px 14px 40px}}.hero,.section{{padding:18px;border-radius:18px}}.meta{{grid-template-columns:1fr}}}}
 </style>
 </head>
@@ -127,6 +234,7 @@ h1{{font-size:clamp(28px,4vw,46px);line-height:1.05;margin:8px 0 12px;letter-spa
   <section class="section">
     <h2>Porque esta oportunidade está aqui</h2>
     <div>{evidence_html}</div>
+    {lineage_html}
     <div class="footer-meta">Regra: {rule_version} · Decidido: {decided_at}</div>
   </section>
 
@@ -138,7 +246,7 @@ h1{{font-size:clamp(28px,4vw,46px);line-height:1.05;margin:8px 0 12px;letter-spa
       <div class="meta-card"><div class="meta-label">Valor</div><div class="meta-value">{value}</div></div>
       <div class="meta-card"><div class="meta-label">Prazo</div><div class="meta-value">{deadline}</div></div>
     </div>
-    <a class="source" href="{url}" target="_blank" rel="noopener noreferrer">Abrir fonte original →</a>
+    {source_link}
   </section>
 </div>
 </body>
