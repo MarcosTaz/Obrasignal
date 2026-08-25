@@ -2,11 +2,11 @@
 
 The Direction des Affaires juridiques (DAJ) publishes the national consolidated
 Données Essentielles de la Commande Publique (DECP) dataset through the public
-Explore API.  DECP is post-award/contract data, not tender discovery; this module
+Explore API. DECP is post-award/contract data, not tender discovery; this module
 therefore emits canonical ``CONTRACT`` signals and never legacy tender rows.
 
 Construction admission uses the publisher-native CPV main code (division 45).
-Contract identity is the publisher ``id``.  Later DECP modifications update that
+Contract identity is the publisher ``id``. Later DECP modifications update that
 same identity so re-ingestion remains idempotent in the canonical Signal store.
 """
 from __future__ import annotations
@@ -83,6 +83,19 @@ def _cpv(value):
 def _is_construction_cpv(value):
     code = _cpv(value)
     return len(code) >= 2 and code[:2] == "45" and code[0].isdigit()
+
+
+def _flag(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = _text(value).casefold()
+    if text in {"1", "true", "vrai", "yes", "oui"}:
+        return True
+    if text in {"", "0", "false", "faux", "no", "non"}:
+        return False
+    return False
 
 
 def _safe_source_url(value):
@@ -165,7 +178,7 @@ def _normalize(row):
     amount = _text(_field(row, "montant"))
     supplier = _supplier(row)
     buyer_id = _buyer_id(row)
-    modification = bool(_field(row, "booleanmodification", "booleanModification"))
+    modification = _flag(_field(row, "booleanmodification", "booleanModification"))
     duration = _text(_field(row, "dureemois", "dureeMois"))
     procedure = _text(_field(row, "procedure"))
     nature = _text(_field(row, "nature"))
@@ -217,9 +230,14 @@ def _normalize(row):
 
 
 def _request_page(session, *, offset, since):
+    since_literal = f"date'{since.isoformat()}'"
     params = {
         "select": "*",
-        "where": f'startswith(codecpv, "45") and datepublicationdonnees >= date\'{since.isoformat()}\'',
+        "where": (
+            f'startswith(codecpv, "45") and '
+            f"(datepublicationdonnees >= {since_literal} or "
+            f"datepublicationdonneesmodification >= {since_literal})"
+        ),
         "order_by": "datepublicationdonnees desc",
         "limit": DECP_PAGE_SIZE,
         "offset": int(offset),
@@ -257,7 +275,7 @@ def _request_page(session, *, offset, since):
 def fetch_france_decp_contracts(*, watermark=None, session=None, today=None):
     """Return ``(construction CONTRACT signals, cursor)`` from official DECP.
 
-    The cursor is publisher-derived.  We deliberately overlap recent days so late
+    The cursor is publisher-derived. We deliberately overlap recent days so late
     republications/modifications are re-observed and idempotently update the same
     contract identity instead of relying on wall-clock success time.
     """
@@ -292,7 +310,6 @@ def fetch_france_decp_contracts(*, watermark=None, session=None, today=None):
     if not exhausted:
         raise RuntimeError(f"{SOURCE} pagination cap reached; cursor not advanced")
 
-    # Stable identity within one fetch: later duplicate representations win.
     by_id = {}
     for record in observations:
         existing = by_id.get(record["external_id"])
