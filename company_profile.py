@@ -5,7 +5,6 @@ import json
 import os
 import re
 import sqlite3
-import threading
 from pathlib import Path
 
 from company_profile_validation import validate_company_profile
@@ -15,6 +14,8 @@ DEFAULT_PROFILE = {
     "account_id": "default",
     "name": "",
     "activity": "",
+    "contract_interests": [],
+    "coverage_mode": "portugal",
     "keywords": [],
     "countries": ["PRT"],
     "cpv_prefixes": ["45", "44", "42", "43"],
@@ -36,10 +37,19 @@ DEFAULT_PROFILE = {
 }
 
 ACTIVITY_RULES = [
-    ("metalomecanica", ["metalomecânica", "metalomecanica", "estrutura metálica", "estruturas metálicas", "serralharia", "steel", "aço", "aco"], ["45", "42"]),
+    # Do not infer the whole works family (45) for a specialist metal profile:
+    # that made unrelated rehabilitation and electrical lots look compatible.
+    ("metalomecanica", ["metalomecânica", "metalomecanica", "estrutura metálica", "estruturas metálicas", "serralharia", "steel", "aço", "aco"], ["4522", "443"]),
     ("construcao", ["construção", "construcao", "empreitada", "obras", "construction", "reabilitação", "reabilitacao"], ["45"]),
     ("coberturas", ["cobertura", "coberturas", "telhado", "roof", "fachada", "pavilhão", "pavilhao"], ["45", "44"]),
     ("armazens", ["armazém", "armazem", "warehouse", "pavilhão", "pavilhao", "industrial"], ["45", "44"]),
+    ("eletricidade", ["instalação elétrica", "instalações elétricas", "eletricidade", "iluminação", "electricidade"], ["4531", "315"]),
+    ("pintura", ["pintura", "pinturas", "acabamento", "acabamentos"], ["4544"]),
+    ("climatizacao", ["climatização", "avac", "aquecimento", "ventilação", "ar condicionado"], ["4533", "425"]),
+    ("canalizacao", ["canalização", "redes de água", "saneamento", "tubagens"], ["4533", "4416"]),
+    ("manutencao", ["manutenção de edifícios", "manutenção industrial", "reparação", "conservação"], ["50", "45"]),
+    ("limpeza", ["limpeza de edifícios", "serviços de limpeza", "higienização"], ["9091"]),
+    ("tecnologia", ["software", "desenvolvimento de aplicações", "serviços informáticos", "cibersegurança"], ["48", "72"]),
 ]
 
 _COUNTRY_ALIASES = {
@@ -65,9 +75,16 @@ def _db_path() -> str:
 def _profile_db():
     conn = sqlite3.connect(_db_path(), timeout=15)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=15000")
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_profiles'").fetchone()
+    if not exists:
+        ensure_profile_table(conn)
+    return conn
+
+
+def ensure_profile_table(conn):
     conn.execute(PROFILE_TABLE)
     conn.commit()
-    return conn
 
 
 def _normalize(text: str) -> str:
@@ -87,11 +104,31 @@ def _normalize_countries(values) -> list[str]:
     return normalized
 
 
+def _normalize_optional_number(value):
+    """Accept JSON/form numeric strings without persisting a second type."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, str):
+        token = value.strip().replace(" ", "")
+        if "," in token and "." not in token:
+            token = token.replace(",", ".")
+        try:
+            return float(token)
+        except ValueError:
+            return value  # validation returns the existing field-specific error
+    return value
+
+
 def derive_profile(activity: str, base: dict | None = None) -> dict:
     profile = dict(DEFAULT_PROFILE)
     if base:
         profile.update({k: v for k, v in base.items() if v is not None})
-    activity_n = _normalize(activity)
+    interests = profile.get("contract_interests") or []
+    if isinstance(interests, str):
+        interests = [interests]
+    interests = [str(value).strip() for value in interests if str(value).strip()]
+    profile["contract_interests"] = interests
+    activity_n = _normalize(" ".join([activity or "", *interests]))
     profile["activity"] = activity or profile.get("activity", "")
     keywords = list(profile.get("keywords") or [])
     cpvs = list(profile.get("cpv_prefixes") or [])
@@ -189,22 +226,14 @@ def _persist_profile_db(profile: dict, account: str) -> None:
         conn.close()
 
 
-def _bootstrap_saved_profile(account: str) -> None:
-    try:
-        from account_onboarding import bootstrap_account
-        bootstrap_account(account)
-    except Exception:
-        # Profile persistence must remain successful even if the optional
-        # bootstrap is unavailable; the regular sync worker will classify it.
-        pass
-
-
 def save_profile(profile: dict, account_id: str | None = None) -> dict:
     requested_account = account_id or (profile or {}).get("account_id") or "default"
     account = str(requested_account).strip() or "default"
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(profile or {})
     normalized["account_id"] = account
+    normalized["min_value"] = _normalize_optional_number(normalized.get("min_value"))
+    normalized["max_value"] = _normalize_optional_number(normalized.get("max_value"))
     normalized = derive_profile(normalized.get("activity", ""), normalized)
     validation_profile = dict(normalized)
     validation_profile["countries"] = _normalize_countries(validation_profile.get("countries"))
@@ -215,15 +244,20 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
     # Durable persistence is the critical operation. Do not write authenticated
     # account profiles to Render's ephemeral filesystem.
     _persist_profile_db(normalized, account)
+    # A successfully validated and durably persisted company profile is the
+    # authoritative profile_ready event for the evaluation lifecycle.
+    try:
+        from account_registry import ensure_account
+        from evaluation_policy import record_evaluation_event
+        conn = _profile_db()
+        try:
+            ensure_account(conn, account)
+            record_evaluation_event(conn, account, 'profile_ready')
+        finally:
+            conn.close()
+    except Exception:
+        # Profile persistence must not fail because evaluation telemetry fails.
+        # The missing event remains observable/recoverable via billing status.
+        pass
 
-    # Never make the authenticated profile POST wait for the potentially
-    # expensive first-value classification pass. Persistence is the critical
-    # operation; onboarding runs asynchronously so the client can immediately
-    # return to the Radar and refresh when the account-scoped decisions exist.
-    threading.Thread(
-        target=_bootstrap_saved_profile,
-        args=(account,),
-        name="obrasignal-profile-bootstrap",
-        daemon=True,
-    ).start()
     return normalized

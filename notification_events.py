@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 import hashlib
 import re
 
+from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+
 
 def _norm(value):
     return re.sub(r"\s+", " ", str(value or "").strip().lower())
@@ -18,19 +20,21 @@ def _key(row):
 
 
 def ensure_event_table(conn):
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS opportunity_events(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_id TEXT NOT NULL DEFAULT 'default',
-            event_key TEXT NOT NULL UNIQUE,
-            tender_id INTEGER,
-            source TEXT,
-            event_type TEXT NOT NULL,
-            score INTEGER DEFAULT 0,
-            created_at TEXT NOT NULL,
-            delivered_at TEXT
-        )"""
-    )
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='opportunity_events'").fetchone()
+    if not exists:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS opportunity_events(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id TEXT NOT NULL DEFAULT 'default',
+                event_key TEXT NOT NULL UNIQUE,
+                tender_id INTEGER,
+                source TEXT,
+                event_type TEXT NOT NULL,
+                score INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                delivered_at TEXT
+            )"""
+        )
     cols = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_events)").fetchall()}
     if "account_id" not in cols:
         conn.execute("ALTER TABLE opportunity_events ADD COLUMN account_id TEXT NOT NULL DEFAULT 'default'")
@@ -38,15 +42,19 @@ def ensure_event_table(conn):
 
 
 def record_new_opportunities(conn, account_id="default", min_score=75):
-    """Record high-value opportunities for exactly one account."""
-    ensure_event_table(conn)
+    """Record high-value, currently actionable opportunities for one account."""
     account_id = str(account_id or "default")
+    ensure_event_table(conn)
+    ensure_lifecycle_table(conn)
     rows = conn.execute(
-        """SELECT * FROM tenders
-           WHERE first_seen IS NOT NULL
-             AND first_seen >= datetime('now','-2 minutes')
-             AND score >= ?
-           ORDER BY score DESC, first_seen ASC""",
+        f"""SELECT t.* FROM tenders t
+           LEFT JOIN opportunity_lifecycle lc
+             ON lc.source=t.source AND lc.external_id=t.external_id
+           WHERE t.first_seen IS NOT NULL
+             AND t.first_seen >= datetime('now','-2 minutes')
+             AND t.score >= ?
+             AND {actionable_predicate('lc', 't')}
+           ORDER BY t.score DESC, t.first_seen ASC""",
         (min_score,),
     ).fetchall()
     events = []

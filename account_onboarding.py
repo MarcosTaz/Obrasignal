@@ -8,15 +8,14 @@ saved and emits high-match events for the same account.
 from __future__ import annotations
 
 from app import db
-from decision_log import ensure_decision_table
 from funnel_integration import persist_and_classify
-from notification_events import ensure_event_table
+from opportunity_lifecycle import ensure_lifecycle_table
 
 MAX_BOOTSTRAP_ROWS = 250
 
 
 def _emit_bootstrap_events(conn, account_id: str) -> int:
-    ensure_event_table(conn)
+    ensure_lifecycle_table(conn)
     rows = conn.execute(
         """SELECT t.*, d.score AS account_score
            FROM tenders t
@@ -27,7 +26,10 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
                GROUP BY od.source, od.external_id
            ) latest ON latest.source=t.source AND latest.external_id=t.external_id
            JOIN opportunity_decisions d ON d.id=latest.max_id
+           LEFT JOIN opportunity_lifecycle lc
+             ON lc.source=t.source AND lc.external_id=t.external_id
            WHERE d.score >= 75
+             AND COALESCE(lc.is_actionable,1)=1
              AND (t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline) >= datetime('now'))
            ORDER BY d.score DESC, COALESCE(t.publication_date, t.first_seen) DESC
            LIMIT ?""",
@@ -49,20 +51,22 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
 
 
 def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
-    """Classify recent/open tenders for one account and emit initial alerts."""
+    """Classify recent/open, currently actionable tenders for one account."""
     account_id = str(account_id or "").strip()
     if not account_id:
         return 0
     conn = db()
     try:
-        ensure_decision_table(conn)
-        ensure_event_table(conn)
+        ensure_lifecycle_table(conn)
         rows = conn.execute(
             """SELECT t.*
                FROM tenders t
-               WHERE t.deadline IS NULL
-                  OR t.deadline=''
-                  OR datetime(t.deadline) >= datetime('now')
+               LEFT JOIN opportunity_lifecycle lc
+                 ON lc.source=t.source AND lc.external_id=t.external_id
+               WHERE COALESCE(lc.is_actionable,1)=1
+                 AND (t.deadline IS NULL
+                      OR t.deadline=''
+                      OR datetime(t.deadline) >= datetime('now'))
                ORDER BY COALESCE(t.publication_date, t.first_seen) DESC
                LIMIT ?""",
             (max(1, min(int(limit), MAX_BOOTSTRAP_ROWS)),),

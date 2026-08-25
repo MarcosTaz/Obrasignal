@@ -1,11 +1,12 @@
 """Production WSGI entrypoint with a global CORS safety net."""
+import json
 import os
 from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
-import sync_funnel_hook  # noqa: F401
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
+from auth_context_jwt import authentication_health
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
@@ -37,6 +38,18 @@ def _cors(response):
     return response
 
 
+def _decorate_health(response):
+    """Add bounded auth readiness metadata without exposing provider secrets."""
+    if request.path != "/api/v1/health" or not response.is_json:
+        return response
+    payload = response.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return response
+    payload["auth"] = authentication_health()
+    response.set_data(json.dumps(payload, separators=(",", ":")))
+    return response
+
+
 @APP.before_request
 def _global_api_preflight():
     if request.path.startswith("/api/v1/") and request.method == "OPTIONS":
@@ -46,7 +59,8 @@ def _global_api_preflight():
 
 @APP.before_request
 def _protect_radar_api():
-    if request.path != "/api/v1/radar":
+    is_detail = request.path.startswith("/api/v1/opportunities/") and not request.path.endswith("/workflow")
+    if request.path != "/api/v1/radar" and not is_detail:
         return None
     try:
         identity = configured_identity()
@@ -57,42 +71,56 @@ def _protect_radar_api():
     return None
 
 
-def _opportunity_detail(opportunity_id):
-    """Serve the authenticated detail shape consumed by the mobile/web client."""
-    try:
-        identity = configured_identity()
-    except (RuntimeError, InvalidTokenError):
-        return jsonify({"error": "authentication_required"}), 401
-
-    from api import _db, _latest_decisions, _row
-    from opportunity_workflow import get_workflow
-
-    c = _db()
-    try:
-        row = c.execute("SELECT * FROM tenders WHERE id=?", (opportunity_id,)).fetchone()
-        if row is None:
-            return jsonify({"error": "not_found"}), 404
-        decision = _latest_decisions(c, identity.account_id, [row["external_id"]]).get((row["source"], row["external_id"]))
-        item = _row(row, decision, get_workflow(c, identity.account_id, row["source"], row["external_id"]))
-        return jsonify(item)
-    finally:
-        c.close()
-
-
-# Keep this route at the production WSGI boundary because the API blueprint
-# predates the detail endpoint. It is still protected by the same verified
-# provider identity and uses the same account-scoped decision/workflow helpers.
-if not any(rule.rule == "/api/v1/opportunities/<int:opportunity_id>" for rule in APP.url_map.iter_rules()):
-    APP.add_url_rule(
-        "/api/v1/opportunities/<int:opportunity_id>",
-        endpoint="mobile_api.opportunity_detail",
-        view_func=_opportunity_detail,
-        methods=["GET"],
-    )
-
-
 @APP.after_request
 def _global_api_cors(response):
     if request.path.startswith("/api/v1/"):
-        return _cors(response)
+        return _cors(_decorate_health(response))
     return response
+
+
+# Gunicorn imports this module before it starts accepting requests. Complete all
+# idempotent schema/read-model work and install additive global-source runtimes
+# before allowing the ingestion worker to run.
+import app as _app
+from app import db, init_db, start_background_worker
+from opportunity_lifecycle import ensure_lifecycle_table
+from lifecycle_read_model import install as install_lifecycle_read_model
+from latvia_runtime import install as install_latvia_runtime
+from uk_runtime import install as install_uk_runtime
+from ecuador_runtime import install as install_ecuador_runtime
+from switzerland_runtime import install as install_switzerland_runtime
+from poland_runtime import install as install_poland_runtime
+from estonia_runtime import install as install_estonia_runtime
+from austria_runtime import install as install_austria_runtime
+from lithuania_runtime import install as install_lithuania_runtime
+from netherlands_runtime import install as install_netherlands_runtime
+from germany_runtime import install as install_germany_runtime
+from italy_runtime import install as install_italy_runtime
+from canada_buys_runtime import install_canadabuys_runtime
+import preload as _preload
+
+init_db()
+_lifecycle_conn = db()
+try:
+    ensure_lifecycle_table(_lifecycle_conn)
+    _lifecycle_conn.commit()
+finally:
+    _lifecycle_conn.close()
+install_lifecycle_read_model(_preload)
+install_latvia_runtime()
+install_uk_runtime()
+install_ecuador_runtime()
+install_switzerland_runtime()
+install_poland_runtime()
+install_estonia_runtime()
+install_austria_runtime()
+install_lithuania_runtime()
+install_netherlands_runtime()
+install_germany_runtime()
+install_italy_runtime()
+install_canadabuys_runtime(
+    _app,
+    source_enabled=_preload._global_source_enabled,
+    record_blocked=_preload._record_blocked_global_source,
+)
+start_background_worker()

@@ -1,8 +1,14 @@
 import { Platform } from 'react-native';
 import Purchases from 'react-native-purchases';
 
-export const BILLING_ENTITLEMENT = 'pro';
-export const BILLING_PRODUCT = 'obrasignal_pro_monthly';
+const {
+  BILLING_ENTITLEMENT,
+  BILLING_PRODUCT,
+  isCanonicalBillingProduct,
+  selectProPackage,
+} = require('./billingContracts');
+
+export { BILLING_ENTITLEMENT, BILLING_PRODUCT, isCanonicalBillingProduct, selectProPackage };
 export const BILLING_SUPPORTED = Platform.OS === 'android' || Platform.OS === 'ios';
 
 let configuredUserId = null;
@@ -46,10 +52,8 @@ export async function getCurrentOffering() {
 export async function purchasePro() {
   if (!BILLING_SUPPORTED) throw new Error('billing_not_available_on_web');
   const offering = await getCurrentOffering();
-  const pkg = offering?.availablePackages?.find(p =>
-    p?.product?.identifier === BILLING_PRODUCT || p?.packageType === 'MONTHLY'
-  ) || offering?.availablePackages?.[0];
-  if (!pkg) throw new Error('subscription_not_configured');
+  const pkg = selectProPackage(offering);
+  if (!pkg) throw new Error('canonical_subscription_not_configured');
   const result = await Purchases.purchasePackage(pkg);
   return result?.customerInfo || null;
 }

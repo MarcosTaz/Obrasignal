@@ -10,7 +10,9 @@ from datetime import datetime, timezone
 
 
 def ensure_latency_table(conn):
-    conn.execute(
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_latency'").fetchone()
+    if not exists:
+        conn.execute(
         """CREATE TABLE IF NOT EXISTS pipeline_latency(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             source TEXT NOT NULL,

@@ -24,9 +24,17 @@ def test_production_health_has_one_public_canonical_route(monkeypatch):
     assert response.get_json()["time"]
 
 
-def test_production_wsgi_registers_opportunity_detail_endpoint():
-    routes = {rule.rule for rule in cors_app.APP.url_map.iter_rules()}
-    assert "/api/v1/opportunities/<int:opportunity_id>" in routes
+def test_production_wsgi_has_one_api_owned_opportunity_detail_endpoint():
+    rules = [
+        rule for rule in cors_app.APP.url_map.iter_rules()
+        if rule.rule == "/api/v1/opportunities/<int:opportunity_id>"
+    ]
+    assert len(rules) == 1
+    assert rules[0].endpoint == "mobile_api.opportunity_detail"
+    view = cors_app.APP.view_functions[rules[0].endpoint]
+    assert view is api.opportunity_detail
+    assert view.__module__ == "api"
+    assert not hasattr(cors_app, "_opportunity_detail")
 
 
 def test_production_detail_rejects_missing_identity(monkeypatch):

@@ -3,6 +3,8 @@ import api
 
 def test_profile_api_round_trip(monkeypatch, tmp_path):
     monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "profiles.db"))
+    recalculations = []
+    monkeypatch.setattr(api, "bootstrap_account", lambda account_id: recalculations.append(account_id) or 7)
 
     client = api.APP.test_client()
     payload = {
@@ -24,6 +26,8 @@ def test_profile_api_round_trip(monkeypatch, tmp_path):
     response = client.post("/api/v1/profile", json=payload)
     assert response.status_code == 200
     stored = response.get_json()["profile"]
+    assert response.get_json()["radar_recalculated"] == 7
+    assert recalculations == ["default"]
     assert stored["regions"] == ["Leiria", "Coimbra"]
     assert stored["geographic_radius_km"] == 100
     assert stored["services"] == ["fabrico e montagem"]
@@ -33,3 +37,41 @@ def test_profile_api_round_trip(monkeypatch, tmp_path):
     readback = client.get("/api/v1/profile")
     assert readback.status_code == 200
     assert readback.get_json()["profile"] == stored
+
+
+def test_profile_api_persists_business_interests_and_coverage(monkeypatch, tmp_path):
+    monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "business-profile.db"))
+    monkeypatch.setattr(api, "bootstrap_account", lambda _account_id: 0)
+    client = api.APP.test_client()
+    response = client.post("/api/v1/profile", json={
+        "name": "Energia Demo",
+        "activity": "instalações técnicas",
+        "contract_interests": ["Instalação elétrica em escolas"],
+        "coverage_mode": "europe",
+        "countries": ["PRT", "ESP"],
+        "regions": [],
+        "cpv_prefixes": [],
+        "min_value": 50000,
+        "max_value": 750000,
+    })
+    assert response.status_code == 200
+    stored = response.get_json()["profile"]
+    assert stored["contract_interests"] == ["Instalação elétrica em escolas"]
+    assert stored["coverage_mode"] == "europe"
+    assert stored["countries"] == ["PRT", "ESP"]
+    assert "4531" in stored["cpv_prefixes"]
+    assert client.get("/api/v1/profile").get_json()["profile"] == stored
+
+
+def test_profile_api_rejects_invalid_values_without_recalculating(monkeypatch, tmp_path):
+    monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "invalid-profile.db"))
+    monkeypatch.setattr(api, "bootstrap_account", lambda _account_id: (_ for _ in ()).throw(AssertionError("must not run")))
+
+    response = api.APP.test_client().post("/api/v1/profile", json={
+        "min_value": 500000,
+        "max_value": 100000,
+    })
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "invalid_profile"
+    assert response.get_json()["detail"]["code"] == "INVALID_COMPANY_PROFILE"

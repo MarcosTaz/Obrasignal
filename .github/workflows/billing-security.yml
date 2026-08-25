@@ -1,0 +1,51 @@
+name: ObraSignal Billing Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  backend-billing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+      - name: Prove exact tested head
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest
+      - name: Compile billing authority
+        run: python -m py_compile account_registry.py evaluation_policy.py
+      - name: Run billing authority adversarial suite
+        run: PYTHONPATH=. pytest -q --import-mode=importlib tests/test_billing.py tests/test_billing_security.py
+
+  mobile-billing:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+      - name: Prove exact tested head
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+      - run: npm install --no-audit --no-fund
+      - name: Run mobile billing authority contract
+        run: npm run test:billing

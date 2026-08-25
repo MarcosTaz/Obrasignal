@@ -1,72 +1,31 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native'
-import { supabase } from '../lib/supabase'
-import { api } from '../src/api'
-import { syncUnreadOpportunityAlerts } from '../src/notifications'
+import React, { useEffect, useState } from 'react'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
+import { ensureBackendReady } from '../src/api'
+import { authSession } from '../src/authSession'
 
 export default function AuthGate({ children }) {
-  const [session, setSession] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [authState, setAuthState] = useState(authSession.getState())
 
-  const loadProfileInBackground = useCallback(async () => {
-    try {
-      await api.profile()
-      try { await syncUnreadOpportunityAlerts() } catch (_) {}
-    } catch (_) {
-      // Authentication is independent from the API. A temporary API outage
-      // must never prevent the authenticated application shell from opening.
+
+  useEffect(() => {
+    let active = true
+    const update = (nextState) => {
+      if (!active) return
+      setAuthState(nextState)
+      if (nextState.status === 'signed-in') ensureBackendReady().catch(() => {})
     }
+    const unsubscribe = authSession.subscribe(update)
+    authSession.start().then(update)
+    return () => { active = false; unsubscribe() }
   }, [])
 
-  useEffect(() => {
-    if (!session) return undefined
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') loadProfileInBackground()
-    })
-    return () => subscription.remove()
-  }, [session, loadProfileInBackground])
-
-  useEffect(() => {
-    let mounted = true
-    let subscription = null
-
-    const bootstrap = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession()
-        if (!mounted) return
-        if (error) throw error
-
-        setSession(data.session)
-        setLoading(false)
-        if (data.session) setTimeout(() => mounted && loadProfileInBackground(), 0)
-
-        const { data: listener } = supabase.auth.onAuthStateChange((_, nextSession) => {
-          if (!mounted) return
-          setSession(nextSession)
-          if (nextSession) setTimeout(() => mounted && loadProfileInBackground(), 0)
-        })
-        subscription = listener?.subscription || null
-      } catch (_) {
-        if (!mounted) return
-        setSession(null)
-        setLoading(false)
-      }
-    }
-
-    bootstrap()
-    return () => {
-      mounted = false
-      subscription?.unsubscribe()
-    }
-  }, [loadProfileInBackground])
-
-  if (loading) {
-    return <View style={styles.loading}><ActivityIndicator size="large" color="#315ea8" /></View>
+  if (authState.status === 'loading') {
+    return <View style={styles.loading}><Text style={styles.brand}>OBRA<Text style={styles.blue}>SIGNAL</Text></Text><ActivityIndicator size="small" color="#5E8BFF" /><Text style={styles.message}>A recuperar a sessão…</Text></View>
   }
 
-  if (!session) return <AuthScreen />
+  if (authState.status !== 'signed-in') return <AuthScreen />
 
   // Hard rule: once Supabase has authenticated the user, the application
   // shell opens immediately. Profile, billing and API availability are
@@ -75,5 +34,8 @@ export default function AuthGate({ children }) {
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fbff' },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: '#070C18' },
+  brand: { fontSize: 25, fontWeight: '900', color: '#F3F6FF' },
+  blue: { color: '#5E8BFF' },
+  message: { color: '#9BA8C0', fontSize: 12 },
 })

@@ -27,7 +27,12 @@ def test_existing_account_initialization_is_read_only_during_sync_writer(tmp_pat
         "SELECT status, plan FROM accounts WHERE account_id='empresa-a'"
     ).fetchone()
 
-    assert row == ("active", "pilot")
+    # The invariant under test is read-only initialization of an existing account.
+    # Trial Policy v0.1 changes the default for newly created accounts from the
+    # legacy pilot to value-aware evaluation; the second ensure_account call must
+    # still be unable to overwrite either status or plan while another writer holds
+    # the database.
+    assert row == ("active", "evaluation")
     reader.close()
     locker.rollback()
     locker.close()

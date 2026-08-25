@@ -8,14 +8,20 @@ from jwt import InvalidTokenError
 import preload as _preload
 from preload import APP, _deadline_dt
 from auth_context import configured_identity
+from auth_context_jwt import JwksUnavailableError
 from company_profile import load_profile, save_profile, derive_profile
-from notification_events import ensure_event_table
 from source_registry import SOURCES
 from account_registry import ensure_account
-from decision_log import ensure_decision_table
 from opportunity_workflow import get_workflow, set_workflow, workflow_counts
+from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+from account_onboarding import bootstrap_account
 
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
+
+
+@APP.errorhandler(JwksUnavailableError)
+def _jwks_unavailable(_error):
+    return jsonify({"error": "authentication_service_unavailable"}), 503
 
 
 def _db():
@@ -83,6 +89,27 @@ def _headers(response):
 
 
 def _deadline_state(value):
+    raw = str(value or "").strip()
+    if len(raw) == 10:
+        try:
+            deadline_date = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+        else:
+            days = (deadline_date - datetime.now(timezone.utc).date()).days
+            if days < 0:
+                return {"state": "closed", "label": "Terminado", "days_remaining": days}
+            if days == 0:
+                # Date-only publisher evidence proves the calendar day, not an
+                # exact closing instant or timezone. Do not invent midnight or
+                # 23:59 and do not claim definitely open/closed on that day.
+                return {"state": "unknown", "label": "Prazo hoje — hora não indicada", "days_remaining": 0}
+            if days <= 2:
+                return {"state": "urgent", "label": "Urgente", "days_remaining": days}
+            if days <= 7:
+                return {"state": "urgent", "label": "Prazo curto", "days_remaining": days}
+            return {"state": "open", "label": "Aberto", "days_remaining": days}
+
     dt = _deadline_dt(value)
     if not dt:
         return {"state": "unknown", "label": "Prazo não indicado", "days_remaining": None}
@@ -98,8 +125,13 @@ def _deadline_state(value):
 
 def _row(row, decision=None, workflow=None):
     d = dict(row)
+    lifecycle_value = d.get("is_actionable")
     d["deadline_status"] = _deadline_state(d.get("deadline"))
-    d["is_open"] = d["deadline_status"]["state"] in ("open", "urgent")
+    if lifecycle_value is None:
+        d["is_actionable"] = d["deadline_status"]["state"] != "closed"
+    else:
+        d["is_actionable"] = bool(lifecycle_value)
+    d["is_open"] = d["is_actionable"] and d["deadline_status"]["state"] in ("open", "urgent")
     if decision:
         d["account_decision"] = decision.get("decision")
         d["account_reason"] = decision.get("reason")
@@ -109,6 +141,7 @@ def _row(row, decision=None, workflow=None):
         d["explanation"] = decision.get("features", {}).get("explanation")
         d["economic_fit"] = decision.get("features", {}).get("economic_fit")
         d["capability_evidence"] = decision.get("features", {}).get("capability_evidence")
+        d["cpv_evidence"] = decision.get("features", {}).get("cpv_evidence")
         d["hard_capability_blockers"] = decision.get("features", {}).get("hard_capability_blockers", [])
         d["profile_score"] = decision.get("features", {}).get("profile_score", d.get("profile_score"))
         d["lot_score"] = decision.get("features", {}).get("lot_score", d.get("lot_score"))
@@ -128,7 +161,6 @@ def _decision_priority(decision):
 
 
 def _latest_decisions(conn, account_id, external_ids):
-    ensure_decision_table(conn)
     if not external_ids:
         return {}
     placeholders = ",".join("?" for _ in external_ids)
@@ -155,7 +187,7 @@ def sources():
     return jsonify({"items": items, "count": len(items), "generated_at": _iso_now(), "account_id": identity.account_id})
 
 
-_PROFILE_FIELDS = {"name", "activity", "keywords", "countries", "cpv_prefixes", "min_value", "max_value", "economic_min_score", "min_deadline_days", "max_deadline_days", "preferred_procedure_types", "excluded_procedure_types", "exclude_keywords", "regions", "geographic_radius_km", "services", "capability_tags", "project_scales", "certifications", "hard_exclusions"}
+_PROFILE_FIELDS = {"name", "activity", "contract_interests", "coverage_mode", "keywords", "countries", "cpv_prefixes", "min_value", "max_value", "economic_min_score", "min_deadline_days", "max_deadline_days", "preferred_procedure_types", "excluded_procedure_types", "exclude_keywords", "regions", "geographic_radius_km", "services", "capability_tags", "project_scales", "certifications", "hard_exclusions"}
 
 
 @bp.route("/profile", methods=["GET", "POST"])
@@ -170,8 +202,18 @@ def profile():
     merged.update({k: payload[k] for k in _PROFILE_FIELDS if k in payload})
     normalized = derive_profile(str(merged.get("activity") or ""), merged)
     normalized["account_id"] = identity.account_id
-    saved = save_profile(normalized, account_id=identity.account_id)
-    return jsonify({"ok": True, "profile": saved, "account_id": identity.account_id, "authenticated": identity.authenticated, "generated_at": _iso_now()})
+    try:
+        saved = save_profile(normalized, account_id=identity.account_id)
+    except ValueError as exc:
+        detail = exc.args[0] if exc.args else {"code": "INVALID_COMPANY_PROFILE"}
+        return jsonify({"error": "invalid_profile", "detail": detail}), 400
+
+    # A successful save means both durable profile persistence and a Radar
+    # classified from that exact profile. Returning before this bounded pass
+    # completed created a race in which the immediate refresh served decisions
+    # made with the previous criteria.
+    recalculated = bootstrap_account(identity.account_id)
+    return jsonify({"ok": True, "profile": saved, "radar_recalculated": recalculated, "account_id": identity.account_id, "authenticated": identity.authenticated, "generated_at": _iso_now()})
 
 
 @bp.route("/alerts", methods=["GET"])
@@ -180,8 +222,8 @@ def alerts():
     limit = max(1, min(50, int(request.args.get("limit", 20) or 20)))
     unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
     c = _db()
-    ensure_event_table(c)
-    where = "WHERE e.account_id=? AND e.event_type='new_high_match'"
+    ensure_lifecycle_table(c)
+    where = f"WHERE e.account_id=? AND e.event_type='new_high_match' AND {actionable_predicate('lc', 't')}"
     params = [identity.account_id]
     if unread_only:
         where += " AND e.delivered_at IS NULL"
@@ -189,6 +231,7 @@ def alerts():
     rows = c.execute(f"""SELECT e.id AS event_id, e.event_key, e.score, e.created_at, e.delivered_at,
                    t.id, t.title, t.country, t.source, t.url, t.deadline, t.profile_reason, t.profile_score, t.external_id
             FROM opportunity_events e LEFT JOIN tenders t ON t.id=e.tender_id
+            LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
             {where} ORDER BY e.created_at DESC LIMIT ?""", params).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = []
@@ -205,7 +248,6 @@ def alerts():
 def alert_delivered(event_id):
     identity = request.obrasignal_identity
     c = _db()
-    ensure_event_table(c)
     now = _iso_now()
     cur = c.execute("UPDATE opportunity_events SET delivered_at=? WHERE id=? AND account_id=?", (now, event_id, identity.account_id))
     c.commit()
@@ -219,18 +261,22 @@ def alert_delivered(event_id):
 def stats():
     identity = request.obrasignal_identity
     c = _db()
-    ensure_decision_table(c)
+    ensure_lifecycle_table(c)
     latest = """JOIN (
         SELECT od.source, od.external_id, MAX(od.id) AS max_id
         FROM opportunity_decisions od
         WHERE od.account_id=?
         GROUP BY od.source, od.external_id
     ) latest ON latest.max_id=d.id"""
-    base = f"FROM tenders t JOIN opportunity_decisions d ON d.source=t.source AND d.external_id=t.external_id {latest} WHERE d.account_id=?"
+    base = f"""FROM tenders t
+        JOIN opportunity_decisions d ON d.source=t.source AND d.external_id=t.external_id
+        {latest}
+        LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
+        WHERE d.account_id=? AND {actionable_predicate('lc', 't')}"""
     params = [identity.account_id, identity.account_id]
     total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
     high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 75", params).fetchone()[0]
-    open_count = c.execute(f"SELECT COUNT(*) {base} AND (t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline)>=datetime('now'))", params).fetchone()[0]
+    open_count = c.execute(f"SELECT COUNT(*) {base} AND t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')", params).fetchone()[0]
     new24 = c.execute(f"SELECT COUNT(*) {base} AND julianday(t.first_seen)>=julianday('now','-1 day')", params).fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
     c.close()
@@ -253,11 +299,13 @@ def opportunities():
     market = (request.args.get("market") or "PT").upper()
     country = (request.args.get("country") or "").upper().strip()
     q = (request.args.get("q") or "").strip().lower()
+    source = (request.args.get("source") or "").strip().upper()
+    open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
     minscore = request.args.get("minscore")
     minscore = int(minscore) if minscore not in (None, "") else None
     c = _db()
-    ensure_decision_table(c)
-    where = ["1=1"]
+    ensure_lifecycle_table(c)
+    where = [actionable_predicate("lc", "t")]
     params = []
     if market in ("PT", "EU"):
         where.append("(t.market=? OR (t.market IS NULL AND t.country=?))")
@@ -266,13 +314,23 @@ def opportunities():
         where.append("t.country=?")
         params.append(country)
     if q:
-        where.append("LOWER(COALESCE(t.title,'') || ' ' || COALESCE(t.description,'')) LIKE ?")
+        where.append("LOWER(COALESCE(t.title,'') || ' ' || COALESCE(t.description,'') || ' ' || COALESCE(t.buyer,'') || ' ' || COALESCE(t.cpv,'')) LIKE ?")
         params.append(f"%{q}%")
+    if source:
+        where.append("UPPER(t.source)=?")
+        params.append(source)
+    if open_only:
+        where.append("t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')")
     if minscore is not None:
         where.append("COALESCE(d.score,t.score)>=?")
         params.append(minscore)
     rows = c.execute(
-        f"""SELECT t.* FROM tenders t
+        f"""SELECT t.*, {actionable_predicate('lc', 't')} AS is_actionable,
+                   lc.lifecycle_status, lc.lifecycle_reason,
+                   lc.source_updated_at AS lifecycle_source_updated_at,
+                   lc.last_observed AS lifecycle_last_observed
+            FROM tenders t
+            LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
             LEFT JOIN (SELECT source, external_id, MAX(id) max_id FROM opportunity_decisions WHERE account_id=? GROUP BY source, external_id) latest
             ON latest.source=t.source AND latest.external_id=t.external_id
             LEFT JOIN opportunity_decisions d ON d.id=latest.max_id
@@ -283,6 +341,34 @@ def opportunities():
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
     c.close()
     return jsonify({"items": items, "count": len(items), "market": market, "generated_at": _iso_now(), "account_id": identity.account_id})
+
+
+@bp.route("/opportunities/<int:opportunity_id>", methods=["GET"])
+def opportunity_detail(opportunity_id):
+    """Return canonical history plus effective current actionability for this account."""
+    identity = request.obrasignal_identity
+    c = _db()
+    try:
+        ensure_lifecycle_table(c)
+        row = c.execute(
+            f"""SELECT t.*, {actionable_predicate('lc', 't')} AS is_actionable,
+                      lc.lifecycle_status, lc.lifecycle_reason,
+                      lc.source_updated_at AS lifecycle_source_updated_at,
+                      lc.last_observed AS lifecycle_last_observed
+               FROM tenders t
+               LEFT JOIN opportunity_lifecycle lc
+                 ON lc.source=t.source AND lc.external_id=t.external_id
+               WHERE t.id=?""",
+            (opportunity_id,),
+        ).fetchone()
+        if row is None:
+            return jsonify({"error": "not_found"}), 404
+        decisions = _latest_decisions(c, identity.account_id, [row["external_id"]])
+        decision = decisions.get((row["source"], row["external_id"]))
+        workflow = get_workflow(c, identity.account_id, row["source"], row["external_id"])
+        return jsonify(_row(row, decision, workflow))
+    finally:
+        c.close()
 
 
 @bp.route("/opportunities/<int:opportunity_id>/workflow", methods=["GET", "POST"])
@@ -313,7 +399,7 @@ def opportunity_workflow(opportunity_id):
 
 
 # Keep the native API usable when this module is imported directly (tests and
-# development), while cors_app remains the production WSGI boundary.  Register
+# development), while cors_app remains the production WSGI boundary. Register
 # only once because both entrypoints share the same Flask application object.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(bp)

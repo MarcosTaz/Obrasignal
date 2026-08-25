@@ -33,7 +33,15 @@ class CapabilityProfile:
     @classmethod
     def from_dict(cls, data: dict | None = None) -> "CapabilityProfile":
         data = data or {}
-        aliases = {"services": "service_types", "capabilities": "capability_tags"}
+        aliases = {
+            "services": "service_types",
+            "capabilities": "capability_tags",
+            # Profiles written by the first web form used these names.  Keep
+            # accepting them at the matcher boundary so an old persisted JSON
+            # document cannot silently lose its commercial envelope.
+            "min_value": "minimum_value",
+            "max_value": "maximum_value",
+        }
         values = dict(data)
         for target, source in aliases.items():
             if target not in values and source in values:
@@ -63,7 +71,10 @@ class CapabilityProfile:
 
 def build_capability_profile(profile: dict | None = None) -> dict:
     """Normalize an existing company profile into the capability contract."""
-    capability = CapabilityProfile.from_dict(profile)
+    values = dict(profile or {})
+    if not values.get("services") and values.get("contract_interests"):
+        values["services"] = values["contract_interests"]
+    capability = CapabilityProfile.from_dict(values)
     return capability.to_dict()
 
 
@@ -106,6 +117,7 @@ def capability_matches_text(profile: dict, text: str) -> dict:
     matched_tags = [item for item in tags if _contains_term(text, item)]
     evidence = matched_services + matched_tags
     return {
+        "status": "MATCH" if evidence else "UNKNOWN",
         "matched": bool(evidence),
         "matched_services": matched_services,
         "matched_capabilities": matched_tags,

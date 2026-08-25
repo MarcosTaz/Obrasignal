@@ -1,12 +1,22 @@
 """Production compatibility layer for ObraSignal."""
 import time
+import os
 from datetime import datetime, timezone, timedelta
 
 import app as _app
-from national_sources import fetch_national_sources
+import national_sources as _national_sources
+import colombia_secop as _colombia_secop
+import paraguay_dncp as _paraguay_dncp
+import uruguay_arce as _uruguay_arce
+import south_africa_etenders as _south_africa_etenders
+from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
-from source_health import ensure_source_health, get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
-from latency_metrics import ensure_latency_table, record_stage, latency_snapshot, latency_summary
+from source_health import get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
+from source_registry import production_gate_reasons
+from canada_buys_runtime import install_canadabuys_runtime
+from us_sam_runtime import install_us_sam_runtime
+from source_runtime import commit_staged_source_syncs, discard_staged_source_syncs, stage_source_sync
+from latency_metrics import record_stage, latency_snapshot, latency_summary
 from latency_health import latency_health
 from ted_client import post_json
 from auth_context import configured_identity, InvalidTokenError
@@ -43,6 +53,82 @@ def _protect_legacy_routes():
 
 def _deadline_dt(value):
     return _app.deadline_dt(value)
+
+
+def _requested_global_sources():
+    raw = os.getenv("OBRASIGNAL_GLOBAL_SOURCES", "")
+    return {item.strip().upper() for item in raw.split(",") if item.strip()}
+
+
+def _global_source_enabled(source):
+    source = str(source or "").upper()
+    if source not in _requested_global_sources():
+        return False
+    return not production_gate_reasons(source)
+
+
+def _record_blocked_global_source(source):
+    source = str(source or "").upper()
+    if source not in _requested_global_sources():
+        return
+    reasons = production_gate_reasons(source)
+    if not reasons:
+        return
+    conn = _app.db()
+    try:
+        record_source_result(
+            conn,
+            source,
+            success=False,
+            duration_ms=0,
+            error="production gate blocked: " + ",".join(reasons),
+        )
+    finally:
+        conn.close()
+
+
+def _fetch_secop_staged():
+    conn = _app.db()
+    try:
+        watermark = get_source_cursor(conn, "CO_SECOP")
+    finally:
+        conn.close()
+    records, cursor = _colombia_secop.fetch_secop_processes(watermark=watermark)
+    stage_source_sync("CO_SECOP", records, cursor)
+    return records
+
+
+def _fetch_dncp_staged():
+    conn = _app.db()
+    try:
+        watermark = get_source_cursor(conn, "PY_DNCP")
+    finally:
+        conn.close()
+    records, cursor = _paraguay_dncp.fetch_dncp_processes(watermark=watermark)
+    stage_source_sync("PY_DNCP", records, cursor)
+    return records
+
+
+def _fetch_arce_staged():
+    conn = _app.db()
+    try:
+        watermark = get_source_cursor(conn, "UY_ARCE")
+    finally:
+        conn.close()
+    records, cursor = _uruguay_arce.fetch_arce_tenders(watermark=watermark)
+    stage_source_sync("UY_ARCE", records, cursor)
+    return records
+
+
+def _fetch_za_staged():
+    conn = _app.db()
+    try:
+        watermark = get_source_cursor(conn, "ZA_ETENDERS")
+    finally:
+        conn.close()
+    records, cursor = _south_africa_etenders.fetch_za_tenders(watermark=watermark)
+    stage_source_sync("ZA_ETENDERS", records, cursor)
+    return records
 
 
 def _ted_since_date():
@@ -97,12 +183,10 @@ def _fetch_ted_resilient():
 def _fetch_ted_with_health(*args, **kwargs):
     started = time.perf_counter()
     started_at = datetime.now(timezone.utc).isoformat()
-    conn = _app.db()
     try:
-        ensure_source_health(conn)
-        ensure_latency_table(conn)
-        conn.close()
         rows = _fetch_ted_resilient()
+        if not rows:
+            raise RuntimeError("TED returned an unexpected empty result set")
         duration_ms = int((time.perf_counter() - started) * 1000)
         watermark = _max_ted_publication_date(rows)
         conn = _app.db()
@@ -125,12 +209,72 @@ _app.fetch_ted = _fetch_ted_with_health
 
 
 def fetch_base_with_national_sources():
-    rows = _original_fetch_base()
-    rows.extend(fetch_national_sources())
-    return rows
+    rows = []
+    # (source, fetcher, empty_ok). An empty incremental global window is a
+    # successful observation; legacy discovery feeds retain the stronger
+    # unexpected-empty alarm because they are expected to contain a corpus.
+    connectors = [("BASE", _original_fetch_base, False)]
+    if os.getenv("BASE_ACCESS_TOKEN", "").strip() == "":
+        connectors = []
+        conn = _app.db()
+        record_source_result(conn, "BASE", success=False, duration_ms=0, error="BASE_ACCESS_TOKEN is not configured")
+        conn.close()
+    connectors.extend((("BOAMP", _national_sources.fetch_boamp, False), ("PLACSP", _national_sources.fetch_placsp, False)))
+    if _national_sources.LUXEMBOURG_RSS_URL:
+        connectors.append(("PMP-LU", _national_sources.fetch_luxembourg_rss, False))
+
+    if _global_source_enabled("CO_SECOP"):
+        connectors.append(("CO_SECOP", _fetch_secop_staged, True))
+    else:
+        _record_blocked_global_source("CO_SECOP")
+
+    if _global_source_enabled("PY_DNCP"):
+        connectors.append(("PY_DNCP", _fetch_dncp_staged, True))
+    else:
+        _record_blocked_global_source("PY_DNCP")
+
+    if _global_source_enabled("UY_ARCE"):
+        connectors.append(("UY_ARCE", _fetch_arce_staged, True))
+    else:
+        _record_blocked_global_source("UY_ARCE")
+
+    if _global_source_enabled("ZA_ETENDERS"):
+        connectors.append(("ZA_ETENDERS", _fetch_za_staged, True))
+    else:
+        _record_blocked_global_source("ZA_ETENDERS")
+
+    for source, fetcher, empty_ok in connectors:
+        started = time.perf_counter()
+        try:
+            found = fetcher()
+            if found is None:
+                found = []
+            if not found and not empty_ok:
+                raise RuntimeError(f"{source} returned an unexpected empty result set")
+            rows.extend(found)
+            conn = _app.db()
+            record_source_result(conn, source, success=True, duration_ms=int((time.perf_counter() - started) * 1000), found=len(found))
+            conn.close()
+        except Exception as exc:
+            conn = _app.db()
+            record_source_result(conn, source, success=False, duration_ms=int((time.perf_counter() - started) * 1000), error=exc)
+            conn.close()
+    return dedupe_records(rows)
 
 
 _app.fetch_base = fetch_base_with_national_sources
+
+install_canadabuys_runtime(
+    _app,
+    source_enabled=_global_source_enabled,
+    record_blocked=_record_blocked_global_source,
+)
+
+install_us_sam_runtime(
+    _app,
+    source_enabled=_global_source_enabled,
+    record_blocked=_record_blocked_global_source,
+)
 
 
 @APP.get("/api/v1/source-health")
@@ -220,16 +364,23 @@ def sync_once_with_events(*args, **kwargs):
         return None
     started = time.perf_counter()
     started_at = datetime.now(timezone.utc).isoformat()
-    result = _original_sync_once(*args, **kwargs)
+    discard_staged_source_syncs()
+    try:
+        result = _original_sync_once(*args, **kwargs)
+    except Exception:
+        discard_staged_source_syncs()
+        raise
+
     conn = _app.db()
     try:
+        source_runtime = commit_staged_source_syncs(conn)
         decisions = _record_account_decisions(conn)
         events = _record_account_events(conn)
         duration_ms = int((time.perf_counter() - started) * 1000)
         record_stage(conn, "PIPELINE", "sync_and_events", started_at, duration_ms, len(events))
     finally:
         conn.close()
-    return {"sync": result, "decisions": decisions, "new_events": events}
+    return {"sync": result, "source_runtime": source_runtime, "decisions": decisions, "new_events": events}
 
 
 @APP.get("/opportunity/<int:tender_id>")

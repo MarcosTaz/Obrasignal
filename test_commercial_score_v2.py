@@ -61,6 +61,9 @@ def test_sparse_notice_exposes_missing_data():
     assert result["confidence"] == 20
     assert set(result["missing_fields"]) == {"title/description", "deadline", "value", "procedure_type"}
     assert "dados insuficientes para confiança elevada" in result["reasons"]
+    assert result["components"]["deadline"] == 0
+    assert result["components"]["size_fit"] == 0
+    assert result["components"]["access"] == 0
 
 
 def test_non_works_cpv_is_not_promoted_without_evidence():

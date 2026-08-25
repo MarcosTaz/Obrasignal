@@ -5,6 +5,7 @@ from typing import Any
 
 LIST_FIELDS = {
     "countries",
+    "contract_interests",
     "regions",
     "services",
     "capability_tags",
@@ -69,6 +70,10 @@ def validate_company_profile(profile: dict[str, Any] | None) -> list[str]:
             errors.append(f"{key}: não pode ser inferior a {minimum}.")
         if maximum is not None and value > maximum:
             errors.append(f"{key}: não pode ser superior a {maximum}.")
+
+    coverage_mode = data.get("coverage_mode")
+    if coverage_mode is not None and coverage_mode not in {"portugal", "regions", "europe"}:
+        errors.append("coverage_mode: opção de cobertura inválida.")
 
     min_value = data.get("min_value")
     max_value = data.get("max_value")

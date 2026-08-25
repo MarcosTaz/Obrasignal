@@ -21,18 +21,39 @@ body{font-family:Arial,sans-serif;background:#0b1020;color:#eef2ff;margin:0}.wra
 {% for t in tenders %}<div class="card"><div class="row" style="justify-content:space-between"><div><span class="tag">{{t.source}}</span><span class="tag">{{t.publication_date or 'sem data'}}</span>{% if t.country %}<span class="tag">{{t.country}}</span>{% endif %}</div><div class="score">{{t.score}}/100</div></div><h2 class="title">{{t.title or 'Sem título'}}</h2><div>{{t.buyer or 'Entidade não identificada'}}</div><div class="muted small">{{t.value or 'Valor não indicado'}} · {{t.deadline or 'Prazo não indicado'}}</div><p class="small">{{t.description[:900] if t.description else ''}}</p>{% if t.match_reason %}<div class="reason"><span class="{{t.priority_class}}">{{t.priority_label}}</span> — {{t.match_reason}}</div>{% endif %}{% if t.cpv %}<div>{% for x in t.cpv.split('|')[:10] %}<span class="tag">{{x}}</span>{% endfor %}</div>{% endif %}<p><a href="{{t.url}}" target="_blank">Abrir fonte</a></p></div>{% endfor %}</div></body></html>'''
 
 def db():
- # Profile saves start an account-scoped classification worker which can be
- # writing to the same SQLite database as a following API request.  SQLite's
- # five-second default busy timeout is too short for that bounded bootstrap
- # pass and used to surface transient lock contention as an HTTP 500.
  c=sqlite3.connect(DB,check_same_thread=False,timeout=SQLITE_BUSY_TIMEOUT_SECONDS);c.row_factory=sqlite3.Row
  c.execute(f'PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_SECONDS * 1000}')
- c.execute('''CREATE TABLE IF NOT EXISTS tenders(id INTEGER PRIMARY KEY AUTOINCREMENT,source TEXT NOT NULL,external_id TEXT NOT NULL,title TEXT,description TEXT,buyer TEXT,country TEXT,cpv TEXT,value TEXT,deadline TEXT,publication_date TEXT,url TEXT,score INTEGER DEFAULT 0,first_seen TEXT,last_seen TEXT,UNIQUE(source,external_id))''')
- c.execute('''CREATE TABLE IF NOT EXISTS sync_runs(id INTEGER PRIMARY KEY AUTOINCREMENT,started_at TEXT NOT NULL,finished_at TEXT,found INTEGER DEFAULT 0,new_items INTEGER DEFAULT 0)''')
- cols=[r['name'] for r in c.execute('PRAGMA table_info(tenders)').fetchall()]
- for col in ['published_at','match_reason','priority_label','priority_class','market']:
-  if col not in cols:c.execute(f'ALTER TABLE tenders ADD COLUMN {col} TEXT')
- c.commit();return c
+ return c
+
+def init_db():
+ """Create and migrate the complete schema once, before serving or ingesting."""
+ c=db()
+ try:
+  c.execute('''CREATE TABLE IF NOT EXISTS tenders(id INTEGER PRIMARY KEY AUTOINCREMENT,source TEXT NOT NULL,external_id TEXT NOT NULL,title TEXT,description TEXT,buyer TEXT,country TEXT,cpv TEXT,value TEXT,deadline TEXT,publication_date TEXT,url TEXT,score INTEGER DEFAULT 0,first_seen TEXT,last_seen TEXT,UNIQUE(source,external_id))''')
+  c.execute('''CREATE TABLE IF NOT EXISTS sync_runs(id INTEGER PRIMARY KEY AUTOINCREMENT,started_at TEXT NOT NULL,finished_at TEXT,found INTEGER DEFAULT 0,new_items INTEGER DEFAULT 0)''')
+  cols={r['name'] for r in c.execute('PRAGMA table_info(tenders)').fetchall()}
+  for col in ['published_at','match_reason','priority_label','priority_class','market']:
+   if col not in cols:c.execute(f'ALTER TABLE tenders ADD COLUMN {col} TEXT')
+
+  # Import lazily to avoid the app/module import cycles used by the WSGI entrypoint.
+  from account_registry import ensure_account_table
+  from company_profile import ensure_profile_table
+  from decision_log import ensure_decision_table
+  from latency_metrics import ensure_latency_table
+  from notification_events import ensure_event_table
+  from opportunity_workflow import ensure_workflow_table
+  from source_health import ensure_source_health
+  ensure_account_table(c)
+  c.execute('CREATE TABLE IF NOT EXISTS billing_webhook_events(event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL)')
+  ensure_profile_table(c)
+  ensure_decision_table(c)
+  ensure_event_table(c)
+  ensure_workflow_table(c)
+  ensure_source_health(c)
+  ensure_latency_table(c)
+  c.commit()
+ finally:
+  c.close()
 
 def pick(o,*ks):
  if not isinstance(o,dict):return None
@@ -188,7 +209,15 @@ def api_tenders():
 def worker():
  while True:
   try:sync_once()
-  except Exception:pass
+  except Exception as exc:print('sync worker error:',exc)
   time.sleep(POLL_SECONDS)
 
-threading.Thread(target=worker,daemon=True).start()
+_worker_started=False
+_worker_start_lock=threading.Lock()
+
+def start_background_worker():
+ global _worker_started
+ with _worker_start_lock:
+  if _worker_started:return
+  threading.Thread(target=worker,daemon=True).start()
+  _worker_started=True

@@ -1,6 +1,6 @@
 from company_profile import load_profile
 from decision_log import record_decision
-from opportunity_match_pipeline import evaluate_row
+from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
 
 def persist_and_classify(conn, item, is_new, account_id='default'):
@@ -28,6 +28,7 @@ def persist_and_classify(conn, item, is_new, account_id='default'):
         "economic_fit": evaluation["economic_fit"],
         "capability": evaluation["capability"],
         "capability_evidence": evaluation["capability_evidence"],
+        "cpv_evidence": evaluation["cpv_evidence"],
         "hard_capability_blockers": evaluation["hard_capability_blockers"],
         "explanation": evaluation["explanation"],
     }
@@ -40,7 +41,7 @@ def persist_and_classify(conn, item, is_new, account_id='default'):
         evaluation["reason"],
         score=evaluation["profile_score"],
         features=features,
-        rule_version="commercial-v2+lot-v1+capability-v1+economic-fit-v2",
+        rule_version=RULE_VERSION,
         account_id=account_id,
     )
     return evaluation["decision"], evaluation["reason"]

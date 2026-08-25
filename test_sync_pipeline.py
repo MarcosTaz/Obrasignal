@@ -35,6 +35,6 @@ def test_pipeline_scores_and_records_canonical_decision():
     evaluation = evaluate_and_record(conn, row, _profile(), account_id="default")
     stored = latest_decision(conn, "TED", "2026/S-123456", account_id="default")
     assert evaluation["decision"] in {"QUALIFIED", "REVIEW", "REJECT"}
-    assert stored["rule_version"] == "commercial-v2+lot-v1+capability-v1+economic-fit-v2"
+    assert stored["rule_version"] == "commercial-v2+lot-v1+capability-v2+economic-fit-v3"
     assert stored["features"]["profile_score"] == evaluation["profile_score"]
     conn.close()

@@ -25,7 +25,9 @@ def _ensure_account_column(conn):
 
 
 def ensure_decision_table(conn):
-    conn.execute(SCHEMA)
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='opportunity_decisions'").fetchone()
+    if not exists:
+        conn.execute(SCHEMA)
     _ensure_account_column(conn)
     conn.commit()
 
@@ -60,7 +62,6 @@ def latest_decision(conn, source, external_id, account_id='default'):
 
 def funnel_counts(conn, account_id='default'):
     """Return current funnel state, counting only the latest decision per opportunity."""
-    ensure_decision_table(conn)
     rows = conn.execute(
         '''SELECT d.decision, COUNT(*) AS count
            FROM opportunity_decisions d
@@ -76,3 +77,4 @@ def funnel_counts(conn, account_id='default'):
         (str(account_id or 'default'), str(account_id or 'default')),
     ).fetchall()
     return {row['decision']: row['count'] for row in rows}
+    ensure_decision_table(conn)

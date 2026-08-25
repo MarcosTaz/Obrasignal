@@ -94,7 +94,7 @@ def test_jwt_verifier_accepts_valid_rs256_token():
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(public_key))
 
     verifier = JwtVerifier("https://example.supabase.co/auth/v1")
-    verifier._jwks = lambda: {"test-key": jwk}
+    verifier._key_for = lambda kid: jwk
 
     identity = verifier.verify(_signed_test_token(private_key, issuer="https://example.supabase.co/auth/v1"))
 
@@ -111,7 +111,7 @@ def test_jwt_verifier_rejects_wrong_audience():
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(public_key))
 
     verifier = JwtVerifier("https://example.supabase.co/auth/v1")
-    verifier._jwks = lambda: {"test-key": jwk}
+    verifier._key_for = lambda kid: jwk
 
     with pytest.raises(jwt.InvalidTokenError):
         verifier.verify(_signed_test_token(private_key, issuer="https://example.supabase.co/auth/v1", audience="wrong-audience"))
