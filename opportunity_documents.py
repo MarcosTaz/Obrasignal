@@ -1,8 +1,8 @@
 """Canonical opportunity document inventory contracts for ObraSignal.
 
-This capability inventories public procurement document references. It does not
-store document bytes, download files, parse PDFs, infer legal reuse rights, or
-generate bid content. Opportunity/source records remain authoritative elsewhere.
+This capability inventories public procurement document references. It stores
+metadata only: no document bytes, downloads, OCR, parsing, legal-right inference
+or bid generation. Opportunity/source records remain authoritative elsewhere.
 """
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ _TYPE_RULES: tuple[tuple[str, tuple[re.Pattern[str], ...]], ...] = (
     ("AMENDMENT", (re.compile(r"\bamendment\b", re.I), re.compile(r"\baddendum\b", re.I))),
     ("TECHNICAL_SPECIFICATION", (re.compile(r"\btechnical\s+specification(?:s)?\b", re.I), re.compile(r"\btech(?:nical)?[-_ ]?spec(?:ification)?s?\b", re.I))),
     ("BOQ", (re.compile(r"\bbill\s+of\s+quantit(?:y|ies)\b", re.I), re.compile(r"(?:^|[^a-z0-9])boq(?:[^a-z0-9]|$)", re.I))),
-    ("PRICING_SCHEDULE", (re.compile(r"\bprice|pricing\s+schedule\b", re.I), re.compile(r"\bschedule\s+of\s+rates\b", re.I))),
+    ("PRICING_SCHEDULE", (re.compile(r"\b(?:price|pricing)\s+schedule\b", re.I), re.compile(r"\bschedule\s+of\s+rates\b", re.I))),
     ("CONTRACT_DRAFT", (re.compile(r"\bdraft\s+contract\b", re.I), re.compile(r"\bcontract\s+draft\b", re.I))),
     ("QUALIFICATION_FORM", (re.compile(r"\bqualification\s+form\b", re.I), re.compile(r"\bpre[- ]?qualification\b", re.I))),
     ("SUBMISSION_TEMPLATE", (re.compile(r"\bsubmission\s+(?:form|template)\b", re.I), re.compile(r"\btender\s+form\b", re.I))),
@@ -73,8 +73,7 @@ _TYPE_RULES: tuple[tuple[str, tuple[re.Pattern[str], ...]], ...] = (
 def _text(value, *, limit=_MAX_TEXT) -> str:
     if value is None:
         return ""
-    text = str(value).strip().replace("\x00", "")
-    return text[:limit]
+    return str(value).strip().replace("\x00", "")[:limit]
 
 
 def _enum(value, allowed, default):
@@ -83,7 +82,7 @@ def _enum(value, allowed, default):
 
 
 def safe_external_url(value: object) -> str | None:
-    """Return only absolute HTTP(S) URLs; never convert unsafe schemes."""
+    """Return only absolute HTTP(S) URLs without embedded credentials."""
     text = _text(value)
     if not text:
         return None
@@ -99,14 +98,12 @@ def safe_external_url(value: object) -> str | None:
 
 
 def classify_document_type(title: object, explicit_type: object = None) -> tuple[DocumentType, ClassificationBasis]:
-    """Classify conservatively; source metadata wins and heuristic guidance stays UNKNOWN."""
+    """Classify conservatively; valid source metadata wins over heuristics."""
     explicit = _enum(explicit_type, _DOCUMENT_TYPES, "")
     if explicit:
         return explicit, "SOURCE"
     text = _text(title).lower()
-    if not text:
-        return "UNKNOWN", "UNKNOWN"
-    if any(marker in text for marker in _FALSE_POSITIVE_MARKERS):
+    if not text or any(marker in text for marker in _FALSE_POSITIVE_MARKERS):
         return "UNKNOWN", "UNKNOWN"
     for document_type, patterns in _TYPE_RULES:
         if any(pattern.search(text) for pattern in patterns):
@@ -115,7 +112,7 @@ def classify_document_type(title: object, explicit_type: object = None) -> tuple
 
 
 def metadata_fingerprint(reference: Mapping[str, object]) -> str:
-    """Metadata fingerprint; explicitly not a content hash."""
+    """Deterministic metadata identity; explicitly not a content hash."""
     material = {
         "source": _text(reference.get("source"), limit=200).lower(),
         "opportunity_source": _text(reference.get("opportunity_source"), limit=200).lower(),
@@ -222,7 +219,6 @@ def _identity_basis(reference: Mapping[str, object], metadata_hash: str) -> tupl
     explicit_content_hash = _text(reference.get("content_fingerprint"), limit=128).lower()
     fingerprint_kind = _enum(reference.get("fingerprint_kind"), {"CONTENT", "METADATA"}, "")
     if explicit_content_hash and fingerprint_kind == "CONTENT":
-        # Content identity distinguishes same-filename/native-id changed bytes.
         native_prefix = f"native:{source}:{native}:" if native else ""
         return f"{native_prefix}content:{explicit_content_hash}", "CONTENT"
     if native:
@@ -253,13 +249,9 @@ def normalize_document_reference(reference: Mapping[str, object]) -> Opportunity
     if raw_url and source_url is None and availability == "AVAILABLE":
         availability = "REFERENCE_ONLY"
 
-    status = _enum(reference.get("status"), _STATUSES, "UNKNOWN")
-    purpose = _enum(reference.get("purpose"), _PURPOSES, "UNKNOWN")
-    required = _enum(reference.get("required_for_submission"), _REQUIRED, "UNKNOWN")
     file_size = reference.get("file_size")
-    if file_size is not None:
-        if isinstance(file_size, bool) or not isinstance(file_size, int) or file_size < 0:
-            raise ValueError("file_size must be a non-negative integer when known")
+    if file_size is not None and (isinstance(file_size, bool) or not isinstance(file_size, int) or file_size < 0):
+        raise ValueError("file_size must be a non-negative integer when known")
 
     raw = _raw_metadata(reference.get("metadata") or {})
     if raw_url and source_url is None:
@@ -274,9 +266,9 @@ def normalize_document_reference(reference: Mapping[str, object]) -> Opportunity
         title=title,
         document_type=document_type,
         classification_basis=classification_basis,
-        purpose=purpose,
-        required_for_submission=required,
-        status=status,
+        purpose=_enum(reference.get("purpose"), _PURPOSES, "UNKNOWN"),
+        required_for_submission=_enum(reference.get("required_for_submission"), _REQUIRED, "UNKNOWN"),
+        status=_enum(reference.get("status"), _STATUSES, "UNKNOWN"),
         availability_status=availability,
         source_reference=_text(reference.get("source_reference"), limit=2000) or None,
         source_url=source_url,
@@ -305,10 +297,7 @@ def _with_relationships(document: OpportunityDocument, relationships: Iterable[D
 
 
 def normalize_document_references(references: Iterable[Mapping[str, object]]) -> tuple[OpportunityDocument, ...]:
-    """Normalize, dedupe and apply only explicit supersession relations.
-
-    Input ordering has no effect on identity or output ordering.
-    """
+    """Normalize/dedupe and resolve only relations defensible inside one batch."""
     normalized: dict[str, OpportunityDocument] = {}
     raw_by_id: dict[str, Mapping[str, object]] = {}
     for reference in references or ():
@@ -317,23 +306,21 @@ def normalize_document_references(references: Iterable[Mapping[str, object]]) ->
             normalized[document.document_id] = document
             raw_by_id[document.document_id] = reference
 
-    # Resolve explicit supersedes_document_id or source-native target IDs. Never
-    # guess that a later timestamp/version supersedes an earlier document.
     native_index: dict[tuple[str, str], list[str]] = {}
     for document in normalized.values():
         if document.external_id:
             native_index.setdefault((document.source.casefold(), document.external_id), []).append(document.document_id)
 
+    result = dict(normalized)
     superseded_targets: set[str] = set()
-    result: dict[str, OpportunityDocument] = dict(normalized)
     for document_id, document in normalized.items():
         raw = raw_by_id[document_id]
         relationships: list[DocumentRelationship] = []
         explicit_target = _text(raw.get("supersedes_document_id"), limit=200)
         native_target = _text(raw.get("supersedes_external_id"), limit=1000)
-        target_id = explicit_target if explicit_target in normalized else ""
+        target_id = explicit_target if explicit_target in normalized and explicit_target != document_id else ""
         if not target_id and native_target:
-            candidates = [candidate for candidate in native_index.get((document.source.casefold(), native_target), []) if candidate != document_id]
+            candidates = [candidate for candidate in native_index.get((document.source.casefold(), native_target), ()) if candidate != document_id]
             if len(candidates) == 1:
                 target_id = candidates[0]
         if target_id:
@@ -350,32 +337,25 @@ def normalize_document_references(references: Iterable[Mapping[str, object]]) ->
         target = result[target_id]
         if target.status != "WITHDRAWN":
             result[target_id] = _with_relationships(target, target.relationships, status="SUPERSEDED")
-
     return tuple(sorted(result.values(), key=lambda item: (item.title.casefold(), item.document_id)))
 
 
-def build_document_inventory(references: Iterable[Mapping[str, object]], *, generated_at: str | None = None) -> OpportunityDocumentInventory:
-    documents = normalize_document_references(references)
-    current = tuple(item for item in documents if item.status == "CURRENT")
-    superseded = tuple(item for item in documents if item.status in {"SUPERSEDED", "WITHDRAWN"})
-    unavailable = tuple(item for item in documents if item.availability_status in {"UNAVAILABLE", "ACCESS_RESTRICTED", "MISSING"})
-    unknown = tuple(item for item in documents if item.document_type == "UNKNOWN")
-    submission = tuple(item for item in documents if item.purpose == "FOR_SUBMISSION" or item.required_for_submission == "REQUIRED")
-    analysis = tuple(item for item in documents if item.purpose == "FOR_ANALYSIS")
-    needs_verification = tuple(
-        item for item in documents
-        if item.status == "UNKNOWN" or item.availability_status == "UNKNOWN" or item.required_for_submission == "UNKNOWN"
-    )
+def _inventory(documents: Iterable[OpportunityDocument], generated_at=None) -> OpportunityDocumentInventory:
+    documents = tuple(documents)
     return OpportunityDocumentInventory(
-        current_documents=current,
-        superseded_documents=superseded,
-        missing_or_unavailable=unavailable,
-        unknown_documents=unknown,
-        submission_related=submission,
-        analysis_related=analysis,
-        needs_verification=needs_verification,
+        current_documents=tuple(item for item in documents if item.status == "CURRENT"),
+        superseded_documents=tuple(item for item in documents if item.status in {"SUPERSEDED", "WITHDRAWN"}),
+        missing_or_unavailable=tuple(item for item in documents if item.availability_status in {"UNAVAILABLE", "ACCESS_RESTRICTED", "MISSING"}),
+        unknown_documents=tuple(item for item in documents if item.document_type == "UNKNOWN"),
+        submission_related=tuple(item for item in documents if item.purpose == "FOR_SUBMISSION" or item.required_for_submission == "REQUIRED"),
+        analysis_related=tuple(item for item in documents if item.purpose == "FOR_ANALYSIS"),
+        needs_verification=tuple(item for item in documents if item.status == "UNKNOWN" or item.availability_status == "UNKNOWN" or item.required_for_submission == "UNKNOWN"),
         generated_at=generated_at or datetime.now(timezone.utc).isoformat(),
     )
+
+
+def build_document_inventory(references: Iterable[Mapping[str, object]], *, generated_at: str | None = None) -> OpportunityDocumentInventory:
+    return _inventory(normalize_document_references(references), generated_at)
 
 
 def ensure_document_tables(conn) -> None:
@@ -412,6 +392,8 @@ def ensure_document_tables(conn) -> None:
     )''')
     conn.execute('''CREATE INDEX IF NOT EXISTS idx_opportunity_documents_opportunity
         ON opportunity_documents(opportunity_source, opportunity_external_id)''')
+    conn.execute('''CREATE INDEX IF NOT EXISTS idx_opportunity_documents_native
+        ON opportunity_documents(opportunity_source, opportunity_external_id, source, external_id)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS opportunity_document_relationships (
         source_document_id TEXT NOT NULL,
         relationship_type TEXT NOT NULL,
@@ -422,11 +404,34 @@ def ensure_document_tables(conn) -> None:
     )''')
 
 
+def _persisted_relation_target(conn, document: OpportunityDocument, raw: Mapping[str, object], key: str):
+    explicit_id = _text(raw.get(key + "_document_id"), limit=200)
+    if explicit_id and explicit_id != document.document_id:
+        row = conn.execute('''SELECT document_id FROM opportunity_documents
+            WHERE document_id=? AND opportunity_source=? AND opportunity_external_id=?''',
+            (explicit_id, document.opportunity_source, document.opportunity_external_id)).fetchone()
+        if row:
+            return row["document_id"]
+    native_id = _text(raw.get(key + "_external_id"), limit=1000)
+    if not native_id:
+        return None
+    rows = conn.execute('''SELECT document_id FROM opportunity_documents
+        WHERE opportunity_source=? AND opportunity_external_id=? AND source=? AND external_id=? AND document_id<>?''',
+        (document.opportunity_source, document.opportunity_external_id, document.source, native_id, document.document_id)).fetchall()
+    return rows[0]["document_id"] if len(rows) == 1 else None
+
+
 def ingest_document_references(conn, references: Iterable[Mapping[str, object]], *, observed_at: str | None = None, commit=True) -> int:
-    """Idempotently persist normalized public document metadata only."""
+    """Idempotently persist public metadata and incremental explicit relations."""
     ensure_document_tables(conn)
     observed = observed_at or datetime.now(timezone.utc).isoformat()
+    references = list(references or ())
     documents = normalize_document_references(references)
+    raw_by_id: dict[str, Mapping[str, object]] = {}
+    for reference in references:
+        document_id = normalize_document_reference(reference).document_id
+        raw_by_id.setdefault(document_id, reference)
+
     for document in documents:
         conn.execute('''INSERT INTO opportunity_documents(
             document_id, opportunity_source, opportunity_external_id, source, external_id, title,
@@ -438,7 +443,12 @@ def ingest_document_references(conn, references: Iterable[Mapping[str, object]],
         ON CONFLICT(document_id) DO UPDATE SET
             title=excluded.title, document_type=excluded.document_type,
             classification_basis=excluded.classification_basis, purpose=excluded.purpose,
-            required_for_submission=excluded.required_for_submission, status=excluded.status,
+            required_for_submission=excluded.required_for_submission,
+            status=CASE
+                WHEN opportunity_documents.status='SUPERSEDED' AND excluded.status IN ('CURRENT','UNKNOWN')
+                THEN opportunity_documents.status
+                ELSE excluded.status
+            END,
             availability_status=excluded.availability_status, source_reference=excluded.source_reference,
             source_url=excluded.source_url, publisher=excluded.publisher, published_at=excluded.published_at,
             updated_at=excluded.updated_at, effective_at=excluded.effective_at, mime_type=excluded.mime_type,
@@ -462,6 +472,28 @@ def ingest_document_references(conn, references: Iterable[Mapping[str, object]],
             conn.execute('''INSERT OR IGNORE INTO opportunity_document_relationships(
                 source_document_id, relationship_type, target_document_id) VALUES(?,?,?)''',
                 (document.document_id, relationship.relationship_type, relationship.target_document_id))
+
+    # A new amendment/revision often arrives in a later sync than the document it
+    # supersedes. Resolve only explicit, unambiguous targets already persisted for
+    # the same opportunity; never infer replacement from names, dates or ordering.
+    for document in documents:
+        raw = raw_by_id.get(document.document_id, {})
+        target_id = _persisted_relation_target(conn, document, raw, "supersedes")
+        if target_id:
+            conn.execute('''INSERT OR IGNORE INTO opportunity_document_relationships(
+                source_document_id, relationship_type, target_document_id) VALUES(?,?,?)''',
+                (document.document_id, "SUPERSEDES", target_id))
+            conn.execute("UPDATE opportunity_documents SET status='SUPERSEDED' WHERE document_id=? AND status<>'WITHDRAWN'", (target_id,))
+        relation_type = _enum(raw.get("relationship_type"), _RELATIONSHIPS, "")
+        related_id = _text(raw.get("related_document_id"), limit=200)
+        if relation_type and related_id and related_id != document.document_id:
+            row = conn.execute('''SELECT document_id FROM opportunity_documents
+                WHERE document_id=? AND opportunity_source=? AND opportunity_external_id=?''',
+                (related_id, document.opportunity_source, document.opportunity_external_id)).fetchone()
+            if row:
+                conn.execute('''INSERT OR IGNORE INTO opportunity_document_relationships(
+                    source_document_id, relationship_type, target_document_id) VALUES(?,?,?)''',
+                    (document.document_id, relation_type, related_id))
     if commit:
         conn.commit()
     return len(documents)
@@ -471,8 +503,7 @@ def _row_to_document(row, relationships=()) -> OpportunityDocument:
     value = dict(row)
     value.pop("first_observed", None)
     value.pop("last_observed", None)
-    raw = value.pop("raw_metadata_json", "{}")
-    value["raw_metadata"] = json.loads(raw or "{}")
+    value["raw_metadata"] = json.loads(value.pop("raw_metadata_json", "{}") or "{}")
     parsed = value.get("parsed")
     value["parsed"] = None if parsed is None else bool(parsed)
     value["relationships"] = tuple(relationships)
@@ -480,7 +511,7 @@ def _row_to_document(row, relationships=()) -> OpportunityDocument:
 
 
 def get_document_inventory(conn, opportunity_source: str, opportunity_external_id: str) -> OpportunityDocumentInventory:
-    """Read metadata only. No file fetch/materialization occurs here."""
+    """Return metadata-only inventory; no network or file materialization occurs."""
     ensure_document_tables(conn)
     rows = conn.execute('''SELECT * FROM opportunity_documents
         WHERE opportunity_source=? AND opportunity_external_id=? ORDER BY title COLLATE NOCASE, document_id''',
@@ -493,13 +524,4 @@ def get_document_inventory(conn, opportunity_source: str, opportunity_external_i
             FROM opportunity_document_relationships WHERE source_document_id IN ({placeholders})''', ids).fetchall():
             rels[row["source_document_id"]].append(DocumentRelationship(row["relationship_type"], row["target_document_id"]))
     documents = tuple(_row_to_document(row, rels.get(row["document_id"], ())) for row in rows)
-    return OpportunityDocumentInventory(
-        current_documents=tuple(item for item in documents if item.status == "CURRENT"),
-        superseded_documents=tuple(item for item in documents if item.status in {"SUPERSEDED", "WITHDRAWN"}),
-        missing_or_unavailable=tuple(item for item in documents if item.availability_status in {"UNAVAILABLE", "ACCESS_RESTRICTED", "MISSING"}),
-        unknown_documents=tuple(item for item in documents if item.document_type == "UNKNOWN"),
-        submission_related=tuple(item for item in documents if item.purpose == "FOR_SUBMISSION" or item.required_for_submission == "REQUIRED"),
-        analysis_related=tuple(item for item in documents if item.purpose == "FOR_ANALYSIS"),
-        needs_verification=tuple(item for item in documents if item.status == "UNKNOWN" or item.availability_status == "UNKNOWN" or item.required_for_submission == "UNKNOWN"),
-        generated_at=datetime.now(timezone.utc).isoformat(),
-    )
+    return _inventory(documents)
