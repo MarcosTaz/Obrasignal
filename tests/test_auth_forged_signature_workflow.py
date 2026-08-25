@@ -11,6 +11,16 @@ def test_forged_signature_boundary_preserves_header_and_claims() -> None:
     assert "forged='.'.join((header, payload, forged_signature))" in text
 
 
+def test_valid_token_acceptance_is_required_before_forgery_probe() -> None:
+    text = WORKFLOW.read_text(encoding='utf-8')
+    baseline = text.index('Require real token acceptance baseline')
+    rejection = text.index('Require forged signature rejection')
+    assert baseline < rejection
+    assert 'test "$status" = "200"' in text[baseline:rejection]
+    assert "assert payload.get('authenticated') is True" in text[baseline:rejection]
+    assert "assert payload.get('account_id')" in text[baseline:rejection]
+
+
 def test_forged_token_remains_private_and_must_be_rejected() -> None:
     text = WORKFLOW.read_text(encoding='utf-8')
     assert "open('/tmp/forged_token', 'w', encoding='utf-8').write(forged)" in text
