@@ -135,48 +135,64 @@ TED_NOTICE_TYPES=('cn-standard','cn-social','cn-desg','subco','qu-sy')
 def fetch_ted():
  since=(datetime.now(timezone.utc)-timedelta(days=TED_DAYS)).strftime('%Y%m%d')
  query=f'publication-date>={since} AND (notice-type=cn-standard OR notice-type=cn-social OR notice-type=cn-desg OR notice-type=subco OR notice-type=qu-sy)'
- fields=['publication-number','notice-title','description-proc','buyer-name','buyer-country','classification-cpv','estimated-value-proc','estimated-value-cur-proc','deadline-receipt-tender-date-lot','deadline-receipt-tender-time-lot','deadline-date-lot','deadline-time-lot','publication-date','notice-type','form-type','main-classification-type-proc','place-of-performance-country-proc','place-of-performance-city-proc','place-of-performance-subdiv-proc','place-of-performance-post-code-proc','place-of-performance-country-lot','place-of-performance-city-lot','place-of-performance-subdiv-lot']
- payload={'query':query,'fields':fields,'limit':250,'scope':'ACTIVE','checkQuerySyntax':False,'paginationMode':'ITERATION'};rows=[];token=None;seen_tokens=set();pages=0
- while True:
+ fields=['publication-number','notice-title','description-proc','buyer-name','buyer-country','classification-cpv','estimated-value-proc','estimated-value-cur-proc','deadline-receipt-tender-date-lot','deadline-receipt-tender-time-lot','deadline-date-lot','deadline-time-lot','publication-date','notice-type','form-type','main-classification-type-proc','place-of-performance-country-proc','place-of-performance-city-proc','place-of-performance-subdiv-proc','place-of-performance-post-code-proc','place-of-performance-country-lot','place-of-performance-city-lot','place-of-performance-subdiv-proc']
+ payload={'query':query,'fields':fields,'limit':250,'scope':'ACTIVE','checkQuerySyntax':False,'paginationMode':'ITERATION'}
+ rows=[];token=None
+ for _ in range(TED_MAX_PAGES):
   body=dict(payload)
   if token:body['iterationNextToken']=token
-  r=requests.post(TED_URL,json=body,timeout=45);r.raise_for_status();data=r.json();batch=data.get('notices') or data.get('results') or data.get('content') or [];rows+=batch;pages+=1
-  next_token=data.get('iterationNextToken') or data.get('nextToken') or data.get('nextIterationToken')
-  if not next_token or not batch:break
-  if next_token in seen_tokens:raise RuntimeError('TED iteration token repeated; aborting sync without advancing watermark')
-  seen_tokens.add(next_token);token=next_token
+  r=requests.post(TED_URL,json=body,timeout=45);r.raise_for_status();data=r.json();batch=data.get('notices') or data.get('results') or data.get('content') or [];rows+=batch;token=data.get('iterationNextToken') or data.get('nextToken') or data.get('nextIterationToken')
+  if not token or not batch:break
  return rows
-
-def normalize_ted(n):
- ext=flat(pick(n,'publication-number','publicationNumber','id'));title=flat(pick(n,'notice-title','noticeTitle','title'));desc=flat(pick(n,'description-proc','descriptionProc','description'));buyer=flat(pick(n,'buyer-name','buyerName','buyer'));country=flat(pick(n,'buyer-country','buyerCountry','country'));cpv=flat(pick(n,'classification-cpv','cpvCodes','cpv'));value=flat(pick(n,'estimated-value-proc','estimatedValue','value'));deadline=flat(pick(n,'deadline-receipt-tender-date-lot','deadline-date-lot','deadlineDate'));pub=flat(pick(n,'publication-date','publicationDate'));place_country=flat(pick(n,'place-of-performance-country-proc','place-of-performance-country-lot'));place_city=flat(pick(n,'place-of-performance-city-proc','place-of-performance-city-lot'));place_region=flat(pick(n,'place-of-performance-subdiv-proc','place-of-performance-subdiv-lot'));place=flat(' | '.join(x for x in [place_city,place_region,place_country] if x));desc=(desc+' '+place).strip();market='PT' if country=='PRT' or place_country=='PRT' else 'EU';return dict(source='TED',external_id=ext,title=title,description=desc,buyer=buyer,country=country,cpv=cpv,value=value,deadline=deadline,publication_date=pub,published_at=parse_date(pub),url=f'https://ted.europa.eu/en/notice/-/detail/{ext}' if ext else 'https://ted.europa.eu/',market=market,place=place)
 
 def fetch_base():
  token=os.getenv('BASE_ACCESS_TOKEN','').strip()
- if not token:return []
- r=requests.get(BASE_URL+'/GetInfoAnuncio',params={'numDias':90},headers={'_AcessToken':token},timeout=45);r.raise_for_status();data=r.json();data=data if isinstance(data,list) else [data];out=[]
- for n in data:
-  ext=str(pick(n,'nAnuncio','idAnuncio','idprocedimento') or '');pub=flat(pick(n,'dataPublicacao'));out.append(dict(source='BASE',external_id=ext,title=flat(pick(n,'objectoContrato','descricao','descContrato')),description=flat(pick(n,'descContrato','descricao')),buyer=flat(pick(n,'adjudicante','entidadeAdjudicante')),country='PRT',cpv=flat(pick(n,'cpv')),value=flat(pick(n,'precoBaseProcedimento','precoContratual')),deadline=flat(pick(n,'dataApresentacaoPropostas','dataLimite')),publication_date=pub,published_at=parse_date(pub),url=flat(pick(n,'url','link')) or 'https://www.base.gov.pt/',market='PT',place=''))
+ if not token:raise RuntimeError('BASE_ACCESS_TOKEN missing')
+ out=[]
+ for tipo in ('anuncios','contratos'):
+  for page in range(1,9):
+   r=requests.get(f'{BASE_URL}/{tipo}',params={'page':page,'size':100},headers={'Authorization':f'Bearer {token}'},timeout=30);r.raise_for_status();data=r.json();batch=data.get('items') or data.get('data') or data if isinstance(data,list) else []
+   if not batch:break
+   out += [{'source':'BASE','publication-number':str(pick(x,'id','idContrato','idAnuncio','numero') or ''),'notice-title':pick(x,'objectoContrato','descricao','designacao','objeto'),'description-proc':pick(x,'descricao','objectoContrato','objeto'),'buyer-name':pick(x,'adjudicante','entidadeAdjudicante','nomeEntidade'),'buyer-country':'PRT','classification-cpv':pick(x,'cpv','codigoCPV'),'estimated-value-proc':pick(x,'precoContratual','precoBase','valor'),'deadline-receipt-tender-date-lot':pick(x,'dataLimite','dataFecho','prazo'),'publication-date':pick(x,'dataPublicacao','dataCelebracao'),'url':pick(x,'url','link'),'raw':x} for x in batch]
  return out
 
+def normalize(n):
+ ext=str(pick(n,'publication-number','notice-id','id','reference','number') or '').strip()
+ title=flat(pick(n,'notice-title','title','title-proc','object'))
+ desc=flat(pick(n,'description-proc','description','short-description'))
+ buyer=flat(pick(n,'buyer-name','organisation-name-buyer','buyer'))
+ country=flat(pick(n,'buyer-country','place-of-performance-country-proc','country')).upper()[:3]
+ cpv=flat(pick(n,'classification-cpv','main-classification-proc','cpv'))
+ val=flat(pick(n,'estimated-value-proc','estimated-value-lot','value'))
+ cur=flat(pick(n,'estimated-value-cur-proc','currency'))
+ value=(val+' '+cur).strip()
+ deadline=parse_date(pick(n,'deadline-receipt-tender-date-lot','deadline-date-lot','deadline','submission-deadline'))
+ pub=parse_date(pick(n,'publication-date','published','date'))
+ url=pick(n,'url') or (f'https://ted.europa.eu/en/notice/-/detail/{ext}' if ext else '')
+ source=n.get('source','TED') if isinstance(n,dict) else 'TED'
+ score,label,cls,reason=commercial_score(title,desc,cpv,deadline)
+ return {'source':source,'external_id':ext,'title':title,'description':desc,'buyer':buyer,'country':country,'cpv':cpv,'value':value,'deadline':deadline,'publication_date':pub,'url':url,'score':score,'match_reason':reason,'priority_label':label,'priority_class':cls,'market':'PT' if country=='PRT' else 'EU'}
+
 def sync_once():
- started=datetime.now(timezone.utc).isoformat();rows=fetch_ted();norm=[normalize_ted(n) for n in rows if normalize_ted(n).get('external_id')]
- try:norm+=fetch_base()
- except Exception:pass
- c=db();new=0;seen=datetime.now(timezone.utc).isoformat()
- for x in norm:
-  sc,label,cls,reason=commercial_score(x.get('title',''),x.get('description',''),x.get('cpv',''),x.get('deadline'));x['score']=sc;x['priority_label']=label;x['priority_class']=cls;x['match_reason']=reason
-  old=c.execute('SELECT id FROM tenders WHERE source=? AND external_id=?',(x['source'],x['external_id'])).fetchone()
-  vals=(x.get('title'),x.get('description'),x.get('buyer'),x.get('country'),x.get('cpv'),x.get('value'),x.get('deadline'),x.get('publication_date'),x.get('url'),x.get('score'),seen,x.get('published_at'),x.get('match_reason'),x.get('priority_label'),x.get('priority_class'),x.get('market'))
-  if old:c.execute('''UPDATE tenders SET title=?,description=?,buyer=?,country=?,cpv=?,value=?,deadline=?,publication_date=?,url=?,score=?,last_seen=?,published_at=?,match_reason=?,priority_label=?,priority_class=?,market=? WHERE id=?''',vals+(old['id'],))
-  else:c.execute('''INSERT INTO tenders(title,description,buyer,country,cpv,value,deadline,publication_date,url,score,last_seen,published_at,match_reason,priority_label,priority_class,market,source,external_id,first_seen) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',vals+(x['source'],x['external_id'],seen));new+=1
- c.execute('INSERT INTO sync_runs(started_at,finished_at,found,new_items) VALUES(?,?,?,?)',(started,seen,len(norm),new));c.commit();c.close();return len(norm),new
+ started=datetime.now(timezone.utc).isoformat();c=db();cur=c.execute('INSERT INTO sync_runs(started_at) VALUES(?)',(started,));run=cur.lastrowid;c.commit();found=[]
+ try:
+  for fetcher in (fetch_ted,fetch_base):
+   try:found+=fetcher()
+   except Exception as e:print('source error:',e)
+  now=datetime.now(timezone.utc).isoformat();new=0
+  for raw in found:
+   n=normalize(raw)
+   if not n['external_id']:continue
+   ex=c.execute('SELECT id FROM tenders WHERE source=? AND external_id=?',(n['source'],n['external_id'])).fetchone()
+   if ex:c.execute('UPDATE tenders SET title=?,description=?,buyer=?,country=?,cpv=?,value=?,deadline=?,publication_date=?,url=?,score=?,last_seen=?,match_reason=?,priority_label=?,priority_class=?,market=? WHERE source=? AND external_id=?',(n['title'],n['description'],n['buyer'],n['country'],n['cpv'],n['value'],n['deadline'],n['publication_date'],n['url'],n['score'],now,n['match_reason'],n['priority_label'],n['priority_class'],n['market'],n['source'],n['external_id']))
+   else:c.execute('INSERT INTO tenders(source,external_id,title,description,buyer,country,cpv,value,deadline,publication_date,url,score,first_seen,last_seen,match_reason,priority_label,priority_class,market) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(n['source'],n['external_id'],n['title'],n['description'],n['buyer'],n['country'],n['cpv'],n['value'],n['deadline'],n['publication_date'],n['url'],n['score'],now,now,n['match_reason'],n['priority_label'],n['priority_class'],n['market']));new+=1
+  c.execute('UPDATE sync_runs SET finished_at=?,found=?,new_items=? WHERE id=?',(now,len(found),new,run));c.commit();return {'found':len(found),'new':new}
+ finally:c.close()
 
-def stats_for(market):
- c=db();where='';params=[]
- if market in ('PT','EU'):where=' WHERE market=?';params=[market]
- total=c.execute('SELECT COUNT(*) n FROM tenders'+where,params).fetchone()['n'];high=c.execute('SELECT COUNT(*) n FROM tenders'+where+(' AND ' if where else ' WHERE ')+'score>=75',params).fetchone()['n'];new24=c.execute('SELECT COUNT(*) n FROM tenders'+where+(' AND ' if where else ' WHERE ')+'first_seen>=?',params+[(datetime.now(timezone.utc)-timedelta(hours=24)).isoformat()]).fetchone()['n'];last=c.execute('SELECT MAX(finished_at) v FROM sync_runs').fetchone()['v'];c.close();return dict(total=total,new24=new24,high=high,last=last or 'nunca')
+def stats_for(market='PT'):
+ c=db();where=' WHERE market=?' if market in ('PT','EU') else '';p=(market,) if where else ();total=c.execute('SELECT COUNT(*) FROM tenders'+where,p).fetchone()[0];high=c.execute('SELECT COUNT(*) FROM tenders'+where+(' AND' if where else ' WHERE')+' score>=75',p).fetchone()[0];new24=c.execute('SELECT COUNT(*) FROM tenders'+where+(' AND' if where else ' WHERE')+" julianday(first_seen)>=julianday('now','-1 day')",p).fetchone()[0];last=c.execute('SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1').fetchone();c.close();return {'total':total,'high':high,'new24':new24,'last':last[0] if last else None}
 
-def query_tenders(market,q,country,minscore,limit=60):
+def query_tenders(market='PT',q='',country='',minscore='',limit=60):
  c=db();where=[];params=[]
  if market in ('PT','EU'):where.append('market=?');params.append(market)
  if q:where.append('(title LIKE ? OR description LIKE ? OR buyer LIKE ? OR cpv LIKE ?)');params += [f'%{q}%']*4
@@ -194,12 +210,28 @@ def sync_route():
 
 @APP.get('/api/v1/health')
 def health():
+ evidence_enabled=False
+ evidence_error=None
+ try:
+  from capability_rollout import runtime_enabled
+  evidence_enabled=runtime_enabled('EVIDENCE')
+ except (KeyError, RuntimeError, ValueError) as exc:
+  # Health must remain available during malformed rollout configuration while
+  # reporting the capability fail-closed. Never include environment values.
+  evidence_error=exc.__class__.__name__
  return jsonify(
   ok=True,
   service='obrasignal-api',
   version='1',
   build=os.getenv('OBRASIGNAL_BUILD') or os.getenv('RENDER_GIT_COMMIT') or 'unversioned',
   time=datetime.now(timezone.utc).isoformat(),
+  capabilities={
+   'evidence':{
+    'enabled':evidence_enabled,
+    'state':'ENABLED' if evidence_enabled else 'DISABLED',
+    'configuration_error':evidence_error,
+   }
+  },
  )
 
 @APP.get('/api/v1/tenders')
