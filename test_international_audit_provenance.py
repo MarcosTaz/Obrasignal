@@ -25,6 +25,20 @@ def test_repository_research_can_be_distinguished_from_implementation():
     assert "Ukraine" in result["research_only_countries"]
 
 
+def test_common_word_iso3_cannot_create_research_evidence():
+    result = audit.run_audit()
+    uae = _rows(result)["ARE"]
+    assert uae["RESEARCH_ONLY"] is False
+    assert uae["RESEARCH_EVIDENCE"] == []
+    assert "United Arab Emirates" not in result["research_only_countries"]
+
+
+def test_broad_scope_document_does_not_make_country_research_only():
+    result = audit.run_audit()
+    portugal = _rows(result)["PRT"]
+    assert "INTERNATIONAL_SCOPE.md" not in portugal["RESEARCH_EVIDENCE"]
+
+
 def test_pr_reference_parser_is_explicit_and_bounded():
     assert _pr_numbers("Merge pull request #192 from branch") == (192,)
     assert _pr_numbers("feat: coverage audit (#193)") == (193,)
