@@ -8,14 +8,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import json
 from typing import Callable, Mapping, Protocol
 
 WORKSPACE_STATUSES = {"ACTIVE", "ON_HOLD", "CLOSED", "ARCHIVED"}
 REVIEW_STATES = {"NOT_REVIEWED", "IN_REVIEW", "REVIEWED", "NEEDS_ATTENTION"}
 SUBMISSION_STATES = {"NOT_STARTED", "PREPARING", "READY_FOR_FINAL_REVIEW", "READY_TO_SUBMIT", "SUBMITTED", "UNKNOWN"}
-BLOCKER_STATUSES = {"OPEN", "RESOLVED"}
-QUESTION_STATUSES = {"OPEN", "ANSWERED", "CLOSED", "UNKNOWN"}
 MAX_TITLE = 300
 MAX_NOTE = 8000
 MAX_QUESTION = 2000
@@ -148,8 +145,6 @@ def update_workspace(conn, account_id: str, opportunity_id: int, changes: Mappin
     if "owner_id" in normalized:
         owner = normalized["owner_id"]
         if owner is not None and (not actor_subject or owner != actor_subject):
-            # No public account user-directory contract exists yet. Until one does,
-            # only the authenticated caller can be assigned; arbitrary IDs fail closed.
             raise PermissionError("owner_not_in_account")
     if not normalized:
         return workspace
@@ -170,8 +165,7 @@ def add_blocker(conn, account_id: str, opportunity_id: int, title: str, *, sever
     now = _now(clock)
     cur = conn.execute("INSERT INTO pursuit_workspace_blockers(workspace_id,title,status,severity,created_by,created_at) VALUES (?,?,'OPEN',?,?,?)", (workspace["workspace_id"], title, severity, actor_subject, now))
     conn.commit()
-    row = conn.execute("SELECT * FROM pursuit_workspace_blockers WHERE blocker_id=?", (cur.lastrowid,)).fetchone()
-    return dict(row)
+    return dict(conn.execute("SELECT * FROM pursuit_workspace_blockers WHERE blocker_id=?", (cur.lastrowid,)).fetchone())
 
 
 def resolve_blocker(conn, account_id: str, opportunity_id: int, blocker_id: int, *, clock=None) -> dict:
@@ -208,7 +202,7 @@ def add_question(conn, account_id: str, opportunity_id: int, question: str, *, s
     if owner_id is not None and (not actor_subject or owner_id != actor_subject):
         raise PermissionError("owner_not_in_account")
     now = _now(clock)
-    cur = conn.execute("INSERT INTO pursuit_workspace_questions(workspace_id,question,status,source_ref,owner_id,created_at,updated_at) VALUES (?,?,'OPEN',?,?,?,?,?)", (workspace["workspace_id"], question, source_ref, owner_id, now, now))
+    cur = conn.execute("INSERT INTO pursuit_workspace_questions(workspace_id,question,status,source_ref,owner_id,created_at,updated_at) VALUES (?,?,'OPEN',?,?,?,?)", (workspace["workspace_id"], question, source_ref, owner_id, now, now))
     conn.commit()
     return dict(conn.execute("SELECT * FROM pursuit_workspace_questions WHERE question_id=?", (cur.lastrowid,)).fetchone())
 
@@ -221,7 +215,6 @@ def _provider_section(registry: ProviderRegistry, name: str, account_id: str, op
         summary = provider.summary(account_id=account_id, opportunity_id=opportunity_id)
         return {"status": "AVAILABLE", "data": dict(summary)}
     except Exception:
-        # Deliberately do not expose provider internals or private payloads.
         return {"status": "FAILED"}
 
 
