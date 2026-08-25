@@ -99,6 +99,16 @@ def _global_api_input_bounds():
     if not request.path.startswith("/api/v1/"):
         return None
 
+    if _json_write_path():
+        # Preserve fail-closed authentication precedence: unauthenticated callers
+        # do not receive detailed body-validation feedback before identity is
+        # established. The blueprint repeats the same canonical identity check.
+        try:
+            identity = configured_identity()
+        except (RuntimeError, InvalidTokenError):
+            return _cors(jsonify({"error": "authentication_required"})), 401
+        request.obrasignal_identity = identity
+
     bad_query = _reject_bad_query()
     if bad_query:
         return _cors(jsonify({"error": "invalid_query_parameter", "parameter": bad_query})), 400
