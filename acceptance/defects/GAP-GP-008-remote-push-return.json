@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "bug_id": "GAP-GP-008",
+  "customer_journey": "ALERT -> BACKGROUND DELIVERY -> TAP -> OPPORTUNITY -> RETURN",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "classification": ["IMPLEMENTATION_GAP", "RETENTION_JOURNEY", "MOBILE_NOTIFICATIONS"],
+  "severity": "HIGH",
+  "owner": "MOBILE_PRODUCT_OWNER / NOTIFICATION_DELIVERY_OWNER",
+  "observed_result": [
+    "Current native client polls `/alerts` while the app logic is executing and schedules a local notification.",
+    "No remote push token registration contract was found.",
+    "No notification-response listener/deep-link contract was found to route a tapped notification to its opportunity.",
+    "Therefore a closed/background app receiving a new server-side opportunity alert cannot currently be classified READY_FOR_DEVICE for real push acceptance."
+  ],
+  "expected_truth": [
+    "A real push-capable implementation must bind a device token to the authenticated tenant without client-supplied tenant authority.",
+    "Background delivery must preserve event identity and opportunity identity without cross-tenant leakage.",
+    "Tapping a notification must navigate to the exact current opportunity or fail honestly if it is no longer available/actionable.",
+    "Delivery acknowledgement must not be recorded merely because a server event existed; it must reflect the defined delivery contract."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: device-token registration and tenant authority contract.",
+    "PROVEN_AUTOMATED: notification response routes by event/opportunity identity and respects current lifecycle truth.",
+    "PROVEN_REAL_DEVICE: background/closed-app delivery on Android.",
+    "PROVEN_REAL_DEVICE: tap -> exact opportunity -> return to refreshed Radar.",
+    "PROVEN_REAL_DEVICE: wrong-tenant token/event cannot surface private alert data."
+  ],
+  "hard_boundary": "Golden Path defines and executes acceptance only; notification implementation remains with its specialist owner."
+}
