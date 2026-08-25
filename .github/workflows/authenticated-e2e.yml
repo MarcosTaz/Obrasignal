@@ -288,6 +288,13 @@ jobs:
               -H "Authorization: Bearer $(cat /tmp/access_token)" \
               -H 'Content-Type: application/json' \
               --data-binary @/tmp/profile-restore.json >/tmp/profile-restore-response.json
+            python - <<'PY'
+          import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
+          payload=json.load(open('/tmp/profile-restore-response.json'))
+          assert str(payload.get('account_id')) == expected_account_id
+          assert payload.get('authenticated') is True
+          PY
           }
           trap restore_profile EXIT
           curl --fail --silent --show-error --max-time 30 \
@@ -295,6 +302,13 @@ jobs:
             -H "Authorization: Bearer $(cat /tmp/access_token)" \
             -H 'Content-Type: application/json' \
             --data-binary @/tmp/profile-write.json >/tmp/profile-write-response.json
+          python - <<'PY'
+          import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
+          payload=json.load(open('/tmp/profile-write-response.json'))
+          assert str(payload.get('account_id')) == expected_account_id
+          assert payload.get('authenticated') is True
+          PY
           curl --fail --silent --show-error --max-time 30 \
             -H "Authorization: Bearer $(cat /tmp/access_token)" \
             "$API_URL/profile" >/tmp/profile-after-write.json
