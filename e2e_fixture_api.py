@@ -53,8 +53,31 @@ def _fixture_db_path() -> Path:
     return path
 
 
+def fixture_store_path() -> Path:
+    """Return the validated isolated fixture-store path for external startup orchestration."""
+    return _fixture_db_path()
+
+
+def initialize_fixture_store() -> Path:
+    """Initialize the owner schema without owning cross-process serialization.
+
+    Integration/runtime owners may wrap this callable in the shared migration
+    serialization boundary. This module deliberately does not import or copy
+    that lock.
+    """
+    path = fixture_store_path()
+    conn = sqlite3.connect(str(path), check_same_thread=False, timeout=15)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=15000")
+    try:
+        _ensure_schema(conn)
+    finally:
+        conn.close()
+    return path
+
+
 def _connect() -> sqlite3.Connection:
-    path = _fixture_db_path()
+    path = fixture_store_path()
     conn = sqlite3.connect(str(path), check_same_thread=False, timeout=15)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=15000")
@@ -206,7 +229,7 @@ def _fixture_guard():
     if not _truthy(os.getenv(_FLAG)):
         return jsonify({"error": "not_found"}), 404
     try:
-        _fixture_db_path()
+        fixture_store_path()
     except FixtureConfigurationError:
         return jsonify({"error": "fixture_contract_unavailable"}), 503
     identity, error = _identity_or_error()
