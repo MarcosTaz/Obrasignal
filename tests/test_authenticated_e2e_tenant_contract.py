@@ -26,6 +26,22 @@ def test_jwt_subject_is_private_and_binds_api_identity() -> None:
     assert "print('subject" not in text
 
 
+def test_live_jwt_provider_diagnostics_are_fail_closed() -> None:
+    text = _text()
+    assert 'token_alg_allowed = alg in {"RS256", "ES256"}' in text
+    assert 'token_kid_present = kid is not None and str(kid) in provider_kids' in text
+    assert 'token_issuer_matches = issuer == os.environ["EXPECTED_ISSUER"]' in text
+    assert 'token_audience_authenticated = "authenticated" in audiences' in text
+    assert "assert token_alg_allowed, 'Supabase token algorithm is not supported'" in text
+    assert "assert token_kid_present, 'Supabase token key id is not present in provider JWKS'" in text
+    assert "assert token_issuer_matches, 'Supabase token issuer does not match project issuer'" in text
+    assert "assert token_audience_authenticated, 'Supabase token audience is not authenticated'" in text
+    assert "TOKEN_ALG_ALLOWED=" in text
+    assert "TOKEN_KID_PRESENT_IN_PROVIDER_JWKS=" in text
+    assert "TOKEN_ISSUER_MATCHES_SUPABASE_PROJECT=" in text
+    assert "TOKEN_AUDIENCE_AUTHENTICATED=" in text
+
+
 def test_profile_persistence_responses_bind_to_authenticated_identity() -> None:
     text = _text()
     assert "/tmp/profile-write-response.json" in text
