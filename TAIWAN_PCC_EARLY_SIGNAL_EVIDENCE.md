@@ -45,7 +45,7 @@ Final verified construction run:
 - second ingestion retained exactly **55** canonical rows;
 - result: `lossless=1 idempotent=1`.
 
-An earlier live run also proved all 350 raw normalized records could be persisted losslessly. The product runtime now deliberately stages only the 55 records that pass the construction/public-works selector.
+An earlier live run also proved all 350 raw normalized records could be persisted losslessly. The product runtime now deliberately stages only the records that pass the construction/public-works selector.
 
 ## Construction filtering
 
@@ -70,7 +70,7 @@ Tests cover publisher-taxonomy precedence and false-positive fallback cases.
 - A contract row without native vendor code is rejected rather than collapsed or assigned a synthetic identity.
 - Multiple supplier contracts therefore remain distinct while sharing the procurement lineage key.
 
-The supplier identity contract was corrected after the first 7264 live run exposed a stale smoke assertion against the newer vendor-scoped identity. The connector itself preserves vendor-scoped contract identity and the corrected live smoke passed.
+A live smoke initially failed because its assertion still expected the older case-only contract identity. The connector's vendor-scoped identity was correct; the stale smoke assertion was corrected and the live run passed.
 
 ## Runtime semantics
 
@@ -120,7 +120,7 @@ Unit/integration coverage includes:
 - generic incremental-runtime installation contract;
 - live official source -> construction filter -> canonical persistence smoke.
 
-The repository `ObraSignal Quality` workflow is also required to pass on the final PR head.
+The repository `ObraSignal Quality` workflow is required to pass on the final PR head in addition to the dedicated Taiwan live smoke.
 
 ## Known limitations
 
