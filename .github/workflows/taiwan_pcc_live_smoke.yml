@@ -1,0 +1,22 @@
+name: Taiwan PCC Live Smoke
+
+on:
+  pull_request:
+    paths:
+      - 'taiwan_pcc.py'
+      - 'taiwan_pcc_runtime.py'
+      - 'live_taiwan_pcc_smoke.py'
+      - '.github/workflows/taiwan_pcc_live_smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Live-validate PCC construction signal slice
+        run: PYTHONPATH=. python live_taiwan_pcc_smoke.py
