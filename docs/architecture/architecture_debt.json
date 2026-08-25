@@ -4,14 +4,14 @@
   "items": [
     {
       "id": "ARCH-001",
-      "module": "sitecustomize.py -> sync_funnel_hook.py",
+      "module": "sitecustomize.py / cors_app.py -> sync_funnel_hook.py",
       "owner": "ARCHITECTURE",
-      "violation": "Implicit interpreter startup imported the production worker gate and hid a process-wide threading monkeypatch outside the WSGI composition boundary.",
+      "violation": "Python startup previously made sync_funnel_hook production-reachable, installing a process-wide threading.Thread.start monkeypatch to solve a worker-import race that no longer exists in the current app startup path.",
       "blast_radius": "PROCESS_WIDE_STARTUP",
       "customer_risk": "STARTUP_ORDER_AND_BACKGROUND_WORKER",
       "change_frequency": "UNKNOWN",
-      "proof": ["sitecustomize.py", "sync_funnel_hook.py", "cors_app.py"],
-      "repair_path": "Move worker-gate installation to the explicit WSGI composition boundary and keep an executable guard against production imports from sitecustomize.",
+      "proof": ["sitecustomize.py", "sync_funnel_hook.py", "app.py", "cors_app.py", "tests/test_architecture_startup_boundary.py"],
+      "repair_path": "Remove production imports of sync_funnel_hook and preserve the explicit WSGI invariant preload/runtime composition -> start_background_worker. Keep the hook module itself until dead-code reachability is separately proven.",
       "status": "REPAIR_CANDIDATE_PR_457"
     },
     {
@@ -85,6 +85,18 @@
       "proof": ["mobile/src/billing.js", "mobile/components/BillingGate.js", "tests/test_architecture_mobile_provider_boundary.py"],
       "repair_path": "Preserve the existing SDK import boundary and freeze the exact leaked provider-model surface. Billing should add behavioral proof for native purchase/restore/cancel flows before Architecture normalizes provider objects into a provider-neutral Mobile billing surface.",
       "status": "ACKNOWLEDGED_PROVIDER_LEAK_BASELINE"
+    },
+    {
+      "id": "ARCH-008",
+      "module": "sync_funnel_hook.py",
+      "owner": "MULTI_OWNER_LEGACY",
+      "violation": "The bounded production import graph now has no inbound edge to sync_funnel_hook.py. The module still contains funnel/decision logic and auto-installs a global Thread.start hook if imported, so it is a dead-module candidate rather than proven removable code.",
+      "blast_radius": "NONE_IN_CURRENT_STATIC_RUNTIME_GRAPH_IF_UNIMPORTED",
+      "customer_risk": "UNKNOWN_DYNAMIC_OR_EXTERNAL_REACHABILITY",
+      "change_frequency": "UNKNOWN",
+      "proof": ["sync_funnel_hook.py", "tools/architecture_graph.py", "tests/test_architecture_startup_boundary.py"],
+      "repair_path": "Before deletion prove no workflow/script/dynamic/external entrypoint references record_sync_decisions or imports the module. Do not delete solely from zero static inbound imports.",
+      "status": "DEAD_MODULE_CANDIDATE"
     }
   ]
 }
