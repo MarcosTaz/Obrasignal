@@ -11,7 +11,7 @@
     "tenant-private company-state snapshots",
     "single Company Profile projection seam",
     "neutral downstream fact/constraint adapters",
-    "future OFFICE validated-write seam"
+    "future OFFICE validated-provider seam"
   ],
   "DOES NOT OWN": [
     "Company Profile commercial preferences",
@@ -27,7 +27,7 @@
   ],
   "PUBLIC CONTRACTS PROVIDED": [
     "CompanyState / CompanyFact / Money / Provenance (company-state.v1)",
-    "CompanyStateService trusted-tenant read/write/history boundary",
+    "CompanyStateService trusted-tenant voluntary DECLARED read/write/history boundary",
     "company_state_from_profile",
     "requirements_facts",
     "readiness_inputs",
@@ -43,7 +43,7 @@
   "OPTIONAL DEPENDENCIES": [
     "Q080 public Evidence/provenance references when canonical",
     "existing Company Profile for initial projection",
-    "future OFFICE/integration providers"
+    "future OFFICE/integration trusted providers"
   ],
   "HARD DEPENDENCIES": [
     "Q080 queue dependency for canonical promotion/integration authorization",
@@ -54,10 +54,10 @@
   "MIGRATIONS": "Additive runtime ensure_company_state_schema creates company_state_snapshots + index in the canonical SQLite connection; no destructive migration and no second DB.",
   "FEATURE FLAGS": "None added; Q090 remains QUEUED and is not runtime-enabled.",
   "RUNTIME REGISTRATION": "NONE",
-  "AUTH/TENANT IMPACT": "No new verifier. Future HTTP adapter must derive account_id from canonical configured_identity(); payload/query tenant identity is forbidden.",
-  "PERSISTENCE": "Append-only bounded tenant-scoped snapshots with deterministic fingerprint, history, consecutive replay idempotency, optimistic concurrency and explicit storage failures.",
+  "AUTH/TENANT IMPACT": "No new verifier. Future HTTP adapter must derive account_id from canonical configured_identity(); payload/query tenant identity is forbidden. Voluntary writes are server-labeled DECLARED and cannot self-promote to VERIFIED, PUBLIC_REGISTRY, INTEGRATION or LEARNED provenance or forge verification/audit anchors.",
+  "PERSISTENCE": "Append-only bounded tenant-scoped snapshots with deterministic fingerprint, history, consecutive replay idempotency, optimistic concurrency, row/snapshot metadata consistency checks and explicit storage failures.",
   "LIVE EXTERNAL DEPENDENCIES": [],
-  "TEST STATUS": "Focused local suite: 66 passed before documentation commit; final exact-head repository Quality pending at manifest creation.",
+  "TEST STATUS": "Focused Company State coverage exists for domain, profile adapter, persistence, tenancy, concurrency, privacy, architecture and manifest. The authoritative final result is the exact PR HEAD ObraSignal Quality run recorded in PR metadata/final evidence.",
   "LIVE STATUS": "NOT LIVE VALIDATED; no live provider/runtime endpoint exists in this queued prebuild.",
   "PRODUCTION STATUS": "NOT DEPLOYED / NOT PRODUCTION VALIDATED",
   "CONFLICT RISKS": [
@@ -86,6 +86,7 @@
     "Rebase/cherry-pick without modifying CURRENT_ITEM_ID or promoting Q090.",
     "Run fresh/existing/repeated SQLite schema tests and full exact-head Quality.",
     "Bind any HTTP layer only to canonical configured_identity().account_id; never accept client tenant authority.",
+    "Keep voluntary HTTP/user facts on the DECLARED boundary; trusted registry/integration/learned facts require explicit server-side adapters and provenance controls.",
     "Keep Company Profile and Company State as separate public concepts with one adapter.",
     "Wire only public consumer adapters; never import another capability's private storage/internals.",
     "Run Integration Lab combinations and Golden Path tenant/unknown scenarios before any promotion.",
