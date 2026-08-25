@@ -9,8 +9,10 @@ import preload as _preload
 from preload import APP, _deadline_dt
 from auth_context import configured_identity
 from auth_context_jwt import JwksUnavailableError
+from capability_rollout import runtime_enabled
 from company_profile import load_profile, save_profile, derive_profile
 from source_registry import SOURCES
+from source_health import empty_result_context, source_health_contract
 from account_registry import ensure_account
 from opportunity_workflow import get_workflow, set_workflow, workflow_counts
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
@@ -123,6 +125,15 @@ def _deadline_state(value):
     return {"state": "open", "label": "Aberto", "days_remaining": int(days)}
 
 
+def _evidence_runtime_enabled():
+    try:
+        return runtime_enabled("EVIDENCE")
+    except RuntimeError:
+        # Malformed rollout configuration must not expose an experimental
+        # capability that the operator cannot reliably disable.
+        return False
+
+
 def _row(row, decision=None, workflow=None):
     d = dict(row)
     lifecycle_value = d.get("is_actionable")
@@ -133,19 +144,25 @@ def _row(row, decision=None, workflow=None):
         d["is_actionable"] = bool(lifecycle_value)
     d["is_open"] = d["is_actionable"] and d["deadline_status"]["state"] in ("open", "urgent")
     if decision:
+        features = decision.get("features", {})
+        explanation = features.get("explanation")
+        if isinstance(explanation, dict):
+            explanation = dict(explanation)
+            if not _evidence_runtime_enabled():
+                explanation.pop("evidence", None)
         d["account_decision"] = decision.get("decision")
         d["account_reason"] = decision.get("reason")
         d["account_score"] = decision.get("score")
         d["account_rule_version"] = decision.get("rule_version")
         d["account_decided_at"] = decision.get("decided_at")
-        d["explanation"] = decision.get("features", {}).get("explanation")
-        d["economic_fit"] = decision.get("features", {}).get("economic_fit")
-        d["capability_evidence"] = decision.get("features", {}).get("capability_evidence")
-        d["cpv_evidence"] = decision.get("features", {}).get("cpv_evidence")
-        d["hard_capability_blockers"] = decision.get("features", {}).get("hard_capability_blockers", [])
-        d["profile_score"] = decision.get("features", {}).get("profile_score", d.get("profile_score"))
-        d["lot_score"] = decision.get("features", {}).get("lot_score", d.get("lot_score"))
-        d["geography"] = decision.get("features", {}).get("geography")
+        d["explanation"] = explanation
+        d["economic_fit"] = features.get("economic_fit")
+        d["capability_evidence"] = features.get("capability_evidence")
+        d["cpv_evidence"] = features.get("cpv_evidence")
+        d["hard_capability_blockers"] = features.get("hard_capability_blockers", [])
+        d["profile_score"] = features.get("profile_score", d.get("profile_score"))
+        d["lot_score"] = features.get("lot_score", d.get("lot_score"))
+        d["geography"] = features.get("geography")
     else:
         d["account_decision"] = None
         d["account_reason"] = None
@@ -180,11 +197,29 @@ def _latest_decisions(conn, account_id, external_ids):
     return result
 
 
+def _source_contract(conn, source=None):
+    requested = [source] if source else None
+    return source_health_contract(conn, sources=requested)
+
+
 @bp.route("/sources", methods=["GET"])
 def sources():
     identity = request.obrasignal_identity
     items = [{"name": name, **meta} for name, meta in sorted(SOURCES.items(), key=lambda pair: (pair[1].get("priority", 99), pair[0]))]
     return jsonify({"items": items, "count": len(items), "generated_at": _iso_now(), "account_id": identity.account_id})
+
+
+@bp.route("/source-health-contract", methods=["GET"])
+def source_health():
+    identity = request.obrasignal_identity
+    requested_source = (request.args.get("source") or "").strip().upper() or None
+    c = _db()
+    try:
+        contract = _source_contract(c, requested_source)
+    finally:
+        c.close()
+    contract["account_id"] = identity.account_id
+    return jsonify(contract)
 
 
 _PROFILE_FIELDS = {"name", "activity", "contract_interests", "coverage_mode", "keywords", "countries", "cpv_prefixes", "min_value", "max_value", "economic_min_score", "min_deadline_days", "max_deadline_days", "preferred_procedure_types", "excluded_procedure_types", "exclude_keywords", "regions", "geographic_radius_km", "services", "capability_tags", "project_scales", "certifications", "hard_exclusions"}
@@ -279,8 +314,20 @@ def stats():
     open_count = c.execute(f"SELECT COUNT(*) {base} AND t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')", params).fetchone()[0]
     new24 = c.execute(f"SELECT COUNT(*) {base} AND julianday(t.first_seen)>=julianday('now','-1 day')", params).fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
+    contract = _source_contract(c)
     c.close()
-    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None, "account_id": identity.account_id})
+    return jsonify({
+        "total": total,
+        "high": high,
+        "open": open_count,
+        "new24": new24,
+        "last_sync": last[0] if last else None,
+        "stats_state": "current",
+        "source_coverage": contract["summary"],
+        "source_health_contract_version": contract["contract_version"],
+        "generated_at": _iso_now(),
+        "account_id": identity.account_id,
+    })
 
 
 @bp.route("/workflow/stats", methods=["GET"])
@@ -339,8 +386,19 @@ def opportunities():
     ).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
+    contract = _source_contract(c, source or None)
+    empty_context = empty_result_context(contract, len(items))
     c.close()
-    return jsonify({"items": items, "count": len(items), "market": market, "generated_at": _iso_now(), "account_id": identity.account_id})
+    return jsonify({
+        "items": items,
+        "count": len(items),
+        "market": market,
+        "source_coverage": contract["summary"],
+        "source_health_contract_version": contract["contract_version"],
+        "empty_result": empty_context,
+        "generated_at": _iso_now(),
+        "account_id": identity.account_id,
+    })
 
 
 @bp.route("/opportunities/<int:opportunity_id>", methods=["GET"])
