@@ -1,3 +1,4 @@
+import json
 import math
 
 import pytest
@@ -95,3 +96,16 @@ def test_policy_rejects_invalid_near_cost_thresholds():
         Mobilize.evaluate(context(), policy(near_cost_ratio=0.99))
     with pytest.raises(ValueError, match="material_travel_reduction_hours"):
         Mobilize.evaluate(context(), policy(material_travel_reduction_hours=-0.1))
+
+
+def test_assessment_contract_is_json_safe_and_complete():
+    payload = Mobilize.evaluate(context(), policy()).to_dict()
+
+    encoded = json.dumps(payload, allow_nan=False, sort_keys=True)
+    decoded = json.loads(encoded)
+
+    assert decoded["contract_version"] == "mobilize.v1"
+    assert decoded["policy_version"] == "mobilize-policy-v1"
+    scenarios = decoded["alternative_scenarios"]
+    assert len(scenarios) == 6
+    assert len({scenario["scenario"] for scenario in scenarios}) == 6
