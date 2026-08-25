@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from enum import Enum
 import hashlib
 import json
-from typing import Any, Iterable, Mapping
+from typing import Any, Mapping
 
 from source_registry import SOURCES
 
@@ -57,8 +57,8 @@ LINEAGE_EDGES = {
     EdgeType.DERIVED_FROM,
     EdgeType.DEPENDS_ON,
     EdgeType.USES_ASSUMPTION,
-    EdgeType.SUPERSEDES,
 }
+ACYCLIC_EDGES = LINEAGE_EDGES | {EdgeType.SUPERSEDES}
 
 
 def _iso(value: Any) -> str | None:
@@ -86,6 +86,12 @@ def _dt(value: str | None) -> datetime | None:
         return dt.astimezone(timezone.utc)
     except (TypeError, ValueError):
         return None
+
+
+def _utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _stable_id(prefix: str, payload: Mapping[str, Any]) -> str:
@@ -198,8 +204,11 @@ class EvidenceGraph:
         if dedup_key in self._evidence_identity:
             return self._evidence_identity[dedup_key]
         payload = {
-            "tenant": self.tenant_id, "provenance": provenance.identity_key(),
-            "field": field_name, "value": value, "unit": unit,
+            "tenant": self.tenant_id,
+            "provenance": provenance.identity_key(),
+            "field": field_name,
+            "value": value,
+            "unit": unit,
         }
         node_id = _stable_id("ev", payload)
         node = EvidenceNode(node_id, self.tenant_id, provenance, value, field_name, unit)
@@ -212,18 +221,34 @@ class EvidenceGraph:
         if kind == NodeType.EVIDENCE:
             raise ValueError("use add_evidence for evidence nodes")
         payload = {
-            "tenant": self.tenant_id, "type": kind.value, "subject": subject,
-            "predicate": predicate, "value": value, "unit": unit,
-            "method": method, "calculation_version": calculation_version,
-            "valid_at": _iso(valid_at), "metadata": dict(metadata or {}),
+            "tenant": self.tenant_id,
+            "type": kind.value,
+            "subject": subject,
+            "predicate": predicate,
+            "value": value,
+            "unit": unit,
+            "method": method,
+            "calculation_version": calculation_version,
+            "valid_at": _iso(valid_at),
+            "metadata": dict(metadata or {}),
         }
         node_id = _stable_id("cl", payload)
-        self.nodes.setdefault(node_id, ClaimNode(
-            node_id=node_id, tenant_id=self.tenant_id, claim_type=kind,
-            subject=str(subject), predicate=str(predicate), value=value, unit=unit,
-            method=method, calculation_version=calculation_version,
-            valid_at=_iso(valid_at), metadata=dict(metadata or {}),
-        ))
+        self.nodes.setdefault(
+            node_id,
+            ClaimNode(
+                node_id=node_id,
+                tenant_id=self.tenant_id,
+                claim_type=kind,
+                subject=str(subject),
+                predicate=str(predicate),
+                value=value,
+                unit=unit,
+                method=method,
+                calculation_version=calculation_version,
+                valid_at=_iso(valid_at),
+                metadata=dict(metadata or {}),
+            ),
+        )
         return node_id
 
     def add_edge(self, source_id: str, target_id: str, relation: EdgeType | str) -> None:
@@ -235,11 +260,11 @@ class EvidenceGraph:
         candidate = Edge(source_id, target_id, rel)
         if candidate in self.edges:
             return
-        if rel in LINEAGE_EDGES and self._reachable(target_id, source_id, lineage_only=True):
+        if rel in ACYCLIC_EDGES and self._reachable(target_id, source_id, relations=ACYCLIC_EDGES):
             raise ValueError("lineage cycle detected")
         self.edges.add(candidate)
 
-    def _reachable(self, start: str, target: str, *, lineage_only: bool) -> bool:
+    def _reachable(self, start: str, target: str, *, relations: set[EdgeType]) -> bool:
         stack = [start]
         seen: set[str] = set()
         while stack:
@@ -250,7 +275,7 @@ class EvidenceGraph:
                 continue
             seen.add(node_id)
             for edge in self.edges:
-                if edge.source_id == node_id and (not lineage_only or edge.relation in LINEAGE_EDGES):
+                if edge.source_id == node_id and edge.relation in relations:
                     stack.append(edge.target_id)
         return False
 
@@ -274,19 +299,19 @@ class EvidenceGraph:
         )
 
     def _is_stale(self, evidence: EvidenceNode, as_of: datetime) -> bool:
-        # Reading old material now must not make it current: prefer effective/published
-        # source time; retrieved_at is only a fallback when source time is unavailable.
+        # Reading old material now must not make it current: prefer source time;
+        # retrieved_at is only a fallback when source time is unavailable.
         anchor = _dt(evidence.provenance.effective_at) or _dt(evidence.provenance.published_at) or _dt(evidence.provenance.retrieved_at)
         if not anchor:
             return False
-        age_minutes = (as_of.astimezone(timezone.utc) - anchor).total_seconds() / 60
+        age_minutes = (_utc(as_of) - anchor).total_seconds() / 60
         return age_minutes > self.policy.stale_after_minutes(evidence.provenance)
 
     def status(self, claim_id: str, *, as_of: datetime | None = None) -> ClaimStatus:
         node = self.nodes.get(claim_id)
         if not isinstance(node, ClaimNode):
             raise ValueError("status requires a claim node")
-        if any(e.relation == EdgeType.SUPERSEDES and e.source_id == claim_id for e in self.edges):
+        if any(e.relation == EdgeType.SUPERSEDES and e.target_id == claim_id for e in self.edges):
             return ClaimStatus.SUPERSEDED
         if any(e.relation == EdgeType.CONTRADICTS and (e.source_id == claim_id or e.target_id == claim_id) for e in self.edges):
             return ClaimStatus.CONFLICT
@@ -308,7 +333,11 @@ class EvidenceGraph:
             return Confidence.UNKNOWN
         ancestor_ids = self.ancestors(claim_id)
         evidence = [self.nodes[n] for n in ancestor_ids if isinstance(self.nodes[n], EvidenceNode)]
-        assumptions = [self.nodes[n] for n in ancestor_ids if isinstance(self.nodes[n], ClaimNode) and self.nodes[n].claim_type == NodeType.ASSUMPTION]
+        assumptions = [
+            self.nodes[n]
+            for n in ancestor_ids
+            if isinstance(self.nodes[n], ClaimNode) and self.nodes[n].claim_type == NodeType.ASSUMPTION
+        ]
         score = 3
         qualities = {self.policy.source_quality(ev.provenance) for ev in evidence}
         if evidence and qualities <= {"PRIMARY"}:
@@ -328,24 +357,28 @@ class EvidenceGraph:
 
     def _max_depth(self, node_id: str) -> int:
         memo: dict[str, int] = {}
+
         def walk(n: str) -> int:
             if n in memo:
                 return memo[n]
             incoming = [e.source_id for e in self._incoming(n) if e.relation in LINEAGE_EDGES]
-            memo[n] = 0 if not incoming else 1 + max(walk(p) for p in incoming)
+            memo[n] = 0 if not incoming else 1 + max(walk(parent) for parent in incoming)
             return memo[n]
+
         return walk(node_id)
 
     def explain(self, claim_id: str, *, as_of: datetime | None = None) -> dict[str, Any]:
         node = self.nodes.get(claim_id)
         if not isinstance(node, ClaimNode):
             raise ValueError("explain requires a claim node")
-        ancestors = [self.nodes[n] for n in self.ancestors(claim_id)]
+        ancestor_ids = self.ancestors(claim_id)
+        ancestors = [self.nodes[n] for n in ancestor_ids]
         claims = [n for n in ancestors if isinstance(n, ClaimNode)]
         evidence = [n for n in ancestors if isinstance(n, EvidenceNode)]
         conflicts = []
+        lineage_scope = set(ancestor_ids) | {claim_id}
         for edge in sorted(self.edges, key=lambda e: (e.relation.value, e.source_id, e.target_id)):
-            if edge.relation == EdgeType.CONTRADICTS and (edge.source_id == claim_id or edge.target_id == claim_id or edge.source_id in self.ancestors(claim_id) or edge.target_id in self.ancestors(claim_id)):
+            if edge.relation == EdgeType.CONTRADICTS and (edge.source_id in lineage_scope or edge.target_id in lineage_scope):
                 conflicts.append({"left": edge.source_id, "right": edge.target_id})
         missing = []
         st = self.status(claim_id, as_of=as_of)
@@ -364,29 +397,43 @@ class EvidenceGraph:
             "evidence": [self._evidence_view(n, as_of=as_of) for n in evidence],
             "conflicts": conflicts,
             "missing": missing,
-            "dependencies": list(self.ancestors(claim_id)),
+            "dependencies": list(ancestor_ids),
             "model_version": MODEL_VERSION,
             "policy_version": self.policy.version,
         }
 
     def _claim_view(self, node: ClaimNode) -> dict[str, Any]:
         return {
-            "claim_id": node.node_id, "type": node.claim_type.value,
-            "subject": node.subject, "predicate": node.predicate, "value": node.value,
-            "unit": node.unit, "method": node.method,
-            "calculation_version": node.calculation_version, "valid_at": node.valid_at,
+            "claim_id": node.node_id,
+            "type": node.claim_type.value,
+            "subject": node.subject,
+            "predicate": node.predicate,
+            "value": node.value,
+            "unit": node.unit,
+            "method": node.method,
+            "calculation_version": node.calculation_version,
+            "valid_at": node.valid_at,
             "metadata": dict(node.metadata),
         }
 
     def _evidence_view(self, node: EvidenceNode, *, as_of: datetime | None) -> dict[str, Any]:
         p = node.provenance
         return {
-            "evidence_id": node.node_id, "source": p.source, "external_id": p.external_id,
-            "source_type": p.source_type, "source_url": p.source_url, "publisher": p.publisher,
-            "retrieved_at": p.retrieved_at, "published_at": p.published_at,
-            "effective_at": p.effective_at, "raw_identifier": p.raw_identifier,
-            "locator": dict(p.locator), "field_name": node.field_name, "value": node.value,
-            "unit": node.unit, "quality": self.policy.source_quality(p),
+            "evidence_id": node.node_id,
+            "source": p.source,
+            "external_id": p.external_id,
+            "source_type": p.source_type,
+            "source_url": p.source_url,
+            "publisher": p.publisher,
+            "retrieved_at": p.retrieved_at,
+            "published_at": p.published_at,
+            "effective_at": p.effective_at,
+            "raw_identifier": p.raw_identifier,
+            "locator": dict(p.locator),
+            "field_name": node.field_name,
+            "value": node.value,
+            "unit": node.unit,
+            "quality": self.policy.source_quality(p),
             "legal_reuse": p.legal_reuse,
             "stale": self._is_stale(node, as_of) if as_of is not None else None,
         }
@@ -396,7 +443,7 @@ class EvidenceGraph:
             "tenant_id": self.tenant_id,
             "model_version": MODEL_VERSION,
             "policy_version": self.policy.version,
-            "nodes": [self._serialize_node(self.nodes[k]) for k in sorted(self.nodes)],
+            "nodes": [self._serialize_node(self.nodes[key]) for key in sorted(self.nodes)],
             "edges": [
                 {"source_id": e.source_id, "target_id": e.target_id, "relation": e.relation.value}
                 for e in sorted(self.edges, key=lambda e: (e.source_id, e.target_id, e.relation.value))
@@ -430,7 +477,13 @@ def signal_to_fact(graph: EvidenceGraph, signal: Mapping[str, Any], field_name: 
         legal_reuse=(SOURCES.get(source.upper()) or {}).get("legal_reuse"),
     )
     evidence_id = graph.add_evidence(provenance, value, field_name=field_name)
-    claim_id = graph.add_claim(NodeType.FACT, subject or external_id, field_name, value, valid_at=provenance.effective_at or provenance.published_at)
+    claim_id = graph.add_claim(
+        NodeType.FACT,
+        subject or external_id,
+        field_name,
+        value,
+        valid_at=provenance.effective_at or provenance.published_at,
+    )
     graph.add_edge(evidence_id, claim_id, EdgeType.SUPPORTS)
     return claim_id
 
@@ -442,19 +495,39 @@ def economic_fit_lineage(graph: EvidenceGraph, signal: Mapping[str, Any], profil
     dependencies = [value_fact]
     for key in ("min_value", "max_value", "min_deadline_days", "max_deadline_days", "economic_min_score"):
         if profile.get(key) is not None:
-            aid = graph.add_claim(NodeType.ASSUMPTION, opportunity_id, f"company_rule.{key}", profile[key], method="company_profile")
-            dependencies.append(aid)
+            assumption_id = graph.add_claim(
+                NodeType.ASSUMPTION,
+                opportunity_id,
+                f"company_rule.{key}",
+                profile[key],
+                method="company_profile",
+            )
+            dependencies.append(assumption_id)
     estimate_id = graph.add_claim(
-        NodeType.ESTIMATE, opportunity_id, "economic_fit.score", economic_result.get("score"),
-        unit="/100", method="evaluate_economic_fit", calculation_version=economic_result.get("rule_version"),
+        NodeType.ESTIMATE,
+        opportunity_id,
+        "economic_fit.score",
+        economic_result.get("score"),
+        unit="/100",
+        method="evaluate_economic_fit",
+        calculation_version=economic_result.get("rule_version"),
         metadata={"status": economic_result.get("status"), "reason": economic_result.get("reason")},
     )
-    for dep in dependencies:
-        rel = EdgeType.USES_ASSUMPTION if isinstance(graph.nodes[dep], ClaimNode) and graph.nodes[dep].claim_type == NodeType.ASSUMPTION else EdgeType.DERIVED_FROM
-        graph.add_edge(dep, estimate_id, rel)
+    for dependency in dependencies:
+        dependency_node = graph.nodes[dependency]
+        relation = (
+            EdgeType.USES_ASSUMPTION
+            if isinstance(dependency_node, ClaimNode) and dependency_node.claim_type == NodeType.ASSUMPTION
+            else EdgeType.DERIVED_FROM
+        )
+        graph.add_edge(dependency, estimate_id, relation)
     inference_id = graph.add_claim(
-        NodeType.INFERENCE, opportunity_id, "economic_fit.assessment", economic_result.get("status"),
-        method="economic_fit_policy", calculation_version=economic_result.get("rule_version"),
+        NodeType.INFERENCE,
+        opportunity_id,
+        "economic_fit.assessment",
+        economic_result.get("status"),
+        method="economic_fit_policy",
+        calculation_version=economic_result.get("rule_version"),
         metadata={"reason": economic_result.get("reason")},
     )
     graph.add_edge(estimate_id, inference_id, EdgeType.DERIVED_FROM)
