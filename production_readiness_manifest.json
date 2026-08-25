@@ -2,7 +2,7 @@
   "contract_version": "production-customer-readiness.v1",
   "snapshot": {
     "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
-    "observed_at": "2026-08-25T20:13:00+01:00",
+    "observed_at": "2026-08-25T20:50:00+01:00",
     "stale_if_main_moves": true,
     "purpose": "Release evidence only; never Master Queue, capability, source, merge, deployment or specialist ownership authority."
   },
@@ -14,38 +14,8 @@
     "external_requires_explicit_reopen_condition": true
   },
   "targets": {
-    "CURRENT_WEB_SAAS": [
-      "AUTH",
-      "TENANT",
-      "DATA",
-      "SOURCES",
-      "WEB",
-      "BILLING",
-      "EVALUATION",
-      "PRIVACY",
-      "RECOVERY",
-      "SECURITY",
-      "OBSERVABILITY",
-      "GOLDEN",
-      "CUSTOMER_PROOF"
-    ],
-    "FULL_MULTI_CHANNEL": [
-      "AUTH",
-      "TENANT",
-      "DATA",
-      "SOURCES",
-      "WEB",
-      "MOBILE",
-      "NOTIFICATIONS",
-      "BILLING",
-      "EVALUATION",
-      "PRIVACY",
-      "RECOVERY",
-      "SECURITY",
-      "OBSERVABILITY",
-      "GOLDEN",
-      "CUSTOMER_PROOF"
-    ]
+    "CURRENT_WEB_SAAS": ["AUTH", "TENANT", "DATA", "SOURCES", "WEB", "BILLING", "EVALUATION", "PRIVACY", "RECOVERY", "SECURITY", "OBSERVABILITY", "GOLDEN", "CUSTOMER_PROOF"],
+    "FULL_MULTI_CHANNEL": ["AUTH", "TENANT", "DATA", "SOURCES", "WEB", "MOBILE", "NOTIFICATIONS", "BILLING", "EVALUATION", "PRIVACY", "RECOVERY", "SECURITY", "OBSERVABILITY", "GOLDEN", "CUSTOMER_PROOF"]
   },
   "gates": [
     {
@@ -55,12 +25,11 @@
       "owner": "PRODUCTION_AUTH",
       "evidence_scope": "CURRENT_MAIN_PRODUCTION",
       "evidence": [
-        "main@66d43f6 Production Smoke run 32871078030 SUCCESS",
-        "main@66d43f6 Authenticated E2E run 32867427570 SUCCESS",
+        "main@66d43f6 Production Smoke 32871078030 SUCCESS and Authenticated E2E 32867427570 SUCCESS",
         "production health requires provider mode/config and exact deployed build"
       ],
       "remaining": [
-        "#277 means the full opportunity detail/workflow leg can still be UNKNOWN_NO_DATA; that is carried by TENANT/CUSTOMER_PROOF rather than relabelling Auth as unproven"
+        "Full deterministic detail/workflow coverage is carried by TENANT/CUSTOMER_PROOF; it does not relabel the bounded Production Auth proof"
       ],
       "reopen_condition": "Any main Auth/provider/runtime change, failed exact-build smoke/E2E, or production provider-health regression."
     },
@@ -72,15 +41,16 @@
       "evidence_scope": "MIXED_CURRENT_MAIN_AND_CANDIDATE",
       "evidence": [
         "Current-main authenticated account scoping is exercised by Authenticated E2E",
-        "#277 documents a conditional skip when no deterministic opportunity exists",
-        "#322 is a green mobile A-to-B private-cache candidate but still requires physical-device Golden acceptance"
+        "#335 current HEAD 91d3fd53 provides an isolated test-only tenant-safe fixture seam; exact-head Quality 32890750682 and CodeQL 32890750626 are SUCCESS",
+        "#335 is noncanonical and #289 still has an Auth-owned nested workflow response parser mismatch before FULL no-skip fixture consumption",
+        "#322 remains a green mobile A-to-B private-cache candidate requiring physical-device Golden acceptance"
       ],
       "remaining": [
-        "Deterministic tenant-safe opportunity fixture #277",
+        "Repair #289 fixture workflow consumer and prove FULL detail/workflow without UNKNOWN_NO_DATA on an explicitly allowed test environment",
         "Real browser Account A/B isolation under #68",
-        "Physical-device A-to-B acceptance for #291 if mobile is in release scope"
+        "Physical-device Account A-to-B acceptance for #291 when mobile is in release scope"
       ],
-      "reopen_condition": "PASS only after the applicable release target proves no cross-tenant private state on real customer paths without conditional skips."
+      "reopen_condition": "PASS only after the applicable exact canonical target proves no cross-tenant private state on real customer paths without conditional skips."
     },
     {
       "id": "DATA",
@@ -89,12 +59,12 @@
       "owner": "DATA_RELIABILITY",
       "evidence_scope": "CANDIDATE_ONLY",
       "evidence": [
-        "#238 has exact-head repository backup/restore and migration safety evidence",
-        "#319 all-up persistence integration evidence is green for its exact candidate inputs"
+        "#238 carries repository backup/restore and migration-safety evidence",
+        "#319 carries green all-up persistence integration evidence for its exact candidate inputs"
       ],
       "remaining": [
-        "Candidate is not canonical current-main production behavior",
-        "Actual off-disk durability, provider retention/encryption and real recovery evidence remain external"
+        "Candidate behavior is not canonical current-main production behavior",
+        "Off-disk durability/provider retention/encryption and real operational recovery remain unproven"
       ],
       "reopen_condition": "Canonical integration plus bounded operational backup/restore evidence satisfying the Data Reliability contract."
     },
@@ -105,14 +75,14 @@
       "owner": "SOURCE_HEALTH + GOLDEN + SOURCE_OWNERS",
       "evidence_scope": "CANDIDATE_ONLY",
       "evidence": [
-        "#327 source-health/freshness contract is exact-head green",
-        "#331 integration composition is exact-head green"
+        "#327 exact HEAD be8bda85 is Quality green and supplies per-source freshness/health/coverage with false-zero guards",
+        "#331 exact HEAD ba339435 is Integration-Lab preproof green for #327 composition but remains noncanonical"
       ],
       "remaining": [
         "#281 remains open pending canonical integration and independent Golden acceptance",
-        "Stale/empty source behavior cannot be used as a zero-market claim until the public source-health contract is integrated"
+        "Stale/empty/unknown source behavior cannot be used as a zero-market claim before the public contract is canonical and customer-accepted"
       ],
-      "reopen_condition": "Canonical source-health integration plus Golden fresh/aging/stale/unavailable/unknown and partial-failure acceptance."
+      "reopen_condition": "Canonical source-health integration plus Golden fresh/aging/stale/unavailable/unknown, partial-failure and retained-history acceptance."
     },
     {
       "id": "WEB",
@@ -121,15 +91,16 @@
       "owner": "WEB_PRODUCT + GOLDEN",
       "evidence_scope": "CURRENT_MAIN_PRODUCTION_PARTIAL",
       "evidence": [
-        "main@66d43f6 Web Preview run 32867427590 SUCCESS",
-        "main@66d43f6 Production Smoke verifies exact API build, CORS and Web shell",
-        "#68 remains open and explicitly requires real-browser customer acceptance"
+        "main@66d43f6 Web Preview 32867427590 SUCCESS and Production Smoke proves exact API build, CORS and Web shell",
+        "#68 remains open and requires real-browser acceptance",
+        "#337 now carries executable production-browser preflight with exact config, journey, privacy-safe evidence and fail-closed GO/NO-GO rules"
       ],
       "remaining": [
-        "Real browser signup/login/session reload/onboarding/Radar/detail/source/workflow/saved/account-isolation acceptance",
-        "Loading/error/offline/partial-data, responsive/accessibility and customer-usability acceptance are not proven by shell deployment"
+        "Real browser signup/login/session reload/onboarding/first truthful Radar/detail/source/workflow/logout-return/account-isolation acceptance",
+        "Loading/error/offline/partial-data plus responsive/accessibility/customer-usability acceptance",
+        "Saved/watch is explicitly NOT a blocker unless canonical product scope changes; current Web billing may be informational but must remain truthful"
       ],
-      "reopen_condition": "Close #68 only after the deployed production-configured browser path is observed and Golden accepts the relevant customer journey."
+      "reopen_condition": "Close #68 only after all required preflight rows PASS on the same exact deployed canonical browser build with no conditional skip or tenant/privacy leak."
     },
     {
       "id": "MOBILE",
@@ -138,7 +109,7 @@
       "owner": "MOBILE_SESSION + GOLDEN",
       "evidence_scope": "MIXED_CURRENT_MAIN_AND_CANDIDATE",
       "evidence": [
-        "main@66d43f6 Mobile Release Preflight run 32867427578 SUCCESS",
+        "main@66d43f6 Mobile Release Preflight 32867427578 SUCCESS",
         "#322 tenant-cache repair is exact-head Quality green"
       ],
       "remaining": [
@@ -158,7 +129,7 @@
         "#263 remains open for real-device background/closed-app delivery"
       ],
       "remaining": [
-        "Android FCM/EAS native configuration and credentials are not present/proven",
+        "Authorized Android FCM/EAS native configuration/credentials are not present/proven",
         "Physical background/killed-app delivery and tap-return acceptance is required"
       ],
       "reopen_condition": "Authorized FCM/EAS setup exists and Golden records sanitized real-device delivery/tap evidence."
@@ -170,12 +141,11 @@
       "owner": "BILLING",
       "evidence_scope": "CANDIDATE_RED",
       "evidence": [
-        "#83 current HEAD 3c00cff has Billing Security failure",
-        "#83 current HEAD Quality reports 18 failed, 720 passed, 2 skipped"
+        "#83 current HEAD 3c00cff4 remains RED: Billing Security backend failure and Quality 18 failed / 720 passed / 2 skipped"
       ],
       "remaining": [
         "Authorization environment contract mismatch",
-        "Stale invented trial webhook cases must be replaced with real RevenueCat semantics",
+        "Stale invented trial webhook cases must be replaced by real RevenueCat semantics",
         "Real store lifecycle/configuration remains separate external proof"
       ],
       "reopen_condition": "Billing owner repairs #83, reruns exact-head Billing Security + Quality green, then Golden proves authoritative Evaluation-to-Pro and failure/expiry lifecycle."
@@ -187,13 +157,13 @@
       "owner": "EVALUATION_BILLING_LIFECYCLE",
       "evidence_scope": "CANDIDATE_ONLY",
       "evidence": [
-        "#333 identifies and repairs the real profile/classification path bypassing Evaluation activation events"
+        "#333 current HEAD f6d4e8a0 is a green draft candidate repairing the real profile/classification path that bypassed Evaluation activation events"
       ],
       "remaining": [
-        "#333 is not canonical",
-        "Combined lifecycle with repaired #83 billing authority and Golden first-account-to-Pro proof remains outstanding"
+        "#333 is noncanonical",
+        "Composition with repaired #83 Billing authority and Golden first-account-to-Pro lifecycle remains outstanding"
       ],
-      "reopen_condition": "Exact-head green Evaluation owner candidate, semantic composition with repaired Billing, and Golden lifecycle acceptance."
+      "reopen_condition": "Canonical Evaluation semantics composed with repaired Billing and accepted by Golden for the full lifecycle."
     },
     {
       "id": "PRIVACY",
@@ -202,13 +172,13 @@
       "owner": "ACCOUNT_PRIVACY_AUTH",
       "evidence_scope": "CURRENT_MAIN_GAP",
       "evidence": [
-        "#292 states password recovery, data export and account deletion controls are missing/unproven",
-        "Golden acceptance contract exists at acceptance/account_lifecycle.json"
+        "#292 remains open: provider-authoritative recovery, tenant-safe export and account deletion are missing/unproven",
+        "Golden lifecycle acceptance contract exists but specialist implementation is absent"
       ],
       "remaining": [
         "Tenant-safe export",
-        "Explicit deletion confirmation and deletion postconditions",
-        "Cross-tenant negative proof and shared-public-data preservation"
+        "Explicit destructive deletion confirmation and proven postconditions",
+        "Cross-tenant negative proof and preservation of shared public procurement facts"
       ],
       "reopen_condition": "Specialist implementation followed by Golden recovery/export/deletion and tenant-isolation acceptance."
     },
@@ -226,7 +196,7 @@
         "Canonical operational backup/restore and external off-disk evidence",
         "Provider-authoritative customer account recovery"
       ],
-      "reopen_condition": "Both operational data recovery and customer account recovery have current, bounded acceptance evidence."
+      "reopen_condition": "Both operational data recovery and customer account recovery have current bounded acceptance evidence."
     },
     {
       "id": "SECURITY",
@@ -235,32 +205,34 @@
       "owner": "SECURITY_OPERABILITY + FOUNDER_SETTINGS",
       "evidence_scope": "MIXED_CURRENT_REPO_AND_CANDIDATE",
       "evidence": [
-        "GitHub main reports protected=false, protection disabled and zero required checks",
-        "Repository rulesets endpoint returns an empty list",
-        "#248 security/operability candidate is exact-head green but not canonical"
+        "main still reports protected=false with no required status checks/rulesets",
+        "#248 exact HEAD db189bbb is Quality+CodeQL green but noncanonical"
       ],
       "remaining": [
-        "Branch protection / required Quality checks require explicit repository-settings authorization",
-        "Dependency Graph is disabled so Dependency Review remains externally blocked",
-        "Distributed/edge rate limiting is not proven"
+        "Branch protection / required checks need explicit founder repository-settings authorization",
+        "Dependency Graph is disabled so Dependency Review is blocked",
+        "Distributed/edge rate limiting remains unproven"
       ],
-      "reopen_condition": "Authorized repository protection is applied and verified, canonical security hardening is integrated, and remaining applicable external abuse/supply-chain gates are proven."
+      "reopen_condition": "Authorized repository protection is applied and verified, canonical security hardening is integrated, and applicable external abuse/supply-chain gates are proven."
     },
     {
       "id": "OBSERVABILITY",
       "classification": "UNKNOWN",
       "release_gate": "UNKNOWN",
-      "owner": "SECURITY_OPERABILITY + PRODUCTION_READINESS",
-      "evidence_scope": "CURRENT_MAIN_PARTIAL",
+      "owner": "SECURITY_OPERABILITY + PRODUCTION_READINESS + SUPPORT_SERVICE_OPS",
+      "evidence_scope": "CURRENT_MAIN_PARTIAL_PLUS_ACCEPTANCE_CONTRACT",
       "evidence": [
-        "Current main exposes bounded health and an hourly Production Smoke",
-        "#248 carries a stronger incident/operability contract only as a candidate"
+        "Current main liveness health can report ok=true without bounded DB, worker or critical-dependency readiness",
+        "Current worker can repeatedly catch/print sync failures without a canonical heartbeat/stalled/degraded readiness state",
+        "#337 executable operability acceptance fails closed for DB/worker/dependency UNKNOWN or degraded/unavailable/stalled and for unsafe/UNKNOWN support correlation",
+        "Exact runtime gaps were routed to #248 in issue comment 5415723385 without duplicating #248 implementation"
       ],
       "remaining": [
-        "No complete current-main production proof yet for structured privacy-safe logs, metrics, alerting, dependency degradation and customer-failure diagnosis",
-        "Alert thresholds and traffic-derived rate-limit baselines remain unproven"
+        "Canonical bounded DB readiness, worker heartbeat/stall/degradation and critical dependency readiness",
+        "Privacy-safe opaque request/support correlation plus structured metrics/alerting/customer-failure diagnosis",
+        "Operational acceptance must move from UNKNOWN to READY on the exact canonical tree; READY still is not release GO"
       ],
-      "reopen_condition": "Current canonical production path has explicit health/readiness, privacy-safe failure classification, metrics/alerts and incident evidence with no secret/private-data leakage."
+      "reopen_condition": "Current canonical production path proves explicit readiness, privacy-safe diagnosis, metrics/alerts and incident evidence without secret/private-data leakage."
     },
     {
       "id": "GOLDEN",
@@ -269,30 +241,31 @@
       "owner": "GOLDEN_PATH",
       "evidence_scope": "MIXED",
       "evidence": [
-        "#212 owns customer/system acceptance and records the minimum sellable spine",
-        "Several bounded candidate fixes have independent Golden or Integration evidence"
+        "#212 owns customer/system acceptance and the minimum sellable spine",
+        "Several bounded candidates are green but candidate green is not canonical whole-system acceptance"
       ],
       "remaining": [
-        "Open Web, Billing, Evaluation, privacy, deterministic-fixture and physical-device gaps prevent a whole-system customer-ready claim"
+        "Open Web, Billing, Evaluation, privacy, fixture-consumption and physical-device gaps prevent a whole-system customer-ready claim"
       ],
-      "reopen_condition": "Golden accepts the exact canonical release tree for the target customer journeys with no conditional false-pass."
+      "reopen_condition": "Golden accepts the exact canonical release tree for target customer journeys with no conditional false-pass."
     },
     {
       "id": "CUSTOMER_PROOF",
       "classification": "DEFECT",
       "release_gate": "NO_GO",
       "owner": "PRODUCTION_READINESS + GOLDEN + GTM_EVIDENCE",
-      "evidence_scope": "CURRENT_SYSTEM_GAP",
+      "evidence_scope": "CURRENT_SYSTEM_GAP_WITH_SYNTHETIC_PERFORMANCE_MEASUREMENT",
       "evidence": [
-        "#212 minimum sellable spine includes Evaluation and Pro entitlement",
-        "#68 requires deployed browser observation",
-        "#83/#333/#292 leave billing/evaluation/privacy lifecycle incomplete or unproven"
+        "#68 still requires deployed browser observation; #83/#333/#292 leave Billing/Evaluation/privacy lifecycle incomplete or unproven",
+        "Synthetic disposable-SQLite first-value benchmark on readiness HEAD 1007f984 measured 25-row profile-save→bootstrap→Radar p50/p95 245/514 ms and the 250-row bound p50/p95 2342/4375 ms",
+        "Radar GET is approximately 2-4 ms and save_profile approximately 3 ms p50 in that benchmark, localizing measured latency to synchronous bootstrap; this is not a production SLO or release claim"
       ],
       "remaining": [
-        "One exact canonical real-customer path from signup through first value, return, Evaluation and authoritative Pro",
-        "Supportable failure/recovery evidence for that path"
+        "One exact canonical real-customer-equivalent path from signup through first value, return, Evaluation and authoritative Pro",
+        "Supportable failure/recovery evidence for that path",
+        "Finish bootstrap phase isolation and optimize only if a specific internal phase is proven dominant without weakening truth/tenant safety"
       ],
-      "reopen_condition": "A real-customer-equivalent Golden journey on the exact canonical deployed release proves the full minimum sellable spine and truthful failure states."
+      "reopen_condition": "A real-customer-equivalent Golden journey on the exact canonical deployed release proves the minimum sellable spine, truthful failure states and acceptable measured first-value behavior."
     }
   ]
 }
