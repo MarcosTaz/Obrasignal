@@ -1,4 +1,4 @@
-"""Production WSGI entrypoint with a global CORS safety net."""
+"""Production WSGI entrypoint with global HTTP/CORS safety controls."""
 import json
 import os
 from urllib.parse import urlsplit, urlunsplit
@@ -12,6 +12,10 @@ from auth_context_jwt import authentication_health
 # production WSGI entrypoint and keeps registration explicit at the boundary.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
+
+
+_API_JSON_WRITE_MAX_BYTES = 64 * 1024
+_QUERY_TEXT_MAX = 200
 
 
 def _origin():
@@ -33,6 +37,10 @@ def _cors(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["X-ObraSignal-API"] = "v1"
     response.headers["X-ObraSignal-Build"] = os.getenv("OBRASIGNAL_BUILD") or os.getenv("RENDER_GIT_COMMIT") or "unversioned"
     return response
@@ -50,10 +58,67 @@ def _decorate_health(response):
     return response
 
 
+def _json_write_path():
+    if request.path == "/api/v1/profile":
+        return request.method == "POST"
+    return (
+        request.method == "POST"
+        and request.path.startswith("/api/v1/opportunities/")
+        and request.path.endswith("/workflow")
+    )
+
+
+def _reject_bad_query():
+    """Fail predictably before API handlers can turn malformed abuse into 500s."""
+    if request.path == "/api/v1/alerts" and "limit" in request.args:
+        try:
+            int(request.args.get("limit") or "")
+        except (TypeError, ValueError):
+            return "limit"
+    if request.path == "/api/v1/opportunities":
+        for name in ("limit", "minscore"):
+            if name in request.args and request.args.get(name) not in (None, ""):
+                try:
+                    int(request.args.get(name))
+                except (TypeError, ValueError):
+                    return name
+        if len(request.args.get("q") or "") > _QUERY_TEXT_MAX:
+            return "q"
+    return None
+
+
 @APP.before_request
 def _global_api_preflight():
     if request.path.startswith("/api/v1/") and request.method == "OPTIONS":
         return _cors(APP.response_class("", status=204, mimetype="text/plain"))
+    return None
+
+
+@APP.before_request
+def _global_api_input_bounds():
+    if not request.path.startswith("/api/v1/"):
+        return None
+
+    bad_query = _reject_bad_query()
+    if bad_query:
+        return _cors(jsonify({"error": "invalid_query_parameter", "parameter": bad_query})), 400
+
+    if not _json_write_path():
+        return None
+    if not request.is_json:
+        return _cors(jsonify({"error": "content_type_must_be_application_json"})), 415
+    content_length = request.content_length
+    if content_length is not None and content_length > _API_JSON_WRITE_MAX_BYTES:
+        return _cors(jsonify({"error": "request_too_large"})), 413
+    raw = request.get_data(cache=True)
+    if len(raw) > _API_JSON_WRITE_MAX_BYTES:
+        return _cors(jsonify({"error": "request_too_large"})), 413
+    try:
+        payload = request.get_json(silent=False, cache=True)
+    except Exception:
+        return _cors(jsonify({"error": "malformed_json"})), 400
+    if not isinstance(payload, dict):
+        return _cors(jsonify({"error": "json_object_required"})), 400
     return None
 
 
