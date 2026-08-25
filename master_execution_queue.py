@@ -34,7 +34,7 @@ def _q(id, title, domain, state, stage, dependencies=(), reason=""):
 
 
 CANONICAL_QUEUE_NAME = "OBRASIGNAL_MASTER_EXECUTION_QUEUE"
-CURRENT_ITEM_ID = "Q070_SHARED_FAMILIES"
+CURRENT_ITEM_ID = "Q080_EVIDENCE_GRAPH_V1"
 
 MASTER_EXECUTION_QUEUE = (
     _q("Q000_SCOPE_REBASE", "International market-scope rebase", "STRATEGY", "DONE", "PRODUCTION",
@@ -63,10 +63,10 @@ MASTER_EXECUTION_QUEUE = (
     _q("Q060_CHILE_MERCADOPUBLICO", "Chile Mercado Público construction connector", "SIGNAL", "GATED", "PRODUCTION",
        ("Q020_SIGNAL_CONTRACT_V1",),
        "Connector, publisher-native construction taxonomy, amount visibility, lifecycle and 429 controls are implemented and test-ticket validated; production activation is blocked until a real individual MERCADOPUBLICO_TICKET is provisioned. The public documentation ticket is test-only."),
-    _q("Q070_SHARED_FAMILIES", "Harden TED/eForms and OCDS shared-coverage families", "SIGNAL", "ACTIVE", "PRODUCTION",
+    _q("Q070_SHARED_FAMILIES", "Harden TED/eForms and OCDS shared-coverage families", "SIGNAL", "DONE", "PRODUCTION",
        ("Q040_CANADA_BUYS", "Q050_US_SAM"),
-       "Maximise supported markets per maintained connector and remove country-specific duplication; country-specific external gates such as Brazil transport reliability or Chile credentials must not freeze independent shared-family hardening."),
-    _q("Q080_EVIDENCE_GRAPH_V1", "Proof / Evidence Graph v1", "COMMAND", "QUEUED", "PRODUCTION",
+       "Canonical TED/eForms/OCDS family fitness registry, immutable architecture contracts, shared family runtime composition, runtime deduplication across Germany/Estonia/Ecuador/UK and exact-head Python+Mobile CI completed; materially different transports remain intentionally separate."),
+    _q("Q080_EVIDENCE_GRAPH_V1", "Proof / Evidence Graph v1", "COMMAND", "ACTIVE", "PRODUCTION",
        ("Q020_SIGNAL_CONTRACT_V1",),
        "Material recommendations need traceable WHY / SHOW ME / WHAT IF evidence before higher autonomy is safe."),
     _q("Q090_COMPANY_STATE_CONTRACT", "Company operational-state contract", "OFFICE", "QUEUED", "PROTOTYPE",

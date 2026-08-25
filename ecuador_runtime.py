@@ -3,7 +3,7 @@ import app as _app
 import preload as _preload
 
 from ecuador_sercop import fetch_sercop_tenders
-from incremental_runtime_plugin import install_incremental_source
+from shared_family_runtime import install_shared_family_source
 
 
 SOURCE = "EC_SERCOP"
@@ -11,10 +11,9 @@ SOURCE = "EC_SERCOP"
 
 def install():
     """Install EC_SERCOP exactly once; registry + env still control activation."""
-    return install_incremental_source(
+    return install_shared_family_source(
         _app,
+        _preload,
         source=SOURCE,
         fetch_incremental=fetch_sercop_tenders,
-        source_enabled=_preload._global_source_enabled,
-        record_blocked=_preload._record_blocked_global_source,
     )
