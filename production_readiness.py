@@ -32,7 +32,7 @@ PASS_CLASSIFICATIONS = {"PROVEN", "READY"}
 
 
 class ReadinessContractError(ValueError):
-    """The readiness manifest is malformed or permits a false-ready state."""
+    """The readiness manifest is malformed, stale, or permits a false-ready state."""
 
 
 @dataclass(frozen=True)
@@ -161,6 +161,24 @@ def validate_manifest(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return by_id
 
 
+def assert_current_main(manifest: dict[str, Any], current_main_sha: str) -> None:
+    """Reject a readiness snapshot as stale when the observed canonical main moved.
+
+    The caller supplies the freshly observed SHA. This function never fetches GitHub,
+    mutates repository state, or silently rebases evidence onto a newer main.
+    """
+    validate_manifest(manifest)
+    _require_non_empty_string(current_main_sha, "current_main_sha")
+    expected = manifest["snapshot"]["canonical_main"].strip()
+    observed = current_main_sha.strip()
+    if observed != expected:
+        raise ReadinessContractError(
+            "readiness snapshot is stale: "
+            f"manifest canonical_main={expected}, observed current main={observed}; "
+            "reconstruct and reconcile evidence before auditing release readiness"
+        )
+
+
 def audit_target(manifest: dict[str, Any], target: str) -> TargetResult:
     by_id = validate_manifest(manifest)
     targets = manifest["targets"]
@@ -198,6 +216,14 @@ def main() -> int:
     parser.add_argument("--target", default=None)
     parser.add_argument("--json", action="store_true", dest="as_json")
     parser.add_argument(
+        "--current-main-sha",
+        default=None,
+        help=(
+            "Freshly observed canonical main SHA. When supplied, the audit fails closed "
+            "if it differs from snapshot.canonical_main."
+        ),
+    )
+    parser.add_argument(
         "--require-go",
         action="store_true",
         help="Return exit code 1 unless the selected target is GO. Never use this as merge authorization.",
@@ -206,6 +232,8 @@ def main() -> int:
 
     try:
         manifest = load_manifest(args.manifest)
+        if args.current_main_sha is not None:
+            assert_current_main(manifest, args.current_main_sha)
         results = (
             [audit_target(manifest, args.target)] if args.target else audit_all(manifest)
         )
@@ -214,9 +242,15 @@ def main() -> int:
         return 2
 
     if args.as_json:
-        print(json.dumps([result.as_dict() for result in results], indent=2, sort_keys=True))
+        payload = {
+            "canonical_main": manifest["snapshot"]["canonical_main"],
+            "current_main_verified": args.current_main_sha is not None,
+            "results": [result.as_dict() for result in results],
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         print(f"canonical_main={manifest['snapshot']['canonical_main']}")
+        print(f"current_main_verified={'yes' if args.current_main_sha is not None else 'no'}")
         for result in results:
             print(
                 f"{result.target}: {result.verdict}; "
