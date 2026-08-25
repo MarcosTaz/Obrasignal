@@ -26,13 +26,12 @@ from bangs.evidence import (
     Availability,
     ConfirmationState,
     EvidenceBasis,
-    RequirementBasis,
     SourceEvidence,
     TaxBasis,
     Visibility,
 )
 from bangs.financial import FinancialExposureState, assess_financial_exposure
-from bangs.materials import MaterialPriceObservation, MaterialRequirement
+from bangs.materials import MaterialPriceObservation
 from bangs.money import Money as BangMoney
 from bangs.true_cost import JobCostCategory, JobCostContribution, assess_true_job_cost
 
@@ -220,7 +219,10 @@ def test_bangs_unknown_material_cost_keeps_partial_total_from_becoming_true_tota
 
     assert total.assessment.known_total.amount == Decimal("900000")
     assert total.total_job_cost_known is False
-    assert "material_cost" in total.assessment.unknown_components
+    assert any(
+        item == "material_cost" or item.endswith(":material_cost")
+        for item in total.assessment.unknown_components
+    )
 
 
 def test_bangs_mixed_currency_is_not_summed():
@@ -245,7 +247,7 @@ def test_bangs_observed_listing_does_not_default_to_available():
         "supplier-1",
         "m2",
         BangMoney.of(5, "EUR"),
-        TaxBasis.UNKNOWN,
+        TaxBasis.TAX_UNKNOWN,
         OBS,
         Visibility.PUBLIC,
     )
@@ -262,7 +264,7 @@ def test_bangs_unitless_material_observation_fails_closed():
             "supplier-1",
             "",
             BangMoney.of(5, "EUR"),
-            TaxBasis.UNKNOWN,
+            TaxBasis.TAX_UNKNOWN,
             OBS,
             Visibility.PUBLIC,
         )
