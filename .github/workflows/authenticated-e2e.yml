@@ -166,6 +166,9 @@ jobs:
           issuer = payload.get('iss')
           audience = payload.get('aud')
           role = payload.get('role')
+          subject = payload.get('sub')
+          assert subject, 'Supabase access token subject is missing'
+          open('/tmp/token_subject', 'w', encoding='utf-8').write(str(subject))
 
           print('JWT_DIAGNOSTIC')
           print(f'alg={alg if alg is not None else "none"}')
@@ -173,7 +176,7 @@ jobs:
           print(f'typ={typ if typ is not None else "none"}')
           print(f'iss={issuer if issuer is not None else "none"}')
           print(f'aud={json.dumps(audience, separators=(",", ":")) if isinstance(audience, (list, dict)) else audience if audience is not None else "none"}')
-          print(f'sub_present={str(bool(payload.get("sub"))).lower()}')
+          print(f'sub_present={str(bool(subject)).lower()}')
           print(f'role={role if role is not None else "none"}')
           print(f'iat={payload.get("iat") if payload.get("iat") is not None else "none"}')
           print(f'exp={payload.get("exp") if payload.get("exp") is not None else "none"}')
@@ -188,10 +191,18 @@ jobs:
                   print(f'{name}={value if value is not None else "none"}')
 
           audiences = audience if isinstance(audience, list) else [audience]
-          print(f'TOKEN_ALG_ALLOWED={str(alg in {"RS256", "ES256"}).lower()}')
-          print(f'TOKEN_KID_PRESENT_IN_PROVIDER_JWKS={str(kid is not None and str(kid) in provider_kids).lower()}')
-          print(f'TOKEN_ISSUER_MATCHES_SUPABASE_PROJECT={str(issuer == os.environ["EXPECTED_ISSUER"]).lower()}')
-          print(f'TOKEN_AUDIENCE_AUTHENTICATED={str("authenticated" in audiences).lower()}')
+          token_alg_allowed = alg in {"RS256", "ES256"}
+          token_kid_present = kid is not None and str(kid) in provider_kids
+          token_issuer_matches = issuer == os.environ["EXPECTED_ISSUER"]
+          token_audience_authenticated = "authenticated" in audiences
+          print(f'TOKEN_ALG_ALLOWED={str(token_alg_allowed).lower()}')
+          print(f'TOKEN_KID_PRESENT_IN_PROVIDER_JWKS={str(token_kid_present).lower()}')
+          print(f'TOKEN_ISSUER_MATCHES_SUPABASE_PROJECT={str(token_issuer_matches).lower()}')
+          print(f'TOKEN_AUDIENCE_AUTHENTICATED={str(token_audience_authenticated).lower()}')
+          assert token_alg_allowed, 'Supabase token algorithm is not supported'
+          assert token_kid_present, 'Supabase token key id is not present in provider JWKS'
+          assert token_issuer_matches, 'Supabase token issuer does not match project issuer'
+          assert token_audience_authenticated, 'Supabase token audience is not authenticated'
           PY
 
       - name: Verify unauthenticated boundary
@@ -255,9 +266,42 @@ jobs:
           import json
           payload=json.load(open('/tmp/profile.json'))
           assert payload.get('authenticated') is True
-          assert payload.get('account_id')
+          account_id=payload.get('account_id')
+          assert account_id
+          token_subject=open('/tmp/token_subject', encoding='utf-8').read()
+          assert str(account_id) == token_subject
           assert isinstance(payload.get('profile'), dict)
-          print('Authenticated API identity verified for account:', payload['account_id'])
+          open('/tmp/authenticated_account_id', 'w', encoding='utf-8').write(str(account_id))
+          print('Authenticated API identity verified.')
+          PY
+
+      - name: Verify provider READY after authenticated identity
+        env:
+          TARGET_BUILD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
+            "$API_URL/health" > /tmp/post-auth-health.json
+          python - <<'PY'
+          import json
+          import os
+
+          health=json.load(open('/tmp/post-auth-health.json', encoding='utf-8'))
+          auth=health.get('auth') if isinstance(health, dict) else {}
+          auth=auth if isinstance(auth, dict) else {}
+          safe_auth={name: auth.get(name) for name in (
+              'mode', 'config_present', 'provider_status', 'provider_kind', 'provider_error'
+          )}
+          print('POST_AUTH_HEALTH=' + json.dumps(safe_auth, sort_keys=True, separators=(',', ':')))
+          assert health.get('ok') is True
+          assert health.get('service') == 'obrasignal-api'
+          assert health.get('build') == os.environ['TARGET_BUILD']
+          assert auth.get('mode') == 'provider'
+          assert auth.get('config_present') is True
+          assert auth.get('provider_kind') == 'supabase'
+          assert auth.get('provider_status') == 'ready'
+          assert auth.get('provider_error') is None
+          print('POST_AUTH_PROVIDER_STATUS=ready')
           PY
 
       - name: Verify authenticated profile persistence round-trip
@@ -267,6 +311,8 @@ jobs:
           python - <<'PY'
           import json, uuid
           payload=json.load(open('/tmp/profile.json'))
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
+          assert str(payload.get('account_id')) == expected_account_id
           profile=payload['profile']
           marker=f"__e2e_{uuid.uuid4().hex[:12]}"
           profile['keywords']=list(profile.get('keywords') or [])+[marker]
@@ -284,6 +330,13 @@ jobs:
               -H "Authorization: Bearer $(cat /tmp/access_token)" \
               -H 'Content-Type: application/json' \
               --data-binary @/tmp/profile-restore.json >/tmp/profile-restore-response.json
+            python - <<'PY'
+          import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
+          payload=json.load(open('/tmp/profile-restore-response.json'))
+          assert str(payload.get('account_id')) == expected_account_id
+          assert payload.get('authenticated') is True
+          PY
           }
           trap restore_profile EXIT
           curl --fail --silent --show-error --max-time 30 \
@@ -291,13 +344,22 @@ jobs:
             -H "Authorization: Bearer $(cat /tmp/access_token)" \
             -H 'Content-Type: application/json' \
             --data-binary @/tmp/profile-write.json >/tmp/profile-write-response.json
+          python - <<'PY'
+          import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
+          payload=json.load(open('/tmp/profile-write-response.json'))
+          assert str(payload.get('account_id')) == expected_account_id
+          assert payload.get('authenticated') is True
+          PY
           curl --fail --silent --show-error --max-time 30 \
             -H "Authorization: Bearer $(cat /tmp/access_token)" \
             "$API_URL/profile" >/tmp/profile-after-write.json
           python - <<'PY'
           import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
           marker=json.load(open('/tmp/profile-marker.json'))['marker']
           payload=json.load(open('/tmp/profile-after-write.json'))
+          assert str(payload.get('account_id')) == expected_account_id
           assert marker in (payload.get('profile') or {}).get('keywords', [])
           assert payload.get('authenticated') is True
           print('Authenticated profile write/read persistence verified.')
@@ -311,10 +373,10 @@ jobs:
             "$API_URL/opportunities?limit=1" > /tmp/opportunities.json
           python - <<'PY'
           import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
           payload=json.load(open('/tmp/opportunities.json'))
           assert isinstance(payload.get('items'), list)
-          assert payload.get('account_id')
-          assert payload['account_id'] != ''
+          assert str(payload.get('account_id')) == expected_account_id
           print('Authenticated opportunity access verified.')
           PY
 
@@ -332,10 +394,11 @@ jobs:
           done
           python - <<'PY'
           import json
+          expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()
           stats=json.load(open('/tmp/stats.json'))
           workflow=json.load(open('/tmp/workflow_stats.json'))
-          assert stats.get('account_id')
-          assert workflow.get('account_id') == stats['account_id']
+          assert str(stats.get('account_id')) == expected_account_id
+          assert str(workflow.get('account_id')) == expected_account_id
           assert isinstance(workflow.get('counts'), dict)
           print('Account-scoped stats verified.')
           PY
@@ -347,11 +410,13 @@ jobs:
           import json
           items=json.load(open('/tmp/opportunities.json')).get('items') or []
           if not items:
-              print('No opportunity available; detail/workflow round-trip skipped without treating empty data as failure.')
+              print('No opportunity available; detail/workflow round-trip coverage is UNKNOWN_NO_DATA.')
               open('/tmp/tender_id','w').write('')
+              open('/tmp/authenticated_e2e_coverage','w').write('UNKNOWN_NO_DATA')
           else:
               tender_id=str(items[0]['id'])
               open('/tmp/tender_id','w').write(tender_id)
+              open('/tmp/authenticated_e2e_coverage','w').write('PENDING')
           PY
           if test -s /tmp/tender_id; then
             ID="$(cat /tmp/tender_id)"
@@ -408,6 +473,20 @@ jobs:
           actual=json.load(open('/tmp/workflow-after-write.json'))
           assert actual.get('status') == expected['status']
           assert actual.get('note') == expected['note']
+          open('/tmp/authenticated_e2e_coverage','w').write('FULL')
           print('Authenticated workflow write/read persistence verified.')
           PY
           fi
+
+      - name: Classify authenticated journey coverage
+        id: journey-coverage
+        run: |
+          set -euo pipefail
+          coverage="$(cat /tmp/authenticated_e2e_coverage)"
+          case "$coverage" in
+            FULL|UNKNOWN_NO_DATA) ;;
+            *) echo "Invalid authenticated E2E coverage state: $coverage"; exit 1 ;;
+          esac
+          echo "coverage=$coverage" >> "$GITHUB_OUTPUT"
+          echo "AUTHENTICATED_E2E_COVERAGE=$coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "AUTHENTICATED_E2E_COVERAGE=$coverage"
