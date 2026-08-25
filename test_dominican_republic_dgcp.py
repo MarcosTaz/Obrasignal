@@ -173,13 +173,18 @@ def test_connector_unwraps_discovery_envelope_then_hydrates_each_ocid():
     assert cursor == '{"completed_through":"2026-08-25"}'
 
 
-def test_registry_reflects_live_access_and_plans_but_remains_runtime_gated():
+def test_registry_reflects_live_lifecycle_but_remains_runtime_gated():
     source = SOURCES["DO_DGCP"]
+    assert source["source_id"] == "do_dgcp_open_data"
     assert source["status"] == "planned"
     assert source["machine_access"] == "VERIFIED"
     assert source["legal_reuse"] == "GREEN"
-    assert source["adapter"] == "OCDSAPIConnector+DGCPPACCConnector"
-    assert set(source["capabilities"]) == {"incremental_sync", "detail", "plans"}
-    assert source["signal_types"] == ("PROCUREMENT_PLAN", "TENDER")
+    assert source["adapter"] == "OCDSReleasePackageConnector+DGCPPACCConnector"
+    assert set(source["capabilities"]) == {
+        "incremental_sync", "detail", "plans", "awards", "contracts", "lifecycle"
+    }
+    assert source["signal_types"] == (
+        "PROCUREMENT_PLAN", "TENDER", "AWARD", "CONTRACT"
+    )
     assert production_gate_reasons("DO_DGCP") == ("runtime_not_enabled",)
     assert "DO_DGCP" not in production_ready_sources()
