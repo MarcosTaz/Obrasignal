@@ -1,0 +1,87 @@
+{
+  "authority": "NON_AUTHORITATIVE_OPERATIONAL_METADATA",
+  "evidence_states": [
+    "CURRENT",
+    "STALE",
+    "SUPERSEDED",
+    "UNKNOWN"
+  ],
+  "explicit_non_ownership": [
+    "War Room priority/control",
+    "Assembly canonical integration",
+    "Integration Lab semantic combination",
+    "Golden acceptance",
+    "Quality Engineering test authority",
+    "Release deployment",
+    "domain implementation"
+  ],
+  "failure_semantics": {
+    "collector_or_classifier_failure": "UNKNOWN",
+    "may_mark_green": false,
+    "required_recheck": true
+  },
+  "forbidden_actions": [
+    "merge",
+    "deploy",
+    "mutate_production",
+    "change_secrets",
+    "change_provider_config",
+    "change_branch_protection",
+    "promote_queue",
+    "promote_capability",
+    "activate_source",
+    "delete_legitimate_branch_issue_or_evidence",
+    "destructive_database_operation"
+  ],
+  "gate_states": [
+    "PASS",
+    "FAIL",
+    "NOT_RUN",
+    "IN_PROGRESS",
+    "UNKNOWN",
+    "HISTORICAL"
+  ],
+  "owned_automation": [
+    "repository observation",
+    "status normalization",
+    "exact-reference drift detection",
+    "evidence invalidation metadata",
+    "handoff preparation",
+    "routing metadata",
+    "authorization package preparation"
+  ],
+  "purpose": "Automate coordination and evidence flow without taking governance or domain authority.",
+  "required_candidate_fields": [
+    "owner",
+    "exact_head",
+    "base",
+    "main_sha",
+    "evidence",
+    "reason",
+    "reopen_condition"
+  ],
+  "schema_version": "engineering-ops.v1",
+  "status_values": [
+    "ACTIVE",
+    "NEXT",
+    "WAIT",
+    "GREEN",
+    "RED",
+    "STALE",
+    "BLOCKED_EXTERNAL",
+    "BLOCKED_OWNER",
+    "READY",
+    "HANDOFF_READY",
+    "CANONICAL_NEXT",
+    "SUPERSEDED",
+    "UNKNOWN"
+  ],
+  "truth_rules": [
+    "UNKNOWN != GREEN",
+    "STALE != FAILED",
+    "NOT_RUN != RED",
+    "historical success != current proof",
+    "CURRENT operational metadata != product readiness",
+    "green workflow != merge authorization"
+  ]
+}
