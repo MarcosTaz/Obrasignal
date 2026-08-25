@@ -43,9 +43,6 @@ async function request(path, options={}) {
           authRefreshes+=1;
           let refreshedToken=null;
           try{refreshedToken=await authSession.refresh();}catch(_){}
-          // A token refresh is authentication recovery, not a network retry.
-          // Repeat this attempt so MAX_ATTEMPTS=1 still sends the request with
-          // the newly issued access token.
           if(refreshedToken){ attempt-=1; continue; }
         }
         const error=new Error(data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;
@@ -65,11 +62,6 @@ async function request(path, options={}) {
   throw lastError||new Error(`API ${path}: não foi possível concluir o pedido.`);
 }
 
-
-// One health probe is shared by every caller. It has a deliberately separate
-// cold-start budget, while normal business requests keep their 20 s budget.
-// A completed probe is cleared so only an in-flight warm-up is shared. A later
-// recoverable GET can therefore wake the backend again if it has gone to sleep.
 export function ensureBackendReady(){
   if(backendReadyPromise)return backendReadyPromise;
   const warmup=request('/health',{timeout:BACKEND_READY_TIMEOUT,skipAuth:true})
@@ -99,8 +91,6 @@ function unwrapProfile(data){return data?.profile||data||null;}
 export const api={
   health:()=>ensureBackendReady(),
   profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
-  // POST is intentionally single-attempt: retrying an authenticated write can
-  // duplicate work and makes a stuck Save button look like a UI failure.
   saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
   billingStatus:()=>readWhenReady('/billing/status'),
   stats:()=>readWhenReady('/stats'),
@@ -109,7 +99,12 @@ export const api={
   markAlertDelivered:(eventId)=>writeWhenReady(`/alerts/${encodeURIComponent(eventId)}/delivered`,{method:'POST',body:JSON.stringify({})}),
   opportunities:async({q='',minscore=0,source='',limit=60,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await readWhenReady(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
   opportunity:async(id)=>normalizeOpportunity(await readWhenReady(`/opportunities/${encodeURIComponent(id)}`)),
+  readiness:(id)=>readWhenReady(`/opportunities/${encodeURIComponent(id)}/readiness`),
   workflow:(id)=>readWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`),
-  setWorkflow:(id,status,note)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})})
+  setWorkflow:(id,status,note)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})}),
+  saveOpportunity:(id)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/save`,{method:'POST',body:JSON.stringify({})}),
+  unsaveOpportunity:(id)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/save`,{method:'DELETE'}),
+  savedOpportunities:({status='',priority='',order='recent',limit=20,offset=0}={})=>{const p=new URLSearchParams({order,limit:String(limit),offset:String(offset)});if(status)p.set('status',status);if(priority)p.set('priority',priority);return readWhenReady(`/opportunities/saved?${p.toString()}`);},
+  updateOpportunityWatch:(id,patch)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/watch`,{method:'PATCH',body:JSON.stringify(patch||{})})
 };
 export { API_BASE };
