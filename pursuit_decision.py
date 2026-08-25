@@ -106,6 +106,30 @@ def _confidence(value):
     return value
 
 
+def _timestamp(value):
+    value = _text(value, "decided_at", 80)
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise DecisionValidationError("decided_at must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise DecisionValidationError("decided_at must include a timezone")
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def _json_object(value, field):
+    value = {} if value is None else value
+    if not isinstance(value, dict):
+        raise DecisionValidationError(f"{field} must be an object")
+    try:
+        encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    except (TypeError, ValueError) as exc:
+        raise DecisionValidationError(f"{field} must be JSON-serializable") from exc
+    return value, encoded
+
+
 def _decode(row):
     if row is None:
         return None
@@ -183,10 +207,8 @@ def record_pursuit_decision(conn, *, account_id, opportunity_id, decision_type,
     actor_id = _text(actor_id, "actor_id", 250)
     idempotency_key = _text(idempotency_key, "idempotency_key", 250)
     confidence = _confidence(confidence)
-    opportunity_state = {} if opportunity_state is None else opportunity_state
-    if not isinstance(opportunity_state, dict):
-        raise DecisionValidationError("opportunity_state must be an object")
-    requested_decided_at = _text(decided_at, "decided_at", 80)
+    requested_decided_at = _timestamp(decided_at)
+    opportunity_state, opportunity_state_json = _json_object(opportunity_state, "opportunity_state")
     normalized = {
         "opportunity_id": opportunity_id, "decision_type": decision_type,
         "reason_codes": reason_codes, "freeform_note": freeform_note,
@@ -196,31 +218,41 @@ def record_pursuit_decision(conn, *, account_id, opportunity_id, decision_type,
         "actor_id": actor_id, "actor_type": actor_type, "decided_at": requested_decided_at,
     }
     fingerprint = hashlib.sha256(json.dumps(normalized, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
-    if idempotency_key:
-        existing = conn.execute(
-            "SELECT * FROM opportunity_pursuit_decisions WHERE account_id=? AND idempotency_key=?",
-            (account_id, idempotency_key),
-        ).fetchone()
-        if existing is not None:
-            if existing["request_fingerprint"] != fingerprint:
-                raise IdempotencyConflict("idempotency key already used with a different request")
-            return _decode(existing), False
-    previous = _current_row(conn, account_id, opportunity_id)
-    decision_id = str(uuid.uuid4())
-    created_at = _now()
-    conn.execute(
-        '''INSERT INTO opportunity_pursuit_decisions(
-           decision_id, account_id, opportunity_id, decision_type, decided_at,
-           actor_id, actor_type, reason_codes_json, freeform_note, blockers_json,
-           unknowns_json, readiness_ref, evidence_refs_json, opportunity_revision_ref,
-           opportunity_state_json, confidence, supersedes_decision_id, idempotency_key,
-           request_fingerprint, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-        (decision_id, account_id, opportunity_id, decision_type, requested_decided_at or created_at,
-         actor_id, actor_type, json.dumps(reason_codes, ensure_ascii=False), freeform_note,
-         json.dumps(blockers, ensure_ascii=False), json.dumps(unknowns, ensure_ascii=False),
-         readiness_ref, json.dumps(evidence_refs, ensure_ascii=False), opportunity_revision_ref,
-         json.dumps(opportunity_state, ensure_ascii=False, sort_keys=True), confidence,
-         previous["decision_id"] if previous else None, idempotency_key, fingerprint, created_at),
-    )
-    conn.commit()
+
+    # Serialize the read-current + append sequence so two simultaneous decisions
+    # cannot supersede the same journal tip and create a forked audit chain.
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if idempotency_key:
+            existing = conn.execute(
+                "SELECT * FROM opportunity_pursuit_decisions WHERE account_id=? AND idempotency_key=?",
+                (account_id, idempotency_key),
+            ).fetchone()
+            if existing is not None:
+                if existing["request_fingerprint"] != fingerprint:
+                    raise IdempotencyConflict("idempotency key already used with a different request")
+                conn.rollback()
+                return _decode(existing), False
+
+        previous = _current_row(conn, account_id, opportunity_id)
+        decision_id = str(uuid.uuid4())
+        created_at = _now()
+        conn.execute(
+            '''INSERT INTO opportunity_pursuit_decisions(
+               decision_id, account_id, opportunity_id, decision_type, decided_at,
+               actor_id, actor_type, reason_codes_json, freeform_note, blockers_json,
+               unknowns_json, readiness_ref, evidence_refs_json, opportunity_revision_ref,
+               opportunity_state_json, confidence, supersedes_decision_id, idempotency_key,
+               request_fingerprint, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            (decision_id, account_id, opportunity_id, decision_type, requested_decided_at or created_at,
+             actor_id, actor_type, json.dumps(reason_codes, ensure_ascii=False), freeform_note,
+             json.dumps(blockers, ensure_ascii=False), json.dumps(unknowns, ensure_ascii=False),
+             readiness_ref, json.dumps(evidence_refs, ensure_ascii=False), opportunity_revision_ref,
+             opportunity_state_json, confidence, previous["decision_id"] if previous else None,
+             idempotency_key, fingerprint, created_at),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     return _decode(conn.execute("SELECT * FROM opportunity_pursuit_decisions WHERE decision_id=?", (decision_id,)).fetchone()), True
