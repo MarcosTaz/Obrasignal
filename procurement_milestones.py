@@ -1,12 +1,11 @@
 """Canonical procurement milestone model and deterministic read helpers.
 
-This capability deliberately does not notify, recommend, fetch live data, or mutate
-source records. It consumes normalized opportunity/source records and preserves
-source precision, timezone semantics, provenance, lot/stage scope and revisions.
+No alerts, recommendations, live fetches, source mutation, or workflow actions live
+here. Source adapters provide facts; this capability preserves temporal semantics.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from enum import Enum
 from hashlib import sha256
@@ -75,14 +74,18 @@ class ResolutionState(str, Enum):
 
 
 TYPE_REGISTRY: dict[MilestoneType, dict[str, object]] = {
-    kind: {"label": kind.value.replace("_", " ").title(), "critical": kind in {
-        MilestoneType.SITE_VISIT_REGISTRATION,
-        MilestoneType.QUESTIONS_DEADLINE,
-        MilestoneType.EOI_DEADLINE,
-        MilestoneType.QUALIFICATION_DEADLINE,
-        MilestoneType.BID_SUBMISSION_DEADLINE,
-        MilestoneType.GUARANTEE_DEADLINE,
-    }} for kind in MilestoneType
+    kind: {
+        "label": kind.value.replace("_", " ").title(),
+        "critical": kind in {
+            MilestoneType.SITE_VISIT_REGISTRATION,
+            MilestoneType.QUESTIONS_DEADLINE,
+            MilestoneType.EOI_DEADLINE,
+            MilestoneType.QUALIFICATION_DEADLINE,
+            MilestoneType.BID_SUBMISSION_DEADLINE,
+            MilestoneType.GUARANTEE_DEADLINE,
+        },
+    }
+    for kind in MilestoneType
 }
 
 FIELD_REGISTRY: dict[str, MilestoneType] = {
@@ -111,6 +114,46 @@ FIELD_REGISTRY: dict[str, MilestoneType] = {
 }
 
 
+def _text(value) -> str:
+    return str(value or "").strip()
+
+
+def _parse_datetime(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _validate_partial(precision: DatePrecision, value: str) -> None:
+    if precision == DatePrecision.EXACT_DATETIME:
+        _parse_datetime(value)
+    elif precision == DatePrecision.DATE:
+        date.fromisoformat(value)
+    elif precision == DatePrecision.MONTH:
+        if len(value) != 7 or value[4] != "-" or not value[:4].isdigit() or not value[5:].isdigit() or not 1 <= int(value[5:]) <= 12:
+            raise ValueError(f"invalid month: {value}")
+    elif precision == DatePrecision.QUARTER:
+        parts = value.upper().split()
+        if len(parts) != 2 or parts[0] not in {"Q1", "Q2", "Q3", "Q4"} or not parts[1].isdigit():
+            raise ValueError(f"invalid quarter: {value}")
+    elif precision == DatePrecision.YEAR:
+        if len(value) != 4 or not value.isdigit():
+            raise ValueError(f"invalid year: {value}")
+
+
+def _range_order(value: str) -> tuple[int, str]:
+    text = _text(value)
+    try:
+        parsed = _parse_datetime(text)
+        if parsed.tzinfo:
+            return (0, parsed.astimezone(timezone.utc).isoformat())
+        return (0, parsed.isoformat())
+    except ValueError:
+        pass
+    try:
+        return (1, date.fromisoformat(text).isoformat())
+    except ValueError:
+        return (2, text)
+
+
 @dataclass(frozen=True)
 class TemporalValue:
     precision: DatePrecision
@@ -123,10 +166,12 @@ class TemporalValue:
         if self.precision == DatePrecision.RANGE:
             if not self.start or not self.end:
                 raise ValueError("RANGE requires start and end")
-            if _sort_key(self.start) > _sort_key(self.end):
+            if _range_order(self.start) > _range_order(self.end):
                 raise ValueError("invalid date range: start is after end")
-        elif self.precision != DatePrecision.UNKNOWN and not self.value:
-            raise ValueError(f"{self.precision.value} requires value")
+        elif self.precision != DatePrecision.UNKNOWN:
+            if not self.value:
+                raise ValueError(f"{self.precision.value} requires value")
+            _validate_partial(self.precision, self.value)
         if self.timezone_name:
             try:
                 ZoneInfo(self.timezone_name)
@@ -157,6 +202,8 @@ class ProcurementMilestone:
     def __post_init__(self):
         if not self.opportunity_id:
             raise ValueError("opportunity_id is required")
+        if not self.milestone_id:
+            raise ValueError("milestone_id is required")
         if not 0.0 <= float(self.confidence) <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
         if len(self.native_label) > MAX_LABEL_LENGTH:
@@ -180,21 +227,6 @@ class MilestoneView:
     temporal_status: str
 
 
-def _text(value) -> str:
-    return str(value or "").strip()
-
-
-def _sort_key(value: str) -> tuple:
-    text = _text(value)
-    try:
-        return (0, datetime.fromisoformat(text.replace("Z", "+00:00")))
-    except ValueError:
-        try:
-            return (1, date.fromisoformat(text[:10]))
-        except ValueError:
-            return (2, text)
-
-
 def _infer_temporal(value, *, timezone_name=None, precision=None) -> TemporalValue:
     if isinstance(value, Mapping):
         p = DatePrecision(_text(value.get("precision") or precision or "UNKNOWN").upper())
@@ -209,40 +241,28 @@ def _infer_temporal(value, *, timezone_name=None, precision=None) -> TemporalVal
     if not text:
         return TemporalValue(DatePrecision.UNKNOWN)
     if precision:
-        p = DatePrecision(str(precision).upper())
+        p = DatePrecision(_text(precision).upper())
     elif "T" in text or (":" in text and len(text) >= 13):
         p = DatePrecision.EXACT_DATETIME
     elif len(text) == 10 and text[4:5] == "-" and text[7:8] == "-":
-        date.fromisoformat(text)
         p = DatePrecision.DATE
     elif len(text) == 7 and text[4:5] == "-":
-        year, month = text.split("-", 1)
-        if not (year.isdigit() and month.isdigit() and 1 <= int(month) <= 12):
-            raise ValueError(f"invalid month: {text}")
         p = DatePrecision.MONTH
     elif text.upper().startswith("Q") and len(text.split()) == 2:
-        quarter, year = text.upper().split()
-        if quarter not in {"Q1", "Q2", "Q3", "Q4"} or not year.isdigit():
-            raise ValueError(f"invalid quarter: {text}")
         p = DatePrecision.QUARTER
     elif len(text) == 4 and text.isdigit():
         p = DatePrecision.YEAR
     else:
         p = DatePrecision.APPROXIMATE
-    tz = _text(timezone_name) or None
-    if p == DatePrecision.EXACT_DATETIME:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        if parsed.tzinfo is None and not tz:
-            tz = None  # intentionally unknown; never assume UTC
-        elif tz:
-            ZoneInfo(tz)
-    return TemporalValue(p, value=text, timezone_name=tz)
+    return TemporalValue(p, value=text, timezone_name=_text(timezone_name) or None)
 
 
 def _milestone_id(opportunity_id: str, kind: MilestoneType, temporal: TemporalValue, *, lot_id="", stage="", source_ref="", source_field="") -> str:
-    material = "|".join((opportunity_id, lot_id, stage, kind.value, temporal.precision.value,
-                         temporal.value or "", temporal.start or "", temporal.end or "",
-                         temporal.timezone_name or "", source_ref, source_field))
+    material = "|".join((
+        opportunity_id, lot_id, stage, kind.value, temporal.precision.value,
+        temporal.value or "", temporal.start or "", temporal.end or "",
+        temporal.timezone_name or "", source_ref, source_field,
+    ))
     return sha256(material.encode("utf-8")).hexdigest()[:24]
 
 
@@ -250,135 +270,171 @@ def _from_explicit(opportunity_id: str, item: Mapping, record: Mapping) -> Procu
     kind = MilestoneType(_text(item.get("type") or "UNKNOWN").upper())
     temporal_raw = item.get("temporal") if isinstance(item.get("temporal"), Mapping) else item.get("value")
     if temporal_raw is None and (item.get("start") or item.get("end")):
-        temporal_raw = {"precision": "RANGE", "start": item.get("start"), "end": item.get("end"), "timezone": item.get("timezone")}
+        temporal_raw = {
+            "precision": "RANGE", "start": item.get("start"), "end": item.get("end"),
+            "timezone": item.get("timezone"),
+        }
     temporal = _infer_temporal(temporal_raw, timezone_name=item.get("timezone"), precision=item.get("precision"))
     source_ref = _text(item.get("source_ref") or record.get("source_reference") or record.get("external_id"))
     source_field = _text(item.get("source_field"))
     lot_id = _text(item.get("lot_id"))
     stage = _text(item.get("stage"))
-    mid = _text(item.get("milestone_id")) or _milestone_id(opportunity_id, kind, temporal, lot_id=lot_id, stage=stage, source_ref=source_ref, source_field=source_field)
+    mid = _text(item.get("milestone_id")) or _milestone_id(
+        opportunity_id, kind, temporal, lot_id=lot_id, stage=stage,
+        source_ref=source_ref, source_field=source_field,
+    )
     return ProcurementMilestone(
-        milestone_id=mid, opportunity_id=opportunity_id, milestone_type=kind, temporal=temporal,
+        milestone_id=mid,
+        opportunity_id=opportunity_id,
+        milestone_type=kind,
+        temporal=temporal,
         basis=DateBasis(_text(item.get("basis") or "OFFICIAL").upper()),
         requirement_level=RequirementLevel(_text(item.get("requirement_level") or "UNKNOWN").upper()),
-        source=_text(item.get("source") or record.get("source")), source_ref=source_ref,
-        source_field=source_field, native_label=_text(item.get("native_label")), lot_id=lot_id,
-        stage=stage, confidence=float(item.get("confidence", 1.0)),
+        source=_text(item.get("source") or record.get("source")),
+        source_ref=source_ref,
+        source_field=source_field,
+        native_label=_text(item.get("native_label")),
+        lot_id=lot_id,
+        stage=stage,
+        confidence=float(item.get("confidence", 1.0)),
         supersedes_milestone_id=_text(item.get("supersedes_milestone_id")) or None,
-        cancelled=bool(item.get("cancelled", False)), revision_key=_text(item.get("revision_key")),
+        cancelled=bool(item.get("cancelled", False)),
+        revision_key=_text(item.get("revision_key")),
     )
 
 
 def normalize_milestones(source_record: Mapping) -> tuple[ProcurementMilestone, ...]:
-    """Normalize one already-ingested source record without mutating it.
-
-    Adapters may expose rich entries through ``milestones``. Legacy flattened fields
-    are mapped conservatively; no time, timezone, mandatory flag or legal date is
-    invented. Duplicate logical facts from the same source version are suppressed.
-    """
+    """Normalize an already-ingested source record without mutating it."""
     if not isinstance(source_record, Mapping):
         raise TypeError("source_record must be a mapping")
     opportunity_id = _text(source_record.get("opportunity_id") or source_record.get("external_id"))
     if not opportunity_id:
         raise ValueError("source_record requires opportunity_id or external_id")
+
     out: list[ProcurementMilestone] = []
     explicit = source_record.get("milestones")
     if isinstance(explicit, (list, tuple)):
-        for item in explicit:
-            if isinstance(item, Mapping):
-                out.append(_from_explicit(opportunity_id, item, source_record))
+        out.extend(_from_explicit(opportunity_id, item, source_record) for item in explicit if isinstance(item, Mapping))
 
-    seen_types = {(m.milestone_type, m.lot_id, m.stage) for m in out}
+    occupied_unscoped_types = {(m.milestone_type, m.lot_id, m.stage) for m in out}
     for field, kind in FIELD_REGISTRY.items():
         raw = source_record.get(field)
-        if raw in (None, ""):
-            continue
-        # Prefer explicit rich milestone of same unscoped type over a flattened alias.
-        if (kind, "", "") in seen_types:
+        if raw in (None, "") or (kind, "", "") in occupied_unscoped_types:
             continue
         temporal = _infer_temporal(raw, timezone_name=source_record.get(f"{field}_timezone"))
         source_ref = _text(source_record.get("source_reference") or source_record.get("external_id"))
-        mid = _milestone_id(opportunity_id, kind, temporal, source_ref=source_ref, source_field=field)
         requirement = RequirementLevel.UNKNOWN
         if kind == MilestoneType.SITE_VISIT:
             marker = source_record.get("site_visit_mandatory")
-            if marker is True:
-                requirement = RequirementLevel.MANDATORY
-            elif marker is False:
-                requirement = RequirementLevel.OPTIONAL
+            requirement = RequirementLevel.MANDATORY if marker is True else RequirementLevel.OPTIONAL if marker is False else RequirementLevel.UNKNOWN
         out.append(ProcurementMilestone(
-            milestone_id=mid, opportunity_id=opportunity_id, milestone_type=kind, temporal=temporal,
-            basis=DateBasis.OFFICIAL, requirement_level=requirement,
-            source=_text(source_record.get("source")), source_ref=source_ref, source_field=field,
-            native_label=field, revision_key=_text(source_record.get("amendment_number") or source_record.get("source_updated_at")),
+            milestone_id=_milestone_id(opportunity_id, kind, temporal, source_ref=source_ref, source_field=field),
+            opportunity_id=opportunity_id,
+            milestone_type=kind,
+            temporal=temporal,
+            basis=DateBasis.OFFICIAL,
+            requirement_level=requirement,
+            source=_text(source_record.get("source")),
+            source_ref=source_ref,
+            source_field=field,
+            native_label=field,
+            revision_key=_text(source_record.get("amendment_number") or source_record.get("source_updated_at")),
         ))
+        occupied_unscoped_types.add((kind, "", ""))
 
     deduped: list[ProcurementMilestone] = []
-    fingerprints = set()
+    fingerprints: set[str] = set()
     for milestone in out:
-        if milestone.fingerprint in fingerprints:
-            continue
-        fingerprints.add(milestone.fingerprint)
-        deduped.append(milestone)
-    return tuple(sorted(deduped, key=lambda m: (m.milestone_type.value, m.lot_id, m.stage, _sort_key(m.temporal.value or m.temporal.start or ""))))
+        if milestone.fingerprint not in fingerprints:
+            fingerprints.add(milestone.fingerprint)
+            deduped.append(milestone)
+    return tuple(sorted(deduped, key=lambda m: (
+        m.milestone_type.value, m.lot_id, m.stage,
+        _range_order(m.temporal.value or m.temporal.start or ""), m.milestone_id,
+    )))
 
 
 def resolve_current_milestones(milestones: Iterable[ProcurementMilestone], *, now: datetime) -> tuple[MilestoneView, ...]:
-    """Resolve supersession/conflicts while preserving every historical milestone."""
+    """Resolve explicit supersession/conflicts while preserving full history."""
     if now.tzinfo is None:
         raise ValueError("injected clock must be timezone-aware")
     items = tuple(milestones)
-    by_id = {m.milestone_id: m for m in items}
+    ids = {m.milestone_id for m in items}
+    for m in items:
+        if m.supersedes_milestone_id and m.supersedes_milestone_id not in ids:
+            raise ValueError(f"superseded milestone not present: {m.supersedes_milestone_id}")
     superseded = {m.supersedes_milestone_id for m in items if m.supersedes_milestone_id}
     groups: dict[tuple, list[ProcurementMilestone]] = {}
     for m in items:
         groups.setdefault((m.opportunity_id, m.lot_id, m.stage, m.milestone_type), []).append(m)
 
     views: list[MilestoneView] = []
-    for key, group in groups.items():
+    for group in groups.values():
         active = [m for m in group if m.milestone_id not in superseded and not m.cancelled]
-        distinct_values = {(m.temporal.precision, m.temporal.value, m.temporal.start, m.temporal.end, m.temporal.timezone_name) for m in active}
+        distinct_values = {
+            (m.temporal.precision, m.temporal.value, m.temporal.start, m.temporal.end, m.temporal.timezone_name)
+            for m in active
+        }
         conflict = len(active) > 1 and len(distinct_values) > 1
         for m in group:
-            if m.cancelled:
-                resolution = ResolutionState.CANCELLED
-            elif m.milestone_id in superseded:
-                resolution = ResolutionState.SUPERSEDED
-            elif conflict:
-                resolution = ResolutionState.NEEDS_VERIFICATION
-            else:
-                resolution = ResolutionState.CURRENT
+            resolution = (
+                ResolutionState.CANCELLED if m.cancelled else
+                ResolutionState.SUPERSEDED if m.milestone_id in superseded else
+                ResolutionState.NEEDS_VERIFICATION if conflict else
+                ResolutionState.CURRENT
+            )
             views.append(MilestoneView(m, resolution, temporal_status(m, now=now)))
-    return tuple(sorted(views, key=lambda v: (v.milestone.milestone_type.value, v.milestone.lot_id, v.milestone.stage, v.milestone.milestone_id)))
+    return tuple(sorted(views, key=lambda v: (
+        v.milestone.milestone_type.value, v.milestone.lot_id,
+        v.milestone.stage, v.milestone.milestone_id,
+    )))
+
+
+def _exact_instant(temporal: TemporalValue) -> datetime | None:
+    if temporal.precision != DatePrecision.EXACT_DATETIME or not temporal.value:
+        return None
+    parsed = _parse_datetime(temporal.value)
+    if parsed.tzinfo is None:
+        if not temporal.timezone_name:
+            return None
+        parsed = parsed.replace(tzinfo=ZoneInfo(temporal.timezone_name))
+    return parsed.astimezone(timezone.utc)
 
 
 def temporal_status(milestone: ProcurementMilestone, *, now: datetime) -> str:
     if now.tzinfo is None:
         raise ValueError("injected clock must be timezone-aware")
-    t = milestone.temporal
-    if t.precision == DatePrecision.EXACT_DATETIME and t.value:
-        parsed = datetime.fromisoformat(t.value.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            if not t.timezone_name:
-                return "UNKNOWN"
-            parsed = parsed.replace(tzinfo=ZoneInfo(t.timezone_name))
-        delta = parsed.astimezone(timezone.utc) - now.astimezone(timezone.utc)
-        if delta.total_seconds() < 0:
+    temporal = milestone.temporal
+    instant = _exact_instant(temporal)
+    if instant is not None:
+        current = now.astimezone(timezone.utc)
+        if instant < current:
             return "PASSED"
-        if parsed.astimezone(timezone.utc).date() == now.astimezone(timezone.utc).date():
+        if instant.date() == current.date():
             return "TODAY"
         return "UPCOMING"
-    if t.precision == DatePrecision.DATE and t.value:
-        target = date.fromisoformat(t.value)
-        current = now.date()
-        return "PASSED" if target < current else "TODAY" if target == current else "UPCOMING"
+    if temporal.precision == DatePrecision.DATE and temporal.value:
+        target = date.fromisoformat(temporal.value)
+        current_date = now.date()
+        return "PASSED" if target < current_date else "TODAY" if target == current_date else "UPCOMING"
     return "UNKNOWN"
 
 
+def _next_order(milestone: ProcurementMilestone) -> tuple[int, object]:
+    instant = _exact_instant(milestone.temporal)
+    if instant is not None:
+        return (0, instant)
+    if milestone.temporal.precision == DatePrecision.DATE and milestone.temporal.value:
+        return (1, date.fromisoformat(milestone.temporal.value))
+    return (2, milestone.milestone_id)
+
+
 def next_upcoming_milestone(milestones: Iterable[ProcurementMilestone], *, now: datetime) -> ProcurementMilestone | None:
-    current = [v.milestone for v in resolve_current_milestones(milestones, now=now)
-               if v.resolution == ResolutionState.CURRENT and v.temporal_status in {"TODAY", "UPCOMING"}
-               and v.milestone.temporal.precision in {DatePrecision.EXACT_DATETIME, DatePrecision.DATE}]
-    if not current:
-        return None
-    return min(current, key=lambda m: _sort_key(m.temporal.value or ""))
+    current = [
+        view.milestone
+        for view in resolve_current_milestones(milestones, now=now)
+        if view.resolution == ResolutionState.CURRENT
+        and view.temporal_status in {"TODAY", "UPCOMING"}
+        and view.milestone.temporal.precision in {DatePrecision.EXACT_DATETIME, DatePrecision.DATE}
+    ]
+    return min(current, key=_next_order) if current else None
