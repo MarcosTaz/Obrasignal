@@ -18,14 +18,10 @@ QUOTE=SourceEvidence("supplier quote", EvidenceBasis.SUPPLIER_QUOTE, NOW)
 ROUTE=SourceEvidence("route provider", EvidenceBasis.PROVIDER_FACT, NOW)
 
 def test_product_1_daily_commute_vs_accommodation_for_10_workers_12_weeks():
-    # 60 workdays, 300 km one-way, 10 L/100km, €1.80/L, round trip daily.
     commute=assess_route_cost(RouteFacts(300,180,DistanceBasis.ROAD_PROVIDER,ROUTE), VehicleEconomics(10,FuelObservation(Money.of('1.8','EUR'),'PT',OBS)), direction=RouteDirection.ROUND_TRIP, number_of_trips=60, tolls_known=True)
     hotel=AccommodationCandidate('h','Crew hotel',AccommodationType.HOTEL,Money.of(70,'EUR'),RateBasis.ROOM_PER_NIGHT,2,OBS,ConfirmationState.AVAILABILITY_CONFIRMED)
     stay=assess_accommodation(hotel,crew_size=10,nights=84,now=NOW)
-    result=compare_cost_options((
-        CostOption('daily_commute',commute.assessment,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'crew_strategy'),
-        CostOption('accommodation',stay.assessment,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'crew_strategy'),
-    ))
+    result=compare_cost_options((CostOption('daily_commute',commute.assessment,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'crew_strategy'),CostOption('accommodation',stay.assessment,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'crew_strategy')))
     assert commute.assessment.known_total.amount == Decimal('6480.0')
     assert stay.assessment.known_total.amount == Decimal('29400')
     assert result.winner_id == 'daily_commute'
@@ -36,10 +32,7 @@ def test_product_2_cheaper_raw_supplier_can_lose_on_landed_cost():
     pb=MaterialPriceObservation('b','x','B','m2',Money.of('8.5','EUR'),TaxBasis.VAT_INCLUDED,OBS,Visibility.PUBLIC,availability=Availability.AVAILABLE)
     a=assess_landed_cost(req,pa,delivery=CostLine('delivery',Money.of(2500,'EUR'),CostBasis.ESTIMATE,OBS))
     b=assess_landed_cost(req,pb,delivery=CostLine('delivery',Money.of(200,'EUR'),CostBasis.QUOTE,QUOTE))
-    result=compare_cost_options((
-        CostOption('A',a.assessment,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'same_spec'),
-        CostOption('B',b.assessment,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'same_spec'),
-    ))
+    result=compare_cost_options((CostOption('A',a.assessment,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'same_spec'),CostOption('B',b.assessment,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'same_spec')))
     assert pa.unit_price.amount < pb.unit_price.amount
     assert a.assessment.known_total.amount == 18500
     assert b.assessment.known_total.amount == 17200
@@ -48,10 +41,7 @@ def test_product_2_cheaper_raw_supplier_can_lose_on_landed_cost():
 def test_product_3_equipment_local_vs_remote_transport_for_8_weeks():
     local=assess_equipment(EquipmentOption('local','lift',EquipmentMode.RENT,1,Money.of(600,'EUR'),RentalRateBasis.WEEKLY,8,Availability.AVAILABLE,OBS))
     remote=assess_equipment(EquipmentOption('remote','lift',EquipmentMode.RENT,1,Money.of(430,'EUR'),RentalRateBasis.WEEKLY,8,Availability.AVAILABLE,OBS,transport=Money.of(900,'EUR')))
-    r=compare_cost_options((
-        CostOption('local',local.economic,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'lift'),
-        CostOption('remote',remote.economic,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'lift'),
-    ))
+    r=compare_cost_options((CostOption('local',local.economic,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'lift'),CostOption('remote',remote.economic,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'lift')))
     assert local.economic.known_total.amount==4800
     assert remote.economic.known_total.amount==4340
     assert r.winner_id=='remote'
@@ -63,10 +53,9 @@ def test_product_4_hotel_vs_apartment_structure_and_local_commute_can_be_compose
     aa=assess_accommodation(a,crew_size=8,nights=30,now=NOW)
     assert ha.assessment.known_total.amount==8400
     assert aa.assessment.known_total.amount==8400
-    # Add 30 round-trip local commutes using the same explicit vehicle/fuel policy.
     v=VehicleEconomics(10,FuelObservation(Money.of('1.8','EUR'),'PT',OBS))
-    hotel_local=assess_route_cost(RouteFacts(3,8,DistanceBasis.ROAD_PROVIDER,ROUTE),v,direction=RouteDirection.ROUND_TRIP,number_of_trips=30, tolls_known=True)
-    apt_local=assess_route_cost(RouteFacts(18,25,DistanceBasis.ROAD_PROVIDER,ROUTE),v,direction=RouteDirection.ROUND_TRIP,number_of_trips=30, tolls_known=True)
+    hotel_local=assess_route_cost(RouteFacts(3,8,DistanceBasis.ROAD_PROVIDER,ROUTE),v,direction=RouteDirection.ROUND_TRIP,number_of_trips=30,tolls_known=True)
+    apt_local=assess_route_cost(RouteFacts(18,25,DistanceBasis.ROAD_PROVIDER,ROUTE),v,direction=RouteDirection.ROUND_TRIP,number_of_trips=30,tolls_known=True)
     hotel_total=combine_assessments(ha.assessment,hotel_local.assessment)
     apt_total=combine_assessments(aa.assessment,apt_local.assessment)
     result=compare_cost_options((CostOption('hotel',hotel_total,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'lodging_plus_commute'),CostOption('apt',apt_total,Availability.AVAILABLE,ConfirmationState.AVAILABILITY_CONFIRMED,'lodging_plus_commute')))
@@ -76,7 +65,7 @@ def test_product_4_hotel_vs_apartment_structure_and_local_commute_can_be_compose
     assert result.savings_vs_next.amount == Decimal('162.00')
 
 def test_product_5_known_900k_with_material_unknown_is_not_true_job_cost():
-    known=assess_cost_lines((CostLine('known',Money.of(900000,'EUR'),CostBasis.FACT),)
+    known=assess_cost_lines((CostLine('known',Money.of(900000,'EUR'),CostBasis.FACT),))
     unknown=assess_cost_lines((),unknown_components=('potential_materials_300k',))
     total=assess_true_job_cost((JobCostContribution(JobCostCategory.DIRECT_KNOWN_COST,known),JobCostContribution(JobCostCategory.MATERIAL_LANDED_COST,unknown)))
     assert total.assessment.known_total.amount==900000
