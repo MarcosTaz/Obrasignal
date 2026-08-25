@@ -18,7 +18,7 @@ def test_exactly_one_canonical_active_item():
     assert CANONICAL_QUEUE_NAME == "OBRASIGNAL_MASTER_EXECUTION_QUEUE"
     active = [item for item in MASTER_EXECUTION_QUEUE if item.state == "ACTIVE"]
     assert len(active) == 1
-    assert active[0].id == CURRENT_ITEM_ID == "Q070_SHARED_FAMILIES"
+    assert active[0].id == CURRENT_ITEM_ID == "Q080_EVIDENCE_GRAPH_V1"
     assert current_item() == active[0]
 
 
@@ -33,6 +33,8 @@ def test_country_specific_external_gates_do_not_block_shared_families():
     assert items["Q050_US_SAM"].state == "DONE"
     assert items["Q060_CHILE_MERCADOPUBLICO"].state == "GATED"
     assert "Q030_BR_PNCP_PCA" not in items["Q070_SHARED_FAMILIES"].dependencies
+    assert items["Q070_SHARED_FAMILIES"].state == "DONE"
+    assert items["Q080_EVIDENCE_GRAPH_V1"].state == "ACTIVE"
 
 
 def test_queue_is_total_order_with_unique_ids_and_backward_dependencies():
@@ -45,14 +47,14 @@ def test_queue_is_total_order_with_unique_ids_and_backward_dependencies():
             assert position[dependency] < position[item.id]
 
 
-def test_single_master_priority_continues_after_shared_families():
+def test_single_master_priority_continues_after_evidence_graph():
     ready = executable_after_current()
     assert ready == next_executable_after_current()
     assert "Q030_BR_PNCP_PCA" not in {item.id for item in ready}
     assert "Q060_CHILE_MERCADOPUBLICO" not in {item.id for item in ready}
     assert all(item.state == "QUEUED" for item in ready)
-    assert ready[0].id == "Q080_EVIDENCE_GRAPH_V1"
-    assert next_item_after_current().id == "Q080_EVIDENCE_GRAPH_V1"
+    assert ready[0].id == "Q090_COMPANY_STATE_CONTRACT"
+    assert next_item_after_current().id == "Q090_COMPANY_STATE_CONTRACT"
 
 
 def test_all_six_target_layers_are_in_same_queue():
