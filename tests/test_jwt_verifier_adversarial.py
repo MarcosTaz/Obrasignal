@@ -1,6 +1,7 @@
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import jwt
 import pytest
@@ -196,3 +197,12 @@ def test_too_old_stale_key_does_not_mask_provider_outage(monkeypatch):
 
     with pytest.raises(JwksUnavailableError):
         verifier._key_for("stale-key")
+
+
+def test_q080_integration_preserves_native_jwks_and_disabled_evidence_defaults():
+    """Integration-only guard for the Auth/render semantic union and live-gate trigger."""
+    render = (Path(__file__).resolve().parents[1] / "render.yaml").read_text(encoding="utf-8")
+    assert "OBRASIGNAL_JWT_ISSUER" in render
+    assert "OBRASIGNAL_JWKS_URL" not in render
+    assert '- key: OBRASIGNAL_FEATURE_EVIDENCE_GRAPH_V1\n        value: "false"' in render
+    assert '- key: OBRASIGNAL_KILL_EVIDENCE_GRAPH_V1\n        value: "false"' in render
