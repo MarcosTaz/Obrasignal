@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createTenantStorage } from './tenantStorage';
 
 const KEYS = {
   saved: '@obrasignal/v1/saved',
@@ -21,15 +22,38 @@ async function readJson(key, fallback) {
   } catch (_) { return fallback; }
 }
 
+const privateStorage = createTenantStorage(AsyncStorage);
+let activePrivateTenant = null;
+
+function requirePrivateTenant() {
+  if (!activePrivateTenant) throw new Error('Private storage is not bound to an authenticated account');
+  return activePrivateTenant;
+}
+
 export const storage = {
-  getSaved: () => readJson(KEYS.saved, []),
-  setSaved: (ids) => AsyncStorage.setItem(KEYS.saved, JSON.stringify(ids)),
+  async bindPrivateTenant(accountId) {
+    // Clear the in-memory binding before any async work so private reads fail
+    // closed while an account transition is in progress.
+    activePrivateTenant = null;
+    const next = await privateStorage.bindTenant(accountId);
+    activePrivateTenant = next;
+    return next;
+  },
+  async purgePrivateTenant(accountId = activePrivateTenant) {
+    if (!accountId) return;
+    await privateStorage.purgeTenant(accountId);
+    if (activePrivateTenant === String(accountId).trim()) activePrivateTenant = null;
+  },
+  getActivePrivateTenant: () => activePrivateTenant,
+
+  getSaved: () => activePrivateTenant ? privateStorage.getSaved(activePrivateTenant) : Promise.resolve([]),
+  setSaved: (ids) => privateStorage.setSaved(requirePrivateTenant(), ids),
   getSettings: async () => ({ ...DEFAULT_SETTINGS, ...(await readJson(KEYS.settings, {})) }),
   setSettings: (settings) => AsyncStorage.setItem(KEYS.settings, JSON.stringify(settings)),
-  getCache: () => readJson(KEYS.cache, null),
-  setCache: (payload) => AsyncStorage.setItem(KEYS.cache, JSON.stringify({ ...payload, cachedAt: new Date().toISOString() })),
-  getProfile: () => readJson(KEYS.profile, null),
-  setProfile: (profile) => AsyncStorage.setItem(KEYS.profile, JSON.stringify(profile)),
+  getCache: () => activePrivateTenant ? privateStorage.getCache(activePrivateTenant) : Promise.resolve(null),
+  setCache: (payload) => privateStorage.setCache(requirePrivateTenant(), payload),
+  getProfile: () => activePrivateTenant ? privateStorage.getProfile(activePrivateTenant) : Promise.resolve(null),
+  setProfile: (profile) => privateStorage.setProfile(requirePrivateTenant(), profile),
 };
 
 export { KEYS, DEFAULT_SETTINGS };
