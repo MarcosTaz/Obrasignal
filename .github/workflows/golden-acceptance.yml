@@ -33,3 +33,4 @@ jobs:
           tests/test_commercial_readiness_acceptance.py
           tests/test_source_coverage_commercial_acceptance.py
           tests/test_account_lifecycle_commercial_acceptance.py
+          tests/test_mobile_customer_truth_acceptance.py
