@@ -30,6 +30,32 @@ Canonical snapshot: `main@66d43f6fd51cf9cea08016dad335aaa04b711a24`. `UNKNOWN` f
 
 `operability_acceptance.py` encodes liveness != readiness. DB/worker/dependency/correlation UNKNOWN or degraded/unavailable/stalled keeps `NO_GO`; even full operability READY does not equal release GO. Runtime implementation remains #248/Support ownership.
 
+## Automatic production CI safety acceptance
+
+`production_ci_safety.py` is an acceptance/diagnostic contract only; it does not repair #414 or own the Auth workflow.
+
+For the current canonical `authenticated-e2e.yml` it classifies:
+
+`UNSAFE_AUTOMATIC_PRODUCTION_WRITE`
+
+because the same workflow is automatically triggered by `push main`/nightly, targets the production API, and contains production `POST` writes. A trap/restore block does not neutralize the mutation: a failed/interrupted run can strand changed state.
+
+The contract distinguishes:
+
+- `READ_ONLY_AUTOMATIC_PRODUCTION` — the required automatic-production safety state;
+- `UNSAFE_AUTOMATIC_PRODUCTION_WRITE` — fail closed;
+- `MANUAL_PRODUCTION_WRITE_REQUIRES_AUTHORIZATION` — not automatic, but still outside autonomous production mutation authority;
+- `UNKNOWN_AUTOMATIC_TARGET` — fail closed rather than assume safety.
+
+Run against the exact checked-out canonical workflow:
+
+```bash
+python production_ci_safety.py --json
+python production_ci_safety.py --require-read-only
+```
+
+#414/Release owns the workflow repair. Deterministic write-path acceptance belongs in an isolated non-production fixture/integration environment.
+
 ## #68 browser preflight
 
 `web_production_browser_preflight.py` + JSON require one exact deployed build and privacy-safe evidence. Required FAIL/UNKNOWN/BLOCKED_EXTERNAL, skips, build mismatch, tenant leak, unsafe evidence capture or false empty/degraded state keep #68 `NO_GO`. Saved/watch is not current RC1 unless canonical; #352 self-service purchase is separate.
@@ -45,7 +71,7 @@ The benchmark measures `POST /profile -> save_profile -> bootstrap_account -> im
 2. Keep #68 physical browser `EXTERNAL / NO_GO`.
 3. Track #415 failing-before through Billing owner repair without touching #83 security work.
 4. Track #410 Notification×Privacy lifecycle RED; never weaken completeness guards.
-5. Track #414 production-mutating Auth E2E safety repair; never use restore-based production mutation as customer acceptance.
+5. Track #414 production-mutating Auth E2E safety repair; `production_ci_safety.py --require-read-only` must fail until the exact canonical workflow is truly read-only.
 6. Consume #335/#408/#400/#412 without treating integration GREEN as canonical tenant readiness.
 7. Keep performance measurement separate from optimization/SLO claims.
 
@@ -54,7 +80,7 @@ The benchmark measures `POST /profile -> save_profile -> bootstrap_account -> im
 2. Execute #68 physical browser proof when legitimate interactive access exists.
 3. Consume Notification lifecycle semantics for `push_devices`/`push_deliveries`; retest Privacy composition.
 4. Consume Billing deletion-terminal repair + existing Security repair; rerun Billing Security/full Quality; compose Privacy/Billing/Golden.
-5. Consume #414 exact-head GREEN read-only automatic E2E; route write-path proof through isolated fixture integration.
+5. Consume #414 exact-head GREEN read-only automatic E2E; rerun automatic-production CI safety acceptance and route write-path proof through isolated fixture integration.
 6. Consume Auth #289 nested workflow parser repair; rerun FULL deterministic fixture journey.
 7. Consume any #238 performance repair and remeasure.
 8. Consume #281 only after canonical + independent Golden Source Health acceptance.
