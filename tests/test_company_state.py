@@ -46,7 +46,12 @@ def test_known_zero_vehicle_availability_stays_zero():
     available = fact(FactCategory.AVAILABILITY, "vehicle.available_count", 0, unit="vehicles")
     out = mobilize_inputs(state(available))
     assert out["own_vehicles_available"] == {
-        "state": "KNOWN", "value": 0, "fact_ids": [available.fact_id], "reason": None,
+        "state": "KNOWN",
+        "value": 0,
+        "fact_ids": [available.fact_id],
+        "reason": None,
+        "knowledge_states": ["FACT"],
+        "provenance_bases": ["DECLARED"],
     }
 
 
@@ -69,12 +74,40 @@ def test_future_availability_is_not_current():
     assert mobilize_inputs(state(crew))["workers"]["state"] == "UNKNOWN"
 
 
-def test_stale_fact_is_visible_and_consumer_receives_unknown():
+def test_stale_fact_is_visible_but_not_current_truth():
     crew = fact(FactCategory.AVAILABILITY, "crew.available_count", 4, unit="workers", freshness_until=NOW - timedelta(seconds=1))
     s = state(crew)
     assert crew.freshness(NOW) is FreshnessState.STALE
     assert "crew.available_count" in s.unknowns()
+    assert s.single_current_value("crew.available_count") is None
     assert mobilize_inputs(s)["workers"]["reason"] == "fact_stale"
+
+
+def test_stale_observation_does_not_conflict_with_current_observation():
+    stale = fact(
+        FactCategory.AVAILABILITY,
+        "crew.available_count",
+        4,
+        unit="workers",
+        freshness_until=NOW - timedelta(seconds=1),
+    )
+    current = CompanyFact(
+        FactCategory.AVAILABILITY,
+        "crew.available_count",
+        KnowledgeState.FACT,
+        6,
+        Provenance(ProvenanceBasis.INTEGRATION, source_ref="office", observed_at=NOW),
+        unit="workers",
+        freshness_until=NOW + timedelta(days=1),
+    )
+    s = state(stale, current)
+    assert s.conflicts() == ()
+    assert s.single_current_value("crew.available_count") == 6
+    out = mobilize_inputs(s)["workers"]
+    assert out["state"] == "KNOWN"
+    assert out["value"] == 6
+    assert out["knowledge_states"] == ["FACT"]
+    assert out["provenance_bases"] == ["INTEGRATION"]
 
 
 def test_conflicting_current_counts_are_preserved_not_averaged():
@@ -119,6 +152,24 @@ def test_available_crew_cannot_exceed_known_total():
         state(total, available)
 
 
+def test_stale_total_does_not_constrain_current_available_crew():
+    total = fact(
+        FactCategory.CAPACITY,
+        "crew.total_count",
+        3,
+        unit="workers",
+        freshness_until=NOW - timedelta(seconds=1),
+    )
+    available = fact(FactCategory.AVAILABILITY, "crew.available_count", 4, unit="workers")
+    assert state(total, available).single_current_value("crew.available_count") == 4
+
+
+def test_estimated_total_does_not_become_hard_capacity_invariant():
+    total = fact(FactCategory.CAPACITY, "crew.total_count", 3, knowledge=KnowledgeState.ESTIMATE, unit="workers")
+    available = fact(FactCategory.AVAILABILITY, "crew.available_count", 4, unit="workers")
+    assert state(total, available).single_current_value("crew.available_count") == 4
+
+
 def test_unknown_total_does_not_block_known_available():
     total = CompanyFact(FactCategory.CAPACITY, "crew.total_count", KnowledgeState.UNKNOWN, None, DECLARED, unit="workers")
     available = fact(FactCategory.AVAILABILITY, "crew.available_count", 4, unit="workers")
@@ -150,6 +201,8 @@ def test_financial_constraint_adapter_does_not_decide_no_bid():
     out = economics_constraints(state(limit))
     assert out["maximum_cash_exposure"]["state"] == "KNOWN"
     assert out["maximum_cash_exposure"]["value"] == {"amount": "50000", "currency": "EUR"}
+    assert out["maximum_cash_exposure"]["knowledge_states"] == ["FACT"]
+    assert out["maximum_cash_exposure"]["provenance_bases"] == ["DECLARED"]
     assert "decision" not in out and "no_bid" not in out
 
 
@@ -169,6 +222,24 @@ def test_declared_is_legitimate_without_becoming_verified():
     p = Provenance(ProvenanceBasis.DECLARED, source_ref="manual")
     assert p.basis is ProvenanceBasis.DECLARED
     assert p.verified_at is None
+
+
+def test_learned_is_inference_not_fact():
+    learned = Provenance(ProvenanceBasis.LEARNED, source_ref="future-dna", observed_at=NOW)
+    with pytest.raises(CompanyStateError):
+        CompanyFact(FactCategory.CAPACITY, "crew.productivity_hint", KnowledgeState.FACT, 4, learned, unit="units")
+    inferred = CompanyFact(FactCategory.CAPACITY, "crew.productivity_hint", KnowledgeState.INFERENCE, 4, learned, unit="units")
+    assert inferred.knowledge is KnowledgeState.INFERENCE
+    with pytest.raises(CompanyStateError):
+        CompanyFact(FactCategory.CAPACITY, "crew.productivity_hint", KnowledgeState.INFERENCE, 4, DECLARED, unit="units")
+
+
+def test_unavailable_provenance_can_only_be_unknown():
+    unavailable = Provenance(ProvenanceBasis.UNAVAILABLE, source_ref="provider")
+    with pytest.raises(CompanyStateError):
+        CompanyFact(FactCategory.EQUIPMENT, "equipment.crane", KnowledgeState.FACT, True, unavailable)
+    unknown = CompanyFact(FactCategory.EQUIPMENT, "equipment.crane", KnowledgeState.UNKNOWN, None, unavailable)
+    assert unknown.knowledge is KnowledgeState.UNKNOWN
 
 
 def test_timezone_naive_temporal_inputs_fail_closed():
@@ -236,15 +307,25 @@ def test_duplicate_semantically_identical_fact_is_deduped():
     assert len(state(a, a).facts) == 1
 
 
-def test_quality_summary_is_counts_not_fake_score():
+def test_quality_summary_is_epistemic_counts_not_fake_score():
     known = fact(FactCategory.CAPACITY, "crew.total_count", 10, unit="workers")
+    estimate = fact(FactCategory.CAPACITY, "crew.estimate", 8, knowledge=KnowledgeState.ESTIMATE, unit="workers")
+    assumption = fact(FactCategory.OPERATIONAL_CONSTRAINT, "policy.assumption", True, knowledge=KnowledgeState.ASSUMPTION)
+    inferred = CompanyFact(
+        FactCategory.CAPACITY,
+        "crew.inferred_capacity",
+        KnowledgeState.INFERENCE,
+        7,
+        Provenance(ProvenanceBasis.LEARNED, source_ref="future-dna", observed_at=NOW),
+        unit="workers",
+    )
     unknown = CompanyFact(FactCategory.AVAILABILITY, "crew.available_count", KnowledgeState.UNKNOWN, None, DECLARED, unit="workers")
-    summary = state(known, unknown).quality_summary()
+    summary = state(known, estimate, assumption, inferred, unknown).quality_summary()
     assert summary == {
         "known": 1,
-        "estimate": 0,
-        "assumption": 0,
-        "inference": 0,
+        "estimate": 1,
+        "assumption": 1,
+        "inference": 1,
         "unknown": 1,
         "stale": 0,
         "conflict": 0,
@@ -264,6 +345,22 @@ def test_unknown_monetary_constraint_needs_no_fake_currency():
     out = economics_constraints(state(unknown))
     assert out["maximum_cash_exposure"]["state"] == "UNKNOWN"
     assert out["maximum_cash_exposure"]["reason"] == "explicit_unknown"
+    assert out["maximum_cash_exposure"]["knowledge_states"] == ["UNKNOWN"]
+
+
+def test_adapter_preserves_estimate_basis():
+    estimated = CompanyFact(
+        FactCategory.AVAILABILITY,
+        "crew.available_count",
+        KnowledgeState.ESTIMATE,
+        5,
+        Provenance(ProvenanceBasis.INTEGRATION, source_ref="planning", observed_at=NOW),
+        unit="workers",
+    )
+    out = mobilize_inputs(state(estimated))["workers"]
+    assert out["state"] == "KNOWN"
+    assert out["knowledge_states"] == ["ESTIMATE"]
+    assert out["provenance_bases"] == ["INTEGRATION"]
 
 
 def test_state_deserialization_requires_explicit_as_of_and_rejects_boolean_version():
