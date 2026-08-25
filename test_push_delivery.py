@@ -33,9 +33,9 @@ def test_device_rebind_moves_installation_from_account_a_to_b():
     conn.close()
 
 
-def test_push_submission_is_account_scoped_and_idempotent():
+def test_push_submission_is_account_scoped_idempotent_and_tray_safe():
     conn = _conn()
-    conn.execute("INSERT INTO tenders(id,source,external_id,title,deadline,score,first_seen) VALUES (1,'TED','A-1','Obra A','2099-01-01',95,datetime('now'))")
+    conn.execute("INSERT INTO tenders(id,source,external_id,title,deadline,score,first_seen) VALUES (1,'TED','A-1','Obra A confidencial','2099-01-01',95,datetime('now'))")
     conn.execute("INSERT INTO opportunity_events(account_id,event_key,tender_id,source,event_type,score,created_at) VALUES ('account-a','account-a:ted:a-1',1,'TED','new_high_match',95,datetime('now'))")
     a = register_push_device(conn, "account-a", "install-device-001", "ExpoPushToken[token-a]", "android")
     register_push_device(conn, "account-b", "install-device-002", "ExpoPushToken[token-b]", "android")
@@ -54,6 +54,9 @@ def test_push_submission_is_account_scoped_and_idempotent():
     assert submit_pending_pushes(conn, "account-a", post=post) == 1
     assert len(captured) == 1
     assert captured[0]["to"] == "ExpoPushToken[token-a]"
+    assert captured[0]["title"] == "Nova oportunidade ObraSignal"
+    assert captured[0]["body"] == "Abre o ObraSignal para confirmar uma nova oportunidade."
+    assert "Obra A confidencial" not in str(captured[0])
     assert captured[0]["data"] == {"opportunityId": 1, "eventId": 1, "bindingId": a["binding_id"]}
     assert submit_pending_pushes(conn, "account-a", post=post) == 0
     assert len(captured) == 1
