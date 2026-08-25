@@ -13,6 +13,10 @@ from flask import jsonify, request
 
 from app import APP
 from auth_context import configured_identity, InvalidTokenError
+from evaluation_policy import (
+    ensure_evaluation_schema, evaluation_access_state, evaluation_summary, evaluation_metrics,
+    mark_evaluation_paid, mark_post_conversion_churn,
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
@@ -50,10 +54,11 @@ def ensure_account_table(conn):
     for name, statement in migrations.items():
         if name not in columns:
             conn.execute(statement)
+    ensure_evaluation_schema(conn)
     conn.commit()
 
 
-def ensure_account(conn, account_id, status='active', plan='pilot'):
+def ensure_account(conn, account_id, status='active', plan='evaluation'):
     """Ensure the tenant exists without performing network I/O.
 
     This function is intentionally on the critical path of authenticated API
@@ -69,11 +74,11 @@ def ensure_account(conn, account_id, status='active', plan='pilot'):
         # Authentication establishes identity; it must not mutate lifecycle or
         # billing state, nor acquire a writer lock, on every request.
         return
-    trial_ends_at = (now + timedelta(days=14)).isoformat()
     conn.execute(
-        """INSERT INTO accounts(account_id, status, plan, created_at, trial_ends_at, subscription_status)
-           VALUES(?, ?, ?, ?, ?, 'trial')""",
-        (account_id, status, plan, now.isoformat(), trial_ends_at),
+        """INSERT INTO accounts(account_id, status, plan, created_at, subscription_status,
+           evaluation_type, evaluation_status, evaluation_value_status)
+           VALUES(?, ?, ?, ?, 'none', 'self_service', 'ONBOARDING', 'EXPOSURE_PENDING')""",
+        (account_id, status, plan, now.isoformat()),
     )
     conn.commit()
 
@@ -97,6 +102,10 @@ def update_subscription(conn, account_id, *, plan, subscription_status,
         (plan, subscription_status, entitlement_expires_at, datetime.now(timezone.utc).isoformat(),
          store, product_id, original_transaction_id, str(account_id)),
     )
+    if plan == 'pro' and subscription_status in {'active', 'trial', 'grace_period', 'cancelled'}:
+        mark_evaluation_paid(conn, account_id)
+    elif plan == 'expired' or subscription_status == 'expired':
+        mark_post_conversion_churn(conn, account_id)
     conn.commit()
 
 
@@ -110,6 +119,11 @@ def subscription_state(account):
         expires = account.get("entitlement_expires_at")
         if not expires or _parse_iso(expires) > now:
             return {"plan": "pro", "active": True, "source": account.get("store"), "expires_at": expires}
+    evaluation = evaluation_access_state(account, now=now)
+    if evaluation is not None:
+        return evaluation
+    # Backward compatibility: accounts created before Trial Policy v0.1 keep
+    # their original fixed legacy pilot window until an explicit migration.
     if account.get("plan") == "pilot":
         expires = account.get("trial_ends_at")
         if expires and _parse_iso(expires) > now:
@@ -213,7 +227,7 @@ def _billing_guard():
     finally:
         conn.close()
     if not state['active']:
-        return jsonify({'error': 'subscription_required', 'plan': state['plan'], 'message': 'O período de acesso terminou. Ativa o ObraSignal Pro para continuar.'}), 402
+        return jsonify({'error': 'subscription_required', 'plan': state['plan'], 'message': 'A avaliação terminou. Ativa o ObraSignal Pro para continuar.'}), 402
     return None
 
 
@@ -229,7 +243,12 @@ def billing_status():
         _sync_revenuecat_if_due(conn, identity.account_id, force=False)
         account = get_account(conn, identity.account_id)
         state = subscription_state(account)
-        return jsonify({**state, 'account_id': identity.account_id, 'trial_ends_at': account.get('trial_ends_at'), 'management_url': None})
+        evaluation = evaluation_summary(conn, account)
+        metrics = evaluation_metrics(conn, account)
+        return jsonify({**state, 'account_id': identity.account_id,
+                        'trial_ends_at': account.get('trial_ends_at'),
+                        'evaluation': evaluation, 'evaluation_metrics': metrics,
+                        'management_url': None})
     finally:
         conn.close()
 
