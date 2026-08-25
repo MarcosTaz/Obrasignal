@@ -20,6 +20,8 @@ SOURCE = "QA_ASHGHAL"
 SOURCE_URL = "https://www.ashghal.gov.qa/en/Tenders/pages/ERPTenderDetailes.aspx?Status=Open"
 BUYER = "Public Works Authority (Ashghal)"
 COUNTRY = "QAT"
+MAX_HTML_BYTES = 5_000_000
+MAX_TIMEOUT_SECONDS = 60.0
 
 # Deliberately conservative construction/public-works vocabulary. The source is
 # itself a public-works authority, but IT/insurance/events rows still occur and
@@ -30,6 +32,10 @@ _CONSTRUCTION_TERMS = (
     "rehabilitation", "upgrade", "bridge", "tunnel", "pavement", "landscape",
     "excavation", "maintenance works", "design and build", "d&b",
     "supervision consultancy", "engineering consultancy", "survey works",
+)
+_CONSTRUCTION_PATTERNS = tuple(
+    re.compile(rf"(?<!\w){re.escape(term)}(?!\w)", re.I)
+    for term in _CONSTRUCTION_TERMS
 )
 
 _DATE_FORMATS = ("%d %B %Y", "%d %b %Y")
@@ -95,6 +101,8 @@ def _iso_date(value: str) -> str:
 def parse_open_tenders(html: str) -> list[AshghalTender]:
     if not isinstance(html, str) or not html.strip():
         raise AshghalSourceError("empty Ashghal HTML")
+    if len(html.encode("utf-8")) > MAX_HTML_BYTES:
+        raise AshghalSourceError("Ashghal HTML exceeds safety limit")
     parser = _TableParser()
     parser.feed(html)
     rows: list[AshghalTender] = []
@@ -120,8 +128,8 @@ def parse_open_tenders(html: str) -> list[AshghalTender]:
 
 
 def is_construction_relevant(tender: AshghalTender) -> bool:
-    haystack = f"{tender.title} {tender.category}".casefold()
-    return any(term in haystack for term in _CONSTRUCTION_TERMS)
+    haystack = f"{tender.title} {tender.category}"
+    return any(pattern.search(haystack) for pattern in _CONSTRUCTION_PATTERNS)
 
 
 def normalize_tender(tender: AshghalTender) -> dict:
@@ -129,6 +137,12 @@ def normalize_tender(tender: AshghalTender) -> dict:
         raise AshghalSourceError(f"invalid publisher tender identity: {tender.tender_no!r}")
     if not tender.title.strip():
         raise AshghalSourceError("Ashghal tender title is required")
+    publication_date = _iso_date(tender.issuing_date)
+    deadline = _iso_date(tender.closing_date)
+    if deadline < publication_date:
+        raise AshghalSourceError(
+            f"Ashghal closing date precedes issuing date for {tender.tender_no}"
+        )
     return {
         "source": SOURCE,
         "signal_type": "TENDER",
@@ -138,10 +152,10 @@ def normalize_tender(tender: AshghalTender) -> dict:
         "description": None,
         "buyer": BUYER,
         "country": COUNTRY,
-        "publication_date": _iso_date(tender.issuing_date),
+        "publication_date": publication_date,
         "published_at": None,
         "source_updated_at": None,
-        "deadline": _iso_date(tender.closing_date),
+        "deadline": deadline,
         "url": SOURCE_URL,
         "taxonomy": "ASHGHAL_TITLE_KEYWORDS_V1",
         "category_code": tender.tender_type or None,
@@ -156,6 +170,8 @@ def normalize_construction_tenders(tenders: Iterable[AshghalTender]) -> list[dic
 
 
 def fetch_open_tenders(*, session=None, timeout: float = 20.0) -> list[AshghalTender]:
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not (0 < timeout <= MAX_TIMEOUT_SECONDS):
+        raise ValueError(f"timeout must be > 0 and <= {MAX_TIMEOUT_SECONDS:g} seconds")
     client = session or requests
     try:
         response = client.get(
