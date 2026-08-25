@@ -162,7 +162,12 @@ def test_mobilize_omitted_hotel_availability_is_required_unknown_not_available()
     accommodation = [item for item in assessment.alternative_scenarios if item.strategy == "ACCOMMODATION"]
     assert accommodation
     assert all(item.available is False for item in accommodation)
-    assert all(item.availability_state == "UNKNOWN" for item in accommodation)
+    own_accommodation = [item for item in accommodation if item.vehicle_mode == "OWN"]
+    rental_accommodation = [item for item in accommodation if item.vehicle_mode == "RENTAL"]
+    assert own_accommodation
+    assert all(item.availability_state == "UNKNOWN" for item in own_accommodation)
+    assert rental_accommodation
+    assert all(item.availability_state == "UNAVAILABLE" for item in rental_accommodation)
     assert all("hotel_available" in item.missing_inputs for item in accommodation)
 
     composed = compose_execution_economics(
