@@ -17,6 +17,7 @@
   ],
   "failure_semantics": {
     "collector_or_classifier_failure": "UNKNOWN",
+    "unknown_gate_attribution": "NEEDS_RECHECK",
     "may_mark_green": false,
     "required_recheck": true
   },
@@ -33,6 +34,13 @@
     "delete_legitimate_branch_issue_or_evidence",
     "destructive_database_operation"
   ],
+  "gate_attribution_states": [
+    "REQUIRED",
+    "INCIDENTALLY_TRIGGERED",
+    "NOT_APPLICABLE",
+    "REQUIRED_NOT_RUN",
+    "NEEDS_RECHECK"
+  ],
   "gate_states": [
     "PASS",
     "FAIL",
@@ -45,6 +53,7 @@
     "repository observation",
     "status normalization",
     "exact-reference drift detection",
+    "gate attribution",
     "evidence invalidation metadata",
     "handoff preparation",
     "routing metadata",
@@ -80,6 +89,10 @@
     "UNKNOWN != GREEN",
     "STALE != FAILED",
     "NOT_RUN != RED",
+    "INCIDENTALLY_TRIGGERED failure != owner RED",
+    "required failed gate = owner RED",
+    "REQUIRED_NOT_RUN != GREEN",
+    "unknown gate attribution = NEEDS_RECHECK",
     "historical success != current proof",
     "CURRENT operational metadata != product readiness",
     "green workflow != merge authorization"
