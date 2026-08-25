@@ -18,11 +18,11 @@ def test_exactly_one_canonical_active_item():
     assert CANONICAL_QUEUE_NAME == "OBRASIGNAL_MASTER_EXECUTION_QUEUE"
     active = [item for item in MASTER_EXECUTION_QUEUE if item.state == "ACTIVE"]
     assert len(active) == 1
-    assert active[0].id == CURRENT_ITEM_ID == "Q050_US_SAM"
+    assert active[0].id == CURRENT_ITEM_ID == "Q060_CHILE_MERCADOPUBLICO"
     assert current_item() == active[0]
 
 
-def test_brazil_remains_gated_canada_is_done_and_us_is_active():
+def test_brazil_remains_gated_canada_and_us_are_done_and_chile_is_active():
     items = _by_id()
     assert items["Q000_SCOPE_REBASE"].state == "DONE"
     assert items["Q010_BR_PNCP_DISCOVERY"].state == "DONE"
@@ -30,7 +30,8 @@ def test_brazil_remains_gated_canada_is_done_and_us_is_active():
     assert items["Q030_BR_PNCP_PCA"].state == "GATED"
     assert "transport reliability" in items["Q030_BR_PNCP_PCA"].reason
     assert items["Q040_CANADA_BUYS"].state == "DONE"
-    assert items["Q050_US_SAM"].state == "ACTIVE"
+    assert items["Q050_US_SAM"].state == "DONE"
+    assert items["Q060_CHILE_MERCADOPUBLICO"].state == "ACTIVE"
     assert "Q030_BR_PNCP_PCA" not in items["Q070_SHARED_FAMILIES"].dependencies
 
 
@@ -44,16 +45,16 @@ def test_queue_is_total_order_with_unique_ids_and_backward_dependencies():
             assert position[dependency] < position[item.id]
 
 
-def test_single_master_priority_chooses_chile_after_current_us():
+def test_single_master_priority_chooses_shared_families_after_current_chile():
     ready = executable_after_current()
     assert ready == next_executable_after_current()
     assert "Q030_BR_PNCP_PCA" not in {item.id for item in ready}
     assert all(item.state == "QUEUED" for item in ready)
     assert [item.id for item in ready[:2]] == [
-        "Q060_CHILE_MERCADOPUBLICO",
+        "Q070_SHARED_FAMILIES",
         "Q080_EVIDENCE_GRAPH_V1",
     ]
-    assert next_item_after_current().id == "Q060_CHILE_MERCADOPUBLICO"
+    assert next_item_after_current().id == "Q070_SHARED_FAMILIES"
 
 
 def test_all_six_target_layers_are_in_same_queue():
