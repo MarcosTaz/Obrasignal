@@ -75,11 +75,11 @@ def render_opportunity_detail(item, decision):
     lifecycle_banner = ""
     analysis_kicker = "Análise de compatibilidade"
     if current_actionable is False:
-        analysis_kicker = "Análise histórica"
+        analysis_kicker = "Decisão histórica"
         lifecycle_status = _display(item.get("lifecycle_status"), "Não acionável")
         lifecycle_banner = (
             '<section class="lifecycle-alert">'
-            '<div class="kicker" style="color:#7f1d1d">ESTADO ATUAL</div>'
+            '<div class="kicker" style="color:#7f1d1d">ESTADO OFICIAL ATUAL</div>'
             f'<strong>Esta oportunidade já não está ativa · {_esc(str(lifecycle_status).upper())}</strong>'
             f'<div style="margin-top:6px;line-height:1.5">{lifecycle_reason}</div>'
             f'<div class="footer-meta" style="margin-top:8px">Última verificação registada: {lifecycle_observed}</div>'
