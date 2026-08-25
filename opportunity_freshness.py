@@ -7,7 +7,7 @@ source state. All temporal decisions are made from injected inputs and policy.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Mapping
 
 from source_registry import SOURCES
@@ -15,6 +15,8 @@ from source_registry import SOURCES
 
 POLICY_VERSION = "opportunity-freshness-v0"
 FRESHNESS_ORDER = {"FRESH": 0, "AGING": 1, "STALE": 2, "UNKNOWN": 3}
+MAX_SOURCE_ID_LENGTH = 128
+MAX_OPPORTUNITY_ID_LENGTH = 512
 
 SIGNAL_MULTIPLIER = {
     "TENDER": 1.0,
@@ -66,6 +68,17 @@ class OpportunityFreshnessAssessment:
         return asdict(self)
 
 
+def _identifier(value, *, field, max_length):
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if len(text) > max_length or any(ord(ch) < 32 for ch in text):
+        raise ValueError(f"invalid {field}")
+    return text
+
+
 def _utc(value, *, field):
     if value in (None, ""):
         return None
@@ -93,7 +106,7 @@ def _age_minutes(now, value):
 
 
 def policy_for(source: str | None, signal_type: str | None) -> FreshnessPolicy:
-    source_key = str(source or "").strip()
+    source_key = _identifier(source, field="source", max_length=MAX_SOURCE_ID_LENGTH) or ""
     signal = str(signal_type or "TENDER").strip().upper() or "TENDER"
     meta = SOURCES.get(source_key)
     multiplier = SIGNAL_MULTIPLIER.get(signal, 1.0)
@@ -130,7 +143,10 @@ def _health_status(source_health: Mapping | None, *, now: datetime, policy: Fres
     if not source_health:
         return "UNKNOWN", ()
 
-    failures = int(source_health.get("consecutive_failures") or 0)
+    try:
+        failures = max(0, int(source_health.get("consecutive_failures") or 0))
+    except (TypeError, ValueError):
+        return "UNKNOWN", ("INVALID_SOURCE_HEALTH",)
     try:
         last_success = _utc(source_health.get("last_success"), field="last_success")
         last_failed = _utc(source_health.get("last_failed") or (
@@ -142,14 +158,14 @@ def _health_status(source_health: Mapping | None, *, now: datetime, policy: Fres
         return "UNKNOWN", ("INVALID_TIMESTAMP",)
 
     if failures >= policy.unavailable_after_failures:
-        if success_age is None or success_age > policy.stale_after_minutes:
+        if success_age is None or success_age >= policy.stale_after_minutes:
             return "UNAVAILABLE", ("SOURCE_UNAVAILABLE",)
         return "DEGRADED", ("SOURCE_TEMPORARILY_DEGRADED",)
     if failures > 0:
         return "DEGRADED", ("SOURCE_TEMPORARILY_DEGRADED",)
     if last_success is None:
         return "UNKNOWN", ()
-    if success_age is not None and success_age > policy.stale_after_minutes:
+    if success_age is not None and success_age >= policy.stale_after_minutes:
         return "DEGRADED", ("SOURCE_TEMPORARILY_DEGRADED",)
     return "HEALTHY", ()
 
@@ -160,11 +176,20 @@ def evaluate_freshness(record_context: Mapping, source_context: Mapping | None =
     ``retrieved_at`` is intentionally ignored as a freshness signal. Fetch time
     describes transport activity, not source publication/update semantics.
     """
+    if not isinstance(record_context, Mapping):
+        raise ValueError("record_context must be a mapping")
+    if source_context is not None and not isinstance(source_context, Mapping):
+        raise ValueError("source_context must be a mapping")
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
     now = now.astimezone(timezone.utc)
 
-    source = str(record_context.get("source") or "").strip() or None
+    source = _identifier(record_context.get("source"), field="source", max_length=MAX_SOURCE_ID_LENGTH)
+    opportunity_id = _identifier(
+        record_context.get("opportunity_id") or record_context.get("external_id"),
+        field="opportunity_id",
+        max_length=MAX_OPPORTUNITY_ID_LENGTH,
+    )
     signal_type = str(record_context.get("signal_type") or "TENDER").strip().upper()
     policy = policy or policy_for(source, signal_type)
     reasons = []
@@ -189,7 +214,7 @@ def evaluate_freshness(record_context: Mapping, source_context: Mapping | None =
         reasons.extend(health_reasons)
         reasons.append("INVALID_TIMESTAMP")
         return OpportunityFreshnessAssessment(
-            opportunity_id=record_context.get("opportunity_id") or record_context.get("external_id"),
+            opportunity_id=opportunity_id,
             source_id=source,
             published_at=None,
             source_updated_at=None,
@@ -227,20 +252,20 @@ def evaluate_freshness(record_context: Mapping, source_context: Mapping | None =
             if deadline_minutes <= policy.near_deadline_minutes:
                 aging = max(policy.expected_refresh_minutes, int(aging * policy.near_deadline_multiplier))
                 stale = max(aging + 1, int(stale * policy.near_deadline_multiplier))
-                if observation_age > aging:
+                if observation_age >= aging:
                     reasons.append("DEADLINE_NEAR_WITH_OLD_OBSERVATION")
 
-        if observation_age > stale:
+        if observation_age >= stale:
             freshness = "STALE"
             reasons.append("NO_RECENT_OBSERVATION")
-        elif observation_age > aging:
+        elif observation_age >= aging:
             freshness = "AGING"
             reasons.append("NO_RECENT_OBSERVATION")
         else:
             freshness = "FRESH"
             reasons.append("RECENTLY_OBSERVED")
 
-    if source_update_age is not None and source_update_age > policy.stale_after_minutes:
+    if source_update_age is not None and source_update_age >= policy.stale_after_minutes:
         reasons.append("SOURCE_UPDATE_OLD")
 
     confidence = "HIGH"
@@ -252,7 +277,7 @@ def evaluate_freshness(record_context: Mapping, source_context: Mapping | None =
         confidence = "MEDIUM"
 
     return OpportunityFreshnessAssessment(
-        opportunity_id=record_context.get("opportunity_id") or record_context.get("external_id"),
+        opportunity_id=opportunity_id,
         source_id=source,
         published_at=published.isoformat() if published else None,
         source_updated_at=source_updated.isoformat() if source_updated else None,
