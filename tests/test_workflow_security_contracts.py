@@ -37,6 +37,14 @@ def test_checkout_credentials_are_not_persisted_in_owned_workflows():
             assert "persist-credentials: false" in text, f"checkout credentials persist in {name}"
 
 
+def test_eas_cli_version_is_pinned_in_token_bearing_build_workflows():
+    for name in {"eas-preview.yml", "eas-production.yml"}:
+        text = (WORKFLOW_DIR / name).read_text(encoding="utf-8")
+        assert "token: ${{ secrets.EXPO_TOKEN }}" in text
+        assert "eas-version: 22.4.0" in text, f"mutable EAS CLI version in {name}"
+        assert "eas-version: latest" not in text, f"floating EAS CLI version in {name}"
+
+
 def test_codeql_pr_analysis_is_limited_to_trusted_same_repo_heads():
     text = (WORKFLOW_DIR / "codeql.yml").read_text(encoding="utf-8")
     assert "pull_request:" in text
