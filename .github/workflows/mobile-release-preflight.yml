@@ -15,9 +15,11 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.13.1'
           cache: npm
@@ -64,7 +66,7 @@ jobs:
           NODE
 
       - name: Expo Doctor
-        run: npx expo-doctor@latest
+        run: npx --yes expo-doctor@1.20.3
 
       - name: Verify production profile
         run: node -e "const e=require('./eas.json'); if(!e.build?.production) process.exit(1); console.log(JSON.stringify(e.build.production))"
@@ -84,12 +86,12 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
-          npx eas-cli@latest build --platform android --profile production --non-interactive --wait --json > eas-build.json
+          npx --yes eas-cli@22.4.0 build --platform android --profile production --non-interactive --wait --json > eas-build.json
           node -e "const fs=require('fs'); const v=JSON.parse(fs.readFileSync('eas-build.json','utf8')); fs.writeFileSync('eas-build-report.json', JSON.stringify(v, null, 2)); console.log(JSON.stringify(v, null, 2))"
 
       - name: Upload EAS build report
         if: ${{ github.event_name == 'workflow_dispatch' && always() && hashFiles('mobile/eas-build-report.json') != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: obrasignal-eas-android-build-report
           path: mobile/eas-build-report.json
