@@ -21,7 +21,6 @@ from typing import Iterable
 JS_EXTENSIONS = (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs")
 EDGE_POLICY = {
     ("render.yaml", "cors_app.py"): "EXPECTED",
-    ("cors_app.py", "sync_funnel_hook.py"): "EXPECTED",
     ("cors_app.py", "api.py"): "EXPECTED",
     ("cors_app.py", "app.py"): "EXPECTED",
     ("cors_app.py", "preload.py"): "EXPECTED",
