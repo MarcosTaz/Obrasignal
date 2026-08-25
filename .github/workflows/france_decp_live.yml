@@ -1,0 +1,62 @@
+name: France DECP live smoke
+
+on:
+  pull_request:
+    paths:
+      - "france_decp.py"
+      - "france_runtime.py"
+      - "cors_app.py"
+      - "source_registry.py"
+      - ".github/workflows/france_decp_live.yml"
+  workflow_dispatch:
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  live-decp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Validate official France DECP API and construction schema
+        env:
+          FR_DECP_RETRIES: "1"
+          FR_DECP_TIMEOUT: "20"
+        run: |
+          python - <<'PY'
+          from datetime import date, timedelta
+          import requests
+          import france_decp as fr
+
+          session = requests.Session()
+          payload = fr._request_page(
+              session,
+              offset=0,
+              since=date.today() - timedelta(days=30),
+          )
+          results = payload.get("results")
+          assert isinstance(results, list), "DECP results must be a list"
+          assert results, "DECP 30-day construction smoke returned no records"
+          normalized = [fr._normalize(row) for row in results[:10]]
+          normalized = [row for row in normalized if row]
+          assert normalized, "DECP smoke produced no canonical construction contracts"
+          for row in normalized:
+              assert row["source"] == "FR_DECP"
+              assert row["signal_type"] == "CONTRACT"
+              assert row["external_id"]
+              assert row["category_code"].startswith("45")
+              assert row["source_updated_at"]
+          print(f"DECP live smoke OK: {len(results)} API records, {len(normalized)} normalized")
+          PY
