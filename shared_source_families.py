@@ -11,6 +11,7 @@ and failure semantics. eForms likewise groups the semantic standard while
 allowing publisher-specific transport/parsing adapters.
 """
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from source_registry import SOURCES
 
@@ -25,7 +26,7 @@ class SharedSourceFamily:
     generic_module: str | None = None
 
 
-FAMILIES = {
+FAMILIES = MappingProxyType({
     "TED_SEARCH": SharedSourceFamily(
         family_id="TED_SEARCH",
         standard="TED/eForms",
@@ -65,48 +66,54 @@ FAMILIES = {
         invariant="bulk discovers changed OCIDs; current compiled record state decides emitted observations",
         generic_module="ocds_bulk_adapter",
     ),
-}
+})
 
 
 # Registry adapter claims that are deliberately shared. Source-specific wrappers
 # are allowed, but a source claiming one of these adapter names must belong to
 # the corresponding family.
-_GENERIC_ADAPTER_FAMILY = {
+_GENERIC_ADAPTER_FAMILY = MappingProxyType({
     "OCDSAPIConnector": "OCDS_PAGE_API",
     "OCDSMonthlyBulkConnector": "OCDS_MONTHLY_BULK",
     "TEDSearchAdapter": "TED_SEARCH",
-}
+})
 
 
-def family_for_source(source):
+def _families(value=None):
+    return FAMILIES if value is None else value
+
+
+def family_for_source(source, *, families=None):
     source = str(source or "").upper()
-    matches = [family for family in FAMILIES.values() if source in family.members]
+    matches = [family for family in _families(families).values() if source in family.members]
     if len(matches) > 1:
         raise RuntimeError(f"source {source} belongs to multiple shared families")
     return matches[0] if matches else None
 
 
-def members_for_standard(standard):
+def members_for_standard(standard, *, families=None):
     wanted = str(standard or "").strip().lower()
     return tuple(
         source
-        for family in FAMILIES.values()
+        for family in _families(families).values()
         if family.standard.lower() == wanted
         for source in family.members
     )
 
 
-def audit_shared_families(registry=None):
+def audit_shared_families(registry=None, *, families=None):
     """Return deterministic fitness violations; empty tuple means healthy.
 
     The audit deliberately checks metadata/contracts only. It does not perform
-    network I/O and therefore belongs in normal CI.
+    network I/O and therefore belongs in normal CI. ``families`` exists for
+    isolated fitness testing; production callers use the immutable canonical map.
     """
     registry = registry or SOURCES
+    family_map = _families(families)
     violations = []
     seen = {}
 
-    for family in FAMILIES.values():
+    for family in family_map.values():
         if not family.members:
             violations.append(f"{family.family_id}:empty_family")
         for source in family.members:
@@ -137,8 +144,8 @@ def audit_shared_families(registry=None):
     return tuple(sorted(set(violations)))
 
 
-def assert_shared_family_health(registry=None):
-    violations = audit_shared_families(registry)
+def assert_shared_family_health(registry=None, *, families=None):
+    violations = audit_shared_families(registry, families=families)
     if violations:
         raise RuntimeError("shared source family fitness failed: " + "; ".join(violations))
     return True
