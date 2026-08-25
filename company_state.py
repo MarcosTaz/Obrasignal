@@ -45,6 +45,7 @@ class KnowledgeState(str, Enum):
     FACT = "FACT"
     ASSUMPTION = "ASSUMPTION"
     ESTIMATE = "ESTIMATE"
+    INFERENCE = "INFERENCE"
     UNKNOWN = "UNKNOWN"
 
 
@@ -177,6 +178,12 @@ class CompanyFact:
         object.__setattr__(self, "freshness_until", freshness_until)
         if not isinstance(self.provenance, Provenance):
             raise CompanyStateError("provenance must be Provenance")
+        if self.provenance.basis is ProvenanceBasis.LEARNED and self.knowledge is not KnowledgeState.INFERENCE:
+            raise CompanyStateError("LEARNED provenance must remain INFERENCE, never FACT")
+        if self.knowledge is KnowledgeState.INFERENCE and self.provenance.basis is not ProvenanceBasis.LEARNED:
+            raise CompanyStateError("INFERENCE knowledge requires LEARNED provenance")
+        if self.provenance.basis is ProvenanceBasis.UNAVAILABLE and self.knowledge is not KnowledgeState.UNKNOWN:
+            raise CompanyStateError("UNAVAILABLE provenance can only describe UNKNOWN data")
         supersedes = tuple(dict.fromkeys(str(item).strip() for item in self.supersedes if str(item).strip()))
         if len(supersedes) > 32:
             raise CompanyStateError("supersedes is too large")
@@ -192,7 +199,7 @@ class CompanyFact:
                 raise CompanyStateError("UNKNOWN fact must have null value")
         else:
             if self.value is None:
-                raise CompanyStateError("known/assumed/estimated fact requires a value")
+                raise CompanyStateError("known/assumed/estimated/inferred fact requires a value")
             _validate_value(self.value)
             if self.unit in {"workers", "units", "vehicles"}:
                 if isinstance(self.value, bool) or not isinstance(self.value, int) or self.value < 0:
@@ -334,8 +341,16 @@ class CompanyState:
                     stack.append(target)
 
     def _validate_capacity_invariants(self) -> None:
-        total = self.single_current_value("crew.total_count", category=FactCategory.CAPACITY)
-        available = self.single_current_value("crew.available_count", category=FactCategory.AVAILABILITY)
+        def factual_value(code: str, category: FactCategory) -> Any:
+            candidates = [
+                fact for fact in self.current_facts()
+                if fact.code == code and fact.category is category and fact.knowledge is KnowledgeState.FACT
+            ]
+            values = {_canonical_json(_value_to_json(fact.value)): fact.value for fact in candidates}
+            return next(iter(values.values())) if len(values) == 1 else None
+
+        total = factual_value("crew.total_count", FactCategory.CAPACITY)
+        available = factual_value("crew.available_count", FactCategory.AVAILABILITY)
         if isinstance(total, int) and isinstance(available, int) and available > total:
             raise CompanyStateError("known available crew cannot exceed known total crew")
 
@@ -366,9 +381,14 @@ class CompanyState:
             and fact.freshness(at) not in {FreshnessState.EXPIRED, FreshnessState.NOT_YET_EFFECTIVE}
         )
 
+    def current_facts(self, *, as_of: datetime | None = None) -> tuple[CompanyFact, ...]:
+        """Return usable current facts; stale remains visible but is not current truth."""
+        at = _utc(as_of or self.as_of, "as_of")
+        return tuple(fact for fact in self.active_facts(as_of=at) if fact.freshness(at) is not FreshnessState.STALE)
+
     def conflicts(self, *, as_of: datetime | None = None) -> tuple[dict[str, Any], ...]:
         grouped: dict[tuple[str, str, str | None], list[CompanyFact]] = {}
-        for fact in self.active_facts(as_of=as_of):
+        for fact in self.current_facts(as_of=as_of):
             if fact.knowledge is KnowledgeState.UNKNOWN:
                 continue
             grouped.setdefault(fact.semantic_key, []).append(fact)
@@ -392,7 +412,7 @@ class CompanyState:
 
     def single_current_value(self, code: str, *, category: FactCategory | None = None, as_of: datetime | None = None) -> Any:
         candidates = [
-            fact for fact in self.active_facts(as_of=as_of)
+            fact for fact in self.current_facts(as_of=as_of)
             if fact.code == code and (category is None or fact.category is category)
             and fact.knowledge is not KnowledgeState.UNKNOWN
         ]
@@ -426,14 +446,28 @@ class CompanyState:
         }
 
     def quality_summary(self) -> dict[str, int]:
-        counts = {"known": 0, "unknown": 0, "stale": 0, "conflict": len(self.conflicts())}
+        counts = {
+            "known": 0,
+            "estimate": 0,
+            "assumption": 0,
+            "inference": 0,
+            "unknown": 0,
+            "stale": 0,
+            "conflict": len(self.conflicts()),
+        }
         for fact in self.active_facts():
-            if fact.knowledge is KnowledgeState.UNKNOWN:
-                counts["unknown"] += 1
-            elif fact.freshness(self.as_of) is FreshnessState.STALE:
+            if fact.freshness(self.as_of) is FreshnessState.STALE:
                 counts["stale"] += 1
-            else:
+            elif fact.knowledge is KnowledgeState.UNKNOWN:
+                counts["unknown"] += 1
+            elif fact.knowledge is KnowledgeState.FACT:
                 counts["known"] += 1
+            elif fact.knowledge is KnowledgeState.ESTIMATE:
+                counts["estimate"] += 1
+            elif fact.knowledge is KnowledgeState.ASSUMPTION:
+                counts["assumption"] += 1
+            elif fact.knowledge is KnowledgeState.INFERENCE:
+                counts["inference"] += 1
         return counts
 
     @classmethod
