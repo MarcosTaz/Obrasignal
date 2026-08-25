@@ -31,13 +31,14 @@ def test_owned_workflows_declare_permissions_and_pin_actions():
 
 
 def test_checkout_credentials_are_not_persisted_in_owned_workflows():
-    for name in OWNED_WORKFLOWS - {"codeql.yml"}:
+    for name in OWNED_WORKFLOWS:
         text = (WORKFLOW_DIR / name).read_text(encoding="utf-8")
         if "actions/checkout@" in text:
             assert "persist-credentials: false" in text, f"checkout credentials persist in {name}"
 
 
-def test_codeql_does_not_receive_untrusted_pr_trigger():
+def test_codeql_pr_analysis_is_limited_to_trusted_same_repo_heads():
     text = (WORKFLOW_DIR / "codeql.yml").read_text(encoding="utf-8")
+    assert "pull_request:" in text
     assert "security-events: write" in text
-    assert "pull_request:" not in text
+    assert "github.event.pull_request.head.repo.full_name == github.repository" in text
