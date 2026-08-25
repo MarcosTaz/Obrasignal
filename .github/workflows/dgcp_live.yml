@@ -1,0 +1,21 @@
+name: Dominican Republic DGCP Live Gate
+
+on:
+  push:
+    branches:
+      - feature/do-dgcp-shared-ocds-v0
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -q -r requirements.txt pytest
+      - name: Validate live DGCP public OCDS, PACC, contracts and bulk transports
+        env:
+          OBRASIGNAL_LIVE_DGCP: '1'
+        run: PYTHONPATH=. python -m pytest -q -s test_dominican_republic_dgcp_live.py test_dominican_republic_dgcp_pacc_live.py test_dominican_republic_dgcp_contracts_live.py test_dominican_republic_dgcp_bulk_live.py
