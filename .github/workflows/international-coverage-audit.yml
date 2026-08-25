@@ -4,7 +4,11 @@ on:
   pull_request:
     paths:
       - 'international_coverage_audit.py'
+      - 'international_coverage_audit_core.py'
+      - 'international_country_codes.py'
+      - 'international_audit_provenance.py'
       - 'test_international_coverage_audit.py'
+      - 'test_international_coverage_audit_regressions.py'
       - 'international_coverage_audit_manifest.json'
       - 'INTERNATIONAL_COVERAGE_AUDIT.md'
       - '.github/workflows/international-coverage-audit.yml'
@@ -18,6 +22,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -36,9 +42,15 @@ jobs:
           assert isinstance(report['countries'], list)
           assert isinstance(report['contradictions'], list)
           assert isinstance(report['missing_integrations'], list)
+          assert isinstance(report['capabilities'], list)
+          assert isinstance(report['research_only_countries'], list)
+          assert isinstance(report['explicit_pr_references'], list)
+          assert report['pr_provenance']['history_available'] is True
           assert report['summary']['country_count'] == len(report['countries'])
           assert report['summary']['contradiction_count'] == len(report['contradictions'])
           assert report['summary']['missing_integration_count'] == len(report['missing_integrations'])
+          assert report['summary']['research_only_countries'] == len(report['research_only_countries'])
+          assert report['summary']['explicit_pr_reference_count'] == len(report['explicit_pr_references'])
           PY
       - name: Upload deterministic audit artifacts
         uses: actions/upload-artifact@v4
