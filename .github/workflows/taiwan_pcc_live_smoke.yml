@@ -9,11 +9,18 @@ on:
       - '.github/workflows/taiwan_pcc_live_smoke.yml'
   workflow_dispatch:
 
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   live-smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
