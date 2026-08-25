@@ -37,6 +37,10 @@ const truthChecks = [
   ['unknown score has an explicit renderer', /scoreText\(score\)/],
   ['missing source has an explicit renderer', /sourceText\(item\.source\)/],
   ['missing match reason stays explicitly unavailable', /item\.decision_reason\|\|item\.match_reason\|\|'Sem explicação de relevância disponível\.'/],
+  ['global sync evidence is surfaced without claiming per-source freshness', /Última sincronização global registada:/],
+  ['missing sync keeps coverage explicitly unknown', /Atualidade da cobertura não confirmada\./],
+  ['empty radar does not claim market absence', /Isto não prova ausência de oportunidades no mercado\./],
+  ['unknown coverage empty state stays explicit', /A atualidade e cobertura das fontes não estão confirmadas\./],
   ['score is framed as compatibility, not a bid recommendation', /A pontuação expressa compatibilidade com o perfil; não é uma recomendação para concorrer\./],
   ['web notifications are disclosed as unavailable', /Notificações do navegador ainda não estão disponíveis\./],
   ['web notification switch is disabled', /<Switch disabled=\{webNotifications\} value=\{webNotifications\?false:/],
@@ -53,6 +57,7 @@ const forbiddenTruthPatterns = [
   ['card source must not fabricate TED', /item\.source\|\|'TED'/],
   ['detail source must not fabricate TED', /current\.source\|\|'TED'/],
   ['missing match reason must not fabricate positive correspondence', /Correspondência com o perfil/],
+  ['empty state must not present filtered zero as market truth', /Sem resultados com estes filtros\. Reduz a relevância mínima/],
   ['score must not be described as a recommendation', /O scoring é uma recomendação/],
   ['notification denial must not collapse to activated copy', /Notificações activadas\./],
 ];
