@@ -1,11 +1,23 @@
 import json
 import sqlite3
+from pathlib import Path
 
 
 def _profile_row(conn, account_id):
     conn.execute(
         "INSERT INTO company_profiles(account_id,profile_json,updated_at) VALUES(?,?,?)",
         (account_id, json.dumps({"account_id": account_id}), "2026-08-25T00:00:00+00:00"),
+    )
+
+
+def _tenders_table(conn):
+    conn.execute(
+        """CREATE TABLE tenders(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            UNIQUE(source, external_id)
+        )"""
     )
 
 
@@ -32,9 +44,7 @@ def test_integrity_scanner_detects_profile_account_orphan_without_private_id():
 
     conn = sqlite3.connect(":memory:")
     ensure_profile_table(conn)
-    conn.execute(
-        "CREATE TABLE accounts(account_id TEXT PRIMARY KEY)"
-    )
+    conn.execute("CREATE TABLE accounts(account_id TEXT PRIMARY KEY)")
     _profile_row(conn, "private-tenant-a")
     conn.commit()
 
@@ -86,6 +96,104 @@ def test_integrity_scanner_detects_profile_ready_without_profile():
     assert matching[0].severity == "HIGH"
     assert matching[0].unknown is True
     conn.close()
+
+
+def test_integrity_scanner_detects_tenant_orphans_across_customer_state():
+    from data_integrity import scan_canonical_integrity
+    from decision_log import ensure_decision_table
+    from notification_events import ensure_event_table
+    from opportunity_workflow import ensure_workflow_table
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE accounts(account_id TEXT PRIMARY KEY)")
+    ensure_decision_table(conn)
+    ensure_workflow_table(conn)
+    ensure_event_table(conn)
+    conn.execute(
+        """INSERT INTO opportunity_decisions
+           (account_id,source,external_id,decision,reason,score,features_json,rule_version,decided_at)
+           VALUES('missing-a','TED','D-1','GO','reason',80,'{}','v1','2026-08-25T00:00:00+00:00')"""
+    )
+    conn.execute(
+        """INSERT INTO opportunity_workflow(account_id,source,external_id,status,note,updated_at)
+           VALUES('missing-b','TED','W-1','NEW',NULL,'2026-08-25T00:00:00+00:00')"""
+    )
+    conn.execute(
+        """INSERT INTO opportunity_events(account_id,event_key,tender_id,source,event_type,score,created_at)
+           VALUES('missing-c','missing-c:event',NULL,'TED','new_high_match',90,'2026-08-25T00:00:00+00:00')"""
+    )
+    conn.commit()
+
+    invariants = {item.invariant for item in scan_canonical_integrity(conn)}
+    assert "DECISION_ACCOUNT_ORPHAN" in invariants
+    assert "WORKFLOW_ACCOUNT_ORPHAN" in invariants
+    assert "OPPORTUNITY_EVENT_ACCOUNT_ORPHAN" in invariants
+    conn.close()
+
+
+def test_integrity_scanner_detects_workflow_and_decision_opportunity_orphans():
+    from account_registry import ensure_account
+    from data_integrity import scan_canonical_integrity
+    from decision_log import ensure_decision_table
+    from opportunity_workflow import ensure_workflow_table
+
+    conn = sqlite3.connect(":memory:")
+    ensure_account(conn, "tenant-a")
+    _tenders_table(conn)
+    ensure_decision_table(conn)
+    ensure_workflow_table(conn)
+    conn.execute(
+        """INSERT INTO opportunity_decisions
+           (account_id,source,external_id,decision,reason,score,features_json,rule_version,decided_at)
+           VALUES('tenant-a','TED','missing-decision','GO','reason',80,'{}','v1','2026-08-25T00:00:00+00:00')"""
+    )
+    conn.execute(
+        """INSERT INTO opportunity_workflow(account_id,source,external_id,status,note,updated_at)
+           VALUES('tenant-a','TED','missing-workflow','NEW',NULL,'2026-08-25T00:00:00+00:00')"""
+    )
+    conn.commit()
+
+    invariants = {item.invariant for item in scan_canonical_integrity(conn)}
+    assert "DECISION_OPPORTUNITY_ORPHAN" in invariants
+    assert "WORKFLOW_OPPORTUNITY_ORPHAN" in invariants
+    conn.close()
+
+
+def test_integrity_scanner_detects_event_tender_orphan_and_source_mismatch():
+    from account_registry import ensure_account
+    from data_integrity import scan_canonical_integrity
+    from notification_events import ensure_event_table
+
+    conn = sqlite3.connect(":memory:")
+    ensure_account(conn, "tenant-a")
+    _tenders_table(conn)
+    ensure_event_table(conn)
+    conn.execute("INSERT INTO tenders(id,source,external_id) VALUES(1,'TED','T-1')")
+    conn.execute(
+        """INSERT INTO opportunity_events(account_id,event_key,tender_id,source,event_type,score,created_at)
+           VALUES('tenant-a','tenant-a:mismatch',1,'BASE','new_high_match',90,'2026-08-25T00:00:00+00:00')"""
+    )
+    conn.execute(
+        """INSERT INTO opportunity_events(account_id,event_key,tender_id,source,event_type,score,created_at)
+           VALUES('tenant-a','tenant-a:orphan',999,'TED','new_high_match',90,'2026-08-25T00:00:00+00:00')"""
+    )
+    conn.commit()
+
+    invariants = {item.invariant for item in scan_canonical_integrity(conn)}
+    assert "OPPORTUNITY_EVENT_TENDER_ORPHAN" in invariants
+    assert "OPPORTUNITY_EVENT_SOURCE_MISMATCH" in invariants
+    conn.close()
+
+
+def test_integrity_manifest_preserves_canonical_prebuild_and_test_only_boundaries():
+    manifest_path = Path(__file__).resolve().parents[1] / "data_integrity_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["exact_main_sha"] == "66d43f6fd51cf9cea08016dad335aaa04b711a24"
+    by_fact = {entry["fact"]: entry for entry in manifest["state_families"]}
+    assert by_fact["notification_device_and_delivery"]["status"] == "PREBUILD"
+    assert by_fact["company_state"]["status"] == "PREBUILD"
+    assert by_fact["fixture_state"]["status"] == "TEST_ONLY_NOT_CANONICAL"
+    assert by_fact["saved_watchlist"]["status"] == "RECONSTRUCTION_PENDING"
 
 
 def test_save_profile_failure_can_leave_event_state_drift(tmp_path, monkeypatch):
