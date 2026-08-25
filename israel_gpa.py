@@ -31,12 +31,13 @@ _EN_CONSTRUCTION = re.compile(
     r"\b(?:construction|infrastructure|roads?|bridges?|architecture|architectural|renovation|building works|civil works)\b",
     re.I,
 )
-# Strong physical-works terms only. Generic establishment, water/sewer and
-# drainage words were observed in consulting/service notices and are excluded.
+# Strong physical-works terms only. Generic establishment, water/sewer,
+# drainage and isolated "structure/building" wording were observed in
+# consulting/organizational notices and are excluded.
 _HE_CONSTRUCTION_TERMS = (
     "בנייה", "בניה", "תשתיות", "כביש", "כבישים", "גשר", "גשרים",
-    "שיפוץ", "שיפוצים", "אדריכלות", "מבנה", "מבנים", "עבודות בנייה",
-    "עבודות בניה", "עבודות תשתית", "עבודות שיפוץ",
+    "שיפוץ", "שיפוצים", "אדריכלות", "עבודות בנייה", "עבודות בניה",
+    "עבודות תשתית", "עבודות שיפוץ",
 )
 
 _NOTICE_TYPES = {"Public Tender", "Central Tender"}
@@ -219,8 +220,7 @@ def is_construction_relevant(notice: GPANotice) -> bool:
 
     Subjects remain metadata only because the live portal can expose broad or
     hidden taxonomy values. Ambiguous title terms observed in consulting notices
-    (e.g. establishment of corporations, water/sewer subject matter) are also
-    excluded. Precision is intentionally favored over recall in v0.
+    are excluded. Precision is intentionally favored over recall in v0.
     """
     title = _clean(notice.title)
     if _EN_CONSTRUCTION.search(title):
