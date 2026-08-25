@@ -45,6 +45,7 @@ const pushChecks = [
   ['storage facade exposes tenant-private binding revoke', storageSource, /clearPushBinding: \(\) => activePrivateTenant \? privateStorage\.clearPushBinding\(activePrivateTenant\) : Promise\.resolve\(\)/],
   ['local fallback creates tenant-private tap authority before scheduling', notifications, /binding = \{ bindingId: newLocalBindingId\(\), kind: 'local' \};[\s\S]*storage\.setPushBinding\(binding\)/],
   ['local notification payload never falls back to a null binding', notifications, /bindingId: binding\.bindingId/],
+  ['local fallback tray remains tenant-neutral', notifications, /body: 'Abre o ObraSignal para confirmar uma nova oportunidade\.'/],
   ['remote registration dismisses local-only notification authority before replacement', notifications, /if \(!isRemoteBinding\(existingBinding\)\)[\s\S]*dismissAllNotificationsAsync\(\)/],
   ['notification tap validates tenant-private binding before navigation', notifications, /current\.bindingId !== bindingId/],
   ['notification response id is claimed before async target validation', notifications, /handledResponseIds\.add\(responseId\)[\s\S]*await notificationOpportunityTarget\(response\)/],
@@ -85,6 +86,11 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
 
 if (/Notificações push activadas\./.test(app)) {
   console.error('FAIL: token registration must not be presented as proven background push delivery');
+  process.exit(1);
+}
+
+if (/body:\s*item\?\.title/.test(notifications)) {
+  console.error('FAIL: local notification tray must not expose tenant-specific opportunity title');
   process.exit(1);
 }
 
