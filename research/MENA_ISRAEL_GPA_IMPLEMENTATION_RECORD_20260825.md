@@ -1,7 +1,7 @@
 # ObraSignal — MENA Israel GPA implementation record
 
 RESEARCHED_AT: 2026-08-25
-LAST_LIVE_VALIDATED_AT: pending exact-head CI
+LAST_LIVE_VALIDATED_AT: 2026-08-25
 SOURCE_LAST_OBSERVED_AT: 2026-08-25
 CELL: MENA
 COUNTRY: Israel
@@ -10,9 +10,9 @@ ISO3: ISR
 
 ## Scope
 
-LIMITED HIGH-VALUE SLICE: recent public/central tender notices discoverable from the official Government Procurement Administration `mr.gov.il` public search, enriched through official public notice detail pages and conservatively filtered for construction/public-works relevance.
+LIMITED HIGH-VALUE SLICE: recent Public Tender / Central Tender notices discoverable from the official Government Procurement Administration `mr.gov.il` public search, enriched through official public notice detail pages and conservatively filtered for construction/public-works relevance.
 
-This is not a claim of every Israeli public buyer, every historical notice, awards, exemptions, or full national lifecycle coverage.
+This is not every Israeli public buyer, complete history, awards/exemptions, or full national lifecycle coverage.
 
 ## Stable source identity
 
@@ -22,62 +22,82 @@ Publisher/system: Government Procurement Administration / mr.gov.il
 Primary official source: `https://mr.gov.il/ilgstorefront/en/search/?s=TENDER`
 Detail identity route: `https://mr.gov.il/ilgstorefront/en/p/{serial}`
 
-Identity is the publisher-native numeric `Serial`, not title, URL hash, or translated text. `Process` is retained as secondary publisher reference metadata.
+Identity is publisher-native numeric `Serial`; title, URL hash and translation are not identity. `Process` is retained as secondary publisher metadata.
 
 ## Observed facts
 
-On 2026-08-25 the official English tender search exposed approximately 21,955 tender results and current records with type, publisher, Serial, Process, Published, Updated and Deadline fields. Public detail pages were accessible without login and exposed the same native identity plus subjects. Current examples observed included Serial `4000617670`, a public tender concerning planning/financing/construction/operation/maintenance of rooftop photovoltaic facilities, and Serial `4000615733`, an architectural-services tender for a hospital project.
+On 2026-08-25 the official tender search exposed approximately 21,955 tender results and records with type, Publisher, Serial, Process, Published, Updated and Deadline. Public detail pages were accessible without login.
 
-The same portal also exposes RFI, Intent to Contract and Exempt semantics. They are preserved as research evidence but are deliberately not mapped into v0 because ObraSignal must not silently collapse distinct procurement semantics into `TENDER`. Future integration may map compatible early-signal types to canonical `MARKET_DIALOGUE` or another approved canonical type only after an explicit semantic decision.
+The portal also exposes RFI, Intent to Contract and Exempt semantics. v0 deliberately does not collapse those into `TENDER`; they remain evidence for a later explicit canonical semantic decision.
 
 ## Technical route
 
-OFFICIAL SEARCH HTML -> publisher detail links -> bounded public detail GET -> field parse -> construction filter -> publisher-native Serial identity -> canonical `TENDER` normalization -> canonical Signal store test.
+OFFICIAL SEARCH HTML -> publisher detail links -> bounded public detail GET -> field parse -> fail-closed construction filter -> publisher-native Serial identity -> canonical TENDER normalization -> canonical Signal store test.
 
-The implementation limits detail fetches per run, enforces response-size limits and timeout bounds, rejects identity mismatches, rejects malformed dates, and treats transport/source-contract failure as errors rather than zero opportunities.
+The implementation limits detail fetches to 25 per run, bounds response size/timeouts, rejects identity mismatch and malformed chronology, and treats transport/source-contract failures as errors rather than zero opportunities.
 
-## Construction filter
+## Construction filter / adversarial corrections
 
-Conservative bilingual title/subject terms are used. The source's English `Subjects` field is preferred where useful; Hebrew construction-specific stems cover cases where titles express works more clearly than subject taxonomy. Generic procurement words are not sufficient for admission.
+Initial live parsing was technically correct but the first classifier was semantically over-inclusive because broad/hidden `Subjects` taxonomy text could leak into admission. A live sample admitted unrelated gift vouchers, water dispensers and paper products. That design was rejected.
+
+A second title-only classifier still admitted consulting notices because Hebrew terms for establishment, sewer/water and `מבנה` can occur in non-physical organizational contexts. Those ambiguous terms were removed.
+
+Final v0 admission uses only strong physical-works evidence in the publisher title. `Subjects` remain preserved as metadata but cannot admit a record. Precision is intentionally preferred over recall.
+
+Regression cases explicitly exclude:
+- `4000621188` gift vouchers even when broad construction-like subject metadata appears;
+- `4000619436` consulting/support for establishment of water/sewer corporations;
+- `4000620878` salary/organizational consulting for water/sewer corporations;
+- English substring traps such as `broadband` / `roadmap`.
+
+Final exact-head live validation on connector head `f37fa47ed877995b35fa244e7fba914a86716a70` fetched 20 official detail notices and admitted exactly one construction tender in that bounded window: `4000621193`, the public tender for renovation of two hospital departments in Nahariya. Independent official-source verification confirmed that tender's physical renovation semantics.
 
 ## Access / rights
 
-ACCESS: public unauthenticated HTML search + public detail pages observed.
-SOURCE STATE: AVAILABLE at observation time.
-MACHINE ACCESS: technically proven only after exact-head live CI.
-RIGHTS: YELLOW / LEGAL REVIEW REQUIRED. Public readability is not treated as commercial redistribution authorization.
+ACCESS: public unauthenticated HTML search + public detail pages.
+SOURCE STATE: AVAILABLE at last observation.
+MACHINE ACCESS: VERIFIED for the bounded public route.
+RIGHTS: YELLOW / LEGAL REVIEW REQUIRED. Public readability is not commercial redistribution authorization.
 
-No authentication, CAPTCHA, private API, signed session, anti-bot bypass or credential route is used.
+No authentication, CAPTCHA, private API, signed session, anti-bot bypass or credentials are used.
 
 ## Implementation state
 
 RESEARCHED: YES
-TECHNICALLY_PROVEN: pending exact-head live CI
+TECHNICALLY_PROVEN: YES
 IMPLEMENTED: YES
-TESTED: pending exact-head CI
-LIVE_VALIDATED: pending exact-head live CI
+TESTED: YES
+LIVE_VALIDATED: YES
 PRODUCTION_PATH_VALIDATED: NO
 GATED: YES
 RUNTIME_ENABLED: NO
 PRODUCTION: NO
 
+## Test basis
+
+Exact connector head `f37fa47ed877995b35fa244e7fba914a86716a70`:
+- Israel GPA Live Gate: SUCCESS.
+- ObraSignal Quality: SUCCESS.
+- Live result: 20 notices -> 1 construction signal (`4000621193`) after adversarial false-positive corrections.
+- Canonical Signal-store idempotency is covered by repository tests.
+
+This evidence-file update changes the PR head and therefore must itself receive a final exact-head CI pass before merge/consolidation; code semantics above refer to the validated connector commit.
+
 ## Conflict record
 
-CONFLICT — previous PR #173 finding vs implementation-first continuation
+CONFLICT — PR #173 research-only TECH LAB finding vs later implementation-first proof
 
 previous finding: Israel was TECH LAB; no supported machine route or explicit commercial reuse licence was verified.
 
-new finding: the public official search/detail route is technically implementable as a bounded limited slice without authentication or bypass. This does not prove commercial reuse rights.
+new finding: the public official search/detail route is technically implementable without authentication or bypass, while commercial reuse remains unresolved.
 
-evidence: official mr.gov.il search/detail pages observed 2026-08-25; code and exact-head CI in this implementation PR.
+likely explanation: PR #173 correctly applied production rights gating but the later MENA rule explicitly separates technical implementation from production enablement.
 
-likely explanation: the previous audit correctly applied production gating but treated unresolved rights as a reason not to engineer a technical slice. The later MENA continuation rule explicitly separates implementation proof from production enablement.
-
-recommended canonical resolution: retain PR #173 as historical evidence; classify the source, after green CI, as IMPLEMENTED / TESTED / LIVE_VALIDATED / GATED, with legal reuse unresolved and runtime disabled.
+recommended canonical resolution: preserve #173 as historical evidence; classify this bounded source as IMPLEMENTED / TESTED / LIVE_VALIDATED / GATED, rights YELLOW, runtime disabled.
 
 ## Duplication / reuse check
 
-No existing Israel GPA connector/source record was found in repository/PR search before branch creation. Qatar/Ashghal was evaluated for reuse but rejected as a shared family: both are public HTML, yet Israel uses search discovery + per-notice detail enrichment and different identity/update/subject semantics. HTML similarity is not a family contract.
+No competing Israel GPA connector/source record was found before branch creation. Qatar/Ashghal was evaluated and rejected as a shared family because Israel uses search discovery + per-notice detail enrichment and different identity/update/filter semantics. HTML similarity is not a family contract.
 
 No regional runtime or `MENAConnectorBase` was created.
 
@@ -88,22 +108,22 @@ COUNTRIES: Israel (IL / ISR)
 SOURCE RECORDS ADDED: cell-scoped candidate `IL_GPA` / `il_gpa_mr_public_procurement`
 SOURCE RECORDS UPDATED: none
 SHARED FAMILIES: none
-CODE PRs: implementation PR opened from `feature/il-gpa-construction-tenders-v0`
+CODE PRs: PR #187, branch `feature/il-gpa-construction-tenders-v0`
 RESEARCH PRs: related historical evidence PR #173
 CANONICAL FILES TO UPDATE LATER: `source_registry.py` via controlled International Consolidation Pass; do not duplicate if another cell lands `IL_GPA` first
 CONFLICTS: PR #173 TECH LAB/no-build conclusion vs later technical implementation proof; preserved above
-DEPENDENCIES: none; branch is based on real `main` SHA `52e011083545a2e69526cd8e0a294cfb61682884`
-BLOCKERS: commercial reuse rights not GREEN; runtime integration intentionally absent
+DEPENDENCIES: none; branch based on real main SHA `52e011083545a2e69526cd8e0a294cfb61682884`
+BLOCKERS: commercial reuse rights not GREEN; runtime intentionally absent
 MERGE RISKS: low for new connector/tests/evidence; canonical registry intentionally deferred to reduce cross-cell conflicts
-SAFE INTEGRATION NOTES: merge adapter/tests/evidence first; during consolidation search for `IL_GPA`/`il_gpa_mr_public_procurement`; append/enrich one canonical source record with country ISR, official source, machine access VERIFIED only if live CI remains valid, rights YELLOW, status planned, adapter `IsraelGPAConnector`, signal type TENDER. Never replace the whole global registry.
+SAFE INTEGRATION NOTES: search for `IL_GPA` / `il_gpa_mr_public_procurement`; append/enrich one canonical source record with country ISR, official source, machine access VERIFIED while live evidence remains current, rights YELLOW, status planned, adapter `IsraelGPAConnector`, signal type TENDER. Never replace the whole registry.
 
 ## Required zero-* checks
 
-ZERO-LOSS: PASS if this record + code PR are preserved; evidence, decision, status and provenance survive independently.
-ZERO-DUPLICATION: PASS at branch creation; no competing Israel GPA source implementation found. Recheck at global consolidation time.
-ZERO-SILENT-CONFLICT: PASS; PR #173 conflict explicitly recorded.
-ZERO-RUNTIME-FORK: PASS; no regional runtime created.
+ZERO-LOSS: PASS — code, evidence, classifier corrections, statuses and provenance survive independently.
+ZERO-DUPLICATION: PASS at last cell check; recheck during global consolidation.
+ZERO-SILENT-CONFLICT: PASS — #173 difference is explicit.
+ZERO-RUNTIME-FORK: PASS — no regional runtime.
 
 ## Stop status
 
-This record is a second-win candidate record, not a declaration that the MENA cell is complete. Remaining markets must continue under the MENA continuation override after this implementation is validated.
+SECOND IMPLEMENTATION WIN achieved technically. This does not complete the MENA cell; Oman third-win work and remaining-market decisions continue under the continuation override.
