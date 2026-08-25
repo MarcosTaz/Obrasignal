@@ -18,6 +18,9 @@ from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts"
+# Eight total send attempts span the existing 30s -> 1h exponential backoff
+# ladder. There is deliberately no ninth provider replay for the same pair.
+MAX_PUSH_ATTEMPTS = 8
 _INSTALLATION_RE = re.compile(r"^[A-Za-z0-9._:-]{8,160}$")
 
 
@@ -50,6 +53,14 @@ def _next_retry_at(attempt_count, now=None):
     now = now or datetime.now(timezone.utc)
     delay_seconds = min(3600, 30 * (2 ** min(max(0, int(attempt_count) - 1), 7)))
     return (now + timedelta(seconds=delay_seconds)).isoformat()
+
+
+def _retry_outcome(row, now_dt):
+    """Return (next_attempt_at, failed_at) for the attempt being recorded now."""
+    next_count = int(row["attempt_count"]) + 1
+    if next_count >= MAX_PUSH_ATTEMPTS:
+        return None, now_dt.isoformat()
+    return _next_retry_at(next_count, now_dt), None
 
 
 def ensure_event_table(conn):
@@ -228,6 +239,28 @@ def _push_headers():
     return headers
 
 
+def _finalize_exhausted_pushes(conn, account_id):
+    """Normalize legacy/due rows that already exhausted the finite send budget."""
+    now = _iso_now()
+    cursor = conn.execute(
+        """UPDATE push_deliveries
+           SET failed_at=COALESCE(failed_at,?), next_attempt_at=NULL
+           WHERE id IN (
+             SELECT pd.id
+             FROM push_deliveries pd
+             JOIN opportunity_events e ON e.id=pd.event_id
+             WHERE e.account_id=?
+               AND pd.submitted_at IS NULL
+               AND pd.failed_at IS NULL
+               AND pd.attempt_count>=?
+           )""",
+        (now, str(account_id), MAX_PUSH_ATTEMPTS),
+    )
+    if cursor.rowcount:
+        conn.commit()
+    return cursor.rowcount
+
+
 def _pending_push_rows(conn, account_id, limit=100):
     ensure_push_tables(conn)
     ensure_lifecycle_table(conn)
@@ -243,12 +276,13 @@ def _pending_push_rows(conn, account_id, limit=100):
             WHERE e.account_id=?
               AND e.event_type='new_high_match'
               AND {actionable_predicate('lc', 't')}
+              AND COALESCE(pd.attempt_count,0) < ?
               AND pd.submitted_at IS NULL
               AND pd.failed_at IS NULL
               AND (pd.next_attempt_at IS NULL OR datetime(pd.next_attempt_at) <= datetime('now'))
             ORDER BY e.created_at ASC, d.id ASC
             LIMIT ?""",
-        (str(account_id), max(1, min(100, int(limit)))),
+        (str(account_id), MAX_PUSH_ATTEMPTS, max(1, min(100, int(limit)))),
     ).fetchall()
 
 
@@ -279,7 +313,8 @@ def _record_push_attempt(conn, row, *, ticket_id=None, submitted_at=None, error=
 
 
 def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
-    """Submit pending account-scoped events to Expo; failed attempts remain bounded and observable."""
+    """Submit pending account-scoped events to Expo; retries terminate after the owner budget."""
+    _finalize_exhausted_pushes(conn, account_id)
     rows = _pending_push_rows(conn, account_id, limit=limit)
     if not rows:
         return 0
@@ -309,14 +344,20 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
             tickets = []
     except Exception as exc:
         # Event persistence remains authoritative and ingestion/bootstrap must not
-        # fail. Persist a bounded error class; submitted_at stays NULL and an
-        # exponential retry window prevents a tight failure loop.
+        # fail. Persist a bounded error class and stop retrying after attempt 8.
         now_dt = datetime.now(timezone.utc)
         now = now_dt.isoformat()
         error = f"transport_{type(exc).__name__}"[:240]
         for row in rows:
-            retry_at = _next_retry_at(int(row["attempt_count"]) + 1, now_dt)
-            _record_push_attempt(conn, row, error=error, attempted_at=now, next_attempt_at=retry_at)
+            retry_at, failed_at = _retry_outcome(row, now_dt)
+            _record_push_attempt(
+                conn,
+                row,
+                error=error,
+                attempted_at=now,
+                next_attempt_at=retry_at,
+                failed_at=failed_at,
+            )
             conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (error, row["push_device_id"]))
         conn.commit()
         return 0
@@ -346,8 +387,15 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
             _record_push_attempt(conn, row, error=error, attempted_at=now, failed_at=now)
             _revoke_device_row(conn, row["push_device_id"], expected_token=row["expo_push_token"], error=error)
         elif error == "push_response_missing_ticket":
-            retry_at = _next_retry_at(int(row["attempt_count"]) + 1, now_dt)
-            _record_push_attempt(conn, row, error=error, attempted_at=now, next_attempt_at=retry_at)
+            retry_at, failed_at = _retry_outcome(row, now_dt)
+            _record_push_attempt(
+                conn,
+                row,
+                error=error,
+                attempted_at=now,
+                next_attempt_at=retry_at,
+                failed_at=failed_at,
+            )
             conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (error, row["push_device_id"]))
         else:
             # Individual ticket rejection means Expo did not accept the payload;
@@ -437,9 +485,9 @@ def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, mi
 
         details = receipt.get("details") or {}
         error = str(details.get("error") or receipt.get("message") or "receipt_error")[:240]
-        if error == "MessageRateExceeded":
+        if error == "MessageRateExceeded" and int(row["attempt_count"]) < MAX_PUSH_ATTEMPTS:
             # Expo explicitly recommends exponential backoff and retry for this
-            # receipt state. Clear ticket submission only; event truth is intact.
+            # receipt state, but the local owner budget still forbids replay > 8.
             retry_at = _next_retry_at(int(row["attempt_count"]) + 1, now_dt)
             conn.execute(
                 """UPDATE push_deliveries
