@@ -36,6 +36,7 @@ EDGE_POLICY = {
     ("app.py", "notification_events.py"): "LEGACY",
     ("app.py", "opportunity_workflow.py"): "LEGACY",
     ("app.py", "source_health.py"): "LEGACY",
+    ("mobile/components/BillingGate.js", "mobile/src/billing.js"): "EXPECTED",
 }
 
 
