@@ -37,6 +37,12 @@ const authIsolationChecks = [
 const pushChecks = [
   ['native client obtains an Expo push token for the canonical EAS project', notifications, /getExpoPushTokenAsync\(\{ projectId: EXPO_PROJECT_ID \}\)/],
   ['push token is registered through the authenticated API facade', notifications, /api\.registerPushDevice\(\{ installationId, expoPushToken, platform: Platform\.OS \}\)/],
+  ['permission denial remains distinct from zero local deliveries', notifications, /return \{ status: 'permission_denied', delivered: 0 \}/],
+  ['permission denial has truthful customer copy', app, /Notificações não ativadas: permissão recusada no dispositivo/],
+  ['remote registration does not claim background delivery', app, /Dispositivo registado para notificações remotas\. A entrega em segundo plano ainda não está comprovada neste build\./],
+  ['unregister revokes local binding before the bounded server attempt', notifications, /storage\.clearPushBinding\(\)[\s\S]*api\.unregisterPushDevice\(binding\.installationId\)/],
+  ['disabled notifications fail closed before tap binding validation', notifications, /getSettings\(\)[\s\S]*if \(!settings\.notifications\) return null;[\s\S]*getPushBinding\(\)/],
+  ['storage facade exposes tenant-private binding revoke', storageSource, /clearPushBinding: \(\) => activePrivateTenant \? privateStorage\.clearPushBinding\(activePrivateTenant\) : Promise\.resolve\(\)/],
   ['notification tap validates tenant-private binding before navigation', notifications, /current\.bindingId !== bindingId/],
   ['cold-start notification response is consumed', notifications, /getLastNotificationResponseAsync\(\)/],
   ['live notification response listener is installed', notifications, /addNotificationResponseReceivedListener\(handle\)/],
@@ -68,6 +74,11 @@ if (failures.length || crossFailures.length || authIsolationFailures.length || p
 
 if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(authGate)) {
   console.error('FAIL: auth gate must not duplicate background API work');
+  process.exit(1);
+}
+
+if (/Notificações push activadas\./.test(app)) {
+  console.error('FAIL: token registration must not be presented as proven background push delivery');
   process.exit(1);
 }
 
