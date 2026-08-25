@@ -23,10 +23,27 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package.json
 
-      # This repository intentionally does not commit a package-lock.json.
-      # npm ci therefore cannot work here; use npm install to resolve the
-      # declared Expo/RN dependency graph reproducibly enough for preflight.
-      - run: npm install --no-audit --no-fund
+      # Non-release validation currently has no committed npm lockfile, so this
+      # path exercises a mutable candidate graph and MUST NOT be described as a
+      # reproducible dependency build. A manual production build fails closed
+      # until a canonical package-lock.json exists and is consumed with npm ci.
+      - name: Require canonical npm lock for manual production build
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f package-lock.json || {
+            echo 'BLOCKED: mobile/package-lock.json is required for a production EAS build.' >&2
+            exit 1
+          }
+
+      - name: Install mutable candidate graph for non-release preflight
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: npm install --no-audit --no-fund
+
+      - name: Install canonical locked graph for manual production build
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: npm ci --no-audit --no-fund
 
       - name: Validate native release contract
         shell: bash
