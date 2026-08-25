@@ -85,7 +85,8 @@ def build_git_pr_index(repo_root: str | Path) -> dict[str, tuple[int, ...]]:
     return {path: tuple(sorted(refs)) for path, refs in sorted(index.items())}
 
 
-def _contains_country(text: str, country: str, iso3: str) -> bool:
+def _contains_country(text: str, country: str) -> bool:
+    """Match country language only; ISO3 codes are unsafe in prose (e.g. ARE)."""
     phrases = {country}
     if country == "Ukraine":
         phrases.add("Ukrainian")
@@ -96,20 +97,9 @@ def _contains_country(text: str, country: str, iso3: str) -> bool:
     if country == "South Korea":
         phrases.update(("South Korea", "Korea", "KONEPS"))
     for phrase in phrases:
-        if len(phrase) <= 3:
-            pattern = rf"(?<![A-Za-z0-9]){re.escape(phrase)}(?![A-Za-z0-9])"
-        else:
-            pattern = rf"(?<![A-Za-z0-9]){re.escape(phrase)}(?![A-Za-z0-9])"
+        pattern = rf"(?<![A-Za-z0-9]){re.escape(phrase)}(?![A-Za-z0-9])"
         if re.search(pattern, text, re.IGNORECASE):
             return True
-    if iso3 and iso3 != "UNKNOWN":
-        return bool(
-            re.search(
-                rf"(?<![A-Za-z0-9]){re.escape(iso3)}(?![A-Za-z0-9])",
-                text,
-                re.IGNORECASE,
-            )
-        )
     return False
 
 
@@ -137,9 +127,7 @@ def research_docs_for_country(repo_root: str | Path, country: str, iso3: str) ->
 
     Country evidence documents must identify the country in their filename.
     Regional RESEARCH/GATE documents may qualify by explicitly naming the country
-    in their bounded text. Broad scope/portfolio documents never qualify by
-    themselves because they enumerate the decision universe rather than prove
-    country-specific research.
+    in bounded text. Broad scope/portfolio documents never qualify by themselves.
     """
     root = Path(repo_root)
     matches = []
@@ -161,7 +149,7 @@ def research_docs_for_country(repo_root: str | Path, country: str, iso3: str) ->
         if evidence and filename_specific:
             matches.append(str(path.relative_to(root)))
             continue
-        if regional and _contains_country(text, country, iso3):
+        if regional and _contains_country(text, country):
             matches.append(str(path.relative_to(root)))
     return tuple(sorted(set(matches)))
 
