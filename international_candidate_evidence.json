@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "canonical_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "policy": "Candidate TESTED/LIVE_VALIDATED state is admitted only when the recorded proof head exactly equals the candidate head. Historical mismatched-head evidence is retained but cannot promote current state.",
+  "candidates": [
+    {
+      "pr": 225,
+      "head": "a22a59a7e32c6075528c56be3b9177a4579188a3",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32869808972, "head": "a22a59a7e32c6075528c56be3b9177a4579188a3"},
+      "sources": [
+        {"source": "UY_ARCE", "country": "Uruguay", "implemented": true, "tested": true, "runtime_wired": true, "ready": true, "planned": false, "gated_rights": false, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false},
+        {"source": "DO_DGCP", "country": "Dominican Republic", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": true, "gated_rights": false, "gated_machine_access": false, "gated_credential": false, "gated_completeness": true, "tech_lab": false}
+      ]
+    },
+    {
+      "pr": 228,
+      "head": "5cb94897ced94215bfddb959837ec7937e784758",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32870058780, "head": "5cb94897ced94215bfddb959837ec7937e784758"},
+      "sources": [
+        {"source": "TW_PCC", "country": "Taiwan", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": false, "gated_rights": false, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32870058787, "head": "5cb94897ced94215bfddb959837ec7937e784758", "result_kind": "MATCHING_SIGNALS"}},
+        {"source": "ZM_ZPPA", "country": "Zambia", "implemented": true, "tested": true, "runtime_wired": true, "ready": true, "planned": false, "gated_rights": false, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32870058817, "head": "5cb94897ced94215bfddb959837ec7937e784758", "result_kind": "MATCHING_SIGNALS"}}
+      ]
+    },
+    {
+      "pr": 230,
+      "head": "21bc5b92198d43b74b2c99b761be38d0efa50a68",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32870459781, "head": "21bc5b92198d43b74b2c99b761be38d0efa50a68"},
+      "sources": [
+        {"source": "FR_DECP", "country": "France", "implemented": true, "tested": true, "runtime_wired": true, "ready": true, "planned": false, "gated_rights": false, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32870459798, "head": "21bc5b92198d43b74b2c99b761be38d0efa50a68", "result_kind": "MATCHING_SIGNALS"}}
+      ]
+    },
+    {
+      "pr": 235,
+      "head": "8f5e2b88181a6296d283a8e979eae436546b23fd",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32869490054, "head": "8f5e2b88181a6296d283a8e979eae436546b23fd"},
+      "sources": [
+        {"source": "QA_ASHGHAL", "country": "Qatar", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": true, "gated_rights": true, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32869490233, "head": "8f5e2b88181a6296d283a8e979eae436546b23fd", "result_kind": "MATCHING_SIGNALS"}},
+        {"source": "IL_GPA", "country": "Israel", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": true, "gated_rights": true, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32869491996, "head": "8f5e2b88181a6296d283a8e979eae436546b23fd", "result_kind": "EMPTY_VALID_RESULT"}},
+        {"source": "OM_ESNAD", "country": "Oman", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": true, "gated_rights": true, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32869490008, "head": "8f5e2b88181a6296d283a8e979eae436546b23fd", "result_kind": "MATCHING_SIGNALS"}},
+        {"source": "AE_MOF_DPP", "country": "United Arab Emirates", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": true, "gated_rights": true, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32869490112, "head": "8f5e2b88181a6296d283a8e979eae436546b23fd", "result_kind": "EMPTY_VALID_RESULT"}}
+      ]
+    },
+    {
+      "pr": 262,
+      "head": "3538cc6dc71e5747bac60846bc5d8fffeb9a7ae3",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32872631238, "head": "3538cc6dc71e5747bac60846bc5d8fffeb9a7ae3"},
+      "sources": [
+        {"source": "KW_CAPT", "country": "Kuwait", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": false, "gated_rights": true, "gated_machine_access": true, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "FAILURE", "run_id": 32872629488, "head": "3538cc6dc71e5747bac60846bc5d8fffeb9a7ae3", "result_kind": "HTTP_403_ACCESS"}},
+        {"source": "MA_PMMP", "country": "Morocco", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": false, "gated_rights": true, "gated_machine_access": true, "gated_credential": false, "gated_completeness": true, "tech_lab": false, "live": {"status": "FAILURE", "run_id": 32872631350, "head": "3538cc6dc71e5747bac60846bc5d8fffeb9a7ae3", "result_kind": "UNSUPPORTED_WEBFORMS_COMPLETENESS"}}
+      ]
+    },
+    {
+      "pr": 266,
+      "head": "204987b80125eef24a5c5a50a207357d19543926",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32872777152, "head": "204987b80125eef24a5c5a50a207357d19543926"},
+      "sources": [
+        {"source": "FI_HILMA", "country": "Finland", "implemented": true, "tested": true, "runtime_wired": true, "ready": false, "planned": true, "gated_rights": false, "gated_machine_access": false, "gated_credential": true, "gated_completeness": false, "tech_lab": false}
+      ]
+    },
+    {
+      "pr": 274,
+      "head": "cbe82f71ef914cafac79280fa6917b045963ec63",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32873015235, "head": "cbe82f71ef914cafac79280fa6917b045963ec63"},
+      "sources": [
+        {"source": "RS:PUBLIC_PROCUREMENT_OFFICE:PUBLIC_PROCUREMENT_PORTAL", "country": "Serbia", "implemented": true, "tested": true, "runtime_wired": false, "ready": false, "planned": false, "gated_rights": true, "gated_machine_access": true, "gated_credential": false, "gated_completeness": true, "tech_lab": true}
+      ]
+    },
+    {
+      "pr": 290,
+      "head": "9df1bac74250db9e5182ee07a0ef1b5d64fc9fc3",
+      "base_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "quality": {"status": "SUCCESS", "run_id": 32874326591, "head": "9df1bac74250db9e5182ee07a0ef1b5d64fc9fc3"},
+      "sources": [
+        {"source": "UK_PROCUREMENT", "country": "United Kingdom", "implemented": true, "tested": true, "runtime_wired": true, "ready": true, "planned": false, "gated_rights": false, "gated_machine_access": false, "gated_credential": false, "gated_completeness": false, "tech_lab": false, "live": {"status": "SUCCESS", "run_id": 32874326617, "head": "9df1bac74250db9e5182ee07a0ef1b5d64fc9fc3", "result_kind": "MATCHING_SIGNALS"}}
+      ]
+    }
+  ],
+  "supersession": [
+    {"pr": 176, "state": "SUPERSEDED", "by_pr": 197, "scope": "Dominican Republic overlapping implementation"},
+    {"pr": 196, "state": "SUPERSEDED", "by_pr": 197, "scope": "Uruguay PAC overlapping implementation"}
+  ]
+}

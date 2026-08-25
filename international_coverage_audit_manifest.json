@@ -1,0 +1,66 @@
+{
+  "branch": "chatgpt/international-cell-01-coverage-audit",
+  "contract": "OBRASIGNAL_REPOSITORY_STATE_INTERNATIONAL_COVERAGE_AUDIT_V1",
+  "scope": "repository-state international coverage audit with exact-head candidate evidence overlay",
+  "commands": [
+    "python international_coverage_audit.py --json",
+    "python international_coverage_audit.py --markdown",
+    "python international_coverage_audit.py --strict",
+    "pytest -q test_international_coverage_audit.py test_international_coverage_audit_regressions.py test_international_audit_provenance.py test_international_portfolio_states.py"
+  ],
+  "files_added": [
+    ".github/workflows/international-coverage-audit.yml",
+    "international_audit_provenance.py",
+    "international_candidate_evidence.json",
+    "international_country_codes.py",
+    "international_coverage_audit.py",
+    "international_coverage_audit_core.py",
+    "international_coverage_audit_manifest.json",
+    "international_portfolio_states.py",
+    "test_international_audit_provenance.py",
+    "test_international_coverage_audit.py",
+    "test_international_coverage_audit_regressions.py",
+    "test_international_portfolio_states.py"
+  ],
+  "generated_outputs": [
+    "international_coverage_audit.json",
+    "international_coverage_audit.generated.md"
+  ],
+  "single_truth_policy": [
+    "The CLI JSON/Markdown output is generated; no checked-in manually maintained coverage matrix is kept.",
+    "Canonical registry state and unmerged current-main candidate state remain distinguishable.",
+    "A workflow file or evidence document is provenance only and cannot establish LIVE_VALIDATED.",
+    "Candidate TESTED requires SUCCESS quality evidence whose proof head exactly equals the candidate head and whose base_main_sha equals the evidence manifest canonical_main_sha.",
+    "Candidate LIVE_VALIDATED requires SUCCESS live evidence whose proof head exactly equals the candidate head and whose base_main_sha equals the evidence manifest canonical_main_sha.",
+    "EMPTY_VALID_RESULT is a valid live result kind and never means source failure or a matching opportunity existed.",
+    "SUPERSEDED is explicit evidence, never inferred merely from PR age."
+  ],
+  "state_vocabulary": [
+    "REGISTERED",
+    "IMPLEMENTED",
+    "TESTED",
+    "LIVE_VALIDATED",
+    "RUNTIME_WIRED",
+    "PRODUCTION_ACTIVE",
+    "READY",
+    "PLANNED",
+    "GATED_RIGHTS",
+    "GATED_MACHINE_ACCESS",
+    "GATED_CREDENTIAL",
+    "GATED_COMPLETENESS",
+    "TECH_LAB",
+    "SUPERSEDED"
+  ],
+  "current_main_evidence_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "runtime_changes": [],
+  "global_registry_changes": [],
+  "master_queue_changes": [],
+  "production_changes": [],
+  "validation": {
+    "historical_runs": "evidence only; not accepted as current exact-head proof after reconciliation",
+    "current_exact_head": "must be recorded in PR body after the final self-validating workflow run"
+  },
+  "rollback": [
+    "Revert PR #192 or remove only the auditor files listed in files_added. No canonical source/runtime/queue state requires rollback."
+  ]
+}
