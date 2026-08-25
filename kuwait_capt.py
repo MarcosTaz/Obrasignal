@@ -41,6 +41,7 @@ _MONTHS = {
 _AR_STRONG = (
     "اعمال انشائية", "أعمال انشائية", "الاعمال الانشائية", "الأعمال الإنشائية",
     "اعمال مدنية", "أعمال مدنية", "الاعمال المدنية", "الأعمال المدنية",
+    "اعمال مدنيه", "أعمال مدنيه", "الاعمال المدنيه", "الأعمال المدنيه",
     "انشاء و انجاز", "إنشاء وإنجاز", "إنشاء و إنجاز", "ترميم المباني",
     "صيانة و ترميم المباني", "صيانة وترميم المباني", "تنفيذ أعمال التشغيل والصيانة",
     "تنفيذ اعمال التشغيل والصيانة", "إنشاء مبنى", "انشاء مبنى", "إنشاء مباني",
@@ -97,7 +98,6 @@ def _iso_date(value: str, *, allow_blank: bool = False) -> str | None:
     value = _clean(value)
     if not value and allow_blank:
         return None
-    # CAPT renders Arabic month + day, year, e.g. "أغسطس 23, 2026".
     match = re.fullmatch(r"([^\s]+)\s+(\d{1,2}),\s*(\d{4})", value)
     if not match:
         raise KuwaitCAPTSourceError(f"unrecognized CAPT date: {value!r}")
@@ -142,25 +142,13 @@ def parse_open_tenders(html: str) -> list[CAPTTender]:
         value, _ = _next_value(tokens, idx)
         if field == "tender_no" and current.get("tender_no"):
             if all(current.get(k) for k in ("tender_no", "buyer", "title", "request_date", "deadline")):
-                rows.append(
-                    CAPTTender(
-                        current["tender_no"], current["buyer"], current["title"],
-                        current["request_date"], current["deadline"], current.get("premeeting_date"),
-                    )
-                )
+                rows.append(CAPTTender(current["tender_no"], current["buyer"], current["title"], current["request_date"], current["deadline"], current.get("premeeting_date")))
             current = {}
         current[field] = value
 
     if current.get("tender_no") and all(current.get(k) for k in ("buyer", "title", "request_date", "deadline")):
-        rows.append(
-            CAPTTender(
-                current["tender_no"], current["buyer"], current["title"],
-                current["request_date"], current["deadline"], current.get("premeeting_date"),
-            )
-        )
+        rows.append(CAPTTender(current["tender_no"], current["buyer"], current["title"], current["request_date"], current["deadline"], current.get("premeeting_date")))
 
-    # The page contains teaser text before the labelled detail blocks; only
-    # labelled publisher fields above are considered records.
     unique: dict[str, CAPTTender] = {}
     for row in rows:
         if not row.tender_no or len(row.tender_no) > 100:
