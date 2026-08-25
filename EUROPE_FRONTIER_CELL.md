@@ -23,7 +23,7 @@ This cell is subordinate to the canonical portfolio. It does **not** silently en
 
 | Priority | Market | Cell state | Immediate question | Promotion rule |
 | --- | --- | --- | --- | --- |
-| 1 | Turkey / Türkiye | FORENSIC_RESEARCH | Does EKAP expose a lawful, stable, machine-readable national route with material works coverage and useful lifecycle/plan depth? | BUILD/HOLD only after live source + reuse + completeness + ROI evidence |
+| 1 | Turkey / Türkiye | HOLD_MACHINE_ACCESS | EKAP has exceptional national procurement depth, but is there a supported machine route suitable for production rather than the current interactive/captcha search surface? | Reopen immediately on official/stable API, feed or bulk export plus lawful commercial reuse |
 | 2 | Serbia | FORENSIC_RESEARCH | Can the national procurement portal add below-threshold / award / plan intelligence beyond European shared surfaces at acceptable maintenance cost? | Prefer shared/reusable transport; dedicated only if marginal value is material |
 | 3 | Ukraine | CANONICAL_HOLD | Is there technical learning worth retaining without pretending normal commercial contractor execution is currently rational? | Do not promote while canonical geopolitical/execution blocker dominates |
 | 4 | Georgia | FORENSIC_RESEARCH | Is the national e-procurement surface automatable, reusable and construction-rich enough to justify entry? | Require live proof and commercial reuse evidence |
@@ -62,6 +62,36 @@ A connector may be implemented only after all of the following are demonstrated:
 - material incremental product value versus current coverage;
 - expected engineering/maintenance cost beats the next-best use of the same effort.
 
+## Turkey / Türkiye — forensic result 2026-08-25
+
+### FACT
+
+The official Public Procurement Authority/Kamu İhale Kurumu operates EKAP as the national electronic procurement platform. Current official material says the public tender search gives access to more than 100,000 tender notices per year, tender documents and contract information. The refreshed search adds full-document search and more than twenty filters. Official KIK statistics expose current counts for tender notices, tenders, reported contracts and reported contract value. Official notices also confirm that exception procurements are increasingly executed electronically through EKAP, including invitation/notice, qualification information, electronic bids, evaluation, notifications and award-authority workflow.
+
+The legacy public KSP tender-search surface is interactive, JavaScript-dependent and exposes a human challenge/captcha field. A separate result-notice search exists, so lifecycle depth is visibly present on the human surface.
+
+### DATA / CONSTRUCTION VALUE
+
+Turkey therefore passes the **national depth** and **construction relevance potential** tests strongly. EKAP exposes tender type as a structured search dimension and the authority has a dedicated Works (`Yapım İşleri`) regulatory/workgroup domain. Tender documents, result/contract information and richer bidder/document metadata make the potential incremental intelligence materially deeper than a thin notice-only feed.
+
+### MACHINE ACCESS
+
+This investigation did **not** establish an official, stable, documented public API/feed/bulk export suitable for ObraSignal production ingestion. The directly observable public search path is a browser workflow with JavaScript and a challenge field. That fails the current production machine-access gate. ObraSignal must not implement brittle captcha bypassing or pretend that an interactive public website is a production API.
+
+### LEGAL
+
+Official material establishes free public access to notices, documents, contract-result information and qualification information. It does not, by itself, establish a sufficiently explicit commercial redistribution licence for a SaaS ingestion/redistribution product. Commercial reuse therefore remains **UNPROVEN**, not RED and not GREEN.
+
+### REUSE
+
+No existing shared source family can be claimed. There is no proven TED/eForms or OCDS transport contract here. A Turkey adapter would be source-specific unless a future official API/export proves a reusable contract.
+
+### DECISION
+
+**HOLD_MACHINE_ACCESS.** This is not a commercial rejection. Turkey is a high-value source trapped behind two unresolved production gates: supported machine access and commercial reuse. Do not spend connector engineering on scraping/captcha work.
+
+**Reconsideration trigger:** immediately reopen when KIK/EKAP exposes or documents a stable API, feed or bulk export usable without human challenge and commercial reuse/redistribution is established. At that point Turkey should receive a fresh BUILD-vs-HOLD economic comparison because the underlying national data depth is already strong.
+
 ## Switzerland — closed reference case
 
 Switzerland is the reference for what "done" means in this cell, not an item to redo. The repository already contains `SIMAPConnector`, a public structured construction search, lot-aware identity, bounded pagination, durable date/tracked-target cursoring, lifecycle closure, and a legal 08:00 Europe/Zurich release gate. Its registry state is `ready` but runtime remains opt-in.
@@ -69,14 +99,14 @@ Switzerland is the reference for what "done" means in this cell, not an item to 
 ## Current decisions
 
 - **Switzerland:** DONE / BUILD reference; no duplicate work.
+- **Turkey / Türkiye:** HOLD_MACHINE_ACCESS; strong data/product potential, no production connector until machine-access + commercial-reuse gates are closed.
 - **Ukraine:** HOLD inherited; research may improve technical knowledge but must not silently promote commercial scope.
-- **Turkey, Serbia, Georgia, Moldova, Albania, North Macedonia, Bosnia and Herzegovina, Montenegro:** not yet classified by this cell. Absence from the current 135-market canonical registry is not evidence of poor data; each requires source-forensic evaluation before any scope mutation.
+- **Serbia, Georgia, Moldova, Albania, North Macedonia, Bosnia and Herzegovina, Montenegro:** not yet classified by this cell. Absence from the current 135-market canonical registry is not evidence of poor data; each requires source-forensic evaluation before any scope mutation.
 
 ## Next executable sequence
 
-1. Turkey: official-source + machine-access + legal-reuse + works-depth probe.
-2. Serbia: same forensic gate.
-3. Ukraine: technical-source audit only; preserve HOLD unless the canonical blocker changes.
-4. Georgia and Moldova: prioritize reusable structured/OCDS-compatible routes.
-5. Albania, North Macedonia, Bosnia and Herzegovina, Montenegro: evaluate in descending expected value; stop early where fragmentation or tiny marginal value clearly fails the opportunity-cost test.
-6. Only after evidence exists, update portfolio/scope registries and tests in a separate implementation change; do not mix unverified research assertions into production registries.
+1. Serbia: official-source + machine-access + legal-reuse + works-depth probe.
+2. Ukraine: technical-source audit only; preserve HOLD unless the canonical blocker changes.
+3. Georgia and Moldova: prioritize reusable structured/OCDS-compatible routes.
+4. Albania, North Macedonia, Bosnia and Herzegovina, Montenegro: evaluate in descending expected value; stop early where fragmentation or tiny marginal value clearly fails the opportunity-cost test.
+5. Only after evidence exists, update portfolio/scope registries and tests in a separate implementation change; do not mix unverified research assertions into production registries.
