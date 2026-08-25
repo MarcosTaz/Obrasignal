@@ -28,6 +28,7 @@ def test_integrity_scanner_is_read_only_and_clean_for_consistent_profile_state()
     from evaluation_policy import record_evaluation_event
 
     conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
     ensure_account(conn, "tenant-a")
     ensure_profile_table(conn)
     _profile_row(conn, "tenant-a")
@@ -84,6 +85,7 @@ def test_integrity_scanner_detects_profile_ready_without_profile():
     from evaluation_policy import record_evaluation_event
 
     conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
     ensure_account(conn, "tenant-a")
     conn.execute(
         "CREATE TABLE company_profiles(account_id TEXT PRIMARY KEY, profile_json TEXT NOT NULL, updated_at TEXT NOT NULL)"
