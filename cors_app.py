@@ -5,6 +5,7 @@ from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
+import opportunity_watchlist_api  # noqa: F401 - registers the isolated watchlist blueprint
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
 
@@ -30,7 +31,7 @@ def _cors(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
@@ -105,9 +106,6 @@ def _opportunity_detail(opportunity_id):
         c.close()
 
 
-# Keep this route at the production WSGI boundary because the API blueprint
-# predates the detail endpoint. It is still protected by the same verified
-# provider identity and uses the same account-scoped decision/workflow helpers.
 if not any(rule.rule == "/api/v1/opportunities/<int:opportunity_id>" for rule in APP.url_map.iter_rules()):
     APP.add_url_rule(
         "/api/v1/opportunities/<int:opportunity_id>",
