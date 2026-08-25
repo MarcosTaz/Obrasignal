@@ -1,0 +1,47 @@
+name: Apply US SAM Stream Fix
+
+on:
+  push:
+    branches: [codex/us-sam-q050]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/us-sam-q050
+      - name: Patch supported streaming path
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('us_sam.py')
+          s=p.read_text()
+          old='''        # SAM's extract has historically included Windows-1252 bytes in free text.\n        # utf-8-sig with replacement keeps the strict header contract while avoiding\n        # a full 250MB decode in memory.\n        response.raw.decode_content = True\n        text = io.TextIOWrapper(response.raw, encoding="utf-8-sig", errors="replace", newline="")\n        reader = csv.DictReader(text)\n'''
+          new='''        # Requests owns response.raw and may close that object while a wrapper is\n        # still iterating after the publisher redirect. Use Requests' supported\n        # streaming iterator instead. Re-add line terminators so csv can preserve\n        # quoted multiline descriptions without materialising the ~250 MB extract.\n        def decoded_lines():\n            first = True\n            for chunk in response.iter_lines(decode_unicode=False):\n                if isinstance(chunk, bytes):\n                    line = chunk.decode("utf-8", errors="replace")\n                else:\n                    line = str(chunk)\n                if first:\n                    line = line.lstrip("\\ufeff")\n                    first = False\n                yield line + "\\n"\n\n        # SAM descriptions can exceed Python csv's conservative 128 KiB default.\n        csv.field_size_limit(64 * 1024 * 1024)\n        reader = csv.DictReader(decoded_lines())\n'''
+          if old not in s:
+              raise SystemExit('stream patch target missing')
+          s=s.replace(old,new,1).replace('import io\n','')
+          p.write_text(s)
+
+          p=Path('tests/test_us_sam.py'); s=p.read_text()
+          old='''    def raise_for_status(self):\n        if self.status_code >= 400:\n            raise RuntimeError(f"http {self.status_code}")\n'''
+          new='''    def raise_for_status(self):\n        if self.status_code >= 400:\n            raise RuntimeError(f"http {self.status_code}")\n\n    def iter_lines(self, decode_unicode=False):\n        for line in self.raw.getvalue().splitlines():\n            yield line\n'''
+          if old not in s:
+              raise SystemExit('fake response target missing')
+          s=s.replace(old,new,1)
+          append='''\n\ndef test_large_publisher_description_exceeding_csv_default_limit_streams_safely():\n    large = "x" * 200000\n    body = csv_bytes([construction_row(Description=large)])\n    rows, _ = SAMGovConnector(session=FakeSession(FakeResponse(body))).fetch()\n    assert rows[0]["description"] == large\n'''
+          if 'test_large_publisher_description_exceeding_csv_default_limit_streams_safely' not in s:
+              s += append
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add us_sam.py tests/test_us_sam.py
+          git diff --cached --quiet || git commit -m "Use supported SAM.gov streaming iterator"
+          git push origin HEAD:codex/us-sam-q050
