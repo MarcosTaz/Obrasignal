@@ -72,7 +72,6 @@ def _published(value):
     text = _text(value)
     if not text:
         return None
-    # Preserve publisher precision while accepting both date and timestamp forms.
     candidate = text.replace(" ", "T", 1)
     try:
         parsed = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
@@ -97,9 +96,6 @@ def normalize_arce_pac_procedure(row, *, today):
     end_date = _date(row.get("periodoConvFechaFin"))
     current = today.isoformat() if hasattr(today, "isoformat") else _date(today)
 
-    # Early-signal discipline: only calls whose estimated call window has not
-    # started. The API-side end-date filter bounds retrieval; this stricter local
-    # check keeps the canonical signal genuinely pre-call.
     if not procedure_id or not plan_id or not buyer or not title or not start_date or not current:
         return None
     if start_date < current:
@@ -118,8 +114,6 @@ def normalize_arce_pac_procedure(row, *, today):
         "description": title,
         "buyer": buyer,
         "country": "URY",
-        # The observed current JSON search/detail contract omits the amount even
-        # though the UI model names one. Never synthesize a monetary value.
         "value": "",
         "currency": "",
         "deadline": "",
@@ -153,6 +147,18 @@ def normalize_arce_pac_procedure(row, *, today):
 class ARCEPACConnector:
     def __init__(self, config=ARCEPACConfig(), *, session=None):
         self.config = config
+        if _text(config.source).upper() != "UY_ARCE":
+            raise RuntimeError("ARCE PAC connector source identity must remain UY_ARCE")
+        if _text(config.country).upper() != "URY":
+            raise RuntimeError("ARCE PAC connector country identity must remain URY")
+        if int(config.works_family_code) != ARCE_PAC_WORKS_FAMILY_CODE:
+            raise RuntimeError("ARCE PAC only verified construction family code 6")
+        if not 1 <= int(config.page_size) <= 100:
+            raise RuntimeError("ARCE PAC page_size must stay within the live-verified bound 1..100")
+        if not 1 <= int(config.max_pages) <= 50:
+            raise RuntimeError("ARCE PAC max_pages must stay within the bounded contract 1..50")
+        if not 1 <= int(config.timeout) <= 120:
+            raise RuntimeError("ARCE PAC timeout must stay within 1..120 seconds")
         self.session = session or requests.Session()
         self._api_url = None
 
@@ -164,8 +170,6 @@ class ARCEPACConnector:
         return response
 
     def _bootstrap(self):
-        # Match the legitimate public SPA session: first visit the public page,
-        # then read its public config. No cookies/auth are manufactured.
         self._get(ARCE_PAC_PUBLIC_URL, accept="text/html,application/xhtml+xml")
         config = self._get(ARCE_PAC_CONFIG_URL).json()
         if not isinstance(config, dict):
@@ -182,8 +186,8 @@ class ARCEPACConnector:
 
     def _rows(self, *, today):
         api_url = self._api_url or self._bootstrap()
-        page_size = max(1, int(self.config.page_size))
-        max_pages = max(1, int(self.config.max_pages))
+        page_size = int(self.config.page_size)
+        max_pages = int(self.config.max_pages)
         current = today.isoformat()
         rows = []
         expected_pages = None
@@ -195,7 +199,7 @@ class ARCEPACConnector:
                     "sort": "periodoConvFechaIni,asc",
                     "page": page,
                     "size": page_size,
-                    "codFamilia": int(self.config.works_family_code),
+                    "codFamilia": ARCE_PAC_WORKS_FAMILY_CODE,
                     "fechaConvocatoriaFinDesde": current,
                 },
             )
