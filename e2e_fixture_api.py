@@ -191,9 +191,12 @@ def _opportunity_payload(row, workflow: dict) -> dict:
 
 def _identity_or_error():
     try:
-        return configured_identity(), None
+        identity = configured_identity()
     except (RuntimeError, InvalidTokenError):
         return None, (jsonify({"error": "authentication_required"}), 401)
+    if identity.authenticated is not True:
+        return None, (jsonify({"error": "authentication_required"}), 401)
+    return identity, None
 
 
 @bp.before_request
