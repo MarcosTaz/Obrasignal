@@ -6,10 +6,12 @@ on:
       - engineering_ops.py
       - engineering_ops_github.py
       - engineering_ops_gate_attribution.py
+      - engineering_ops_body_drift.py
       - engineering_ops_manifest.json
       - tests/test_engineering_ops.py
       - tests/test_engineering_ops_github.py
       - tests/test_engineering_ops_gate_attribution.py
+      - tests/test_engineering_ops_body_drift.py
       - docs/ENGINEERING_OPS_ORCHESTRATION.md
       - .github/workflows/engineering-ops-drift.yml
   schedule:
@@ -43,7 +45,7 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_OPS_SHA"
 
       - name: Compile orchestration tooling
-        run: python3 -m py_compile engineering_ops.py engineering_ops_github.py engineering_ops_gate_attribution.py
+        run: python3 -m py_compile engineering_ops.py engineering_ops_github.py engineering_ops_gate_attribution.py engineering_ops_body_drift.py
 
       - name: Observe current repository evidence
         id: audit
