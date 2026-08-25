@@ -56,7 +56,7 @@ MASTER_EXECUTION_QUEUE = (
        "Official federal construction contract, identity/amendment/lifecycle semantics, exact schema, opt-in production wiring, exact-head CI and live production-path validation completed."),
     _q("Q045_TRIAL_POLICY_V01", "21-day value-aware evaluation and enterprise pilot policy v0.1", "STRATEGY", "DONE", "PRODUCTION",
        ("Q040_CANADA_BUYS",),
-       "Replace signup-clock legacy trial for new accounts with auditable value-aware activation, preserve legacy accounts and RevenueCat paid precedence; policy remains VALIDATION REQUIRED while Q050 stays ACTIVE."),
+       "Replace signup-clock legacy trial for new accounts with auditable value-aware activation, preserve legacy accounts and RevenueCat paid precedence; policy remains VALIDATION REQUIRED and does not block the canonical market-coverage queue."),
     _q("Q050_US_SAM", "SAM.gov federal construction opportunities connector", "SIGNAL", "DONE", "PRODUCTION",
        ("Q020_SIGNAL_CONTRACT_V1",),
        "Official public Contract Opportunities bulk path validated: strict 47-column schema, NAICS 23 construction admission, NoticeId identity, opt-in runtime wiring, fail-closed disappearance semantics, exact-head CI and live production-path proof."),
