@@ -1,11 +1,23 @@
-from pathlib import Path
+import os
 import sqlite3
 
 import api
+import e2e_fixture_api
+from auth_context import RequestIdentity
 from e2e_fixture_api import install
 
 
 install(api.APP)
+
+
+def _authenticated_identity():
+    account_id = os.environ["OBRASIGNAL_ACCOUNT_ID"]
+    return RequestIdentity(
+        account_id=account_id,
+        authenticated=True,
+        subject=account_id,
+        claims={"sub": account_id},
+    )
 
 
 def _configure(monkeypatch, tmp_path, account_id="tenant-a"):
@@ -16,6 +28,7 @@ def _configure(monkeypatch, tmp_path, account_id="tenant-a"):
     monkeypatch.setenv("OBRASIGNAL_DB", str(primary_db))
     monkeypatch.setenv("OBRASIGNAL_TEST_FIXTURES_ENABLED", "1")
     monkeypatch.setenv("OBRASIGNAL_TEST_FIXTURE_DB", str(fixture_db))
+    monkeypatch.setattr(e2e_fixture_api, "configured_identity", _authenticated_identity)
     return primary_db, fixture_db
 
 
@@ -52,6 +65,23 @@ def test_fixture_store_must_be_separate_from_primary_database(monkeypatch, tmp_p
     assert not database.exists()
 
 
+def test_fixture_contract_requires_authenticated_identity(monkeypatch, tmp_path):
+    _, fixture_db = _configure(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        e2e_fixture_api,
+        "configured_identity",
+        lambda: RequestIdentity(account_id="tenant-a", authenticated=False),
+    )
+
+    response = api.APP.test_client().post(
+        "/api/v1/test-fixtures/opportunity", json={"run_id": "run-unauthenticated"}
+    )
+
+    assert response.status_code == 401
+    assert response.get_json() == {"error": "authentication_required"}
+    assert not fixture_db.exists()
+
+
 def test_fixture_rejects_client_supplied_tenant_identity(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
 
@@ -76,6 +106,7 @@ def test_authenticated_fixture_round_trip_restore_cleanup_and_tenant_isolation(m
     fixture_id = created_body["fixture_id"]
     assert fixture_id.startswith("e2e_")
     assert created_body["account_id"] == "tenant-a"
+    assert created_body["authenticated"] is True
     assert created_body["created"] is True
     assert created_body["opportunity"]["test_fixture"] is True
     assert created_body["opportunity"]["market"] == "TEST"
