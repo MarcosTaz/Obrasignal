@@ -67,6 +67,21 @@ def test_unknown_stale_unavailable_and_conflict_are_distinct():
     assert result["degraded_decision_exposure"]["rate"] == 1
 
 
+def test_known_envelope_with_explicit_unknown_subinputs_is_unknown_exposure():
+    audit = _audit(decision="PURSUE", outcome="BID_SUBMITTED")
+    evidence = next(item for item in audit["inputs"] if item["name"] == "evidence")
+    evidence["unknowns"] = ["value", "company_specialization"]
+
+    result = decision_metrics([audit])
+
+    assert result["truth_state_counts"]["UNKNOWN"] == 0
+    assert result["explicit_unknown_subinputs"] == 2
+    assert result["unknown_exposure_slots"] == 1
+    assert result["unknown_data_rate"]["rate"] == pytest.approx(1 / 5)
+    assert result["degraded_input_rate"]["rate"] == pytest.approx(1 / 5)
+    assert result["degraded_decision_exposure"]["rate"] == 1
+
+
 def test_missing_critical_input_counts_unavailable_not_unknown():
     audit = _audit(decision="NO_BID", outcome="NO_SUBMISSION")
     audit["inputs"] = [item for item in audit["inputs"] if item["name"] != "economics"]
