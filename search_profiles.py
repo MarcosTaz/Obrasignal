@@ -234,7 +234,12 @@ def query_opportunities(conn, account_id: str, filters: dict, *, limit: int = 20
 
 def _decode_row(row) -> dict:
     item = dict(row)
-    item["filters"] = json.loads(item.pop("filters_json"))
+    raw_filters = item.pop("filters_json")
+    try:
+        item["filters"] = json.loads(raw_filters)
+    except (TypeError, json.JSONDecodeError) as exc:
+        item["filters"] = None
+        item["decode_error"] = str(exc)
     item["is_default"] = bool(item["is_default"])
     return item
 
@@ -251,19 +256,21 @@ def _validated_row(conn, row, account_id: str, *, require_runnable: bool = False
     if row is None:
         raise SearchProfileNotFound("search profile not found")
     item = _decode_row(row)
+    validation_error = None
     try:
+        if item.pop("decode_error", None):
+            raise SearchProfileNeedsUpdate("stored filters are malformed")
         if item["filter_schema_version"] != FILTER_SCHEMA_VERSION:
             raise SearchProfileNeedsUpdate("filter schema version is no longer supported")
         item["filters"] = normalize_filters(item["filters"])
         item["sort"] = validate_sort(item["sort"])
     except SearchProfileError as exc:
+        validation_error = exc
         if item["status"] != "INVALID":
             _mark_invalid(conn, item["profile_id"], account_id)
             item["status"] = "INVALID"
-        if require_runnable:
-            raise SearchProfileNeedsUpdate(str(exc)) from exc
-    if require_runnable and item["status"] != "ACTIVE":
-        raise SearchProfileNeedsUpdate("search profile requires update")
+    if require_runnable and (validation_error is not None or item["status"] != "ACTIVE"):
+        raise SearchProfileNeedsUpdate(str(validation_error or "search profile requires update"))
     return item
 
 
@@ -357,7 +364,7 @@ def run_search_profile(conn, account_id: str, profile_id: str, *, limit: int = 2
     ran_at = _now()
     with conn:
         conn.execute(
-            "UPDATE search_profiles SET last_run_at=?, updated_at=? WHERE profile_id=? AND account_id=?",
-            (ran_at, ran_at, profile_id, account_id),
+            "UPDATE search_profiles SET last_run_at=? WHERE profile_id=? AND account_id=?",
+            (ran_at, profile_id, account_id),
         )
     return profile, rows
