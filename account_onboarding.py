@@ -8,7 +8,7 @@ saved and emits high-match events for the same account.
 from __future__ import annotations
 
 from app import db
-from funnel_integration import persist_and_classify
+from funnel_integration import load_profile, persist_and_classify
 from opportunity_lifecycle import ensure_lifecycle_table
 
 MAX_BOOTSTRAP_ROWS = 250
@@ -71,9 +71,10 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
                LIMIT ?""",
             (max(1, min(int(limit), MAX_BOOTSTRAP_ROWS)),),
         ).fetchall()
+        profile = load_profile(account_id) if rows else None
         evaluated = 0
         for row in rows:
-            persist_and_classify(conn, dict(row), False, account_id=account_id)
+            persist_and_classify(conn, dict(row), False, account_id=account_id, profile=profile)
             evaluated += 1
         _emit_bootstrap_events(conn, account_id)
         return evaluated
