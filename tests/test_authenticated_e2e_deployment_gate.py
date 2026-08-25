@@ -35,3 +35,23 @@ def test_production_smoke_requires_exact_deployed_revision_and_safe_auth_health(
     assert 'expected="${TARGET_BUILD:0:7}"' in workflow
     assert 'marker="<meta name=\\"obrasignal-build\\" content=\\"${expected}\\">"' in workflow
     assert 'grep -Fq "$marker" /tmp/web.html' in workflow
+
+
+def test_production_smoke_persists_truthful_release_history_even_on_failure():
+    workflow = PRODUCTION_SMOKE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "id: backend" in workflow
+    assert "id: protected" in workflow
+    assert "id: cors" in workflow
+    assert "id: web" in workflow
+    assert workflow.count("if: ${{ always() }}") >= 6
+    assert "Write bounded production release evidence" in workflow
+    assert "Upload production release evidence" in workflow
+    assert "'verification': 'VERIFIED' if verified else 'FAILED'" in workflow
+    assert "'failure_class': None if verified else 'UNKNOWN'" in workflow
+    assert "'rollback': {" in workflow
+    assert "'status': 'UNPROVEN'" in workflow
+    assert "'target_sha': None" in workflow
+    assert "release-proof.json" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "does_not_prove_authenticated_customer_journey" in workflow
