@@ -11,6 +11,7 @@ from support_operations import (
     classify_incident,
     customer_error_payload,
     recovery_state,
+    service_readiness_matrix,
 )
 
 
@@ -58,6 +59,32 @@ def test_service_readiness_contract_is_exact():
         "BLOCKED",
         "UNKNOWN",
     }
+
+
+def test_service_readiness_matrix_is_complete_and_unknown_without_owner_evidence():
+    matrix = service_readiness_matrix()
+    assert set(matrix) == {area.value for area in ServiceArea}
+    assert set(matrix.values()) == {"UNKNOWN"}
+
+
+def test_service_readiness_matrix_only_promotes_explicit_owner_evidence():
+    matrix = service_readiness_matrix(
+        {
+            ServiceArea.AUTH: ServiceReadiness.DEGRADED,
+            "SOURCES": "BLOCKED",
+        }
+    )
+    assert matrix["AUTH"] == "DEGRADED"
+    assert matrix["SOURCES"] == "BLOCKED"
+    assert matrix["WEB"] == "UNKNOWN"
+    assert matrix["SUPPORT"] == "UNKNOWN"
+
+
+def test_service_readiness_matrix_rejects_unknown_areas_or_states():
+    with pytest.raises(ValueError, match="unsupported service area"):
+        service_readiness_matrix({"OTHER": "HEALTHY"})
+    with pytest.raises(ValueError, match="unsupported service readiness"):
+        service_readiness_matrix({"AUTH": "GREEN"})
 
 
 @pytest.mark.parametrize(
