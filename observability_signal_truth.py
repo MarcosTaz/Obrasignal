@@ -7,6 +7,7 @@ HTTP 200, a process being alive, or a missing signal.
 from __future__ import annotations
 
 import ast
+import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable
@@ -266,3 +267,7 @@ def current_repository_signal_report(repo_root: str | Path = ".") -> dict:
             "alerting": "UNKNOWN",
         },
     }
+
+
+if __name__ == "__main__":
+    print(json.dumps(current_repository_signal_report(), sort_keys=True, separators=(",", ":")))
