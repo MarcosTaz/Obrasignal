@@ -23,11 +23,11 @@ def _layers(decision: dict | None) -> list[dict]:
 
     capability = features.get("capability_evidence") or {}
     if capability:
-        detail = capability.get("reason") or "sem evidência explícita"
+        detail = capability.get("reason") or "sem detalhe de evidência"
         matched = capability.get("matched_services") or []
         if matched:
             detail += ": " + ", ".join(str(value) for value in matched[:3])
-        layers.append({"key": "capability", "label": "Capacidade", "kind": "evidence", "score": None, "evidence_count": capability.get("evidence_count", 0), "detail": detail})
+        layers.append({"key": "capability", "label": "Capacidade", "kind": "evidence", "score": None, "evidence_count": capability.get("evidence_count"), "detail": detail})
 
     economics = features.get("economic_fit") or {}
     if economics:

@@ -45,6 +45,17 @@ def test_present_decision_exposes_explainable_layers():
     assert result["lines"][4]["value"] == "100/100"
 
 
+def test_present_decision_preserves_unknown_capability_evidence_count():
+    result = present_decision({
+        "decision": "REVIEW",
+        "features": {"capability_evidence": {"reason": "há sinais de capacidade, mas a contagem não foi fornecida"}},
+    })
+
+    capability = next(line for line in result["lines"] if line["label"] == "Capacidade")
+    assert capability["value"] == "Não indicado"
+    assert capability["value"] != "0 evidência(s)"
+
+
 def test_present_decision_shows_hard_blockers():
     result = present_decision({
         "decision": "REJECTED",
