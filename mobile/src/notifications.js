@@ -96,7 +96,9 @@ export async function showLocalOpportunityAlert(item) {
   return Notifications.scheduleNotificationAsync({
     content: {
       title: 'Nova oportunidade ObraSignal',
-      body: item?.title || 'Foi encontrada uma oportunidade relevante.',
+      // Keep the OS tray tenant-neutral just like remote push. Opportunity truth
+      // is fetched only after the current private binding validates the tap.
+      body: 'Abre o ObraSignal para confirmar uma nova oportunidade.',
       data: { opportunityId: item?.id, eventId: item?.event_id, bindingId: binding.bindingId },
       ...(Platform.OS === 'android' ? { channelId: 'opportunities' } : {}),
     },
