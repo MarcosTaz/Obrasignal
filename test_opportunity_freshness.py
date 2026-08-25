@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from opportunity_freshness import evaluate_freshness, policy_for
 
 
@@ -46,6 +48,13 @@ def test_aging_and_stale_records():
     stale = evaluate_freshness(_record(last_observed=_iso(timedelta(minutes=90))), _health(), now=NOW)
     assert policy.aging_after_minutes == 30
     assert policy.stale_after_minutes == 60
+    assert aging.freshness_status == "AGING"
+    assert stale.freshness_status == "STALE"
+
+
+def test_threshold_boundaries_are_inclusive():
+    aging = evaluate_freshness(_record(last_observed=_iso(timedelta(minutes=30))), _health(), now=NOW)
+    stale = evaluate_freshness(_record(last_observed=_iso(timedelta(minutes=60))), _health(), now=NOW)
     assert aging.freshness_status == "AGING"
     assert stale.freshness_status == "STALE"
 
@@ -201,3 +210,34 @@ def test_increasing_observation_age_cannot_improve_status():
         )
         statuses.append(result.freshness_status)
     assert statuses == ["FRESH", "AGING", "STALE"]
+
+
+def test_malformed_timestamps_do_not_escape_as_fresh():
+    result = evaluate_freshness(_record(last_observed="not-a-time"), _health(), now=NOW)
+    assert result.freshness_status == "UNKNOWN"
+    assert "INVALID_TIMESTAMP" in result.reason_codes
+
+
+def test_oversized_or_control_character_source_ids_are_rejected():
+    with pytest.raises(ValueError, match="invalid source"):
+        evaluate_freshness(_record(source="X" * 129), _health(), now=NOW)
+    with pytest.raises(ValueError, match="invalid source"):
+        evaluate_freshness(_record(source="TED\n<script>"), _health(), now=NOW)
+
+
+def test_oversized_opportunity_id_is_rejected():
+    with pytest.raises(ValueError, match="invalid opportunity_id"):
+        evaluate_freshness(_record(external_id="x" * 513), _health(), now=NOW)
+
+
+def test_sql_metacharacters_in_bounded_source_id_are_data_not_execution():
+    result = evaluate_freshness(_record(source="TED'; DROP TABLE signal_records;--"), None, now=NOW)
+    assert result.source_id == "TED'; DROP TABLE signal_records;--"
+    assert result.policy_source == "fallback_conservative"
+
+
+def test_invalid_failure_count_fails_health_closed_without_changing_record_freshness():
+    result = evaluate_freshness(_record(), {"consecutive_failures": "many"}, now=NOW)
+    assert result.freshness_status == "FRESH"
+    assert result.source_health_status == "UNKNOWN"
+    assert "INVALID_SOURCE_HEALTH" in result.reason_codes
