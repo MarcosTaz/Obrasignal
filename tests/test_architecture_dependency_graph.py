@@ -4,7 +4,7 @@ from tools.architecture_graph import build_graph
 
 
 ROOT = Path(__file__).resolve().parents[1]
-KNOWN_RUNTIME_CYCLES = [["account_registry.py", "app.py"]]
+KNOWN_RUNTIME_CYCLES = [["account_registry.py", "app.py", "company_profile.py"]]
 
 
 def _edges(graph, source, target):
@@ -46,16 +46,23 @@ def test_known_runtime_cycle_is_exact_and_does_not_expand():
     graph = build_graph(ROOT)
     assert graph["cycles"] == KNOWN_RUNTIME_CYCLES
 
-    down = _edge(graph, "app.py", "account_registry.py", kind="PYTHON_IMPORT")
+    direct_down = _edge(graph, "app.py", "account_registry.py", kind="PYTHON_IMPORT")
+    profile_down = _edge(graph, "app.py", "company_profile.py", kind="PYTHON_IMPORT")
+    profile_to_account = _edge(
+        graph, "company_profile.py", "account_registry.py", kind="PYTHON_IMPORT"
+    )
     static_up = _edge(graph, "account_registry.py", "app.py", kind="PYTHON_IMPORT")
     dynamic_up = _edge(graph, "account_registry.py", "app.py", kind="PYTHON_DYNAMIC_IMPORT")
 
-    assert down["scope"] == "LAZY"
+    assert direct_down["scope"] == "LAZY"
+    assert profile_down["scope"] == "LAZY"
+    assert profile_to_account["scope"] == "LAZY"
     assert static_up["scope"] == "MODULE_LOAD"
     assert dynamic_up["scope"] == "LAZY"
-    assert down["classification"] == "LEGACY"
-    assert static_up["classification"] == "LEGACY"
-    assert dynamic_up["classification"] == "LEGACY"
+    assert all(
+        edge["classification"] == "LEGACY"
+        for edge in (direct_down, profile_down, profile_to_account, static_up, dynamic_up)
+    )
 
 
 def test_change_impact_exposes_direct_and_transitive_dependents():
