@@ -145,13 +145,22 @@ def collect(client: ReadOnlyGitHub) -> dict[str, Any]:
             dependency_numbers.add(int(ref["pr"]))
 
     dependency_heads: dict[str, str] = {}
+    ignored_dependency_prs: set[int] = set()
     for number in sorted(dependency_numbers):
         payload = detail_by_number.get(number)
         if payload is None:
             try:
                 payload = client.pull(number)
                 detail_by_number[number] = payload
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404:
+                    # Markdown bodies frequently use #NNNN for workflow/check
+                    # numbers. A number that is not a PR is not a dependency.
+                    ignored_dependency_prs.add(number)
+                continue
             except Exception:
+                # A transient lookup failure is not proof that the reference is
+                # non-PR; leave it unresolved so normalization fails closed.
                 continue
         head_sha = ((payload.get("head") or {}).get("sha"))
         if head_sha:
@@ -179,6 +188,7 @@ def collect(client: ReadOnlyGitHub) -> dict[str, Any]:
         "main_sha": main_sha,
         "pull_requests": pull_requests,
         "dependency_heads": dependency_heads,
+        "ignored_dependency_prs": sorted(ignored_dependency_prs),
         "workflow_runs": workflow_runs,
         "collection_errors": collection_errors,
     }
