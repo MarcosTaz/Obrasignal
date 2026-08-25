@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from company_profile import load_profile
-from decision_evidence import customer_evidence_view, maybe_decision_evidence
+from decision_evidence import attach_persistable_decision_evidence, maybe_decision_evidence
 from decision_log import record_decision
 from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
@@ -45,9 +45,7 @@ def persist_and_classify(conn, item, is_new, account_id='default'):
         rule_version=RULE_VERSION,
         decided_at=decided_at,
     )
-    if evidence is not None:
-        features["decision_evidence"] = evidence
-        features["explanation"]["evidence"] = customer_evidence_view(evidence)
+    attach_persistable_decision_evidence(features, evidence)
 
     record_decision(
         conn,
