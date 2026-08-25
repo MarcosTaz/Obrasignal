@@ -3,6 +3,9 @@ name: ObraSignal Mobile Preview
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   android-preview:
     name: Android preview build
@@ -12,17 +15,19 @@ jobs:
         working-directory: mobile
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
 
       - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
+        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
         with:
-          eas-version: latest
+          eas-version: 22.4.0
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
