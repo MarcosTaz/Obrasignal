@@ -1,9 +1,8 @@
 """Deterministic, low-noise history for canonical opportunity state.
 
-This capability observes normalized Signal records. It never diffs raw publisher
-HTML/XML and does not deliver notifications. The current Signal remains the source
-of truth; this module preserves compact monitored snapshots plus append-only
-change sets so a user can answer "what changed?" without rereading the source.
+The capability observes normalized Signal records, never raw publisher HTML/XML.
+Current Signal state remains authoritative; this module stores compact monitored
+snapshots and append-only change sets that explain before -> change -> after.
 """
 from __future__ import annotations
 
@@ -13,18 +12,18 @@ from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 import json
 import re
+import sqlite3
 from typing import Any, Mapping
-
 
 CHANGE_SCHEMA_VERSION = 1
 DIFF_POLICY_VERSION = "opportunity-material-diff-v0"
 NORMALIZER_VERSION = "canonical-change-normalizer-v0"
 MAX_TEXT_CHARS = 20_000
+MAX_SNAPSHOT_BYTES = 256_000
 
 MATERIAL = "MATERIAL"
 NON_MATERIAL = "NON_MATERIAL"
 UNKNOWN = "UNKNOWN"
-
 _MISSING = object()
 
 
@@ -38,7 +37,8 @@ class FieldPolicy:
     item_identity_keys: tuple[str, ...] = ()
 
 
-# Central v0 registry. Only normalized, product-meaningful fields are monitored.
+# V0 is intentionally explicit. Retrieval timestamps, hashes and connector-private
+# fields are absent by design and therefore cannot become user-visible noise.
 FIELD_REGISTRY: dict[str, FieldPolicy] = {
     "deadline": FieldPolicy("deadline", MATERIAL, "date"),
     "value": FieldPolicy("value", MATERIAL, "number"),
@@ -70,11 +70,10 @@ def _json(value: Any) -> str:
 
 def _bounded_text(value: Any) -> str:
     text = str(value or "")
-    if len(text) > MAX_TEXT_CHARS:
-        # Large prose is represented by a stable digest plus a bounded excerpt.
-        digest = sha256(text.encode("utf-8")).hexdigest()
-        return f"sha256:{digest}:excerpt:{text[:512]}"
-    return text
+    if len(text) <= MAX_TEXT_CHARS:
+        return text
+    digest = sha256(text.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}:excerpt:{text[:512]}"
 
 
 def _norm_text(value: Any, *, case_insensitive: bool) -> str:
@@ -86,25 +85,30 @@ def _norm_date(value: Any) -> str:
     if value in (None, ""):
         return ""
     if isinstance(value, datetime):
-        dt = value
-        if dt.tzinfo:
-            dt = dt.astimezone(timezone.utc)
-        return dt.isoformat()
-    if isinstance(value, date):
+        parsed = value
+    elif isinstance(value, date):
         return value.isoformat()
-    text = str(value).strip()
-    if not text:
-        return ""
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).isoformat()
-    except ValueError:
-        pass
-    for fmt in ("%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"):
+    else:
+        text = str(value).strip()
+        if not text:
+            return ""
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+            try:
+                return date.fromisoformat(text).isoformat()
+            except ValueError:
+                pass
+        for fmt in ("%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(text, fmt).date().isoformat()
+            except ValueError:
+                continue
         try:
-            return datetime.strptime(text, fmt).date().isoformat()
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
         except ValueError:
-            continue
-    return _norm_text(text, case_insensitive=False)
+            return _norm_text(text, case_insensitive=False)
+    if parsed.tzinfo:
+        parsed = parsed.astimezone(timezone.utc)
+    return parsed.isoformat()
 
 
 def _norm_number(value: Any) -> str:
@@ -113,11 +117,10 @@ def _norm_number(value: Any) -> str:
     if isinstance(value, bool):
         return str(value).lower()
     text = str(value).strip().replace(" ", "")
-    # Canonical connectors should already expose numeric values. We normalize
-    # safe decimal representations only and never guess locale separators.
     try:
         number = Decimal(text)
     except (InvalidOperation, ValueError):
+        # Do not guess locale separators such as 1.000,00.
         return _norm_text(value, case_insensitive=False)
     normalized = format(number.normalize(), "f")
     if "." in normalized:
@@ -127,11 +130,12 @@ def _norm_number(value: Any) -> str:
 
 def _canonical_item(value: Any) -> Any:
     if isinstance(value, Mapping):
-        return {str(k): _canonical_item(v) for k, v in sorted(value.items(), key=lambda pair: str(pair[0]))}
-    if isinstance(value, list):
-        return [_canonical_item(v) for v in value]
-    if isinstance(value, tuple):
-        return [_canonical_item(v) for v in value]
+        return {
+            str(key): _canonical_item(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, (list, tuple)):
+        return [_canonical_item(item) for item in value]
     if isinstance(value, str):
         return re.sub(r"\s+", " ", value.strip())
     return value
@@ -157,18 +161,12 @@ def normalize_field(value: Any, policy: FieldPolicy) -> Any:
     return _norm_text(value, case_insensitive=policy.case_insensitive)
 
 
-def _raw_display(value: Any) -> Any:
-    if isinstance(value, str) and len(value) > MAX_TEXT_CHARS:
-        return {"digest": sha256(value.encode("utf-8")).hexdigest(), "excerpt": value[:512], "truncated": True}
-    return value
-
-
 def build_monitored_state(record: Mapping, previous_state: Mapping | None = None) -> dict[str, Any]:
-    """Build canonical monitored state, carrying forward temporarily missing keys.
+    """Normalize monitored fields while treating absent source keys conservatively.
 
-    A key absent from a source observation is not treated as a confirmed removal.
-    An explicitly supplied null/empty value remains observable and can therefore
-    represent a real removal when the connector's canonical contract says so.
+    Missing key means "not observed in this payload", not "removed". When a
+    previous state exists it is carried forward. Explicit null/empty is observable
+    and may therefore represent a confirmed removal under connector semantics.
     """
     previous_state = previous_state or {}
     state: dict[str, Any] = {}
@@ -240,7 +238,7 @@ def _collection_changes(field: str, old: list[Any], new: list[Any], policy: Fiel
 
 
 def detect_changes(previous_state: Mapping, current_state: Mapping) -> list[dict[str, Any]]:
-    """Pure deterministic diff over the monitored canonical field registry."""
+    """Pure deterministic diff over the explicit canonical field registry."""
     changes: list[dict[str, Any]] = []
     for field, policy in FIELD_REGISTRY.items():
         old = previous_state.get(field, _MISSING)
@@ -251,8 +249,6 @@ def detect_changes(previous_state: Mapping, current_state: Mapping) -> list[dict
             changes.append({"field": field, "change_type": "ADDED", "old_value": None, "new_value": new, "materiality": policy.materiality})
             continue
         if new is _MISSING:
-            # build_monitored_state normally carries forward a missing field.
-            # Keep the pure engine conservative if called directly.
             changes.append({"field": field, "change_type": "UNKNOWN_CHANGE", "old_value": old, "new_value": None, "materiality": UNKNOWN})
             continue
         if old == new:
@@ -272,21 +268,12 @@ def _deadline_direction(old: Any, new: Any) -> str | None:
         old_dt = datetime.fromisoformat(str(old).replace("Z", "+00:00"))
         new_dt = datetime.fromisoformat(str(new).replace("Z", "+00:00"))
     except (TypeError, ValueError):
-        try:
-            old_dt = datetime.fromisoformat(str(old)[:10])
-            new_dt = datetime.fromisoformat(str(new)[:10])
-        except (TypeError, ValueError):
-            return None
+        return None
     if new_dt > old_dt:
         return "EXTENDED"
     if new_dt < old_dt:
         return "SHORTENED"
     return None
-
-
-def _change_set_id(source: str, signal_type: str, external_id: str, old_fp: str, new_fp: str, native_revision: str | None) -> str:
-    raw = "|".join((source, signal_type, external_id, old_fp, new_fp, native_revision or ""))
-    return sha256(raw.encode("utf-8")).hexdigest()
 
 
 def ensure_change_history_tables(conn) -> None:
@@ -301,8 +288,7 @@ def ensure_change_history_tables(conn) -> None:
         canonical_json TEXT NOT NULL,
         content_fingerprint TEXT NOT NULL,
         normalizer_version TEXT NOT NULL,
-        schema_version INTEGER NOT NULL,
-        UNIQUE(source, signal_type, external_id, content_fingerprint)
+        schema_version INTEGER NOT NULL
     )''')
     conn.execute('''CREATE TABLE IF NOT EXISTS opportunity_change_sets (
         change_set_id TEXT PRIMARY KEY,
@@ -333,6 +319,7 @@ def ensure_change_history_tables(conn) -> None:
         detail TEXT,
         FOREIGN KEY(change_set_id) REFERENCES opportunity_change_sets(change_set_id)
     )''')
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_snapshots_opportunity ON opportunity_snapshots(source, signal_type, external_id, snapshot_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_change_sets_opportunity ON opportunity_change_sets(source, signal_type, external_id, detected_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_changes_set ON opportunity_changes(change_set_id)")
 
@@ -356,8 +343,82 @@ def _identity(record: Mapping) -> tuple[str, str, str]:
     return source, signal_type, external_id
 
 
-def persist_change_observations(conn, records, *, observed_at: str | None = None, commit: bool = True) -> dict[str, int]:
-    """Persist baselines/change sets idempotently inside the caller transaction."""
+def _insert_snapshot(conn, *, source: str, signal_type: str, external_id: str, state: Mapping,
+                     observed_at: str, source_updated_at: Any = None, source_version: str | None = None) -> dict[str, Any]:
+    encoded = _json(dict(state))
+    if len(encoded.encode("utf-8")) > MAX_SNAPSHOT_BYTES:
+        raise ValueError("opportunity monitored snapshot exceeds safety limit")
+    fingerprint = content_fingerprint(state)
+    cursor = conn.execute(
+        """INSERT INTO opportunity_snapshots(
+           source,signal_type,external_id,source_version,observed_at,source_updated_at,
+           canonical_json,content_fingerprint,normalizer_version,schema_version
+           ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+        (
+            source, signal_type, external_id, source_version, observed_at,
+            source_updated_at, encoded, fingerprint, NORMALIZER_VERSION,
+            CHANGE_SCHEMA_VERSION,
+        ),
+    )
+    return {
+        "snapshot_id": cursor.lastrowid,
+        "canonical_json": encoded,
+        "content_fingerprint": fingerprint,
+    }
+
+
+def _bootstrap_from_current_signal(conn, source: str, signal_type: str, external_id: str, observed: str):
+    """Use pre-existing current Signal state as first baseline after deployment."""
+    try:
+        exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='signal_records'"
+        ).fetchone()
+        if not exists:
+            return None
+        row = conn.execute(
+            """SELECT normalized_json, first_observed, source_updated_at
+               FROM signal_records WHERE source=? AND signal_type=? AND external_id=?""",
+            (source, signal_type, external_id),
+        ).fetchone()
+    except sqlite3.DatabaseError:
+        return None
+    if not row:
+        return None
+    raw = dict(row) if hasattr(row, "keys") else {
+        "normalized_json": row[0], "first_observed": row[1], "source_updated_at": row[2]
+    }
+    try:
+        record = json.loads(raw["normalized_json"] or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return None
+    state = build_monitored_state(record)
+    return _insert_snapshot(
+        conn,
+        source=source,
+        signal_type=signal_type,
+        external_id=external_id,
+        state=state,
+        observed_at=raw.get("first_observed") or observed,
+        source_updated_at=raw.get("source_updated_at"),
+        source_version=_native_revision(record),
+    )
+
+
+def _change_set_id(source: str, signal_type: str, external_id: str,
+                   previous_snapshot_id: int, current_snapshot_id: int,
+                   native_revision: str | None) -> str:
+    # Snapshot IDs make repeated real transitions A->B->A->B distinct while retry
+    # remains idempotent because a committed identical latest state is skipped.
+    raw = "|".join((
+        source, signal_type, external_id, str(previous_snapshot_id),
+        str(current_snapshot_id), native_revision or "",
+    ))
+    return sha256(raw.encode("utf-8")).hexdigest()
+
+
+def persist_change_observations(conn, records, *, observed_at: str | None = None,
+                                commit: bool = True) -> dict[str, int]:
+    """Persist baselines and append-only changes inside the caller transaction."""
     ensure_change_history_tables(conn)
     observed = observed_at or datetime.now(timezone.utc).isoformat()
     snapshots = 0
@@ -368,39 +429,49 @@ def persist_change_observations(conn, records, *, observed_at: str | None = None
             raise ValueError("change history record must be a mapping")
         source, signal_type, external_id = _identity(record)
         previous = _latest_snapshot(conn, source, signal_type, external_id)
+        if previous is None:
+            previous = _bootstrap_from_current_signal(
+                conn, source, signal_type, external_id, observed
+            )
+            if previous is not None:
+                snapshots += 1
+
         previous_state = json.loads(previous["canonical_json"]) if previous else {}
         current_state = build_monitored_state(record, previous_state)
         current_fp = content_fingerprint(current_state)
         if previous and previous["content_fingerprint"] == current_fp:
             continue
 
-        cursor = conn.execute(
-            """INSERT OR IGNORE INTO opportunity_snapshots(
-               source,signal_type,external_id,source_version,observed_at,source_updated_at,
-               canonical_json,content_fingerprint,normalizer_version,schema_version
-               ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-            (
-                source, signal_type, external_id, _native_revision(record), observed,
-                record.get("source_updated_at") or record.get("published_at"),
-                _json(current_state), current_fp, NORMALIZER_VERSION, CHANGE_SCHEMA_VERSION,
-            ),
+        current = _insert_snapshot(
+            conn,
+            source=source,
+            signal_type=signal_type,
+            external_id=external_id,
+            state=current_state,
+            observed_at=observed,
+            source_updated_at=record.get("source_updated_at") or record.get("published_at"),
+            source_version=_native_revision(record),
         )
-        if cursor.rowcount:
-            snapshots += 1
-        current = _latest_snapshot(conn, source, signal_type, external_id)
+        snapshots += 1
         if previous is None:
             continue
 
         detected = detect_changes(previous_state, current_state)
         if not detected:
             continue
-        old_fp = previous["content_fingerprint"]
         native_revision = _native_revision(record)
-        change_set_id = _change_set_id(source, signal_type, external_id, old_fp, current_fp, native_revision)
+        change_set_id = _change_set_id(
+            source, signal_type, external_id,
+            previous["snapshot_id"], current["snapshot_id"], native_revision,
+        )
         fields = sorted({change["field"] for change in detected})
-        aggregate_materiality = MATERIAL if any(c["materiality"] == MATERIAL for c in detected) else UNKNOWN if any(c["materiality"] == UNKNOWN for c in detected) else NON_MATERIAL
-        inserted = conn.execute(
-            """INSERT OR IGNORE INTO opportunity_change_sets(
+        aggregate = (
+            MATERIAL if any(change["materiality"] == MATERIAL for change in detected)
+            else UNKNOWN if any(change["materiality"] == UNKNOWN for change in detected)
+            else NON_MATERIAL
+        )
+        conn.execute(
+            """INSERT INTO opportunity_change_sets(
                change_set_id,source,signal_type,external_id,previous_snapshot_id,current_snapshot_id,
                native_revision,source_ref,detected_at,source_updated_at,materiality,
                changed_fields_json,diff_policy_version,schema_version
@@ -410,11 +481,9 @@ def persist_change_observations(conn, records, *, observed_at: str | None = None
                 previous["snapshot_id"], current["snapshot_id"], native_revision,
                 _source_ref(record), observed,
                 record.get("source_updated_at") or record.get("published_at"),
-                aggregate_materiality, _json(fields), DIFF_POLICY_VERSION, CHANGE_SCHEMA_VERSION,
+                aggregate, _json(fields), DIFF_POLICY_VERSION, CHANGE_SCHEMA_VERSION,
             ),
         )
-        if not inserted.rowcount:
-            continue
         change_sets += 1
         for change in detected:
             detail = None
@@ -426,8 +495,7 @@ def persist_change_observations(conn, records, *, observed_at: str | None = None
                    ) VALUES(?,?,?,?,?,?,?)""",
                 (
                     change_set_id, change["field"], change["change_type"],
-                    _json(_raw_display(change["old_value"])),
-                    _json(_raw_display(change["new_value"])),
+                    _json(change["old_value"]), _json(change["new_value"]),
                     change["materiality"], detail,
                 ),
             )
@@ -437,17 +505,18 @@ def persist_change_observations(conn, records, *, observed_at: str | None = None
     return {"snapshots": snapshots, "change_sets": change_sets, "changes": changes_written}
 
 
-def get_change_history(conn, source: str, external_id: str, signal_type: str = "TENDER", *, material_only: bool = False, limit: int = 50) -> list[dict[str, Any]]:
+def get_change_history(conn, source: str, external_id: str, signal_type: str = "TENDER",
+                       *, material_only: bool = False, limit: int = 50) -> list[dict[str, Any]]:
     ensure_change_history_tables(conn)
-    params: list[Any] = [source, signal_type.upper(), external_id]
+    params: list[Any] = [str(source), str(signal_type).upper(), str(external_id)]
     where = "WHERE cs.source=? AND cs.signal_type=? AND cs.external_id=?"
     if material_only:
         where += " AND cs.materiality=?"
         params.append(MATERIAL)
     params.append(max(1, min(200, int(limit))))
     rows = conn.execute(
-        f"""SELECT cs.* FROM opportunity_change_sets cs
-            {where} ORDER BY cs.detected_at DESC, cs.change_set_id DESC LIMIT ?""",
+        f"""SELECT cs.* FROM opportunity_change_sets cs {where}
+            ORDER BY cs.detected_at DESC, cs.current_snapshot_id DESC LIMIT ?""",
         params,
     ).fetchall()
     result: list[dict[str, Any]] = []
@@ -475,7 +544,7 @@ def get_change_history(conn, source: str, external_id: str, signal_type: str = "
 
 
 def opportunity_changed_event(change_set: Mapping) -> dict[str, Any]:
-    """Small versioned event payload for future generic event infrastructure."""
+    """Small versioned event contract; delivery belongs to future event plumbing."""
     return {
         "event_type": "opportunity.changed",
         "event_version": 1,
