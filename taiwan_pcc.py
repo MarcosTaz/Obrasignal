@@ -55,6 +55,46 @@ PCC_SOURCES = (
     ),
 )
 
+# Prefer publisher-native procurement nature when present. The title fallback is
+# deliberately narrower than a generic "工程" keyword so consulting/software and
+# other adjacent services do not become construction opportunities merely because
+# the word "engineering" appears in the title.
+CONSTRUCTION_NATIVE_TERMS = (
+    "工程",
+    "營建",
+    "建築",
+    "土木",
+    "公共工程",
+)
+CONSTRUCTION_TITLE_TERMS = (
+    "道路",
+    "橋梁",
+    "隧道",
+    "水利",
+    "排水",
+    "污水",
+    "下水道",
+    "建築工程",
+    "修繕工程",
+    "整修工程",
+    "新建工程",
+    "改建工程",
+    "擴建工程",
+    "耐震補強",
+    "管線工程",
+    "軌道工程",
+    "捷運工程",
+    "港口工程",
+    "機場工程",
+)
+CONSTRUCTION_TITLE_EXCLUSIONS = (
+    "顧問",
+    "保險",
+    "軟體",
+    "資訊系統",
+    "研究計畫",
+)
+
 
 def _norm_key(value: str) -> str:
     text = unicodedata.normalize("NFKC", str(value or "")).strip().lower()
@@ -154,6 +194,44 @@ def _scheduled_target(value: str) -> str:
     return ""
 
 
+def construction_basis(record) -> str | None:
+    """Return the evidence basis for classifying a PCC signal as construction.
+
+    Publisher procurement nature wins when available. When it is absent, use a
+    conservative title fallback with explicit adjacent-service exclusions.
+    Unknown/native non-construction categories do not fall through to keywords.
+    """
+    if not isinstance(record, dict):
+        return None
+    category = _text(record.get("category_code"))
+    if category:
+        if any(term in category for term in CONSTRUCTION_NATIVE_TERMS):
+            return "publisher_procurement_nature"
+        return None
+    title = _text(record.get("title"))
+    if not title or any(term in title for term in CONSTRUCTION_TITLE_EXCLUSIONS):
+        return None
+    if any(term in title for term in CONSTRUCTION_TITLE_TERMS):
+        return "conservative_title_fallback"
+    return None
+
+
+def is_construction_signal(record) -> bool:
+    return construction_basis(record) is not None
+
+
+def filter_construction_signals(records):
+    filtered = []
+    for record in records or []:
+        basis = construction_basis(record)
+        if not basis:
+            continue
+        item = dict(record)
+        item["construction_filter_basis"] = basis
+        filtered.append(item)
+    return filtered
+
+
 def normalize_pcc_row(mapping: dict[str, str], *, source: PCCSnapshotSource, observed_at=None):
     case_number = _field(mapping, "case_number")
     if not case_number:
@@ -162,8 +240,6 @@ def normalize_pcc_row(mapping: dict[str, str], *, source: PCCSnapshotSource, obs
     vendor_code = _field(mapping, "vendor_code")
     external_id = _stable_external_id(source.signal_type, case_number, vendor_code)
     if not external_id:
-        # Dataset 7264 is supplier-level. Reject a contract row without native
-        # vendor identity rather than collapsing multiple suppliers by case number.
         return None
 
     title = _field(mapping, "title")
