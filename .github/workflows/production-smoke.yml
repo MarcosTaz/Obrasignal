@@ -84,9 +84,25 @@ jobs:
           grep -qi '^Access-Control-Allow-Origin: https://marcostaz.github.io' /tmp/headers
           grep -qi '^Access-Control-Allow-Headers: .*Authorization' /tmp/headers
 
-      - name: Check deployed Web shell
+      - name: Check exact deployed Web build
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location --max-time 30 \
-            https://marcostaz.github.io/Obrasignal/ \
-            | grep -q 'ObraSignal'
+          expected="${TARGET_BUILD:0:7}"
+          marker="<meta name=\"obrasignal-build\" content=\"${expected}\">"
+          # The Pages deploy runs independently from the backend rollout. Retry a
+          # bounded window so a normal concurrent rollout does not become a false
+          # negative, but never accept an old/stale Web shell as production-green.
+          for attempt in $(seq 1 18); do
+            if curl --fail --silent --show-error --location --max-time 30 \
+              https://marcostaz.github.io/Obrasignal/ > /tmp/web.html \
+              && grep -Fq "$marker" /tmp/web.html; then
+              echo "GitHub Pages is serving exact Web build $expected on attempt $attempt/18."
+              exit 0
+            fi
+            if [ "$attempt" = 18 ]; then
+              echo "GitHub Pages never served exact target Web build $expected."
+              exit 1
+            fi
+            echo "Waiting for exact Web build $expected (attempt $attempt/18)…"
+            sleep 10
+          done
