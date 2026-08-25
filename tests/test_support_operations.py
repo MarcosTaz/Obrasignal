@@ -47,6 +47,7 @@ def test_customer_failure_taxonomy_is_exact_and_bounded():
         "PERMISSION_DENIED",
         "NOT_FOUND",
         "CONFLICT",
+        "INVALID_INPUT",
     }
 
 
@@ -193,3 +194,10 @@ def test_customer_error_payload_does_not_invent_success_retryability_or_root_cau
     assert "ok" not in payload
     assert "retryable" not in payload
     assert "root_cause" not in payload
+
+
+def test_known_validation_failure_can_be_classified_without_guessing_conflict_or_unknown():
+    assert customer_error_payload(
+        CustomerFailureClass.INVALID_INPUT,
+        correlation_id="req_20260825_abcd",
+    )["error_class"] == "INVALID_INPUT"
