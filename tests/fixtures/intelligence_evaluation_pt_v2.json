@@ -1,0 +1,74 @@
+{
+  "version": "intelligence-eval-pt-v2",
+  "purpose": "Synthetic Portuguese procurement decision-quality invariants only; not market precision/recall/calibration.",
+  "cases": [
+    {
+      "id": "pt-avac-accent-clear-match",
+      "label": "CLEAR_MATCH",
+      "rationale": "Climatização and climatizacao are representation-equivalent; specific AVAC CPV also supports the match.",
+      "profile": {"activity":"AVAC e climatizacao","contract_interests":["climatizacao"],"countries":["PRT"],"cpv_prefixes":["45331"],"services":["climatizacao"],"capability_tags":["avac"],"min_value":10000,"max_value":400000},
+      "opportunity": {"source":"SYNTHETIC","external_id":"pt-avac-accent-clear-match","title":"Instalação de sistema de climatização","description":"Empreitada AVAC para edifício municipal","buyer":"Município","country":"PRT","cpv":"45331000","value":"120000","value_numeric":120000,"deadline":"2099-12-31","procedure_type":"open procedure"},
+      "expected": {"positive_company_evidence":true,"hard_blocker":false,"decision_in":["QUALIFIED","REVIEW"]}
+    },
+    {
+      "id": "pt-eletrica-accent-clear-match",
+      "label": "CLEAR_MATCH",
+      "rationale": "Instalações elétricas remains a deterministic match when profile spelling is unaccented.",
+      "profile": {"activity":"Instalacoes eletricas","contract_interests":["instalacoes eletricas"],"countries":["PRT"],"cpv_prefixes":["4531"],"services":["instalacoes eletricas"],"capability_tags":[],"min_value":5000,"max_value":300000},
+      "opportunity": {"source":"SYNTHETIC","external_id":"pt-eletrica-accent-clear-match","title":"Instalações elétricas em escola","description":"Substituição de quadros e circuitos elétricos","buyer":"Município","country":"PRT","cpv":"45310000","value":"85000","value_numeric":85000,"deadline":"2099-12-31","procedure_type":"open procedure"},
+      "expected": {"positive_company_evidence":true,"hard_blocker":false,"decision_in":["QUALIFIED","REVIEW"]}
+    },
+    {
+      "id": "pt-reabilitacao-clear-match",
+      "label": "CLEAR_MATCH",
+      "rationale": "Explicit rehabilitation capability and refurbishment CPV agree.",
+      "profile": {"activity":"Reabilitação de edifícios","contract_interests":["reabilitação"],"countries":["PRT"],"cpv_prefixes":["45453"],"services":["reabilitação de edifícios"],"capability_tags":["reabilitação"],"min_value":20000,"max_value":1000000},
+      "opportunity": {"source":"SYNTHETIC","external_id":"pt-reabilitacao-clear-match","title":"Reabilitação de edifício municipal","description":"Empreitada de reabilitação integral","buyer":"Município","country":"PRT","cpv":"45453000","value":"450000","value_numeric":450000,"deadline":"2099-12-31","procedure_type":"open procedure"},
+      "expected": {"positive_company_evidence":true,"hard_blocker":false,"decision_in":["QUALIFIED","REVIEW"]}
+    },
+    {
+      "id": "pt-hard-positive-cpv-generic-text",
+      "label": "CLEAR_MATCH",
+      "rationale": "Specific declared electrical CPV provides fit evidence even when text is generic, proving evaluation is not only exact keyword substring matching.",
+      "profile": {"activity":"Instalações elétricas","contract_interests":[],"countries":["PRT"],"cpv_prefixes":["4531"],"services":[],"capability_tags":[],"min_value":5000,"max_value":300000},
+      "opportunity": {"source":"SYNTHETIC","external_id":"pt-hard-positive-cpv-generic-text","title":"Empreitada técnica","description":"Execução dos trabalhos previstos nas peças do procedimento","buyer":"Município","country":"PRT","cpv":"45310000","value":"90000","value_numeric":90000,"deadline":"2099-12-31","procedure_type":"open procedure"},
+      "expected": {"positive_company_evidence":true,"hard_blocker":false,"decision_in":["QUALIFIED","REVIEW"]}
+    },
+    {
+      "id": "pt-hard-negative-sobras",
+      "label": "CLEAR_NON_MATCH",
+      "rationale": "The surface string sobras must not satisfy declared keyword obras; waste-service CPV supplies no construction fit.",
+      "profile": {"activity":"Obras públicas","contract_interests":["obras"],"countries":["PRT"],"cpv_prefixes":["45"],"services":["obras"],"capability_tags":["obra pública"],"min_value":5000,"max_value":500000},
+      "opportunity": {"source":"SYNTHETIC","external_id":"pt-hard-negative-sobras","title":"Recolha de sobras de materiais","description":"Serviço de recolha e tratamento de sobras e resíduos","buyer":"Município","country":"PRT","cpv":"90500000","value":"60000","value_numeric":60000,"deadline":"2099-12-31","procedure_type":"open procedure"},
+      "expected": {"positive_company_evidence":false,"hard_blocker":true,"decision_in":["REJECT"]}
+    },
+    {
+      "id": "pt-obra-publica-clear-match",
+      "label": "CLEAR_MATCH",
+      "rationale": "Explicit public-works wording and works CPV agree without implying a bid recommendation.",
+      "profile": {"activity":"Obra pública e empreitadas","contract_interests":["obra pública","empreitada"],"countries":["PRT"],"cpv_prefixes":["45"],"services":["obra pública"],"capability_tags":["empreitada"],"min_value":100000,"max_value":2000000},
+      "opportunity": {"source":"SYNTHETIC","external_id":"pt-obra-publica-clear-match","title":"Empreitada de obra pública","description":"Execução de trabalhos de construção","buyer":"Município","country":"PRT","cpv":"45000000","value":"750000","value_numeric":750000,"deadline":"2099-12-31","procedure_type":"open procedure"},
+      "expected": {"positive_company_evidence":true,"hard_blocker":false,"decision_in":["QUALIFIED","REVIEW"]}
+    },
+    {
+      "id": "pt-manutencao-ambiguous",
+      "label": "AMBIGUOUS",
+      "rationale": "Generic manutenção wording alone is insufficient to force a binary relevance label without stronger capability/category evidence.",
+      "profile": {"activity":"Manutenção de edifícios","contract_interests":["manutenção"],"countries":["PRT"],"cpv_prefixes":[],"services":["manutenção de edifícios"],"capability_tags":[],"min_value":null,"max_value":null},
+      "opportunity": {"source":"SYNTHETIC","external_id":"pt-manutencao-ambiguous","title":"Serviços de manutenção","description":"Manutenção preventiva e corretiva","buyer":"Entidade pública","country":"PRT","cpv":"","value":"","deadline":"2099-12-31","procedure_type":"open procedure"},
+      "expected": {"hard_blocker":false,"known_debt_issue":472}
+    },
+    {
+      "id": "pt-insufficient-metadata",
+      "label": "INSUFFICIENT_INFORMATION",
+      "rationale": "An empty procurement record must remain insufficient information rather than a known non-match or medium relevance.",
+      "profile": {"activity":"Obras públicas","contract_interests":["empreitada"],"countries":["PRT"],"cpv_prefixes":["45"],"services":["construção"],"capability_tags":[],"min_value":null,"max_value":null},
+      "opportunity": {"source":"SYNTHETIC","external_id":"pt-insufficient-metadata","title":"","description":"","buyer":"","country":"","cpv":"","value":"","deadline":"","procedure_type":""},
+      "expected": {"positive_company_evidence":false,"hard_blocker":false,"known_debt_issue":471}
+    }
+  ],
+  "pairwise": [
+    {"higher":"pt-hard-positive-cpv-generic-text","lower":"pt-hard-negative-sobras","field":"profile_score","rationale":"Specific category evidence must outrank a token-boundary hard negative."},
+    {"higher":"pt-avac-accent-clear-match","lower":"pt-insufficient-metadata","field":"profile_score","rationale":"Known AVAC evidence must outrank missing metadata without claiming calibration."}
+  ]
+}
