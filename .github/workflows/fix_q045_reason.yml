@@ -1,0 +1,35 @@
+name: Fix Q045 Reason
+
+on:
+  push:
+    branches: [codex/us-sam-q050]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/us-sam-q050
+      - name: Remove stale Q050 active wording
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('master_execution_queue.py')
+          s=p.read_text()
+          old='preserve legacy accounts and RevenueCat paid precedence; policy remains VALIDATION REQUIRED while Q050 stays ACTIVE.'
+          new='preserve legacy accounts and RevenueCat paid precedence; policy remains VALIDATION REQUIRED and does not block the canonical market-coverage queue.'
+          if old not in s:
+              raise SystemExit('stale Q045 reason target missing')
+          p.write_text(s.replace(old,new,1))
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add master_execution_queue.py
+          git diff --cached --quiet || git commit -m "Remove stale Q050 reference from trial policy"
+          git push origin HEAD:codex/us-sam-q050
