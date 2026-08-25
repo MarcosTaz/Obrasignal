@@ -193,7 +193,7 @@ def sources():
     return jsonify({"items": items, "count": len(items), "generated_at": _iso_now(), "account_id": identity.account_id})
 
 
-@bp.route("/source-health", methods=["GET"])
+@bp.route("/source-health-contract", methods=["GET"])
 def source_health():
     identity = request.obrasignal_identity
     requested_source = (request.args.get("source") or "").strip().upper() or None
