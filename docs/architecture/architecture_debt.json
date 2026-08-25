@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "baseline_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "items": [
+    {
+      "id": "ARCH-001",
+      "module": "sitecustomize.py -> sync_funnel_hook.py",
+      "owner": "ARCHITECTURE",
+      "violation": "Implicit interpreter startup imported the production worker gate and hid a process-wide threading monkeypatch outside the WSGI composition boundary.",
+      "blast_radius": "PROCESS_WIDE_STARTUP",
+      "customer_risk": "STARTUP_ORDER_AND_BACKGROUND_WORKER",
+      "change_frequency": "UNKNOWN",
+      "proof": ["sitecustomize.py", "sync_funnel_hook.py", "cors_app.py"],
+      "repair_path": "Move worker-gate installation to the explicit WSGI composition boundary and keep an executable guard against production imports from sitecustomize.",
+      "status": "REPAIR_CANDIDATE_PR_457"
+    },
+    {
+      "id": "ARCH-002",
+      "module": "sitecustomize.py",
+      "owner": "ARCHITECTURE_WEB_BOUNDARY",
+      "violation": "Interpreter startup still monkeypatches flask.render_template_string process-wide to replace dashboard presentation.",
+      "blast_radius": "PROCESS_WIDE_FLASK_PRESENTATION",
+      "customer_risk": "PRESENTATION_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["sitecustomize.py"],
+      "repair_path": "Stage an explicit Flask presentation registration or template migration with behavior-preserving tests before removing the compatibility patch.",
+      "status": "ACKNOWLEDGED_DEBT"
+    },
+    {
+      "id": "ARCH-003",
+      "module": "preload.py",
+      "owner": "ARCHITECTURE_COMPOSITION",
+      "violation": "Legacy production composition shim spans Sources, Configuration, Observability, Auth, Account, Decision and Web and mutates app runtime seams after import.",
+      "blast_radius": "PRODUCTION_INGESTION_AND_REQUEST_COMPOSITION",
+      "customer_risk": "CROSS_DOMAIN_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["preload.py", "cors_app.py"],
+      "repair_path": "Freeze the existing direct app mutation surface; decompose only through staged explicit seams with compatibility proof.",
+      "status": "ACKNOWLEDGED_BASELINE"
+    },
+    {
+      "id": "ARCH-004",
+      "module": "app.py:init_db",
+      "owner": "PERSISTENCE_WITH_BILLING_HANDOFF",
+      "violation": "Application startup composes multiple domain schema owners and directly creates the Billing webhook event table.",
+      "blast_radius": "DATABASE_STARTUP_SCHEMA",
+      "customer_risk": "STARTUP_AND_PERSISTENCE_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["app.py", "cors_app.py"],
+      "repair_path": "Persistence/Billing should own any semantic storage move; Architecture only freezes new cross-domain schema edges until an owner-approved staged migration exists.",
+      "status": "ROUTED_OTHER_OWNER"
+    }
+  ]
+}
