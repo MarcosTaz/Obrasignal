@@ -1,0 +1,107 @@
+from pathlib import Path
+
+
+WORKFLOW = Path('.github/workflows/authenticated-e2e.yml')
+
+
+def _text() -> str:
+    return WORKFLOW.read_text(encoding='utf-8')
+
+
+def test_authenticated_identity_is_persisted_privately_and_not_logged() -> None:
+    text = _text()
+    assert "open('/tmp/authenticated_account_id', 'w', encoding='utf-8').write(str(account_id))" in text
+    assert "Authenticated API identity verified for account:" not in text
+    assert "print('Authenticated API identity verified.')" in text
+    assert 'cat /tmp/authenticated_account_id' not in text
+
+
+def test_jwt_subject_is_private_and_binds_api_identity() -> None:
+    text = _text()
+    assert "open('/tmp/token_subject', 'w', encoding='utf-8').write(str(subject))" in text
+    assert "token_subject=open('/tmp/token_subject', encoding='utf-8').read()" in text
+    assert "assert str(account_id) == token_subject" in text
+    assert 'cat /tmp/token_subject' not in text
+    assert "print(subject" not in text
+    assert "print('subject" not in text
+
+
+def test_live_jwt_provider_diagnostics_are_fail_closed() -> None:
+    text = _text()
+    assert 'token_alg_allowed = alg in {"RS256", "ES256"}' in text
+    assert 'token_kid_present = kid is not None and str(kid) in provider_kids' in text
+    assert 'token_issuer_matches = issuer == os.environ["EXPECTED_ISSUER"]' in text
+    assert 'token_audience_authenticated = "authenticated" in audiences' in text
+    assert "assert token_alg_allowed, 'Supabase token algorithm is not supported'" in text
+    assert "assert token_kid_present, 'Supabase token key id is not present in provider JWKS'" in text
+    assert "assert token_issuer_matches, 'Supabase token issuer does not match project issuer'" in text
+    assert "assert token_audience_authenticated, 'Supabase token audience is not authenticated'" in text
+    assert "TOKEN_ALG_ALLOWED=" in text
+    assert "TOKEN_KID_PRESENT_IN_PROVIDER_JWKS=" in text
+    assert "TOKEN_ISSUER_MATCHES_SUPABASE_PROJECT=" in text
+    assert "TOKEN_AUDIENCE_AUTHENTICATED=" in text
+
+
+def test_provider_health_is_ready_after_authenticated_identity() -> None:
+    text = _text()
+    assert 'Verify provider READY after authenticated identity' in text
+    assert '"$API_URL/health" > /tmp/post-auth-health.json' in text
+    assert "assert health.get('build') == os.environ['TARGET_BUILD']" in text
+    assert "assert auth.get('mode') == 'provider'" in text
+    assert "assert auth.get('config_present') is True" in text
+    assert "assert auth.get('provider_kind') == 'supabase'" in text
+    assert "assert auth.get('provider_status') == 'ready'" in text
+    assert "assert auth.get('provider_error') is None" in text
+    assert "POST_AUTH_PROVIDER_STATUS=ready" in text
+
+
+def test_profile_persistence_responses_bind_to_authenticated_identity() -> None:
+    text = _text()
+    assert "/tmp/profile-write-response.json" in text
+    assert "/tmp/profile-restore-response.json" in text
+    assert text.count("expected_account_id=open('/tmp/authenticated_account_id', encoding='utf-8').read()") >= 6
+    assert "assert str(payload.get('account_id')) == expected_account_id" in text
+    assert text.count("assert payload.get('authenticated') is True") >= 4
+
+
+def test_cleanup_proves_profile_and_workflow_rollback() -> None:
+    text = _text()
+    assert "/tmp/profile-restored.json" in text
+    assert "assert restored.get('profile') == original.get('profile')" in text
+    assert "Authenticated profile rollback verified." in text
+    assert "/tmp/workflow-restored.json" in text
+    assert "assert restored.get('status') == original.get('status')" in text
+    assert "assert restored.get('note') == original.get('note')" in text
+    assert "Authenticated workflow rollback verified." in text
+
+
+def test_account_scoped_responses_bind_to_authenticated_identity() -> None:
+    text = _text()
+    assert "assert str(payload.get('account_id')) == expected_account_id" in text
+    assert "assert str(stats.get('account_id')) == expected_account_id" in text
+    assert "assert str(workflow.get('account_id')) == expected_account_id" in text
+
+
+def test_conditional_journey_coverage_is_explicit() -> None:
+    text = _text()
+    assert "open('/tmp/authenticated_e2e_coverage','w').write('UNKNOWN_NO_DATA')" in text
+    assert "open('/tmp/authenticated_e2e_coverage','w').write('PENDING')" in text
+    assert "open('/tmp/authenticated_e2e_coverage','w').write('FULL')" in text
+    assert 'coverage="$(cat /tmp/authenticated_e2e_coverage)"' in text
+    assert 'FULL|UNKNOWN_NO_DATA)' in text
+    assert 'echo "coverage=$coverage" >> "$GITHUB_OUTPUT"' in text
+    assert 'echo "AUTHENTICATED_E2E_COVERAGE=$coverage" >> "$GITHUB_STEP_SUMMARY"' in text
+
+
+def test_nested_endpoint_filename_guard_is_preserved() -> None:
+    text = _text()
+    assert "tr '/' '_'" in text
+    assert 'Unsafe E2E output filename' in text
+
+
+def test_checkout_is_immutable_and_does_not_persist_credentials() -> None:
+    text = _text()
+    assert 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4' in text
+    assert 'actions/checkout@v4' not in text
+    assert 'persist-credentials: false' in text
+    assert 'permissions:\n  contents: read' in text
