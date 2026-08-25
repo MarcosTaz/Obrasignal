@@ -23,9 +23,11 @@ The shared JSONL+gzip transport enforces compressed-size, uncompressed-size and 
 
 This is a **LIMITED HIGH-VALUE SLICE**, not a claim of complete Zambia procurement coverage. The OCP registry documents discrepancies between the OCDS dataset and the e-GP front-end. Awards/contracts/plans exist upstream but are not emitted by this implementation.
 
+The MVP reads the current calendar-year registry snapshot. Because ZPPA keeps a process in the package associated with its first release and later updates that package as the process evolves, a procurement first published in an earlier year can remain active without appearing in the current-year snapshot. Those carry-over processes are deliberately outside this first slice rather than being silently claimed as covered.
+
 ## Runtime
 
-`zambia_zppa_runtime.py` uses the existing `incremental_runtime_plugin` contract. Runtime activation remains opt-in and must be composed behind the canonical source gate; source readiness must not be interpreted as automatic production enablement.
+`zambia_zppa_runtime.py` uses the existing `incremental_runtime_plugin` contract. Runtime activation remains opt-in and must be composed behind the canonical source gate; source readiness must not be interpreted as automatic production enablement. `ZM_ZPPA` is deliberately not assigned to the canonical Wave 1 queue.
 
 ## Validation
 
