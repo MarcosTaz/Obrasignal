@@ -2,7 +2,7 @@
   "contract_version": "production-customer-readiness.v1",
   "snapshot": {
     "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
-    "observed_at": "2026-08-25T20:53:00+01:00",
+    "observed_at": "2026-08-25T20:58:00+01:00",
     "stale_if_main_moves": true,
     "purpose": "Release evidence only; never Master Queue, capability, source, merge, deployment or specialist ownership authority."
   },
@@ -60,13 +60,13 @@
     },
     {
       "id": "WEB",
-      "classification": "DEFECT",
+      "classification": "EXTERNAL",
       "release_gate": "NO_GO",
-      "owner": "WEB_PRODUCT + GOLDEN",
-      "evidence_scope": "CURRENT_MAIN_PRODUCTION_PARTIAL",
-      "evidence": ["main@66d43f6 Web Preview 32867427590 SUCCESS and Production Smoke proves exact API build, CORS and Web shell", "#68 remains open and requires real-browser acceptance", "#337 carries executable production-browser preflight with exact config, journey, privacy-safe evidence and fail-closed GO/NO-GO rules"],
-      "remaining": ["Real browser signup/login/session reload/onboarding/first truthful Radar/detail/source/workflow/logout-return/account-isolation acceptance", "Loading/error/offline/partial-data plus responsive/accessibility/customer-usability acceptance", "Saved/watch is explicitly NOT a blocker unless canonical product scope changes; current Web billing may be informational but must remain truthful"],
-      "reopen_condition": "Close #68 only after all required preflight rows PASS on the same exact deployed canonical browser build with no conditional skip or tenant/privacy leak."
+      "owner": "WEB_PRODUCT + GOLDEN + RELEASE",
+      "evidence_scope": "CURRENT_MAIN_PRODUCTION_PARTIAL_PLUS_EXTERNAL_ACCEPTANCE",
+      "evidence": ["main@66d43f6 Web Preview 32867427590 SUCCESS and Production Smoke proves exact API build, CORS and Web shell", "#68 release reconciliation comment 5415909434 classifies the remaining gate as BLOCKED / EXTERNAL_PHYSICAL_BROWSER_ACCEPTANCE rather than a code/CI failure", "#337 carries executable production-browser preflight with exact config, journey, privacy-safe evidence and fail-closed GO/NO-GO rules"],
+      "remaining": ["Real browser signup/login/session reload/onboarding/first truthful Radar/detail/source/workflow/logout-return/account-isolation acceptance", "Loading/error/offline/partial-data plus responsive/accessibility/customer-usability acceptance", "Supabase deployed-origin redirect/confirmation behavior remains physically unobserved", "Saved/watch is explicitly NOT a blocker unless canonical product scope changes; current Web billing may be informational but must remain truthful"],
+      "reopen_condition": "Close #68 only after external physical-browser acceptance records all required preflight rows PASS on the same exact deployed canonical browser build with no conditional skip or tenant/privacy leak."
     },
     {
       "id": "MOBILE",
@@ -164,7 +164,7 @@
       "release_gate": "NO_GO",
       "owner": "PRODUCTION_READINESS + GOLDEN + GTM_EVIDENCE",
       "evidence_scope": "CURRENT_SYSTEM_GAP_WITH_SYNTHETIC_PERFORMANCE_MEASUREMENT",
-      "evidence": ["#68 still requires deployed browser observation; #83/#333 and composed #342/provider obligations leave Billing/Evaluation/privacy lifecycle incomplete or unproven", "Disposable-SQLite first-value benchmark on readiness HEAD 1007f984 measured 25-row p50/p95 245/514 ms and 250-row p50/p95 2342/4375 ms; separate runners show large absolute variance, so these are not production SLOs", "Same-run bootstrap phase measurement at the 250-row bound shows record_decision ~61.49%, repeated load_profile ~22.24%, evaluate_row ~12.89%, other ~3.25% of bootstrap p50", "Measured persistence hotspot was routed to Data Reliability #238 comment 5415862736; #337 does not implement production persistence optimization"],
+      "evidence": ["#68 remains externally blocked on physical browser observation; #83/#333 and composed #342/provider obligations leave Billing/Evaluation/privacy lifecycle incomplete or unproven", "Disposable-SQLite first-value benchmark on readiness HEAD 1007f984 measured 25-row p50/p95 245/514 ms and 250-row p50/p95 2342/4375 ms; separate runners show large absolute variance, so these are not production SLOs", "Same-run bootstrap phase measurement at the 250-row bound shows record_decision ~61.49%, repeated load_profile ~22.24%, evaluate_row ~12.89%, other ~3.25% of bootstrap p50", "Measured persistence hotspot was routed to Data Reliability #238 comment 5415862736; #337 does not implement production persistence optimization"],
       "remaining": ["One exact canonical real-customer-equivalent path from signup through first value, return, Evaluation and authoritative Pro", "Supportable failure/recovery evidence for that path", "Consume any Data Reliability performance repair and remeasure before claiming improvement; preserve synchronous first-Radar truth and tenant/persistence atomicity"],
       "reopen_condition": "A real-customer-equivalent Golden journey on the exact canonical deployed release proves the minimum sellable spine, truthful failure states and acceptable measured first-value behavior."
     }
