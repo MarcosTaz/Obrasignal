@@ -9,6 +9,7 @@ from search_profiles import (
     SearchProfileNeedsUpdate,
     SearchProfileNotFound,
     create_search_profile,
+    delete_search_profile,
     ensure_search_profile_table,
     get_search_profile,
     list_search_profiles,
@@ -125,3 +126,18 @@ def test_corrupt_stored_filter_is_not_silently_ignored():
             get_search_profile(conn, "account-a", profile["profile_id"], require_runnable=True)
     finally:
         conn.close()
+
+
+def test_normal_crud_paths_execute_no_schema_ddl():
+    conn = connection()
+    statements = []
+    conn.set_trace_callback(statements.append)
+    try:
+        created = create_search_profile(conn, "account-a", name="No DDL", filters={"market": "PT"})
+        list_search_profiles(conn, "account-a")
+        get_search_profile(conn, "account-a", created["profile_id"])
+        update_search_profile(conn, "account-a", created["profile_id"], {"name": "Still no DDL"})
+        delete_search_profile(conn, "account-a", created["profile_id"])
+    finally:
+        conn.close()
+    assert not any(statement.lstrip().upper().startswith(("CREATE ", "ALTER ", "DROP ")) for statement in statements)
