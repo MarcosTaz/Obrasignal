@@ -31,6 +31,13 @@ PAGE2 = """
 </table></body></html>
 """
 
+PAGE_NON_CONSTRUCTION = """
+<html><body><h1>Current Business Opportunities</h1><h2>Open tenders</h2><table>
+<tr><th>RFQ Number</th><th>Entity Name</th><th>Title</th><th>Open Date</th><th>Close Date</th><th>Link</th></tr>
+<tr><td>12111</td><td>Federal Entity</td><td>Enterprise software support services</td><td>20/08/2026 12:00:00 AM</td><td>10/09/2026 4:00:00 PM</td><td><a href="https://procurement.gov.ae/rfq/12111">Click here</a></td></tr>
+</table></body></html>
+"""
+
 
 def test_parse_and_strong_construction_filter():
     rows = parse_opportunities(PAGE1)
@@ -76,6 +83,12 @@ class _Session:
         return _Response(PAGE1)
 
 
+class _NonConstructionSession:
+    def get(self, url, timeout, headers):
+        assert timeout == 7
+        return _Response(PAGE_NON_CONSTRUCTION)
+
+
 def test_pagination_deduplicates_and_stops_on_repeated_page():
     session = _Session()
     rows = fetch_current_opportunities(session=session, timeout=7, max_pages=5)
@@ -83,6 +96,12 @@ def test_pagination_deduplicates_and_stops_on_repeated_page():
     assert len(session.urls) == 3
     connector = UAEMoFDPPConnector(session=_Session(), timeout=7, max_pages=5)
     assert [r["external_id"] for r in connector.fetch()] == ["12051"]
+
+
+def test_valid_source_response_with_zero_construction_matches_is_healthy_empty():
+    rows = fetch_current_opportunities(session=_NonConstructionSession(), timeout=7, max_pages=1)
+    assert [r.rfq_number for r in rows] == ["12111"]
+    assert UAEMoFDPPConnector(session=_NonConstructionSession(), timeout=7, max_pages=1).fetch() == []
 
 
 def test_canonical_signal_store_idempotent_update():
