@@ -129,6 +129,7 @@ from netherlands_runtime import install as install_netherlands_runtime
 from germany_runtime import install as install_germany_runtime
 from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
+from readiness_api import install_readiness_api
 import preload as _preload
 
 init_db()
@@ -139,6 +140,7 @@ try:
 finally:
     _lifecycle_conn.close()
 install_lifecycle_read_model(_preload)
+install_readiness_api(APP, db)
 install_latvia_runtime()
 install_uk_runtime()
 install_ecuador_runtime()
