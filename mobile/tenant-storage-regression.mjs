@@ -49,6 +49,11 @@ assert.equal((await tenantStorage.getProfile('SESSION_B')).name, 'B', 'local cac
 
 await tenantStorage.setCache('SESSION_B', { items: [{ id: 'B-1' }] });
 await tenantStorage.setPushBinding('SESSION_B', { bindingId: 'binding-b', installationId: 'install-device-001' });
+assert.equal((await tenantStorage.getPushBinding('SESSION_B')).bindingId, 'binding-b');
+await tenantStorage.clearPushBinding('SESSION_B');
+assert.equal(await tenantStorage.getPushBinding('SESSION_B'), null, 'explicit notification disable must revoke the local tap binding');
+
+await tenantStorage.setPushBinding('SESSION_B', { bindingId: 'binding-b2', installationId: 'install-device-001' });
 await tenantStorage.bindTenant(null);
 assert.equal(await adapter.getItem(privateStorageKey('SESSION_B', 'opportunities-cache')), null, 'sign-out must purge the active identity cache');
 assert.equal(await adapter.getItem(privateStorageKey('SESSION_B', 'push-binding')), null, 'sign-out must purge the active notification binding');
@@ -56,4 +61,5 @@ assert.equal(await adapter.getItem(ACTIVE_PRIVATE_TENANT_KEY), null, 'sign-out m
 
 console.log('PASS: tenant-scoped private cache blocks Account A -> Account B hydration/fallback');
 console.log('PASS: account changes/sign-out purge and rebind private storage including notification binding');
+console.log('PASS: explicit notification disable revokes tenant-private tap binding');
 console.log('PASS: cache/binding envelope identity is validated before hydration without duplicating backend Auth tenancy');
