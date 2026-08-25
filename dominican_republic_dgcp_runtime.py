@@ -1,13 +1,15 @@
 """Atomic runtime composition for Dominican Republic DGCP under one source identity.
 
-The OCDS transport owns incremental progress. PACC is an annual bounded snapshot
-and does not get a second source cursor. Instead, this module stores OCDS progress
-and the last successful PACC snapshot date inside one opaque composite cursor.
-PACC is due at most once per Dominican calendar day.
+The complete process-first DGCP discovery transport owns incremental progress.
+PACC is an annual bounded snapshot and does not get a second source cursor.
+Instead, this module stores discovery progress and the last successful PACC
+snapshot date inside one opaque composite cursor. PACC is due at most once per
+Dominican calendar day.
 
-When PACC is due, OCDS and PACC must both complete before an observation is
-returned; therefore a PACC failure cannot allow a newly discovered OCDS cursor to
-advance. When PACC has already succeeded that day, only OCDS is fetched.
+When PACC is due, process/OCDS discovery and PACC must both complete before an
+observation is returned; therefore a PACC failure cannot allow a newly discovered
+cursor to advance. When PACC has already succeeded that day, only process/OCDS is
+fetched.
 
 The canonical Signal projection receives all implemented signal types. The legacy
 `tenders` compatibility path receives TENDER rows only, so plans, awards and
@@ -20,7 +22,7 @@ from datetime import date, datetime, timezone
 import json
 from zoneinfo import ZoneInfo
 
-import dominican_republic_dgcp as _dgcp
+import dominican_republic_dgcp_discovery as _discovery
 import dominican_republic_dgcp_pacc as _pacc
 
 
@@ -115,7 +117,7 @@ def _dedupe_signals(rows):
 
 def fetch_dgcp_runtime(*, watermark=None, now=None, ocds_fetcher=None, pacc_fetcher=None):
     """Fetch one atomic DGCP observation without committing durable source state."""
-    fetch_ocds = ocds_fetcher or _dgcp.fetch_dgcp_signals
+    fetch_ocds = ocds_fetcher or _discovery.fetch_dgcp_signals_complete
     fetch_pacc = pacc_fetcher or _pacc.fetch_dgcp_procurement_plans
 
     state = DGCPRuntimeCursor.decode(watermark)
@@ -133,8 +135,8 @@ def fetch_dgcp_runtime(*, watermark=None, now=None, ocds_fetcher=None, pacc_fetc
     ocds_signals = list(ocds_signals or [])
 
     if pacc_due:
-        # Deliberately fetch after OCDS. If this raises, no observation/cursor is
-        # returned, so the newly discovered OCDS cursor cannot be staged.
+        # Deliberately fetch after process/OCDS discovery. If this raises, no
+        # observation/cursor is returned, so newly discovered progress cannot stage.
         pacc_signals = list(fetch_pacc(now=now) or [])
         next_pacc_date = local_today.isoformat()
     else:
