@@ -85,6 +85,7 @@ def test_decision_snapshot_is_account_scoped_replayable_and_customer_view_is_red
 
     assert view["state"] == "READY"
     assert view["sources"]
+    assert view["presentation_policy_version"] == "decision-evidence-customer-v1"
     assert "graph" not in view
     assert "assumptions" not in view
     serialized_view = repr(view)
@@ -104,7 +105,7 @@ def test_same_decision_for_two_accounts_has_different_private_graph_identity():
     assert b["graph"]["tenant_id"] == "company-b"
 
 
-def test_missing_source_field_remains_explicitly_missing_in_customer_contract():
+def test_missing_source_field_remains_explicitly_unknown_in_customer_contract():
     row = _row(deadline=None)
     profile = _profile(min_deadline_days=7)
     evaluation = _evaluation(row, profile)
@@ -113,9 +114,11 @@ def test_missing_source_field_remains_explicitly_missing_in_customer_contract():
 
     assert "deadline" in snapshot["missing_inputs"]
     assert "deadline" in view["missing"]
+    assert view["status"] == "UNKNOWN"
+    assert view["confidence"] == "UNKNOWN"
 
 
-def test_missing_company_specialization_remains_explicitly_missing():
+def test_missing_company_specialization_remains_explicitly_unknown():
     profile = {
         "countries": ["PRT"],
         "min_value": 100000,
@@ -128,6 +131,30 @@ def test_missing_company_specialization_remains_explicitly_missing():
 
     assert "company_specialization" in snapshot["missing_inputs"]
     assert "company_specialization" in view["missing"]
+    assert view["status"] == "UNKNOWN"
+    assert view["confidence"] == "UNKNOWN"
+
+
+def test_customer_contract_propagates_lineage_conflict_instead_of_claiming_supported():
+    snapshot = {
+        "contract_version": "evidence.v1",
+        "state": "READY",
+        "decision_claim_id": "cl-decision",
+        "missing_inputs": [],
+        "explanation": {
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "evidence": [],
+            "conflicts": [{"left": "cl-a", "right": "cl-b"}],
+            "missing": [],
+            "model_version": "evidence-graph-v1",
+            "policy_version": "evidence-policy-v1",
+        },
+    }
+    view = customer_evidence_view(snapshot)
+    assert view["status"] == "CONFLICT"
+    assert view["confidence"] == "LOW"
+    assert view["conflict_count"] == 1
 
 
 def test_customer_provenance_preserves_publisher_reference_and_filters_unsafe_urls():
@@ -148,7 +175,15 @@ def test_customer_provenance_preserves_publisher_reference_and_filters_unsafe_ur
 
 
 def test_customer_provenance_allows_only_absolute_http_source_urls():
-    for unsafe in ("data:text/html,boom", "file:///tmp/x", "/relative", "custom:thing", "https:///missing-host"):
+    unsafe_values = (
+        "data:text/html,boom",
+        "file:///tmp/x",
+        "/relative",
+        "custom:thing",
+        "https:///missing-host",
+        "https://example.test/ok\njavascript:alert(1)",
+    )
+    for unsafe in unsafe_values:
         row = _row(url=unsafe)
         evaluation = _evaluation(row, _profile())
         snapshot = build_decision_evidence("company-a", row, _profile(), evaluation, rule_version=RULE_VERSION, decided_at=DECIDED_AT)
