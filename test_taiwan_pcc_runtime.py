@@ -1,9 +1,11 @@
-from taiwan_pcc_runtime import fetch_incremental, install
+from taiwan_pcc_runtime import LIVE_SOURCES, fetch_incremental, install
 
 
 class FakeConnector:
+    created_sources = None
+
     def __init__(self, *args, **kwargs):
-        pass
+        type(self).created_sources = tuple(kwargs.get("sources") or ())
 
     def fetch_snapshot(self, *, observed_at=None):
         return [
@@ -17,12 +19,19 @@ class FakeConnector:
         ]
 
 
-def test_runtime_preserves_cursor_for_rolling_snapshot(monkeypatch):
+def test_runtime_live_slice_contains_pre_tender_and_contract_sources():
+    assert [source.dataset_id for source in LIVE_SOURCES] == [7260, 7264]
+    assert [source.signal_type for source in LIVE_SOURCES] == ["PROCUREMENT_PLAN", "CONTRACT"]
+    assert all(source.url for source in LIVE_SOURCES)
+
+
+def test_runtime_preserves_cursor_for_snapshot_ingestion(monkeypatch):
     monkeypatch.setattr("taiwan_pcc_runtime.TaiwanPCCPreparedConnector", FakeConnector)
     rows, cursor = fetch_incremental(watermark="opaque-existing-watermark", now="2026-08-25T00:00:00+00:00")
     assert len(rows) == 1
     assert cursor == "opaque-existing-watermark"
     assert rows[0]["source_reference"] == "A-1"
+    assert [source.dataset_id for source in FakeConnector.created_sources] == [7260, 7264]
 
 
 def test_runtime_install_uses_generic_incremental_plugin(monkeypatch):
