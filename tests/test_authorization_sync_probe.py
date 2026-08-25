@@ -1,23 +1,35 @@
 """Authorization-integrity failing-before for the legacy global sync route.
 
-This probe intentionally chooses no positive admin/operator policy. It proves only
-the deny-by-default invariant: an unauthenticated provider-mode request must not
-be able to trigger the global source synchronization side effect.
+The production compatibility layer already authenticates /sync. This probe starts
+after successful authentication and proves the stricter deny-by-default invariant:
+an authenticated principal alone must not gain authority to trigger a global source
+synchronization side effect when no explicit sync capability/role policy exists.
 """
 
+import api
 import app
+from auth_context import RequestIdentity
 
 
-def test_unauthenticated_provider_request_cannot_trigger_global_sync(monkeypatch):
-    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+def test_authenticated_principal_alone_cannot_trigger_global_sync(monkeypatch):
+    identity = RequestIdentity(
+        account_id="tenant-a",
+        authenticated=True,
+        subject="user-a",
+        claims={"sub": "user-a"},
+    )
     calls = []
+
+    # Isolate authorization from Auth provider mechanics: authentication has
+    # already succeeded for a normal tenant principal.
+    monkeypatch.setattr(api._preload, "configured_identity", lambda: identity)
 
     def fake_sync_once():
         calls.append("sync")
 
     monkeypatch.setattr(app, "sync_once", fake_sync_once)
 
-    response = app.APP.test_client().post("/sync")
+    response = api.APP.test_client().post("/sync")
 
-    assert response.status_code in {401, 403, 404}
+    assert response.status_code in {403, 404}
     assert calls == []
