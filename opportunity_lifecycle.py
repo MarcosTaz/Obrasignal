@@ -107,13 +107,23 @@ def actionable_predicate(lifecycle_alias="lc", opportunity_alias="t"):
     evidence that the opportunity must not be presented as current actionable
     work. Missing, blank, or unparsable deadlines remain UNKNOWN rather than
     being silently coerced to closed.
+
+    Date-only values retain day precision: the deadline date itself remains
+    actionable for that calendar day instead of being silently coerced to
+    midnight and closed early.
     """
     lifecycle = f"{lifecycle_alias}.is_actionable"
     deadline = f"{opportunity_alias}.deadline"
+    trimmed = f"TRIM({deadline})"
+    is_date_only = f"LENGTH({trimmed})=10"
+    date_unknown = f"({is_date_only} AND date({deadline}) IS NULL)"
+    datetime_unknown = f"(NOT ({is_date_only}) AND datetime({deadline}) IS NULL)"
+    date_open = f"({is_date_only} AND date({deadline})>=date('now'))"
+    datetime_open = f"(NOT ({is_date_only}) AND datetime({deadline})>=datetime('now'))"
     return (
         f"({lifecycle}=1 OR ("
         f"{lifecycle} IS NULL AND ("
-        f"{deadline} IS NULL OR TRIM({deadline})='' OR "
-        f"datetime({deadline}) IS NULL OR datetime({deadline})>=datetime('now')"
+        f"{deadline} IS NULL OR {trimmed}='' OR "
+        f"{date_unknown} OR {datetime_unknown} OR {date_open} OR {datetime_open}"
         f")))"
     )
