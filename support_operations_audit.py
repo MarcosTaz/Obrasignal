@@ -121,7 +121,8 @@ def audit_manifest(data: dict[str, Any]) -> list[str]:
                 failures.append(f"journey {row.get('id')!r} lacks recovery contract")
 
     runbooks = data.get("runbook_overlays")
-    if set(runbooks) if isinstance(runbooks, list) else set() != _REQUIRED_RUNBOOKS:
+    normalized_runbooks = set(runbooks) if isinstance(runbooks, list) else set()
+    if normalized_runbooks != _REQUIRED_RUNBOOKS:
         failures.append("runbook overlay coverage drift")
 
     boundaries = data.get("specialist_boundaries")
