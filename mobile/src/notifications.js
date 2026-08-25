@@ -4,6 +4,7 @@ import { api } from './api';
 import { storage } from './storage';
 
 const EXPO_PROJECT_ID = 'c277466b-a418-45f7-b070-4fc3f96386b7';
+const handledResponseIds = new Set();
 
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
@@ -53,6 +54,18 @@ export async function registerRemoteOpportunityPush() {
   if (!bindingId) throw new Error('push_binding_missing');
   await storage.setPushBinding({ bindingId, installationId, expoPushToken });
   return { registered: true, bindingId, installationId };
+}
+
+export async function unregisterRemoteOpportunityPush() {
+  if (Platform.OS === 'web') return;
+  const binding = await storage.getPushBinding();
+  try {
+    if (binding?.installationId) await api.unregisterPushDevice(binding.installationId);
+  } finally {
+    // Even if the network is unavailable, remove Account A notifications from
+    // the local tray before the session is allowed to leave the device.
+    try { await Notifications.dismissAllNotificationsAsync(); } catch (_) {}
+  }
 }
 
 export async function showLocalOpportunityAlert(item) {
@@ -117,9 +130,13 @@ export function listenForOpportunityNotificationResponses(onTarget) {
   if (Platform.OS === 'web') return () => {};
   let active = true;
   const handle = async (response) => {
+    const responseId = String(response?.notification?.request?.identifier || '').trim();
+    if (responseId && handledResponseIds.has(responseId)) return;
     try {
       const opportunityId = await notificationOpportunityTarget(response);
-      if (active && opportunityId) onTarget(opportunityId);
+      if (!active || !opportunityId) return;
+      if (responseId) handledResponseIds.add(responseId);
+      onTarget(opportunityId);
     } catch (_) {}
   };
   const subscription = Notifications.addNotificationResponseReceivedListener(handle);
