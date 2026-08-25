@@ -27,7 +27,7 @@ Change History sits after normalization and observes the same staged canonical r
 
 `source_runtime.commit_staged_source_syncs()` remains the source-side transaction boundary. History detection/persistence executes before the current Signal upsert and inside the same transaction, so the previous state is still available and history/current/cursor movement cannot partially commit.
 
-The canonical Master Execution Queue is not modified by this capability. At the latest `main` incorporated by this branch (`bfce7a0d2754aedd607d6cf5fa5e777384bf5923`), `CURRENT_ITEM_ID` is `Q070_SHARED_FAMILIES`; Q060 Chile is `GATED` pending a real Mercado Público production credential. Capability-registry lifecycle is independent of queue state.
+The canonical Master Execution Queue is not modified by this capability. This branch incorporates `main` through `9b100d4c860a0e9c5d9eb096db1fb62c9ce62af1`, where Q070 Shared Families is `DONE` and `CURRENT_ITEM_ID` is `Q080_EVIDENCE_GRAPH_V1`. Q060 Chile remains `GATED` pending a real Mercado Público production credential. Capability-registry lifecycle is independent of queue state.
 
 ## SNAPSHOT MODEL
 
@@ -121,17 +121,17 @@ Stable identity is resolved only from configured safe identity keys. Add/remove 
 
 ## NATIVE AMENDMENTS / SOURCE VERSION
 
-Native revision identity wins when explicitly normalized. The source transaction boundary projects supported aliases into `source_version`: `amendment_number`, `revision_id`, `amendment_id`, `corrigendum_id`, `native_revision`, and `release_id`.
+Native revision identity wins when explicitly normalized. Supported aliases are `amendment_number`, `revision_id`, `amendment_id`, `corrigendum_id`, `native_revision`, and `release_id`; they are projected into `source_version` for history only.
 
 CanadaBuys already normalizes `amendment_number` and `amendment_date`; the source transaction boundary aliases those values into the generic history contract without altering current Signal persistence or fabricating a source version.
 
-A publisher-native revision-only change therefore creates a material change set with `changed_fields = ["source_version"]`. This closes the audit gap where a real amendment could otherwise be suppressed because no other normalized field changed.
+A publisher-native revision-only change therefore creates a material change set with `changed_fields = ["source_version"]`. The same alias logic is applied when reconstructing a pre-module baseline from `signal_records.normalized_json`, so the previous amendment number is not lost during rollout.
 
 ## PERSISTENCE AND TRANSACTION SAFETY
 
 No separate database is introduced. Tables are created idempotently in the existing SQLite database.
 
-Source-side sequence:
+Source-side sequence when the capability is active:
 
 1. load/bootstrap previous monitored state;
 2. normalize incoming monitored state;
@@ -142,7 +142,13 @@ Source-side sequence:
 7. advance source cursor;
 8. commit once.
 
-Any exception rolls the complete source-side transaction back. Reprocessing after a rolled-back attempt is safe.
+Any enabled-history exception rolls the complete source-side transaction back. Reprocessing after a rolled-back attempt is safe.
+
+## RUNTIME DISABLE BOUNDARY
+
+The capability registry is the v0 runtime disable boundary. `PILOT` and `ENABLED` execute history persistence; states outside those values skip Change History while Signal, metadata, lifecycle and cursor persistence continue normally.
+
+The declared `feature_flag = opportunity_change_history_v0` is metadata for future scoped rollout. This branch does not invent a global customer/environment feature-flag service that does not already exist in the repository.
 
 ## VERSIONING
 
@@ -200,7 +206,7 @@ A future HTML UI must escape values at render time; persistence deliberately doe
 
 ## TESTING
 
-Dedicated tests cover identical-state idempotency, deadline extension/shortening/reversal, mixed aware/naive deadline safety, repeated real transitions, date equivalence, value/currency/status changes, whitespace/case noise suppression including oversized text, real title changes, collection reorder, document/lot add/remove, multi-field grouping, missing vs explicit null, duplicate delivery, bootstrap from existing Signal state, native amendment provenance, revision-only publisher amendments, deterministic fingerprints, material-only reads, event projection, hostile source strings, oversized-state fail-closed behavior and transaction rollback.
+Dedicated tests cover identical-state idempotency, deadline extension/shortening/reversal, mixed aware/naive deadline safety, repeated real transitions, date equivalence, value/currency/status changes, whitespace/case noise suppression including oversized text, real title changes, collection reorder, document/lot add/remove, multi-field grouping, missing vs explicit null, duplicate delivery, bootstrap from existing Signal state, native amendment provenance, revision-only publisher amendments, reconstructed amendment baselines, deterministic fingerprints, material-only reads, event projection, hostile source strings, oversized-state fail-closed behavior, transaction rollback and the runtime disable boundary.
 
 Repository quality gates additionally compile root Python modules and run the full Python suite plus Expo/mobile checks. CI status is evidence attached to the PR/head under test; documentation does not convert a passing branch test into a production claim.
 
