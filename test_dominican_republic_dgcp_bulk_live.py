@@ -1,12 +1,12 @@
-"""Bounded live probe for DGCP bulk exports and partition discovery.
+"""Bounded live transport probe for DGCP bulk process/contract exports.
 
-Full historical process XLSX exceeds the bounded probe budget, so production
-must not blindly download it. This probe validates the official bulk transport
-and discovers publisher-exposed partition links from the official tables page.
+Full historical process XLSX was experimentally observed to exceed 64 MiB on
+2026-08-25. Production must therefore not blindly download the full-history file.
+The publisher UI advertises year/semester partitions, but those links are not a
+stable documented API contract, so partition discovery is intentionally excluded
+from permanent CI.
 """
 import os
-import re
-from urllib.parse import urljoin
 
 import pytest
 import requests
@@ -18,8 +18,6 @@ pytestmark = pytest.mark.skipif(
     os.getenv("OBRASIGNAL_LIVE_DGCP") != "1",
     reason="live DGCP probe is explicit opt-in only",
 )
-
-TABLES_PAGE = "https://datosabiertos.dgcp.gob.do/datos-abiertos/tablas"
 
 
 def _probe_transport(path):
@@ -37,38 +35,12 @@ def _probe_transport(path):
         disposition = response.headers.get("Content-Disposition", "")
         first = next(response.iter_content(chunk_size=4096), b"")
         assert first.startswith(b"PK"), f"DGCP bulk endpoint {path} is not XLSX/ZIP"
-        print(
-            f"DGCP_BULK path={path} content_type={content_type!r} "
-            f"content_disposition={disposition!r} first_bytes={first[:16]!r}"
-        )
+        assert "spreadsheetml" in content_type.lower() or ".xlsx" in disposition.lower()
         return content_type, disposition
 
 
-def test_live_dgcp_bulk_transports_and_partition_links():
+def test_live_dgcp_bulk_transports():
     process_type, process_disposition = _probe_transport("/tablas/procesos")
     contract_type, contract_disposition = _probe_transport("/tablas/contratos")
     assert process_type or process_disposition
     assert contract_type or contract_disposition
-
-    response = requests.get(
-        TABLES_PAGE,
-        headers={"User-Agent": "ObraSignal DGCP partition discovery probe/1.0"},
-        timeout=45,
-    )
-    response.raise_for_status()
-    hrefs = re.findall(r'href=["\']([^"\']+)["\']', response.text, flags=re.IGNORECASE)
-    links = []
-    seen = set()
-    for href in hrefs:
-        absolute = urljoin(TABLES_PAGE, href)
-        lowered = absolute.lower()
-        if "2026" not in lowered:
-            continue
-        if not any(token in lowered for token in ("proceso", "contrato", "csv", "xlsx", "tabla")):
-            continue
-        if absolute in seen:
-            continue
-        seen.add(absolute)
-        links.append(absolute)
-    print("DGCP_2026_PARTITION_LINKS=" + " | ".join(links[:50]))
-    assert links, "DGCP tables page exposes no discoverable 2026 partition links"
