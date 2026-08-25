@@ -68,12 +68,12 @@
     },
     {
       "module": "company_profile.py",
-      "responsibility": "Company profile configuration, normalization/validation and profile persistence helpers.",
-      "owner": "UNKNOWN",
-      "ownership_state": "UNKNOWN",
+      "responsibility": "Company profile configuration/normalization/validation/persistence plus a direct post-save Account/Evaluation write path.",
+      "owner": "COMPANY_STATE_WITH_ACCOUNT_EVALUATION_COUPLING",
+      "ownership_state": "MULTI_OWNER",
       "public_surface": "UNKNOWN",
-      "side_effect_surface": "PERSISTENT_MUTATION",
-      "evidence": ["company_profile.py"]
+      "side_effect_surface": "PERSISTENT_MUTATION_CROSS_DOMAIN_WRITE",
+      "evidence": ["company_profile.py", "account_registry.py", "evaluation_policy.py"]
     },
     {
       "module": "source_health.py",
