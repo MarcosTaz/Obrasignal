@@ -68,17 +68,15 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
 
 
-def _bounded_text(value: Any) -> str:
-    text = str(value or "")
+def _norm_text(value: Any, *, case_insensitive: bool) -> str:
+    """Normalize semantics before bounding so large-text hashes remain low-noise."""
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    if case_insensitive:
+        text = text.casefold()
     if len(text) <= MAX_TEXT_CHARS:
         return text
     digest = sha256(text.encode("utf-8")).hexdigest()
     return f"sha256:{digest}:excerpt:{text[:512]}"
-
-
-def _norm_text(value: Any, *, case_insensitive: bool) -> str:
-    text = re.sub(r"\s+", " ", _bounded_text(value).strip())
-    return text.casefold() if case_insensitive else text
 
 
 def _norm_date(value: Any) -> str:
@@ -267,12 +265,14 @@ def _deadline_direction(old: Any, new: Any) -> str | None:
     try:
         old_dt = datetime.fromisoformat(str(old).replace("Z", "+00:00"))
         new_dt = datetime.fromisoformat(str(new).replace("Z", "+00:00"))
+        if new_dt > old_dt:
+            return "EXTENDED"
+        if new_dt < old_dt:
+            return "SHORTENED"
     except (TypeError, ValueError):
+        # Mixed offset-aware/naive representations are still a material deadline
+        # change, but direction is not asserted when chronology is not comparable.
         return None
-    if new_dt > old_dt:
-        return "EXTENDED"
-    if new_dt < old_dt:
-        return "SHORTENED"
     return None
 
 
