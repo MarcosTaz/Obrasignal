@@ -6,6 +6,8 @@ from signal_store import persist_signal_records
 from taiwan_pcc import (
     PCCSnapshotSource,
     TaiwanPCCPreparedConnector,
+    construction_basis,
+    filter_construction_signals,
     normalize_pcc_row,
     parse_snapshot_xml,
     production_gate_reasons,
@@ -108,6 +110,27 @@ def test_missing_native_case_number_is_rejected_instead_of_synthesized():
     assert normalize_pcc_row(row, source=source) is None
 
 
+def test_construction_filter_prefers_publisher_native_procurement_nature():
+    record = {"title": "一般採購", "category_code": "公共工程"}
+    assert construction_basis(record) == "publisher_procurement_nature"
+    assert filter_construction_signals([record])[0]["construction_filter_basis"] == "publisher_procurement_nature"
+
+
+def test_non_construction_native_category_does_not_fall_through_to_title_keyword():
+    record = {"title": "道路改善工程", "category_code": "財物採購"}
+    assert construction_basis(record) is None
+    assert filter_construction_signals([record]) == []
+
+
+def test_conservative_title_fallback_excludes_adjacent_service_false_positive():
+    true_work = {"title": "道路改善工程", "category_code": ""}
+    false_positive = {"title": "道路工程顧問服務", "category_code": ""}
+    software = {"title": "道路資訊系統維護", "category_code": ""}
+    assert construction_basis(true_work) == "conservative_title_fallback"
+    assert construction_basis(false_positive) is None
+    assert construction_basis(software) is None
+
+
 def test_signal_store_reingestion_is_idempotent_and_update_is_not_new_signal():
     source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://example.invalid")
     row = parse_snapshot_xml(PLAN_XML)[0]
@@ -141,17 +164,17 @@ def test_prepared_connector_refuses_missing_live_verified_urls_before_network():
 
 
 def test_transport_uses_bounded_timeout_and_normalizes_complete_snapshot():
-    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://official.example/snapshot.xml")
+    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://example.invalid")
     session = FakeSession(FakeResponse(PLAN_XML.encode("utf-8")))
     connector = TaiwanPCCPreparedConnector(sources=(source,), session=session, timeout=12)
     records = connector.fetch_snapshot(observed_at="2026-08-25T00:00:00+00:00")
-    assert session.calls == [("https://official.example/snapshot.xml", 12)]
+    assert session.calls == [("https://example.invalid", 12)]
     assert len(records) == 1
     assert records[0]["external_id"] == "procurement_plan:A-2026-001"
 
 
 def test_transport_http_error_propagates_and_never_becomes_zero_results():
-    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://official.example/snapshot.xml")
+    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://example.invalid")
     session = FakeSession(FakeResponse(b"", error=RuntimeError("503 upstream")))
     connector = TaiwanPCCPreparedConnector(sources=(source,), session=session)
     with pytest.raises(RuntimeError, match="503 upstream"):
@@ -159,7 +182,7 @@ def test_transport_http_error_propagates_and_never_becomes_zero_results():
 
 
 def test_empty_success_payload_fails_closed_instead_of_advancing_as_zero():
-    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://official.example/snapshot.xml")
+    source = PCCSnapshotSource(6574, "procurement_notice", "PROCUREMENT_PLAN", "https://example.invalid")
     connector = TaiwanPCCPreparedConnector(sources=(source,), session=FakeSession(FakeResponse(b"")))
     with pytest.raises(RuntimeError, match="snapshot was empty"):
         connector.fetch_snapshot()
