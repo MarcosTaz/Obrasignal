@@ -1,0 +1,37 @@
+{
+  "contract_version": "data-integrity-evidence.v1",
+  "canonical_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "evidence": [
+    {
+      "invariant": "SOURCE_HEALTH_MUST_NOT_OUTLIVE_FAILED_CANONICAL_INGEST",
+      "classification": "PROVEN_INTEGRATION_DRIFT_NOT_CANONICAL",
+      "severity": "HIGH",
+      "owners": [
+        "Source Health",
+        "Persistence/Data Reliability",
+        "Resilience",
+        "Integration Lab"
+      ],
+      "stores": [
+        "source_health",
+        "source_cursor",
+        "canonical signal/metadata/lifecycle persistence"
+      ],
+      "expected": "fresh/current source health cannot remain authoritative evidence of durable ingestion when the corresponding canonical ingest transaction fails and rolls back",
+      "observed": "integration probe forces canonical ingest commit failure after fetch success and Source Health success; cursor rollback leaves no durable checkpoint while fresh+healthy fetch observation remains committed",
+      "probe": {
+        "pr": 444,
+        "base_sha": "4d6acf0075328565f7fb4fa900e687b2c9c5276e",
+        "head_sha": "d9103c14380a2a8b831cedb250aaca585b080aaa",
+        "tree_classification": "SOURCE_HEALTH_X_PERSISTENCE_INTEGRATION_PROBE"
+      },
+      "canonical_main_status": "UNKNOWN",
+      "canonical_main_claim": "NO_CANONICAL_DEFECT_CLAIM_FROM_NONCANONICAL_PROBE",
+      "authority": "OWNER_CONTRACT_REQUIRED",
+      "repair_direction": "UNDEFINED_FAIL_CLOSED",
+      "automatic_repair": false,
+      "handoff": "Source Health owns freshness/health meaning; Persistence owns durable commit/checkpoint mechanics; Resilience owns partial-failure behavior; Integration Lab owns exact combined-tree proof. Integrity owns the invariant and classification only.",
+      "reopen_condition": "re-evaluate canonical status when the relevant Source Health and durable-ingest contracts coexist on one exact current-main-derived tree"
+    }
+  ]
+}
