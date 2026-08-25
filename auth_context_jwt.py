@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import ssl
 import time
 from dataclasses import dataclass
 from threading import Lock
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request as UrlRequest, urlopen
 
@@ -37,14 +40,7 @@ def _is_native_supabase_url(value: str) -> bool:
 
 
 def _normalize_supabase_issuer(issuer: str) -> str:
-    """Canonicalize any native Supabase project URL to its JWT issuer.
-
-    Render/client configuration has historically used either the project root,
-    ``/rest/v1`` or ``/auth/v1``. All of those refer to the same Supabase
-    project, while JWT ``iss`` is always the canonical ``/auth/v1`` URL.
-    Canonicalizing the path prevents a valid token from being rejected solely
-    because an equivalent project URL was configured.
-    """
+    """Canonicalize any native Supabase project URL to its JWT issuer."""
     value = (issuer or "").strip().rstrip("/")
     if not value:
         return value
@@ -60,18 +56,42 @@ def _default_jwks_url(issuer: str) -> str:
 
 
 def _effective_jwks_url(issuer: str, override: str = "") -> str:
-    """Resolve the JWKS endpoint without allowing stale Supabase overrides.
-
-    Native Supabase issuers have one canonical public JWKS endpoint. An
-    operator-provided ``OBRASIGNAL_JWKS_URL`` for the same provider can become
-    stale across key migrations and previously caused otherwise-valid tokens to
-    fail closed as unknown keys. For native Supabase projects the canonical
-    issuer-derived endpoint is therefore authoritative. Explicit overrides are
-    still supported for non-Supabase OIDC-compatible providers.
-    """
+    """Resolve the JWKS endpoint without allowing stale Supabase overrides."""
     if _is_native_supabase_url(issuer):
         return _default_jwks_url(issuer)
     return (override or _default_jwks_url(issuer)).strip()
+
+
+def _provider_failure_category(exc: BaseException) -> str:
+    """Map provider failures to a bounded secret-free diagnostic category.
+
+    Exception strings are deliberately never returned because urllib failures can
+    embed the complete provider URL. The categories are stable enough for release
+    gates while revealing no issuer, key material, credentials, or token data.
+    """
+    if isinstance(exc, HTTPError):
+        code = int(getattr(exc, "code", 0) or 0)
+        if code in {400, 401, 403, 404, 408, 409, 410, 429, 500, 502, 503, 504}:
+            return f"http_{code}"
+        return "http_error"
+    if isinstance(exc, json.JSONDecodeError):
+        return "invalid_json"
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return "timeout"
+    if isinstance(exc, ssl.SSLError):
+        return "tls_error"
+    if isinstance(exc, socket.gaierror):
+        return "dns_error"
+    if isinstance(exc, URLError):
+        reason = getattr(exc, "reason", None)
+        if isinstance(reason, BaseException) and reason is not exc:
+            nested = _provider_failure_category(reason)
+            if nested != "unknown":
+                return nested
+        return "network_error"
+    if isinstance(exc, (ValueError, KeyError, TypeError, jwt.PyJWTError)):
+        return "invalid_jwks"
+    return "unknown"
 
 
 class JwtVerifier:
@@ -88,10 +108,6 @@ class JwtVerifier:
             raise RuntimeError("JWT provider issuer is not configured")
         self.issuer = _normalize_supabase_issuer(issuer)
         self.audience = (audience or "authenticated").strip()
-        # Supabase's JWT issuer is https://<project>.supabase.co/auth/v1 and its
-        # asymmetric signing keys are published at the corresponding discovery
-        # URL. Native Supabase always uses that canonical endpoint; an explicit
-        # override remains available for other OIDC-compatible providers.
         self.jwks_url = _effective_jwks_url(self.issuer, jwks_url)
         self.cache_seconds = max(30, int(cache_seconds))
         self.stale_max_seconds = max(0, int(stale_max_seconds))
@@ -103,6 +119,7 @@ class JwtVerifier:
         self._lock = Lock()
         self._keys_source = None
         self._provider_degraded = False
+        self._provider_error = None
         if bootstrap_json:
             try:
                 payload = json.loads(bootstrap_json)
@@ -148,13 +165,23 @@ class JwtVerifier:
                 return "ready"
             return "uninitialized"
 
-    def _key_for(self, kid: str):
-        """Return a cached public JWK, refreshing once when stale or unknown.
+    def provider_diagnostics(self) -> dict:
+        """Return bounded provider state without provider identifiers or secrets."""
+        with self._lock:
+            if self._provider_degraded:
+                status = "degraded"
+            elif self._keys:
+                status = "ready"
+            else:
+                status = "uninitialized"
+            return {
+                "provider_status": status,
+                "provider_kind": "supabase" if _is_native_supabase_url(self.issuer) else "oidc",
+                "provider_error": self._provider_error if status == "degraded" else None,
+            }
 
-        The generation check makes refresh single-flight: callers which waited for
-        another refresh consume that result instead of fetching the same JWKS again.
-        A short failure backoff provides the same protection while the origin is down.
-        """
+    def _key_for(self, kid: str):
+        """Return a cached public JWK, refreshing once when stale or unknown."""
         now = time.time()
         keys = self._keys or {}
         generation = self._generation
@@ -178,9 +205,8 @@ class JwtVerifier:
             try:
                 refreshed = self._fetch_jwks()
             except Exception as exc:
-                # Never replace the last known-good public keys with a failed or
-                # malformed response. Cached keys still perform full JWT validation.
                 self._provider_degraded = True
+                self._provider_error = _provider_failure_category(exc)
                 self._retry_at = time.time() + min(30, self.cache_seconds)
                 if kid in keys and time.time() - self._fetched_at <= self.stale_max_seconds:
                     return keys[kid]
@@ -193,6 +219,7 @@ class JwtVerifier:
             self._generation += 1
             self._keys_source = "remote"
             self._provider_degraded = False
+            self._provider_error = None
             if kid not in refreshed:
                 raise InvalidTokenError("unknown JWT key id")
             return refreshed[kid]
@@ -203,9 +230,6 @@ class JwtVerifier:
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
         alg = header.get("alg")
-        # Production verification intentionally accepts only asymmetric Supabase/OIDC
-        # signing algorithms. Legacy HS256 requires a private shared secret and is not
-        # accepted by this public-key verifier.
         if not kid or alg not in {"RS256", "ES256"}:
             raise InvalidTokenError("unsupported JWT header")
         jwk = self._key_for(str(kid))
@@ -257,14 +281,7 @@ def production_verifier() -> JwtVerifier:
 
 
 def authentication_health() -> dict:
-    """Return public-safe authentication configuration/readiness metadata.
-
-    This is intentionally passive: health never calls the identity provider. A
-    provider is ``ready`` only after the verifier has usable public keys,
-    ``degraded`` after a failed JWKS refresh, and ``uninitialized`` before the
-    first verification attempt. No issuer, JWKS URL, key material or secret is
-    returned.
-    """
+    """Return passive, public-safe authentication configuration/readiness metadata."""
     mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
     if mode == "development":
         return {
@@ -296,8 +313,9 @@ def authentication_health() -> dict:
             "config_present": False,
             "provider_status": "misconfigured",
         }
-    return {
+    health = {
         "mode": "provider",
         "config_present": True,
-        "provider_status": verifier.provider_status(),
     }
+    health.update(verifier.provider_diagnostics())
+    return health
