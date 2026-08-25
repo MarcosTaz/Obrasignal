@@ -40,7 +40,7 @@ class FakeSession:
         })
         if not self.responses:
             raise AssertionError("unexpected request")
-        return self.responses.pop(0)
+        return FakeResponse(self.responses.pop(0))
 
 
 def _release(*, category="works", status="active", ocid="ocds-6550wx-DO1.PCCNTR.1"):
