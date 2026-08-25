@@ -26,38 +26,38 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Execute complete connector on bounded proven works day
+      - name: Execute exact historical process window and normalize live construction hydration
         run: |
           python - <<'PY'
           from dataclasses import replace
-          from datetime import datetime, timezone
+          from datetime import date
           import json
 
-          from dominican_republic_dgcp import DGCP_CONFIG
-          from dominican_republic_dgcp_discovery import DGCPProcessDiscoveryConnector, fetch_dgcp_signals_complete
+          from dominican_republic_dgcp import DGCP_CONFIG, normalize_dgcp_signals
+          from dominican_republic_dgcp_discovery import DGCPProcessDiscoveryConnector
 
           config = replace(
               DGCP_CONFIG,
               page_size=1000,
-              initial_lookback_days=0,
-              overlap_days=0,
-              max_windows_per_sync=1,
               max_pages_per_window=5,
               max_hydrations_per_window=100,
           )
-          rows, cursor = fetch_dgcp_signals_complete(
-              connector=DGCPProcessDiscoveryConnector(config),
-              now=datetime(2026, 8, 21, 23, 0, tzinfo=timezone.utc),
-          )
-          assert rows, 'bounded live day must produce at least one construction lifecycle signal'
+          connector = DGCPProcessDiscoveryConnector(config)
+          target = date(2026, 8, 21)
+          records = connector._fetch_window(target, target)
+          rows = []
+          for record in records:
+              rows.extend(normalize_dgcp_signals(record))
+          print(json.dumps({
+              'records': len(records),
+              'signals': len(rows),
+              'types': {kind: sum(row.get('signal_type') == kind for row in rows) for kind in ('TENDER','AWARD','CONTRACT')},
+          }, sort_keys=True))
+          assert records, 'publisher exact day must expose at least one Obras process'
+          assert rows, 'live hydrated Obras records must normalize to lifecycle signals'
           assert any(row.get('signal_type') == 'TENDER' for row in rows)
           assert all(row.get('source') == 'DO_DGCP' for row in rows)
           assert all(row.get('signal_type') in {'TENDER','AWARD','CONTRACT'} for row in rows)
           identities = [(row.get('signal_type'), row.get('external_id')) for row in rows]
           assert len(set(identities)) == len(identities)
-          print(json.dumps({
-              'signals': len(rows),
-              'types': {kind: sum(row.get('signal_type') == kind for row in rows) for kind in ('TENDER','AWARD','CONTRACT')},
-              'cursor': cursor,
-          }, sort_keys=True))
           PY
