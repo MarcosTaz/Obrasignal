@@ -1,0 +1,52 @@
+name: Kuwait CAPT Live Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'kuwait_capt.py'
+      - 'test_kuwait_capt.py'
+      - '.github/workflows/kuwait_capt_live.yml'
+      - 'research/MENA_KUWAIT_CAPT_IMPLEMENTATION_RECORD_20260825.md'
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'requests>=2.32,<3'
+      - name: Fetch pages parse filter identity normalize
+        run: |
+          python - <<'PY'
+          from kuwait_capt import fetch_open_tenders, normalize_construction_tenders
+
+          rows = fetch_open_tenders(timeout=20, max_pages=3)
+          assert rows, 'official CAPT listing yielded no parsed tenders'
+          ids = [r.tender_no for r in rows]
+          assert len(ids) == len(set(ids)), 'publisher tender-number collision'
+          signals = normalize_construction_tenders(rows)
+          for signal in signals:
+              assert signal['source'] == 'KW_CAPT'
+              assert signal['signal_type'] == 'TENDER'
+              assert signal['external_id'] == signal['source_reference']
+              assert signal['country'] == 'KWT'
+              assert signal['publication_date']
+              assert signal['deadline']
+              assert signal['title']
+          state = 'MATCHING_OPPORTUNITIES' if signals else 'EMPTY_VALID_RESULT'
+          print(f"LIVE_OK state={state} tenders={len(rows)} construction={len(signals)} sample={[s['external_id'] for s in signals[:8]]}")
+          PY
