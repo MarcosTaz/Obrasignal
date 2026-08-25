@@ -10,6 +10,7 @@ OWNED_WORKFLOWS = {
     "eas-production.yml",
     "mobile-release-preflight.yml",
     "codeql.yml",
+    "dependency-review.yml",
 }
 PINNED_ACTION = re.compile(r"^\s*-?\s*uses:\s*[^\s@]+@[0-9a-f]{40}(?:\s+#.*)?$")
 
@@ -42,3 +43,11 @@ def test_codeql_pr_analysis_is_limited_to_trusted_same_repo_heads():
     assert "pull_request:" in text
     assert "security-events: write" in text
     assert "github.event.pull_request.head.repo.full_name == github.repository" in text
+
+
+def test_dependency_review_is_read_only_and_non_commenting():
+    text = (WORKFLOW_DIR / "dependency-review.yml").read_text(encoding="utf-8")
+    assert "contents: read" in text
+    assert "pull-requests: write" not in text
+    assert "comment-summary-in-pr: never" in text
+    assert "fail-on-severity: high" in text
