@@ -82,9 +82,16 @@ def ensure_push_tables(conn):
             ticket_id TEXT,
             submitted_at TEXT,
             last_error TEXT,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            last_attempt_at TEXT,
             UNIQUE(event_id,push_device_id)
         )"""
     )
+    delivery_cols = {row[1] for row in conn.execute("PRAGMA table_info(push_deliveries)").fetchall()}
+    if "attempt_count" not in delivery_cols:
+        conn.execute("ALTER TABLE push_deliveries ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0")
+    if "last_attempt_at" not in delivery_cols:
+        conn.execute("ALTER TABLE push_deliveries ADD COLUMN last_attempt_at TEXT")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_push_deliveries_event_device ON push_deliveries(event_id,push_device_id)")
 
 
@@ -114,15 +121,31 @@ def register_push_device(conn, account_id, installation_id, expo_push_token, pla
         conn.commit()
         return {"installation_id": installation_id, "binding_id": current["binding_id"], "platform": platform}
 
-    # One installation/token can never remain attached to Account A after it is
-    # rebound by an authenticated Account B request.
-    conn.execute("DELETE FROM push_devices WHERE installation_id=? OR expo_push_token=?", (installation_id, expo_push_token))
+    # The physical installation is the stable delivery-ledger identity. Token
+    # rotation and A->B rebind rotate the opaque binding but keep the device row
+    # id so an already submitted event cannot be re-sent merely because the
+    # provider token changed.
     binding_id = secrets.token_urlsafe(24)
-    conn.execute(
-        """INSERT INTO push_devices(account_id,installation_id,expo_push_token,platform,binding_id,created_at,updated_at)
-           VALUES (?,?,?,?,?,?,?)""",
-        (account_id, installation_id, expo_push_token, platform, binding_id, now, now),
-    )
+    token_owner = conn.execute(
+        "SELECT id FROM push_devices WHERE expo_push_token=?",
+        (expo_push_token,),
+    ).fetchone()
+    if token_owner and (not current or token_owner["id"] != current["id"]):
+        conn.execute("DELETE FROM push_devices WHERE id=?", (token_owner["id"],))
+
+    if current:
+        conn.execute(
+            """UPDATE push_devices
+               SET account_id=?, expo_push_token=?, platform=?, binding_id=?, updated_at=?, last_error=NULL
+               WHERE id=?""",
+            (account_id, expo_push_token, platform, binding_id, now, current["id"]),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO push_devices(account_id,installation_id,expo_push_token,platform,binding_id,created_at,updated_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (account_id, installation_id, expo_push_token, platform, binding_id, now, now),
+        )
     conn.commit()
     return {"installation_id": installation_id, "binding_id": binding_id, "platform": platform}
 
@@ -166,8 +189,24 @@ def _pending_push_rows(conn, account_id, limit=100):
     ).fetchall()
 
 
+def _record_push_attempt(conn, row, *, ticket_id=None, submitted_at=None, error=None, attempted_at=None):
+    attempted_at = attempted_at or _iso_now()
+    conn.execute(
+        """INSERT INTO push_deliveries(
+               event_id,push_device_id,ticket_id,submitted_at,last_error,attempt_count,last_attempt_at
+           ) VALUES (?,?,?,?,?,1,?)
+           ON CONFLICT(event_id,push_device_id) DO UPDATE SET
+             ticket_id=excluded.ticket_id,
+             submitted_at=excluded.submitted_at,
+             last_error=excluded.last_error,
+             attempt_count=push_deliveries.attempt_count+1,
+             last_attempt_at=excluded.last_attempt_at""",
+        (row["event_id"], row["push_device_id"], ticket_id, submitted_at, error, attempted_at),
+    )
+
+
 def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
-    """Submit undelivered account-scoped events to Expo; retry transient failures later."""
+    """Submit pending account-scoped events to Expo; failed attempts remain retryable and observable."""
     rows = _pending_push_rows(conn, account_id, limit=limit)
     if not rows:
         return 0
@@ -193,38 +232,40 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
         response.raise_for_status()
         payload = response.json() or {}
         tickets = payload.get("data") or []
-    except Exception:
-        # Do not fail ingestion. With no submitted_at row, the next sync retries.
+        if not isinstance(tickets, list):
+            tickets = []
+    except Exception as exc:
+        # Event persistence remains authoritative and ingestion/bootstrap must not
+        # fail. Persist a bounded error class for operational visibility; leaving
+        # submitted_at NULL makes every event/device pair retryable later.
+        now = _iso_now()
+        error = f"transport_{type(exc).__name__}"[:240]
+        for row in rows:
+            _record_push_attempt(conn, row, error=error, attempted_at=now)
+            conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (error, row["push_device_id"]))
+        conn.commit()
         return 0
 
     submitted = 0
     now = _iso_now()
-    for row, ticket in zip(rows, tickets):
+    for index, row in enumerate(rows):
+        ticket = tickets[index] if index < len(tickets) else None
         status = ticket.get("status") if isinstance(ticket, dict) else None
         if status == "ok":
-            conn.execute(
-                """INSERT INTO push_deliveries(event_id,push_device_id,ticket_id,submitted_at,last_error)
-                   VALUES (?,?,?,?,NULL)
-                   ON CONFLICT(event_id,push_device_id) DO UPDATE SET
-                     ticket_id=excluded.ticket_id, submitted_at=excluded.submitted_at, last_error=NULL""",
-                (row["event_id"], row["push_device_id"], ticket.get("id"), now),
-            )
+            ticket_id = ticket.get("id")
+            _record_push_attempt(conn, row, ticket_id=ticket_id, submitted_at=now, attempted_at=now)
             conn.execute("UPDATE push_devices SET last_error=NULL WHERE id=?", (row["push_device_id"],))
             submitted += 1
             continue
 
         details = ticket.get("details") if isinstance(ticket, dict) else {}
-        error = (details or {}).get("error") or (ticket.get("message") if isinstance(ticket, dict) else None) or "push_rejected"
+        error = (details or {}).get("error") or (ticket.get("message") if isinstance(ticket, dict) else None) or "push_response_missing_ticket"
+        error = str(error)[:240]
+        _record_push_attempt(conn, row, error=error, attempted_at=now)
         if error == "DeviceNotRegistered":
             conn.execute("DELETE FROM push_devices WHERE id=?", (row["push_device_id"],))
         else:
-            conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (str(error)[:240], row["push_device_id"]))
-            conn.execute(
-                """INSERT INTO push_deliveries(event_id,push_device_id,last_error)
-                   VALUES (?,?,?)
-                   ON CONFLICT(event_id,push_device_id) DO UPDATE SET last_error=excluded.last_error""",
-                (row["event_id"], row["push_device_id"], str(error)[:240]),
-            )
+            conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (error, row["push_device_id"]))
     conn.commit()
     return submitted
 
@@ -270,8 +311,7 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
             })
     conn.commit()
     # Event persistence is authoritative. Push transport is best-effort and can
-    # retry pending event/device pairs on the next sync without duplicating an
-    # accepted submission.
+    # retry pending event/device pairs without duplicating an accepted submission.
     submit_pending_pushes(conn, account_id)
     return events
 
