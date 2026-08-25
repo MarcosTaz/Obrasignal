@@ -37,6 +37,16 @@ def _require_identity():
     return None
 
 
+@bp.after_request
+def _watchlist_cors(response):
+    # api.py predates PATCH/DELETE support; keep the extension local until the
+    # watchlist contract is integrated into the canonical mobile API module.
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-ObraSignal-Version, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 def _saved_payload(item):
     if item is None:
         return None
