@@ -15,6 +15,8 @@ import re
 import sqlite3
 from typing import Any
 
+from storage_contract import contract_fingerprint
+
 
 class StorageRecoveryError(RuntimeError):
     pass
@@ -69,6 +71,9 @@ def inspect_database(path: str | Path) -> dict[str, Any]:
         return {
             "ok": True,
             "schema_fingerprint": _schema_fingerprint(conn),
+            # Expected contract is repository evidence only. It is deliberately
+            # not stored in the database and does not act as a migration ledger.
+            "expected_contract_fingerprint": contract_fingerprint(include_runtime=True),
             "page_count": int(conn.execute("PRAGMA page_count").fetchone()[0]),
             "freelist_count": int(conn.execute("PRAGMA freelist_count").fetchone()[0]),
             "user_version": int(conn.execute("PRAGMA user_version").fetchone()[0]),
@@ -146,6 +151,7 @@ def create_backup_artifact(source: str | Path, directory: str | Path, *, label: 
         "artifact_name": artifact.name,
         "artifact_sha256": _sha256_file(artifact),
         "schema_fingerprint": result["destination_schema_fingerprint"],
+        "expected_contract_fingerprint": health["expected_contract_fingerprint"],
         "source_revision": source_revision,
         "rpo_hours": DEFAULT_RPO_HOURS,
         "rto_hours": DEFAULT_RTO_HOURS,
@@ -176,7 +182,12 @@ def verify_backup_artifact(artifact: str | Path, manifest: str | Path) -> dict[s
     health = inspect_database(artifact_path)
     if metadata["schema_fingerprint"] != health["schema_fingerprint"]:
         raise StorageRecoveryError("backup artifact schema fingerprint mismatch")
-    return {"ok": True, "schema_fingerprint": health["schema_fingerprint"], "artifact_sha256": metadata["artifact_sha256"]}
+    return {
+        "ok": True,
+        "schema_fingerprint": health["schema_fingerprint"],
+        "expected_contract_fingerprint": metadata.get("expected_contract_fingerprint"),
+        "artifact_sha256": metadata["artifact_sha256"],
+    }
 
 
 def verified_restore_drill(artifact: str | Path, manifest: str | Path, destination: str | Path) -> dict[str, Any]:
