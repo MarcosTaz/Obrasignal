@@ -1,4 +1,4 @@
-"""TEMPORARY forensic probe; remove after observing live pagination metadata."""
+"""TEMPORARY forensic probe; remove after observing live pagination economics."""
 from datetime import datetime, timedelta, timezone
 import json
 
@@ -31,17 +31,18 @@ def _summary(url, params):
 
 def test_temporary_dgcp_promotion_metadata_probe():
     today = datetime.now(timezone.utc).date()
+    yesterday = today - timedelta(days=1)
     ocds = _summary(
         DGCP_OCDS_RELEASES_URL,
         {
             "page": 1,
-            "limit": 100,
-            "start_date": (today - timedelta(days=1)).isoformat(),
-            "end_date": today.isoformat(),
+            "limit": 1000,
+            "start_date": yesterday.isoformat(),
+            "end_date": yesterday.isoformat(),
         },
     )
     pacc = _summary(
         DGCP_PACC_ACQUISITIONS_URL,
-        {"page": 1, "limit": 100, "año": today.year},
+        {"page": 1, "limit": 1000, "año": today.year},
     )
     raise AssertionError("DGCP_PROMOTION_META=" + json.dumps({"ocds": ocds, "pacc": pacc}, sort_keys=True, default=str))
