@@ -8,7 +8,7 @@ VALIDATION = ROOT / "acceptance" / "validation_20260825.json"
 
 MATRIX_STATES = {"PASS", "FAIL", "GATED", "NOT_IMPLEMENTED", "NOT_APPLICABLE"}
 COMPLETENESS_STATES = {"IMPLEMENTED", "ACCEPTED", "INTEGRATION_BLOCKED", "NOT_IMPLEMENTED", "FUTURE"}
-CURRENT_MAIN = "fce51d5b5524e09691f9187f7619ea0166217487"
+CURRENT_MAIN = "66d43f6fd51cf9cea08016dad335aaa04b711a24"
 
 
 def _load(path):
@@ -28,23 +28,20 @@ def test_acceptance_manifest_is_bound_to_current_main_and_no_merge_policy():
     assert manifest["baseline"]["master_queue_mutation"] is False
 
 
-def test_auth_main_implementation_does_not_become_false_deployed_pass():
+def test_auth_current_main_has_exact_deployed_pass_without_implying_full_product_acceptance():
     manifest = _manifest()
     auth = manifest["cross_cutting_capabilities"]["AUTH"]
     assert auth["implementation"] == "IMPLEMENTED"
     assert auth["main_sha"] == CURRENT_MAIN
     assert auth["domain_api_quality"] == "PASS"
-    assert auth["deployed_acceptance"] == "FAIL"
-    assert manifest["main_change_observed_during_lab"]["root_cause"] == "UNKNOWN"
+    assert auth["deployed_acceptance"] == "PASS"
+    assert manifest["main_change_observed_during_lab"]["post_merge_production_smoke"] == "PASS"
+    assert manifest["main_change_observed_during_lab"]["post_merge_authenticated_e2e"] == "PASS"
 
 
 def test_product_completeness_uses_only_contract_states():
     manifest = _manifest()
-    expected = {
-        "DISCOVER", "SAVE", "COMPARE", "REQUIREMENTS", "DOCUMENTS", "READINESS",
-        "EVIDENCE", "MILESTONES", "ECONOMICS", "MOBILIZATION", "BANGS",
-        "DECISION", "WORKSPACE", "OUTCOME", "BUYER", "LIFECYCLE",
-    }
+    expected = {"DISCOVER","SAVE","COMPARE","REQUIREMENTS","DOCUMENTS","READINESS","EVIDENCE","MILESTONES","ECONOMICS","MOBILIZATION","BANGS","DECISION","WORKSPACE","OUTCOME","BUYER","LIFECYCLE"}
     assert set(manifest["product_completeness"]) == expected
     for capability, record in manifest["product_completeness"].items():
         assert record["implementation"] in COMPLETENESS_STATES, capability
@@ -54,32 +51,22 @@ def test_product_completeness_uses_only_contract_states():
 def test_matrix_never_uses_unapproved_success_vocabulary():
     manifest = _manifest()
     assert manifest["acceptance_matrix_scope"] == "CURRENT_MAIN"
-    dimensions = ("domain", "combination", "api", "tenant", "system", "live")
     for row in manifest["acceptance_matrix"]:
-        for dimension in dimensions:
+        for dimension in ("domain","combination","api","tenant","system","live"):
             assert row[dimension] in MATRIX_STATES, (row["journey"], dimension, row[dimension])
 
 
-def test_release_subset_contains_truth_critical_smokes_and_no_false_green():
-    manifest = _manifest()
-    subset = {item["id"]: item for item in manifest["release_golden_subset"]}
-    assert set(subset) == {
-        "RELEASE_GOLDEN_01",
-        "RELEASE_GOLDEN_02",
-        "RELEASE_GOLDEN_03",
-        "RELEASE_GOLDEN_04",
-        "RELEASE_GOLDEN_05",
-        "RELEASE_GOLDEN_06",
-    }
-    assert subset["RELEASE_GOLDEN_01"]["status"] == "FAIL"
+def test_release_subset_promotes_only_repaired_exact_current_main_truth():
+    subset = {item["id"]: item for item in _manifest()["release_golden_subset"]}
+    assert set(subset) == {"RELEASE_GOLDEN_01","RELEASE_GOLDEN_02","RELEASE_GOLDEN_03","RELEASE_GOLDEN_04","RELEASE_GOLDEN_05","RELEASE_GOLDEN_06"}
+    assert subset["RELEASE_GOLDEN_01"]["status"] == "PASS"
     assert subset["RELEASE_GOLDEN_03"]["status"] == "PASS"
-    assert subset["RELEASE_GOLDEN_03"]["scope"] == "deterministic API fixture"
-    assert subset["RELEASE_GOLDEN_04"]["status"] == "FAIL"
-    assert "expired opportunity may remain is_actionable=true" in subset["RELEASE_GOLDEN_04"]["blocking"]
+    assert subset["RELEASE_GOLDEN_04"]["status"] == "PASS"
     assert subset["RELEASE_GOLDEN_02"]["status"] != "PASS"
+    assert subset["RELEASE_GOLDEN_06"]["status"] != "PASS"
 
 
-def test_every_defect_has_owner_fix_and_retest_contract():
+def test_every_current_defect_has_owner_fix_and_retest_contract():
     for defect in _manifest()["defects"]:
         assert defect["classification"]
         assert defect["scenario"]
@@ -91,10 +78,17 @@ def test_every_defect_has_owner_fix_and_retest_contract():
         assert defect["retest"]
 
 
+def test_resolved_defects_are_preserved_as_regressions_not_deleted():
+    resolved = {item["id"]: item for item in _manifest()["resolved_defects"]}
+    assert set(resolved) == {"BUG-GP-001", "BUG-GP-003"}
+    assert resolved["BUG-GP-001"]["main_sha"] == CURRENT_MAIN
+    assert resolved["BUG-GP-003"]["main_sha"] == CURRENT_MAIN
+
+
 def test_integration_handoffs_are_minimum_combinations_not_merge_authority():
     manifest = _manifest()
     handoffs = manifest["integration_lab_handoffs"]
-    assert {h["handoff_id"] for h in handoffs} == {"INT-GP-01", "INT-GP-02", "INT-GP-03", "INT-GP-04"}
+    assert {h["handoff_id"] for h in handoffs} == {"INT-GP-01","INT-GP-02","INT-GP-03","INT-GP-04"}
     for handoff in handoffs:
         assert handoff["required_modules"]
         assert handoff["minimum_combination"]
@@ -111,9 +105,10 @@ def test_validation_record_separates_historical_combination_from_current_main():
     record = _load(VALIDATION)
     assert record["canonical_main"]["sha"] == CURRENT_MAIN
     assert record["canonical_main"]["product_status"] == "NOT_FULLY_ACCEPTED"
+    assert record["canonical_main"]["authenticated_e2e"] == "PASS"
     historical = record["gp01_historical_combination"]
     assert historical["positive_path_result"] == "PASS_L4_FIXTURE_CANDIDATE"
     assert historical["full_golden_path_result"] == "FAIL"
     assert historical["not_current_main_acceptance"] is True
-    assert record["current_gp01"]["overall"] == "FAIL"
-    assert record["current_main_deployed_truth"]["root_cause"] == "UNKNOWN"
+    assert record["current_gp01"]["overall"] == "GATED"
+    assert record["current_main_deployed_truth"]["root_cause"] == "RESOLVED_FOR_CURRENT_MAIN"
