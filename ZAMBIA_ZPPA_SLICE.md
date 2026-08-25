@@ -31,4 +31,6 @@ The MVP reads the current calendar-year registry snapshot. Because ZPPA keeps a 
 
 ## Validation
 
-Unit tests cover native works classification, active/future-deadline gating, stable OCID identity, repeat ingestion, compiled-release and wrapped-record shapes, invalid gzip/JSON, empty snapshots and bounded compressed size. A live transport attempt from the local execution environment was blocked by external DNS resolution; public source and current registry availability were independently verified through the web path.
+Unit tests cover native works classification, active/future-deadline gating, stable OCID identity, repeat ingestion, compiled-release and wrapped-record shapes, invalid gzip/JSON, empty snapshots and bounded compressed size.
+
+The local execution environment could not resolve external DNS, so live validation was repeated deliberately on a GitHub Actions runner with the live-test skip temporarily removed. Run `32799913676` downloaded and parsed the real 2026 registry snapshot and completed the full Python suite successfully: **683 passed, 2 skipped**. The live test is opt-in again in the final branch (`OBRASIGNAL_LIVE_SOURCE_TESTS=1`) so ordinary CI does not become dependent on an external network/source.
