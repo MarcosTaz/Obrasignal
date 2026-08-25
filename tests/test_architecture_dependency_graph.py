@@ -30,7 +30,7 @@ def test_dependency_graph_covers_current_runtime_composition_boundaries():
         assert node in graph["nodes"]
 
     assert _edge(graph, "render.yaml", "cors_app.py")["classification"] == "EXPECTED"
-    assert _edge(graph, "cors_app.py", "sync_funnel_hook.py")["classification"] == "EXPECTED"
+    assert _edges(graph, "cors_app.py", "sync_funnel_hook.py") == []
     assert _edge(graph, "api.py", "preload.py")["classification"] == "LEGACY"
     assert _edge(graph, "preload.py", "app.py")["classification"] == "LEGACY"
     assert _edge(
