@@ -29,9 +29,9 @@ _EN_TITLE = re.compile(
 )
 _AR_TITLE_TERMS = (
     "إنشاء", "انشاء", "تشييد", "بناء", "بناية", "مبنى", "مباني", "شوارع",
-    "طرق", "جسور", "تأهيل", "إعادة تأهيل", "اعادة تأهيل", "شيفت", "شفت",
-    "شيفت", "شيف", "شيفت", "صيانة المواقف", "صيانة مبنى", "صيانة المبنى",
-    "شيفت", "شيف", "شيفت", "توسعة", "تطوير موقع", "أعمال مدنية", "اعمال مدنية",
+    "طرق", "جسور", "تأهيل", "إعادة تأهيل", "اعادة تأهيل", "صيانة المواقف",
+    "صيانة مبنى", "صيانة المبنى", "توسعة", "تطوير موقع", "أعمال مدنية",
+    "اعمال مدنية",
 )
 _CONSTRUCTION_CATEGORIES = (
     "construction and maintenance",
@@ -109,8 +109,6 @@ def parse_upcoming_tenders(html: str) -> list[UpcomingTender]:
     if len(html.encode("utf-8")) > MAX_HTML_BYTES:
         raise OmanEsnadSourceError("Esnad response exceeds safety limit")
     if "Upcoming Tender" not in html and "المناقصات القادمة" not in html:
-        # Publisher's English heading is a useful source-contract marker even
-        # when the surrounding table content is Arabic.
         raise OmanEsnadSourceError("Esnad upcoming-tender marker missing")
 
     parser = _TableParser()
