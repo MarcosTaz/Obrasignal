@@ -85,10 +85,12 @@ def test_same_filename_different_content_hash_is_distinct_identity():
     assert docs[0].document_id != docs[1].document_id
 
 
-def test_content_hash_requires_bytes():
+def test_content_hash_requires_bytes_and_supplied_content_digest_is_validated():
     assert content_fingerprint(b"abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
     with pytest.raises(TypeError):
         content_fingerprint("abc")
+    with pytest.raises(ValueError):
+        normalize_document_reference(ref(content_fingerprint="not-a-sha256", fingerprint_kind="CONTENT"))
 
 
 def test_explicit_supersession_preserves_both_versions():
@@ -99,6 +101,16 @@ def test_explicit_supersession_preserves_both_versions():
     assert by_external["spec-v1"].status == "SUPERSEDED"
     assert by_external["spec-v2"].status == "CURRENT"
     assert by_external["spec-v2"].relationships[0].target_document_id == by_external["spec-v1"].document_id
+
+
+def test_relationships_never_cross_opportunity_boundary():
+    other = ref(opportunity_external_id="OPP-2", external_id="shared", version="1")
+    other_id = normalize_document_reference(other).document_id
+    revision = ref(external_id="new", version="2", supersedes_external_id="shared", related_document_id=other_id, relationship_type="RELATED_TO")
+    docs = normalize_document_references([other, revision])
+    by_external = {(item.opportunity_external_id, item.external_id): item for item in docs}
+    assert by_external[("OPP-1", "new")].relationships == ()
+    assert by_external[("OPP-2", "shared")].status == "CURRENT"
 
 
 def test_incremental_supersession_resolves_previously_persisted_target():
