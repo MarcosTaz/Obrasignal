@@ -1,5 +1,8 @@
+import pytest
+
 from shared_source_families import (
     FAMILIES,
+    SharedSourceFamily,
     assert_shared_family_health,
     audit_shared_families,
     family_for_source,
@@ -11,6 +14,11 @@ from source_registry import SOURCES
 def test_current_shared_family_registry_is_healthy():
     assert audit_shared_families() == ()
     assert assert_shared_family_health() is True
+
+
+def test_canonical_family_registry_is_immutable():
+    with pytest.raises(TypeError):
+        FAMILIES["NEW"] = SharedSourceFamily("NEW", "x", "x", (), "x")
 
 
 def test_ocds_standard_is_backed_by_multiple_shared_transport_families():
@@ -43,10 +51,9 @@ def test_family_member_missing_incremental_capability_fails_closed():
 
 
 def test_source_may_not_belong_to_multiple_families():
-    # Public registry object is immutable-by-convention; this test exercises the
-    # detection through a temporary family replacement rather than mutating it.
-    original = FAMILIES["OCDS_OPAQUE_CURSOR"]
-    duplicate = type(original)(
+    families = dict(FAMILIES)
+    original = families["OCDS_OPAQUE_CURSOR"]
+    families["OCDS_OPAQUE_CURSOR"] = SharedSourceFamily(
         family_id=original.family_id,
         standard=original.standard,
         transport=original.transport,
@@ -54,9 +61,5 @@ def test_source_may_not_belong_to_multiple_families():
         invariant=original.invariant,
         generic_module=original.generic_module,
     )
-    FAMILIES["OCDS_OPAQUE_CURSOR"] = duplicate
-    try:
-        violations = audit_shared_families()
-        assert any(v.startswith("ZA_ETENDERS:multiple_families:") for v in violations)
-    finally:
-        FAMILIES["OCDS_OPAQUE_CURSOR"] = original
+    violations = audit_shared_families(families=families)
+    assert any(v.startswith("ZA_ETENDERS:multiple_families:") for v in violations)
