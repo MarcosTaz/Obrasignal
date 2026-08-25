@@ -1,7 +1,8 @@
 import pytest
 
-from bangs import BangExecutionContext, BangExecutor, BangPrincipal, BangStatus, ProviderAvailability, ProviderRegistry, ProviderResult, parse_bang
-from bangs.parser import BangParseError, MAX_COMMAND_LENGTH
+from bang_commands import BangExecutionContext, BangExecutor, BangPrincipal, BangStatus, ProviderAvailability, ProviderRegistry, ProviderResult, parse_bang
+from bang_commands.canonical_providers import canonical_read_provider_registry
+from bang_commands.parser import BangParseError, MAX_COMMAND_LENGTH
 
 
 class FakeProvider:
@@ -168,7 +169,7 @@ PROVIDER_CASES = [
     ("OPPORTUNITY_READINESS", "!readiness opp-1", "opportunities:read"), ("BID_ECONOMICS", "!economics opp-1", "opportunities:read"),
     ("PURSUIT_WORKSPACE", "!workspace", "workspace:read"), ("BUYER_PROFILE", "!buyer buyer-1", "opportunities:read"),
     ("OPPORTUNITY_DOCUMENTS", "!documents opp-1", "opportunities:read"), ("OPPORTUNITY_HISTORY", "!history opp-1", "opportunities:read"),
-    ("COUNTRY_COVERAGE", "!country PT", "coverage:read"), ("SOURCE_REGISTRY", "!source PT_BASE", "coverage:read"),
+    ("COUNTRY_COVERAGE", "!country Portugal", "coverage:read"), ("SOURCE_REGISTRY", "!source TED", "coverage:read"),
 ]
 
 @pytest.mark.parametrize("capability,command,permission", PROVIDER_CASES)
@@ -219,3 +220,47 @@ def test_observer_failure_does_not_break_command_execution():
     class BrokenObserver:
         def record(self, event): raise RuntimeError("telemetry down")
     assert fixed_executor(observer=BrokenObserver()).execute("!help", ctx()).status == BangStatus.SUCCESS
+
+
+def test_canonical_country_provider_reads_public_market_scope_contract():
+    result = fixed_executor(canonical_read_provider_registry()).execute("!country Portugal", ctx(perms={"coverage:read"}))
+    assert result.status == BangStatus.SUCCESS
+    assert result.data["country"] == "Portugal"
+    assert result.data["status"] == "BUILD"
+    assert result.data["priority"] == 1
+    assert result.evidence_refs == ("registry:market_scope",)
+
+
+def test_canonical_country_provider_preserves_not_found():
+    result = fixed_executor(canonical_read_provider_registry()).execute("!country Atlantis", ctx(perms={"coverage:read"}))
+    assert result.status == BangStatus.NOT_FOUND
+
+
+def test_canonical_source_provider_reads_public_source_registry_contract():
+    result = fixed_executor(canonical_read_provider_registry()).execute("!source TED", ctx(perms={"coverage:read"}))
+    assert result.status == BangStatus.SUCCESS
+    assert result.data["registry_key"] == "TED"
+    assert result.data["source_id"] == "eu_ted_search_api"
+    assert result.data["production_ready"] is True
+    assert result.evidence_refs == ("registry:source_registry:TED",)
+
+
+def test_canonical_source_provider_reports_registry_gate_without_blocking_read():
+    result = fixed_executor(canonical_read_provider_registry()).execute("!source CL_MERCADOPUBLICO", ctx(perms={"coverage:read"}))
+    assert result.status == BangStatus.SUCCESS
+    assert result.data["production_ready"] is False
+    assert "machine_access_not_verified" in result.data["production_gate_reasons"]
+
+
+def test_canonical_source_provider_preserves_not_found():
+    result = fixed_executor(canonical_read_provider_registry()).execute("!source DOES_NOT_EXIST", ctx(perms={"coverage:read"}))
+    assert result.status == BangStatus.NOT_FOUND
+
+
+def test_canonical_read_factory_exposes_only_integrated_country_and_source_commands():
+    providers = canonical_read_provider_registry()
+    result = fixed_executor(providers).execute("!help", ctx(perms={"coverage:read", "opportunities:read"}))
+    assert {row["name"] for row in result.data} == {"!help", "!country", "!source"}
+    search = fixed_executor(providers).execute("!search roads", ctx(perms={"opportunities:read"}))
+    assert search.status == BangStatus.UNAVAILABLE
+    assert search.warnings == ("NOT_INTEGRATED",)
