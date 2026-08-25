@@ -1,9 +1,9 @@
 from capability_registry import capability, enabled_capabilities
 
 
-def test_bid_economics_is_pilot_flagged_and_not_enabled():
+def test_bid_economics_is_research_gated_and_not_enabled():
     spec = capability("BID_ECONOMICS")
-    assert spec.state == "PILOT"
+    assert spec.state == "RESEARCH"
     assert spec.feature_flag == "bid_economics_v0"
     assert spec.kill_switch_required is True
     assert spec.dependencies == ("SIGNAL",)
