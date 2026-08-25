@@ -321,9 +321,10 @@ def request_account_deletion(conn, account_id: str) -> dict:
     existing = deletion_state(conn, account_id)
     if existing["state"] == "COMPLETED" or _account_status(conn, account_id) == "deleted_pending_revocation":
         return existing
-    if _account_status(conn, account_id) == "deletion_pending":
-        return existing
 
+    # A prior process may have crashed after durably marking deletion_pending but
+    # before committing cleanup. Re-enter the idempotent transaction on retry rather
+    # than leaving the account permanently stuck in PENDING.
     try:
         _assert_deletion_contract(conn)
     except AccountDataContractError:
