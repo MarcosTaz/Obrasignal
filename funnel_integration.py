@@ -3,10 +3,16 @@ from decision_log import record_decision
 from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
 
-def persist_and_classify(conn, item, is_new, account_id='default'):
+def persist_and_classify(conn, item, is_new, account_id='default', profile=None):
     """Persist the canonical commercial decision with full account-scoped evidence."""
     enriched = dict(item)
-    profile = load_profile(account_id)
+    if profile is None:
+        profile = load_profile(account_id)
+    else:
+        requested_account = str(account_id or 'default')
+        supplied_account = str((profile or {}).get('account_id') or '')
+        if supplied_account != requested_account:
+            raise ValueError('profile account does not match classification account')
     evaluation = evaluate_row(enriched, profile=profile)
     enriched.update({
         "lot_score": evaluation["lot_score"],
