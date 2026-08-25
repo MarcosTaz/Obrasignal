@@ -3,10 +3,12 @@ import sqlite3
 import pytest
 
 import opportunity_change_history as history
+import source_runtime as runtime
 from opportunity_change_history import (
     CHANGE_SCHEMA_VERSION,
     DIFF_POLICY_VERSION,
     MATERIAL,
+    MAX_SNAPSHOT_BYTES,
     NORMALIZER_VERSION,
     build_monitored_state,
     content_fingerprint,
@@ -15,7 +17,10 @@ from opportunity_change_history import (
     opportunity_changed_event,
     persist_change_observations,
 )
-
+from signal_store import get_signal_record, persist_signal_records
+from source_health import ensure_source_health, get_source_cursor
+from source_metadata import get_source_metadata
+from opportunity_lifecycle import lifecycle_for
 
 NOW_A = "2026-08-24T09:00:00+00:00"
 NOW_B = "2026-08-25T09:00:00+00:00"
@@ -73,6 +78,16 @@ def test_deadline_extended_and_shortened_are_two_real_changes():
     assert items[0]["changes"][0]["detail"] == "SHORTENED"
     assert items[1]["changes"][0]["detail"] == "EXTENDED"
     assert all(item["materiality"] == MATERIAL for item in items)
+    assert conn.execute("SELECT COUNT(*) FROM opportunity_snapshots").fetchone()[0] == 3
+
+
+def test_repeated_real_transition_is_not_mistaken_for_duplicate_delivery():
+    conn = _conn()
+    persist_change_observations(conn, [_record(value="1")], observed_at=NOW_A)
+    persist_change_observations(conn, [_record(value="2")], observed_at=NOW_B)
+    persist_change_observations(conn, [_record(value="1")], observed_at=NOW_C)
+    persist_change_observations(conn, [_record(value="2")], observed_at="2026-08-27T09:00:00+00:00")
+    assert len(_changes(conn)) == 3
 
 
 def test_date_formats_normalize_to_same_semantics():
@@ -85,11 +100,9 @@ def test_date_formats_normalize_to_same_semantics():
 def test_value_change_and_currency_change_are_detected_separately():
     previous = build_monitored_state(_record(value="2000000", currency="EUR"))
     changed_value = build_monitored_state(_record(value="2500000.0", currency="EUR"))
-    fields = {c["field"] for c in detect_changes(previous, changed_value)}
-    assert fields == {"value"}
+    assert {c["field"] for c in detect_changes(previous, changed_value)} == {"value"}
     changed_currency = build_monitored_state(_record(value="2000000.00", currency="GBP"))
-    fields = {c["field"] for c in detect_changes(previous, changed_currency)}
-    assert fields == {"currency"}
+    assert {c["field"] for c in detect_changes(previous, changed_currency)} == {"currency"}
 
 
 def test_status_change_is_material():
@@ -112,23 +125,28 @@ def test_title_whitespace_and_case_noise_is_ignored_but_real_change_is_not():
 
 def test_collection_order_only_change_is_ignored():
     docs_a = [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}]
-    docs_b = list(reversed(docs_a))
     previous = build_monitored_state(_record(documents=docs_a))
-    current = build_monitored_state(_record(documents=docs_b))
+    current = build_monitored_state(_record(documents=list(reversed(docs_a))))
     assert detect_changes(previous, current) == []
 
 
-def test_collection_item_added_and_removed():
+def test_document_item_added_and_removed():
     previous = build_monitored_state(_record(documents=[{"id": "a", "title": "A"}]))
     added = build_monitored_state(_record(documents=[{"id": "a", "title": "A"}, {"id": "b", "title": "B"}]))
-    add_change = detect_changes(previous, added)
-    assert add_change[0]["change_type"] == "ITEM_ADDED"
+    assert detect_changes(previous, added)[0]["change_type"] == "ITEM_ADDED"
     removed = build_monitored_state(_record(documents=[]))
-    remove_change = detect_changes(previous, removed)
-    assert remove_change[0]["change_type"] == "ITEM_REMOVED"
+    assert detect_changes(previous, removed)[0]["change_type"] == "ITEM_REMOVED"
 
 
-def test_lot_added_is_grouped_in_one_change_set_with_other_fields():
+def test_lot_added_and_removed_are_item_changes():
+    baseline = build_monitored_state(_record(lots=[{"id": "lot-1", "title": "Main"}]))
+    added = build_monitored_state(_record(lots=[{"id": "lot-1", "title": "Main"}, {"id": "lot-2", "title": "Electrical"}]))
+    removed = build_monitored_state(_record(lots=[]))
+    assert detect_changes(baseline, added)[0]["change_type"] == "ITEM_ADDED"
+    assert detect_changes(baseline, removed)[0]["change_type"] == "ITEM_REMOVED"
+
+
+def test_lot_added_is_grouped_in_one_change_set_with_deadline_change():
     conn = _conn()
     persist_change_observations(conn, [_record()], observed_at=NOW_A)
     changed = _record(
@@ -150,8 +168,7 @@ def test_missing_field_is_carried_forward_but_explicit_null_is_a_change():
     assert carried["buyer"] == previous["buyer"]
     assert detect_changes(previous, carried) == []
     explicit_null = build_monitored_state(_record(buyer=None), previous)
-    changes = detect_changes(previous, explicit_null)
-    assert [c["field"] for c in changes] == ["buyer"]
+    assert [c["field"] for c in detect_changes(previous, explicit_null)] == ["buyer"]
 
 
 def test_same_update_processed_twice_creates_one_change_set():
@@ -163,6 +180,17 @@ def test_same_update_processed_twice_creates_one_change_set():
     assert first["change_sets"] == 1
     assert second == {"snapshots": 0, "change_sets": 0, "changes": 0}
     assert len(_changes(conn)) == 1
+
+
+def test_existing_signal_record_is_bootstrapped_as_previous_state():
+    conn = _conn()
+    persist_signal_records(conn, [_record(value="2000000")], observed_at=NOW_A)
+    result = persist_change_observations(conn, [_record(value="2500000")], observed_at=NOW_B)
+    assert result["snapshots"] == 2
+    assert result["change_sets"] == 1
+    item = _changes(conn)[0]
+    assert item["changes"][0]["old_value"] == "2000000"
+    assert item["changes"][0]["new_value"] == "2500000"
 
 
 def test_native_amendment_source_ref_and_versions_are_preserved():
@@ -187,8 +215,7 @@ def test_fingerprint_is_deterministic_and_excludes_observation_time():
     assert content_fingerprint(state) == content_fingerprint(dict(reversed(list(state.items()))))
     conn = _conn()
     persist_change_observations(conn, [_record()], observed_at=NOW_A)
-    result = persist_change_observations(conn, [_record()], observed_at=NOW_C)
-    assert result["snapshots"] == 0
+    assert persist_change_observations(conn, [_record()], observed_at=NOW_C)["snapshots"] == 0
 
 
 def test_material_only_read_model_and_event_payload():
@@ -196,8 +223,7 @@ def test_material_only_read_model_and_event_payload():
     persist_change_observations(conn, [_record()], observed_at=NOW_A)
     persist_change_observations(conn, [_record(value="2500000")], observed_at=NOW_B)
     item = get_change_history(conn, "TEST_SOURCE", "opp-1", material_only=True)[0]
-    event = opportunity_changed_event(item)
-    assert event == {
+    assert opportunity_changed_event(item) == {
         "event_type": "opportunity.changed",
         "event_version": 1,
         "opportunity_id": {"source": "TEST_SOURCE", "signal_type": "TENDER", "external_id": "opp-1"},
@@ -207,22 +233,47 @@ def test_material_only_read_model_and_event_payload():
     }
 
 
-def test_history_failure_can_be_rolled_back_by_transaction_owner(monkeypatch):
+def test_hostile_source_string_is_parameterized_and_not_executed():
     conn = _conn()
-    conn.execute("CREATE TABLE marker(value TEXT)")
-    conn.commit()
-    original = history.ensure_change_history_tables
+    payload = _record(title="<script>alert('x')</script>'; DROP TABLE opportunity_snapshots; --")
+    persist_change_observations(conn, [payload], observed_at=NOW_A)
+    assert conn.execute("SELECT COUNT(*) FROM opportunity_snapshots").fetchone()[0] == 1
+    state = conn.execute("SELECT canonical_json FROM opportunity_snapshots").fetchone()[0]
+    assert "<script>" in state
 
-    def fail_after_schema(target_conn):
-        original(target_conn)
-        target_conn.execute("INSERT INTO marker(value) VALUES('partial')")
+
+def test_oversized_collection_snapshot_fails_closed():
+    conn = _conn()
+    giant = [{"id": str(i), "title": "x" * 1000} for i in range((MAX_SNAPSHOT_BYTES // 1000) + 50)]
+    with pytest.raises(ValueError, match="snapshot exceeds safety limit"):
+        persist_change_observations(conn, [_record(documents=giant)], observed_at=NOW_A)
+
+
+def test_source_runtime_rolls_back_history_and_all_source_state_on_history_failure(monkeypatch):
+    conn = _conn()
+    ensure_source_health(conn)
+    runtime.discard_staged_source_syncs()
+    record = _record(
+        source="ROLLBACK_SOURCE",
+        external_id="rollback-1",
+        is_actionable=False,
+        lifecycle_status="cancelled",
+    )
+    runtime.stage_source_sync("ROLLBACK_SOURCE", [record], "cursor-must-not-advance")
+
+    original = runtime.persist_change_observations
+
+    def fail_after_history_write(target_conn, records, *, commit=True, observed_at=None):
+        original(target_conn, records, commit=False, observed_at=observed_at)
         raise RuntimeError("history persistence failed")
 
-    monkeypatch.setattr(history, "ensure_change_history_tables", fail_after_schema)
+    monkeypatch.setattr(runtime, "persist_change_observations", fail_after_history_write)
     with pytest.raises(RuntimeError, match="history persistence failed"):
-        try:
-            persist_change_observations(conn, [_record()], commit=False)
-        except Exception:
-            conn.rollback()
-            raise
-    assert conn.execute("SELECT COUNT(*) FROM marker").fetchone()[0] == 0
+        runtime.commit_staged_source_syncs(conn)
+
+    assert get_source_cursor(conn, "ROLLBACK_SOURCE") is None
+    assert get_source_metadata(conn, "ROLLBACK_SOURCE", "rollback-1") is None
+    assert lifecycle_for(conn, "ROLLBACK_SOURCE", "rollback-1") is None
+    assert get_signal_record(conn, "ROLLBACK_SOURCE", "rollback-1") is None
+    assert conn.execute("SELECT COUNT(*) FROM opportunity_snapshots").fetchone()[0] == 0
+    assert runtime.staged_source_syncs() == []
