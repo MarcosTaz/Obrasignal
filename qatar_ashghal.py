@@ -183,3 +183,24 @@ def fetch_normalized_construction_tenders(*, session=None, timeout: float = 20.0
     if len(identities) != len(set(identities)):
         raise AshghalSourceError("duplicate Ashghal tender identity in one fetch")
     return normalized
+
+
+class AshghalOpenTenderConnector:
+    """Thin source adapter named by the canonical registry.
+
+    The class exposes the tested fetch/normalize path without opting the source
+    into any runtime. Callers must still honor ``source_registry`` production
+    gates before commercial ingestion.
+    """
+
+    source = SOURCE
+
+    def __init__(self, *, session=None, timeout: float = 20.0):
+        self.session = session
+        self.timeout = timeout
+
+    def fetch(self) -> list[dict]:
+        return fetch_normalized_construction_tenders(
+            session=self.session,
+            timeout=self.timeout,
+        )
