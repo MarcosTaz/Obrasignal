@@ -17,7 +17,15 @@ ATTRIBUTION_STATES = (
     "REQUIRED_NOT_RUN",
     "NEEDS_RECHECK",
 )
-OWNER_GATE_STATES = ("GREEN", "RED", "NEEDS_RECHECK")
+OWNER_GATE_STATES = ("OWNER_CURRENT_GREEN", "RED", "NEEDS_RECHECK")
+TRIGGER_AWARENESS_STATES = (
+    "AUTO_TRIGGER_EXPECTED",
+    "AUTO_TRIGGER_FILTERED_LEGITIMATELY",
+    "MANUAL_DISPATCH_AVAILABLE",
+    "WORKFLOW_MISSING",
+    "REQUIRED_NOT_RUN",
+    "ATTRIBUTION_UNKNOWN",
+)
 
 OWNER_GATE_PATH_CONTRACTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (
@@ -103,6 +111,10 @@ def extract_pull_request_paths(workflow_text: str) -> tuple[str, ...] | None:
     return tuple(values)
 
 
+def workflow_has_manual_dispatch(workflow_text: str) -> bool:
+    return any(line.strip().startswith("workflow_dispatch:") for line in workflow_text.splitlines())
+
+
 def classify_gate_attribution(
     *,
     workflow: str,
@@ -133,8 +145,6 @@ def classify_gate_attribution(
             "run belongs to another PR context and workflow is absent from candidate tree",
         )
 
-    # Once a changed-surface owner contract is known, other present workflows are
-    # not silently promoted into requirements merely because GitHub triggered them.
     if required and workflow_path and workflow_path in candidate_workflows:
         return GateAttribution(
             workflow,
@@ -165,6 +175,33 @@ def complete_required_gates(*, required_workflows: Iterable[str], observed_gate_
     return result
 
 
+def classify_trigger_awareness(
+    *,
+    attribution: str,
+    gate_state: str,
+    workflow_present: bool,
+    path_filters: Sequence[str] | None,
+    changed_paths: Iterable[str],
+    manual_dispatch_available: bool,
+) -> str:
+    if attribution == "NEEDS_RECHECK":
+        return "ATTRIBUTION_UNKNOWN"
+    if not workflow_present:
+        return "WORKFLOW_MISSING"
+    if attribution == "NOT_APPLICABLE" and path_filters:
+        if not _matches_any_path(changed_paths, path_filters):
+            return "AUTO_TRIGGER_FILTERED_LEGITIMATELY"
+    if attribution == "REQUIRED_NOT_RUN":
+        return "REQUIRED_NOT_RUN"
+    if attribution == "REQUIRED" and gate_state in {"PASS", "FAIL", "IN_PROGRESS"}:
+        return "AUTO_TRIGGER_EXPECTED"
+    if gate_state == "NOT_RUN" and manual_dispatch_available:
+        return "MANUAL_DISPATCH_AVAILABLE"
+    if manual_dispatch_available and attribution == "REQUIRED":
+        return "MANUAL_DISPATCH_AVAILABLE"
+    return "ATTRIBUTION_UNKNOWN"
+
+
 def evaluate_owner_gate_state(gates: Iterable[Mapping[str, str]]) -> tuple[str, str]:
     saw_required = False
     for gate in gates:
@@ -182,4 +219,4 @@ def evaluate_owner_gate_state(gates: Iterable[Mapping[str, str]]) -> tuple[str, 
             return "NEEDS_RECHECK", f"{workflow}: required gate is {gate_state}"
     if not saw_required:
         return "NEEDS_RECHECK", "no required gate contract proven"
-    return "GREEN", "all required exact-head gates passed"
+    return "OWNER_CURRENT_GREEN", "all required exact-head owner gates passed"
