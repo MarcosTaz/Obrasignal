@@ -20,6 +20,12 @@ def test_mobile_detail_renders_conservative_readiness_semantics():
     assert "Por verificar” não significa bloqueado" in component
 
 
+def test_mobile_readiness_status_uses_resolved_tone_variable():
+    component = (ROOT / "mobile" / "components" / "OpportunityExplanation.js").read_text(encoding="utf-8")
+    assert "{ color: tone }" in component
+    assert "[styles.readinessStatus, { color }]" not in component
+
+
 def test_mobile_readiness_does_not_render_completeness_as_score_or_gauge():
     component = (ROOT / "mobile" / "components" / "OpportunityExplanation.js").read_text(encoding="utf-8")
     lowered = component.lower()
