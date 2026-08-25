@@ -1,6 +1,7 @@
 """Regression coverage for account-scoped remote notification delivery."""
 import sqlite3
 
+from app import APP
 from notification_events import (
     ensure_event_table,
     register_push_device,
@@ -20,6 +21,12 @@ def _conn():
     return conn
 
 
+def _file_conn(path):
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def test_device_rebind_moves_installation_from_account_a_to_b():
     conn = _conn()
     first = register_push_device(conn, "account-a", "install-device-001", "ExpoPushToken[token-a]", "android")
@@ -31,6 +38,44 @@ def test_device_rebind_moves_installation_from_account_a_to_b():
     rows = conn.execute("SELECT account_id,installation_id,expo_push_token FROM push_devices").fetchall()
     assert [tuple(row) for row in rows] == [("account-b", "install-device-001", "ExpoPushToken[token-a]")]
     conn.close()
+
+
+def test_push_device_api_uses_request_identity_and_account_scoped_delete(monkeypatch, tmp_path):
+    db_path = tmp_path / "push-api.db"
+    APP.config["OBRASIGNAL_DB_CONNECT"] = lambda: _file_conn(db_path)
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
+    monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "account-a")
+    try:
+        client = APP.test_client()
+        response = client.post(
+            "/api/v1/push/devices",
+            json={
+                "account_id": "account-b",
+                "installation_id": "install-device-api-001",
+                "expo_push_token": "ExpoPushToken[api-token]",
+                "platform": "android",
+            },
+        )
+        assert response.status_code == 200
+        assert response.get_json()["binding_id"]
+
+        conn = _file_conn(db_path)
+        row = conn.execute("SELECT account_id,installation_id FROM push_devices").fetchone()
+        conn.close()
+        assert tuple(row) == ("account-a", "install-device-api-001")
+
+        monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "account-b")
+        response = client.delete(
+            "/api/v1/push/devices",
+            json={"installation_id": "install-device-api-001"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["removed"] is False
+        conn = _file_conn(db_path)
+        assert conn.execute("SELECT account_id FROM push_devices").fetchone()[0] == "account-a"
+        conn.close()
+    finally:
+        APP.config.pop("OBRASIGNAL_DB_CONNECT", None)
 
 
 def test_push_submission_is_account_scoped_idempotent_and_tray_safe():
