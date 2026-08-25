@@ -204,7 +204,10 @@ def update_saved_opportunity(conn, account_id, opportunity_id, *, status=None, p
 
 
 def list_saved_opportunities(conn, account_id, *, status=None, priority=None, order="recent", limit=20, offset=0):
+    from opportunity_lifecycle import ensure_lifecycle_table
+
     ensure_workflow_table(conn)
+    ensure_lifecycle_table(conn)
     account_id = _account_id(account_id)
     where = ["w.account_id=?", "w.saved_at IS NOT NULL"]
     params = [account_id]
@@ -216,7 +219,7 @@ def list_saved_opportunities(conn, account_id, *, status=None, priority=None, or
         params.append(_validate_priority(priority))
     order_sql = {
         "recent": "w.saved_at DESC, w.id DESC",
-        "deadline": "CASE WHEN t.deadline IS NULL OR t.deadline='' THEN 1 ELSE 0 END, t.deadline ASC, w.saved_at DESC",
+        "deadline": "CASE WHEN t.deadline IS NULL OR t.deadline='' THEN 1 ELSE 0 END, t.deadline ASC, w.saved_at DESC, w.id DESC",
         "priority": "CASE w.priority WHEN 'HIGH' THEN 0 WHEN 'NORMAL' THEN 1 ELSE 2 END, w.saved_at DESC, w.id DESC",
     }.get(str(order or "recent").lower())
     if order_sql is None:
@@ -227,9 +230,14 @@ def list_saved_opportunities(conn, account_id, *, status=None, priority=None, or
     rows = conn.execute(
         f'''SELECT w.account_id, w.source, w.external_id, w.status, w.note, w.priority,
                    w.saved_at, w.updated_at, t.id AS opportunity_id, t.title, t.buyer, t.country,
-                   t.deadline, t.url, t.score, t.market, t.first_seen, t.last_seen
+                   t.deadline, t.url, t.score, t.market, t.first_seen, t.last_seen,
+                   COALESCE(lc.is_actionable, 1) AS is_actionable,
+                   lc.lifecycle_status, lc.lifecycle_reason,
+                   lc.source_updated_at AS lifecycle_source_updated_at,
+                   lc.last_observed AS lifecycle_last_observed
             FROM opportunity_workflow w
             LEFT JOIN tenders t ON t.source=w.source AND t.external_id=w.external_id
+            LEFT JOIN opportunity_lifecycle lc ON lc.source=w.source AND lc.external_id=w.external_id
             WHERE {' AND '.join(where)}
             ORDER BY {order_sql} LIMIT ? OFFSET ?''',
         params,
@@ -238,6 +246,7 @@ def list_saved_opportunities(conn, account_id, *, status=None, priority=None, or
     for row in rows:
         item = dict(row)
         item["is_saved"] = True
+        item["is_actionable"] = bool(item.get("is_actionable"))
         item["opportunity_missing"] = item.get("opportunity_id") is None
         items.append(item)
     return items
