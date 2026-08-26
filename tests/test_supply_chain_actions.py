@@ -24,14 +24,27 @@ def test_inventory_covers_every_workflow_action_occurrence():
     assert normalized == _raw_uses()
 
 
-def test_supply_chain_resolution_uses_only_commit_pinned_actions_and_no_secrets():
+def test_supply_chain_resolution_uses_only_commit_pinned_actions_and_bounded_write_authority():
     report = supply_chain_actions.inventory()
     owned = [item for item in report["actions"] if item["workflow"] == "supply-chain-resolution.yml"]
     assert owned
     assert all(item["pin_type"] == "COMMIT_PINNED" for item in owned)
     workflow = next(item for item in report["workflows"] if item["workflow"] == "supply-chain-resolution.yml")
     assert workflow["secret_names"] == []
+    # Workflow default remains least-privilege read. The one owner job explicitly
+    # elevates to contents:write only to materialize the already-reproduced lock.
     assert workflow["permissions"] == {"contents": "read"}
+    assert workflow["job_permissions"] == {"npm-resolution": {"contents": "write"}}
+    assert workflow["job_write_permissions"] == {"npm-resolution": ["contents:write"]}
+    assert all(item["write_permissions"] == ["contents:write"] for item in owned)
+
+    text = (WORKFLOWS / "supply-chain-resolution.yml").read_text(encoding="utf-8")
+    assert "github.head_ref == 'supply-chain/lock-integrity-v1-20260825'" in text
+    assert "test \"$GITHUB_HEAD_REF\" = 'supply-chain/lock-integrity-v1-20260825'" in text
+    assert "test \"$GITHUB_BASE_REF\" = 'main'" in text
+    assert "repos/${GITHUB_REPOSITORY}/contents/mobile/package-lock.json" in text
+    assert "--input /tmp/lock-put.json" in text
+    assert "secrets." not in text
 
 
 def test_secret_bearing_mutable_actions_are_visible_as_critical_debt():
