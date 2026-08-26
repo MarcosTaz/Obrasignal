@@ -1,14 +1,14 @@
 """Operational registry for Global Market Expansion, Source Legality & Country Automation.
 
-This module is an additive evidence/composition layer. It deliberately does not
-replace:
-- global_market_portfolio.py for strategic portfolio decisions;
-- market_scope_registry.py for the legacy 135-country scope record;
-- source_registry.py for source runtime/readiness metadata.
+This is an additive evidence/composition layer. It does not replace:
+- ``global_market_portfolio.py`` for strategic portfolio decisions;
+- ``market_scope_registry.py`` for the evidence-preserving legacy scope;
+- ``source_registry.py`` for runtime/source-readiness metadata;
+- Integration Lab, Golden, Release, Security, Privacy, Contracts or Temporal authority.
 
-The governing invariant is fail-closed: strategic BUILD/SHARED, connector
-existence, HTTP success, and historical legal GREEN are never enough to produce
-ACTIVE_PROVEN in this registry.
+The governing invariant is fail-closed: strategic BUILD/SHARED, connector existence,
+HTTP success, historical legal GREEN, or a green PR are never enough to produce
+ACTIVE_PROVEN here.
 """
 from __future__ import annotations
 
@@ -22,43 +22,20 @@ from market_scope_registry import SHARED_FAMILIES
 from source_registry import SOURCES
 
 CountryState = Literal[
-    "DISCOVERED",
-    "RESEARCHING",
-    "LEGAL_UNKNOWN",
-    "LEGAL_BLOCKED",
-    "TECHNICAL_UNKNOWN",
-    "TECHNICAL_BLOCKED",
-    "COMMERCIAL_UNKNOWN",
-    "BUILD_CANDIDATE",
-    "SHARED_CANDIDATE",
-    "HOLD",
-    "REMOVE",
-    "IMPLEMENTING",
-    "IMPLEMENTED_CANDIDATE",
-    "INTEGRATION_PENDING",
-    "GOLDEN_PENDING",
-    "ACTIVE_PROVEN",
-    "REVALIDATION_REQUIRED",
+    "DISCOVERED", "RESEARCHING", "LEGAL_UNKNOWN", "LEGAL_BLOCKED",
+    "TECHNICAL_UNKNOWN", "TECHNICAL_BLOCKED", "COMMERCIAL_UNKNOWN",
+    "BUILD_CANDIDATE", "SHARED_CANDIDATE", "HOLD", "REMOVE",
+    "IMPLEMENTING", "IMPLEMENTED_CANDIDATE", "INTEGRATION_PENDING",
+    "GOLDEN_PENDING", "ACTIVE_PROVEN", "REVALIDATION_REQUIRED",
 ]
-
 LegalState = Literal[
-    "LEGAL_GREEN",
-    "LEGAL_AMBER",
-    "LEGAL_RED",
-    "LEGAL_UNKNOWN",
+    "LEGAL_GREEN", "LEGAL_AMBER", "LEGAL_RED", "LEGAL_UNKNOWN",
     "HUMAN_LEGAL_REVIEW_REQUIRED",
 ]
-
 EvidenceState = Literal["PROVEN", "PARTIAL", "UNKNOWN", "BLOCKED", "NOT_APPLICABLE"]
-
 PriorityAClass = Literal[
-    "NO_CODE",
-    "SCAFFOLD",
-    "PARTIAL_CONNECTOR",
-    "CONNECTOR_GREEN",
-    "LIVE_CONTRACT_UNKNOWN",
-    "LEGAL_UNKNOWN",
-    "INTEGRATION_PENDING",
+    "NO_CODE", "SCAFFOLD", "PARTIAL_CONNECTOR", "CONNECTOR_GREEN",
+    "LIVE_CONTRACT_UNKNOWN", "LEGAL_UNKNOWN", "INTEGRATION_PENDING",
     "ACTIVE_PROVEN",
 ]
 
@@ -89,10 +66,46 @@ class LegalEvidence:
     credential_requirements: str
     evidence_date: str
     evidence_fingerprint: str
+    fingerprint_scope: str
     last_verified: str
     next_review: str
     classification: LegalState
     interpretation: str
+
+
+@dataclass(frozen=True)
+class TechnicalSourceContract:
+    country: str
+    source_id: str
+    source_name: str
+    access_method: str
+    family: str
+    auth_requirement: str
+    pagination: str
+    incremental_cursor: str
+    identity: str
+    update_identity: str
+    deletion_cancellation: str
+    publication_time: str
+    modification_time: str
+    deadline_semantics: str
+    timezone: str
+    currency: str
+    value: str
+    taxonomy: str
+    document_links: str
+    buyer: str
+    location: str
+    lifecycle: str
+    freshness: str
+    completeness: str
+    rate_limit: str
+    error_semantics: str
+    partial_response_semantics: str
+    retry_safety: str
+    live_state: EvidenceState
+    last_verified: str
+    exact_gap: str
 
 
 @dataclass(frozen=True)
@@ -128,7 +141,8 @@ class HoldMonitor:
 class DiscoveryCandidate:
     country: str
     state: CountryState
-    evidence_file: str
+    evidence_ref: str
+    owner_ref: str
     reason: str
 
 
@@ -138,272 +152,302 @@ class PriorityAStatus:
     classification: PriorityAClass
     source_id: str
     legal_state: LegalState
+    canonical_code: EvidenceState
+    candidate_code: EvidenceState
     exact_gap: str
 
 
 def _fingerprint(*parts: str) -> str:
+    """Fingerprint the captured evidence record, not the remote page bytes."""
     payload = "\n".join(str(part).strip() for part in parts)
     return "sha256:" + sha256(payload.encode("utf-8")).hexdigest()
 
 
-# Fresh official-source legal revalidation captured by this Factory. These
-# records are intentionally source-scoped: a GREEN record does not legalize
-# other datasets from the same portal.
+def _legal(*, country, authority, source_name, official_domain, source_type,
+           terms_url, license_url, open_data_policy, license_type,
+           commercial_reuse, redistribution, attribution, derivative_use,
+           database_rights, api_terms, rate_limit_terms, robots_relevance,
+           personal_data_presence, data_retention_restrictions,
+           geographic_restrictions, credential_requirements, classification,
+           interpretation, next_review):
+    evidence_date = "2026-08-26"
+    return LegalEvidence(
+        country=country,
+        authority=authority,
+        source_name=source_name,
+        official_domain=official_domain,
+        source_type=source_type,
+        legal_owner="Factory captures evidence; qualified human legal review retains genuine ambiguity authority",
+        terms_url=terms_url,
+        license_url=license_url,
+        open_data_policy=open_data_policy,
+        license_type=license_type,
+        commercial_reuse=commercial_reuse,
+        redistribution=redistribution,
+        attribution=attribution,
+        derivative_use=derivative_use,
+        database_rights=database_rights,
+        api_terms=api_terms,
+        rate_limit_terms=rate_limit_terms,
+        robots_relevance=robots_relevance,
+        personal_data_presence=personal_data_presence,
+        data_retention_restrictions=data_retention_restrictions,
+        geographic_restrictions=geographic_restrictions,
+        credential_requirements=credential_requirements,
+        evidence_date=evidence_date,
+        evidence_fingerprint=_fingerprint(
+            country, source_name, terms_url, license_url, open_data_policy,
+            license_type, commercial_reuse, redistribution, derivative_use,
+            database_rights, api_terms, evidence_date,
+        ),
+        fingerprint_scope="CAPTURED_EVIDENCE_RECORD_NOT_REMOTE_PAGE_BYTES",
+        last_verified=evidence_date,
+        next_review=next_review,
+        classification=classification,
+        interpretation=interpretation,
+    )
+
+
+# Fresh official-source evidence captured 2026-08-26. GREEN is source-scoped.
 LEGAL_EVIDENCE = MappingProxyType({
-    "Canada": LegalEvidence(
+    "Canada": _legal(
         country="Canada",
         authority="Public Services and Procurement Canada / Government of Canada Open Government",
         source_name="CanadaBuys tender notices",
         official_domain="open.canada.ca",
         source_type="official open-data CSV dataset",
-        legal_owner="Global Market Expansion Factory (evidence); qualified counsel retains ambiguity authority",
         terms_url="https://open.canada.ca/en/open-government-licence-canada",
         license_url="https://open.canada.ca/en/open-government-licence-canada",
-        open_data_policy="Dataset metadata explicitly links CanadaBuys tender notices to the Open Government Licence - Canada.",
+        open_data_policy="CanadaBuys tender notices are published through the official Open Government data portal.",
         license_type="Open Government Licence - Canada",
         commercial_reuse="PROVEN",
         redistribution="PROVEN",
         attribution="Required by the Open Government Licence - Canada.",
         derivative_use="PROVEN",
         database_rights="PARTIAL",
-        api_terms="Baseline connector uses official published CSV data files, not restricted site scraping.",
-        rate_limit_terms="NOT_APPLICABLE for the published snapshot files; transport politeness still applies.",
-        robots_relevance="NOT_APPLICABLE to the official CSV data-file path.",
+        api_terms="Baseline connector consumes official published CSV files, not site scraping.",
+        rate_limit_terms="NOT_APPLICABLE to static published CSV snapshots; normal transport politeness remains required.",
+        robots_relevance="NOT_APPLICABLE to official data-file URLs.",
         personal_data_presence="PARTIAL",
-        data_retention_restrictions="No source-specific retention restriction proven in the captured licence evidence; privacy obligations remain separate.",
-        geographic_restrictions="None proven in the captured licence evidence.",
-        credential_requirements="None for the published CanadaBuys tender-notice data files.",
-        evidence_date="2026-08-26",
-        evidence_fingerprint=_fingerprint(
-            "CanadaBuys tender notices",
-            "Open Government Licence - Canada",
-            "commercial use/copy/modify/publish/adapt/distribute permitted with attribution",
-            "2026-08-26",
-        ),
-        last_verified="2026-08-26",
-        next_review="2026-09-26",
+        data_retention_restrictions="No source-specific retention restriction captured; Privacy authority remains separate.",
+        geographic_restrictions="None captured.",
+        credential_requirements="None for published tender-notice CSV files.",
         classification="LEGAL_GREEN",
-        interpretation="GREEN only for CanadaBuys tender-notice information covered by the linked Open Government Licence; privacy and third-party rights remain separate.",
+        interpretation="Commercial use, modification and distribution are explicitly licensed with attribution for this dataset; privacy/third-party rights remain separate.",
+        next_review="2026-09-26",
     ),
-    "United States": LegalEvidence(
+    "United States": _legal(
         country="United States",
         authority="U.S. General Services Administration",
         source_name="SAM.gov Contract Opportunities public data services",
         official_domain="sam.gov",
         source_type="official public extract / public API",
-        legal_owner="Global Market Expansion Factory (evidence); qualified counsel retains ambiguity authority",
         terms_url="https://sam.gov/about/terms-of-use",
         license_url="",
-        open_data_policy="SAM.gov exposes Contract Opportunities through public Data Services and a public Opportunities API.",
-        license_type="U.S. federal public-data terms; source-specific restrictions apply",
-        commercial_reuse="PROVEN",
+        open_data_policy="SAM.gov provides official public Contract Opportunities APIs/extracts and permits public sharing only from public API surfaces.",
+        license_type="Public-data access terms; no explicit commercial-use licence captured for the exact bulk extract",
+        commercial_reuse="UNKNOWN",
         redistribution="PROVEN",
-        attribution="Preserve SAM.gov/GSA source provenance; no special attribution sentence captured for this exact public extract.",
-        derivative_use="PARTIAL",
+        attribution="Preserve SAM.gov/GSA provenance; no source-specific attribution sentence captured for the bulk extract.",
+        derivative_use="UNKNOWN",
         database_rights="NOT_APPLICABLE",
-        api_terms="Use public APIs/extracts only. Sensitive/FOUO API data must not be publicly disseminated.",
-        rate_limit_terms="Public API rate terms are endpoint-specific; baseline production path uses the public bulk extract.",
-        robots_relevance="Automated scraping of SAM.gov pages is prohibited; official APIs/extracts are the permitted automation boundary.",
+        api_terms="Use public APIs/extracts only. Sensitive/FOUO data cannot be publicly disseminated.",
+        rate_limit_terms="Endpoint-specific; baseline connector uses the official public bulk extract.",
+        robots_relevance="Automated page scraping is prohibited; APIs/extracts are the sanctioned automation boundary.",
         personal_data_presence="PARTIAL",
-        data_retention_restrictions="No extra retention restriction captured for the public Contract Opportunities extract; sensitive API rules do not transfer to public extracts.",
-        geographic_restrictions="None proven for public Contract Opportunities extracts.",
-        credential_requirements="No API key required by the baseline public bulk-extract connector.",
-        evidence_date="2026-08-26",
-        evidence_fingerprint=_fingerprint(
-            "SAM.gov Contract Opportunities",
-            "public data services/public API",
-            "public API data may be shared publicly; scraping prohibited; sensitive data excluded",
-            "2026-08-26",
-        ),
-        last_verified="2026-08-26",
-        next_review="2026-09-26",
-        classification="LEGAL_GREEN",
-        interpretation="GREEN is scoped to public Contract Opportunities extracts/public API fields only; sensitive/FOUO and restricted entity data are excluded.",
+        data_retention_restrictions="No public-extract retention rule captured; sensitive-data rules remain excluded from this source slice.",
+        geographic_restrictions="None captured for the public Contract Opportunities surface.",
+        credential_requirements="Baseline public bulk-extract connector does not require a key.",
+        classification="LEGAL_AMBER",
+        interpretation="Public redistribution is evidenced, but explicit commercial reuse/derivative permission for the exact bulk extract was not located; UNKNOWN must not be inferred GREEN.",
+        next_review="2026-09-02",
     ),
-    "Chile": LegalEvidence(
+    "Chile": _legal(
         country="Chile",
         authority="Dirección de Compras y Contratación Pública (ChileCompra)",
-        source_name="Mercado Público public procurement information / API",
+        source_name="Mercado Público public procurement-process information",
         official_domain="chilecompra.cl",
-        source_type="official procurement platform + public API",
-        legal_owner="Global Market Expansion Factory (evidence); qualified counsel retains ambiguity authority",
+        source_type="official procurement platform + official API/open-data surfaces",
         terms_url="https://www.chilecompra.cl/terminos-y-condiciones-de-uso/",
         license_url="",
-        open_data_policy="ChileCompra states that public procurement-process information has unrestricted public access/use and that Datos Abiertos supports reuse in reports/apps.",
-        license_type="Public-information reuse terms; personal/reserved information excluded",
+        open_data_policy="ChileCompra states that procurement-procedure information is public and public access/use is unrestricted; Datos Abiertos supports reuse in reports/apps.",
+        license_type="Public-information reuse terms; protected personal/reserved data excluded",
         commercial_reuse="PROVEN",
         redistribution="PROVEN",
-        attribution="Source attribution is required for ChileCompra reports/studies; preserve source attribution for product provenance.",
+        attribution="Preserve ChileCompra source provenance; ChileCompra reports/studies require source mention on republication.",
         derivative_use="PROVEN",
         database_rights="PARTIAL",
-        api_terms="Public API exists; access request requires a legitimate individual ticket via the official API portal.",
-        rate_limit_terms="Connector must respect publisher 429 behavior and bounded sequential access.",
-        robots_relevance="Do not automate the transactional site; use official API/open-data interfaces.",
+        api_terms="Canonical live API path requires a legitimate individual ticket.",
+        rate_limit_terms="Respect publisher 429 behavior and bounded sequential access.",
+        robots_relevance="Use official API/open-data interfaces; do not automate transactional UI.",
         personal_data_presence="PROVEN",
-        data_retention_restrictions="Personal data is governed separately and may not be republished merely because procurement-process information is public.",
-        geographic_restrictions="None proven for public procurement-process information.",
-        credential_requirements="Real individual MERCADOPUBLICO_TICKET required for the canonical live API path.",
-        evidence_date="2026-08-26",
-        evidence_fingerprint=_fingerprint(
-            "ChileCompra Mercado Publico",
-            "public process information access/use unrestricted",
-            "open-data reuse for reports/apps; personal data separately restricted",
-            "2026-08-26",
-        ),
-        last_verified="2026-08-26",
-        next_review="2026-09-26",
+        data_retention_restrictions="Personal data has separate legal restrictions and cannot be treated as unrestricted process data.",
+        geographic_restrictions="None captured for public procurement-process information.",
+        credential_requirements="Real individual MERCADOPUBLICO_TICKET required for canonical live API proof.",
         classification="LEGAL_GREEN",
-        interpretation="GREEN applies to public procurement-process information, not protected personal/reserved data; live API still has a credential gate.",
+        interpretation="GREEN applies only to public procurement-process information; protected personal/reserved data stays outside this conclusion.",
+        next_review="2026-09-26",
     ),
-    "Brazil": LegalEvidence(
+    "Brazil": _legal(
         country="Brazil",
         authority="Portal Nacional de Contratações Públicas (PNCP)",
         source_name="PNCP Dados Abertos / PCA API",
-        official_domain="pncp.gov.br",
+        official_domain="gov.br/pncp",
         source_type="official procurement open-data API",
-        legal_owner="Global Market Expansion Factory (evidence); qualified counsel owns unresolved commercial-rights judgement",
         terms_url="https://www.gov.br/pncp/pt-br/acesso-a-informacao/dados-abertos",
         license_url="",
-        open_data_policy="PNCP officially exposes open-data APIs without login and permits downloading/manipulating public procurement data in applications.",
-        license_type="Exact dataset commercial redistribution/derivative licence linkage not yet captured",
+        open_data_policy="PNCP documents no-login public APIs and downloading/manipulating procurement data in applications.",
+        license_type="Exact dataset commercial redistribution/derivative licence linkage not captured",
         commercial_reuse="PARTIAL",
         redistribution="UNKNOWN",
         attribution="UNKNOWN",
         derivative_use="UNKNOWN",
         database_rights="UNKNOWN",
-        api_terms="Public query access is documented; production route behavior remains unstable in bounded probes.",
+        api_terms="Public query access is documented; production PCA update route behavior is still unstable in bounded probes.",
         rate_limit_terms="UNKNOWN",
-        robots_relevance="Use official API only; no scraping fallback is authorized.",
+        robots_relevance="Official API only; no scraping fallback authorized.",
         personal_data_presence="PARTIAL",
         data_retention_restrictions="UNKNOWN",
-        geographic_restrictions="None proven.",
-        credential_requirements="No login required for documented public query access.",
-        evidence_date="2026-08-26",
-        evidence_fingerprint=_fingerprint(
-            "PNCP Dados Abertos",
-            "public no-login API; download/manipulate in applications",
-            "exact commercial redistribution/derivative licence remains unresolved",
-            "2026-08-26",
-        ),
-        last_verified="2026-08-26",
-        next_review="2026-09-02",
+        geographic_restrictions="None captured.",
+        credential_requirements="No login for documented public query access.",
         classification="LEGAL_AMBER",
-        interpretation="Do not promote to production on public accessibility alone; exact redistribution/derivative/database-rights evidence remains incomplete.",
+        interpretation="Public API access/manipulation is proven, but commercial redistribution/derivative/database-rights certainty is not; do not promote to GREEN by inference.",
+        next_review="2026-09-02",
+    ),
+})
+
+
+TECHNICAL_SOURCE_CONTRACTS = MappingProxyType({
+    "Canada": TechnicalSourceContract(
+        "Canada", "CA_CANADABUYS", "CanadaBuys tender notices",
+        "official New/Open/Complete CSV snapshots", "generic bulk snapshot",
+        "none", "snapshot files; lifecycle reconciliation across New/Open/Complete",
+        "ETag/Last-Modified conditional retrieval", "solicitationNumber",
+        "same solicitationNumber across amendments", "publisher Open/Complete status incl. cancellation/expiry",
+        "publication date from publisher", "amendment/update fields in publisher files",
+        "publisher closing date/time", "publisher baseline UTC-05 as validated by connector evidence",
+        "not fabricated", "not fabricated when absent", "procurementCategory=CNST",
+        "publisher links when present", "publisher organization", "publisher location fields",
+        "New/Open/Complete lifecycle", "New intraday + Open/Complete refreshed publisher cadence",
+        "federal data files only; not all Canadian procurement", "static snapshot transport",
+        "strict schema/transport failures fail source", "unexpected schema/partial corruption fails closed",
+        "conditional GET + idempotent identity", "PROVEN", "2026-08-26",
+        "Connector/live path proven; Integration + Golden + country product proof remain separate.",
+    ),
+    "United States": TechnicalSourceContract(
+        "United States", "US_SAM", "SAM.gov Contract Opportunities public bulk",
+        "official public bulk extract", "generic bulk snapshot",
+        "none for baseline public bulk", "bulk snapshot; strict bounded parser",
+        "conditional snapshot identity/transport metadata", "NoticeId",
+        "NoticeId across updates", "disappearance never silently treated as deletion",
+        "publisher posted date", "publisher modification fields when present",
+        "publisher response/deadline fields", "publisher semantics retained",
+        "not fabricated", "award/value fields not coerced into tender value", "NAICS 23 construction admission",
+        "publisher resource links", "publisher agency/buyer", "place-of-performance fields",
+        "opportunity lifecycle from public extract", "official bulk refresh cadence",
+        "federal Contract Opportunities slice; not state/local procurement", "official bulk path",
+        "strict 47-column/schema failures fail closed", "partial/malformed snapshots fail closed",
+        "conditional fetch + NoticeId idempotency", "PROVEN", "2026-08-26",
+        "Technical connector is green; fresh commercial-reuse legal evidence remains AMBER.",
+    ),
+    "Chile": TechnicalSourceContract(
+        "Chile", "CL_MERCADOPUBLICO", "Mercado Público API",
+        "official API", "dedicated connector candidate already merged",
+        "real individual API ticket required", "publisher paging / bounded sequential hydration",
+        "publisher update/lifecycle polling", "CodigoExterno / publisher-native identity",
+        "same publisher identity across updates", "publisher lifecycle/cancellation states",
+        "publisher publication date", "publisher modification/state changes",
+        "publisher closing semantics", "publisher timezone semantics retained",
+        "publisher currency", "publisher amount when exposed", "publisher-native construction taxonomy",
+        "publisher detail/document links", "buyer organization", "publisher location fields",
+        "publisher lifecycle states", "bounded polling with 429 discipline",
+        "test-ticket contract proven; real project-ticket production path unproven", "publisher 429 contract",
+        "429/transport/schema errors fail source", "no partial-success promotion",
+        "bounded sequential retry respecting 429", "BLOCKED", "2026-08-26",
+        "Legitimate MERCADOPUBLICO_TICKET + bounded live paging/identity/update/detail proof required.",
+    ),
+    "Brazil": TechnicalSourceContract(
+        "Brazil", "PNCP/PCA candidate", "PNCP PCA Dados Abertos",
+        "official public API", "dedicated candidate; common REST reuse not yet canonical",
+        "none for public query API", "candidate page contract exists but live update route is unstable",
+        "candidate watermark/update route", "publisher PCA/item identifiers in candidate branch",
+        "publisher-native identifiers", "publisher update semantics require stable live route",
+        "publisher PCA dates", "publisher update timestamp candidate",
+        "plan timing, not tender deadline", "publisher timestamps retained",
+        "publisher currency where supplied", "publisher values where supplied", "publisher categories 3/4/8 works/engineering",
+        "official document/source links where supplied", "contracting body", "national contracting-body/location data",
+        "PROCUREMENT_PLAN", "recent-first/update endpoint intended",
+        "national PNCP corpus is material; stable production paging/empty semantics unproven", "UNKNOWN",
+        "timeout/non-JSON/empty ambiguity fails closed", "HTTP 200 is not accepted as data success",
+        "no retry may advance state without valid complete page contract", "BLOCKED", "2026-08-26",
+        "Open PR #140 contains candidate connector/runtime/tests, but main has no PNCP source and hosted live probes still fail endpoint-contract reliability.",
     ),
 })
 
 
 PRIORITY_A = MappingProxyType({
     "Brazil": PriorityAStatus(
-        country="Brazil",
-        classification="NO_CODE",
-        source_id="PNCP/PCA candidate (not registered in source_registry)",
-        legal_state="LEGAL_AMBER",
-        exact_gap="Exact canonical main has no PNCP connector/runtime/tests/source registration. The master queue retains historical prebuilt-candidate language, but that artifact is not canonical code; the global PCA update route also lacks stable live JSON/empty/paging semantics.",
+        "Brazil", "PARTIAL_CONNECTOR", "PNCP/PCA candidate", "LEGAL_AMBER",
+        "UNKNOWN", "PROVEN",
+        "Canonical main has no PNCP connector/source registration, but open PR #140 contains brazil_pncp_pca.py, brazil_runtime.py and deterministic tests. Candidate is not canonical and live PCA update contract remains blocked.",
     ),
     "Canada": PriorityAStatus(
-        country="Canada",
-        classification="INTEGRATION_PENDING",
-        source_id="CA_CANADABUYS",
-        legal_state="LEGAL_GREEN",
-        exact_gap="Connector, deterministic CI and live production-path proof exist; Factory-specific Integration + Golden + per-country product coverage proof is not yet recorded.",
+        "Canada", "CONNECTOR_GREEN", "CA_CANADABUYS", "LEGAL_GREEN",
+        "PROVEN", "PROVEN",
+        "Merged connector + exact-head/live source proof exist; Factory Integration + Golden + product-country proof remain.",
     ),
     "United States": PriorityAStatus(
-        country="United States",
-        classification="INTEGRATION_PENDING",
-        source_id="US_SAM",
-        legal_state="LEGAL_GREEN",
-        exact_gap="Connector, deterministic CI and live public-bulk proof exist; Factory-specific Integration + Golden + customer-path proof is not yet recorded.",
+        "United States", "CONNECTOR_GREEN", "US_SAM", "LEGAL_AMBER",
+        "PROVEN", "PROVEN",
+        "Merged connector + exact-head/live public-bulk proof exist; commercial-reuse wording for the exact public extract remains legally AMBER and Integration/Golden remain separate.",
     ),
     "Chile": PriorityAStatus(
-        country="Chile",
-        classification="LIVE_CONTRACT_UNKNOWN",
-        source_id="CL_MERCADOPUBLICO",
-        legal_state="LEGAL_GREEN",
-        exact_gap="Connector is deterministic/test-ticket validated, but canonical live API proof requires a legitimate MERCADOPUBLICO_TICKET.",
+        "Chile", "LIVE_CONTRACT_UNKNOWN", "CL_MERCADOPUBLICO", "LEGAL_GREEN",
+        "PROVEN", "PROVEN",
+        "Merged deterministic/test-ticket connector exists; canonical live API proof waits only on a legitimate project ticket, while other Factory lanes continue.",
     ),
 })
 
 
 _TED_SHARED = set(SHARED_FAMILIES["TED_EFORMS"])
-_OCDS_SHARED = set(SHARED_FAMILIES["OCDS_API_BULK"])
 
 
 def _shared_audit(country: str) -> SharedCoverageAudit:
     if country in _TED_SHARED:
         return SharedCoverageAudit(
-            country=country,
-            family="TED/eForms",
-            market_config="PARTIAL",
-            country_mapping="PROVEN",
-            source_family_eligibility="PROVEN",
-            legal_evidence="PARTIAL",
-            taxonomy_handling="PARTIAL",
-            country_identification="PROVEN",
-            tests="PARTIAL",
-            health_representation="PARTIAL",
-            operational_state="REVALIDATION_REQUIRED",
-            exact_gap="Central TED baseline exists, but Factory-specific country-level legal fingerprint, taxonomy/product-coverage test and country health evidence are not all individually proven.",
+            country, "TED/eForms", "PARTIAL", "PROVEN", "PROVEN", "PARTIAL",
+            "PARTIAL", "PROVEN", "PARTIAL", "PARTIAL", "REVALIDATION_REQUIRED",
+            "Central TED source is healthy and country is identifiable, but there is no complete Factory proof of per-country legal fingerprint, taxonomy/product test, country-scoped health and Golden coverage.",
         )
-    if country in {"Ecuador", "Paraguay", "South Africa", "Uruguay"}:
+    if country in {"Ecuador", "Paraguay", "South Africa"}:
         return SharedCoverageAudit(
-            country=country,
-            family="OCDS/common family",
-            market_config="PROVEN",
-            country_mapping="PROVEN",
-            source_family_eligibility="PROVEN",
-            legal_evidence="PARTIAL",
-            taxonomy_handling="PARTIAL",
-            country_identification="PROVEN",
-            tests="PROVEN",
-            health_representation="PARTIAL",
-            operational_state="INTEGRATION_PENDING",
-            exact_gap="Implemented/ready source path exists; country-specific legal revalidation plus Integration/Golden/customer-path evidence remain.",
+            country, "OCDS/common family", "PROVEN", "PROVEN", "PROVEN", "PARTIAL",
+            "PARTIAL", "PROVEN", "PROVEN", "PARTIAL", "INTEGRATION_PENDING",
+            "Implemented canonical common-family path exists; country legal revalidation + Integration/Golden/customer proof remain.",
+        )
+    if country == "Uruguay":
+        return SharedCoverageAudit(
+            country, "OCDS/common family with documented unique transport", "PROVEN", "PROVEN", "PARTIAL", "PARTIAL",
+            "PARTIAL", "PROVEN", "PROVEN", "PARTIAL", "INTEGRATION_PENDING",
+            "UY_ARCE is implemented but intentionally outside generic OCDS transports because RSS + Record/Release semantics are unique; that exception must remain justified while legal/Golden proof closes.",
         )
     if country == "Dominican Republic":
         return SharedCoverageAudit(
-            country=country,
-            family="OCDS/common family",
-            market_config="PARTIAL",
-            country_mapping="PROVEN",
-            source_family_eligibility="PROVEN",
-            legal_evidence="PARTIAL",
-            taxonomy_handling="PARTIAL",
-            country_identification="PROVEN",
-            tests="PARTIAL",
-            health_representation="PARTIAL",
-            operational_state="INTEGRATION_PENDING",
-            exact_gap="Implementation belongs to existing owner PRs; sustainable discovery/detail completeness and composition remain integration work.",
+            country, "OCDS/common family", "PARTIAL", "PROVEN", "PARTIAL", "PARTIAL",
+            "PARTIAL", "PROVEN", "PARTIAL", "PARTIAL", "INTEGRATION_PENDING",
+            "Implementation belongs to existing owner PRs; sustainable discovery/detail completeness/economics and canonical composition remain.",
         )
     if country in {"Peru", "Guatemala"}:
         return SharedCoverageAudit(
-            country=country,
-            family="OCDS/common family",
-            market_config="UNKNOWN",
-            country_mapping="PROVEN",
-            source_family_eligibility="PARTIAL",
-            legal_evidence="PARTIAL",
-            taxonomy_handling="UNKNOWN",
-            country_identification="PROVEN",
-            tests="UNKNOWN",
-            health_representation="UNKNOWN",
-            operational_state="TECHNICAL_BLOCKED",
-            exact_gap="Official OCDS evidence exists but normal permitted machine access is blocked in the current hosted environment; no bypass is authorized.",
+            country, "OCDS/common family", "UNKNOWN", "PROVEN", "PARTIAL", "PARTIAL",
+            "UNKNOWN", "PROVEN", "UNKNOWN", "UNKNOWN", "TECHNICAL_BLOCKED",
+            "Official OCDS evidence exists but normal permitted hosted-machine access is blocked; no bypass is authorized.",
         )
     if country == "Honduras":
         return SharedCoverageAudit(
-            country=country,
-            family="OCDS/common family",
-            market_config="UNKNOWN",
-            country_mapping="PROVEN",
-            source_family_eligibility="PARTIAL",
-            legal_evidence="PROVEN",
-            taxonomy_handling="UNKNOWN",
-            country_identification="PROVEN",
-            tests="UNKNOWN",
-            health_representation="UNKNOWN",
-            operational_state="TECHNICAL_BLOCKED",
-            exact_gap="Rights/schema evidence is strong; one clean secure/current live endpoint + paging proof is still missing.",
+            country, "OCDS/common family", "UNKNOWN", "PROVEN", "PARTIAL", "PROVEN",
+            "UNKNOWN", "PROVEN", "UNKNOWN", "UNKNOWN", "TECHNICAL_BLOCKED",
+            "Rights/schema evidence is strong; one clean secure/current Release/Record/Files live paging proof is still missing.",
         )
     raise KeyError(f"not a canonical SHARED market: {country}")
 
@@ -415,11 +459,9 @@ SHARED_COVERAGE_AUDIT = MappingProxyType({
 })
 
 
-# These are vNext HOLD markets (26), not the older 28-count legacy view.
-# Uganda/Tanzania/Zambia are TECH_LAB in vNext; Namibia is HOLD.
 _HOLD_AUTHORITIES = {
-    "Algeria": ("Algerian public procurement authority / official government portal",),
-    "Angola": ("Serviço Nacional da Contratação Pública / official government portal",),
+    "Algeria": ("official Algerian public procurement authority",),
+    "Angola": ("Serviço Nacional da Contratação Pública",),
     "Argentina": ("CONTRAT.AR / Oficina Nacional de Contrataciones",),
     "Australia": ("AusTender / Department of Finance",),
     "Côte d’Ivoire": ("Autorité Nationale de Régulation des Marchés Publics",),
@@ -428,7 +470,7 @@ _HOLD_AUTHORITIES = {
     "Ethiopia": ("Public Procurement and Property Authority / e-GP",),
     "India": ("Government e-Marketplace / Central Public Procurement Portal",),
     "Indonesia": ("LKPP / INAPROC",),
-    "Japan": ("Government Electronic Procurement System / procurement authorities",),
+    "Japan": ("Government Electronic Procurement System",),
     "Kenya": ("Public Procurement Regulatory Authority / e-GP",),
     "Mexico": ("ComprasMX / Secretaría Anticorrupción y Buen Gobierno",),
     "Morocco": ("Portail Marocain des Marchés Publics",),
@@ -447,13 +489,13 @@ _HOLD_AUTHORITIES = {
 }
 
 _HOLD_METHOD = {
-    "South Korea": ("project_config_has:KONEPS_SERVICE_KEY AND official KONEPS API contract fingerprint unchanged", "2026-09-02", "HIGH"),
+    "South Korea": ("project_config_has:KONEPS_SERVICE_KEY AND official KONEPS source-contract fingerprint unchanged", "2026-09-02", "HIGH"),
     "Rwanda": ("official UMUCYO/OCDS licence or written commercial-reuse authorization changed", "2026-09-26", "HIGH"),
-    "India": ("official broad live tender API/feed published without CAPTCHA/manual-only access", "2026-09-26", "HIGH"),
+    "India": ("official broad live tender API/feed exists without CAPTCHA/manual-only access", "2026-09-26", "HIGH"),
     "Australia": ("AusTender official live ATM machine route + explicit reuse terms become available", "2026-09-26", "HIGH"),
     "Mexico": ("ComprasMX official stable live/incremental route + current API documentation", "2026-09-26", "HIGH"),
-    "Namibia": ("official stable reusable machine route OR shared-adapter compatibility OR material customer demand", "2026-10-26", "MEDIUM"),
-    "Ukraine": ("operational/insurance execution-risk gate materially changes for foreign contractors", "2026-09-26", "MEDIUM"),
+    "Namibia": ("official stable reusable machine route OR shared-adapter fit OR material customer demand", "2026-10-26", "MEDIUM"),
+    "Ukraine": ("foreign-contractor operational/insurance execution-risk gate materially changes", "2026-09-26", "MEDIUM"),
 }
 
 
@@ -461,22 +503,12 @@ def _hold_monitor(country: str) -> HoldMonitor:
     market = GLOBAL_MARKET_PORTFOLIO[country]
     query, next_check, confidence = _HOLD_METHOD.get(
         country,
-        (
-            f"{country}: official procurement authority API/feed/reuse terms matching reopen condition",
-            "2026-09-26",
-            "MEDIUM",
-        ),
+        (f"{country}: official API/feed/reuse evidence satisfying current reconsideration trigger", "2026-09-26", "MEDIUM"),
     )
     return HoldMonitor(
-        country=country,
-        reopen_trigger=market.reconsideration_trigger,
-        monitor_query=query,
-        official_authorities=_HOLD_AUTHORITIES[country],
-        last_result="REOPEN_TRIGGER_NOT_PROVEN",
-        last_checked="2026-08-26",
-        next_check=next_check,
-        confidence=confidence,
-        monitoring_method="Targeted official-source fingerprint/query; full research reopens only on material trigger change.",
+        country, market.reconsideration_trigger, query, _HOLD_AUTHORITIES[country],
+        "REOPEN_TRIGGER_NOT_PROVEN", "2026-08-26", next_check, confidence,
+        "Targeted official-source query/fingerprint; full research reopens only after a material trigger change.",
     )
 
 
@@ -487,39 +519,22 @@ HOLD_MONITORS = MappingProxyType({
 })
 
 
+# Existing repository research/implementation cells prove these are outside the
+# canonical 135. Discovery does not imply strategic promotion.
 DISCOVERY_CANDIDATES = MappingProxyType({
-    "Turkey": DiscoveryCandidate(
-        "Turkey", "RESEARCHING", "TURKEY_EKAP_EVIDENCE.md",
-        "Outside the canonical 135; EKAP may add national depth beyond TED but machine route, rights, identity and economics are not closed.",
-    ),
-    "Serbia": DiscoveryCandidate(
-        "Serbia", "RESEARCHING", "SERBIA_PROCUREMENT_EVIDENCE.md",
-        "Outside the canonical 135; official national portal may expose plans plus lifecycle, but source contract and reuse rights remain unproven.",
-    ),
-    "Georgia": DiscoveryCandidate(
-        "Georgia", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md",
-        "Outside the canonical 135 and explicitly queued by the existing Europe Frontier research cell.",
-    ),
-    "Albania": DiscoveryCandidate(
-        "Albania", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md",
-        "Outside the canonical 135 and explicitly queued by the existing Europe Frontier research cell.",
-    ),
-    "North Macedonia": DiscoveryCandidate(
-        "North Macedonia", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md",
-        "Outside the canonical 135 and explicitly queued by the existing Europe Frontier research cell.",
-    ),
-    "Moldova": DiscoveryCandidate(
-        "Moldova", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md",
-        "Outside the canonical 135 and explicitly queued by the existing Europe Frontier research cell.",
-    ),
-    "Bosnia and Herzegovina": DiscoveryCandidate(
-        "Bosnia and Herzegovina", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md",
-        "Outside the canonical 135 and explicitly queued by the existing Europe Frontier research cell.",
-    ),
-    "Montenegro": DiscoveryCandidate(
-        "Montenegro", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md",
-        "Outside the canonical 135 and explicitly queued by the existing Europe Frontier research cell.",
-    ),
+    "Turkey": DiscoveryCandidate("Turkey", "RESEARCHING", "TURKEY_EKAP_EVIDENCE.md", "PR #182", "EKAP national depth merits source/right/economics closure."),
+    "Serbia": DiscoveryCandidate("Serbia", "RESEARCHING", "SERBIA_PROCUREMENT_EVIDENCE.md", "PR #182", "Official national portal merits source-contract/reuse closure."),
+    "Georgia": DiscoveryCandidate("Georgia", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md", "PR #182", "Queued by Europe Frontier evidence cell."),
+    "Albania": DiscoveryCandidate("Albania", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md", "PR #182", "Queued by Europe Frontier evidence cell."),
+    "North Macedonia": DiscoveryCandidate("North Macedonia", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md", "PR #182", "Queued by Europe Frontier evidence cell."),
+    "Moldova": DiscoveryCandidate("Moldova", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md", "PR #182", "Queued by Europe Frontier evidence cell."),
+    "Bosnia and Herzegovina": DiscoveryCandidate("Bosnia and Herzegovina", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md", "PR #182", "Queued by Europe Frontier evidence cell."),
+    "Montenegro": DiscoveryCandidate("Montenegro", "DISCOVERED", "EUROPE_FRONTIER_CELL_RESEARCH.md", "PR #182", "Queued by Europe Frontier evidence cell."),
+    "Qatar": DiscoveryCandidate("Qatar", "LEGAL_BLOCKED", "research/MENA_HIGH_VALUE_WAVE2_20260825.md", "PR #183/#235", "Ashghal technical slice exists, but current site terms conflict with commercial storage/redistribution absent written permission."),
+    "Israel": DiscoveryCandidate("Israel", "LEGAL_UNKNOWN", "research/MENA_HIGH_VALUE_WAVE2_20260825.md", "PR #187/#235", "GPA construction slice exists; commercial reuse remains unresolved."),
+    "Oman": DiscoveryCandidate("Oman", "LEGAL_UNKNOWN", "research/MENA_HIGH_VALUE_WAVE2_20260825.md", "PR #188/#235", "Esnad early-signal slice exists; reuse rights remain unresolved."),
+    "Bahrain": DiscoveryCandidate("Bahrain", "LEGAL_UNKNOWN", "research/MENA_HIGH_VALUE_WAVE2_20260825.md", "PR #173", "Research identifies valuable lifecycle but explicit rights/legal review remains open; no production connector is authorized."),
+    "Kuwait": DiscoveryCandidate("Kuwait", "LEGAL_UNKNOWN", "research/MENA_HIGH_VALUE_WAVE2_20260825.md", "PR #190/#235", "CAPT construction slice exists; reuse rights remain unresolved."),
 })
 
 
@@ -531,22 +546,18 @@ def _canonical_operational_state(country: str) -> CountryState:
         return "HOLD"
     if market.category == "TECH_LAB":
         return "RESEARCHING"
-
     if country == "Brazil":
         return "TECHNICAL_BLOCKED"
-    if country in {"Canada", "United States"}:
+    if country == "United States":
+        return "LEGAL_UNKNOWN"
+    if country == "Canada":
         return "INTEGRATION_PENDING"
     if country == "Chile":
         return "TECHNICAL_BLOCKED"
-
     if market.category == "SHARED":
         return SHARED_COVERAGE_AUDIT[country].operational_state
-
     if country in {"Portugal", "Spain", "France"}:
         return "REVALIDATION_REQUIRED"
-
-    # Remaining BUILD connectors are repository-ready/productizable in prior
-    # evidence, but this Factory has not independently proved Integration+Golden.
     return "INTEGRATION_PENDING"
 
 
@@ -562,55 +573,47 @@ def dashboard_counts() -> dict[str, int]:
     return {
         "TOTAL_JURISDICTIONS_DISCOVERED": len(GLOBAL_MARKET_PORTFOLIO) + len(DISCOVERY_CANDIDATES),
         "CANONICAL_PORTFOLIO_JURISDICTIONS": len(GLOBAL_MARKET_PORTFOLIO),
+        "DISCOVERED_OUTSIDE_CANONICAL": len(DISCOVERY_CANDIDATES),
         "ACTIVE_PROVEN": states.count("ACTIVE_PROVEN"),
         "BUILD": portfolio_counts()["BUILD"],
         "SHARED": portfolio_counts()["SHARED"],
+        "TECH_LAB": portfolio_counts()["TECH_LAB"],
         "IMPLEMENTING": states.count("IMPLEMENTING"),
         "INTEGRATION_PENDING": states.count("INTEGRATION_PENDING"),
         "GOLDEN_PENDING": states.count("GOLDEN_PENDING"),
         "HOLD": portfolio_counts()["HOLD"],
-        "LEGAL_UNKNOWN": sum(
-            1 for country in GLOBAL_MARKET_PORTFOLIO
-            if country not in LEGAL_EVIDENCE
-        ),
+        "LEGAL_UNKNOWN": states.count("LEGAL_UNKNOWN"),
+        "LEGAL_EVIDENCE_UNREVALIDATED": len(GLOBAL_MARKET_PORTFOLIO) - len(LEGAL_EVIDENCE),
         "TECHNICAL_UNKNOWN": states.count("TECHNICAL_UNKNOWN"),
+        "TECHNICAL_BLOCKED": states.count("TECHNICAL_BLOCKED"),
         "REVALIDATION_REQUIRED": states.count("REVALIDATION_REQUIRED"),
         "REMOVE": portfolio_counts()["REMOVE"],
-        "DISCOVERED_OUTSIDE_CANONICAL": len(DISCOVERY_CANDIDATES),
+        "COUNTRIES_ADDED_LAST_7_DAYS": len(DISCOVERY_CANDIDATES),
     }
 
 
-def active_proven_eligible(
-    *,
-    legal_green: bool,
-    technical_source_green: bool,
-    identity_green: bool,
-    pagination_green: bool,
-    restart_green: bool,
-    lifecycle_green: bool,
-    temporal_green: bool,
-    normalization_green: bool,
-    tenant_safe_green: bool,
-    source_health_green: bool,
-    provenance_green: bool,
-    integration_green: bool,
-    golden_green: bool,
-) -> bool:
-    """Single promotion predicate: every required proof must be affirmative."""
+def legal_change_watch_targets() -> tuple[tuple[str, str, str, str], ...]:
+    """Return source-scoped pages to fingerprint externally; no page hash is fabricated here."""
+    rows = []
+    for country, evidence in LEGAL_EVIDENCE.items():
+        for kind, url in (("terms", evidence.terms_url), ("license", evidence.license_url)):
+            if url:
+                rows.append((country, kind, url, evidence.next_review))
+    return tuple(sorted(set(rows)))
+
+
+def active_proven_eligible(*, legal_green: bool, technical_source_green: bool,
+                           identity_green: bool, pagination_green: bool,
+                           restart_green: bool, lifecycle_green: bool,
+                           temporal_green: bool, normalization_green: bool,
+                           tenant_safe_green: bool, source_health_green: bool,
+                           provenance_green: bool, integration_green: bool,
+                           golden_green: bool) -> bool:
     return all((
-        legal_green,
-        technical_source_green,
-        identity_green,
-        pagination_green,
-        restart_green,
-        lifecycle_green,
-        temporal_green,
-        normalization_green,
-        tenant_safe_green,
-        source_health_green,
-        provenance_green,
-        integration_green,
-        golden_green,
+        legal_green, technical_source_green, identity_green, pagination_green,
+        restart_green, lifecycle_green, temporal_green, normalization_green,
+        tenant_safe_green, source_health_green, provenance_green,
+        integration_green, golden_green,
     ))
 
 
@@ -618,33 +621,31 @@ def validate_factory_registry() -> None:
     if portfolio_counts() != {"BUILD": 14, "SHARED": 31, "TECH_LAB": 3, "HOLD": 26, "REMOVE": 61}:
         raise RuntimeError("global portfolio drifted; revalidate Factory assumptions")
     if set(COUNTRY_OPERATIONAL_STATE) != set(GLOBAL_MARKET_PORTFOLIO):
-        raise RuntimeError("operational registry does not cover canonical portfolio exactly once")
+        raise RuntimeError("operational registry must cover canonical portfolio exactly once")
     if len(SHARED_COVERAGE_AUDIT) != 31:
-        raise RuntimeError("all 31 SHARED markets must have an individual audit row")
-    if set(HOLD_MONITORS) != {
-        country for country, market in GLOBAL_MARKET_PORTFOLIO.items() if market.category == "HOLD"
-    }:
-        raise RuntimeError("every current HOLD market must have exactly one monitor")
-    if any(not monitor.reopen_trigger or not monitor.monitor_query or not monitor.official_authorities
-           for monitor in HOLD_MONITORS.values()):
+        raise RuntimeError("all 31 SHARED markets require an individual audit row")
+    if set(HOLD_MONITORS) != {c for c, m in GLOBAL_MARKET_PORTFOLIO.items() if m.category == "HOLD"}:
+        raise RuntimeError("every current HOLD market requires exactly one monitor")
+    if any(not m.reopen_trigger or not m.monitor_query or not m.official_authorities for m in HOLD_MONITORS.values()):
         raise RuntimeError("HOLD monitors must be actionable")
     if set(DISCOVERY_CANDIDATES) & set(GLOBAL_MARKET_PORTFOLIO):
-        raise RuntimeError("outside-canonical discovery candidates cannot duplicate the 135 portfolio")
-    if PRIORITY_A["Brazil"].classification != "NO_CODE":
-        raise RuntimeError("Brazil exact-main code state must remain fail-closed until canonical PNCP code exists")
-    if COUNTRY_OPERATIONAL_STATE["Brazil"] == "ACTIVE_PROVEN":
-        raise RuntimeError("Brazil cannot be active while PNCP live endpoint contract is unstable")
-    if COUNTRY_OPERATIONAL_STATE["Chile"] == "ACTIVE_PROVEN":
-        raise RuntimeError("Chile cannot be active without the legitimate production API credential/live proof")
-    if COUNTRY_OPERATIONAL_STATE["Canada"] == "ACTIVE_PROVEN" or COUNTRY_OPERATIONAL_STATE["United States"] == "ACTIVE_PROVEN":
-        raise RuntimeError("connector/live green cannot bypass Factory Integration + Golden evidence")
-    for country in ("Canada", "United States", "Chile", "Brazil"):
-        if country not in LEGAL_EVIDENCE:
-            raise RuntimeError(f"Priority-A legal evidence missing: {country}")
+        raise RuntimeError("outside-canonical discovery cannot duplicate the 135 portfolio")
+    if PRIORITY_A["Brazil"].classification != "PARTIAL_CONNECTOR":
+        raise RuntimeError("Brazil open candidate code disappeared or classification drifted")
+    if LEGAL_EVIDENCE["United States"].classification == "LEGAL_GREEN":
+        raise RuntimeError("US commercial reuse must not be inferred GREEN without explicit evidence")
+    if COUNTRY_OPERATIONAL_STATE["Brazil"] == "ACTIVE_PROVEN" or COUNTRY_OPERATIONAL_STATE["Chile"] == "ACTIVE_PROVEN":
+        raise RuntimeError("blocked live source claims cannot be ACTIVE_PROVEN")
+    if COUNTRY_OPERATIONAL_STATE["Canada"] == "ACTIVE_PROVEN":
+        raise RuntimeError("connector/live green cannot bypass Integration + Golden")
     if SOURCES["CL_MERCADOPUBLICO"]["machine_access"] != "CREDENTIAL_REQUIRED":
         raise RuntimeError("Chile credential gate drifted")
     if "CA_CANADABUYS" not in SOURCES or "US_SAM" not in SOURCES:
-        raise RuntimeError("validated Canada/US source registry entries disappeared")
+        raise RuntimeError("validated Canada/US source entries disappeared")
+    if set(TECHNICAL_SOURCE_CONTRACTS) != {"Brazil", "Canada", "United States", "Chile"}:
+        raise RuntimeError("Priority-A technical source contracts must remain complete")
+    if LEGAL_EVIDENCE["Brazil"].redistribution != "UNKNOWN":
+        raise RuntimeError("Brazil legal ambiguity was silently widened")
 
 
 validate_factory_registry()
