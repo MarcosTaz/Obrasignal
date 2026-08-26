@@ -1,0 +1,91 @@
+{
+  "schema_version": "integration-delivery-recovery.v1",
+  "mode": "INTEGRATION_EVIDENCE_ONLY",
+  "exact_parent": "#510@300d0aa85c13e348cb810dbc42dc3ce4547fcc8b",
+  "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "principles": [
+    "DECISION_CREATED != EVENT_CREATED",
+    "EVENT_CREATED != DELIVERY_SCHEDULED",
+    "DELIVERY_SCHEDULED != PROVIDER_ACCEPTED",
+    "PROVIDER_ACCEPTED != DEVICE_DELIVERED",
+    "RECEIPT_RECEIVED != CUSTOMER_OBSERVED",
+    "UNKNOWN_EXTERNAL_ATTEMPT != NEVER_SENT",
+    "SCHEDULED_NOT_DELIVERED != FIRST_VALUE"
+  ],
+  "boundaries": [
+    {
+      "from": "durable_opportunity",
+      "to": "account_decision",
+      "crash_point": "after opportunity persistence before decision creation",
+      "restart_truth": "WORK_MUST_REMAIN_REDISCOVERABLE",
+      "current_status": "BROKEN",
+      "risk": "LOST_WORK",
+      "evidence": "#485@bbaf3829d0fbd44b947108709d84948648083829"
+    },
+    {
+      "from": "account_decision",
+      "to": "opportunity_event",
+      "crash_point": "event exists then later same-opportunity decision is appended",
+      "restart_truth": "EVENT_PARENT_MUST_REMAIN_EXACT",
+      "current_status": "BROKEN",
+      "risk": "UNTRACEABLE_CAUSAL_PARENT",
+      "evidence": "#497@2cf9903923f763e889af3e974ef851f7dfc605bf"
+    },
+    {
+      "from": "opportunity_event",
+      "to": "push_delivery",
+      "crash_point": "delivery work not yet externally submitted",
+      "restart_truth": "LOGICAL_WORK_DEDUPE_IS_DURABLE",
+      "current_status": "PROVEN_PARTIAL",
+      "risk": "NONE_PROVEN_FOR_LOGICAL_PAIR",
+      "evidence": "#510 delivery_lineage_registry.v1"
+    },
+    {
+      "from": "push_delivery",
+      "to": "provider_acceptance",
+      "crash_point": "provider accepted before local attempt/ticket commit",
+      "restart_truth": "EXTERNAL_ATTEMPT_IS_UNKNOWN_NOT_NEVER_SENT",
+      "current_status": "BROKEN",
+      "risk": "DUPLICATE_EXTERNAL_EFFECT",
+      "evidence": "#487@e368d523d1a87250a10cc4db90d712af0a70f8cb"
+    },
+    {
+      "from": "provider_ticket",
+      "to": "provider_receipt",
+      "crash_point": "one external ticket is associated with multiple local deliveries",
+      "restart_truth": "ONE_RECEIPT_MUST_HAVE_AT_MOST_ONE_LOCAL_LOGICAL_PARENT",
+      "current_status": "BROKEN",
+      "risk": "RECEIPT_FANOUT_UNTRACEABLE_PARENT",
+      "evidence": "#509@c29198924b421ab6be6722fd388d785bfd7b416f"
+    },
+    {
+      "from": "local_notification_schedule_acceptance",
+      "to": "delivery_marker",
+      "crash_point": "scheduler returns identifier before actual presentation proof",
+      "restart_truth": "SCHEDULE_ACCEPTED_MUST_NOT_BECOME_DELIVERED",
+      "current_status": "BROKEN",
+      "risk": "FALSE_COMPLETION",
+      "evidence": "#489@438ca20ef805dd4397104ab8a594d7fffc0deae0"
+    },
+    {
+      "from": "delivery_marker",
+      "to": "customer_value_metric",
+      "crash_point": "none; semantic promotion boundary",
+      "restart_truth": "DELIVERY_OR_SCHEDULING_ALONE_MUST_NOT_ESTABLISH_FIRST_VALUE",
+      "current_status": "BROKEN_COMPOSITION",
+      "risk": "FALSE_CUSTOMER_OUTCOME",
+      "evidence": "main evaluation_policy.VALUE_EXPOSURE_EVENTS + #494 first-value contract"
+    }
+  ],
+  "preserved_external_wait": [
+    "ACTUAL_DEVICE_DELIVERY_PROOF",
+    "CUSTOMER_OBSERVED_PROOF"
+  ],
+  "forbidden_promotions": [
+    ["UNKNOWN_EXTERNAL_ATTEMPT", "NEVER_SENT"],
+    ["SCHEDULED_NOT_DELIVERED", "DELIVERED"],
+    ["PROVIDER_ACCEPTED", "DEVICE_DELIVERED"],
+    ["RECEIPT_RECEIVED", "CUSTOMER_OBSERVED"],
+    ["DELIVERY_MARKER", "FIRST_VALUE"]
+  ]
+}
