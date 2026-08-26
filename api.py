@@ -11,6 +11,7 @@ from auth_context import configured_identity
 from auth_context_jwt import JwksUnavailableError
 from company_profile import load_profile, save_profile, derive_profile
 from source_registry import SOURCES
+from source_health import empty_result_context, source_health_contract
 from account_registry import ensure_account
 from opportunity_workflow import get_workflow, set_workflow, workflow_counts
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
@@ -180,11 +181,29 @@ def _latest_decisions(conn, account_id, external_ids):
     return result
 
 
+def _source_contract(conn, source=None):
+    requested = [source] if source else None
+    return source_health_contract(conn, sources=requested)
+
+
 @bp.route("/sources", methods=["GET"])
 def sources():
     identity = request.obrasignal_identity
     items = [{"name": name, **meta} for name, meta in sorted(SOURCES.items(), key=lambda pair: (pair[1].get("priority", 99), pair[0]))]
     return jsonify({"items": items, "count": len(items), "generated_at": _iso_now(), "account_id": identity.account_id})
+
+
+@bp.route("/source-health-contract", methods=["GET"])
+def source_health():
+    identity = request.obrasignal_identity
+    requested_source = (request.args.get("source") or "").strip().upper() or None
+    c = _db()
+    try:
+        contract = _source_contract(c, requested_source)
+    finally:
+        c.close()
+    contract["account_id"] = identity.account_id
+    return jsonify(contract)
 
 
 _PROFILE_FIELDS = {"name", "activity", "contract_interests", "coverage_mode", "keywords", "countries", "cpv_prefixes", "min_value", "max_value", "economic_min_score", "min_deadline_days", "max_deadline_days", "preferred_procedure_types", "excluded_procedure_types", "exclude_keywords", "regions", "geographic_radius_km", "services", "capability_tags", "project_scales", "certifications", "hard_exclusions"}
@@ -279,8 +298,20 @@ def stats():
     open_count = c.execute(f"SELECT COUNT(*) {base} AND t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')", params).fetchone()[0]
     new24 = c.execute(f"SELECT COUNT(*) {base} AND julianday(t.first_seen)>=julianday('now','-1 day')", params).fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
+    contract = _source_contract(c)
     c.close()
-    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None, "account_id": identity.account_id})
+    return jsonify({
+        "total": total,
+        "high": high,
+        "open": open_count,
+        "new24": new24,
+        "last_sync": last[0] if last else None,
+        "stats_state": "current",
+        "source_coverage": contract["summary"],
+        "source_health_contract_version": contract["contract_version"],
+        "generated_at": _iso_now(),
+        "account_id": identity.account_id,
+    })
 
 
 @bp.route("/workflow/stats", methods=["GET"])
@@ -339,8 +370,19 @@ def opportunities():
     ).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
+    contract = _source_contract(c, source or None)
+    empty_context = empty_result_context(contract, len(items))
     c.close()
-    return jsonify({"items": items, "count": len(items), "market": market, "generated_at": _iso_now(), "account_id": identity.account_id})
+    return jsonify({
+        "items": items,
+        "count": len(items),
+        "market": market,
+        "source_coverage": contract["summary"],
+        "source_health_contract_version": contract["contract_version"],
+        "empty_result": empty_context,
+        "generated_at": _iso_now(),
+        "account_id": identity.account_id,
+    })
 
 
 @bp.route("/opportunities/<int:opportunity_id>", methods=["GET"])
