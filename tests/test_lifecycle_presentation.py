@@ -7,6 +7,7 @@ import preload
 from decision_log import record_decision
 from notification_events import record_new_opportunities
 from opportunity_lifecycle import persist_lifecycle_observations
+from opportunity_match_pipeline import RULE_VERSION
 from opportunity_web import render_opportunity_detail
 
 
@@ -74,6 +75,7 @@ def _seed(monkeypatch, tmp_path):
         "QUALIFIED",
         "live fit",
         score=90,
+        rule_version=RULE_VERSION,
         account_id=Identity.account_id,
     )
     record_decision(
@@ -83,6 +85,7 @@ def _seed(monkeypatch, tmp_path):
         "QUALIFIED",
         "historical fit",
         score=95,
+        rule_version=RULE_VERSION,
         account_id=Identity.account_id,
     )
     persist_lifecycle_observations(
