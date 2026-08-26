@@ -6,8 +6,10 @@ on:
       - 'mobile/package.json'
       - 'mobile/package-lock.json'
       - 'dependency_registry.json'
+      - 'supply_chain_actions.py'
       - 'tests/test_supply_chain_contract.py'
-      - '.github/workflows/supply-chain-resolution.yml'
+      - 'tests/test_supply_chain_actions.py'
+      - '.github/workflows/*.yml'
   workflow_dispatch:
 
 permissions:
