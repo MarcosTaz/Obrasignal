@@ -1,6 +1,7 @@
 {
   "schema_version": "integration-delivery-recovery.v1",
   "mode": "INTEGRATION_EVIDENCE_ONLY",
+  "evidence_note": "Exact-head validation belongs only to this branch HEAD; historical component evidence is not promoted.",
   "exact_parent": "#510@300d0aa85c13e348cb810dbc42dc3ce4547fcc8b",
   "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
   "principles": [
