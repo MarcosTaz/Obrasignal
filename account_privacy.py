@@ -429,9 +429,12 @@ def request_account_deletion(conn, account_id: str) -> dict:
 
 def _authenticated_identity():
     try:
-        return configured_identity(), None
+        identity = configured_identity()
     except (RuntimeError, InvalidTokenError):
         return None, (jsonify({"error": "authentication_required"}), 401)
+    if not getattr(identity, "authenticated", False):
+        return None, (jsonify({"error": "authentication_required"}), 401)
+    return identity, None
 
 
 @bp.get("/export")
