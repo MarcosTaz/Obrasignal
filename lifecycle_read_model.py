@@ -14,6 +14,7 @@ from datetime import datetime, timezone, timedelta
 
 import app as _app
 from auth_context import configured_identity
+from company_profile import load_profile
 from decision_dashboard import get_presented_decision
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
@@ -195,8 +196,11 @@ def record_account_decisions(conn, *, list_active_accounts):
     accounts = list_active_accounts(conn) or [configured_identity().account_id]
     recorded = 0
     for account_id in accounts:
+        profile = load_profile(account_id)
         for row in rows:
-            persist_and_classify(conn, dict(row), True, account_id=account_id)
+            persist_and_classify(
+                conn, dict(row), True, account_id=account_id, profile=profile
+            )
             recorded += 1
     return recorded
 
