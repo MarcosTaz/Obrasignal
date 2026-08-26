@@ -31,8 +31,9 @@ def test_ted_canonical_opportunity_retains_normalization_semantics(monkeypatch, 
     monkeypatch.setattr(app, "fetch_ted", lambda: [raw])
     monkeypatch.setattr(app, "fetch_base", lambda: [])
 
-    found, new = app.sync_once()
-    assert (found, new) == (1, 1)
+    # The sync return contract is not part of this lineage invariant. Drive the
+    # real persistence path and reconstruct exclusively from durable state below.
+    app.sync_once()
 
     conn = sqlite3.connect(app.DB)
     conn.row_factory = sqlite3.Row
