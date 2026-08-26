@@ -96,12 +96,32 @@ async function writeWhenReady(path,options={}){
 function normalizeOpportunity(item){if(!item||typeof item!=='object')return item;return {...item,decision_score:item.decision_score??item.account_score??null,decision_reason:item.decision_reason??item.account_reason??null};}
 function unwrapProfile(data){return data?.profile||data||null;}
 
+async function saveProfileForEditor(profile){
+  const state=await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT});
+  if(state?.profile_saved===true&&state?.radar_state==='RECOVERY_REQUIRED'){
+    // The write itself succeeded. Throw a typed recovery state so existing edit
+    // surfaces stay put and show the truthful message instead of caching/switching
+    // as if synchronous Radar recalculation had also completed.
+    const recovery=new Error('O perfil ficou guardado, mas o Radar ainda não foi atualizado. Tenta novamente para concluir a atualização.');
+    recovery.code='RADAR_RECOVERY_REQUIRED';
+    recovery.responseBody=state;
+    throw recovery;
+  }
+  return unwrapProfile(state);
+}
+
 export const api={
   health:()=>ensureBackendReady(),
   profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
   // POST is intentionally single-attempt: retrying an authenticated write can
   // duplicate work and makes a stuck Save button look like a UI failure.
-  saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
+  // The ordinary editor additionally treats HTTP 202 Radar recovery as a typed
+  // incomplete state; durable profile success must not masquerade as full success.
+  saveProfile:saveProfileForEditor,
+  // Initial onboarding needs the full response envelope. In particular, a 202
+  // can prove the profile is durable while Radar recalculation still requires
+  // recovery; unwrapping the profile here would erase that material state.
+  saveProfileState:async(profile)=>writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT}),
   billingStatus:()=>readWhenReady('/billing/status'),
   stats:()=>readWhenReady('/stats'),
   workflowStats:()=>readWhenReady('/workflow/stats'),
