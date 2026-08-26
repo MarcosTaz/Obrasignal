@@ -1,9 +1,9 @@
 """Observation-only GitHub Actions / CI toolchain inventory.
 
 This module parses repository workflow text without executing workflows or reading
-secret values. It records references, explicit-vs-implicit permissions, secret
-names, runner/toolchain declarations and known pin candidates already proven by
-Security #248. It does not mutate workflows and is not an Actions authority.
+secret values. It records references, workflow/job permissions, secret names,
+runner/toolchain declarations and known pin candidates already proven by Security
+#248. It does not mutate workflows and is not an Actions authority.
 """
 from __future__ import annotations
 
@@ -70,10 +70,52 @@ def _top_permissions(text: str) -> dict[str, str]:
     return {"__authority__": "IMPLICIT_DEFAULT"}
 
 
+def _job_permission_map(lines: list[str]) -> dict[str, dict[str, str]]:
+    """Record explicit job-level overrides so workflow-read cannot hide job-write."""
+    result: dict[str, dict[str, str]] = {}
+    in_jobs = False
+    current = None
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if line == "jobs:":
+            in_jobs = True
+            index += 1
+            continue
+        if in_jobs and re.fullmatch(r"  [A-Za-z0-9_-]+:", line):
+            current = line.strip()[:-1]
+            index += 1
+            continue
+        if in_jobs and current and line == "    permissions:":
+            permissions = {}
+            index += 1
+            while index < len(lines):
+                candidate = lines[index]
+                if not candidate.startswith("      ") or candidate.startswith("        "):
+                    break
+                if ":" in candidate:
+                    key, value = candidate.strip().split(":", 1)
+                    permissions[key] = value.strip()
+                index += 1
+            result[current] = permissions
+            continue
+        index += 1
+    return result
+
+
+def _write_permissions(permissions: dict[str, str]) -> list[str]:
+    if permissions.get("__authority__") == "IMPLICIT_DEFAULT":
+        return ["UNKNOWN_DEFAULT"]
+    return sorted(
+        f"{key}:{value}" for key, value in permissions.items()
+        if key in WRITE_KEYS and value == "write"
+    )
+
+
 def _job_for_line(lines: list[str], target: int) -> str:
     in_jobs = False
     current = "UNKNOWN"
-    for index, line in enumerate(lines[: target + 1]):
+    for line in lines[: target + 1]:
         if line == "jobs:":
             in_jobs = True
             continue
@@ -103,20 +145,19 @@ def inventory() -> dict:
         text = path.read_text(encoding="utf-8")
         lines = text.splitlines()
         permissions = _top_permissions(text)
+        job_permissions = _job_permission_map(lines)
         secret_names = sorted(set(re.findall(r"secrets\.([A-Za-z0-9_]+)", text)))
         runner_values = sorted(set(re.findall(r"runs-on:\s*([^\n#]+)", text)))
         node_versions = sorted(set(re.findall(r"node-version:\s*['\"]?([^'\"\n#]+)", text)))
         python_versions = sorted(set(re.findall(r"python-version:\s*['\"]?([^'\"\n#]+)", text)))
         eas_versions = sorted(set(re.findall(r"eas-version:\s*['\"]?([^'\"\n#]+)", text)))
-        explicit_writes = sorted(
-            f"{key}:{value}" for key, value in permissions.items()
-            if key in WRITE_KEYS and value == "write"
-        )
         workflow_records.append({
             "workflow": path.name,
             "expected_owner": OWNER_BY_WORKFLOW.get(path.name, "UNKNOWN"),
             "permissions": permissions,
-            "write_permissions": explicit_writes if permissions.get("__authority__") != "IMPLICIT_DEFAULT" else ["UNKNOWN_DEFAULT"],
+            "write_permissions": _write_permissions(permissions),
+            "job_permissions": job_permissions,
+            "job_write_permissions": {job: _write_permissions(value) for job, value in job_permissions.items()},
             "secret_names": secret_names,
             "runner": runner_values or ["UNKNOWN"],
             "node_versions": node_versions,
@@ -134,16 +175,19 @@ def inventory() -> dict:
             pin_type = _pin_type(reference)
             major_key = reference if pin_type == "MUTABLE_TAG" else None
             proven = PROVEN_248_PINS.get((action, major_key)) if major_key else None
-            critical = bool(secret_names or explicit_writes or action == "expo/expo-github-action" or "deploy" in action)
+            job = _job_for_line(lines, index)
+            effective_permissions = job_permissions.get(job, permissions)
+            effective_writes = _write_permissions(effective_permissions)
+            critical = bool(secret_names or effective_writes or action == "expo/expo-github-action" or "deploy" in action)
             records.append({
                 "workflow": path.name,
-                "job": _job_for_line(lines, index),
+                "job": job,
                 "action": action,
                 "reference": reference,
                 "pin_type": pin_type,
                 "expected_owner": OWNER_BY_WORKFLOW.get(path.name, "UNKNOWN"),
-                "permissions": permissions,
-                "write_permissions": explicit_writes if permissions.get("__authority__") != "IMPLICIT_DEFAULT" else ["UNKNOWN_DEFAULT"],
+                "permissions": effective_permissions,
+                "write_permissions": effective_writes,
                 "secret_names": secret_names,
                 "network_role": _network_role(action),
                 "criticality": "CRITICAL" if critical else "HIGH",
