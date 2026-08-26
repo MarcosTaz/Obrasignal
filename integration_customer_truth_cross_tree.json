@@ -1,0 +1,94 @@
+{
+  "schema_version": "integration-customer-truth-cross-tree.v1",
+  "mode": "INTEGRATION_EVIDENCE_ONLY",
+  "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "principles": [
+    "SOURCE_UNKNOWN != ZERO_MARKET",
+    "MISSING_DECISION != ZERO_OPPORTUNITY",
+    "DECISION_CREATED != EVENT_CREATED",
+    "SCHEDULED != DELIVERED",
+    "PROVIDER_ACCEPTED != DEVICE_DELIVERED",
+    "DELIVERY_MARKER != CUSTOMER_VALUE"
+  ],
+  "path": [
+    {
+      "stage": "SOURCE_TRUTH",
+      "authority": "#327 Source Health public contract",
+      "status": "PROVEN_ON_399_EXACT_TREE",
+      "downstream_risk": "Radar currently does not consume source-health coverage",
+      "evidence": "#399@44ca24fbe2862e1a79231ec1f2b811bcbdbbbb3b + #508@5ec01b780b62dd21d887303cf99c48cf97035780"
+    },
+    {
+      "stage": "OPPORTUNITY_AVAILABILITY",
+      "authority": "canonical opportunity data + source coverage context",
+      "status": "PARTIAL",
+      "downstream_risk": "empty list can be presented without coverage semantics",
+      "evidence": "#508"
+    },
+    {
+      "stage": "DECISION_DISCOVERY",
+      "authority": "Decision/Pipeline owner",
+      "status": "BROKEN_RESTART_REDISCOVERY",
+      "downstream_risk": "durable eligible opportunity can lose required decision work after restart",
+      "evidence": "#485@bbaf3829d0fbd44b947108709d84948648083829"
+    },
+    {
+      "stage": "DECISION_CURRENTNESS",
+      "authority": "Decision Intelligence / Ranking",
+      "status": "BROKEN_SEMANTIC_FRESHNESS",
+      "downstream_risk": "superseded rule score can pass current Radar threshold and authorize notification",
+      "evidence": "#500@adb754affe79693cf77a14cd64937eeceda0cf5a + #501@b7ff60a5bd4942f94693470f5e9687462936ed49"
+    },
+    {
+      "stage": "EVENT_CAUSAL_PARENT",
+      "authority": "Decision + Notification + Persistence",
+      "status": "BROKEN_PARENTAGE",
+      "downstream_risk": "event cannot durably identify exact causing decision",
+      "evidence": "#497@2cf9903923f763e889af3e974ef851f7dfc605bf"
+    },
+    {
+      "stage": "PROVIDER_SIDE_EFFECT",
+      "authority": "Notification Delivery",
+      "status": "PARTIAL_BROKEN_CRASH_BOUNDARIES",
+      "downstream_risk": "provider accepted before local ledger may duplicate external send; one ticket may fan receipt into multiple local parents",
+      "evidence": "#487@e368d523d1a87250a10cc4db90d712af0a70f8cb + #509@c29198924b421ab6be6722fd388d785bfd7b416f"
+    },
+    {
+      "stage": "LOCAL_DELIVERY_TRUTH",
+      "authority": "Notification Delivery",
+      "status": "BROKEN_FALSE_COMPLETION",
+      "downstream_risk": "scheduler acceptance can mark delivered without presentation proof",
+      "evidence": "#489@438ca20ef805dd4397104ab8a594d7fffc0deae0"
+    },
+    {
+      "stage": "CUSTOMER_VALUE",
+      "authority": "Customer Journey + Evaluation metric owner",
+      "status": "BROKEN_COMPOSITION_ON_MAIN",
+      "downstream_risk": "alert_delivered can become TIME_TO_FIRST_VALUE despite #494 declaring it insufficient",
+      "evidence": "main evaluation_policy.VALUE_EXPOSURE_EVENTS + #494 first-value corpus"
+    }
+  ],
+  "required_no_promotion_cases": [
+    {
+      "input": "SOURCE_UNKNOWN_OR_PARTIAL_OR_STALE",
+      "forbidden_output": "ZERO_MARKET_OR_TRUTHFUL_NO_MATCH_WITHOUT_COVERAGE_PROOF"
+    },
+    {
+      "input": "MISSING_DECISION_WORK_AFTER_RESTART",
+      "forbidden_output": "ZERO_OPPORTUNITY_OR_NO_RELEVANT_MATCH"
+    },
+    {
+      "input": "STALE_DECISION_RULE",
+      "forbidden_output": "CURRENT_RADAR_MATCH_OR_NEW_HIGH_MATCH_EVENT"
+    },
+    {
+      "input": "SCHEDULE_ACCEPTED_OR_PROVIDER_ACCEPTED",
+      "forbidden_output": "DEVICE_DELIVERED_OR_CUSTOMER_VALUE"
+    }
+  ],
+  "global_classification": "NOT_END_TO_END_GREEN",
+  "external_wait_only": [
+    "ACTUAL_DEVICE_PROVIDER_DELIVERY_EVIDENCE",
+    "CUSTOMER_OBSERVED_OUTCOME_EVIDENCE"
+  ]
+}
