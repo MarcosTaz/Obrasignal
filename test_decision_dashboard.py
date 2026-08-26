@@ -4,6 +4,7 @@ import pytest
 
 import preload
 from decision_log import ensure_decision_table, record_decision
+from opportunity_match_pipeline import RULE_VERSION
 
 
 @pytest.fixture
@@ -41,7 +42,7 @@ def _seed(db_path, external_id="D-1"):
                               "geography": {"score": 5, "reason": "cidade prioritária"},
                               "economic_fit": {"score": 100, "status": "FAVOURABLE", "reason": "valor dentro do intervalo"},
                               "capability_evidence": {"evidence_count": 2, "reason": "foram encontradas capacidades da empresa na descrição"},
-                              "hard_capability_blockers": []}, rule_version="test-v1")
+                              "hard_capability_blockers": []}, rule_version=RULE_VERSION)
     conn.commit()
     conn.close()
     return cur.lastrowid
