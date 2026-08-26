@@ -1,12 +1,15 @@
 from company_profile import load_profile
+from data_lineage import decision_profile_lineage
 from decision_log import record_decision
 from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
 
-def persist_and_classify(conn, item, is_new, account_id='default'):
+def persist_and_classify(conn, item, is_new, account_id='default', profile=None):
     """Persist the canonical commercial decision with full account-scoped evidence."""
     enriched = dict(item)
-    profile = load_profile(account_id)
+    account_id = str(account_id or 'default')
+    if profile is None or str((profile or {}).get('account_id') or '') != account_id:
+        profile = load_profile(account_id)
     evaluation = evaluate_row(enriched, profile=profile)
     enriched.update({
         "lot_score": evaluation["lot_score"],
@@ -31,6 +34,9 @@ def persist_and_classify(conn, item, is_new, account_id='default'):
         "cpv_evidence": evaluation["cpv_evidence"],
         "hard_capability_blockers": evaluation["hard_capability_blockers"],
         "explanation": evaluation["explanation"],
+        "lineage": {
+            "profile": decision_profile_lineage(profile),
+        },
     }
 
     record_decision(
