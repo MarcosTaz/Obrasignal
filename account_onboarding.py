@@ -8,14 +8,20 @@ saved and emits high-match events for the same account.
 from __future__ import annotations
 
 from app import db
+from decision_log import current_profile_fingerprint
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import ensure_lifecycle_table
+from opportunity_match_pipeline import RULE_VERSION
 
 MAX_BOOTSTRAP_ROWS = 250
 
 
 def _emit_bootstrap_events(conn, account_id: str) -> int:
     ensure_lifecycle_table(conn)
+    profile_fingerprint = current_profile_fingerprint(conn, account_id)
+    if profile_fingerprint is None:
+        # Malformed/unknown profile authority cannot create positive customer work.
+        return 0
     rows = conn.execute(
         """SELECT t.*, d.score AS account_score
            FROM tenders t
@@ -29,11 +35,13 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
            LEFT JOIN opportunity_lifecycle lc
              ON lc.source=t.source AND lc.external_id=t.external_id
            WHERE d.score >= 75
+             AND d.rule_version=?
+             AND d.profile_fingerprint=?
              AND COALESCE(lc.is_actionable,1)=1
              AND (t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline) >= datetime('now'))
            ORDER BY d.score DESC, COALESCE(t.publication_date, t.first_seen) DESC
            LIMIT ?""",
-        (account_id, MAX_BOOTSTRAP_ROWS),
+        (account_id, RULE_VERSION, profile_fingerprint, MAX_BOOTSTRAP_ROWS),
     ).fetchall()
     created = 0
     for row in rows:
