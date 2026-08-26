@@ -4,6 +4,7 @@ This is an additive evidence/composition layer. It does not replace:
 - ``global_market_portfolio.py`` for strategic portfolio decisions;
 - ``market_scope_registry.py`` for the evidence-preserving legacy scope;
 - ``source_registry.py`` for runtime/source-readiness metadata;
+- ``global_market_source_contracts.py`` for Priority-A technical contracts;
 - Integration Lab, Golden, Release, Security, Privacy, Contracts or Temporal authority.
 
 The governing invariant is fail-closed: strategic BUILD/SHARED, connector existence,
@@ -18,6 +19,7 @@ from types import MappingProxyType
 from typing import Literal
 
 from global_market_portfolio import GLOBAL_MARKET_PORTFOLIO, portfolio_counts
+from global_market_source_contracts import SOURCE_CONTRACTS
 from market_scope_registry import SHARED_FAMILIES
 from source_registry import SOURCES
 
@@ -74,41 +76,6 @@ class LegalEvidence:
 
 
 @dataclass(frozen=True)
-class TechnicalSourceContract:
-    country: str
-    source_id: str
-    source_name: str
-    access_method: str
-    family: str
-    auth_requirement: str
-    pagination: str
-    incremental_cursor: str
-    identity: str
-    update_identity: str
-    deletion_cancellation: str
-    publication_time: str
-    modification_time: str
-    deadline_semantics: str
-    timezone: str
-    currency: str
-    value: str
-    taxonomy: str
-    document_links: str
-    buyer: str
-    location: str
-    lifecycle: str
-    freshness: str
-    completeness: str
-    rate_limit: str
-    error_semantics: str
-    partial_response_semantics: str
-    retry_safety: str
-    live_state: EvidenceState
-    last_verified: str
-    exact_gap: str
-
-
-@dataclass(frozen=True)
 class SharedCoverageAudit:
     country: str
     family: str
@@ -158,7 +125,7 @@ class PriorityAStatus:
 
 
 def _fingerprint(*parts: str) -> str:
-    """Fingerprint the captured evidence record, not the remote page bytes."""
+    """Fingerprint the captured evidence record, never pretend to hash remote bytes."""
     payload = "\n".join(str(part).strip() for part in parts)
     return "sha256:" + sha256(payload.encode("utf-8")).hexdigest()
 
@@ -208,7 +175,6 @@ def _legal(*, country, authority, source_name, official_domain, source_type,
     )
 
 
-# Fresh official-source evidence captured 2026-08-26. GREEN is source-scoped.
 LEGAL_EVIDENCE = MappingProxyType({
     "Canada": _legal(
         country="Canada",
@@ -317,74 +283,6 @@ LEGAL_EVIDENCE = MappingProxyType({
 })
 
 
-TECHNICAL_SOURCE_CONTRACTS = MappingProxyType({
-    "Canada": TechnicalSourceContract(
-        "Canada", "CA_CANADABUYS", "CanadaBuys tender notices",
-        "official New/Open/Complete CSV snapshots", "generic bulk snapshot",
-        "none", "snapshot files; lifecycle reconciliation across New/Open/Complete",
-        "ETag/Last-Modified conditional retrieval", "solicitationNumber",
-        "same solicitationNumber across amendments", "publisher Open/Complete status incl. cancellation/expiry",
-        "publication date from publisher", "amendment/update fields in publisher files",
-        "publisher closing date/time", "publisher baseline UTC-05 as validated by connector evidence",
-        "not fabricated", "not fabricated when absent", "procurementCategory=CNST",
-        "publisher links when present", "publisher organization", "publisher location fields",
-        "New/Open/Complete lifecycle", "New intraday + Open/Complete refreshed publisher cadence",
-        "federal data files only; not all Canadian procurement", "static snapshot transport",
-        "strict schema/transport failures fail source", "unexpected schema/partial corruption fails closed",
-        "conditional GET + idempotent identity", "PROVEN", "2026-08-26",
-        "Connector/live path proven; Integration + Golden + country product proof remain separate.",
-    ),
-    "United States": TechnicalSourceContract(
-        "United States", "US_SAM", "SAM.gov Contract Opportunities public bulk",
-        "official public bulk extract", "generic bulk snapshot",
-        "none for baseline public bulk", "bulk snapshot; strict bounded parser",
-        "conditional snapshot identity/transport metadata", "NoticeId",
-        "NoticeId across updates", "disappearance never silently treated as deletion",
-        "publisher posted date", "publisher modification fields when present",
-        "publisher response/deadline fields", "publisher semantics retained",
-        "not fabricated", "award/value fields not coerced into tender value", "NAICS 23 construction admission",
-        "publisher resource links", "publisher agency/buyer", "place-of-performance fields",
-        "opportunity lifecycle from public extract", "official bulk refresh cadence",
-        "federal Contract Opportunities slice; not state/local procurement", "official bulk path",
-        "strict 47-column/schema failures fail closed", "partial/malformed snapshots fail closed",
-        "conditional fetch + NoticeId idempotency", "PROVEN", "2026-08-26",
-        "Technical connector is green; fresh commercial-reuse legal evidence remains AMBER.",
-    ),
-    "Chile": TechnicalSourceContract(
-        "Chile", "CL_MERCADOPUBLICO", "Mercado Público API",
-        "official API", "dedicated connector candidate already merged",
-        "real individual API ticket required", "publisher paging / bounded sequential hydration",
-        "publisher update/lifecycle polling", "CodigoExterno / publisher-native identity",
-        "same publisher identity across updates", "publisher lifecycle/cancellation states",
-        "publisher publication date", "publisher modification/state changes",
-        "publisher closing semantics", "publisher timezone semantics retained",
-        "publisher currency", "publisher amount when exposed", "publisher-native construction taxonomy",
-        "publisher detail/document links", "buyer organization", "publisher location fields",
-        "publisher lifecycle states", "bounded polling with 429 discipline",
-        "test-ticket contract proven; real project-ticket production path unproven", "publisher 429 contract",
-        "429/transport/schema errors fail source", "no partial-success promotion",
-        "bounded sequential retry respecting 429", "BLOCKED", "2026-08-26",
-        "Legitimate MERCADOPUBLICO_TICKET + bounded live paging/identity/update/detail proof required.",
-    ),
-    "Brazil": TechnicalSourceContract(
-        "Brazil", "PNCP/PCA candidate", "PNCP PCA Dados Abertos",
-        "official public API", "dedicated candidate; common REST reuse not yet canonical",
-        "none for public query API", "candidate page contract exists but live update route is unstable",
-        "candidate watermark/update route", "publisher PCA/item identifiers in candidate branch",
-        "publisher-native identifiers", "publisher update semantics require stable live route",
-        "publisher PCA dates", "publisher update timestamp candidate",
-        "plan timing, not tender deadline", "publisher timestamps retained",
-        "publisher currency where supplied", "publisher values where supplied", "publisher categories 3/4/8 works/engineering",
-        "official document/source links where supplied", "contracting body", "national contracting-body/location data",
-        "PROCUREMENT_PLAN", "recent-first/update endpoint intended",
-        "national PNCP corpus is material; stable production paging/empty semantics unproven", "UNKNOWN",
-        "timeout/non-JSON/empty ambiguity fails closed", "HTTP 200 is not accepted as data success",
-        "no retry may advance state without valid complete page contract", "BLOCKED", "2026-08-26",
-        "Open PR #140 contains candidate connector/runtime/tests, but main has no PNCP source and hosted live probes still fail endpoint-contract reliability.",
-    ),
-})
-
-
 PRIORITY_A = MappingProxyType({
     "Brazil": PriorityAStatus(
         "Brazil", "PARTIAL_CONNECTOR", "PNCP/PCA candidate", "LEGAL_AMBER",
@@ -399,17 +297,18 @@ PRIORITY_A = MappingProxyType({
     "United States": PriorityAStatus(
         "United States", "CONNECTOR_GREEN", "US_SAM", "LEGAL_AMBER",
         "PROVEN", "PROVEN",
-        "Merged connector + exact-head/live public-bulk proof exist; commercial-reuse wording for the exact public extract remains legally AMBER and Integration/Golden remain separate.",
+        "Merged connector + live public-bulk proof exist; source_registry legal GREEN now conflicts with fresh Factory AMBER and is routed in issue #520. Integration/Golden remain separate.",
     ),
     "Chile": PriorityAStatus(
         "Chile", "LIVE_CONTRACT_UNKNOWN", "CL_MERCADOPUBLICO", "LEGAL_GREEN",
         "PROVEN", "PROVEN",
-        "Merged deterministic/test-ticket connector exists; canonical live API proof waits only on a legitimate project ticket, while other Factory lanes continue.",
+        "Merged deterministic/test-ticket connector exists; canonical live API proof waits on a legitimate project ticket, while other Factory lanes continue.",
     ),
 })
 
 
 _TED_SHARED = set(SHARED_FAMILIES["TED_EFORMS"])
+_FRESH_SHARED_LEGAL_GREEN = {"Ecuador", "Paraguay", "South Africa"}
 
 
 def _shared_audit(country: str) -> SharedCoverageAudit:
@@ -417,19 +316,19 @@ def _shared_audit(country: str) -> SharedCoverageAudit:
         return SharedCoverageAudit(
             country, "TED/eForms", "PARTIAL", "PROVEN", "PROVEN", "PARTIAL",
             "PARTIAL", "PROVEN", "PARTIAL", "PARTIAL", "REVALIDATION_REQUIRED",
-            "Central TED source is healthy and country is identifiable, but there is no complete Factory proof of per-country legal fingerprint, taxonomy/product test, country-scoped health and Golden coverage.",
+            "Central TED source is healthy and country is identifiable, but there is no complete per-country taxonomy/product test, country-scoped health and Golden coverage.",
         )
-    if country in {"Ecuador", "Paraguay", "South Africa"}:
+    if country in _FRESH_SHARED_LEGAL_GREEN:
         return SharedCoverageAudit(
-            country, "OCDS/common family", "PROVEN", "PROVEN", "PROVEN", "PARTIAL",
+            country, "OCDS/common family", "PROVEN", "PROVEN", "PROVEN", "PROVEN",
             "PARTIAL", "PROVEN", "PROVEN", "PARTIAL", "INTEGRATION_PENDING",
-            "Implemented canonical common-family path exists; country legal revalidation + Integration/Golden/customer proof remain.",
+            "Fresh publisher-scoped reuse licence is proven; country Integration/Golden/customer proof and full coverage semantics remain separate.",
         )
     if country == "Uruguay":
         return SharedCoverageAudit(
             country, "OCDS/common family with documented unique transport", "PROVEN", "PROVEN", "PARTIAL", "PARTIAL",
             "PARTIAL", "PROVEN", "PROVEN", "PARTIAL", "INTEGRATION_PENDING",
-            "UY_ARCE is implemented but intentionally outside generic OCDS transports because RSS + Record/Release semantics are unique; that exception must remain justified while legal/Golden proof closes.",
+            "UY_ARCE is implemented via unique RSS + Record/Release transport; open-data licence is proven for ARCE datasets but exact live-transport linkage remains AMBER.",
         )
     if country == "Dominican Republic":
         return SharedCoverageAudit(
@@ -519,8 +418,6 @@ HOLD_MONITORS = MappingProxyType({
 })
 
 
-# Existing repository research/implementation cells prove these are outside the
-# canonical 135. Discovery does not imply strategic promotion.
 DISCOVERY_CANDIDATES = MappingProxyType({
     "Turkey": DiscoveryCandidate("Turkey", "RESEARCHING", "TURKEY_EKAP_EVIDENCE.md", "PR #182", "EKAP national depth merits source/right/economics closure."),
     "Serbia": DiscoveryCandidate("Serbia", "RESEARCHING", "SERBIA_PROCUREMENT_EVIDENCE.md", "PR #182", "Official national portal merits source-contract/reuse closure."),
@@ -535,6 +432,17 @@ DISCOVERY_CANDIDATES = MappingProxyType({
     "Oman": DiscoveryCandidate("Oman", "LEGAL_UNKNOWN", "research/MENA_HIGH_VALUE_WAVE2_20260825.md", "PR #188/#235", "Esnad early-signal slice exists; reuse rights remain unresolved."),
     "Bahrain": DiscoveryCandidate("Bahrain", "LEGAL_UNKNOWN", "research/MENA_HIGH_VALUE_WAVE2_20260825.md", "PR #173", "Research identifies valuable lifecycle but explicit rights/legal review remains open; no production connector is authorized."),
     "Kuwait": DiscoveryCandidate("Kuwait", "LEGAL_UNKNOWN", "research/MENA_HIGH_VALUE_WAVE2_20260825.md", "PR #190/#235", "CAPT construction slice exists; reuse rights remain unresolved."),
+})
+
+
+OWNER_ROUTING_DEFECTS = MappingProxyType({
+    "US_SAM_LEGAL_DRIFT": {
+        "owner": "Sources / source-registry authority",
+        "issue": "#520",
+        "canonical_state": "source_registry.py advertises legal_reuse=GREEN",
+        "factory_evidence": "LEGAL_AMBER: exact bulk commercial reuse/derivative permission not captured",
+        "invariant": "LEGAL_UNKNOWN/AMBER != LEGAL_GREEN",
+    },
 })
 
 
@@ -642,8 +550,8 @@ def validate_factory_registry() -> None:
         raise RuntimeError("Chile credential gate drifted")
     if "CA_CANADABUYS" not in SOURCES or "US_SAM" not in SOURCES:
         raise RuntimeError("validated Canada/US source entries disappeared")
-    if set(TECHNICAL_SOURCE_CONTRACTS) != {"Brazil", "Canada", "United States", "Chile"}:
-        raise RuntimeError("Priority-A technical source contracts must remain complete")
+    if set(SOURCE_CONTRACTS) != {"Brazil", "Canada", "United States", "Chile"}:
+        raise RuntimeError("single Priority-A technical source-contract authority drifted")
     if LEGAL_EVIDENCE["Brazil"].redistribution != "UNKNOWN":
         raise RuntimeError("Brazil legal ambiguity was silently widened")
 
