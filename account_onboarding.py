@@ -7,7 +7,7 @@ saved and emits high-match events for the same account.
 """
 from __future__ import annotations
 
-from app import db
+from app import APP, db
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import ensure_lifecycle_table
 
@@ -47,6 +47,18 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
         )
         created += int(cur.rowcount or 0)
     conn.commit()
+
+    # Bootstrap-created opportunity_events are the same canonical notification
+    # truth as source-sync events. Dispatch through the same best-effort sender
+    # so first-value events do not wait for an unrelated later ingestion pass.
+    try:
+        from notification_events import submit_pending_pushes
+        submit_pending_pushes(conn, account_id)
+    except Exception as exc:
+        # Profile/Radar bootstrap must stay available if notification transport
+        # or its bounded dispatch path is unavailable. Log only the error class;
+        # no tenant or opportunity content is emitted.
+        APP.logger.warning("bootstrap push dispatch failed: %s", type(exc).__name__)
     return created
 
 
