@@ -147,4 +147,4 @@ def test_profile_change_cannot_turn_unreclassified_stale_decision_into_current_h
     # Safety invariant: an unreclassified decision produced under the previous
     # company profile must degrade to stale/unknown. It must never authorize a
     # current high-match event merely because it is still the latest stored row.
-    assert stale_event is None
+    assert stale_event is None, dict(stale_event) if stale_event is not None else None
