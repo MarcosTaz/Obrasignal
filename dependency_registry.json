@@ -4,12 +4,15 @@
   "observed_base_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
   "principle": "registry observes manifests and lockfiles; it is not a lockfile authority",
   "candidate_resolution": {
-    "head_sha": "32f8fc56c1376a3e15ff80058443f8ab674ca45b",
-    "workflow_run": 33017181711,
+    "proof_head_sha": "ab4be7f0551bcc4107c30d84ed5266d3368b5e64",
+    "proof_workflow_run": 33017787090,
     "npm_version": "10.9.2",
     "generated_lock_sha256": "6f77c78167309184420f3b17ceea0a05b1d7fc3d1811907e76cc1546667204d7",
     "graph_sha256": "b438aeab761ceccfeb0f6e12ab308385123f6c156b682b21b8951206e25a0cea",
-    "clean_npm_ci_repeat": "PROVEN_IN_CI_ARTIFACT",
+    "clean_npm_ci_repeat": "PROVEN_EXACT_HEAD",
+    "candidate_lock_commit_sha": "0527c3a35956278168faee31e91d1ba29a9d66a6",
+    "candidate_lock_blob_sha": "0c25247b45d57cb5df2772151ceda326efc4ff66",
+    "candidate_lock_committed": true,
     "canonical_lock_committed": false,
     "observed_direct_versions": {
       "react-native": "0.86.3",
@@ -37,9 +40,9 @@
       "ecosystem": "npm",
       "package_root": "mobile",
       "manifest": "mobile/package.json",
-      "lockfile": null,
-      "status": "ABSENT",
-      "resolution": "CANDIDATE_GRAPH_PROVEN_NOT_CANONICAL"
+      "lockfile": "mobile/package-lock.json",
+      "status": "PRESENT_CANDIDATE",
+      "resolution": "REPRODUCIBLE_CANDIDATE_NOT_CANONICAL"
     }
   ],
   "components": [
