@@ -10,7 +10,19 @@
     "generated_lock_sha256": "6f77c78167309184420f3b17ceea0a05b1d7fc3d1811907e76cc1546667204d7",
     "graph_sha256": "b438aeab761ceccfeb0f6e12ab308385123f6c156b682b21b8951206e25a0cea",
     "clean_npm_ci_repeat": "PROVEN_IN_CI_ARTIFACT",
-    "canonical_lock_committed": false
+    "canonical_lock_committed": false,
+    "observed_direct_versions": {
+      "react-native": "0.86.3",
+      "react": "19.2.3",
+      "react-dom": "19.2.3",
+      "expo": "57.0.17",
+      "expo-dev-client": "57.0.16",
+      "expo-notifications": "57.0.15",
+      "expo-status-bar": "57.0.1",
+      "react-native-purchases": "10.7.0",
+      "react-native-web": "0.21.2",
+      "@supabase/supabase-js": "2.112.4"
+    }
   },
   "lockfiles": [
     {
@@ -44,7 +56,7 @@
     {"name":"expo-status-bar","ecosystem":"npm","direct":true,"owner":"Mobile","declared_constraint":"~57.0.1","resolved_version":"UNKNOWN","role":"runtime","criticality":"LOW"},
     {"name":"react","ecosystem":"npm","direct":true,"owner":"Mobile/Web","declared_constraint":"19.2.3","resolved_version":"UNKNOWN","role":"runtime","criticality":"HIGH"},
     {"name":"react-dom","ecosystem":"npm","direct":true,"owner":"Web/Mobile","declared_constraint":"19.2.3","resolved_version":"UNKNOWN","role":"runtime","criticality":"HIGH"},
-    {"name":"react-native","ecosystem":"npm","direct":true,"owner":"Mobile","declared_constraint":"0.86.3","resolved_version":"0.86.3_CANDIDATE_GRAPH","role":"runtime/native","criticality":"CRITICAL"},
+    {"name":"react-native","ecosystem":"npm","direct":true,"owner":"Mobile","declared_constraint":"0.86.3","resolved_version":"UNKNOWN","role":"runtime/native","criticality":"CRITICAL"},
     {"name":"react-native-purchases","ecosystem":"npm","direct":true,"owner":"Billing","declared_constraint":"10.7.0","resolved_version":"UNKNOWN","role":"runtime/native","criticality":"CRITICAL"},
     {"name":"react-native-url-polyfill","ecosystem":"npm","direct":true,"owner":"Mobile/Platform","declared_constraint":"^2.0.0","resolved_version":"UNKNOWN","role":"runtime","criticality":"MEDIUM"},
     {"name":"react-native-web","ecosystem":"npm","direct":true,"owner":"Web/Mobile","declared_constraint":"^0.21.2","resolved_version":"UNKNOWN","role":"runtime/build","criticality":"HIGH"},
