@@ -1,0 +1,100 @@
+{
+  "schema_version": "delivery-lineage-registry.v1",
+  "mode": "observation_only",
+  "exact_parent": "#442@bcf1aa9ea41dceb78e28a69e5204ffdb5680e440",
+  "principles": [
+    "PROVIDER_ACCEPTED != DELIVERED",
+    "SCHEDULED != DELIVERED",
+    "RETRY_LEDGER != CAUSAL_PARENTAGE",
+    "UNKNOWN_EXTERNAL_ATTEMPT != NEVER_SENT",
+    "DOWNSTREAM_EXACTNESS != UPSTREAM_CAUSAL_PROOF"
+  ],
+  "edges": [
+    {
+      "parent": "opportunity_decision",
+      "child": "opportunity_event",
+      "parent_identity": "exact decision identity missing",
+      "child_identity": "opportunity_events.id",
+      "tenant": "account_id",
+      "durable": true,
+      "retry_stable": true,
+      "external": false,
+      "status": "BROKEN",
+      "evidence": "#497"
+    },
+    {
+      "parent": "opportunity_event",
+      "child": "push_delivery",
+      "parent_identity": "opportunity_events.id",
+      "child_identity": "UNIQUE(event_id,push_device_id)",
+      "tenant": "derived by join to opportunity_events.account_id and push_devices.account_id",
+      "durable": true,
+      "retry_stable": true,
+      "external": false,
+      "status": "PROVEN_PARTIAL"
+    },
+    {
+      "parent": "push_delivery",
+      "child": "provider_send_attempt",
+      "parent_identity": "push_deliveries.id",
+      "child_identity": "no append-only attempt row; attempt_count + mutable last_attempt fields",
+      "tenant": "derived through event/device joins",
+      "durable": "LATEST_ONLY",
+      "retry_stable": "LOGICAL_DELIVERY_ONLY",
+      "external": true,
+      "status": "PROVEN_PARTIAL",
+      "note": "historical per-attempt request/ticket lineage is not retained"
+    },
+    {
+      "parent": "provider_send_attempt",
+      "child": "provider_ticket",
+      "parent_identity": "latest mutable delivery state",
+      "child_identity": "push_deliveries.ticket_id",
+      "tenant": "derived through local delivery",
+      "durable": true,
+      "retry_stable": false,
+      "external": true,
+      "status": "BROKEN",
+      "note": "ticket_id is mutable and not uniquely constrained; duplicate-ticket failing-before is separate"
+    },
+    {
+      "parent": "provider_ticket",
+      "child": "provider_receipt",
+      "parent_identity": "push_deliveries.ticket_id",
+      "child_identity": "provider receipt dictionary key",
+      "tenant": "local account-scoped candidate selection",
+      "durable": "receipt result only; raw receipt not retained",
+      "retry_stable": false,
+      "external": true,
+      "status": "PROVEN_PARTIAL"
+    },
+    {
+      "parent": "provider_receipt",
+      "child": "customer_delivery_truth",
+      "parent_identity": "receipt_status",
+      "child_identity": "no actual device/user-delivery proof",
+      "tenant": "local delivery chain",
+      "durable": true,
+      "retry_stable": true,
+      "external": true,
+      "status": "PARTIAL",
+      "note": "provider_accepted explicitly does not mean delivered"
+    }
+  ],
+  "state_strength": {
+    "provider_transport_failure": "NO_PROVIDER_ACCEPTANCE_PROVEN",
+    "provider_ticket_accepted": "PROVIDER_ACCEPTED_FOR_RECEIPT_RECONCILIATION",
+    "receipt_provider_accepted": "PROVIDER_ACCEPTED_NOT_DELIVERED",
+    "receipt_error": "PROVIDER_REJECTED_OR_FAILED",
+    "retry_exhausted": "FAILED_EXHAUSTED_NOT_DELIVERED",
+    "ambiguous_crash_after_provider_accept": "UNKNOWN_EXTERNAL_ATTEMPT",
+    "scheduled_local_notification": "SCHEDULED_NOT_DELIVERED"
+  },
+  "open_gaps": [
+    "DECISION_EVENT_PARENTAGE_AMBIGUOUS",
+    "AMBIGUOUS_SEND_LOCAL_LEDGER_GAP",
+    "MUTABLE_LATEST_ONLY_ATTEMPT_HISTORY",
+    "PROVIDER_TICKET_PARENTAGE_NOT_UNIQUE",
+    "ACTUAL_DEVICE_DELIVERY_UNPROVEN"
+  ]
+}
