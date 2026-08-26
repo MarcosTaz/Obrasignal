@@ -86,6 +86,7 @@ import app as _app
 from app import db, init_db, start_background_worker
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
+from notification_dispatch_guard import install as install_notification_dispatch_guard
 from latvia_runtime import install as install_latvia_runtime
 from uk_runtime import install as install_uk_runtime
 from ecuador_runtime import install as install_ecuador_runtime
@@ -108,6 +109,7 @@ try:
 finally:
     _lifecycle_conn.close()
 install_lifecycle_read_model(_preload)
+install_notification_dispatch_guard()
 install_latvia_runtime()
 install_uk_runtime()
 install_ecuador_runtime()
