@@ -1,5 +1,8 @@
 import json
+import sqlite3
 from pathlib import Path
+
+from signal_store import persist_signal_records
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,3 +44,59 @@ def test_multi_source_authority_stays_unknown_without_evidence():
     assert multi["cross_source_collapse_proven"] is False
     assert multi["authority_status"] == "UNKNOWN"
     assert multi["field_level_provenance_required"] == "UNKNOWN"
+
+
+def test_same_normalized_content_with_distinct_external_ids_keeps_both_origins():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    common = {
+        "source": "TED",
+        "signal_type": "TENDER",
+        "title": "Identical normalized content",
+        "description": "same",
+        "country": "PRT",
+    }
+
+    persist_signal_records(
+        conn,
+        [
+            {**common, "external_id": "origin-a"},
+            {**common, "external_id": "origin-b"},
+        ],
+    )
+
+    rows = conn.execute(
+        "SELECT source,external_id,title FROM signal_records ORDER BY external_id"
+    ).fetchall()
+    assert [(r["source"], r["external_id"]) for r in rows] == [
+        ("TED", "origin-a"),
+        ("TED", "origin-b"),
+    ]
+    conn.close()
+
+
+def test_same_external_id_from_distinct_sources_keeps_both_origins():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    common = {
+        "signal_type": "TENDER",
+        "external_id": "shared-external-id",
+        "title": "Identical normalized content",
+    }
+
+    persist_signal_records(
+        conn,
+        [
+            {**common, "source": "SOURCE-A"},
+            {**common, "source": "SOURCE-B"},
+        ],
+    )
+
+    rows = conn.execute(
+        "SELECT source,external_id FROM signal_records ORDER BY source"
+    ).fetchall()
+    assert [(r["source"], r["external_id"]) for r in rows] == [
+        ("SOURCE-A", "shared-external-id"),
+        ("SOURCE-B", "shared-external-id"),
+    ]
+    conn.close()
