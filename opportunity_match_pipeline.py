@@ -21,9 +21,6 @@ def _cpv_evidence(lot, capability):
         return {"status": "UNKNOWN", "strength": "NONE", "matched_prefixes": [],
                 "reason": "sem correspondência CPV com o perfil"}
     matched_prefixes = sorted({prefix for _, prefix in matches}, key=lambda value: (-len(value), value))
-    # Two-digit divisions (45, 44, 42, 43) contain many unrelated trades.
-    # They are useful for recall, but are not proof that this company performs
-    # the work. Four or more digits identify a materially narrower group/class.
     specific = any(len(prefix) >= 4 for prefix in matched_prefixes)
     return {
         "status": "MATCH" if specific else "PARTIAL",
@@ -114,10 +111,10 @@ def _hard_capability_checks(lot, capability):
     return blockers
 
 
-def _explain_evaluation(profile_score, lot_score, geo, capability_evidence, cpv_evidence, economics, hard_blockers):
+def _explain_evaluation(profile_score, profile_reason, lot_score, geo, capability_evidence, cpv_evidence, economics, hard_blockers):
     """Return structured evidence for UI/API while preserving the decision model."""
     factors = [
-        {"key": "profile", "label": "Perfil comercial", "score": profile_score, "reason": "Compatibilidade com o perfil da empresa"},
+        {"key": "profile", "label": "Perfil comercial", "score": profile_score, "reason": profile_reason},
         {"key": "lot", "label": "Lote", "score": lot_score, "reason": "Compatibilidade do lote"},
         {"key": "geography", "label": "Geografia", "score": None, "reason": geo.get("reason") or "Geografia não determinada"},
         {"key": "capability", "label": "Capacidade", "score": None, "reason": capability_evidence.get("reason") or "Capacidade não determinada"},
@@ -144,9 +141,6 @@ def evaluate_row(row, profile=None):
     if countries and country and country not in countries:
         hard_blockers.append("país fora da cobertura da empresa")
     result = match_lot(lot, profile)
-    # Use the normalized capability values at the economic boundary. This is
-    # the same object exposed in decision features and prevents legacy aliases
-    # or numeric strings from disappearing between profile and matcher.
     economic_profile = {**profile, "min_value": capability.get("min_value"), "max_value": capability.get("max_value")}
     economics = evaluate_economic_fit(
         lot.get("value_numeric") or lot.get("value"),
@@ -161,20 +155,15 @@ def evaluate_row(row, profile=None):
     if result["geography"].get("reason") == "região fora do perfil":
         hard_blockers.append("região fora da cobertura da empresa")
 
-    # The source `tenders.score` field is legacy presentation state from the
-    # original root application. The canonical product score is produced by
-    # commercial-v2 inside match_lot(). Never let stale source scoring alter
-    # the account-specific decision pipeline.
     global_score = result["commercial"]["score"]
-    profile_score = personalized_score(source_row, base_score=global_score, profile=profile)[0]
+    profile_score, _profile_label, _profile_class, profile_reason = personalized_score(
+        source_row,
+        base_score=global_score,
+        profile=profile,
+    )
     positive_commercial_evidence = capability_evidence["matched"] or cpv_evidence["strength"] == "STRONG"
-    # Country, an in-range value and a broad CPV division improve recall, but
-    # cannot establish high relevance by themselves.
     if not positive_commercial_evidence:
         profile_score = min(profile_score, 59)
-    # A score shown to a customer must agree with deterministic eligibility
-    # rules.  Previously a CPV/value/deadline blocker could say REJECT while
-    # the same card still displayed e.g. 90/100.
     if hard_blockers:
         profile_score = min(profile_score, 35)
     lot_score = int(result["score"])
@@ -198,7 +187,16 @@ def evaluate_row(row, profile=None):
     if hard_blockers:
         reason += "; bloqueios=" + ", ".join(hard_blockers)
 
-    explanation = _explain_evaluation(profile_score, lot_score, geo, capability_evidence, cpv_evidence, economics, hard_blockers)
+    explanation = _explain_evaluation(
+        profile_score,
+        profile_reason,
+        lot_score,
+        geo,
+        capability_evidence,
+        cpv_evidence,
+        economics,
+        hard_blockers,
+    )
 
     return {
         "decision": decision,
@@ -243,8 +241,6 @@ def evaluate_and_record(conn, row, profile=None, account_id="default"):
         rule_version=RULE_VERSION,
         account_id=account_id,
     )
-    # Real normalized market data has reached the account-specific decision path.
-    # Only QUALIFIED/REVIEW produces the first relevant shortlist activation event.
     try:
         from account_registry import ensure_account
         from evaluation_policy import record_evaluation_event
@@ -256,6 +252,5 @@ def evaluate_and_record(conn, row, profile=None, account_id="default"):
                 'external_id': row.get('external_id') or str(row.get('id')),
             })
     except Exception:
-        # Decisioning remains primary; evaluation telemetry must degrade gracefully.
         pass
     return evaluation
