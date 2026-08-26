@@ -1,3 +1,4 @@
+from commercial_score_v2 import RULE_VERSION as COMMERCIAL_RULE_VERSION
 from opportunity_match_pipeline import evaluate_row
 
 
@@ -41,6 +42,7 @@ def test_pipeline_uses_commercial_v2_instead_of_legacy_source_score():
     low_legacy = evaluate_row(_row(0), profile=_profile())
     high_legacy = evaluate_row(_row(100), profile=_profile())
 
-    assert low_legacy["commercial"]["rule_version"] == "commercial-v2"
+    assert COMMERCIAL_RULE_VERSION.startswith("commercial-v2")
+    assert low_legacy["commercial"]["rule_version"] == COMMERCIAL_RULE_VERSION
     assert low_legacy["profile_score"] == high_legacy["profile_score"]
     assert low_legacy["decision"] == high_legacy["decision"]
