@@ -15,14 +15,17 @@ from datetime import datetime, timezone, timedelta
 import app as _app
 from auth_context import configured_identity
 from decision_dashboard import get_presented_decision
+from decision_log import current_profile_fingerprint
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+from opportunity_match_pipeline import RULE_VERSION
 from opportunity_web import render_opportunity_detail
 from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
 
 
 _ORIGINAL_COMMERCIAL_SCORE = _app.commercial_score
+_NO_CURRENT_PROFILE_FINGERPRINT = "__obrasignal_no_current_profile_authority__"
 
 
 def _ensure(conn):
@@ -129,6 +132,57 @@ def stats_for(market):
         conn.close()
 
 
+def _ranked_radar_rows(conn, account_id, minscore, limit):
+    """Rank by the latest decision only when that decision has current authority.
+
+    Selection and ordering use the same account-specific score that the Radar
+    presents. The latest historical decision is joined first; freshness is then
+    checked on that exact row, so a stale latest decision cannot cause an older
+    matching decision to be resurrected. Missing or stale authority remains
+    UNKNOWN: visible only when ``minscore == 0`` and always after current scored
+    rows. ``tenders.score`` is never borrowed as current tenant fit authority.
+    """
+    account_id = str(account_id or "default")
+    minscore = max(0, min(100, int(minscore or 0)))
+    limit = max(1, min(100, int(limit or 20)))
+    profile_fingerprint = current_profile_fingerprint(conn, account_id)
+    if profile_fingerprint is None:
+        profile_fingerprint = _NO_CURRENT_PROFILE_FINGERPRINT
+    return conn.execute(
+        f"""SELECT t.* FROM tenders t
+           LEFT JOIN opportunity_lifecycle lc
+             ON lc.source=t.source AND lc.external_id=t.external_id
+           LEFT JOIN (
+               SELECT source, external_id, MAX(id) AS max_id
+               FROM opportunity_decisions
+               WHERE account_id=?
+               GROUP BY source, external_id
+           ) latest
+             ON latest.source=t.source AND latest.external_id=t.external_id
+           LEFT JOIN opportunity_decisions d
+             ON d.id=latest.max_id
+            AND d.rule_version=?
+            AND d.profile_fingerprint=?
+           WHERE {actionable_predicate('lc', 't')}
+             AND (?=0 OR d.score>=?)
+           ORDER BY CASE WHEN d.score IS NULL THEN 1 ELSE 0 END ASC,
+                    d.score DESC,
+                    t.publication_date DESC,
+                    t.source ASC,
+                    t.external_id ASC,
+                    t.id ASC
+           LIMIT ?""",
+        (
+            account_id,
+            RULE_VERSION,
+            profile_fingerprint,
+            minscore,
+            minscore,
+            limit,
+        ),
+    ).fetchall()
+
+
 def api_radar():
     identity = getattr(_app.request, "obrasignal_identity", None) or configured_identity()
     limit = max(1, min(100, int(_app.request.args.get("limit", 20) or 20)))
@@ -136,14 +190,7 @@ def api_radar():
     conn = _app.db()
     try:
         _ensure(conn)
-        rows = conn.execute(
-            f"""SELECT t.* FROM tenders t
-               LEFT JOIN opportunity_lifecycle lc
-                 ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE t.score >= ? AND {actionable_predicate('lc', 't')}
-               ORDER BY t.score DESC, t.publication_date DESC LIMIT ?""",
-            (minscore, limit),
-        ).fetchall()
+        rows = _ranked_radar_rows(conn, identity.account_id, minscore, limit)
         items = enrich_rows(conn, rows, account_id=identity.account_id)
         return _app.jsonify(
             items=items,
@@ -165,14 +212,7 @@ def radar_page():
     conn = _app.db()
     try:
         _ensure(conn)
-        rows = conn.execute(
-            f"""SELECT t.* FROM tenders t
-               LEFT JOIN opportunity_lifecycle lc
-                 ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE t.score >= ? AND {actionable_predicate('lc', 't')}
-               ORDER BY t.score DESC, t.publication_date DESC LIMIT 100""",
-            (minscore,),
-        ).fetchall()
+        rows = _ranked_radar_rows(conn, identity.account_id, minscore, 100)
         items = enrich_rows(conn, rows, account_id=identity.account_id)
         return render_radar_page(items, minscore=minscore)
     finally:

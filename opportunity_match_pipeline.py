@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from company_profile import load_profile
 from capability_profile import build_capability_profile, capability_matches_text
 from decision_log import record_decision
+from decision_relevance import derive_relevance
 from lot_matcher import match_lot
 from economic_fit import evaluate_economic_fit, parse_contract_value
 from profile_scoring import personalized_score
@@ -156,7 +157,7 @@ def evaluate_row(row, profile=None):
     if not positive_commercial_evidence:
         profile_score = min(profile_score, 59)
     # A score shown to a customer must agree with deterministic eligibility
-    # rules.  Previously a CPV/value/deadline blocker could say REJECT while
+    # rules. Previously a CPV/value/deadline blocker could say REJECT while
     # the same card still displayed e.g. 90/100.
     if hard_blockers:
         profile_score = min(profile_score, 35)
@@ -171,6 +172,11 @@ def evaluate_row(row, profile=None):
         decision = "REVIEW"
     else:
         decision = "REJECT"
+
+    # Relevance is deliberately orthogonal to the action label. Broad geography,
+    # value and generic lot attractiveness cannot turn REVIEW into relevance.
+    relevance = derive_relevance(capability_evidence, cpv_evidence, hard_blockers)
+    relevant_shortlist_eligible = relevance["state"] == "RELEVANT" and not hard_blockers
 
     reason = (
         f"perfil={profile_score}; lote={lot_score}; geografia={geo['reason']}; "
@@ -197,6 +203,8 @@ def evaluate_row(row, profile=None):
         "capability_evidence": capability_evidence,
         "cpv_evidence": cpv_evidence,
         "hard_capability_blockers": hard_blockers,
+        "relevance": relevance,
+        "relevant_shortlist_eligible": relevant_shortlist_eligible,
         "explanation": explanation,
     }
 
@@ -221,22 +229,26 @@ def evaluate_and_record(conn, row, profile=None, account_id="default"):
             "capability_evidence": evaluation["capability_evidence"],
             "cpv_evidence": evaluation["cpv_evidence"],
             "hard_capability_blockers": evaluation["hard_capability_blockers"],
+            "relevance": evaluation["relevance"],
+            "relevant_shortlist_eligible": evaluation["relevant_shortlist_eligible"],
             "explanation": evaluation["explanation"],
         },
         rule_version=RULE_VERSION,
         account_id=account_id,
     )
     # Real normalized market data has reached the account-specific decision path.
-    # Only QUALIFIED/REVIEW produces the first relevant shortlist activation event.
+    # Only explicit relevance eligibility may establish a relevant shortlist.
     try:
         from account_registry import ensure_account
         from evaluation_policy import record_evaluation_event
         ensure_account(conn, account_id)
         record_evaluation_event(conn, account_id, 'market_data_available', metadata={'source': row.get('source')})
-        if evaluation['decision'] in {'QUALIFIED', 'REVIEW'}:
+        if evaluation['relevant_shortlist_eligible']:
             record_evaluation_event(conn, account_id, 'first_shortlist_generated', metadata={
                 'source': row.get('source'),
                 'external_id': row.get('external_id') or str(row.get('id')),
+                'relevance_state': evaluation['relevance']['state'],
+                'relevance_rule_version': evaluation['relevance']['rule_version'],
             })
     except Exception:
         # Decisioning remains primary; evaluation telemetry must degrade gracefully.
