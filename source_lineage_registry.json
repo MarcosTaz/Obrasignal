@@ -1,0 +1,130 @@
+{
+  "schema_version": "source-lineage-registry.v1",
+  "mode": "observation_only",
+  "canonical_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "principles": [
+    "CURRENT STATE != FULL HISTORY",
+    "SAME CONTENT != SAME ORIGIN",
+    "STORAGE SCHEMA VERSION != NORMALIZATION VERSION",
+    "UNKNOWN != PROVEN"
+  ],
+  "history_models": [
+    {
+      "surface": "signal_records",
+      "identity": "source + signal_type + external_id",
+      "write_model": "UPSERT_CURRENT",
+      "history_classification": "CURRENT_ONLY_LINEAGE",
+      "first_observation_retained": true,
+      "last_observation_retained": true,
+      "prior_normalized_versions_retained": false,
+      "normalization_semantics_versioned": false,
+      "status": "PROVEN_PARTIAL",
+      "owner": "Persistence/Source"
+    },
+    {
+      "surface": "source_record_metadata",
+      "identity": "source + external_id",
+      "write_model": "UPSERT_CURRENT",
+      "history_classification": "CURRENT_ONLY_LINEAGE",
+      "first_observation_retained": false,
+      "last_observation_retained": true,
+      "prior_metadata_versions_retained": false,
+      "normalization_semantics_versioned": false,
+      "status": "PROVEN_PARTIAL",
+      "owner": "Persistence/Source"
+    },
+    {
+      "surface": "tenders",
+      "identity": "source + external_id",
+      "write_model": "UPSERT_CURRENT",
+      "history_classification": "CURRENT_ONLY_LINEAGE",
+      "first_observation_retained": true,
+      "last_observation_retained": true,
+      "prior_normalized_versions_retained": false,
+      "normalization_semantics_versioned": false,
+      "status": "BROKEN",
+      "owner": "Persistence/Source",
+      "evidence": "#496"
+    }
+  ],
+  "transformations": [
+    {
+      "path": "TED legacy app.normalize_ted",
+      "source_field": "publication-number/publicationNumber/id",
+      "canonical_field": "external_id",
+      "transformation": "first non-empty alias selection + flatten",
+      "lossiness": "LOSSY_WITH_SOURCE_IDENTITY",
+      "versioned": false,
+      "source_reference_retained": false,
+      "reconstructable": "PARTIAL",
+      "owner": "TED Source"
+    },
+    {
+      "path": "TED legacy app.normalize_ted",
+      "source_field": "description-proc + place-of-performance fields",
+      "canonical_field": "description",
+      "transformation": "flatten localized values + append derived place text",
+      "lossiness": "LOSSY_WITHOUT_PROVENANCE",
+      "versioned": false,
+      "source_reference_retained": true,
+      "reconstructable": "NO",
+      "owner": "TED Source"
+    },
+    {
+      "path": "TED legacy app.normalize_ted",
+      "source_field": "publication-date",
+      "canonical_field": "published_at",
+      "transformation": "parse_date to UTC ISO where parseable",
+      "lossiness": "LOSSY_WITHOUT_PROVENANCE",
+      "versioned": false,
+      "source_reference_retained": true,
+      "reconstructable": "NO",
+      "owner": "TED Source/Temporal"
+    },
+    {
+      "path": "shared OCDS normalize_ocds_record",
+      "source_field": "compiledRelease or releases[]",
+      "canonical_field": "normalized record",
+      "transformation": "compiledRelease else max release by textual date",
+      "lossiness": "LOSSY_WITH_SOURCE_REFERENCE",
+      "versioned": false,
+      "source_reference_retained": true,
+      "reconstructable": "PARTIAL",
+      "owner": "OCDS Source/Temporal"
+    },
+    {
+      "path": "shared OCDS normalize_ocds_record",
+      "source_field": "tender.items[].classification/tender.classification",
+      "canonical_field": "taxonomy + category_code + cpv",
+      "transformation": "first classification with id; CPV scheme recognition",
+      "lossiness": "LOSSY_WITH_PROVENANCE",
+      "versioned": false,
+      "source_reference_retained": true,
+      "reconstructable": "PARTIAL",
+      "owner": "OCDS Source"
+    },
+    {
+      "path": "shared OCDS normalize_ocds_record",
+      "source_field": "delivery/buyer/procuring addresses",
+      "canonical_field": "place",
+      "transformation": "first non-empty candidate; locality/region/postal/country joined",
+      "lossiness": "LOSSY_WITHOUT_PROVENANCE",
+      "versioned": false,
+      "source_reference_retained": true,
+      "reconstructable": "NO",
+      "owner": "OCDS Source"
+    }
+  ],
+  "multi_source": {
+    "cross_source_collapse_proven": false,
+    "authority_status": "UNKNOWN",
+    "field_level_provenance_required": "UNKNOWN",
+    "note": "Canonical keys inspected are source-qualified; do not infer cross-source precedence or collapse without executable evidence."
+  },
+  "open_gaps": [
+    "MISSING_NORMALIZATION_VERSION",
+    "CURRENT_ONLY_SOURCE_HISTORY",
+    "LOSSY_WITHOUT_PROVENANCE",
+    "MULTI_SOURCE_AUTHORITY_UNKNOWN"
+  ]
+}
