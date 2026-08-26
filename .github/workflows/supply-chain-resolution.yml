@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -83,6 +83,38 @@ jobs:
           second=digest('/tmp/npm-graph-repeat.json')
           print('npm_graph_repeat_sha256=' + second)
           assert first == second, f'REPRODUCIBILITY_DEFECT: {first} != {second}'
+          PY
+
+      - name: Commit reproducible npm lock to supply-chain owner branch
+        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'supply-chain/lock-integrity-v1-20260825' }}
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cp /tmp/package-lock.json mobile/package-lock.json
+          if git ls-files --error-unmatch mobile/package-lock.json >/dev/null 2>&1 && git diff --quiet -- mobile/package-lock.json; then
+            echo 'Committed lock already matches reproduced candidate.'
+            exit 0
+          fi
+          content="$(base64 -w0 mobile/package-lock.json)"
+          if git ls-files --error-unmatch mobile/package-lock.json >/dev/null 2>&1; then
+            existing_sha="$(git rev-parse HEAD:mobile/package-lock.json)"
+            gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/mobile/package-lock.json" \
+              -f message='supply-chain: commit reproducible npm lock candidate' \
+              -f content="$content" \
+              -f branch="$GITHUB_HEAD_REF" \
+              -f sha="$existing_sha" >/tmp/lock-commit.json
+          else
+            gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/mobile/package-lock.json" \
+              -f message='supply-chain: commit reproducible npm lock candidate' \
+              -f content="$content" \
+              -f branch="$GITHUB_HEAD_REF" >/tmp/lock-commit.json
+          fi
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/lock-commit.json', encoding='utf-8'))
+          print('lock_commit_sha=' + str((data.get('commit') or {}).get('sha') or 'UNKNOWN'))
           PY
 
       - name: Upload secret-free resolution evidence
