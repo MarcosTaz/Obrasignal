@@ -28,10 +28,30 @@ def test_all_manifest_dependencies_are_registered():
         assert ("python", name) in registered
 
 
-def test_absent_lockfiles_cannot_claim_resolved_versions():
-    lock_status = {item["ecosystem"]: item["status"] for item in REGISTRY["lockfiles"]}
-    assert lock_status["python"] == "ABSENT"
-    assert lock_status["npm"] == "ABSENT"
+def test_candidate_npm_lock_is_present_without_false_canonical_resolution_claims():
+    locks = {item["ecosystem"]: item for item in REGISTRY["lockfiles"]}
+    assert locks["python"]["status"] == "ABSENT"
+    assert locks["python"]["resolution"] == "UNKNOWN"
+    assert locks["npm"] == {
+        "ecosystem": "npm",
+        "package_root": "mobile",
+        "manifest": "mobile/package.json",
+        "lockfile": "mobile/package-lock.json",
+        "status": "PRESENT_CANDIDATE",
+        "resolution": "REPRODUCIBLE_CANDIDATE_NOT_CANONICAL",
+    }
+    assert (ROOT / "mobile" / "package-lock.json").is_file()
+
+    proof = REGISTRY["candidate_resolution"]
+    assert proof["candidate_lock_committed"] is True
+    assert proof["canonical_lock_committed"] is False
+    assert proof["clean_npm_ci_repeat"] == "PROVEN_EXACT_HEAD"
+    assert len(proof["generated_lock_sha256"]) == 64
+    assert len(proof["graph_sha256"]) == 64
+
+    # The observation registry does not turn a noncanonical candidate lock into
+    # canonical runtime authority. Component resolved versions stay UNKNOWN
+    # until the owner candidate itself is authorized/integrated.
     for item in REGISTRY["components"]:
         if item["ecosystem"] in {"python", "npm"}:
             assert item["resolved_version"] == "UNKNOWN"
