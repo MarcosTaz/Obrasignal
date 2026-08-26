@@ -4,16 +4,16 @@ The canonical profile owner persists the company profile before its bounded Rada
 recalculation. If a later step fails, the customer must not be told that the
 profile itself failed to save when durable account state already changed.
 
-This module is deliberately narrow: it wraps only the registered mobile profile
-view at the production WSGI boundary. It does not redefine profile validation,
-matching, decisioning, ranking or bootstrap semantics.
+This module is deliberately narrow: it observes successful profile persistence
+and wraps only the registered mobile profile view at the production WSGI
+boundary. It does not redefine profile validation, matching, decisioning,
+ranking or bootstrap semantics.
 """
 from __future__ import annotations
 
-from flask import jsonify, request
+from flask import g, has_request_context, jsonify, request
 
 import api as _api
-from company_profile import load_profile
 
 _INSTALLED = False
 
@@ -24,33 +24,43 @@ def install() -> bool:
         return False
 
     endpoint = "mobile_api.profile"
-    original = _api.APP.view_functions.get(endpoint)
-    if original is None:
+    original_view = _api.APP.view_functions.get(endpoint)
+    if original_view is None:
         # The production entrypoint registers the blueprint before installing
         # this boundary. Tests may register it explicitly first.
         return False
-    if getattr(original, "_obrasignal_partial_profile_guard", False):
+    if getattr(original_view, "_obrasignal_partial_profile_guard", False):
         _INSTALLED = True
         return False
 
+    # Observe the canonical owner's successful return rather than comparing
+    # before/after profile values. This remains correct when a retry saves the
+    # exact same profile again and Radar bootstrap subsequently fails.
+    original_save = _api.save_profile
+    if not getattr(original_save, "_obrasignal_persistence_observer", False):
+        def observed_save(*args, **kwargs):
+            saved = original_save(*args, **kwargs)
+            if has_request_context():
+                g.obrasignal_profile_persisted = saved
+            return saved
+        observed_save._obrasignal_persistence_observer = True
+        _api.save_profile = observed_save
+
     def guarded_profile(*args, **kwargs):
         if request.method != "POST":
-            return original(*args, **kwargs)
-
-        identity = request.obrasignal_identity
-        before = load_profile(identity.account_id)
+            return original_view(*args, **kwargs)
         try:
-            return original(*args, **kwargs)
+            return original_view(*args, **kwargs)
         except Exception:
-            # Re-read durable authority after the exception. If account profile
-            # truth changed, a generic 5xx would falsely imply that the save did
-            # not happen. Do not expose exception text or guess Radar freshness.
-            after = load_profile(identity.account_id)
-            if after != before:
+            saved = getattr(g, "obrasignal_profile_persisted", None)
+            if saved is not None:
+                identity = request.obrasignal_identity
+                # Successful persistence is proven; Radar readiness is not. Do
+                # not expose exception text and do not infer a fresh shortlist.
                 return jsonify({
                     "ok": True,
                     "profile_saved": True,
-                    "profile": after,
+                    "profile": saved,
                     "radar_state": "RECOVERY_REQUIRED",
                     "radar_recalculated": None,
                     "recovery_code": "radar_recalculation_incomplete",
