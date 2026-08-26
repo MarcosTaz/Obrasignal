@@ -36,24 +36,25 @@ def _conn():
 
 
 def _insert_tender(conn, external_id):
+    # Keep lifecycle/actionability deliberately non-blocking so this probe
+    # isolates semantic rule-version freshness rather than wall-clock expiry.
     conn.execute(
         "INSERT INTO tenders(source,external_id,score,title,deadline,publication_date) VALUES(?,?,?,?,?,?)",
-        ("TEST", external_id, 1, external_id, "2026-08-25", "2026-08-25"),
+        ("TEST", external_id, 1, external_id, "2099-01-01T12:00:00+00:00", "2026-08-25"),
     )
     conn.commit()
 
 
 def test_positive_radar_threshold_must_not_treat_superseded_rule_score_as_current():
     conn = _conn()
-    _insert_tender(conn, "date-only-current-day")
+    _insert_tender(conn, "stale-rule")
 
-    # Pre-#458 semantics could classify the same date-only current-day evidence
-    # under the superseded commercial-v2 rule. The exact score is intentionally
-    # synthetic; the invariant is about semantic-version freshness, not weights.
+    # The exact score is intentionally synthetic; the invariant is about
+    # semantic-version freshness, not weights or lifecycle timing.
     record_decision(
         conn,
         "TEST",
-        "date-only-current-day",
+        "stale-rule",
         "QUALIFIED",
         "historical semantic rule",
         score=95,
