@@ -102,6 +102,10 @@ export const api={
   // POST is intentionally single-attempt: retrying an authenticated write can
   // duplicate work and makes a stuck Save button look like a UI failure.
   saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
+  // Initial onboarding needs the full response envelope. In particular, a 202
+  // can prove the profile is durable while Radar recalculation still requires
+  // recovery; unwrapping the profile here would erase that material state.
+  saveProfileState:async(profile)=>writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT}),
   billingStatus:()=>readWhenReady('/billing/status'),
   stats:()=>readWhenReady('/stats'),
   workflowStats:()=>readWhenReady('/workflow/stats'),
