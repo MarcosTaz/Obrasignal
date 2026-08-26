@@ -30,6 +30,8 @@ def persist_and_classify(conn, item, is_new, account_id='default'):
         "capability_evidence": evaluation["capability_evidence"],
         "cpv_evidence": evaluation["cpv_evidence"],
         "hard_capability_blockers": evaluation["hard_capability_blockers"],
+        "relevance": evaluation["relevance"],
+        "relevant_shortlist_eligible": evaluation["relevant_shortlist_eligible"],
         "explanation": evaluation["explanation"],
     }
 
