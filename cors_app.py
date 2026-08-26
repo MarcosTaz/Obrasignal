@@ -13,6 +13,12 @@ from auth_context_jwt import authentication_health
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
 
+# Preserve durable profile truth if the synchronous Radar recalculation fails
+# after profile persistence. This is a narrow production-boundary guard; profile
+# validation and Radar decision semantics remain with their canonical owners.
+from onboarding_recovery import install as install_onboarding_recovery
+install_onboarding_recovery()
+
 
 def _origin():
     value = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
