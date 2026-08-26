@@ -1,0 +1,69 @@
+{
+  "schema": "obrasignal-dependency-registry.v1",
+  "authority": "observation_only",
+  "observed_base_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "principle": "registry observes manifests and lockfiles; it is not a lockfile authority",
+  "candidate_resolution": {
+    "proof_head_sha": "ab4be7f0551bcc4107c30d84ed5266d3368b5e64",
+    "proof_workflow_run": 33017787090,
+    "npm_version": "10.9.2",
+    "generated_lock_sha256": "6f77c78167309184420f3b17ceea0a05b1d7fc3d1811907e76cc1546667204d7",
+    "graph_sha256": "b438aeab761ceccfeb0f6e12ab308385123f6c156b682b21b8951206e25a0cea",
+    "clean_npm_ci_repeat": "PROVEN_EXACT_HEAD",
+    "candidate_lock_commit_sha": "0527c3a35956278168faee31e91d1ba29a9d66a6",
+    "candidate_lock_blob_sha": "0c25247b45d57cb5df2772151ceda326efc4ff66",
+    "candidate_lock_committed": true,
+    "canonical_lock_committed": false,
+    "observed_direct_versions": {
+      "react-native": "0.86.3",
+      "react": "19.2.3",
+      "react-dom": "19.2.3",
+      "expo": "57.0.17",
+      "expo-dev-client": "57.0.16",
+      "expo-notifications": "57.0.15",
+      "expo-status-bar": "57.0.1",
+      "react-native-purchases": "10.7.0",
+      "react-native-web": "0.21.2",
+      "@supabase/supabase-js": "2.112.4"
+    }
+  },
+  "lockfiles": [
+    {
+      "ecosystem": "python",
+      "package_root": ".",
+      "manifest": "requirements.txt",
+      "lockfile": null,
+      "status": "ABSENT",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "ecosystem": "npm",
+      "package_root": "mobile",
+      "manifest": "mobile/package.json",
+      "lockfile": "mobile/package-lock.json",
+      "status": "PRESENT_CANDIDATE",
+      "resolution": "REPRODUCIBLE_CANDIDATE_NOT_CANONICAL"
+    }
+  ],
+  "components": [
+    {"name":"Flask","ecosystem":"python","direct":true,"owner":"Web/API","declared_constraint":">=3.1,<4","resolved_version":"UNKNOWN","role":"runtime","criticality":"HIGH"},
+    {"name":"requests","ecosystem":"python","direct":true,"owner":"Sources/Platform","declared_constraint":">=2.32,<3","resolved_version":"UNKNOWN","role":"runtime","criticality":"HIGH"},
+    {"name":"gunicorn","ecosystem":"python","direct":true,"owner":"Release/Runtime","declared_constraint":">=23,<24","resolved_version":"UNKNOWN","role":"runtime","criticality":"HIGH"},
+    {"name":"PyJWT[crypto]","ecosystem":"python","direct":true,"owner":"Auth","declared_constraint":">=2.10,<3","resolved_version":"UNKNOWN","role":"runtime","criticality":"CRITICAL"},
+    {"name":"pytest","ecosystem":"python","direct":true,"owner":"Quality","declared_constraint":"UNDECLARED_CI_INSTALL","resolved_version":"UNKNOWN","role":"test","criticality":"MEDIUM"},
+    {"name":"@react-native-async-storage/async-storage","ecosystem":"npm","direct":true,"owner":"Mobile/Persistence","declared_constraint":"^2.2.0","resolved_version":"UNKNOWN","role":"runtime","criticality":"HIGH"},
+    {"name":"@supabase/supabase-js","ecosystem":"npm","direct":true,"owner":"Auth/Platform","declared_constraint":"^2.54.0","resolved_version":"UNKNOWN","role":"runtime","criticality":"CRITICAL"},
+    {"name":"expo","ecosystem":"npm","direct":true,"owner":"Mobile","declared_constraint":"~57.0.1","resolved_version":"UNKNOWN","role":"runtime/build","criticality":"CRITICAL"},
+    {"name":"expo-dev-client","ecosystem":"npm","direct":true,"owner":"Mobile/Build","declared_constraint":"~57.0.10","resolved_version":"UNKNOWN","role":"build/runtime","criticality":"HIGH"},
+    {"name":"expo-notifications","ecosystem":"npm","direct":true,"owner":"Notification","declared_constraint":"~57.0.6","resolved_version":"UNKNOWN","role":"runtime/native","criticality":"CRITICAL"},
+    {"name":"expo-status-bar","ecosystem":"npm","direct":true,"owner":"Mobile","declared_constraint":"~57.0.1","resolved_version":"UNKNOWN","role":"runtime","criticality":"LOW"},
+    {"name":"react","ecosystem":"npm","direct":true,"owner":"Mobile/Web","declared_constraint":"19.2.3","resolved_version":"UNKNOWN","role":"runtime","criticality":"HIGH"},
+    {"name":"react-dom","ecosystem":"npm","direct":true,"owner":"Web/Mobile","declared_constraint":"19.2.3","resolved_version":"UNKNOWN","role":"runtime","criticality":"HIGH"},
+    {"name":"react-native","ecosystem":"npm","direct":true,"owner":"Mobile","declared_constraint":"0.86.3","resolved_version":"UNKNOWN","role":"runtime/native","criticality":"CRITICAL"},
+    {"name":"react-native-purchases","ecosystem":"npm","direct":true,"owner":"Billing","declared_constraint":"10.7.0","resolved_version":"UNKNOWN","role":"runtime/native","criticality":"CRITICAL"},
+    {"name":"react-native-url-polyfill","ecosystem":"npm","direct":true,"owner":"Mobile/Platform","declared_constraint":"^2.0.0","resolved_version":"UNKNOWN","role":"runtime","criticality":"MEDIUM"},
+    {"name":"react-native-web","ecosystem":"npm","direct":true,"owner":"Web/Mobile","declared_constraint":"^0.21.2","resolved_version":"UNKNOWN","role":"runtime/build","criticality":"HIGH"},
+    {"name":"expo-doctor","ecosystem":"npm-cli","direct":true,"owner":"Mobile/Build","declared_constraint":"latest","resolved_version":"UNKNOWN","role":"build/diagnostic","criticality":"HIGH"},
+    {"name":"eas-cli","ecosystem":"npm-cli","direct":true,"owner":"Release/Mobile Build","declared_constraint":"latest","resolved_version":"UNKNOWN","role":"build/release","criticality":"CRITICAL"}
+  ]
+}
