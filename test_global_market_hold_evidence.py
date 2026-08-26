@@ -2,6 +2,8 @@ from global_market_expansion_factory import HOLD_MONITORS
 from global_market_hold_evidence import (
     AUSTRALIA,
     HOLD_EVIDENCE_OBSERVATIONS,
+    INDIA,
+    MEXICO,
     SOUTH_KOREA,
     reopen_trigger_satisfied,
 )
@@ -28,5 +30,22 @@ def test_australia_public_portal_does_not_fake_machine_reuse_green():
     assert reopen_trigger_satisfied("Australia") is False
 
 
+def test_india_current_market_activity_does_not_authorize_captcha_bypass():
+    assert INDIA.trigger_state == "TRIGGER_FALSE"
+    assert "construction tenders are present in current results" in INDIA.proven_now
+    assert "official broad machine-readable tender API/feed or bulk route" in INDIA.missing_now
+    assert "production-safe discovery not dependent on CAPTCHA/manual search" in INDIA.missing_now
+    assert reopen_trigger_satisfied("India") is False
+
+
+def test_mexico_open_downloads_do_not_fake_live_incremental_source_contract():
+    assert MEXICO.trigger_state == "TRIGGER_FALSE"
+    assert "official open-data downloads are advertised for procurement records/contracts" in MEXICO.proven_now
+    assert "stable official live/incremental opportunity route" in MEXICO.missing_now
+    assert "current API/feed pagination and update contract" in MEXICO.missing_now
+    assert reopen_trigger_satisfied("Mexico") is False
+
+
 def test_no_current_narrow_observation_reopens_hold():
+    assert set(HOLD_EVIDENCE_OBSERVATIONS) == {"South Korea", "Australia", "India", "Mexico"}
     assert not any(reopen_trigger_satisfied(country) for country in HOLD_EVIDENCE_OBSERVATIONS)
