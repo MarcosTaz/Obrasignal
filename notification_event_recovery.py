@@ -1,0 +1,201 @@
+"""Durable reconciliation for missing high-match notification events.
+
+The legacy Notification owner discovers event work only while ``t.first_seen`` is
+inside a two-minute wall-clock window. A process can therefore die after the
+opportunity and account decision commit but before ``opportunity_events`` is
+created; after restart the still-required work can become permanently invisible.
+
+This compatibility boundary makes post-activation event work durable without
+creating a second event store and without converting old historical decisions
+into a surprise notification backlog.
+"""
+from __future__ import annotations
+
+import re
+
+import notification_events as _events
+from decision_log import ensure_decision_table
+from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+
+BASELINE_EVENT_TYPE = "notification_reconciliation_baseline"
+_BASELINE_KEY = "notification-reconciliation-baseline"
+_BASELINE_ID_RE = re.compile(r":notification-reconciliation-baseline:(\d+)$")
+_INSTALLED = False
+
+
+def _baseline_event_key(account_id, decision_id):
+    return f"{account_id}:system:{_BASELINE_KEY}:{int(decision_id)}"
+
+
+def _parse_baseline_id(event_key):
+    match = _BASELINE_ID_RE.search(str(event_key or ""))
+    return int(match.group(1)) if match else None
+
+
+def reconciliation_baseline_id(conn, account_id):
+    """Return the immutable activation decision id for one account, if present."""
+    _events.ensure_event_table(conn)
+    row = conn.execute(
+        """SELECT event_key FROM opportunity_events
+           WHERE account_id=? AND event_type=?
+           ORDER BY id ASC LIMIT 1""",
+        (str(account_id), BASELINE_EVENT_TYPE),
+    ).fetchone()
+    if row is None:
+        return None
+    return _parse_baseline_id(row["event_key"])
+
+
+def initialize_reconciliation_baseline(conn, account_id, *, existing_account=True):
+    """Persist one activation boundary without inventing a second queue/store.
+
+    Existing accounts baseline at their current maximum decision id so installing
+    the repair does not backfill historical notification work. A genuinely new
+    account baselines at zero so its first decisions are eligible immediately.
+    The baseline is immutable across process restarts.
+    """
+    account_id = str(account_id or "default")
+    _events.ensure_event_table(conn)
+    ensure_decision_table(conn)
+    current = reconciliation_baseline_id(conn, account_id)
+    if current is not None:
+        return current
+
+    if existing_account:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(id),0) AS max_id FROM opportunity_decisions WHERE account_id=?",
+            (account_id,),
+        ).fetchone()
+        baseline = int(row["max_id"] if row else 0)
+    else:
+        baseline = 0
+
+    conn.execute(
+        """INSERT OR IGNORE INTO opportunity_events
+           (account_id,event_key,tender_id,source,event_type,score,created_at)
+           VALUES (?,?,NULL,'SYSTEM',?,0,?)""",
+        (
+            account_id,
+            _baseline_event_key(account_id, baseline),
+            BASELINE_EVENT_TYPE,
+            _events._iso_now(),
+        ),
+    )
+    conn.commit()
+    stored = reconciliation_baseline_id(conn, account_id)
+    if stored is None:
+        raise RuntimeError("notification_reconciliation_baseline_invalid")
+    return stored
+
+
+def initialize_existing_account_baselines(conn, account_ids):
+    """Baseline all known pre-existing accounts before the worker can create decisions."""
+    initialized = {}
+    for account_id in account_ids or []:
+        account_id = str(account_id or "default")
+        initialized[account_id] = initialize_reconciliation_baseline(
+            conn, account_id, existing_account=True
+        )
+    return initialized
+
+
+def record_new_opportunities(conn, account_id="default", min_score=75):
+    """Record every still-missing eligible post-activation event exactly once.
+
+    Eligibility remains the Notification owner's existing contract: latest
+    account-scoped decision score at/above ``min_score`` plus current effective
+    actionability. The changed dimension is discovery durability: elapsed time
+    and incidental source replay cannot acknowledge missing work.
+    """
+    account_id = str(account_id or "default")
+    _events.ensure_event_table(conn)
+    ensure_decision_table(conn)
+    ensure_lifecycle_table(conn)
+
+    baseline = reconciliation_baseline_id(conn, account_id)
+    if baseline is None:
+        # Existing accounts are initialized at process startup. Absence here
+        # therefore means a genuinely new account created after startup; start
+        # from zero so its first decision is never silently skipped.
+        baseline = initialize_reconciliation_baseline(
+            conn, account_id, existing_account=False
+        )
+
+    rows = conn.execute(
+        f"""SELECT t.*, d.id AS account_decision_id,
+                   d.score AS account_score, d.decided_at AS account_decided_at
+           FROM tenders t
+           JOIN (
+               SELECT source, external_id, MAX(id) AS max_id
+               FROM opportunity_decisions
+               WHERE account_id=?
+               GROUP BY source, external_id
+           ) latest ON latest.source=t.source AND latest.external_id=t.external_id
+           JOIN opportunity_decisions d ON d.id=latest.max_id
+           LEFT JOIN opportunity_lifecycle lc
+             ON lc.source=t.source AND lc.external_id=t.external_id
+           WHERE d.id > ?
+             AND d.score >= ?
+             AND {actionable_predicate('lc', 't')}
+             AND NOT EXISTS (
+                 SELECT 1 FROM opportunity_events e
+                 WHERE e.account_id=?
+                   AND e.tender_id=t.id
+                   AND e.event_type='new_high_match'
+             )
+           ORDER BY d.id ASC, t.id ASC""",
+        (account_id, baseline, min_score, account_id),
+    ).fetchall()
+
+    events = []
+    now = _events._iso_now()
+    for row in rows:
+        item = dict(row)
+        event_key = f"{account_id}:{_events._key(item)}"
+        cur = conn.execute(
+            """INSERT OR IGNORE INTO opportunity_events
+               (account_id,event_key,tender_id,source,event_type,score,created_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (
+                account_id,
+                event_key,
+                item.get("id"),
+                item.get("source"),
+                "new_high_match",
+                item.get("account_score", 0),
+                now,
+            ),
+        )
+        if cur.rowcount:
+            events.append(
+                {
+                    "event_key": event_key,
+                    "account_id": account_id,
+                    "tender_id": item.get("id"),
+                    "source": item.get("source"),
+                    "score": item.get("account_score", 0),
+                    "title": item.get("title"),
+                    "country": item.get("country"),
+                    "url": item.get("url"),
+                }
+            )
+    conn.commit()
+
+    # Preserve owner delivery semantics. The dispatch guard, when installed,
+    # remains the dynamic notification_events.submit_pending_pushes authority.
+    try:
+        _events.reconcile_push_receipts(conn, account_id)
+    except Exception as exc:
+        _events.APP.logger.warning(
+            "push receipt reconciliation failed: %s", type(exc).__name__
+        )
+    _events.submit_pending_pushes(conn, account_id)
+    return events
+
+
+def install(preload_module):
+    """Install only the worker discovery seam; keep canonical stores/owners intact."""
+    global _INSTALLED
+    preload_module.record_new_opportunities = record_new_opportunities
+    _INSTALLED = True
+    return True
