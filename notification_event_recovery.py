@@ -5,37 +5,121 @@ inside a two-minute wall-clock window. A process can therefore die after the
 opportunity and account decision commit but before ``opportunity_events`` is
 created; after restart the still-required work can become permanently invisible.
 
-This owner-side compatibility boundary replaces the worker's discovery function
-with a durable post-cutover anti-join. It deliberately does not rewrite the
-canonical opportunity/decision owners and does not turn old historical rows into
-a notification backlog.
+This compatibility boundary makes post-activation event work durable without
+creating a second event store and without converting old historical decisions
+into a surprise notification backlog.
 """
 from __future__ import annotations
+
+import re
 
 import notification_events as _events
 from decision_log import ensure_decision_table
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 
-# Migration epoch, not a sliding freshness window. Decisions created at/after
-# this owner-candidate cutover remain rediscoverable indefinitely until their
-# canonical event exists. Older decisions are intentionally not backfilled into
-# the notification channel merely because this repair is installed later.
-DURABLE_EVENT_RECONCILIATION_EPOCH = "2026-08-26T23:00:00+00:00"
+BASELINE_EVENT_TYPE = "notification_reconciliation_baseline"
+_BASELINE_KEY = "notification-reconciliation-baseline"
+_BASELINE_ID_RE = re.compile(r":notification-reconciliation-baseline:(\d+)$")
 _INSTALLED = False
 
 
+def _baseline_event_key(account_id, decision_id):
+    return f"{account_id}:system:{_BASELINE_KEY}:{int(decision_id)}"
+
+
+def _parse_baseline_id(event_key):
+    match = _BASELINE_ID_RE.search(str(event_key or ""))
+    return int(match.group(1)) if match else None
+
+
+def reconciliation_baseline_id(conn, account_id):
+    """Return the immutable activation decision id for one account, if present."""
+    _events.ensure_event_table(conn)
+    row = conn.execute(
+        """SELECT event_key FROM opportunity_events
+           WHERE account_id=? AND event_type=?
+           ORDER BY id ASC LIMIT 1""",
+        (str(account_id), BASELINE_EVENT_TYPE),
+    ).fetchone()
+    if row is None:
+        return None
+    return _parse_baseline_id(row["event_key"])
+
+
+def initialize_reconciliation_baseline(conn, account_id, *, existing_account=True):
+    """Persist one activation boundary without inventing a second queue/store.
+
+    Existing accounts baseline at their current maximum decision id so installing
+    the repair does not backfill historical notification work. A genuinely new
+    account baselines at zero so its first decisions are eligible immediately.
+    The baseline is immutable across process restarts.
+    """
+    account_id = str(account_id or "default")
+    _events.ensure_event_table(conn)
+    ensure_decision_table(conn)
+    current = reconciliation_baseline_id(conn, account_id)
+    if current is not None:
+        return current
+
+    if existing_account:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(id),0) AS max_id FROM opportunity_decisions WHERE account_id=?",
+            (account_id,),
+        ).fetchone()
+        baseline = int(row["max_id"] if row else 0)
+    else:
+        baseline = 0
+
+    conn.execute(
+        """INSERT OR IGNORE INTO opportunity_events
+           (account_id,event_key,tender_id,source,event_type,score,created_at)
+           VALUES (?,?,NULL,'SYSTEM',?,0,?)""",
+        (
+            account_id,
+            _baseline_event_key(account_id, baseline),
+            BASELINE_EVENT_TYPE,
+            _events._iso_now(),
+        ),
+    )
+    conn.commit()
+    stored = reconciliation_baseline_id(conn, account_id)
+    if stored is None:
+        raise RuntimeError("notification_reconciliation_baseline_invalid")
+    return stored
+
+
+def initialize_existing_account_baselines(conn, account_ids):
+    """Baseline all known pre-existing accounts before the worker can create decisions."""
+    initialized = {}
+    for account_id in account_ids or []:
+        account_id = str(account_id or "default")
+        initialized[account_id] = initialize_reconciliation_baseline(
+            conn, account_id, existing_account=True
+        )
+    return initialized
+
+
 def record_new_opportunities(conn, account_id="default", min_score=75):
-    """Record every still-missing eligible post-cutover event exactly once.
+    """Record every still-missing eligible post-activation event exactly once.
 
     Eligibility remains the Notification owner's existing contract: latest
     account-scoped decision score at/above ``min_score`` plus current effective
-    actionability. The only changed dimension is discovery durability: elapsed
-    wall-clock time or incidental source replay can no longer acknowledge work.
+    actionability. The changed dimension is discovery durability: elapsed time
+    and incidental source replay cannot acknowledge missing work.
     """
     account_id = str(account_id or "default")
     _events.ensure_event_table(conn)
     ensure_decision_table(conn)
     ensure_lifecycle_table(conn)
+
+    baseline = reconciliation_baseline_id(conn, account_id)
+    if baseline is None:
+        # Existing accounts are initialized at process startup. Absence here
+        # therefore means a genuinely new account created after startup; start
+        # from zero so its first decision is never silently skipped.
+        baseline = initialize_reconciliation_baseline(
+            conn, account_id, existing_account=False
+        )
 
     rows = conn.execute(
         f"""SELECT t.*, d.id AS account_decision_id,
@@ -50,8 +134,8 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
            JOIN opportunity_decisions d ON d.id=latest.max_id
            LEFT JOIN opportunity_lifecycle lc
              ON lc.source=t.source AND lc.external_id=t.external_id
-           WHERE d.score >= ?
-             AND datetime(d.decided_at) >= datetime(?)
+           WHERE d.id > ?
+             AND d.score >= ?
              AND {actionable_predicate('lc', 't')}
              AND NOT EXISTS (
                  SELECT 1 FROM opportunity_events e
@@ -60,7 +144,7 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
                    AND e.event_type='new_high_match'
              )
            ORDER BY d.id ASC, t.id ASC""",
-        (account_id, min_score, DURABLE_EVENT_RECONCILIATION_EPOCH, account_id),
+        (account_id, baseline, min_score, account_id),
     ).fetchall()
 
     events = []
@@ -110,12 +194,8 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
 
 
 def install(preload_module):
-    """Install only the worker discovery seam; keep all owner stores canonical."""
+    """Install only the worker discovery seam; keep canonical stores/owners intact."""
     global _INSTALLED
-    current = getattr(preload_module, "record_new_opportunities", None)
-    if current is record_new_opportunities:
-        _INSTALLED = True
-        return False
     preload_module.record_new_opportunities = record_new_opportunities
     _INSTALLED = True
     return True
