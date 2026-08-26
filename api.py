@@ -11,6 +11,8 @@ from auth_context import configured_identity
 from auth_context_jwt import JwksUnavailableError
 from company_profile import load_profile, save_profile, derive_profile
 from decision_log import current_profile_fingerprint
+from decision_relevance import relevant_shortlist_eligible_from_features
+from evaluation_policy import record_evaluation_event
 from opportunity_match_pipeline import RULE_VERSION
 from source_registry import SOURCES
 from account_registry import ensure_account
@@ -185,6 +187,34 @@ def _latest_decisions(conn, account_id, external_ids):
         item["features"] = json.loads(item.pop("features_json") or "{}")
         result[(item["source"], item["external_id"])] = item
     return result
+
+
+def _decision_is_current_relevant(decision):
+    """Current decision authority is upstream; relevance eligibility is explicit."""
+    return bool(decision) and relevant_shortlist_eligible_from_features(
+        decision.get("features") if isinstance(decision, dict) else None
+    )
+
+
+def _record_observed_value_event(conn, account_id, event_name, source, external_id, **metadata):
+    """Record bounded observation evidence without breaking the primary action.
+
+    Customer routes are authoritative for the interaction itself. Evaluation is a
+    downstream consumer, so telemetry failure must not turn a successful view or
+    workflow mutation into a customer-facing error.
+    """
+    payload = {"source": str(source), "external_id": str(external_id)}
+    payload.update({key: value for key, value in metadata.items() if value not in (None, "")})
+    try:
+        record_evaluation_event(
+            conn,
+            account_id,
+            event_name,
+            metadata=payload,
+        )
+    except Exception:
+        return False
+    return True
 
 
 @bp.route("/sources", methods=["GET"])
@@ -394,7 +424,16 @@ def opportunity_detail(opportunity_id):
         decisions = _latest_decisions(c, identity.account_id, [row["external_id"]])
         decision = decisions.get((row["source"], row["external_id"]))
         workflow = get_workflow(c, identity.account_id, row["source"], row["external_id"])
-        return jsonify(_row(row, decision, workflow))
+        item = _row(row, decision, workflow)
+        if bool(row["is_actionable"]) and _decision_is_current_relevant(decision):
+            _record_observed_value_event(
+                c,
+                identity.account_id,
+                "relevant_opportunity_viewed",
+                row["source"],
+                row["external_id"],
+            )
+        return jsonify(item)
     finally:
         c.close()
 
@@ -405,12 +444,22 @@ def opportunity_workflow(opportunity_id):
     payload = request.get_json(silent=True) or {}
     c = _db()
     try:
-        row = c.execute("SELECT source, external_id FROM tenders WHERE id=?", (opportunity_id,)).fetchone()
+        ensure_lifecycle_table(c)
+        row = c.execute(
+            f"""SELECT t.source, t.external_id,
+                       {actionable_predicate('lc', 't')} AS is_actionable
+                FROM tenders t
+                LEFT JOIN opportunity_lifecycle lc
+                  ON lc.source=t.source AND lc.external_id=t.external_id
+                WHERE t.id=?""",
+            (opportunity_id,),
+        ).fetchone()
         if row is None:
             return jsonify({"error": "not_found"}), 404
         if request.method == "GET":
             workflow = get_workflow(c, identity.account_id, row["source"], row["external_id"])
             return jsonify({"workflow": workflow, "account_id": identity.account_id, "generated_at": _iso_now()})
+        previous = get_workflow(c, identity.account_id, row["source"], row["external_id"])
         workflow = set_workflow(
             c,
             identity.account_id,
@@ -419,6 +468,19 @@ def opportunity_workflow(opportunity_id):
             payload.get("status"),
             payload.get("note"),
         )
+        if previous.get("status") != workflow.get("status") and bool(row["is_actionable"]):
+            decisions = _latest_decisions(c, identity.account_id, [row["external_id"]])
+            decision = decisions.get((row["source"], row["external_id"]))
+            if _decision_is_current_relevant(decision):
+                _record_observed_value_event(
+                    c,
+                    identity.account_id,
+                    "action_taken",
+                    row["source"],
+                    row["external_id"],
+                    from_status=previous.get("status"),
+                    to_status=workflow.get("status"),
+                )
         return jsonify({"ok": True, "workflow": workflow, "account_id": identity.account_id, "generated_at": _iso_now()})
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
