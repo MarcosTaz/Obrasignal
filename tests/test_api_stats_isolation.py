@@ -1,5 +1,8 @@
 import sqlite3
 
+from decision_log import ensure_decision_table, record_decision
+from opportunity_match_pipeline import RULE_VERSION
+
 
 def test_stats_counts_only_authenticated_account(monkeypatch, tmp_path):
     import api
@@ -23,9 +26,7 @@ def test_stats_counts_only_authenticated_account(monkeypatch, tmp_path):
         conn.execute(
             "CREATE TABLE tenders(id INTEGER PRIMARY KEY, source TEXT, external_id TEXT, deadline TEXT, first_seen TEXT, score INTEGER)"
         )
-        conn.execute(
-            "CREATE TABLE opportunity_decisions(id INTEGER PRIMARY KEY, account_id TEXT, source TEXT, external_id TEXT, score INTEGER)"
-        )
+        ensure_decision_table(conn)
         conn.executemany(
             "INSERT INTO tenders VALUES (?, ?, ?, ?, ?, ?)",
             [
@@ -33,12 +34,25 @@ def test_stats_counts_only_authenticated_account(monkeypatch, tmp_path):
                 (2, "TEST", "b", "2099-01-01", "2099-01-01T00:00:00+00:00", 80),
             ],
         )
-        conn.executemany(
-            "INSERT INTO opportunity_decisions VALUES (?, ?, ?, ?, ?)",
-            [
-                (1, "company-a", "TEST", "a", 90),
-                (2, "company-b", "TEST", "b", 95),
-            ],
+        record_decision(
+            conn,
+            "TEST",
+            "a",
+            "QUALIFIED",
+            "current fixture",
+            score=90,
+            rule_version=RULE_VERSION,
+            account_id="company-a",
+        )
+        record_decision(
+            conn,
+            "TEST",
+            "b",
+            "QUALIFIED",
+            "other account fixture",
+            score=95,
+            rule_version=RULE_VERSION,
+            account_id="company-b",
         )
         conn.execute("CREATE TABLE sync_runs(id INTEGER PRIMARY KEY, finished_at TEXT)")
         conn.execute("INSERT INTO sync_runs VALUES (1, '2099-01-01T00:00:00+00:00')")
@@ -75,20 +89,31 @@ def test_stats_uses_only_latest_decision_for_each_opportunity(monkeypatch, tmp_p
         conn.execute(
             "CREATE TABLE tenders(id INTEGER PRIMARY KEY, source TEXT, external_id TEXT, deadline TEXT, first_seen TEXT, score INTEGER)"
         )
-        conn.execute(
-            "CREATE TABLE opportunity_decisions(id INTEGER PRIMARY KEY, account_id TEXT, source TEXT, external_id TEXT, score INTEGER)"
-        )
+        ensure_decision_table(conn)
         conn.execute("CREATE TABLE sync_runs(id INTEGER PRIMARY KEY, finished_at TEXT)")
         conn.execute(
             "INSERT INTO tenders VALUES (?, ?, ?, ?, ?, ?)",
             (1, "TEST", "a", "2099-01-01", "2099-01-01T00:00:00+00:00", 90),
         )
-        conn.executemany(
-            "INSERT INTO opportunity_decisions VALUES (?, ?, ?, ?, ?)",
-            [
-                (1, "company-a", "TEST", "a", 90),
-                (2, "company-a", "TEST", "a", 40),
-            ],
+        record_decision(
+            conn,
+            "TEST",
+            "a",
+            "QUALIFIED",
+            "older current fixture",
+            score=90,
+            rule_version=RULE_VERSION,
+            account_id="company-a",
+        )
+        record_decision(
+            conn,
+            "TEST",
+            "a",
+            "REJECT",
+            "latest current fixture",
+            score=40,
+            rule_version=RULE_VERSION,
+            account_id="company-a",
         )
         conn.execute("INSERT INTO sync_runs VALUES (1, '2099-01-01T00:00:00+00:00')")
         conn.commit()

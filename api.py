@@ -10,6 +10,8 @@ from preload import APP, _deadline_dt
 from auth_context import configured_identity
 from auth_context_jwt import JwksUnavailableError
 from company_profile import load_profile, save_profile, derive_profile
+from decision_log import current_profile_fingerprint
+from opportunity_match_pipeline import RULE_VERSION
 from source_registry import SOURCES
 from account_registry import ensure_account
 from opportunity_workflow import get_workflow, set_workflow, workflow_counts
@@ -161,15 +163,20 @@ def _decision_priority(decision):
 
 
 def _latest_decisions(conn, account_id, external_ids):
+    """Return latest decisions only when rule + profile authority are current."""
     if not external_ids:
+        return {}
+    profile_fp = current_profile_fingerprint(conn, account_id)
+    if profile_fp is None:
         return {}
     placeholders = ",".join("?" for _ in external_ids)
     rows = conn.execute(
         f"""SELECT d.* FROM opportunity_decisions d
             JOIN (SELECT source, external_id, MAX(id) AS max_id FROM opportunity_decisions
                   WHERE account_id=? AND external_id IN ({placeholders}) GROUP BY source, external_id) latest
-            ON latest.max_id = d.id""",
-        (account_id, *external_ids),
+            ON latest.max_id = d.id
+            WHERE d.account_id=? AND d.rule_version=? AND d.profile_fingerprint=?""",
+        (account_id, *external_ids, account_id, RULE_VERSION, profile_fp),
     ).fetchall()
     result = {}
     import json
@@ -223,16 +230,29 @@ def alerts():
     unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
     c = _db()
     ensure_lifecycle_table(c)
+    profile_fp = current_profile_fingerprint(c, identity.account_id)
     where = f"WHERE e.account_id=? AND e.event_type='new_high_match' AND {actionable_predicate('lc', 't')}"
     params = [identity.account_id]
     if unread_only:
         where += " AND e.delivered_at IS NULL"
     params.append(limit)
-    rows = c.execute(f"""SELECT e.id AS event_id, e.event_key, e.score, e.created_at, e.delivered_at,
-                   t.id, t.title, t.country, t.source, t.url, t.deadline, t.profile_reason, t.profile_score, t.external_id
-            FROM opportunity_events e LEFT JOIN tenders t ON t.id=e.tender_id
-            LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
-            {where} ORDER BY e.created_at DESC LIMIT ?""", params).fetchall()
+    if profile_fp is None:
+        rows = []
+    else:
+        rows = c.execute(f"""SELECT e.id AS event_id, e.event_key, e.score, e.created_at, e.delivered_at,
+                       t.id, t.title, t.country, t.source, t.url, t.deadline, t.profile_reason, t.profile_score, t.external_id
+                FROM opportunity_events e
+                LEFT JOIN tenders t ON t.id=e.tender_id
+                LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
+                JOIN (SELECT od.source, od.external_id, MAX(od.id) AS max_id
+                      FROM opportunity_decisions od
+                      WHERE od.account_id=? GROUP BY od.source, od.external_id) latest
+                  ON latest.source=t.source AND latest.external_id=t.external_id
+                JOIN opportunity_decisions d ON d.id=latest.max_id
+                  AND d.account_id=? AND d.rule_version=? AND d.profile_fingerprint=? AND d.score>=75
+                {where} ORDER BY e.created_at DESC LIMIT ?""",
+            (identity.account_id, identity.account_id, RULE_VERSION, profile_fp, *params),
+        ).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = []
     for r in rows:
@@ -262,6 +282,7 @@ def stats():
     identity = request.obrasignal_identity
     c = _db()
     ensure_lifecycle_table(c)
+    profile_fp = current_profile_fingerprint(c, identity.account_id)
     latest = """JOIN (
         SELECT od.source, od.external_id, MAX(od.id) AS max_id
         FROM opportunity_decisions od
@@ -272,8 +293,8 @@ def stats():
         JOIN opportunity_decisions d ON d.source=t.source AND d.external_id=t.external_id
         {latest}
         LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
-        WHERE d.account_id=? AND {actionable_predicate('lc', 't')}"""
-    params = [identity.account_id, identity.account_id]
+        WHERE d.account_id=? AND d.rule_version=? AND d.profile_fingerprint=? AND {actionable_predicate('lc', 't')}"""
+    params = [identity.account_id, identity.account_id, RULE_VERSION, profile_fp]
     total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
     high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 75", params).fetchone()[0]
     open_count = c.execute(f"SELECT COUNT(*) {base} AND t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')", params).fetchone()[0]
@@ -305,6 +326,7 @@ def opportunities():
     minscore = int(minscore) if minscore not in (None, "") else None
     c = _db()
     ensure_lifecycle_table(c)
+    profile_fp = current_profile_fingerprint(c, identity.account_id)
     where = [actionable_predicate("lc", "t")]
     params = []
     if market in ("PT", "EU"):
@@ -321,8 +343,8 @@ def opportunities():
         params.append(source)
     if open_only:
         where.append("t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')")
-    if minscore is not None:
-        where.append("COALESCE(d.score,t.score)>=?")
+    if minscore is not None and minscore > 0:
+        where.append("d.score>=?")
         params.append(minscore)
     rows = c.execute(
         f"""SELECT t.*, {actionable_predicate('lc', 't')} AS is_actionable,
@@ -334,8 +356,14 @@ def opportunities():
             LEFT JOIN (SELECT source, external_id, MAX(id) max_id FROM opportunity_decisions WHERE account_id=? GROUP BY source, external_id) latest
             ON latest.source=t.source AND latest.external_id=t.external_id
             LEFT JOIN opportunity_decisions d ON d.id=latest.max_id
-            WHERE {' AND '.join(where)} ORDER BY COALESCE(d.score,t.score) DESC, t.deadline ASC LIMIT ?""",
-        (identity.account_id, *params, limit),
+              AND d.account_id=? AND d.rule_version=? AND d.profile_fingerprint=?
+            WHERE {' AND '.join(where)}
+            ORDER BY CASE WHEN d.score IS NULL THEN 1 ELSE 0 END,
+                     d.score DESC,
+                     COALESCE(t.publication_date,t.first_seen) DESC,
+                     t.source ASC, t.external_id ASC, t.id ASC
+            LIMIT ?""",
+        (identity.account_id, identity.account_id, RULE_VERSION, profile_fp, *params, limit),
     ).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
