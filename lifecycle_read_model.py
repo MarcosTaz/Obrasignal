@@ -15,6 +15,7 @@ from datetime import datetime, timezone, timedelta
 import app as _app
 from auth_context import configured_identity
 from decision_dashboard import get_presented_decision
+from decision_log import ensure_decision_table
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 from opportunity_web import render_opportunity_detail
@@ -180,21 +181,53 @@ def radar_page():
 
 
 def record_account_decisions(conn, *, list_active_accounts):
-    """Classify only effectively actionable rows from the just-completed sync."""
+    """Reconcile current-run work plus durable actionable rows missing a decision.
+
+    A source replay is useful evidence that an opportunity changed and should be
+    re-evaluated, but it is not a durable work queue. If a process dies after an
+    opportunity commit and before account decision creation, the missing decision
+    must remain discoverable even when a later incremental source run omits that
+    already-known row.
+    """
     _ensure(conn)
+    ensure_decision_table(conn)
     run = conn.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
-    if not run or not run["finished_at"]:
-        return 0
-    rows = conn.execute(
-        f"""SELECT t.* FROM tenders t
-           LEFT JOIN opportunity_lifecycle lc
-             ON lc.source=t.source AND lc.external_id=t.external_id
-           WHERE t.last_seen=? AND {actionable_predicate('lc', 't')}""",
-        (run["finished_at"],),
-    ).fetchall()
+    latest_finished_at = run["finished_at"] if run and run["finished_at"] else None
     accounts = list_active_accounts(conn) or [configured_identity().account_id]
     recorded = 0
     for account_id in accounts:
+        account_id = str(account_id or "default")
+        if latest_finished_at:
+            rows = conn.execute(
+                f"""SELECT t.* FROM tenders t
+                   LEFT JOIN opportunity_lifecycle lc
+                     ON lc.source=t.source AND lc.external_id=t.external_id
+                   WHERE {actionable_predicate('lc', 't')}
+                     AND (
+                         t.last_seen=?
+                         OR NOT EXISTS (
+                             SELECT 1 FROM opportunity_decisions d
+                             WHERE d.account_id=?
+                               AND d.source=t.source
+                               AND d.external_id=t.external_id
+                         )
+                     )""",
+                (latest_finished_at, account_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"""SELECT t.* FROM tenders t
+                   LEFT JOIN opportunity_lifecycle lc
+                     ON lc.source=t.source AND lc.external_id=t.external_id
+                   WHERE {actionable_predicate('lc', 't')}
+                     AND NOT EXISTS (
+                         SELECT 1 FROM opportunity_decisions d
+                         WHERE d.account_id=?
+                           AND d.source=t.source
+                           AND d.external_id=t.external_id
+                     )""",
+                (account_id,),
+            ).fetchall()
         for row in rows:
             persist_and_classify(conn, dict(row), True, account_id=account_id)
             recorded += 1
