@@ -1,8 +1,10 @@
+import global_market_expansion_factory as factory
 from global_market_expansion_factory import (
     COUNTRY_OPERATIONAL_STATE,
     DISCOVERY_CANDIDATES,
     HOLD_MONITORS,
     LEGAL_EVIDENCE,
+    OWNER_ROUTING_DEFECTS,
     PRIORITY_A,
     SHARED_COVERAGE_AUDIT,
     active_proven_eligible,
@@ -67,16 +69,33 @@ def test_fresh_legal_evidence_never_infers_unknown_commercial_rights_green():
 
 def test_priority_a_technical_contract_registry_is_single_separate_authority():
     assert set(SOURCE_CONTRACTS) == {"Brazil", "Canada", "United States", "Chile"}
+    assert not hasattr(factory, "TECHNICAL_SOURCE_CONTRACTS")
+    assert not hasattr(factory, "TechnicalSourceContract")
     assert SOURCE_CONTRACTS["Canada"].live_evidence == "PROVEN"
     assert SOURCE_CONTRACTS["United States"].live_evidence == "PROVEN"
     assert SOURCE_CONTRACTS["Chile"].live_evidence == "BLOCKED"
     assert SOURCE_CONTRACTS["Brazil"].live_evidence == "BLOCKED"
 
 
+def test_us_source_registry_legal_drift_is_routed_not_silently_accepted():
+    defect = OWNER_ROUTING_DEFECTS["US_SAM_LEGAL_DRIFT"]
+    assert defect["issue"] == "#520"
+    assert "LEGAL_AMBER" in defect["factory_evidence"]
+    assert defect["invariant"] == "LEGAL_UNKNOWN/AMBER != LEGAL_GREEN"
+
+
 def test_all_31_shared_markets_are_individually_audited_without_fake_active_proof():
     assert len(SHARED_COVERAGE_AUDIT) == 31
     assert all(row.country == country for country, row in SHARED_COVERAGE_AUDIT.items())
     assert not any(row.operational_state == "ACTIVE_PROVEN" for row in SHARED_COVERAGE_AUDIT.values())
+
+
+def test_fresh_shared_publisher_legal_evidence_updates_only_legal_dimension():
+    for country in ("Ecuador", "Paraguay", "South Africa"):
+        row = SHARED_COVERAGE_AUDIT[country]
+        assert row.legal_evidence == "PROVEN"
+        assert row.operational_state == "INTEGRATION_PENDING"
+    assert SHARED_COVERAGE_AUDIT["Uruguay"].legal_evidence == "PARTIAL"
 
 
 def test_ted_family_health_is_not_23_country_golden_proof():
