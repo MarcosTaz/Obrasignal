@@ -28,7 +28,8 @@ def test_operational_registry_covers_canonical_universe_exactly_once():
 
 
 def test_priority_a_is_fail_closed_and_independent():
-    assert PRIORITY_A["Brazil"].classification == "PARTIAL_CONNECTOR"
+    assert PRIORITY_A["Brazil"].classification == "NO_CODE"
+    assert "not canonical code" in PRIORITY_A["Brazil"].exact_gap
     assert PRIORITY_A["Brazil"].legal_state == "LEGAL_AMBER"
     assert COUNTRY_OPERATIONAL_STATE["Brazil"] == "TECHNICAL_BLOCKED"
 
