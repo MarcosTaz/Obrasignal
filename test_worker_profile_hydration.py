@@ -68,6 +68,25 @@ def test_worker_hydrates_profile_once_per_account_and_keeps_all_decisions(monkey
     }
 
 
+def _evaluation():
+    return {
+        "lot_score": 1,
+        "match": True,
+        "lot_id": "lot",
+        "geography": {"score": 1, "reason": "ok"},
+        "decision": "REVIEW",
+        "reason": "test",
+        "profile_score": 1,
+        "commercial": {},
+        "economic_fit": {},
+        "capability": {},
+        "capability_evidence": [],
+        "cpv_evidence": [],
+        "hard_capability_blockers": [],
+        "explanation": {},
+    }
+
+
 def test_direct_classifier_still_loads_profile_when_none_is_supplied(monkeypatch):
     import funnel_integration
 
@@ -79,29 +98,11 @@ def test_direct_classifier_still_loads_profile_when_none_is_supplied(monkeypatch
         "load_profile",
         lambda account_id: loaded.append(account_id) or {"account_id": account_id},
     )
-
-    evaluation = {
-        "lot_score": 1,
-        "match": True,
-        "lot_id": "lot",
-        "geography": {"score": 1, "reason": "ok"},
-        "decision": "REVIEW",
-        "reason": "test",
-        "profile_score": 1,
-        "commercial": {},
-        "economic_fit": {},
-        "capability": {},
-        "capability_evidence": [],
-        "cpv_evidence": [],
-        "hard_capability_blockers": [],
-        "explanation": {},
-    }
-
-    def evaluate_row(item, profile):
-        seen_profiles.append(profile)
-        return evaluation
-
-    monkeypatch.setattr(funnel_integration, "evaluate_row", evaluate_row)
+    monkeypatch.setattr(
+        funnel_integration,
+        "evaluate_row",
+        lambda item, profile: seen_profiles.append(profile) or _evaluation(),
+    )
     monkeypatch.setattr(funnel_integration, "record_decision", lambda *args, **kwargs: None)
 
     funnel_integration.persist_and_classify(
@@ -112,7 +113,7 @@ def test_direct_classifier_still_loads_profile_when_none_is_supplied(monkeypatch
     assert seen_profiles == [{"account_id": "account-a"}]
 
 
-def test_explicit_profile_bypasses_reload_without_changing_account_scope(monkeypatch):
+def test_matching_explicit_profile_bypasses_reload(monkeypatch):
     import funnel_integration
 
     monkeypatch.setattr(
@@ -120,29 +121,11 @@ def test_explicit_profile_bypasses_reload_without_changing_account_scope(monkeyp
         "load_profile",
         lambda account_id: (_ for _ in ()).throw(AssertionError("profile reloaded")),
     )
-
-    evaluation = {
-        "lot_score": 1,
-        "match": True,
-        "lot_id": "lot",
-        "geography": {"score": 1, "reason": "ok"},
-        "decision": "REVIEW",
-        "reason": "test",
-        "profile_score": 1,
-        "commercial": {},
-        "economic_fit": {},
-        "capability": {},
-        "capability_evidence": [],
-        "cpv_evidence": [],
-        "hard_capability_blockers": [],
-        "explanation": {},
-    }
     seen = []
-
     monkeypatch.setattr(
         funnel_integration,
         "evaluate_row",
-        lambda item, profile: seen.append(profile) or evaluation,
+        lambda item, profile: seen.append(profile) or _evaluation(),
     )
     monkeypatch.setattr(funnel_integration, "record_decision", lambda *args, **kwargs: None)
 
@@ -156,3 +139,33 @@ def test_explicit_profile_bypasses_reload_without_changing_account_scope(monkeyp
     )
 
     assert seen == [profile]
+
+
+def test_mismatched_explicit_profile_reloads_authoritative_account(monkeypatch):
+    import funnel_integration
+
+    loaded = []
+    seen = []
+
+    def load_profile(account_id):
+        loaded.append(account_id)
+        return {"account_id": account_id, "marker": "reloaded"}
+
+    monkeypatch.setattr(funnel_integration, "load_profile", load_profile)
+    monkeypatch.setattr(
+        funnel_integration,
+        "evaluate_row",
+        lambda item, profile: seen.append(profile) or _evaluation(),
+    )
+    monkeypatch.setattr(funnel_integration, "record_decision", lambda *args, **kwargs: None)
+
+    funnel_integration.persist_and_classify(
+        object(),
+        {"source": "TEST", "external_id": "3"},
+        True,
+        account_id="account-b",
+        profile={"account_id": "account-a", "marker": "wrong-tenant"},
+    )
+
+    assert loaded == ["account-b"]
+    assert seen == [{"account_id": "account-b", "marker": "reloaded"}]
