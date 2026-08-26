@@ -296,10 +296,10 @@ LEGAL_EVIDENCE = MappingProxyType({
 PRIORITY_A = MappingProxyType({
     "Brazil": PriorityAStatus(
         country="Brazil",
-        classification="PARTIAL_CONNECTOR",
+        classification="NO_CODE",
         source_id="PNCP/PCA candidate (not registered in source_registry)",
         legal_state="LEGAL_AMBER",
-        exact_gap="Prebuilt connector/tests exist, but current main has no PNCP source registration and the global PCA update route lacks stable live JSON/empty/paging semantics.",
+        exact_gap="Exact canonical main has no PNCP connector/runtime/tests/source registration. The master queue retains historical prebuilt-candidate language, but that artifact is not canonical code; the global PCA update route also lacks stable live JSON/empty/paging semantics.",
     ),
     "Canada": PriorityAStatus(
         country="Canada",
@@ -630,6 +630,8 @@ def validate_factory_registry() -> None:
         raise RuntimeError("HOLD monitors must be actionable")
     if set(DISCOVERY_CANDIDATES) & set(GLOBAL_MARKET_PORTFOLIO):
         raise RuntimeError("outside-canonical discovery candidates cannot duplicate the 135 portfolio")
+    if PRIORITY_A["Brazil"].classification != "NO_CODE":
+        raise RuntimeError("Brazil exact-main code state must remain fail-closed until canonical PNCP code exists")
     if COUNTRY_OPERATIONAL_STATE["Brazil"] == "ACTIVE_PROVEN":
         raise RuntimeError("Brazil cannot be active while PNCP live endpoint contract is unstable")
     if COUNTRY_OPERATIONAL_STATE["Chile"] == "ACTIVE_PROVEN":
