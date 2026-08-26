@@ -170,11 +170,19 @@ def test_post_sync_decisioning_skips_tombstoned_row(monkeypatch, tmp_path):
             (last_seen, last_seen, 2, 2),
         )
         conn.commit()
+
         monkeypatch.setattr(
             lifecycle_read_model,
-            "persist_and_classify",
-            lambda target, row, emit, account_id=None: calls.append((row["external_id"], account_id)),
+            "load_profile",
+            lambda account_id: {"account_id": account_id, "marker": "preloaded"},
         )
+
+        def capture(target, row, emit, account_id=None, profile=None):
+            assert profile is not None
+            assert profile["account_id"] == account_id
+            calls.append((row["external_id"], account_id))
+
+        monkeypatch.setattr(lifecycle_read_model, "persist_and_classify", capture)
         count = lifecycle_read_model.record_account_decisions(
             conn,
             list_active_accounts=lambda target: [Identity.account_id],

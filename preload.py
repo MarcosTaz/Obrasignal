@@ -21,6 +21,7 @@ from latency_health import latency_health
 from ted_client import post_json
 from auth_context import configured_identity, InvalidTokenError
 from account_registry import list_active_accounts
+from company_profile import load_profile
 from funnel_integration import persist_and_classify
 from decision_dashboard import get_presented_decision
 from radar_decision_feed import enrich_rows
@@ -345,8 +346,9 @@ def _record_account_decisions(conn):
     accounts = list_active_accounts(conn) or [configured_identity().account_id]
     recorded = 0
     for account_id in accounts:
+        profile = load_profile(account_id)
         for row in rows:
-            persist_and_classify(conn, dict(row), True, account_id=account_id)
+            persist_and_classify(conn, dict(row), True, account_id=account_id, profile=profile)
             recorded += 1
     return recorded
 
