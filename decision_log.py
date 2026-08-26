@@ -72,8 +72,9 @@ def current_profile_fingerprint(conn, account_id='default'):
     ).fetchone()
     if row is None:
         return _NO_PERSISTED_PROFILE
+    raw = row['profile_json'] if hasattr(row, 'keys') else row[0]
     try:
-        payload = json.loads(row['profile_json'])
+        payload = json.loads(raw)
     except (TypeError, ValueError, json.JSONDecodeError):
         return None
     return profile_fingerprint(payload)
