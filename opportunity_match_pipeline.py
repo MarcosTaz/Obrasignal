@@ -97,10 +97,10 @@ def _hard_capability_checks(lot, capability):
     return blockers
 
 
-def _explain_evaluation(profile_score, lot_score, geo, capability_evidence, cpv_evidence, economics, hard_blockers):
+def _explain_evaluation(profile_score, profile_reason, lot_score, geo, capability_evidence, cpv_evidence, economics, hard_blockers):
     """Return structured evidence for UI/API while preserving the decision model."""
     factors = [
-        {"key": "profile", "label": "Perfil comercial", "score": profile_score, "reason": "Compatibilidade com o perfil da empresa"},
+        {"key": "profile", "label": "Perfil comercial", "score": profile_score, "reason": profile_reason},
         {"key": "lot", "label": "Lote", "score": lot_score, "reason": "Compatibilidade do lote"},
         {"key": "geography", "label": "Geografia", "score": None, "reason": geo.get("reason") or "Geografia não determinada"},
         {"key": "capability", "label": "Capacidade", "score": None, "reason": capability_evidence.get("reason") or "Capacidade não determinada"},
@@ -149,7 +149,11 @@ def evaluate_row(row, profile=None):
     # commercial-v2 inside match_lot(). Never let stale source scoring alter
     # the account-specific decision pipeline.
     global_score = result["commercial"]["score"]
-    profile_score = personalized_score(source_row, base_score=global_score, profile=profile)[0]
+    profile_score, _profile_label, _profile_class, profile_reason = personalized_score(
+        source_row,
+        base_score=global_score,
+        profile=profile,
+    )
     positive_commercial_evidence = capability_evidence["matched"] or cpv_evidence["strength"] == "STRONG"
     # Country, an in-range value and a broad CPV division improve recall, but
     # cannot establish high relevance by themselves.
@@ -181,7 +185,16 @@ def evaluate_row(row, profile=None):
     if hard_blockers:
         reason += "; bloqueios=" + ", ".join(hard_blockers)
 
-    explanation = _explain_evaluation(profile_score, lot_score, geo, capability_evidence, cpv_evidence, economics, hard_blockers)
+    explanation = _explain_evaluation(
+        profile_score,
+        profile_reason,
+        lot_score,
+        geo,
+        capability_evidence,
+        cpv_evidence,
+        economics,
+        hard_blockers,
+    )
 
     return {
         "decision": decision,
