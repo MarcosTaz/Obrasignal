@@ -12,14 +12,19 @@ on:
       - '.github/workflows/*.yml'
   workflow_dispatch:
 
+# Default authority stays read-only. The single owner job below receives
+# contents:write only so it can materialize the exact reproduced lock onto the
+# dedicated supply-chain candidate branch; main is never an allowed target.
 permissions:
-  contents: write
+  contents: read
 
 env:
   OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   npm-resolution:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -92,25 +97,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          test "$GITHUB_HEAD_REF" = 'supply-chain/lock-integrity-v1-20260825'
+          test "$GITHUB_BASE_REF" = 'main'
           cp /tmp/package-lock.json mobile/package-lock.json
           if git ls-files --error-unmatch mobile/package-lock.json >/dev/null 2>&1 && git diff --quiet -- mobile/package-lock.json; then
             echo 'Committed lock already matches reproduced candidate.'
             exit 0
           fi
-          content="$(base64 -w0 mobile/package-lock.json)"
-          if git ls-files --error-unmatch mobile/package-lock.json >/dev/null 2>&1; then
-            existing_sha="$(git rev-parse HEAD:mobile/package-lock.json)"
-            gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/mobile/package-lock.json" \
-              -f message='supply-chain: commit reproducible npm lock candidate' \
-              -f content="$content" \
-              -f branch="$GITHUB_HEAD_REF" \
-              -f sha="$existing_sha" >/tmp/lock-commit.json
-          else
-            gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/mobile/package-lock.json" \
-              -f message='supply-chain: commit reproducible npm lock candidate' \
-              -f content="$content" \
-              -f branch="$GITHUB_HEAD_REF" >/tmp/lock-commit.json
-          fi
+          python - <<'PY'
+          import base64, json, os, subprocess
+          path='mobile/package-lock.json'
+          body={
+              'message':'supply-chain: commit reproducible npm lock candidate',
+              'content':base64.b64encode(open(path,'rb').read()).decode('ascii'),
+              'branch':os.environ['GITHUB_HEAD_REF'],
+          }
+          tracked=subprocess.run(['git','ls-files','--error-unmatch',path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+          if tracked:
+              body['sha']=subprocess.check_output(['git','rev-parse',f'HEAD:{path}'], text=True).strip()
+          json.dump(body, open('/tmp/lock-put.json','w',encoding='utf-8'), separators=(',',':'))
+          PY
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/mobile/package-lock.json" \
+            --input /tmp/lock-put.json >/tmp/lock-commit.json
           python - <<'PY'
           import json
           data=json.load(open('/tmp/lock-commit.json', encoding='utf-8'))
