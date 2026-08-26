@@ -83,9 +83,64 @@ AUSTRALIA = HoldEvidenceObservation(
 )
 
 
+INDIA = HoldEvidenceObservation(
+    country="India",
+    observed_at="2026-08-26",
+    official_authority="Central Public Procurement Portal / National Informatics Centre",
+    evidence_urls=(
+        "https://eprocure.gov.in/eprocure/app?page=FrontEndLatestActiveTenders",
+        "https://eprocure.gov.in/eprocure/app?page=FrontEndAdvancedSearch&service=page",
+    ),
+    trigger_state="TRIGGER_FALSE",
+    proven_now=(
+        "current active central-government tender publication",
+        "construction tenders are present in current results",
+        "latest tender/corrigendum surfaces update frequently",
+        "tender schedules are publicly downloadable at no cost",
+    ),
+    missing_now=(
+        "official broad machine-readable tender API/feed or bulk route",
+        "production-safe discovery not dependent on CAPTCHA/manual search",
+        "source-scoped commercial reuse/redistribution terms for the selected machine route",
+    ),
+    interpretation=(
+        "The market/source is active, but current official discovery remains human/interactive for the tested route. "
+        "Do not bypass CAPTCHA and do not reopen connector engineering until a sanctioned broad machine route is proven."
+    ),
+)
+
+
+MEXICO = HoldEvidenceObservation(
+    country="Mexico",
+    observed_at="2026-08-26",
+    official_authority="Secretaría Anticorrupción y Buen Gobierno / ComprasMX",
+    evidence_urls=(
+        "https://comprasmx.buengobierno.gob.mx/compras-mx",
+        "https://comprasmx.buengobierno.gob.mx/datos-abiertos",
+    ),
+    trigger_state="TRIGGER_FALSE",
+    proven_now=(
+        "official ComprasMX public procurement portal",
+        "public historical procurement consultation",
+        "official open-data downloads are advertised for procurement records/contracts",
+    ),
+    missing_now=(
+        "stable official live/incremental opportunity route",
+        "current API/feed pagination and update contract",
+        "source-scoped commercial reuse/redistribution terms for the selected live route",
+    ),
+    interpretation=(
+        "Public downloads improve discovery evidence but do not satisfy the live/incremental source contract required by the reopen trigger. "
+        "Monitor the official machine route/API contract instead of repeatedly researching the whole Mexican market."
+    ),
+)
+
+
 HOLD_EVIDENCE_OBSERVATIONS = MappingProxyType({
     SOUTH_KOREA.country: SOUTH_KOREA,
     AUSTRALIA.country: AUSTRALIA,
+    INDIA.country: INDIA,
+    MEXICO.country: MEXICO,
 })
 
 
@@ -99,10 +154,14 @@ def validate_hold_evidence() -> None:
         raise RuntimeError("HOLD evidence may only attach to current strategic HOLD markets")
     if SOUTH_KOREA.trigger_state != "TRIGGER_FALSE":
         raise RuntimeError("KONEPS cannot reopen without project credential + live contract proof")
-    if "KONEPS_SERVICE_KEY" not in SOUTH_KOREA.missing_now:
+    if "project KONEPS_SERVICE_KEY" not in SOUTH_KOREA.missing_now:
         raise RuntimeError("South Korea credential gate was lost")
     if AUSTRALIA.trigger_state != "TRIGGER_FALSE":
         raise RuntimeError("Australia cannot reopen without machine route + reuse proof")
+    if INDIA.trigger_state != "TRIGGER_FALSE" or "CAPTCHA" not in " ".join(INDIA.missing_now):
+        raise RuntimeError("India must remain fail-closed without a sanctioned broad machine route")
+    if MEXICO.trigger_state != "TRIGGER_FALSE" or "live/incremental" not in " ".join(MEXICO.missing_now):
+        raise RuntimeError("Mexico must remain fail-closed without a stable live/incremental route")
     if any(reopen_trigger_satisfied(country) for country in HOLD_EVIDENCE_OBSERVATIONS):
         raise RuntimeError("no observed HOLD trigger is currently satisfied")
 
