@@ -1,0 +1,54 @@
+{
+  "schema_version": "integration-source-radar-truth.v1",
+  "mode": "INTEGRATION_EVIDENCE_ONLY",
+  "exact_parent": "#399@44ca24fbe2862e1a79231ec1f2b811bcbdbbbb3b",
+  "golden_failing_before": "#508@5ec01b780b62dd21d887303cf99c48cf97035780",
+  "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "producer": "#327 public Source Health contract",
+  "first_semantic_loss_boundary": "Radar/customer consumer does not consume api.sourceHealth/source_coverage",
+  "states": [
+    {
+      "source_state": "SOURCE_UNAVAILABLE",
+      "producer_truth": "health=unavailable and coverage unconfirmed",
+      "required_radar_truth": "coverage_unconfirmed",
+      "forbidden_customer_claims": ["zero_market", "no_opportunities_proven", "healthy", "complete", "first_value_from_empty"]
+    },
+    {
+      "source_state": "SOURCE_STALE",
+      "producer_truth": "freshness=stale; retained last-valid counts/history remain distinguishable",
+      "required_radar_truth": "coverage_unconfirmed_with_staleness",
+      "forbidden_customer_claims": ["zero_market", "healthy", "complete", "current_empty", "first_value_from_stale_empty"]
+    },
+    {
+      "source_state": "SOURCE_PARTIAL",
+      "producer_truth": "health=degraded/partial observation; available results may remain useful",
+      "required_radar_truth": "partial_coverage",
+      "forbidden_customer_claims": ["zero_market", "coverage_complete", "all_relevant_seen"]
+    },
+    {
+      "source_state": "SOURCE_UNKNOWN",
+      "producer_truth": "freshness/health unknown or no successful observation",
+      "required_radar_truth": "coverage_unconfirmed",
+      "forbidden_customer_claims": ["zero_market", "healthy", "complete", "no_opportunities_proven"]
+    },
+    {
+      "source_state": "GENUINE_ZERO_RESULTS",
+      "producer_truth": "all expected sources current+healthy and result_count=0",
+      "required_radar_truth": "observed_empty_current",
+      "forbidden_customer_claims": ["market_absence_proven", "zero_market_claim_allowed"]
+    }
+  ],
+  "cross_consumer_contract": {
+    "source_unknown_partial_stale_never_equals_zero_market": true,
+    "historical_opportunities_preserved": true,
+    "stats_failure_independent_from_opportunity_source_health_success": true,
+    "first_value_requires_sufficient_currentness": true,
+    "public_source_health_only_no_parallel_truth": true
+  },
+  "current_classification": {
+    "source_health_producer": "GREEN_ON_399_EXACT_TREE",
+    "radar_consumer": "BROKEN_BY_508",
+    "customer_first_value_contract": "FAIL_CLOSED_IN_494_CORPUS",
+    "global_end_to_end": "NOT_GREEN"
+  }
+}
