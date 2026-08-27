@@ -46,6 +46,29 @@ def record_source_result(conn, source, *, success, duration_ms, found=0, new_ite
     conn.commit()
 
 
+def record_source_ingestion_failure(conn, source, *, error, observed_at=None):
+    """Compensate a successful fetch whose canonical source transaction failed.
+
+    Fetch observability and durable ingestion are not the same authority. A fetch
+    may already have recorded a successful observation before Signal/metadata/
+    lifecycle/cursor persistence is attempted. If that later transaction rolls
+    back, keep the last successful fetch timestamp/counts for diagnosis but mark
+    the one public health state degraded so callers cannot mistake transport
+    success for durable current ingestion.
+    """
+    ensure_source_health(conn)
+    now = observed_at or datetime.now(timezone.utc).isoformat()
+    conn.execute('''INSERT INTO source_health
+        (source,last_attempt,last_success,last_error,last_duration_ms,last_found,last_new_items,status)
+        VALUES(?,?,NULL,?,NULL,0,0,'degraded')
+        ON CONFLICT(source) DO UPDATE SET
+          last_attempt=excluded.last_attempt,
+          last_error=excluded.last_error,
+          status='degraded' ''',
+        (str(source), str(now), f"ingestion_commit_failed:{type(error).__name__}"))
+    conn.commit()
+
+
 def get_source_cursor(conn, source):
     ensure_source_health(conn)
     row = conn.execute('SELECT watermark FROM source_cursor WHERE source=?', (source,)).fetchone()
