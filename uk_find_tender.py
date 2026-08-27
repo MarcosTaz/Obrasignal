@@ -178,6 +178,8 @@ def normalize_uk_record(record, *, now=None):
         external_id = f"{ocid}:lot:{lot_id}" if lot_id else ocid
         lot_items = _items_for_lot(tender, lot_id if lot is not None else None)
         cpvs = _cpv_entries(lot_items)
+        # If a lot has no linked classifications, preserve process-level CPV
+        # evidence rather than inventing a classification for the lot.
         if not cpvs:
             cpvs = _cpv_entries(_items_for_lot(tender))
         primary_cpv = cpvs[0]["id"] if cpvs else ""
@@ -270,9 +272,18 @@ class UKFindTenderConnector:
             raise RuntimeError("Find a Tender subdaily window requires datetime bounds")
         if value.tzinfo is None:
             value = value.replace(tzinfo=timezone.utc)
+        # Live validation on 2026-08-24 proved that updatedFrom/updatedTo are
+        # filtered against the UK publication clock: 10:05Z did NOT retrieve a
+        # release stamped 11:13+01, while 11:05+01 did. Keep durable cursors UTC,
+        # but express the source query in Europe/London with its explicit DST
+        # offset so BST/GMT transitions are handled by the timezone database.
         return value.astimezone(LONDON).isoformat(timespec="seconds")
 
     def _params(self, start, end):
+        # No server-side `stages` filter: a live 2026 validation showed a current
+        # tender release present in the unfiltered window while `stages=tender`
+        # returned an empty package for the same time range. Filter current state
+        # only after authoritative record hydration.
         return {
             "updatedFrom": self._format_timestamp(start),
             "updatedTo": self._format_timestamp(end),
