@@ -30,7 +30,6 @@ class FactoryCloudWorkerHostTests(unittest.TestCase):
             sleeps = []
             host = WorkerHost(orchestrator, poll_seconds=0.01, sleeper=sleeps.append, owner_id="worker-a")
             final = host.run_forever(max_cycles=2)
-
             self.assertEqual(final["global_state"], "WAIT")
             self.assertEqual(obra.calls, 2)
             self.assertEqual(k3.calls, 2)
@@ -46,25 +45,15 @@ class FactoryCloudWorkerHostTests(unittest.TestCase):
             second_adapter = WaitingAdapter()
             first_store = StateStore(path)
             first = WorkerHost(
-                PersistentFactoryOrchestrator(
-                    load_registry(), first_store, AdapterRegistry({"obrasignal": first_adapter})
-                ),
-                poll_seconds=0,
-                owner_id="worker-a",
-                lease_ttl_seconds=30,
+                PersistentFactoryOrchestrator(load_registry(), first_store, AdapterRegistry({"obrasignal": first_adapter})),
+                poll_seconds=0, owner_id="worker-a", lease_ttl_seconds=30,
             )
             second = WorkerHost(
-                PersistentFactoryOrchestrator(
-                    load_registry(), StateStore(path), AdapterRegistry({"obrasignal": second_adapter})
-                ),
-                poll_seconds=0,
-                owner_id="worker-b",
-                lease_ttl_seconds=30,
+                PersistentFactoryOrchestrator(load_registry(), StateStore(path), AdapterRegistry({"obrasignal": second_adapter})),
+                poll_seconds=0, owner_id="worker-b", lease_ttl_seconds=30,
             )
-
             first_result = first.run_once()
             second_result = second.run_once()
-
             self.assertNotEqual(first_result["global_state"], "STANDBY")
             self.assertEqual(second_result["global_state"], "STANDBY")
             self.assertEqual(second_result["dispatches"], [])
@@ -74,6 +63,33 @@ class FactoryCloudWorkerHostTests(unittest.TestCase):
             takeover = second.run_once()
             self.assertNotEqual(takeover["global_state"], "STANDBY")
             second.stop()
+
+    def test_standby_worker_does_not_mark_live_execution_interrupted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.sqlite3"
+            active_store = StateStore(path)
+            active_orchestrator = PersistentFactoryOrchestrator(load_registry(), active_store)
+            self.assertTrue(active_store.acquire_or_renew_lease(LEASE_NAME, "worker-a", 30))
+            task = active_store.get_app("obrasignal")["active"]
+            active_store.start_execution(
+                "obrasignal", "live-execution", task,
+                {"execution_id": "live-execution", "task": task, "app_id": "obrasignal"},
+            )
+
+            standby = WorkerHost(
+                PersistentFactoryOrchestrator(load_registry(), StateStore(path)),
+                poll_seconds=0, owner_id="worker-b", lease_ttl_seconds=30,
+            )
+            result = standby.run_once()
+
+            self.assertEqual(result["global_state"], "STANDBY")
+            live = active_store.get_app("obrasignal")
+            self.assertEqual(live["state"], "EXECUTING")
+            self.assertEqual(live["current_execution"]["execution_id"], "live-execution")
+            history = active_store.history("obrasignal")
+            self.assertEqual(history[0]["status"], "EXECUTING")
+            self.assertIsNone(history[0]["finished_at"])
+            active_store.release_lease(LEASE_NAME, "worker-a")
 
     def test_stop_prevents_another_cycle(self):
         with tempfile.TemporaryDirectory() as tmp:
