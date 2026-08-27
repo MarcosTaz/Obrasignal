@@ -33,6 +33,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             return fn(*args, **kwargs)
         return wrapped
 
+    def company_or_404(company_id: str):
+        company = get_company(company_id)
+        if company:
+            return company, None
+        return None, (jsonify({"error": "not_found", "company_id": company_id}), 404)
+
     @app.get("/health")
     def health():
         return jsonify({"status": "ok", "truth": "process_alive_not_global_green"})
@@ -82,8 +88,44 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.get("/api/companies/<company_id>")
     @auth_required
     def api_company(company_id: str):
-        company = get_company(company_id)
-        return jsonify(company.to_dict()) if company else (jsonify({"error": "not_found"}), 404)
+        company, error = company_or_404(company_id)
+        return error or jsonify(company.to_dict())
+
+    @app.get("/api/companies/<company_id>/metrics")
+    @auth_required
+    def api_company_metrics(company_id: str):
+        company, error = company_or_404(company_id)
+        if error: return error
+        payload = company.to_dict()
+        return jsonify({"company_id": company_id, "revenue": payload["revenue"], "pipeline": payload["pipeline"], "customers": payload["customers"], "metrics": payload["metrics"], "data_freshness": payload["data_freshness"]})
+
+    @app.get("/api/companies/<company_id>/factory-state")
+    @auth_required
+    def api_company_factory_state(company_id: str):
+        company, error = company_or_404(company_id)
+        if error: return error
+        return jsonify({"company_id": company_id, "ACTIVE": company.active, "NEXT": company.next, "WAIT": company.wait, "factories": company.to_dict()["factories"], "last_update": company.last_update})
+
+    @app.get("/api/companies/<company_id>/risks")
+    @auth_required
+    def api_company_risks(company_id: str):
+        company, error = company_or_404(company_id)
+        if error: return error
+        return jsonify({"company_id": company_id, "risks": company.to_dict()["risks"], "data_freshness": company.data_freshness.value})
+
+    @app.get("/api/companies/<company_id>/revenue")
+    @auth_required
+    def api_company_revenue(company_id: str):
+        company, error = company_or_404(company_id)
+        if error: return error
+        return jsonify({"company_id": company_id, "revenue": company.to_dict()["revenue"]})
+
+    @app.get("/api/companies/<company_id>/actions")
+    @auth_required
+    def api_company_actions(company_id: str):
+        _, error = company_or_404(company_id)
+        if error: return error
+        return jsonify({"company_id": company_id, "actions": list_actions()})
 
     @app.get("/api/actions")
     @auth_required
