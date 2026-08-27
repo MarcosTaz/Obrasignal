@@ -116,6 +116,12 @@ class ControlCenterTests(unittest.TestCase):
         self.assertEqual(body["field"], "active")
         self.assertEqual(get_company("founder-control-center").next, before)
 
+    def test_action_ui_checks_authority_before_claiming_execution(self):
+        response = self.client.get("/static/app.js")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Checking action authority", response.data)
+        self.assertNotIn(b"Executing\xe2\x80\xa6", response.data)
+
     def test_health_does_not_claim_global_green(self):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
