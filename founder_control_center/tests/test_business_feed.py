@@ -1,5 +1,6 @@
 import os
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from founder_control_center.app import create_app
 from founder_control_center.registry import get_company
@@ -52,6 +53,7 @@ class BusinessMetricFeedTests(unittest.TestCase):
         metric = response.get_json()["metric"]
         self.assertEqual(metric["state"], "GREEN")
         self.assertEqual(metric["value"], 1250.5)
+        self.assertEqual(metric["unit"], "EUR")
         self.assertEqual(metric["evidence"]["source"], "ci:canonical-billing-fixture")
         self.assertEqual(metric["evidence"]["freshness_seconds"], 900)
         persisted = get_company("founder-control-center").revenue
@@ -72,18 +74,37 @@ class BusinessMetricFeedTests(unittest.TestCase):
         self.assertEqual(metric["state"], "UNKNOWN")
         self.assertIsNone(metric["value"])
 
+    def test_stale_observation_cannot_be_returned_as_green(self):
+        stale = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        payload = dict(self.payload, metric_key="pipeline", observed_at=stale, freshness_seconds=60, state="GREEN")
+        response = self._authorized_post(payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["metric"]["state"], "STALE")
+        self.assertEqual(get_company("founder-control-center").pipeline.state.value, "STALE")
+
+    def test_canonical_business_units_cannot_be_relabelled_without_conversion(self):
+        response = self._authorized_post(dict(self.payload, unit="USD"))
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("unit must be EUR", response.get_json()["detail"])
+        customers = self._authorized_post(dict(self.payload, metric_key="customers", value=2, unit="users"))
+        self.assertEqual(customers.status_code, 400)
+        self.assertIn("unit must be count", customers.get_json()["detail"])
+
     def test_out_of_order_metric_is_rejected_without_replacing_newer_truth(self):
+        now = datetime.now(timezone.utc)
+        newer_at = (now - timedelta(seconds=30)).isoformat()
+        older_at = (now - timedelta(seconds=90)).isoformat()
         newer = dict(
             self.payload,
             metric_key="customers",
             value=12,
-            observed_at="2026-08-27T15:00:00Z",
+            observed_at=newer_at,
             source="ci:newer-customer-source",
         )
         older = dict(
             newer,
             value=3,
-            observed_at="2026-08-27T14:00:00Z",
+            observed_at=older_at,
             source="ci:delayed-customer-source",
         )
         self.assertEqual(self._authorized_post(newer).status_code, 200)
