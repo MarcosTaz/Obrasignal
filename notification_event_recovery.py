@@ -33,9 +33,25 @@ def _parse_baseline_id(event_key):
     return int(match.group(1)) if match else None
 
 
+def _ensure_decision_parentage(conn):
+    """Add exact causal decision identity to durable opportunity events.
+
+    Historical events remain NULL/UNKNOWN. Only newly created recovery events are
+    bound to the exact current decision row that authorized their creation.
+    """
+    _events.ensure_event_table(conn)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_events)")}
+    if "decision_id" not in columns:
+        conn.execute("ALTER TABLE opportunity_events ADD COLUMN decision_id INTEGER")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_opportunity_events_decision_parent "
+        "ON opportunity_events(account_id,decision_id)"
+    )
+
+
 def reconciliation_baseline_id(conn, account_id):
     """Return the immutable activation decision id for one account, if present."""
-    _events.ensure_event_table(conn)
+    _ensure_decision_parentage(conn)
     row = conn.execute(
         """SELECT event_key FROM opportunity_events
            WHERE account_id=? AND event_type=?
@@ -56,7 +72,7 @@ def initialize_reconciliation_baseline(conn, account_id, *, existing_account=Tru
     The baseline is immutable across process restarts.
     """
     account_id = str(account_id or "default")
-    _events.ensure_event_table(conn)
+    _ensure_decision_parentage(conn)
     ensure_decision_table(conn)
     current = reconciliation_baseline_id(conn, account_id)
     if current is not None:
@@ -73,8 +89,8 @@ def initialize_reconciliation_baseline(conn, account_id, *, existing_account=Tru
 
     conn.execute(
         """INSERT OR IGNORE INTO opportunity_events
-           (account_id,event_key,tender_id,source,event_type,score,created_at)
-           VALUES (?,?,NULL,'SYSTEM',?,0,?)""",
+           (account_id,event_key,tender_id,source,event_type,score,created_at,decision_id)
+           VALUES (?,?,NULL,'SYSTEM',?,0,?,NULL)""",
         (
             account_id,
             _baseline_event_key(account_id, baseline),
@@ -109,9 +125,13 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
     current rule semantics and the tenant's current profile fingerprint, while
     the opportunity remains actionable. A stale latest row is never replaced by
     searching backward for older authority.
+
+    The exact decision row that authorizes a new event is persisted as
+    ``decision_id``. Later same-score/same-opportunity decisions therefore cannot
+    rewrite or make the event's causal parent ambiguous.
     """
     account_id = str(account_id or "default")
-    _events.ensure_event_table(conn)
+    _ensure_decision_parentage(conn)
     ensure_decision_table(conn)
     ensure_lifecycle_table(conn)
 
@@ -162,10 +182,11 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
     for row in rows:
         item = dict(row)
         event_key = f"{account_id}:{_events._key(item)}"
+        decision_id = item.get("account_decision_id")
         cur = conn.execute(
             """INSERT OR IGNORE INTO opportunity_events
-               (account_id,event_key,tender_id,source,event_type,score,created_at)
-               VALUES (?,?,?,?,?,?,?)""",
+               (account_id,event_key,tender_id,source,event_type,score,created_at,decision_id)
+               VALUES (?,?,?,?,?,?,?,?)""",
             (
                 account_id,
                 event_key,
@@ -174,6 +195,7 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
                 "new_high_match",
                 item.get("account_score", 0),
                 now,
+                decision_id,
             ),
         )
         if cur.rowcount:
@@ -184,6 +206,7 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
                     "tender_id": item.get("id"),
                     "source": item.get("source"),
                     "score": item.get("account_score", 0),
+                    "decision_id": decision_id,
                     "title": item.get("title"),
                     "country": item.get("country"),
                     "url": item.get("url"),
