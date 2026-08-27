@@ -29,6 +29,14 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"fails closed", response.data)
 
+    def test_login_fails_closed_when_admin_token_is_too_weak(self):
+        os.environ["FCC_ADMIN_TOKEN"] = "short"
+        app = create_app({"TESTING": True, "SESSION_COOKIE_SECURE": False})
+        response = app.test_client().post("/login", data={"token": "short"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"too weak", response.data)
+        self.assertNotEqual(response.status_code, 302)
+
     def test_login_fails_closed_without_session_secret_outside_test_mode(self):
         os.environ["FCC_ADMIN_TOKEN"] = "test-only-secret"
         os.environ.pop("FCC_SESSION_SECRET", None)
@@ -36,6 +44,14 @@ class AuthTests(unittest.TestCase):
         response = app.test_client().post("/login", data={"token": "test-only-secret"})
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"FCC_SESSION_SECRET", response.data)
+
+    def test_login_fails_closed_with_weak_session_secret_outside_test_mode(self):
+        os.environ["FCC_ADMIN_TOKEN"] = "test-only-secret"
+        os.environ["FCC_SESSION_SECRET"] = "too-short"
+        app = create_app({"SESSION_COOKIE_SECURE": False})
+        response = app.test_client().post("/login", data={"token": "test-only-secret"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"too weak", response.data)
 
     def test_valid_admin_token_creates_private_session(self):
         os.environ["FCC_ADMIN_TOKEN"] = "test-only-secret"
