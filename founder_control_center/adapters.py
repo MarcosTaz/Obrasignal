@@ -15,7 +15,7 @@ def utcnow() -> str:
 
 
 class GitHubAdapter:
-    """Read-only repository/deployment adapter. Public repos work without a token; private repos fail closed to UNKNOWN."""
+    """Read-only repository/deployment adapter. Public repos work without a token; inaccessible source truth fails closed to UNKNOWN."""
 
     def __init__(self, token: str | None = None, timeout: int = 8):
         self.token = token or os.getenv("FCC_GITHUB_TOKEN")
@@ -63,30 +63,36 @@ class GitHubAdapter:
         headers = self._headers()
         try:
             repo = requests.get(f"https://api.github.com/repos/{full_name}", headers=headers, timeout=self.timeout)
-            if repo.status_code in (401, 403, 404) and not self.token:
-                evidence.detail = "Repository is not publicly accessible. Configure FCC_GITHUB_TOKEN for private repository truth; state remains UNKNOWN."
+            if repo.status_code in (401, 403, 404):
+                if self.token:
+                    evidence.detail = "GitHub repository source is inaccessible with the configured credential; CI truth remains UNKNOWN."
+                else:
+                    evidence.detail = "Repository is not publicly accessible. Configure FCC_GITHUB_TOKEN for private repository truth; CI state remains UNKNOWN."
                 return RepositoryState(full_name=full_name, ci=TruthState.UNKNOWN, evidence=evidence)
             repo.raise_for_status()
             data = repo.json(); branch = data.get("default_branch"); commit = None; ci = TruthState.UNKNOWN; ci_detail = "No commit available for CI proof."
             if branch:
                 ref = requests.get(f"https://api.github.com/repos/{full_name}/commits/{branch}", headers=headers, timeout=self.timeout)
+                if ref.status_code in (401, 403, 404):
+                    evidence.detail = "Repository metadata was reachable but the branch/commit source was inaccessible; CI truth remains UNKNOWN."
+                    return RepositoryState(full_name=full_name, branch=branch, ci=TruthState.UNKNOWN, evidence=evidence)
                 ref.raise_for_status(); commit = ref.json().get("sha")
             if commit:
                 ci, ci_detail = self._ci_state(full_name, commit, headers)
             evidence.detail = f"Live GitHub repository snapshot. {ci_detail}"
             return RepositoryState(full_name, branch, commit, ci, evidence)
         except requests.RequestException as exc:
-            evidence.detail = f"GitHub adapter transport failure: {type(exc).__name__}"
-            return RepositoryState(full_name=full_name, ci=TruthState.DEGRADED, evidence=evidence)
+            evidence.detail = f"GitHub source could not be refreshed: {type(exc).__name__}; CI truth remains UNKNOWN."
+            return RepositoryState(full_name=full_name, ci=TruthState.UNKNOWN, evidence=evidence)
 
     def refresh_deployment(self, full_name: str) -> tuple[TruthState, Evidence, str | None]:
-        """Read latest GitHub deployment/status without equating repository green with production green."""
+        """Read latest GitHub deployment/status without equating source availability with deployment health."""
         evidence = Evidence(source=f"github-deployments:{full_name}", observed_at=utcnow(), freshness_seconds=600, kind="live_adapter", url=f"https://github.com/{full_name}/deployments")
         headers = self._headers()
         try:
             response = requests.get(f"https://api.github.com/repos/{full_name}/deployments?per_page=1", headers=headers, timeout=self.timeout)
-            if response.status_code in (401, 403, 404) and not self.token:
-                evidence.detail = "Deployment source is not publicly accessible; deployment state remains UNKNOWN."
+            if response.status_code in (401, 403, 404):
+                evidence.detail = "GitHub deployment source is inaccessible; deployment truth remains UNKNOWN."
                 return TruthState.UNKNOWN, evidence, None
             response.raise_for_status()
             deployments = response.json()
@@ -101,6 +107,9 @@ class GitHubAdapter:
                 evidence.detail = f"Latest deployment for {environment} has no resolvable deployment id."
                 return TruthState.UNKNOWN, evidence, None
             statuses = requests.get(f"https://api.github.com/repos/{full_name}/deployments/{deployment_id}/statuses?per_page=1", headers=headers, timeout=self.timeout)
+            if statuses.status_code in (401, 403, 404):
+                evidence.detail = f"Deployment {deployment_id} exists but its status source is inaccessible; deployment truth remains UNKNOWN."
+                return TruthState.UNKNOWN, evidence, None
             statuses.raise_for_status()
             status_items = statuses.json()
             if not status_items:
@@ -135,8 +144,8 @@ class GitHubAdapter:
                 return TruthState.DEGRADED, evidence, environment_url
             return TruthState.UNKNOWN, evidence, environment_url
         except requests.RequestException as exc:
-            evidence.detail = f"Deployment adapter transport failure: {type(exc).__name__}"
-            return TruthState.DEGRADED, evidence, None
+            evidence.detail = f"GitHub deployment source could not be refreshed: {type(exc).__name__}; deployment truth remains UNKNOWN."
+            return TruthState.UNKNOWN, evidence, None
 
 
 class HealthAdapter:
