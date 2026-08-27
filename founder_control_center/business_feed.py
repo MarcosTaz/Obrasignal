@@ -111,6 +111,19 @@ def _normalized_custom_unit(unit: Any) -> str | None:
     return value
 
 
+def _normalized_detail(detail: Any, default: str) -> str:
+    if detail is None:
+        return default
+    if not isinstance(detail, str):
+        raise ValueError("detail must be a string or null")
+    value = detail.strip()
+    if not value:
+        return default
+    if len(value) > 1000:
+        raise ValueError("detail must be at most 1000 characters")
+    return value
+
+
 def _normalized_custom_value(value: Any) -> int | float | None:
     if value is None:
         return None
@@ -191,7 +204,7 @@ def ingest_business_metric(
         observed_at=observed,
         freshness_seconds=freshness,
         kind="business_metric_feed",
-        detail=(detail.strip()[:1000] if isinstance(detail, str) and detail.strip() else "Authenticated canonical business metric feed."),
+        detail=_normalized_detail(detail, "Authenticated canonical business metric feed."),
     )
     effective_state = _effective_state(requested_state, evidence)
     metric = Metric(metric_key, spec["label"], normalized, canonical_unit, effective_state, evidence)
@@ -233,6 +246,9 @@ def ingest_operational_metric(
         raise ValueError("metric_key must be a 2-64 character KPI slug and not a reserved business metric")
     if not isinstance(label, str) or not label.strip():
         raise ValueError("label is required")
+    label = label.strip()
+    if len(label) > 120:
+        raise ValueError("label must be at most 120 characters")
     source_label = normalize_source_label(source)
     observed = _observed_at(observed_at)
     freshness = _freshness(freshness_seconds)
@@ -244,12 +260,12 @@ def ingest_operational_metric(
         observed_at=observed,
         freshness_seconds=freshness,
         kind="operational_metric_feed",
-        detail=(detail.strip()[:1000] if isinstance(detail, str) and detail.strip() else "Authenticated source-owned operational KPI feed."),
+        detail=_normalized_detail(detail, "Authenticated source-owned operational KPI feed."),
     )
     effective_state = _effective_state(requested_state, evidence)
     metric = Metric(
         key=metric_key,
-        label=label.strip()[:120],
+        label=label,
         value=normalized,
         unit=normalized_unit,
         state=effective_state,
