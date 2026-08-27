@@ -87,7 +87,7 @@ class AppWorkerHost:
                     evidence={"exception_type": type(exc).__name__},
                     blockers=("app_worker_adapter_error",),
                     resume_at=request.task,
-                    error={"type": type(exc).__name__, "message": str(exc)},
+                    error={"type": type(exc).__name__},
                 )
             self.queue.finish(job["job_id"], self.worker_id, result)
             self.last_result = {
