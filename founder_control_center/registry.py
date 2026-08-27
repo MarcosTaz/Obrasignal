@@ -32,6 +32,8 @@ def init_db() -> None:
     with connect() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS companies(id TEXT PRIMARY KEY,payload TEXT NOT NULL,updated_at TEXT NOT NULL)")
         conn.execute("CREATE TABLE IF NOT EXISTS audit_log(id INTEGER PRIMARY KEY AUTOINCREMENT,created_at TEXT NOT NULL,company_id TEXT,actor TEXT NOT NULL,action TEXT NOT NULL,level TEXT NOT NULL,source_data TEXT,result TEXT NOT NULL,failure_state TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS company_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,company_id TEXT NOT NULL,captured_at TEXT NOT NULL,payload TEXT NOT NULL)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_company_snapshots_company_id ON company_snapshots(company_id,id DESC)")
         conn.commit()
     bootstrap_if_empty()
 
@@ -103,6 +105,17 @@ def _from_payload(payload: dict) -> CompanyManifest:
     )
 
 
+def _payload_json(company: CompanyManifest) -> str:
+    return json.dumps(company.to_dict(), ensure_ascii=False)
+
+
+def _write_snapshot(conn: sqlite3.Connection, company: CompanyManifest, captured_at: str) -> None:
+    conn.execute(
+        "INSERT INTO company_snapshots(company_id,captured_at,payload) VALUES(?,?,?)",
+        (company.id, captured_at, _payload_json(company)),
+    )
+
+
 def list_companies() -> list[CompanyManifest]:
     with connect() as conn:
         rows = conn.execute("SELECT payload FROM companies ORDER BY id").fetchall()
@@ -115,12 +128,64 @@ def get_company(company_id: str) -> CompanyManifest | None:
     return _from_payload(json.loads(row["payload"])) if row else None
 
 
+def _snapshot_summary(row: sqlite3.Row) -> dict:
+    payload = json.loads(row["payload"])
+    repository = payload.get("repository") or {}
+    application = payload.get("application") or {}
+    factories = payload.get("factories") or []
+    live_factory_freshness = [
+        item.get("freshness", "UNKNOWN")
+        for item in factories
+        if (item.get("evidence") or {}).get("kind") == "factory_feed"
+    ]
+    return {
+        "captured_at": row["captured_at"],
+        "status": payload.get("status", "UNKNOWN"),
+        "stage": payload.get("stage", "UNKNOWN"),
+        "active": payload.get("active", "UNKNOWN"),
+        "next": payload.get("next", "UNKNOWN"),
+        "wait": payload.get("wait", "NONE"),
+        "revenue": payload.get("revenue") or {},
+        "pipeline": payload.get("pipeline") or {},
+        "customers": payload.get("customers") or {},
+        "repository": {"commit": repository.get("commit"), "ci": repository.get("ci", "UNKNOWN")},
+        "application": {"deployment": application.get("deployment", "UNKNOWN"), "health": application.get("health", "UNKNOWN")},
+        "factory_feed_freshness": live_factory_freshness,
+    }
+
+
+def list_company_history(company_id: str, limit: int = 50) -> list[dict]:
+    limit = max(1, min(int(limit), 200))
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT captured_at,payload FROM company_snapshots WHERE company_id=? ORDER BY id DESC LIMIT ?",
+            (company_id, limit),
+        ).fetchall()
+    return [_snapshot_summary(row) for row in rows]
+
+
 def save_company(company: CompanyManifest) -> None:
     stamp = now_iso()
     company.last_update = stamp
+    payload = _payload_json(company)
     with connect() as conn:
-        conn.execute("INSERT INTO companies(id,payload,updated_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at", (company.id, json.dumps(company.to_dict(), ensure_ascii=False), stamp))
+        conn.execute("INSERT INTO companies(id,payload,updated_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at", (company.id, payload, stamp))
+        _write_snapshot(conn, company, stamp)
         conn.commit()
+
+
+def create_company(company: CompanyManifest) -> None:
+    """Insert a new company identity atomically; never overwrite an existing company."""
+    stamp = now_iso()
+    company.last_update = stamp
+    payload = _payload_json(company)
+    try:
+        with connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute("INSERT INTO companies(id,payload,updated_at) VALUES(?,?,?)", (company.id, payload, stamp))
+            _write_snapshot(conn, company, stamp)
+    except sqlite3.IntegrityError as exc:
+        raise ValueError("company_id already exists") from exc
 
 
 def mutate_company(company_id: str, mutator: Callable[[CompanyManifest], T]) -> tuple[CompanyManifest, T]:
@@ -134,7 +199,8 @@ def mutate_company(company_id: str, mutator: Callable[[CompanyManifest], T]) -> 
         result = mutator(company)
         stamp = now_iso()
         company.last_update = stamp
-        conn.execute("UPDATE companies SET payload=?, updated_at=? WHERE id=?", (json.dumps(company.to_dict(), ensure_ascii=False), stamp, company_id))
+        conn.execute("UPDATE companies SET payload=?, updated_at=? WHERE id=?", (_payload_json(company), stamp, company_id))
+        _write_snapshot(conn, company, stamp)
     return company, result
 
 
@@ -147,8 +213,6 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
     mission = mission.strip()
     if not name or not mission:
         raise ValueError("name and mission are required")
-    if get_company(company_id):
-        raise ValueError("company_id already exists")
     normalized_application_url = validate_public_http_url(application_url) if application_url else None
     evidence = Evidence(source="founder_manual_registry", observed_at=now_iso(), freshness_seconds=None, kind="manual_registry", detail="Identity fields are founder-provided. Operational status remains UNKNOWN until canonical adapters provide evidence.")
     company = CompanyManifest(
@@ -159,7 +223,7 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
         data_freshness=TruthState.UNKNOWN, synthetic=False,
         source_note="Registered manually; business, application and repository health remain UNKNOWN until source adapters prove them.",
     )
-    save_company(company)
+    create_company(company)
     append_audit(actor="founder", action="register_company", level="GREEN", company_id=company_id, result="registered_unknown_truth", source_data={"repository": repository_full_name, "application_url_configured": bool(normalized_application_url)})
     return company
 
