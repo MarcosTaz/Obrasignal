@@ -34,19 +34,41 @@ jobs:
       - run: python -m unittest discover -s founder_control_center/tests -v
       - name: Build private deployment image
         run: docker build -f founder_control_center/Dockerfile -t founder-control-center:ci .
-      - name: Smoke-run private deployment image
+      - name: Smoke-run authenticated private deployment image
         shell: bash
         run: |
           docker run -d --rm --name fcc-ci -p 127.0.0.1:18088:8088 \
-            -e FCC_ADMIN_TOKEN=ci-admin-token \
+            -e FCC_ADMIN_TOKEN=ci-admin-token-long-enough \
             -e FCC_SESSION_SECRET=ci-session-secret-long-enough-for-smoke \
+            -e FCC_SECURE_COOKIE=0 \
             founder-control-center:ci
           trap 'docker logs fcc-ci || true; docker rm -f fcc-ci >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 20); do
             if curl -fsS http://127.0.0.1:18088/health | grep -q 'process_alive_not_global_green'; then
-              exit 0
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              echo 'Container did not become live'
+              exit 1
             fi
             sleep 1
           done
-          echo 'Container did not become healthy'
-          exit 1
+
+          curl -fsS -c /tmp/fcc-cookie.jar -o /tmp/login-response.html \
+            -X POST -d 'token=ci-admin-token-long-enough' \
+            http://127.0.0.1:18088/login
+          curl -fsS -b /tmp/fcc-cookie.jar http://127.0.0.1:18088/api/readiness > /tmp/fcc-readiness.json
+          curl -fsS -b /tmp/fcc-cookie.jar http://127.0.0.1:18088/api/companies > /tmp/fcc-companies.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          readiness = json.loads(Path('/tmp/fcc-readiness.json').read_text())
+          companies = json.loads(Path('/tmp/fcc-companies.json').read_text())
+          assert readiness['private_access']['state'] == 'CONFIGURED', readiness
+          assert readiness['transport_policy']['state'] == 'LOCAL_ONLY', readiness
+          ids = {item['id'] for item in companies['companies']}
+          assert 'founder-control-center' in ids, ids
+          assert 'obrasignal' in ids, ids
+          PY
