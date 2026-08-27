@@ -37,6 +37,18 @@ class RiskTruthUITests(unittest.TestCase):
         self.assertEqual(critical["source_kind"], "context_seed")
         self.assertNotIn("evidence", critical)
 
+    def test_company_apis_use_same_risk_truth_projection(self):
+        detail = self.client.get("/api/companies/founder-control-center").get_json()
+        critical = next(item for item in detail["risks"] if item["severity"] == "CRITICAL")
+        self.assertEqual(critical["current_truth"], "UNKNOWN")
+        self.assertEqual(critical["source_kind"], "context_seed")
+
+        portfolio = self.client.get("/api/companies").get_json()["companies"]
+        company = next(item for item in portfolio if item["id"] == "founder-control-center")
+        critical = next(item for item in company["risks"] if item["severity"] == "CRITICAL")
+        self.assertEqual(critical["current_truth"], "UNKNOWN")
+        self.assertEqual(critical["source_kind"], "context_seed")
+
 
 if __name__ == "__main__":
     unittest.main()
