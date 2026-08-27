@@ -1,0 +1,17 @@
+# Dockerfile-specific allowlist for `docker build -f founder_control_center/Dockerfile .`.
+# Keep repository history, unrelated apps, local databases and environment files out
+# of the Founder Control Center build context sent to the builder.
+**
+!requirements.txt
+!founder_control_center/
+!founder_control_center/**
+
+# Runtime/test artifacts are never needed in the image.
+founder_control_center/__pycache__/
+founder_control_center/**/*.pyc
+founder_control_center/**/*.pyo
+founder_control_center/**/*.db
+founder_control_center/**/*.db-*
+founder_control_center/.env
+founder_control_center/.env.*
+!founder_control_center/.env.example
