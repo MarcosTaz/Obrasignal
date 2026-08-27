@@ -6,6 +6,7 @@ from pathlib import Path
 from decision_log import record_decision
 import notification_event_recovery as recovery
 import notification_events
+from opportunity_match_pipeline import RULE_VERSION
 
 
 def _conn(path=":memory:"):
@@ -47,6 +48,20 @@ def _tender(conn, tender_id, external_id, *, first_seen=None):
     )
 
 
+def _current_decision(conn, source, external_id, decision, reason, *, score, account_id):
+    """Create the current pipeline-semantic decision assumed by these tests."""
+    record_decision(
+        conn,
+        source,
+        external_id,
+        decision,
+        reason,
+        score=score,
+        account_id=account_id,
+        rule_version=RULE_VERSION,
+    )
+
+
 def _no_provider(monkeypatch):
     monkeypatch.setattr(notification_events, "submit_pending_pushes", lambda *_a, **_k: 0)
     monkeypatch.setattr(notification_events, "reconcile_push_receipts", lambda *_a, **_k: 0)
@@ -64,7 +79,7 @@ def test_missing_event_survives_restart_after_legacy_window(tmp_path, monkeypatc
     ) == 0
 
     _tender(conn, 1, "2026/S-restart")
-    record_decision(
+    _current_decision(
         conn,
         "TED",
         "2026/S-restart",
@@ -95,7 +110,7 @@ def test_reconciliation_is_idempotent_and_does_not_require_source_replay(monkeyp
     conn = _conn()
     recovery.initialize_reconciliation_baseline(conn, "account-a", existing_account=True)
     _tender(conn, 2, "2026/S-idempotent")
-    record_decision(
+    _current_decision(
         conn,
         "TED",
         "2026/S-idempotent",
@@ -117,7 +132,7 @@ def test_reconciliation_is_idempotent_and_does_not_require_source_replay(monkeyp
 def test_existing_account_baseline_blocks_historical_notification_backfill(monkeypatch):
     conn = _conn()
     _tender(conn, 3, "2026/S-historical")
-    record_decision(
+    _current_decision(
         conn,
         "TED",
         "2026/S-historical",
@@ -147,13 +162,13 @@ def test_baseline_is_immutable_across_restart(tmp_path):
     db_path = tmp_path / "baseline.sqlite"
     conn = _conn(db_path)
     _tender(conn, 10, "2026/S-old")
-    record_decision(conn, "TED", "2026/S-old", "QUALIFIED", "old", score=95, account_id="account-a")
+    _current_decision(conn, "TED", "2026/S-old", "QUALIFIED", "old", score=95, account_id="account-a")
     first = recovery.initialize_reconciliation_baseline(conn, "account-a", existing_account=True)
     conn.close()
 
     conn = _conn(db_path)
     _tender(conn, 11, "2026/S-new")
-    record_decision(conn, "TED", "2026/S-new", "QUALIFIED", "new", score=96, account_id="account-a")
+    _current_decision(conn, "TED", "2026/S-new", "QUALIFIED", "new", score=96, account_id="account-a")
     second = recovery.initialize_reconciliation_baseline(conn, "account-a", existing_account=True)
     assert second == first
     assert recovery.reconciliation_baseline_id(conn, "account-a") == first
@@ -163,7 +178,7 @@ def test_baseline_is_immutable_across_restart(tmp_path):
 def test_new_account_without_startup_baseline_starts_from_zero(monkeypatch):
     conn = _conn()
     _tender(conn, 12, "2026/S-new-account")
-    record_decision(
+    _current_decision(
         conn,
         "TED",
         "2026/S-new-account",
@@ -184,7 +199,7 @@ def test_recovery_is_tenant_scoped(monkeypatch):
     conn = _conn()
     recovery.initialize_existing_account_baselines(conn, ["account-a", "account-b"])
     _tender(conn, 4, "2026/S-tenant")
-    record_decision(
+    _current_decision(
         conn,
         "TED",
         "2026/S-tenant",
@@ -193,7 +208,7 @@ def test_recovery_is_tenant_scoped(monkeypatch):
         score=96,
         account_id="account-a",
     )
-    record_decision(
+    _current_decision(
         conn,
         "TED",
         "2026/S-tenant",
