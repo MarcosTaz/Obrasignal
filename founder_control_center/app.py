@@ -11,6 +11,7 @@ from .actions import execute, list_actions
 from .business_api import business_api
 from .ranking import highest_value_actions, rank_portfolio
 from .registry import get_company, ingest_factory_state, init_db, list_audit, list_companies, register_company_stub
+from .security import safe_local_redirect_target
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -35,7 +36,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-        response.headers.setdefault("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+        response.headers.setdefault("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
         response.headers.setdefault("Cache-Control", "no-store")
         if app.config.get("SESSION_COOKIE_SECURE"):
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -109,7 +110,8 @@ def create_app(test_config: dict | None = None) -> Flask:
                 session.clear()
                 session["fcc_auth"] = True
                 session["csrf_token"] = secrets.token_urlsafe(32)
-                return redirect(request.args.get("next") or url_for("dashboard"))
+                target = safe_local_redirect_target(request.args.get("next"), url_for("dashboard"))
+                return redirect(target)
             else:
                 error = "Invalid access token."
         return render_template("login.html", error=error, configured=bool(admin_token), session_configured=session_configured)
