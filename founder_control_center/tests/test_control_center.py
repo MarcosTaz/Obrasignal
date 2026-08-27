@@ -58,6 +58,18 @@ class ControlCenterTests(unittest.TestCase):
         self.assertTrue(body["ok"])
         self.assertEqual(body["changed_fields"], ["active"])
 
+    def test_green_action_company_payload_preserves_derived_risk_truth(self):
+        body, status = execute(
+            "update_factory_state",
+            "founder-control-center",
+            {"active": f"Projection regression {id(self)}"},
+        )
+        self.assertEqual(status, 200)
+        critical = next(item for item in body["company"]["risks"] if item["severity"] == "CRITICAL")
+        self.assertEqual(critical["current_truth"], "UNKNOWN")
+        self.assertEqual(critical["source_kind"], "context_seed")
+        self.assertNotIn("evidence", critical)
+
     def test_empty_state_update_is_rejected_not_fake_success(self):
         body, status = execute("update_factory_state", "founder-control-center", {})
         self.assertEqual(status, 400)
