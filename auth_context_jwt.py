@@ -318,7 +318,8 @@ def production_verifier() -> JwtVerifier:
 
 def authentication_health() -> dict:
     """Return passive, public-safe authentication configuration/readiness metadata."""
-    mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
+    raw_mode = os.getenv("OBRASIGNAL_AUTH_MODE")
+    mode = (raw_mode or "").strip().lower()
     if mode == "development":
         return {
             "mode": "development",
@@ -327,7 +328,7 @@ def authentication_health() -> dict:
         }
     if mode != "provider":
         return {
-            "mode": "invalid",
+            "mode": "missing" if not mode else "invalid",
             "config_present": False,
             "provider_status": "misconfigured",
         }
