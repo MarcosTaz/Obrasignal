@@ -40,6 +40,13 @@ class GitHubAdapterTests(unittest.TestCase):
         self.assertEqual(state.ci, TruthState.GREEN)
 
     @patch("founder_control_center.adapters.requests.get")
+    def test_invalid_repository_identifier_is_rejected_before_network_call(self, get):
+        state = GitHubAdapter(token="server-token").refresh_repo("owner/repo/../../user")
+        self.assertEqual(state.ci, TruthState.UNKNOWN)
+        self.assertIn("rejected before GitHub access", state.evidence.detail)
+        get.assert_not_called()
+
+    @patch("founder_control_center.adapters.requests.get")
     def test_inaccessible_repo_without_token_stays_unknown(self, get):
         get.return_value = FakeResponse(status_code=404)
         state = GitHubAdapter(token=None).refresh_repo("owner/private")
