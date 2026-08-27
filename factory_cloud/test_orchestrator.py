@@ -98,7 +98,14 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
         self.assertEqual(recovered["resume_at"], task)
         self.assertIsNone(recovered["current_execution"])
         self.assertEqual(recovered["error_state"]["type"], "PROCESS_INTERRUPTED")
+        self.assertEqual(recovered["error_state"]["execution_id"], "crashed-execution")
         self.assertEqual(recovered["retry_state"]["interrupted_count"], 1)
+        history = restarted.store.history("obrasignal")
+        self.assertEqual(history[0]["execution_id"], "crashed-execution")
+        self.assertEqual(history[0]["status"], "INTERRUPTED")
+        self.assertIsNotNone(history[0]["finished_at"])
+        self.assertEqual(history[0]["error"]["type"], "PROCESS_INTERRUPTED")
+        self.assertEqual(history[0]["evidence"]["resume_at"], task)
 
     def test_adapter_exception_is_fail_closed_and_persisted(self):
         store = StateStore(self.state_path)
