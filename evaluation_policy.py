@@ -305,7 +305,13 @@ def evaluation_metrics(conn, account, *, now=None):
     events = [(row[0], _parse_iso(row[1])) for row in rows]
     created = _parse_iso(account.get("created_at"))
     activated = _parse_iso(account.get("evaluation_activated_at"))
-    first_value = next((ts for name, ts in events if name in VALUE_EXPOSURE_EVENTS and ts), None)
+
+    # Product-generated availability and delivery evidence are valuable exposure,
+    # but they do not prove that the customer observed value. Keep the clocks
+    # separate and retain TIME_TO_FIRST_VALUE_SECONDS as a backwards-compatible
+    # alias for the observed engagement clock rather than the old exposure clock.
+    value_available = next((ts for name, ts in events if name == "first_shortlist_generated" and ts), None)
+    first_observed_value = next((ts for name, ts in events if name in ENGAGEMENT_EVENTS and ts), None)
     names = [name for name, _ in events]
     exposure_count = sum(1 for name in names if name in VALUE_EXPOSURE_EVENTS)
     engagement_count = sum(1 for name in names if name in ENGAGEMENT_EVENTS)
@@ -315,10 +321,24 @@ def evaluation_metrics(conn, account, *, now=None):
             return False
         floor = activated + timedelta(days=day)
         ceiling = floor + timedelta(days=1)
-        return any(ts and floor <= ts < ceiling and name in (VALUE_EXPOSURE_EVENTS | ENGAGEMENT_EVENTS) for name, ts in events)
+        # "ACTIVE" requires a customer engagement event. A generated shortlist
+        # or provider/device delivery marker alone cannot establish activity.
+        return any(ts and floor <= ts < ceiling and name in ENGAGEMENT_EVENTS for name, ts in events)
 
+    observed_seconds = (
+        int((first_observed_value - created).total_seconds())
+        if first_observed_value and created
+        else None
+    )
+    available_seconds = (
+        int((value_available - created).total_seconds())
+        if value_available and created
+        else None
+    )
     return {
-        "TIME_TO_FIRST_VALUE_SECONDS": int((first_value - created).total_seconds()) if first_value and created else None,
+        "TIME_TO_VALUE_AVAILABLE_SECONDS": available_seconds,
+        "TIME_TO_OBSERVED_FIRST_VALUE_SECONDS": observed_seconds,
+        "TIME_TO_FIRST_VALUE_SECONDS": observed_seconds,
         "TRIAL_ACTIVATION_RATE": 1 if activated else 0,
         "VALUE_EXPOSURE_RATE": 1 if exposure_count else 0,
         "DAY_1_ACTIVE": active_on_day(1),
