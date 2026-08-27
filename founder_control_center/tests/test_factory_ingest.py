@@ -60,6 +60,59 @@ class FactoryIngestTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["error"], "invalid_factory_state")
 
+    def test_company_id_must_be_bounded_string(self):
+        for company_id in (["obrasignal"], {"id": "obrasignal"}, 42, "x" * 121):
+            response = self._post(dict(self.payload, company_id=company_id))
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.get_json()["error"], "invalid_factory_state")
+            self.assertIn("company_id must be a non-empty string", response.get_json()["detail"])
+
+    def test_factory_text_fields_are_rejected_before_lossy_truncation(self):
+        limits = {"factory_name": 160, "active": 1000, "next": 1000, "wait": 1000}
+        for field, limit in limits.items():
+            payload = dict(self.payload)
+            payload[field] = "x" * (limit + 1)
+            response = self._post(payload)
+            self.assertEqual(response.status_code, 400, field)
+            self.assertIn(f"{field} must be at most {limit} characters", response.get_json()["detail"])
+
+    def test_overlong_factory_name_does_not_persist_truncated_collision(self):
+        prefix = "F" * 160
+        before = get_company("obrasignal")
+        before_names = {item.name for item in before.factories}
+        response = self._post(dict(self.payload, factory_name=prefix + "A"))
+        self.assertEqual(response.status_code, 400)
+        after_names = {item.name for item in get_company("obrasignal").factories}
+        self.assertEqual(after_names, before_names)
+        self.assertNotIn(prefix, after_names)
+
+    def test_material_delta_requires_bounded_string_or_null(self):
+        for material_delta in (123, True, ["delta"], {"delta": "value"}):
+            response = self._post(dict(self.payload, material_delta=material_delta))
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("material_delta must be a string or null", response.get_json()["detail"])
+        response = self._post(dict(self.payload, material_delta="x" * 2001))
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("material_delta must be at most 2000 characters", response.get_json()["detail"])
+
+    def test_exact_factory_field_boundaries_are_accepted(self):
+        payload = dict(
+            self.payload,
+            factory_name="B" * 160,
+            active="A" * 1000,
+            next="N" * 1000,
+            wait="W" * 1000,
+            material_delta="D" * 2000,
+        )
+        response = self._post(payload)
+        self.assertEqual(response.status_code, 200)
+        factory = response.get_json()["factory"]
+        self.assertEqual(len(factory["name"]), 160)
+        self.assertEqual(len(factory["active"]), 1000)
+        self.assertEqual(len(factory["next"]), 1000)
+        self.assertEqual(len(factory["wait"]), 1000)
+        self.assertEqual(len(factory["material_delta"]), 2000)
+
     def test_explicit_falsy_observed_at_cannot_be_promoted_to_now(self):
         for observed_at in ("", False, 0):
             response = self._post(dict(self.payload, observed_at=observed_at))
