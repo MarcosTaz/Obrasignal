@@ -2,6 +2,8 @@ import os
 import unittest
 from unittest.mock import patch
 
+import requests
+
 from founder_control_center.adapters import GitHubAdapter
 from founder_control_center.models import TruthState
 
@@ -17,7 +19,6 @@ class FakeResponse:
 
     def raise_for_status(self):
         if not self.ok:
-            import requests
             raise requests.HTTPError(f"HTTP {self.status_code}")
 
 
@@ -44,6 +45,20 @@ class GitHubAdapterTests(unittest.TestCase):
         state = GitHubAdapter(token=None).refresh_repo("owner/private")
         self.assertEqual(state.ci, TruthState.UNKNOWN)
         self.assertIsNone(state.commit)
+
+    @patch("founder_control_center.adapters.requests.get")
+    def test_inaccessible_repo_with_configured_token_stays_unknown(self, get):
+        get.return_value = FakeResponse(status_code=403)
+        state = GitHubAdapter(token="configured-but-denied").refresh_repo("owner/private")
+        self.assertEqual(state.ci, TruthState.UNKNOWN)
+        self.assertIn("credential", state.evidence.detail.lower())
+
+    @patch("founder_control_center.adapters.requests.get")
+    def test_github_source_transport_failure_does_not_claim_ci_degraded(self, get):
+        get.side_effect = requests.ConnectionError("offline")
+        state = GitHubAdapter(token=None).refresh_repo("owner/public")
+        self.assertEqual(state.ci, TruthState.UNKNOWN)
+        self.assertIn("remains UNKNOWN", state.evidence.detail)
 
     @patch("founder_control_center.adapters.requests.get")
     def test_failed_check_is_degraded(self, get):
