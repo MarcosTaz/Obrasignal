@@ -49,7 +49,7 @@
   document.querySelectorAll('.action[data-action][data-company]').forEach((button) => {
     button.addEventListener('click', async () => {
       const out = document.getElementById('actionResult');
-      if (out) out.textContent = 'Executing…';
+      if (out) out.textContent = 'Checking action authority…';
       try {
         const response = await fetch(`/api/actions/${encodeURIComponent(button.dataset.action)}/execute`, {
           method: 'POST',
