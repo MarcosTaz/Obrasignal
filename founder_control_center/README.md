@@ -11,6 +11,7 @@ Private, fail-closed control plane for the founder portfolio.
 - every material operational status carries source/freshness metadata
 - concurrent source feeds must not silently overwrite one another
 - source connectivity does not imply freshness or correctness
+- custom KPIs cannot shadow canonical revenue, pipeline or customer truth
 - RED actions never execute autonomously
 - YELLOW actions prepare only and require founder approval
 - GREEN actions are read-only or internal/non-destructive
@@ -30,14 +31,16 @@ Private, fail-closed control plane for the founder portfolio.
 - atomic per-company read/modify/write for concurrent Factory, metric and founder-control updates
 - production snapshot retention capped at the newest 2,000 state snapshots per company
 - read-only GitHub repository, CI and deployment adapters
+- strict GitHub owner/repository boundary before authenticated API calls
 - strict CI truth: only explicitly successful completed checks prove GREEN; neutral/skipped/pending remain UNKNOWN
 - application health adapter with public-network and same-host redirect constraints
 - canonical server-to-server business metric feed for revenue, pipeline and customers
-- out-of-order and materially future-dated Factory/business evidence rejected
+- canonical source-owned numeric KPI feed for additional operational metrics
+- out-of-order and materially future-dated Factory/metric evidence rejected
 - provenance inventory per company with connected-source count and independently evaluated freshness
 - readiness diagnostics that reveal configuration state without returning secret material
 - normalized per-company APIs for metrics, Factory state, risks, revenue, history, provenance and actions
-- responsive desktop/mobile UI
+- responsive desktop/mobile UI including source-owned KPI values and evidence
 - Gunicorn WSGI entrypoint and container definition for a private deployment; deployment itself is not automatic
 
 ## Run locally
@@ -71,13 +74,15 @@ The dedicated pull-request workflow checks out the exact PR head, verifies the r
 
 ## Live integrations
 
-Public GitHub repositories can be refreshed read-only without credentials. Set `FCC_GITHUB_TOKEN` to enable private-repository truth and improve API allowance. An inaccessible repository remains `UNKNOWN`.
+Public GitHub repositories can be refreshed read-only without credentials. Set `FCC_GITHUB_TOKEN` to enable private-repository truth and improve API allowance. Repository identifiers are constrained to an `owner/name` boundary before the server token can be used. An invalid or inaccessible repository remains `UNKNOWN`.
 
 GitHub deployment status is a separate evidence channel from repository CI. Application transport health is separate again: HTTP/process health does not prove business correctness.
 
 Factories can push only their own `ACTIVE / NEXT / WAIT` state through `/api/ingest/factory-state` using the separate `FCC_FACTORY_INGEST_TOKEN`. A Factory feed cannot overwrite global company truth. Old evidence becomes `STALE`; delayed evidence is rejected if newer evidence for that Factory is already stored.
 
 Canonical billing/CRM adapters can push only `revenue`, `pipeline` or `customers` through `/api/ingest/business-metric` using `FCC_METRIC_INGEST_TOKEN`. Every value requires explicit source, observation time and freshness. A null value is forced to `UNKNOWN`; the endpoint does not infer revenue or customers from product activity.
+
+Other canonical operational sources can publish numeric KPIs through `/api/ingest/metric` with the same dedicated metric-feed token. Each KPI requires a non-reserved slug key, label and source. These values live in `company.metrics`; they cannot overwrite `revenue`, `pipeline` or `customers`. Null values become `UNKNOWN`, and delayed/future evidence is rejected.
 
 Founder-authenticated diagnostics include:
 
@@ -90,6 +95,6 @@ Founder-authenticated diagnostics include:
 
 `FCC_ADMIN_TOKEN`, `FCC_SESSION_SECRET`, Factory/metric ingest tokens and optional GitHub credentials remain server-side. Founder session mutations require CSRF validation. Missing required private-session configuration fails closed.
 
-Health checks reject localhost/private/non-global destinations and do not automatically follow arbitrary redirects. Deployment metadata cannot silently grant health-check authority to an unsafe environment URL.
+Health checks reject localhost/private/non-global destinations and do not automatically follow arbitrary redirects. Deployment metadata cannot silently grant health-check authority to an unsafe environment URL. Repository identifiers cannot inject extra GitHub API path/query authority.
 
 2FA/IdP integration remains `UNKNOWN / NOT CONNECTED`. Production deployment, merge, billing changes, external communications, destructive data operations and irreversible commitments remain owner-controlled and are not executed by this MVP.
