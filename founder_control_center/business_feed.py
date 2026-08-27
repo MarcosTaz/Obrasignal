@@ -25,7 +25,10 @@ def _observed_at(value: str | None) -> str:
         raise ValueError("observed_at must be ISO-8601") from exc
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc).isoformat()
+    parsed = parsed.astimezone(timezone.utc)
+    if (parsed - datetime.now(timezone.utc)).total_seconds() > 300:
+        raise ValueError("future-dated business metric evidence rejected")
+    return parsed.isoformat()
 
 
 def _freshness(value: Any) -> int:
@@ -90,8 +93,8 @@ def ingest_business_metric(
     """Ingest one canonical business metric with explicit source/freshness evidence.
 
     A metric can only be GREEN when a non-null value is supplied by the authenticated
-    feed. Null values are always UNKNOWN. Delayed evidence cannot overwrite newer
-    evidence for the same canonical metric.
+    feed. Null values are always UNKNOWN. Delayed or future-dated evidence cannot
+    overwrite newer canonical evidence.
     """
     company = get_company(company_id)
     if not company:
