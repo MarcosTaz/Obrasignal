@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 import requests
 
 from .models import Evidence, RepositoryState, TruthState
+from .security import UnsafeDestination, validate_public_http_url, validated_redirect_target
 
 
 def utcnow() -> str:
@@ -103,13 +105,27 @@ class GitHubAdapter:
                 return TruthState.UNKNOWN, evidence, None
             status = status_items[0]
             state = status.get("state")
-            environment_url = status.get("environment_url") or deployment.get("environment_url")
-            target_url = status.get("target_url")
+            raw_environment_url = status.get("environment_url") or deployment.get("environment_url")
+            raw_target_url = status.get("target_url")
+            environment_url = None
+            rejected_environment_url = False
+            if raw_environment_url:
+                try:
+                    environment_url = validate_public_http_url(raw_environment_url, resolve_dns=False)
+                except UnsafeDestination:
+                    rejected_environment_url = True
+            safe_target_url = None
+            if raw_target_url:
+                try:
+                    safe_target_url = validate_public_http_url(raw_target_url, resolve_dns=False)
+                except UnsafeDestination:
+                    safe_target_url = None
             if environment_url:
                 evidence.url = environment_url
-            elif target_url:
-                evidence.url = target_url
-            evidence.detail = f"GitHub deployment {deployment_id}; environment={environment}; sha={deploy_sha}; state={state or 'UNKNOWN'}."
+            elif safe_target_url:
+                evidence.url = safe_target_url
+            detail_suffix = "; environment_url rejected by network policy" if rejected_environment_url else ""
+            evidence.detail = f"GitHub deployment {deployment_id}; environment={environment}; sha={deploy_sha}; state={state or 'UNKNOWN'}{detail_suffix}."
             if state == "success":
                 return TruthState.GREEN, evidence, environment_url
             if state in ("failure", "error"):
@@ -121,15 +137,32 @@ class GitHubAdapter:
 
 
 class HealthAdapter:
+    REDIRECT_CODES = {301, 302, 303, 307, 308}
+
     def refresh(self, url: str) -> tuple[TruthState, Evidence]:
-        evidence = Evidence(source=url, observed_at=utcnow(), freshness_seconds=300, kind="live_adapter")
+        evidence = Evidence(source="health-check", observed_at=utcnow(), freshness_seconds=300, kind="live_adapter")
         try:
-            response = requests.get(url, timeout=6)
+            current = validate_public_http_url(url)
+            original_host = urlsplit(current).hostname or ""
+            evidence.source = f"health:{current}"
+            evidence.url = current
+            for _ in range(4):
+                response = requests.get(current, timeout=6, allow_redirects=False)
+                if response.status_code not in self.REDIRECT_CODES:
+                    break
+                current = validated_redirect_target(current, response.headers.get("Location", ""), original_host=original_host)
+                evidence.url = current
+            else:
+                evidence.detail = "Health check exceeded the authorized redirect limit."
+                return TruthState.UNKNOWN, evidence
             if 200 <= response.status_code < 300:
                 evidence.detail = f"HTTP {response.status_code}; transport green only, not business correctness."
                 return TruthState.GREEN, evidence
             evidence.detail = f"HTTP {response.status_code}"
             return TruthState.DEGRADED, evidence
+        except UnsafeDestination as exc:
+            evidence.detail = f"Health destination rejected by network policy: {exc}"
+            return TruthState.UNKNOWN, evidence
         except requests.RequestException as exc:
             evidence.detail = f"Health adapter failed: {type(exc).__name__}"
             return TruthState.DEGRADED, evidence
