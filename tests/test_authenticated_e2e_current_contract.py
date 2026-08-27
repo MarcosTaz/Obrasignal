@@ -6,7 +6,8 @@ def test_authenticated_e2e_is_read_only_hardened_and_consumes_nested_workflow_en
     workflow = Path('.github/workflows/authenticated-e2e.yml').read_text(encoding='utf-8')
     provider = Path('api.py').read_text(encoding='utf-8')
 
-    # Release safety: automatic production E2E must remain read-only.
+    # Release safety: automatic production E2E must remain read-only. Match actual
+    # command/function shapes, not the fail-closed self-check's string literals.
     forbidden = []
     for method in ('POST', 'PUT', 'PATCH', 'DELETE'):
         forbidden.extend((
@@ -15,7 +16,12 @@ def test_authenticated_e2e_is_read_only_hardened_and_consumes_nested_workflow_en
             f'--request {method} "$API_URL',
             f"--request {method} '$API_URL",
         ))
-    forbidden.extend(('restore_profile', 'restore_workflow', 'trap restore_'))
+    forbidden.extend((
+        'restore_profile() {',
+        'restore_workflow() {',
+        'trap restore_profile',
+        'trap restore_workflow',
+    ))
     assert not [needle for needle in forbidden if needle in workflow]
 
     # Auth/Supply-Chain owner hardening must survive the Release overlay.
