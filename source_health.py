@@ -208,7 +208,8 @@ def source_health_snapshot(conn, stale_after_minutes=15, *, now=None):
 
     ``status='stale'`` remains for legacy consumers. New consumers must use the
     additive ``freshness`` and ``health`` fields, which keep time and connector
-    availability as separate dimensions.
+    availability as separate dimensions. A legacy ``healthy`` label is never
+    retained when the derived health authority is UNKNOWN/corrupt.
     """
     ensure_source_health(conn)
     rows = conn.execute('SELECT * FROM source_health ORDER BY source').fetchall()
@@ -222,6 +223,8 @@ def source_health_snapshot(conn, stale_after_minutes=15, *, now=None):
         state = _derive_source_state(item, now=now, default_stale_after_minutes=stale_after_minutes)
         if item['status'] == 'healthy' and state['freshness'] == 'stale':
             item['status'] = 'stale'
+        elif item['status'] == 'healthy' and state['health'] != 'healthy':
+            item['status'] = state['health']
         item.update(state)
         cursor = conn.execute('SELECT watermark FROM source_cursor WHERE source=?', (item['source'],)).fetchone()
         item['watermark'] = cursor['watermark'] if cursor else None
