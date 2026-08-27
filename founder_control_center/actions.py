@@ -59,11 +59,36 @@ def execute(action_id: str, company_id: str, payload: dict | None = None) -> tup
             "message": "Approval is required. No external action or preparation artifact was executed by this request.",
         }, 202
     if action_id == "update_factory_state":
-        candidates = {
-            field: payload[field].strip()[:500]
-            for field in ("active", "next", "wait")
-            if field in payload and isinstance(payload[field], str) and payload[field].strip()
-        }
+        candidates: dict[str, str] = {}
+        for field in ("active", "next", "wait"):
+            if field not in payload:
+                continue
+            value = payload[field]
+            if not isinstance(value, str) or not value.strip():
+                append_audit(
+                    actor="founder_control_center",
+                    action=action_id,
+                    level="GREEN",
+                    company_id=company_id,
+                    result="rejected_invalid_state_field",
+                    source_data={"invalid_field": field, **_audit_payload_shape(payload)},
+                    failure_state=f"{field} must be a non-empty string",
+                )
+                return {"ok": False, "error": "invalid_state_field", "field": field}, 400
+            normalized = value.strip()
+            if len(normalized) > 500:
+                append_audit(
+                    actor="founder_control_center",
+                    action=action_id,
+                    level="GREEN",
+                    company_id=company_id,
+                    result="rejected_oversized_state_field",
+                    source_data={"invalid_field": field, **_audit_payload_shape(payload)},
+                    failure_state=f"{field} must be at most 500 characters",
+                )
+                return {"ok": False, "error": "state_field_too_long", "field": field, "max_length": 500}, 400
+            candidates[field] = normalized
+
         if not candidates:
             append_audit(
                 actor="founder_control_center",
