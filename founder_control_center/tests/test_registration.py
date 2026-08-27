@@ -41,6 +41,30 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(current["name"], "Original Company")
         self.assertEqual(current["mission"], "Establish the original registry entry.")
 
+    def test_repository_path_injection_is_rejected(self):
+        response = self.client.post("/api/companies/register", json={
+            "id": "unsafe-repo-company",
+            "name": "Unsafe Repo Company",
+            "mission": "Must never expand GitHub API authority.",
+            "repository": "owner/repo/../../user",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "invalid_company_manifest")
+
+    def test_null_required_identity_is_rejected_not_stringified(self):
+        response = self.client.post("/api/companies/register", json={
+            "id": "null-name-company",
+            "name": None,
+            "mission": "Missing name must stay missing.",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("must be strings", response.get_json()["detail"])
+
+    def test_non_object_json_is_rejected_without_server_error(self):
+        response = self.client.post("/api/companies/register", json=["not", "an", "object"])
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "invalid_company_manifest")
+
 
 if __name__ == "__main__":
     unittest.main()
