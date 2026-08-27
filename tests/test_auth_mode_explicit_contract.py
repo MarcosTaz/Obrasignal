@@ -1,3 +1,6 @@
+import pytest
+
+import api
 from auth_context_jwt import authentication_health
 
 
@@ -40,3 +43,18 @@ def test_provider_mode_without_issuer_remains_fail_closed(monkeypatch):
         "config_present": False,
         "provider_status": "misconfigured",
     }
+
+
+def test_missing_auth_mode_cannot_enable_development_cors(monkeypatch):
+    monkeypatch.delenv("OBRASIGNAL_AUTH_MODE", raising=False)
+    monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "*")
+
+    with pytest.raises(RuntimeError, match="OBRASIGNAL_AUTH_MODE must be explicitly configured"):
+        api._cors_origin()
+
+
+def test_explicit_development_mode_can_keep_development_cors(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
+    monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "*")
+
+    assert api._cors_origin() == "*"
