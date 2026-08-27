@@ -20,9 +20,11 @@ ALLOWED_STATES = {TruthState.GREEN, TruthState.DEGRADED, TruthState.UNKNOWN, Tru
 
 
 def _observed_at(value: str | None) -> str:
-    value = value or now_iso()
-    if not isinstance(value, str):
+    if value is None:
+        value = now_iso()
+    elif not isinstance(value, str) or not value.strip():
         raise ValueError("observed_at must be ISO-8601")
+    value = value.strip()
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
@@ -36,10 +38,9 @@ def _observed_at(value: str | None) -> str:
 
 
 def _freshness(value: Any) -> int:
-    try:
-        return max(60, min(int(value), 7 * 24 * 3600))
-    except (TypeError, ValueError) as exc:
-        raise ValueError("freshness_seconds must be an integer") from exc
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("freshness_seconds must be an integer")
+    return max(60, min(value, 7 * 24 * 3600))
 
 
 def _truth_state(state: str, value: Any) -> TruthState:
