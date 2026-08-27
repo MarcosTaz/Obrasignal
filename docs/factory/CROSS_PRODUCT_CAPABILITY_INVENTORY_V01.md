@@ -91,3 +91,9 @@ PRESENT != REUSABLE.
 DUPLICATED != SAFE_TO_CENTRALIZE.
 SHARED_SOURCE != SHARED_RUNTIME.
 NO AUTOMATIC MERGE OR PRODUCTION ROLLOUT.
+
+## ACTIVE -> NEXT -> WAIT
+
+ACTIVE: locate canonical source truth for K3 and remaining products; classify without writes to their runtimes.
+NEXT: produce evidence-backed duplicate-candidate matrix and rank first low-blast-radius pilot.
+WAIT: any shared-package extraction, auth/billing changes, production rollout, data movement, or merge authorization remains blocked until required gates and explicit authority exist.
