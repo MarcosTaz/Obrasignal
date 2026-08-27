@@ -74,13 +74,24 @@ class BusinessMetricFeedTests(unittest.TestCase):
         self.assertEqual(metric["state"], "UNKNOWN")
         self.assertIsNone(metric["value"])
 
-    def test_stale_observation_cannot_be_returned_as_green(self):
+    def test_stale_first_canonical_observation_replaces_context_seed_but_not_as_green(self):
         stale = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
-        payload = dict(self.payload, metric_key="pipeline", observed_at=stale, freshness_seconds=60, state="GREEN")
+        payload = dict(
+            self.payload,
+            company_id="black-leaf-tattoos",
+            metric_key="pipeline",
+            value=500,
+            observed_at=stale,
+            freshness_seconds=60,
+            state="GREEN",
+            source="ci:first-canonical-black-leaf-pipeline",
+        )
         response = self._authorized_post(payload)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["metric"]["state"], "STALE")
-        self.assertEqual(get_company("founder-control-center").pipeline.state.value, "STALE")
+        persisted = get_company("black-leaf-tattoos").pipeline
+        self.assertEqual(persisted.state.value, "STALE")
+        self.assertEqual(persisted.evidence.kind, "business_metric_feed")
 
     def test_canonical_business_units_cannot_be_relabelled_without_conversion(self):
         response = self._authorized_post(dict(self.payload, unit="USD"))
