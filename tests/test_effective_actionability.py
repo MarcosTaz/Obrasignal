@@ -7,6 +7,7 @@ import preload
 from decision_log import record_decision
 from notification_events import record_new_opportunities
 from opportunity_lifecycle import persist_lifecycle_observations
+from opportunity_match_pipeline import RULE_VERSION
 
 
 class Identity:
@@ -114,6 +115,7 @@ def _seed(monkeypatch, tmp_path):
             "fixture",
             score=score,
             account_id=Identity.account_id,
+            rule_version=RULE_VERSION,
         )
     persist_lifecycle_observations(
         conn,
@@ -202,6 +204,7 @@ def test_date_only_deadline_today_does_not_invent_midnight_closure(monkeypatch, 
             "fixture",
             score=92,
             account_id=Identity.account_id,
+            rule_version=RULE_VERSION,
         )
     finally:
         conn.close()
