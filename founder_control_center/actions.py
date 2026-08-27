@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from .adapters import GitHubAdapter, HealthAdapter
 from .models import ActionLevel, TruthState
 from .registry import append_audit, get_company, mutate_company
+from .sources import company_api_view
 
 
 @dataclass(frozen=True)
@@ -98,7 +99,7 @@ def execute(action_id: str, company_id: str, payload: dict | None = None) -> tup
             result="state_updated",
             source_data={"changed_fields": changed_fields, **_audit_payload_shape(payload)},
         )
-        return {"ok": True, "state": "UPDATED", "changed_fields": changed_fields, "company": updated.to_dict()}, 200
+        return {"ok": True, "state": "UPDATED", "changed_fields": changed_fields, "company": company_api_view(updated)}, 200
     if action_id == "refresh_diagnostics":
         changes = []
         repository_state = None
@@ -137,5 +138,5 @@ def execute(action_id: str, company_id: str, payload: dict | None = None) -> tup
 
         updated, _ = mutate_company(company_id, apply)
         append_audit(actor="founder_control_center", action=action_id, level="GREEN", company_id=company_id, result="diagnostics_refreshed", source_data={"changes": changes})
-        return {"ok": True, "changes": changes, "company": updated.to_dict()}, 200
+        return {"ok": True, "changes": changes, "company": company_api_view(updated)}, 200
     return {"ok": False, "error": "not_implemented"}, 501
