@@ -338,17 +338,21 @@ def test_message_rate_exceeded_receipt_schedules_bounded_resubmission():
 def test_account_bootstrap_events_dispatch_through_the_same_canonical_sender(monkeypatch):
     import notification_events
     from account_onboarding import _emit_bootstrap_events
+    from decision_log import record_decision
+    from opportunity_match_pipeline import RULE_VERSION
 
     conn = _conn()
-    conn.execute("""CREATE TABLE opportunity_decisions(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        account_id TEXT NOT NULL,
-        source TEXT NOT NULL,
-        external_id TEXT NOT NULL,
-        score INTEGER NOT NULL
-    )""")
     conn.execute("INSERT INTO tenders(id,source,external_id,title,deadline,publication_date,score,first_seen) VALUES (5,'TED','A-5','Obra E','2099-01-01','2026-08-25',96,datetime('now'))")
-    conn.execute("INSERT INTO opportunity_decisions(account_id,source,external_id,score) VALUES ('account-a','TED','A-5',96)")
+    record_decision(
+        conn,
+        "TED",
+        "A-5",
+        "QUALIFIED",
+        "current fixture",
+        score=96,
+        rule_version=RULE_VERSION,
+        account_id="account-a",
+    )
     calls = []
 
     def dispatch(dispatch_conn, account_id, **_kwargs):
