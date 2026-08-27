@@ -52,10 +52,20 @@ def execute(action_id: str, company_id: str, payload: dict | None = None) -> tup
     if action_id == "refresh_diagnostics":
         changes = []
         if company.repository.full_name:
-            company.repository = GitHubAdapter().refresh_repo(company.repository.full_name); changes.append("repository")
+            github = GitHubAdapter()
+            company.repository = github.refresh_repo(company.repository.full_name)
+            changes.append("repository")
+            deployment, deployment_evidence, environment_url = github.refresh_deployment(company.repository.full_name)
+            company.application.deployment = deployment
+            company.application.deployment_evidence = deployment_evidence
+            if environment_url and not company.application.url:
+                company.application.url = environment_url
+            changes.append("deployment")
         if company.application.url:
-            health, ev = HealthAdapter().refresh(company.application.url.rstrip("/") + "/health")
-            company.application.health = health; company.application.evidence = ev; changes.append("application_health")
+            health, health_evidence = HealthAdapter().refresh(company.application.url.rstrip("/") + "/health")
+            company.application.health = health
+            company.application.health_evidence = health_evidence
+            changes.append("application_health")
         if not changes:
             company.data_freshness = TruthState.UNKNOWN
         save_company(company)
