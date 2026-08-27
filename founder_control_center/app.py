@@ -333,12 +333,12 @@ def create_app(test_config: dict | None = None) -> Flask:
     def api_execute(action_id: str):
         data = request_object()
         company_id = data.get("company_id")
-        payload = data.get("payload") or {}
-        if not isinstance(company_id, str) or not company_id:
+        payload = data.get("payload", {})
+        if not isinstance(company_id, str) or not company_id.strip():
             return jsonify({"ok": False, "error": "company_id_required"}), 400
         if not isinstance(payload, dict):
             return jsonify({"ok": False, "error": "payload_must_be_object"}), 400
-        result, status = execute(action_id, company_id, payload)
+        result, status = execute(action_id, company_id.strip(), payload)
         return jsonify(result), status
 
     @app.get("/api/audit")
