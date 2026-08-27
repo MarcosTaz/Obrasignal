@@ -20,9 +20,11 @@ bp = Blueprint("account_privacy", __name__, url_prefix="/api/v1/account")
 EXPORT_SCHEMA_VERSION = "account-export.v1"
 DELETE_CONFIRMATION = "DELETE_MY_OBRASIGNAL_DATA"
 
-# Current canonical server-side account-owned persistence on main@66d43f6.
+# Current server-side account-owned persistence in this composed candidate tree.
 # This is intentionally explicit: a new account-scoped table must be reviewed by
-# this lifecycle owner before export/deletion may claim completeness.
+# this lifecycle owner before export/deletion may claim completeness. Some datasets
+# remain owned by specialist subsystems and are consumed through their owner contract
+# rather than being reimplemented here.
 ACCOUNT_SCOPED_TABLES = frozenset({
     "accounts",
     "company_profiles",
@@ -30,6 +32,7 @@ ACCOUNT_SCOPED_TABLES = frozenset({
     "opportunity_events",
     "opportunity_workflow",
     "evaluation_events",
+    "push_devices",
 })
 DEPENDENT_PRIVATE_TABLES = (
     "company_profiles",
@@ -37,6 +40,10 @@ DEPENDENT_PRIVATE_TABLES = (
     "opportunity_events",
     "opportunity_workflow",
     "evaluation_events",
+)
+NOTIFICATION_OWNER_PRIVATE_DATASETS = (
+    "push_deliveries",
+    "push_devices",
 )
 KNOWN_ACCOUNT_COLUMNS = frozenset({
     "account_id",
@@ -170,6 +177,19 @@ def _ensure_legacy_profile_imported(conn, account_id: str) -> None:
     load_profile(str(account_id))
 
 
+def _export_notification_owner_data(conn, account_id: str) -> dict:
+    """Consume Notification Delivery export authority without duplicating it."""
+    from notification_privacy_lifecycle import (
+        NotificationPrivacyContractError,
+        export_notification_account_data,
+    )
+
+    try:
+        return export_notification_account_data(conn, str(account_id))
+    except NotificationPrivacyContractError as exc:
+        raise AccountDataContractError("notification_privacy_contract_unproven") from exc
+
+
 def export_account_data(conn, account_id: str) -> dict:
     """Export one tenant from a single deterministic SQLite read snapshot."""
     account_id = str(account_id)
@@ -236,6 +256,11 @@ def export_account_data(conn, account_id: str) -> dict:
         for item in evaluation:
             item["metadata"] = _parse_json(item.pop("metadata_json"), field="metadata_json", default={})
 
+        # Notification Delivery owns push-device/push-delivery privacy semantics.
+        # Consume that contract inside the same read snapshot so account export does
+        # not invent a second tenant join, sanitization policy or provider-token rule.
+        notification_delivery = _export_notification_owner_data(conn, account_id)
+
         payload = {
             "schema_version": EXPORT_SCHEMA_VERSION,
             "generated_at": _now(),
@@ -249,8 +274,10 @@ def export_account_data(conn, account_id: str) -> dict:
             "opportunity_events": events,
             "opportunity_workflow": workflow,
             "evaluation_events": evaluation,
+            "notification_delivery": notification_delivery,
             "scope": {
                 "server_owned_account_tables": inventory["required"],
+                "notification_owner_datasets": list(NOTIFICATION_OWNER_PRIVATE_DATASETS),
                 "completeness": "CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY",
                 "shared_public_procurement_data_included": False,
                 "identity_provider_data_included": False,
@@ -340,6 +367,24 @@ def _postconditions_hold(conn, account_id: str) -> bool:
     return all(account.get(name) is None for name in must_be_empty) and int(account.get("evaluation_extension_days") or 0) == 0
 
 
+def _delete_notification_owner_data(conn, account_id: str) -> dict:
+    """Consume Notification Delivery cleanup authority inside Privacy transaction."""
+    from notification_privacy_lifecycle import (
+        NotificationPrivacyContractError,
+        assert_notification_account_cleanup_postconditions,
+        delete_notification_account_data,
+    )
+
+    try:
+        result = delete_notification_account_data(conn, str(account_id))
+        # Re-prove the owner postcondition on the same transaction before Privacy
+        # is allowed to delete opportunity_events and finalize its tombstone.
+        assert_notification_account_cleanup_postconditions(conn, str(account_id))
+        return result
+    except NotificationPrivacyContractError as exc:
+        raise AccountDeletionError("notification_privacy_cleanup_failed") from exc
+
+
 def request_account_deletion(conn, account_id: str) -> dict:
     """Delete canonical private DB dependants, but never overclaim external revocation.
 
@@ -370,8 +415,14 @@ def request_account_deletion(conn, account_id: str) -> dict:
     conn.execute("UPDATE accounts SET status='deletion_pending' WHERE account_id=?", (account_id,))
     conn.commit()
 
+    notification_cleanup = None
     try:
         conn.execute("BEGIN IMMEDIATE")
+
+        # Notification Delivery must remove delivery rows and devices while their
+        # event parentage still exists. Privacy then owns deletion of opportunity_events.
+        notification_cleanup = _delete_notification_owner_data(conn, account_id)
+
         for table in DEPENDENT_PRIVATE_TABLES:
             conn.execute(
                 f"DELETE FROM {_quote_identifier(table)} WHERE account_id=?",
@@ -413,7 +464,11 @@ def request_account_deletion(conn, account_id: str) -> dict:
     state = deletion_state(conn, account_id)
     state.update({
         "server_cleanup": {
-            "deleted_private_tables": list(DEPENDENT_PRIVATE_TABLES),
+            "deleted_private_tables": [
+                *NOTIFICATION_OWNER_PRIVATE_DATASETS,
+                *DEPENDENT_PRIVATE_TABLES,
+            ],
+            "notification_owner_cleanup": notification_cleanup,
             "shared_public_procurement_deleted": False,
             "minimal_account_tombstone_retained": True,
         },
