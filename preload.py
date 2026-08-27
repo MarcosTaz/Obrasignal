@@ -177,6 +177,8 @@ def _fetch_ted_resilient():
         token = data.get('iterationNextToken') or data.get('nextToken') or data.get('nextIterationToken')
         if not token or not batch:
             break
+    if token:
+        raise RuntimeError("TED pagination incomplete: page budget exhausted with unresolved continuation token")
     return rows
 
 
