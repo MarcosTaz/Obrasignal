@@ -29,9 +29,11 @@ class SourceInventoryTests(unittest.TestCase):
         summary = source_summary(company)
         revenue = next(item for item in summary["sources"] if item["label"] == "Revenue")
         self.assertEqual(revenue["kind"], "context_seed")
+        self.assertEqual(summary["connected_source_count"], 0)
+        self.assertEqual(summary["fresh_live_source_count"], 0)
         self.assertEqual(summary["live_source_count"], 0)
 
-    def test_factory_feed_is_visible_with_independent_freshness(self):
+    def test_stale_feed_is_connected_but_not_fresh_live_truth(self):
         company = CompanyManifest(
             id="source-live-company",
             name="Source Live Company",
@@ -53,10 +55,14 @@ class SourceInventoryTests(unittest.TestCase):
         factory = next(item for item in payload["sources"] if item["label"] == "Factory: Source Factory")
         self.assertEqual(factory["freshness"], "STALE")
         self.assertEqual(factory["source"], "ci:source-feed")
+        self.assertEqual(payload["connected_source_count"], 1)
+        self.assertEqual(payload["fresh_live_source_count"], 0)
+        self.assertEqual(payload["live_source_count"], 0)
         page = self.client.get("/company/source-live-company")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Source inventory", page.data)
         self.assertIn(b"ci:source-feed", page.data)
+        self.assertIn(b"1 connected feed/adapter source(s); 0 currently fresh", page.data)
 
 
 if __name__ == "__main__":
