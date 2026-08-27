@@ -76,8 +76,8 @@ class PersistentFactoryOrchestrator:
                         app["app_id"], execution_id, "INTERRUPTED",
                         {"recovered_at": interrupted_at, "resume_at": task}, interruption,
                     )
-                except StateStoreError as exc:
-                    interruption["history_error"] = str(exc)
+                except StateStoreError:
+                    interruption["history_error"] = "interrupted_history_not_closable"
             self.store.checkpoint(
                 app["app_id"], state="READY", active=task, resume_at=task,
                 current_execution_json=None, retry_state_json=retry, error_state_json=interruption,
@@ -170,7 +170,7 @@ class PersistentFactoryOrchestrator:
             result = ExecutionResult(
                 status="ERROR", evidence={"exception_type": type(exc).__name__},
                 next_active=decision.task, blockers=("adapter_execution_error",), resume_at=decision.task,
-                error={"type": type(exc).__name__, "message": str(exc)},
+                error={"type": type(exc).__name__},
             )
         if result.status not in TERMINAL_SAFE_STATUSES:
             result = ExecutionResult(
