@@ -24,12 +24,19 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(company["repository"]["full_name"], "owner/future-company")
 
     def test_duplicate_company_id_is_rejected(self):
-        response = self.client.post("/api/companies/register", json={
-            "id": "future-company",
+        payload = {
+            "id": "duplicate-company",
+            "name": "Original Company",
+            "mission": "Establish the original registry entry.",
+        }
+        first = self.client.post("/api/companies/register", json=payload)
+        self.assertEqual(first.status_code, 201)
+        duplicate = self.client.post("/api/companies/register", json={
+            "id": "duplicate-company",
             "name": "Duplicate",
             "mission": "Should not overwrite existing truth.",
         })
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(duplicate.status_code, 400)
 
 
 if __name__ == "__main__":
