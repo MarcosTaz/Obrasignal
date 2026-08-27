@@ -54,9 +54,7 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
             ExecutionResult(status="WAIT", evidence={"boundary": "owner"}, blockers=("owner_boundary",)),
         ])
         store = StateStore(self.state_path)
-        cloud = PersistentFactoryOrchestrator(
-            self.registry, store, AdapterRegistry({"obrasignal": adapter})
-        )
+        cloud = PersistentFactoryOrchestrator(self.registry, store, AdapterRegistry({"obrasignal": adapter}))
         result = cloud.run_cycle(max_dispatches=2)
         self.assertEqual([d["status"] for d in result["dispatches"]], ["DONE", "WAIT"])
         self.assertEqual(len(adapter.requests), 2)
@@ -65,16 +63,10 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
         self.assertEqual(len(store.history("obrasignal")), 2)
 
     def test_blocked_app_yields_to_next_eligible_app(self):
-        obra = ScriptedAdapter([
-            ExecutionResult(status="WAIT", blockers=("human_authorization",), resume_at="safe resume")
-        ])
-        k3 = ScriptedAdapter([
-            ExecutionResult(status="WAIT", blockers=("source_unresolved",), resume_at="resolve source")
-        ])
+        obra = ScriptedAdapter([ExecutionResult(status="WAIT", blockers=("human_authorization",), resume_at="safe resume")])
+        k3 = ScriptedAdapter([ExecutionResult(status="WAIT", blockers=("source_unresolved",), resume_at="resolve source")])
         cloud = PersistentFactoryOrchestrator(
-            self.registry,
-            StateStore(self.state_path),
-            AdapterRegistry({"obrasignal": obra, "k3-fatality": k3}),
+            self.registry, StateStore(self.state_path), AdapterRegistry({"obrasignal": obra, "k3-fatality": k3})
         )
         result = cloud.run_cycle(max_dispatches=5)
         self.assertEqual([d["app_id"] for d in result["dispatches"]], ["obrasignal", "k3-fatality"])
@@ -91,7 +83,9 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
             "obrasignal", "crashed-execution", task,
             {"execution_id": "crashed-execution", "task": task, "app_id": "obrasignal"},
         )
-        restarted = PersistentFactoryOrchestrator(self.registry, StateStore(self.state_path))
+        restarted = PersistentFactoryOrchestrator(
+            self.registry, StateStore(self.state_path), recover_interrupted=True
+        )
         recovered = restarted.store.get_app("obrasignal")
         self.assertEqual(recovered["state"], "READY")
         self.assertEqual(recovered["active"], task)
@@ -109,9 +103,7 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
 
     def test_adapter_exception_is_fail_closed_and_persisted(self):
         store = StateStore(self.state_path)
-        cloud = PersistentFactoryOrchestrator(
-            self.registry, store, AdapterRegistry({"obrasignal": ExplodingAdapter()})
-        )
+        cloud = PersistentFactoryOrchestrator(self.registry, store, AdapterRegistry({"obrasignal": ExplodingAdapter()}))
         result = cloud.run_cycle(max_dispatches=1)
         self.assertEqual(result["dispatches"][0]["status"], "ERROR")
         state = store.get_app("obrasignal")
