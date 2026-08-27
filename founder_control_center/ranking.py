@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .models import CompanyManifest, TruthState
+from .models import CompanyManifest, Risk, TruthState
 
 
 @dataclass
@@ -25,6 +25,30 @@ def _factory_feed_states(company: CompanyManifest) -> list[TruthState]:
         factory.freshness
         for factory in company.factories
         if factory.evidence is not None and factory.evidence.kind == "factory_feed"
+    ]
+
+
+AUTHORITATIVE_RISK_KINDS = {"risk_feed", "live_adapter"}
+
+
+def _risk_evidence_state(risk: Risk) -> TruthState:
+    """Return current risk evidence state without promoting contextual seed risks.
+
+    Context/manual/bootstrap risks are useful hypotheses and guardrails but do not
+    prove a currently active operational risk. Only an explicitly live risk source
+    can affect current-risk urgency, and stale live evidence becomes a refresh need.
+    """
+    evidence = risk.evidence
+    if evidence is None or evidence.kind not in AUTHORITATIVE_RISK_KINDS:
+        return TruthState.UNKNOWN
+    return evidence.freshness_state()
+
+
+def _high_risk_states(company: CompanyManifest) -> list[TruthState]:
+    return [
+        _risk_evidence_state(risk)
+        for risk in company.risks
+        if str(risk.severity).upper() in {"CRITICAL", "HIGH"}
     ]
 
 
@@ -94,11 +118,14 @@ def rank_company(company: CompanyManifest) -> RankResult:
         reasons.append("pipeline evidence available")
         known += 1
 
-    if company.risks:
-        if any(r.severity in ("CRITICAL", "HIGH") for r in company.risks):
-            score += 10
-            reasons.append("high-severity risk")
+    high_risk_states = _high_risk_states(company)
+    if any(state == TruthState.GREEN for state in high_risk_states):
+        score += 10
         known += 1
+        reasons.append("fresh high-severity risk evidence")
+    elif any(state == TruthState.STALE for state in high_risk_states):
+        score += 8
+        reasons.append("high-severity risk evidence stale")
 
     factory_states = _factory_feed_states(company)
     if any(state == TruthState.STALE for state in factory_states):
@@ -139,7 +166,9 @@ def highest_value_actions(companies: list[CompanyManifest], limit: int = 8) -> l
     items: list[dict] = []
     for company in companies:
         rank = ranks[company.id]
-        severity = next((r.severity for r in company.risks if r.severity in ("CRITICAL", "HIGH")), None)
+        high_risk_states = _high_risk_states(company)
+        fresh_high_risk = any(state == TruthState.GREEN for state in high_risk_states)
+        stale_high_risk = any(state == TruthState.STALE for state in high_risk_states)
         factory_states = _factory_feed_states(company)
 
         if company.application.health == TruthState.DEGRADED:
@@ -148,6 +177,8 @@ def highest_value_actions(companies: list[CompanyManifest], limit: int = 8) -> l
             action, boundary, urgency = "Diagnose degraded deployment before any release action", "GREEN", "critical"
         elif company.repository.ci == TruthState.DEGRADED:
             action, boundary, urgency = "Diagnose failing repository CI", "GREEN", "critical"
+        elif stale_high_risk:
+            action, boundary, urgency = "Refresh stale high-severity risk evidence before deciding", "GREEN", "high"
         elif any(state == TruthState.STALE for state in factory_states):
             action, boundary, urgency = "Refresh stale Factory feed before portfolio decisions", "GREEN", "high"
         elif company.data_freshness == TruthState.STALE:
@@ -158,7 +189,7 @@ def highest_value_actions(companies: list[CompanyManifest], limit: int = 8) -> l
             action, boundary, urgency = "Close the highest-value evidence gap before building", "GREEN", "medium"
         else:
             action, boundary = company.active or "Resolve current ACTIVE", "GREEN"
-            urgency = "high" if severity else "medium"
+            urgency = "high" if fresh_high_risk else "medium"
 
         items.append({
             "company_id": company.id,
