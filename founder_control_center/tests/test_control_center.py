@@ -56,6 +56,20 @@ class ControlCenterTests(unittest.TestCase):
         body, status = execute("update_factory_state", "founder-control-center", {"active": "Run tests"})
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
+        self.assertEqual(body["changed_fields"], ["active"])
+
+    def test_empty_state_update_is_rejected_not_fake_success(self):
+        body, status = execute("update_factory_state", "founder-control-center", {})
+        self.assertEqual(status, 400)
+        self.assertFalse(body["ok"])
+        self.assertEqual(body["error"], "state_fields_required")
+
+    def test_noop_state_update_is_rejected_not_fake_success(self):
+        current = get_company("founder-control-center")
+        body, status = execute("update_factory_state", "founder-control-center", {"active": current.active})
+        self.assertEqual(status, 409)
+        self.assertFalse(body["ok"])
+        self.assertEqual(body["error"], "no_state_change")
 
     def test_health_does_not_claim_global_green(self):
         response = self.client.get("/health")
