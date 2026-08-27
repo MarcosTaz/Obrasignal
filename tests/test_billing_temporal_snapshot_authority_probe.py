@@ -28,7 +28,7 @@ def _event(event_id, event_type, *, event_ms, expires_ms):
 
 
 def test_late_older_renewal_cannot_resurrect_newer_expiration_authority():
-    """EXPIRATION(newer) -> RENEWAL(older arrival-late) must not end as Pro."""
+    """EXPIRATION(newer) -> RENEWAL(older arrival-late) must not end as paid Pro."""
     conn = _db()
     billing.ensure_account(conn, "acct-temporal")
 
@@ -48,7 +48,12 @@ def test_late_older_renewal_cannot_resurrect_newer_expiration_authority():
     billing._sync_account_from_webhook(conn, newer_expiration)
     conn.commit()
     after_expiration = billing.get_account(conn, "acct-temporal")
-    assert billing.subscription_state(after_expiration)["active"] is False
+    # Evaluation/onboarding may independently remain active. This probe owns only
+    # paid Billing authority, so prove the newer event removed Pro rather than
+    # incorrectly requiring all product access to be inactive.
+    assert after_expiration["plan"] == "expired"
+    assert after_expiration["subscription_status"] == "expired"
+    assert billing.subscription_state(after_expiration)["plan"] != "pro"
 
     # Webhook delivery order is not provider truth. An older event body arriving
     # later must not overwrite the already-newer entitlement observation. The
@@ -63,7 +68,7 @@ def test_late_older_renewal_cannot_resurrect_newer_expiration_authority():
         "paid state after a newer EXPIRATION"
     )
     assert final["subscription_status"] == "expired"
-    assert billing.subscription_state(final)["active"] is False
+    assert billing.subscription_state(final)["plan"] != "pro"
     conn.close()
 
 
