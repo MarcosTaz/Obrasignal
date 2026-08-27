@@ -112,25 +112,40 @@ def _normalized_custom_value(value: Any) -> int | float | None:
     return parsed
 
 
-def _reject_out_of_order(existing: Metric, incoming_observed_at: str, authoritative_kinds: set[str]) -> None:
-    """Prevent delayed/replayed authoritative feeds from replacing newer truth.
+def _metric_fingerprint(metric: Metric) -> tuple:
+    evidence = metric.evidence
+    return (
+        metric.label,
+        metric.value,
+        metric.unit,
+        metric.state.value,
+        evidence.source if evidence else None,
+        evidence.freshness_seconds if evidence else None,
+        evidence.detail if evidence else None,
+    )
 
-    Context/manual seed timestamps describe when the control plane learned a hint,
-    not the source observation time. They must never block the first canonical feed.
-    """
+
+def _validate_observation_order(existing: Metric, incoming: Metric, authoritative_kinds: set[str]) -> None:
+    """Reject older evidence and contradictory writes at the same observation time."""
     if not existing.evidence or existing.evidence.kind not in authoritative_kinds or not existing.evidence.observed_at:
+        return
+    if not incoming.evidence or not incoming.evidence.observed_at:
         return
     try:
         current = datetime.fromisoformat(existing.evidence.observed_at.replace("Z", "+00:00"))
-        incoming = datetime.fromisoformat(incoming_observed_at.replace("Z", "+00:00"))
+        new = datetime.fromisoformat(incoming.evidence.observed_at.replace("Z", "+00:00"))
     except (AttributeError, ValueError):
         return
     if current.tzinfo is None:
         current = current.replace(tzinfo=timezone.utc)
-    if incoming.tzinfo is None:
-        incoming = incoming.replace(tzinfo=timezone.utc)
-    if incoming.astimezone(timezone.utc) < current.astimezone(timezone.utc):
+    if new.tzinfo is None:
+        new = new.replace(tzinfo=timezone.utc)
+    current = current.astimezone(timezone.utc)
+    new = new.astimezone(timezone.utc)
+    if new < current:
         raise ValueError("out-of-order business metric evidence rejected")
+    if new == current and _metric_fingerprint(existing) != _metric_fingerprint(incoming):
+        raise ValueError("conflicting business metric evidence at identical observed_at rejected")
 
 
 def ingest_business_metric(
@@ -164,18 +179,11 @@ def ingest_business_metric(
         detail=(detail.strip()[:1000] if isinstance(detail, str) and detail.strip() else "Authenticated canonical business metric feed."),
     )
     effective_state = _effective_state(requested_state, evidence)
+    metric = Metric(metric_key, spec["label"], normalized, canonical_unit, effective_state, evidence)
 
     def apply(company):
         existing = getattr(company, metric_key)
-        _reject_out_of_order(existing, observed, {"business_metric_feed"})
-        metric = Metric(
-            key=metric_key,
-            label=spec["label"],
-            value=normalized,
-            unit=canonical_unit,
-            state=effective_state,
-            evidence=evidence,
-        )
+        _validate_observation_order(existing, metric, {"business_metric_feed"})
         setattr(company, metric_key, metric)
         return metric
 
@@ -204,12 +212,7 @@ def ingest_operational_metric(
     unit: str | None = None,
     detail: str | None = None,
 ) -> Metric:
-    """Ingest a source-owned numeric KPI without promoting it to business truth.
-
-    Custom KPIs live only in `company.metrics`; they cannot overwrite the canonical
-    revenue/pipeline/customer fields. Null values are UNKNOWN and out-of-order,
-    stale or future evidence cannot be returned as fresh current truth.
-    """
+    """Ingest a source-owned numeric KPI without promoting it to business truth."""
     metric_key = str(metric_key).strip().lower()
     if not CUSTOM_METRIC_KEY.fullmatch(metric_key) or metric_key in RESERVED_METRIC_KEYS:
         raise ValueError("metric_key must be a 2-64 character KPI slug and not a reserved business metric")
@@ -228,19 +231,19 @@ def ingest_operational_metric(
         detail=(detail.strip()[:1000] if isinstance(detail, str) and detail.strip() else "Authenticated source-owned operational KPI feed."),
     )
     effective_state = _effective_state(requested_state, evidence)
+    metric = Metric(
+        key=metric_key,
+        label=label.strip()[:120],
+        value=normalized,
+        unit=(str(unit).strip()[:32] if unit else None),
+        state=effective_state,
+        evidence=evidence,
+    )
 
     def apply(company):
         existing = next((item for item in company.metrics if item.key == metric_key), None)
         if existing is not None:
-            _reject_out_of_order(existing, observed, {"operational_metric_feed"})
-        metric = Metric(
-            key=metric_key,
-            label=label.strip()[:120],
-            value=normalized,
-            unit=(str(unit).strip()[:32] if unit else None),
-            state=effective_state,
-            evidence=evidence,
-        )
+            _validate_observation_order(existing, metric, {"operational_metric_feed"})
         company.metrics = [item for item in company.metrics if item.key != metric_key] + [metric]
         return metric
 
