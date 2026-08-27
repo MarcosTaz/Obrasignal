@@ -7,15 +7,16 @@ created; after restart the still-required work can become permanently invisible.
 
 This compatibility boundary makes post-activation event work durable without
 creating a second event store and without converting old historical decisions
-into a surprise notification backlog.
+or stale decision authority into customer notification work.
 """
 from __future__ import annotations
 
 import re
 
 import notification_events as _events
-from decision_log import ensure_decision_table
+from decision_log import current_profile_fingerprint, ensure_decision_table
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+from opportunity_match_pipeline import RULE_VERSION
 
 BASELINE_EVENT_TYPE = "notification_reconciliation_baseline"
 _BASELINE_KEY = "notification-reconciliation-baseline"
@@ -102,10 +103,12 @@ def initialize_existing_account_baselines(conn, account_ids):
 def record_new_opportunities(conn, account_id="default", min_score=75):
     """Record every still-missing eligible post-activation event exactly once.
 
-    Eligibility remains the Notification owner's existing contract: latest
-    account-scoped decision score at/above ``min_score`` plus current effective
-    actionability. The changed dimension is discovery durability: elapsed time
-    and incidental source replay cannot acknowledge missing work.
+    Elapsed time and incidental source replay cannot acknowledge missing work.
+    Eligibility is fail-closed against Decision Intelligence current authority:
+    the latest account-scoped decision must meet the Notification threshold,
+    current rule semantics and the tenant's current profile fingerprint, while
+    the opportunity remains actionable. A stale latest row is never replaced by
+    searching backward for older authority.
     """
     account_id = str(account_id or "default")
     _events.ensure_event_table(conn)
@@ -121,31 +124,38 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
             conn, account_id, existing_account=False
         )
 
-    rows = conn.execute(
-        f"""SELECT t.*, d.id AS account_decision_id,
-                   d.score AS account_score, d.decided_at AS account_decided_at
-           FROM tenders t
-           JOIN (
-               SELECT source, external_id, MAX(id) AS max_id
-               FROM opportunity_decisions
-               WHERE account_id=?
-               GROUP BY source, external_id
-           ) latest ON latest.source=t.source AND latest.external_id=t.external_id
-           JOIN opportunity_decisions d ON d.id=latest.max_id
-           LEFT JOIN opportunity_lifecycle lc
-             ON lc.source=t.source AND lc.external_id=t.external_id
-           WHERE d.id > ?
-             AND d.score >= ?
-             AND {actionable_predicate('lc', 't')}
-             AND NOT EXISTS (
-                 SELECT 1 FROM opportunity_events e
-                 WHERE e.account_id=?
-                   AND e.tender_id=t.id
-                   AND e.event_type='new_high_match'
-             )
-           ORDER BY d.id ASC, t.id ASC""",
-        (account_id, baseline, min_score, account_id),
-    ).fetchall()
+    profile_fp = current_profile_fingerprint(conn, account_id)
+    if profile_fp is None:
+        # Malformed/unknown profile authority cannot authorize new customer work.
+        rows = []
+    else:
+        rows = conn.execute(
+            f"""SELECT t.*, d.id AS account_decision_id,
+                       d.score AS account_score, d.decided_at AS account_decided_at
+               FROM tenders t
+               JOIN (
+                   SELECT source, external_id, MAX(id) AS max_id
+                   FROM opportunity_decisions
+                   WHERE account_id=?
+                   GROUP BY source, external_id
+               ) latest ON latest.source=t.source AND latest.external_id=t.external_id
+               JOIN opportunity_decisions d ON d.id=latest.max_id
+               LEFT JOIN opportunity_lifecycle lc
+                 ON lc.source=t.source AND lc.external_id=t.external_id
+               WHERE d.id > ?
+                 AND d.score >= ?
+                 AND d.rule_version=?
+                 AND d.profile_fingerprint=?
+                 AND {actionable_predicate('lc', 't')}
+                 AND NOT EXISTS (
+                     SELECT 1 FROM opportunity_events e
+                     WHERE e.account_id=?
+                       AND e.tender_id=t.id
+                       AND e.event_type='new_high_match'
+                 )
+               ORDER BY d.id ASC, t.id ASC""",
+            (account_id, baseline, min_score, RULE_VERSION, profile_fp, account_id),
+        ).fetchall()
 
     events = []
     now = _events._iso_now()
