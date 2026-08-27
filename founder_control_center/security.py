@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 
@@ -34,6 +35,28 @@ def safe_local_redirect_target(candidate: str | None, fallback: str) -> str:
     if parts.scheme or parts.netloc or not parts.path.startswith("/") or parts.path.startswith("//"):
         return fallback
     return target
+
+
+def normalize_github_repository(full_name: str) -> str:
+    """Return a strict `owner/repository` identifier, never a GitHub API path.
+
+    Repository names later become part of authenticated GitHub API URLs. Requiring
+    exactly two conservative path segments prevents traversal/query/fragment input
+    from expanding read authority beyond the intended repository endpoints.
+    """
+    if not isinstance(full_name, str) or not full_name.strip():
+        raise ValueError("repository must use owner/name format")
+    value = full_name.strip()
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        raise ValueError("repository contains unsafe characters")
+    if value.count("/") != 1 or "\\" in value or "?" in value or "#" in value:
+        raise ValueError("repository must use owner/name format")
+    owner, repo = value.split("/", 1)
+    if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", owner):
+        raise ValueError("repository owner is invalid")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", repo) or repo in {".", ".."}:
+        raise ValueError("repository name is invalid")
+    return f"{owner}/{repo}"
 
 
 def _public_addresses(host: str, port: int) -> tuple[str, ...]:
