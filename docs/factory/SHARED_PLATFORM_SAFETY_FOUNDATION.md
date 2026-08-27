@@ -219,6 +219,10 @@ Minimum capability inventory:
 - backups/recovery
 - security baseline
 
+## Evidence-first inventory companion
+
+The live observation-only capability inventory is maintained in `docs/factory/CROSS_PRODUCT_CAPABILITY_INVENTORY_V01.md` on this branch. It may classify capabilities and candidates, but it cannot authorize extraction, merge, deployment, or cross-product runtime access.
+
 ## Change authority
 
 This document does not authorize:
