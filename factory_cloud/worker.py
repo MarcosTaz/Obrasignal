@@ -5,6 +5,7 @@ import json
 import signal
 import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
@@ -12,13 +13,16 @@ from factory_cloud.control_plane import ACTIVATION_CODE, load_registry
 from factory_cloud.orchestrator import DEFAULT_STATE_PATH, PersistentFactoryOrchestrator
 from factory_cloud.state_store import StateStore
 
+LEASE_NAME = "factory_cloud_dispatch"
+
 
 class WorkerHost:
-    """Long-lived host loop for the persistent orchestrator.
+    """Long-lived foreground host with a durable single-dispatch lease.
 
-    This is a real foreground worker process. It can survive ChatGPT turn boundaries
-    only when an external process manager keeps/restarts this process. It does not
-    itself provision hosting, daemonize, deploy, or acquire production authority.
+    Multiple process-manager instances may point at the same metadata DB, but only
+    the lease holder dispatches. A heartbeat renews the lease while a cycle runs;
+    after a crashed host stops heartbeating, another host may take over after TTL.
+    This still does not provision hosting or app production authority.
     """
 
     def __init__(
@@ -27,6 +31,8 @@ class WorkerHost:
         poll_seconds: float = 5.0,
         max_dispatches_per_cycle: int = 100,
         sleeper: Callable[[float], None] = time.sleep,
+        owner_id: str | None = None,
+        lease_ttl_seconds: float | None = None,
     ):
         if poll_seconds < 0:
             raise ValueError("poll_seconds must be >= 0")
@@ -34,27 +40,60 @@ class WorkerHost:
         self.poll_seconds = poll_seconds
         self.max_dispatches_per_cycle = max(1, max_dispatches_per_cycle)
         self.sleeper = sleeper
+        self.owner_id = owner_id or uuid.uuid4().hex
+        self.lease_ttl_seconds = lease_ttl_seconds or max(15.0, poll_seconds * 4.0)
         self.stop_event = threading.Event()
         self.last_cycle: dict[str, Any] | None = None
 
+    @property
+    def store(self) -> StateStore:
+        return self.orchestrator.store
+
     def stop(self) -> None:
         self.stop_event.set()
+        self.store.release_lease(LEASE_NAME, self.owner_id)
+
+    def _heartbeat(self, stop: threading.Event) -> None:
+        interval = max(0.1, self.lease_ttl_seconds / 3.0)
+        while not stop.wait(interval):
+            if not self.store.acquire_or_renew_lease(LEASE_NAME, self.owner_id, self.lease_ttl_seconds):
+                self.stop_event.set()
+                return
 
     def run_once(self) -> dict[str, Any]:
-        self.last_cycle = self.orchestrator.run_cycle(self.max_dispatches_per_cycle)
-        return self.last_cycle
+        if not self.store.acquire_or_renew_lease(LEASE_NAME, self.owner_id, self.lease_ttl_seconds):
+            self.last_cycle = {
+                "activation_code": ACTIVATION_CODE,
+                "global_state": "STANDBY",
+                "dispatches": [],
+                "blockers": {"factory_cloud": ["dispatch_lease_held_by_another_worker"]},
+                "apps": self.store.list_apps(),
+            }
+            return self.last_cycle
+        heartbeat_stop = threading.Event()
+        heartbeat = threading.Thread(target=self._heartbeat, args=(heartbeat_stop,), daemon=True)
+        heartbeat.start()
+        try:
+            self.last_cycle = self.orchestrator.run_cycle(self.max_dispatches_per_cycle)
+            return self.last_cycle
+        finally:
+            heartbeat_stop.set()
+            heartbeat.join(timeout=max(1.0, self.lease_ttl_seconds / 3.0 + 0.5))
 
     def run_forever(self, max_cycles: int | None = None) -> dict[str, Any] | None:
         cycles = 0
-        while not self.stop_event.is_set():
-            self.run_once()
-            cycles += 1
-            if max_cycles is not None and cycles >= max_cycles:
-                break
-            if self.stop_event.is_set():
-                break
-            self.sleeper(self.poll_seconds)
-        return self.last_cycle
+        try:
+            while not self.stop_event.is_set():
+                self.run_once()
+                cycles += 1
+                if max_cycles is not None and cycles >= max_cycles:
+                    break
+                if self.stop_event.is_set():
+                    break
+                self.sleeper(self.poll_seconds)
+            return self.last_cycle
+        finally:
+            self.store.release_lease(LEASE_NAME, self.owner_id)
 
 
 def _install_signal_handlers(host: WorkerHost) -> None:
@@ -72,6 +111,7 @@ def main() -> int:
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE_PATH)
     parser.add_argument("--poll-seconds", type=float, default=5.0)
     parser.add_argument("--max-dispatches", type=int, default=100)
+    parser.add_argument("--lease-ttl-seconds", type=float, default=None)
     parser.add_argument("--max-cycles", type=int, default=None, help="test/operator bound; omit for continuous foreground execution")
     args = parser.parse_args()
     if args.code != ACTIVATION_CODE:
@@ -82,6 +122,7 @@ def main() -> int:
         orchestrator,
         poll_seconds=args.poll_seconds,
         max_dispatches_per_cycle=args.max_dispatches,
+        lease_ttl_seconds=args.lease_ttl_seconds,
     )
     _install_signal_handlers(host)
     result = host.run_forever(args.max_cycles)
