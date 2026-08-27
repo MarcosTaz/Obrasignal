@@ -116,6 +116,23 @@ class ControlCenterTests(unittest.TestCase):
         self.assertEqual(body["field"], "active")
         self.assertEqual(get_company("founder-control-center").next, before)
 
+    def test_action_api_rejects_falsy_non_object_payloads(self):
+        for payload in ([], False, 0, ""):
+            response = self.client.post(
+                "/api/actions/refresh_diagnostics/execute",
+                json={"company_id": "founder-control-center", "payload": payload},
+            )
+            self.assertEqual(response.status_code, 400, repr(payload))
+            self.assertEqual(response.get_json()["error"], "payload_must_be_object", repr(payload))
+
+    def test_action_api_rejects_blank_company_id(self):
+        response = self.client.post(
+            "/api/actions/refresh_diagnostics/execute",
+            json={"company_id": "   ", "payload": {}},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "company_id_required")
+
     def test_action_ui_checks_authority_before_claiming_execution(self):
         response = self.client.get("/static/app.js")
         self.assertEqual(response.status_code, 200)
