@@ -24,6 +24,28 @@
     });
   }
 
+  const stateForm = document.getElementById('stateUpdateForm');
+  if (stateForm) {
+    stateForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const out = document.getElementById('stateUpdateResult');
+      const payload = Object.fromEntries(new FormData(stateForm).entries());
+      if (out) out.textContent = 'Updating internal state…';
+      try {
+        const response = await fetch('/api/actions/update_factory_state/execute', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+          body: JSON.stringify({company_id: stateForm.dataset.company, payload}),
+        });
+        const body = await response.json();
+        if (out) out.textContent = JSON.stringify(body, null, 2);
+        if (response.ok) window.setTimeout(() => window.location.reload(), 400);
+      } catch (error) {
+        if (out) out.textContent = `DEGRADED: ${error.message}`;
+      }
+    });
+  }
+
   document.querySelectorAll('.action[data-action][data-company]').forEach((button) => {
     button.addEventListener('click', async () => {
       const out = document.getElementById('actionResult');
