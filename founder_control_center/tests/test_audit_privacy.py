@@ -22,6 +22,23 @@ class AuditPrivacyTests(unittest.TestCase):
         self.assertNotIn("private@example.test", source_data)
         self.assertNotIn("sensitive free text", source_data)
 
+    def test_green_state_update_audit_records_shape_not_material_values(self):
+        payload = {
+            "active": "private internal execution note",
+            "next": "private next step",
+            "wait": "private blocker detail",
+        }
+        body, status = execute("update_factory_state", "founder-control-center", payload)
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        event = next(item for item in list_audit(20) if item["action"] == "update_factory_state")
+        source_data = event["source_data"]
+        self.assertIn("changed_fields", source_data)
+        self.assertIn("payload_keys", source_data)
+        self.assertNotIn("private internal execution note", source_data)
+        self.assertNotIn("private next step", source_data)
+        self.assertNotIn("private blocker detail", source_data)
+
 
 if __name__ == "__main__":
     unittest.main()
