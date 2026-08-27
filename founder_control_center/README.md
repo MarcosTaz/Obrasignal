@@ -19,12 +19,13 @@ Private, fail-closed control plane for the founder portfolio.
 - all known portfolio items visible from first boot
 - ACTIVE / NEXT / WAIT per company
 - CEO attention ranking with explicit uncertainty
+- central highest-value Action Center
 - company detail pages
-- action center with GREEN / YELLOW / RED enforcement
+- GREEN / YELLOW / RED enforcement
 - audit log for every attempted control action
 - read-only GitHub adapter
 - application health adapter
-- JSON APIs for companies, actions and audit
+- normalized per-company APIs for metrics, Factory state, risks, revenue and actions
 - responsive desktop/mobile UI
 
 ## Run
@@ -47,7 +48,9 @@ python -m unittest discover -s founder_control_center/tests -v
 
 ## Live integrations
 
-`FCC_GITHUB_TOKEN` is optional. Without it, the application intentionally shows repository truth as `UNKNOWN` during live refresh rather than fabricating a healthy state.
+Public GitHub repositories can be refreshed read-only without credentials. Set `FCC_GITHUB_TOKEN` to enable private-repository truth and improve API allowance. A repository that cannot be accessed without credentials remains `UNKNOWN`; it is not silently marked healthy.
+
+Application health refreshes use each manifest's configured application URL and deliberately distinguish transport/process health from business correctness.
 
 Production deployment, billing changes, external communications, destructive data operations and irreversible commitments are not executed by this MVP.
 
