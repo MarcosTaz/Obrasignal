@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from normalization_provenance import ensure_normalization_provenance
 from source_registry import SOURCES, stale_after_minutes_for
 
 
@@ -42,6 +43,7 @@ def ensure_source_health(conn, *, commit=True):
         watermark TEXT,
         updated_at TEXT
     )''')
+    ensure_normalization_provenance(conn)
     if commit:
         conn.commit()
 
