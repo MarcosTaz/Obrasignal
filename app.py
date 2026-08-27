@@ -148,7 +148,7 @@ def fetch_ted():
  return rows
 
 def normalize_ted(n):
- ext=flat(pick(n,'publication-number','publicationNumber','id'));title=flat(pick(n,'notice-title','noticeTitle','title'));desc=flat(pick(n,'description-proc','descriptionProc','description'));buyer=flat(pick(n,'buyer-name','buyerName','buyer'));country=flat(pick(n,'buyer-country','buyerCountry','country'));cpv=flat(pick(n,'classification-cpv','cpvCodes','cpv'));value=flat(pick(n,'estimated-value-proc','estimatedValue','value'));deadline=flat(pick(n,'deadline-receipt-tender-date-lot','deadline-date-lot','deadlineDate'));pub=flat(pick(n,'publication-date','publicationDate'));place_country=flat(pick(n,'place-of-performance-country-proc','place-of-performance-country-lot'));place_city=flat(pick(n,'place-of-performance-city-proc','place-of-performance-city-lot'));place_region=flat(pick(n,'place-of-performance-subdiv-proc','place-of-performance-subdiv-lot'));place=flat(' | '.join(x for x in [place_city,place_region,place_country] if x));desc=(desc+' '+place).strip();market='PT' if country=='PRT' or place_country=='PRT' else 'EU';return dict(source='TED',external_id=ext,title=title,description=desc,buyer=buyer,country=country,cpv=cpv,value=value,deadline=deadline,publication_date=pub,published_at=parse_date(pub),url=f'https://ted.europa.eu/en/notice/-/detail/{ext}' if ext else 'https://ted.europa.eu/',market=market,place=place)
+ ext=flat(pick(n,'publication-number','publicationNumber','id'));title=flat(pick(n,'notice-title','noticeTitle','title'));desc=flat(pick(n,'description-proc','descriptionProc','description'));buyer=flat(pick(n,'buyer-name','buyer'));country=flat(pick(n,'buyer-country','buyerCountry','country'));cpv=flat(pick(n,'classification-cpv','cpvCodes','cpv'));value=flat(pick(n,'estimated-value-proc','estimatedValue','value'));deadline=flat(pick(n,'deadline-receipt-tender-date-lot','deadline-date-lot','deadlineDate'));pub=flat(pick(n,'publication-date','publicationDate'));place_country=flat(pick(n,'place-of-performance-country-proc','place-of-performance-country-lot'));place_city=flat(pick(n,'place-of-performance-city-proc','place-of-performance-city-lot'));place_region=flat(pick(n,'place-of-performance-subdiv-proc','place-of-performance-subdiv-lot'));place=flat(' | '.join(x for x in [place_city,place_region,place_country] if x));desc=(desc+' '+place).strip();market='PT' if country=='PRT' or place_country=='PRT' else 'EU';return dict(source='TED',external_id=ext,title=title,description=desc,buyer=buyer,country=country,cpv=cpv,value=value,deadline=deadline,publication_date=pub,published_at=parse_date(pub),url=f'https://ted.europa.eu/en/notice/-/detail/{ext}' if ext else 'https://ted.europa.eu/',market=market,place=place)
 
 def fetch_base():
  token=os.getenv('BASE_ACCESS_TOKEN','').strip()
@@ -190,7 +190,10 @@ def home():
 
 @APP.post('/sync')
 def sync_route():
- sync_once();return redirect(url_for('home',market=request.args.get('market','PT')))
+ # Global ingestion is owned by the internal background worker. No explicit
+ # externally delegated server/operator capability exists yet, so authenticated
+ # user identity alone must never authorize this platform-wide mutation.
+ return jsonify(error='global_sync_forbidden',code='global_sync_forbidden'),403
 
 @APP.get('/api/v1/health')
 def health():
