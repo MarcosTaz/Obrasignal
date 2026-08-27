@@ -44,9 +44,6 @@ async function request(path, options={}) {
           authRefreshes+=1;
           let refreshedToken=null;
           try{refreshedToken=await authSession.refresh();}catch(_){}
-          // A token refresh is authentication recovery, not a network retry.
-          // Repeat this attempt so MAX_ATTEMPTS=1 still sends the request with
-          // the newly issued access token.
           if(refreshedToken){ attempt-=1; continue; }
         }
         const error=new Error(data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;
@@ -66,11 +63,6 @@ async function request(path, options={}) {
   throw lastError||new Error(`API ${path}: não foi possível concluir o pedido.`);
 }
 
-
-// One health probe is shared by every caller. It has a deliberately separate
-// cold-start budget, while normal business requests keep their 20 s budget.
-// A completed probe is cleared so only an in-flight warm-up is shared. A later
-// recoverable GET can therefore wake the backend again if it has gone to sleep.
 export function ensureBackendReady(){
   if(backendReadyPromise)return backendReadyPromise;
   const warmup=request('/health',{timeout:BACKEND_READY_TIMEOUT,skipAuth:true})
@@ -100,18 +92,14 @@ function unwrapProfile(data){return data?.profile||data||null;}
 export const api={
   health:()=>ensureBackendReady(),
   profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
-  // POST is intentionally single-attempt: retrying an authenticated write can
-  // duplicate work and makes a stuck Save button look like a UI failure.
   saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
   billingStatus:()=>readWhenReady('/billing/status'),
   stats:()=>readWhenReady('/stats'),
+  sourceHealth:({source=''}={})=>{const p=new URLSearchParams();if(source)p.set('source',source);const query=p.toString();return readWhenReady(`/source-health-contract${query?`?${query}`:''}`);},
   workflowStats:()=>readWhenReady('/workflow/stats'),
   alerts:({limit=20,unreadOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit)});if(unreadOnly)p.set('unread','1');return readWhenReady(`/alerts?${p.toString()}`);},
   markAlertDelivered:(eventId)=>writeWhenReady(`/alerts/${encodeURIComponent(eventId)}/delivered`,{method:'POST',body:JSON.stringify({})}),
   registerPushDevice:({installationId,expoPushToken,platform})=>writeWhenReady('/push/devices',{method:'POST',body:JSON.stringify({installation_id:installationId,expo_push_token:expoPushToken,platform})}),
-  // Sign-out must not wait for a Render cold-start warm-up. Send one bounded,
-  // authenticated unregister attempt; local notification dismissal still runs
-  // even when this network cleanup cannot complete.
   unregisterPushDevice:(installationId)=>request('/push/devices',{method:'DELETE',body:JSON.stringify({installation_id:installationId}),timeout:SIGNOUT_WRITE_TIMEOUT,maxAttempts:1}),
   opportunities:async({q='',minscore=0,source='',limit=60,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await readWhenReady(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
   opportunity:async(id)=>normalizeOpportunity(await readWhenReady(`/opportunities/${encodeURIComponent(id)}`)),

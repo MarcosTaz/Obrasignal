@@ -15,6 +15,7 @@ from decision_relevance import relevant_shortlist_eligible_from_features
 from evaluation_policy import record_evaluation_event
 from opportunity_match_pipeline import RULE_VERSION
 from source_registry import SOURCES
+from source_health import empty_result_context, source_health_contract
 from account_registry import ensure_account
 from opportunity_workflow import get_workflow, set_workflow, workflow_counts
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
@@ -106,9 +107,6 @@ def _deadline_state(value):
             if days < 0:
                 return {"state": "closed", "label": "Terminado", "days_remaining": days}
             if days == 0:
-                # Date-only publisher evidence proves the calendar day, not an
-                # exact closing instant or timezone. Do not invent midnight or
-                # 23:59 and do not claim definitely open/closed on that day.
                 return {"state": "unknown", "label": "Prazo hoje — hora não indicada", "days_remaining": 0}
             if days <= 2:
                 return {"state": "urgent", "label": "Urgente", "days_remaining": days}
@@ -192,31 +190,24 @@ def _latest_decisions(conn, account_id, external_ids):
 
 
 def _decision_is_current_relevant(decision):
-    """Current decision authority is upstream; relevance eligibility is explicit."""
     return bool(decision) and relevant_shortlist_eligible_from_features(
         decision.get("features") if isinstance(decision, dict) else None
     )
 
 
 def _record_observed_value_event(conn, account_id, event_name, source, external_id, **metadata):
-    """Record bounded observation evidence without breaking the primary action.
-
-    Customer routes are authoritative for the interaction itself. Evaluation is a
-    downstream consumer, so telemetry failure must not turn a successful view or
-    workflow mutation into a customer-facing error.
-    """
     payload = {"source": str(source), "external_id": str(external_id)}
     payload.update({key: value for key, value in metadata.items() if value not in (None, "")})
     try:
-        record_evaluation_event(
-            conn,
-            account_id,
-            event_name,
-            metadata=payload,
-        )
+        record_evaluation_event(conn, account_id, event_name, metadata=payload)
     except Exception:
         return False
     return True
+
+
+def _source_contract(conn, source=None):
+    requested = [source] if source else None
+    return source_health_contract(conn, sources=requested)
 
 
 @bp.route("/sources", methods=["GET"])
@@ -224,6 +215,19 @@ def sources():
     identity = request.obrasignal_identity
     items = [{"name": name, **meta} for name, meta in sorted(SOURCES.items(), key=lambda pair: (pair[1].get("priority", 99), pair[0]))]
     return jsonify({"items": items, "count": len(items), "generated_at": _iso_now(), "account_id": identity.account_id})
+
+
+@bp.route("/source-health-contract", methods=["GET"])
+def source_health():
+    identity = request.obrasignal_identity
+    requested_source = (request.args.get("source") or "").strip().upper() or None
+    c = _db()
+    try:
+        contract = _source_contract(c, requested_source)
+    finally:
+        c.close()
+    contract["account_id"] = identity.account_id
+    return jsonify(contract)
 
 
 _PROFILE_FIELDS = {"name", "activity", "contract_interests", "coverage_mode", "keywords", "countries", "cpv_prefixes", "min_value", "max_value", "economic_min_score", "min_deadline_days", "max_deadline_days", "preferred_procedure_types", "excluded_procedure_types", "exclude_keywords", "regions", "geographic_radius_km", "services", "capability_tags", "project_scales", "certifications", "hard_exclusions"}
@@ -246,11 +250,6 @@ def profile():
     except ValueError as exc:
         detail = exc.args[0] if exc.args else {"code": "INVALID_COMPANY_PROFILE"}
         return jsonify({"error": "invalid_profile", "detail": detail}), 400
-
-    # A successful save means both durable profile persistence and a Radar
-    # classified from that exact profile. Returning before this bounded pass
-    # completed created a race in which the immediate refresh served decisions
-    # made with the previous criteria.
     recalculated = bootstrap_account(identity.account_id)
     return jsonify({"ok": True, "profile": saved, "radar_recalculated": recalculated, "account_id": identity.account_id, "authenticated": identity.authenticated, "generated_at": _iso_now()})
 
@@ -332,8 +331,9 @@ def stats():
     open_count = c.execute(f"SELECT COUNT(*) {base} AND t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')", params).fetchone()[0]
     new24 = c.execute(f"SELECT COUNT(*) {base} AND julianday(t.first_seen)>=julianday('now','-1 day')", params).fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
+    contract = _source_contract(c)
     c.close()
-    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None, "account_id": identity.account_id})
+    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None, "stats_state": "current", "source_coverage": contract["summary"], "source_health_contract_version": contract["contract_version"], "generated_at": _iso_now(), "account_id": identity.account_id})
 
 
 @bp.route("/workflow/stats", methods=["GET"])
@@ -399,13 +399,14 @@ def opportunities():
     ).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
+    contract = _source_contract(c, source or None)
+    empty_context = empty_result_context(contract, len(items))
     c.close()
-    return jsonify({"items": items, "count": len(items), "market": market, "generated_at": _iso_now(), "account_id": identity.account_id})
+    return jsonify({"items": items, "count": len(items), "market": market, "source_coverage": contract["summary"], "source_health_contract_version": contract["contract_version"], "empty_result": empty_context, "generated_at": _iso_now(), "account_id": identity.account_id})
 
 
 @bp.route("/opportunities/<int:opportunity_id>", methods=["GET"])
 def opportunity_detail(opportunity_id):
-    """Return canonical history plus effective current actionability for this account."""
     identity = request.obrasignal_identity
     c = _db()
     try:
@@ -428,13 +429,7 @@ def opportunity_detail(opportunity_id):
         workflow = get_workflow(c, identity.account_id, row["source"], row["external_id"])
         item = _row(row, decision, workflow)
         if bool(row["is_actionable"]) and _decision_is_current_relevant(decision):
-            _record_observed_value_event(
-                c,
-                identity.account_id,
-                "relevant_opportunity_viewed",
-                row["source"],
-                row["external_id"],
-            )
+            _record_observed_value_event(c, identity.account_id, "relevant_opportunity_viewed", row["source"], row["external_id"])
         return jsonify(item)
     finally:
         c.close()
@@ -462,27 +457,12 @@ def opportunity_workflow(opportunity_id):
             workflow = get_workflow(c, identity.account_id, row["source"], row["external_id"])
             return jsonify({"workflow": workflow, "account_id": identity.account_id, "generated_at": _iso_now()})
         previous = get_workflow(c, identity.account_id, row["source"], row["external_id"])
-        workflow = set_workflow(
-            c,
-            identity.account_id,
-            row["source"],
-            row["external_id"],
-            payload.get("status"),
-            payload.get("note"),
-        )
+        workflow = set_workflow(c, identity.account_id, row["source"], row["external_id"], payload.get("status"), payload.get("note"))
         if previous.get("status") != workflow.get("status") and bool(row["is_actionable"]):
             decisions = _latest_decisions(c, identity.account_id, [row["external_id"]])
             decision = decisions.get((row["source"], row["external_id"]))
             if _decision_is_current_relevant(decision):
-                _record_observed_value_event(
-                    c,
-                    identity.account_id,
-                    "action_taken",
-                    row["source"],
-                    row["external_id"],
-                    from_status=previous.get("status"),
-                    to_status=workflow.get("status"),
-                )
+                _record_observed_value_event(c, identity.account_id, "action_taken", row["source"], row["external_id"], from_status=previous.get("status"), to_status=workflow.get("status"))
         return jsonify({"ok": True, "workflow": workflow, "account_id": identity.account_id, "generated_at": _iso_now()})
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
@@ -490,8 +470,5 @@ def opportunity_workflow(opportunity_id):
         c.close()
 
 
-# Keep the native API usable when this module is imported directly (tests and
-# development), while cors_app remains the production WSGI boundary. Register
-# only once because both entrypoints share the same Flask application object.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(bp)
