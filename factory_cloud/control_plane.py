@@ -46,6 +46,8 @@ def validate_registry(registry: dict[str, Any]) -> None:
         "no_automatic_deploy",
         "no_production_mutation",
         "independent_trust_boundaries",
+        "no_shared_production_authority",
+        "metadata_only_persistence",
     )
     for key in required_true:
         if rules.get(key) is not True:
@@ -61,6 +63,8 @@ def validate_registry(registry: dict[str, Any]) -> None:
         seen.add(app_id)
         if app.get("kind") != "application":
             raise RegistryError(f"non-application registered: {app_id}")
+        if not str(app.get("mission") or "").strip():
+            raise RegistryError(f"application mission required: {app_id}")
         activation = app.get("activation") or {}
         if activation.get("enabled") is not True:
             continue
@@ -93,7 +97,6 @@ def build_queue(registry: dict[str, Any]) -> list[AppWorkItem]:
 def activation_plan(code: str, registry: dict[str, Any]) -> dict[str, Any]:
     if code != ACTIVATION_CODE:
         raise RegistryError("Factory Cloud activation requires Ω")
-
     queue = build_queue(registry)
     return {
         "activation_code": ACTIVATION_CODE,
@@ -109,6 +112,8 @@ def activation_plan(code: str, registry: dict[str, Any]) -> dict[str, Any]:
             "automatic_deploy": False,
             "production_mutation": False,
             "cross_app_secret_or_data_authority": False,
+            "shared_production_authority": False,
+            "persistent_state_scope": "metadata_only",
         },
         "queue": [
             {
@@ -130,7 +135,6 @@ def main() -> int:
     parser.add_argument("code", help="activation code; must be Ω")
     parser.add_argument("--registry", type=Path, default=REGISTRY_PATH)
     args = parser.parse_args()
-
     try:
         plan = activation_plan(args.code, load_registry(args.registry))
     except (OSError, json.JSONDecodeError, RegistryError) as exc:
