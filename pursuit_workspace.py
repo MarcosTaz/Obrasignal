@@ -47,6 +47,9 @@ def _now(clock: Callable[[], datetime] | None = None) -> str:
 
 
 def ensure_workspace_tables(conn) -> None:
+    # SQLite foreign-key enforcement is connection-scoped and defaults OFF.
+    # Enable it before any workspace schema/write so declared FKs are real runtime guards.
+    conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("""CREATE TABLE IF NOT EXISTS pursuit_workspaces(
         workspace_id INTEGER PRIMARY KEY AUTOINCREMENT,
         account_id TEXT NOT NULL,
