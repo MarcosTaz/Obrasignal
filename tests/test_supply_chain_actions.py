@@ -47,7 +47,7 @@ def test_supply_chain_resolution_uses_only_commit_pinned_actions_and_bounded_wri
     assert "secrets." not in text
 
 
-def test_secret_bearing_mutable_actions_are_visible_as_critical_debt():
+def test_remaining_secret_bearing_mutable_actions_are_visible_as_critical_debt():
     report = supply_chain_actions.inventory()
     debt = [
         item for item in report["actions"]
@@ -56,7 +56,17 @@ def test_secret_bearing_mutable_actions_are_visible_as_critical_debt():
     assert debt
     assert all(item["criticality"] == "CRITICAL" for item in debt)
     workflows = {item["workflow"] for item in debt}
-    assert {"auth-verifier-live.yml", "authenticated-e2e.yml", "eas-preview.yml", "eas-production.yml", "mobile-release-preflight.yml", "web-preview.yml"} <= workflows
+    # Authenticated E2E is deliberately no longer debt on this integration tree:
+    # Auth #289's immutable checkout is composed with Release #414's read-only job.
+    assert "authenticated-e2e.yml" not in workflows
+    assert {"auth-verifier-live.yml", "eas-preview.yml", "eas-production.yml", "mobile-release-preflight.yml", "web-preview.yml"} <= workflows
+
+    authenticated = [
+        item for item in report["actions"]
+        if item["workflow"] == "authenticated-e2e.yml" and item["secret_names"]
+    ]
+    assert authenticated
+    assert all(item["pin_type"] == "COMMIT_PINNED" for item in authenticated)
 
 
 def test_248_proven_pin_candidates_are_reused_as_evidence_not_workflow_authority():
