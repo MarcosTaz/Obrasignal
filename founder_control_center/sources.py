@@ -93,6 +93,10 @@ def source_inventory(company: CompanyManifest) -> list[dict]:
     return entries
 
 
+def _source_identity(item: dict) -> tuple[str, str]:
+    return str(item.get("kind", "unknown")), str(item.get("source", "UNKNOWN"))
+
+
 def source_summary(company: CompanyManifest) -> dict:
     entries = source_inventory(company)
     counts = {state.value: 0 for state in TruthState}
@@ -100,12 +104,16 @@ def source_summary(company: CompanyManifest) -> dict:
         counts[item["freshness"]] = counts.get(item["freshness"], 0) + 1
     connected = [item for item in entries if item["kind"] in LIVE_KINDS]
     fresh_connected = [item for item in connected if item["freshness"] == TruthState.GREEN.value]
+    connected_sources = {_source_identity(item) for item in connected}
+    fresh_sources = {_source_identity(item) for item in fresh_connected}
     return {
         "company_id": company.id,
         "total": len(entries),
-        "connected_source_count": len(connected),
-        "fresh_live_source_count": len(fresh_connected),
-        "live_source_count": len(fresh_connected),
+        "connected_boundary_count": len(connected),
+        "fresh_live_boundary_count": len(fresh_connected),
+        "connected_source_count": len(connected_sources),
+        "fresh_live_source_count": len(fresh_sources),
+        "live_source_count": len(fresh_sources),
         "freshness_counts": counts,
         "sources": entries,
         "risks": [risk_view(risk) for risk in company.risks],
