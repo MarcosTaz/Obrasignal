@@ -58,6 +58,23 @@ def _normalized_value(metric_key: str, value: Any) -> int | float | None:
     return float(parsed)
 
 
+def _reject_out_of_order(existing: Metric, incoming_observed_at: str) -> None:
+    """Prevent delayed/replayed feeds from replacing newer canonical metric evidence."""
+    if not existing.evidence or not existing.evidence.observed_at:
+        return
+    try:
+        current = datetime.fromisoformat(existing.evidence.observed_at.replace("Z", "+00:00"))
+        incoming = datetime.fromisoformat(incoming_observed_at.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    if incoming.tzinfo is None:
+        incoming = incoming.replace(tzinfo=timezone.utc)
+    if incoming.astimezone(timezone.utc) < current.astimezone(timezone.utc):
+        raise ValueError("out-of-order business metric evidence rejected")
+
+
 def ingest_business_metric(
     *,
     company_id: str,
@@ -73,8 +90,8 @@ def ingest_business_metric(
     """Ingest one canonical business metric with explicit source/freshness evidence.
 
     A metric can only be GREEN when a non-null value is supplied by the authenticated
-    feed. Null values are always UNKNOWN. This endpoint records evidence; it does not
-    infer revenue, pipeline or customers from unrelated product activity.
+    feed. Null values are always UNKNOWN. Delayed evidence cannot overwrite newer
+    evidence for the same canonical metric.
     """
     company = get_company(company_id)
     if not company:
@@ -86,6 +103,8 @@ def ingest_business_metric(
         raise ValueError("source is required")
     observed = _observed_at(observed_at)
     freshness = _freshness(freshness_seconds)
+    existing = getattr(company, metric_key)
+    _reject_out_of_order(existing, observed)
     try:
         truth_state = TruthState(str(state).strip().upper())
     except ValueError as exc:
