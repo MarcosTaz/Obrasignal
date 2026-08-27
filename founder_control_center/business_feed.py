@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from .models import Evidence, Metric, TruthState
-from .registry import append_audit, get_company, now_iso, save_company
+from .registry import append_audit, mutate_company, now_iso
 
 ALLOWED_METRICS = {
     "revenue": {"label": "Revenue", "unit": "EUR", "kind": "money"},
@@ -94,11 +94,8 @@ def ingest_business_metric(
 
     A metric can only be GREEN when a non-null value is supplied by the authenticated
     feed. Null values are always UNKNOWN. Delayed or future-dated evidence cannot
-    overwrite newer canonical evidence.
+    overwrite newer canonical evidence. Read-modify-write is atomic per company.
     """
-    company = get_company(company_id)
-    if not company:
-        raise ValueError("unknown company_id")
     metric_key = str(metric_key).strip().lower()
     if metric_key not in ALLOWED_METRICS:
         raise ValueError("metric_key must be one of: revenue, pipeline, customers")
@@ -106,8 +103,6 @@ def ingest_business_metric(
         raise ValueError("source is required")
     observed = _observed_at(observed_at)
     freshness = _freshness(freshness_seconds)
-    existing = getattr(company, metric_key)
-    _reject_out_of_order(existing, observed)
     try:
         truth_state = TruthState(str(state).strip().upper())
     except ValueError as exc:
@@ -125,17 +120,22 @@ def ingest_business_metric(
         kind="business_metric_feed",
         detail=(detail.strip()[:1000] if isinstance(detail, str) and detail.strip() else "Authenticated canonical business metric feed."),
     )
-    metric = Metric(
-        key=metric_key,
-        label=spec["label"],
-        value=normalized,
-        unit=(str(unit).strip()[:32] if unit else spec["unit"]),
-        state=truth_state,
-        evidence=evidence,
-    )
-    setattr(company, metric_key, metric)
-    company.last_update = now_iso()
-    save_company(company)
+
+    def apply(company):
+        existing = getattr(company, metric_key)
+        _reject_out_of_order(existing, observed)
+        metric = Metric(
+            key=metric_key,
+            label=spec["label"],
+            value=normalized,
+            unit=(str(unit).strip()[:32] if unit else spec["unit"]),
+            state=truth_state,
+            evidence=evidence,
+        )
+        setattr(company, metric_key, metric)
+        return metric
+
+    _, metric = mutate_company(company_id, apply)
     append_audit(
         actor="business_metric_feed",
         action="ingest_business_metric",
