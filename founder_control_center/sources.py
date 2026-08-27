@@ -3,6 +3,9 @@ from __future__ import annotations
 from .models import CompanyManifest, Evidence, TruthState
 
 
+LIVE_KINDS = {"live_adapter", "factory_feed", "business_metric_feed"}
+
+
 def _entry(label: str, category: str, evidence: Evidence | None, claimed_state: str | None = None) -> dict:
     if evidence is None:
         return {
@@ -51,11 +54,15 @@ def source_summary(company: CompanyManifest) -> dict:
     counts = {state.value: 0 for state in TruthState}
     for item in entries:
         counts[item["freshness"]] = counts.get(item["freshness"], 0) + 1
-    live = sum(1 for item in entries if item["kind"] in {"live_adapter", "factory_feed", "business_metric_feed"})
+    connected = [item for item in entries if item["kind"] in LIVE_KINDS]
+    fresh_connected = [item for item in connected if item["freshness"] == TruthState.GREEN.value]
     return {
         "company_id": company.id,
         "total": len(entries),
-        "live_source_count": live,
+        "connected_source_count": len(connected),
+        "fresh_live_source_count": len(fresh_connected),
+        # Backwards-compatible field, now truthfully means currently fresh live source.
+        "live_source_count": len(fresh_connected),
         "freshness_counts": counts,
         "sources": entries,
     }
