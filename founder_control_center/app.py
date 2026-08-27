@@ -8,6 +8,7 @@ from functools import wraps
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
 from .actions import execute, list_actions
+from .business_api import business_api
 from .ranking import highest_value_actions, rank_portfolio
 from .registry import get_company, ingest_factory_state, init_db, list_audit, list_companies, register_company_stub
 
@@ -26,6 +27,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
     init_db()
+    app.register_blueprint(business_api)
 
     @app.after_request
     def security_headers(response):
