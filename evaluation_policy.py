@@ -214,7 +214,16 @@ def evaluation_access_state(account, *, now=None):
     status = account.get("evaluation_status")
     if status == "PAID":
         return None
-    ends = _parse_iso(account.get("evaluation_ends_at"))
+    raw_ends = account.get("evaluation_ends_at")
+    ends = _parse_iso(raw_ends)
+    if raw_ends and ends is None:
+        return {
+            "plan": "unknown",
+            "active": False,
+            "source": "evaluation",
+            "expires_at": raw_ends,
+            "evaluation_status": "UNKNOWN",
+        }
     if ends and ends <= current:
         return {
             "plan": "expired",
