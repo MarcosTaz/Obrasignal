@@ -19,8 +19,8 @@ class ActionDefinition:
 ACTIONS = {
     "refresh_diagnostics": ActionDefinition("refresh_diagnostics", "Refresh diagnostics", ActionLevel.GREEN, "Refresh read-only repository/application diagnostic sources."),
     "update_factory_state": ActionDefinition("update_factory_state", "Update ACTIVE / NEXT / WAIT", ActionLevel.GREEN, "Update internal control-plane state only."),
-    "prepare_deployment": ActionDefinition("prepare_deployment", "Prepare deployment", ActionLevel.YELLOW, "Prepare a deployment plan but do not deploy to production."),
-    "send_outreach": ActionDefinition("send_outreach", "Send customer outreach", ActionLevel.YELLOW, "External communication requires founder approval."),
+    "prepare_deployment": ActionDefinition("prepare_deployment", "Deployment approval gate", ActionLevel.YELLOW, "Record that deployment requires founder approval; this control does not create or execute a deployment."),
+    "send_outreach": ActionDefinition("send_outreach", "Customer outreach approval gate", ActionLevel.YELLOW, "Record that external communication requires founder approval; this control does not send outreach."),
     "delete_customer_data": ActionDefinition("delete_customer_data", "Delete customer data", ActionLevel.RED, "Owner-only destructive action; never executed here."),
 }
 
