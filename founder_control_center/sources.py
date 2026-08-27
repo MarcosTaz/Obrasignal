@@ -1,12 +1,41 @@
 from __future__ import annotations
 
-from .models import CompanyManifest, Evidence, TruthState
+from .models import CompanyManifest, Evidence, Risk, TruthState
 
 
-LIVE_KINDS = {"live_adapter", "factory_feed", "business_metric_feed", "operational_metric_feed"}
+LIVE_KINDS = {"live_adapter", "factory_feed", "business_metric_feed", "operational_metric_feed", "risk_feed"}
+AUTHORITATIVE_RISK_KINDS = {"risk_feed", "live_adapter"}
 
 
-def _entry(label: str, category: str, evidence: Evidence | None, claimed_state: str | None = None) -> dict:
+def risk_current_state(risk: Risk) -> TruthState:
+    """Evaluate whether a risk is proven current, stale, or still only contextual.
+
+    A severity label can describe the impact *if* a risk is present. It is not proof
+    that the risk is currently active. Context/manual/bootstrap evidence therefore
+    stays UNKNOWN for current-risk truth; only explicit live risk evidence can be
+    current, and its normal freshness rules still apply.
+    """
+    evidence = risk.evidence
+    if evidence is None or evidence.kind not in AUTHORITATIVE_RISK_KINDS:
+        return TruthState.UNKNOWN
+    return evidence.freshness_state()
+
+
+def risk_view(risk: Risk) -> dict:
+    current = risk_current_state(risk)
+    return {
+        "title": risk.title,
+        "severity": risk.severity,
+        "category": risk.category,
+        "detail": risk.detail,
+        "current_truth": current.value,
+        "source": risk.evidence.source if risk.evidence else "UNKNOWN",
+        "source_kind": risk.evidence.kind if risk.evidence else "unknown",
+        "observed_at": risk.evidence.observed_at if risk.evidence else None,
+    }
+
+
+def _entry(label: str, category: str, evidence: Evidence | None, claimed_state: str | None = None, current_truth: str | None = None) -> dict:
     if evidence is None:
         return {
             "label": label,
@@ -17,6 +46,7 @@ def _entry(label: str, category: str, evidence: Evidence | None, claimed_state: 
             "freshness_seconds": None,
             "freshness": TruthState.UNKNOWN.value,
             "claimed_state": claimed_state or "UNKNOWN",
+            "current_truth": current_truth or "UNKNOWN",
         }
     return {
         "label": label,
@@ -27,6 +57,7 @@ def _entry(label: str, category: str, evidence: Evidence | None, claimed_state: 
         "freshness_seconds": evidence.freshness_seconds,
         "freshness": evidence.freshness_state().value,
         "claimed_state": claimed_state or "UNKNOWN",
+        "current_truth": current_truth or claimed_state or "UNKNOWN",
     }
 
 
@@ -45,7 +76,13 @@ def source_inventory(company: CompanyManifest) -> list[dict]:
     for factory in company.factories:
         entries.append(_entry(f"Factory: {factory.name}", "factory", factory.evidence, factory.freshness.value))
     for risk in company.risks:
-        entries.append(_entry(f"Risk: {risk.title}", "risk", risk.evidence, risk.severity))
+        entries.append(_entry(
+            f"Risk: {risk.title}",
+            "risk",
+            risk.evidence,
+            risk.severity,
+            risk_current_state(risk).value,
+        ))
     return entries
 
 
@@ -64,4 +101,5 @@ def source_summary(company: CompanyManifest) -> dict:
         "live_source_count": len(fresh_connected),
         "freshness_counts": counts,
         "sources": entries,
+        "risks": [risk_view(risk) for risk in company.risks],
     }
