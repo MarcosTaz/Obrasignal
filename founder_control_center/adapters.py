@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 import requests
 
 from .models import Evidence, RepositoryState, TruthState
-from .security import UnsafeDestination, validate_public_http_url, validated_redirect_target
+from .security import UnsafeDestination, normalize_github_repository, validate_public_http_url, validated_redirect_target
 
 
 def utcnow() -> str:
@@ -59,6 +59,11 @@ class GitHubAdapter:
             return TruthState.UNKNOWN, f"CI evidence could not be refreshed: {type(exc).__name__}."
 
     def refresh_repo(self, full_name: str) -> RepositoryState:
+        try:
+            full_name = normalize_github_repository(full_name)
+        except ValueError as exc:
+            evidence = Evidence(source="github:invalid-repository", observed_at=utcnow(), freshness_seconds=3600, kind="live_adapter", detail=f"Repository identifier rejected before GitHub access: {exc}")
+            return RepositoryState(full_name=str(full_name)[:200], ci=TruthState.UNKNOWN, evidence=evidence)
         evidence = Evidence(source=f"github:{full_name}", observed_at=utcnow(), freshness_seconds=3600, kind="live_adapter", url=f"https://github.com/{full_name}")
         headers = self._headers()
         try:
@@ -87,6 +92,11 @@ class GitHubAdapter:
 
     def refresh_deployment(self, full_name: str) -> tuple[TruthState, Evidence, str | None]:
         """Read latest GitHub deployment/status without equating source availability with deployment health."""
+        try:
+            full_name = normalize_github_repository(full_name)
+        except ValueError as exc:
+            evidence = Evidence(source="github-deployments:invalid-repository", observed_at=utcnow(), freshness_seconds=600, kind="live_adapter", detail=f"Repository identifier rejected before GitHub deployment access: {exc}")
+            return TruthState.UNKNOWN, evidence, None
         evidence = Evidence(source=f"github-deployments:{full_name}", observed_at=utcnow(), freshness_seconds=600, kind="live_adapter", url=f"https://github.com/{full_name}/deployments")
         headers = self._headers()
         try:
