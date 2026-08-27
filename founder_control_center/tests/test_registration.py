@@ -65,6 +65,25 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["error"], "invalid_company_manifest")
 
+    def test_oversized_identity_fields_are_rejected_not_truncated(self):
+        cases = [
+            ("oversized-name", {"name": "N" * 121}, "name must be at most 120 characters"),
+            ("oversized-mission", {"mission": "M" * 1001}, "mission must be at most 1000 characters"),
+            ("oversized-kind", {"kind": "K" * 81}, "kind must be at most 80 characters"),
+        ]
+        for company_id, override, expected in cases:
+            payload = {
+                "id": company_id,
+                "name": "Bounded Company",
+                "mission": "Reject silent identity truncation.",
+                "kind": "company",
+            }
+            payload.update(override)
+            response = self.client.post("/api/companies/register", json=payload)
+            self.assertEqual(response.status_code, 400, company_id)
+            self.assertIn(expected, response.get_json()["detail"], company_id)
+            self.assertEqual(self.client.get(f"/api/companies/{company_id}").status_code, 404, company_id)
+
 
 if __name__ == "__main__":
     unittest.main()
