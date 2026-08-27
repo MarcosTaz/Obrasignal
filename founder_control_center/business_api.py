@@ -6,7 +6,7 @@ from functools import wraps
 
 from flask import Blueprint, jsonify, request
 
-from .business_feed import ingest_business_metric
+from .business_feed import ingest_business_metric, ingest_operational_metric
 from .registry import append_audit
 
 business_api = Blueprint("business_api", __name__)
@@ -27,6 +27,26 @@ def metric_ingest_required(fn):
     return wrapped
 
 
+def _metric_json(metric):
+    return metric.__dict__ | {"state": metric.state.value, "evidence": metric.evidence.__dict__ if metric.evidence else None}
+
+
+def _audit_rejection(action: str, data: dict, exc: Exception) -> None:
+    append_audit(
+        actor="metric_feed",
+        action=action,
+        level="GREEN",
+        company_id=str(data.get("company_id", ""))[:120] or None,
+        result=f"rejected_invalid_{action}",
+        source_data={
+            "metric_key": str(data.get("metric_key", ""))[:120],
+            "source": str(data.get("source", ""))[:300],
+            "payload_keys": sorted(str(key)[:120] for key in data.keys())[:50],
+        },
+        failure_state=str(exc)[:300],
+    )
+
+
 @business_api.post("/api/ingest/business-metric")
 @metric_ingest_required
 def api_ingest_business_metric():
@@ -44,18 +64,29 @@ def api_ingest_business_metric():
             detail=data.get("detail"),
         )
     except (TypeError, ValueError) as exc:
-        append_audit(
-            actor="business_metric_feed",
-            action="ingest_business_metric",
-            level="GREEN",
-            company_id=str(data.get("company_id", ""))[:120] or None,
-            result="rejected_invalid_business_metric",
-            source_data={
-                "metric_key": str(data.get("metric_key", ""))[:120],
-                "source": str(data.get("source", ""))[:300],
-                "payload_keys": sorted(str(key)[:120] for key in data.keys())[:50],
-            },
-            failure_state=str(exc)[:300],
-        )
+        _audit_rejection("business_metric", data, exc)
         return jsonify({"ok": False, "error": "invalid_business_metric", "detail": str(exc)}), 400
-    return jsonify({"ok": True, "company_id": str(data.get("company_id", "")), "metric": metric.__dict__ | {"state": metric.state.value, "evidence": metric.evidence.__dict__ if metric.evidence else None}}), 200
+    return jsonify({"ok": True, "company_id": str(data.get("company_id", "")), "metric": _metric_json(metric)}), 200
+
+
+@business_api.post("/api/ingest/metric")
+@metric_ingest_required
+def api_ingest_operational_metric():
+    data = request.get_json(silent=True) or {}
+    try:
+        metric = ingest_operational_metric(
+            company_id=str(data.get("company_id", "")),
+            metric_key=str(data.get("metric_key", "")),
+            label=str(data.get("label", "")),
+            value=data.get("value"),
+            source=str(data.get("source", "")),
+            observed_at=data.get("observed_at"),
+            freshness_seconds=data.get("freshness_seconds", 3600),
+            state=str(data.get("state", "GREEN")),
+            unit=data.get("unit"),
+            detail=data.get("detail"),
+        )
+    except (TypeError, ValueError) as exc:
+        _audit_rejection("operational_metric", data, exc)
+        return jsonify({"ok": False, "error": "invalid_operational_metric", "detail": str(exc)}), 400
+    return jsonify({"ok": True, "company_id": str(data.get("company_id", "")), "metric": _metric_json(metric)}), 200
