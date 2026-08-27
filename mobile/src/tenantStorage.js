@@ -6,7 +6,7 @@ export const LEGACY_PRIVATE_KEYS = [
   '@obrasignal/v1/profile',
 ];
 
-const PRIVATE_KINDS = ['saved', 'opportunities-cache', 'profile', 'push-binding'];
+const PRIVATE_KINDS = ['saved', 'opportunities-cache', 'profile', 'push-binding', 'local-notification-scheduled'];
 
 function normalizeIdentity(identity) {
   const value = String(identity || '').trim();
@@ -87,5 +87,7 @@ export function createTenantStorage(adapter, now = () => new Date().toISOString(
     getPushBinding: (identity) => readPrivate(identity, 'push-binding', null),
     setPushBinding: (identity, binding) => writePrivate(identity, 'push-binding', binding),
     clearPushBinding: (identity) => purgeKind(adapter, identity, 'push-binding'),
+    getLocalNotificationScheduled: (identity) => readPrivate(identity, 'local-notification-scheduled', []),
+    setLocalNotificationScheduled: (identity, eventIds) => writePrivate(identity, 'local-notification-scheduled', eventIds),
   };
 }
