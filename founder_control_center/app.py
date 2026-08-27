@@ -9,9 +9,10 @@ from flask import Flask, jsonify, redirect, render_template, request, session, u
 
 from .actions import execute, list_actions
 from .business_api import business_api
+from .history import safe_company_history
 from .ranking import highest_value_actions, rank_portfolio
 from .readiness import readiness_snapshot
-from .registry import append_audit, get_company, ingest_factory_state, init_db, list_audit, list_companies, list_company_history, register_company_stub
+from .registry import append_audit, get_company, ingest_factory_state, init_db, list_audit, list_companies, register_company_stub
 from .security import safe_local_redirect_target
 from .sources import source_summary
 
@@ -153,7 +154,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             company=company,
             ranking=ranking,
             actions=list_actions(),
-            history=list_company_history(company_id, 12),
+            history=safe_company_history(company_id, 12),
             sources=source_summary(company),
             csrf_token=session.get("csrf_token", ""),
         )
@@ -239,7 +240,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             limit = int(request.args.get("limit", "50"))
         except ValueError:
             return jsonify({"ok": False, "error": "invalid_history_limit"}), 400
-        return jsonify({"company_id": company.id, "history": list_company_history(company_id, limit)})
+        return jsonify({"company_id": company.id, "history": safe_company_history(company_id, limit)})
 
     @app.get("/api/companies/<company_id>/sources")
     @auth_required
