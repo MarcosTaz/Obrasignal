@@ -17,12 +17,10 @@ LEASE_NAME = "factory_cloud_dispatch"
 
 
 class WorkerHost:
-    """Long-lived foreground host with a durable single-dispatch lease.
+    """Long-lived foreground host with durable single-dispatch authority.
 
-    Multiple process-manager instances may point at the same metadata DB, but only
-    the lease holder dispatches. A heartbeat renews the lease while a cycle runs;
-    after a crashed host stops heartbeating, another host may take over after TTL.
-    This still does not provision hosting or app production authority.
+    Crash recovery is deferred until this host owns the dispatch lease. That prevents
+    a standby process from misclassifying a live worker's EXECUTING task as crashed.
     """
 
     def __init__(
@@ -44,6 +42,7 @@ class WorkerHost:
         self.lease_ttl_seconds = lease_ttl_seconds or max(15.0, poll_seconds * 4.0)
         self.stop_event = threading.Event()
         self.last_cycle: dict[str, Any] | None = None
+        self._recovery_done = False
 
     @property
     def store(self) -> StateStore:
@@ -60,16 +59,22 @@ class WorkerHost:
                 self.stop_event.set()
                 return
 
+    def _standby(self) -> dict[str, Any]:
+        return {
+            "activation_code": ACTIVATION_CODE,
+            "global_state": "STANDBY",
+            "dispatches": [],
+            "blockers": {"factory_cloud": ["dispatch_lease_held_by_another_worker"]},
+            "apps": self.store.list_apps(),
+        }
+
     def run_once(self) -> dict[str, Any]:
         if not self.store.acquire_or_renew_lease(LEASE_NAME, self.owner_id, self.lease_ttl_seconds):
-            self.last_cycle = {
-                "activation_code": ACTIVATION_CODE,
-                "global_state": "STANDBY",
-                "dispatches": [],
-                "blockers": {"factory_cloud": ["dispatch_lease_held_by_another_worker"]},
-                "apps": self.store.list_apps(),
-            }
+            self.last_cycle = self._standby()
             return self.last_cycle
+        if not self._recovery_done:
+            self.orchestrator.recover_interrupted_executions()
+            self._recovery_done = True
         heartbeat_stop = threading.Event()
         heartbeat = threading.Thread(target=self._heartbeat, args=(heartbeat_stop,), daemon=True)
         heartbeat.start()
@@ -117,7 +122,7 @@ def main() -> int:
     if args.code != ACTIVATION_CODE:
         parser.error("Factory Cloud activation requires Ω")
     registry = load_registry(args.registry) if args.registry else load_registry()
-    orchestrator = PersistentFactoryOrchestrator(registry, StateStore(args.state))
+    orchestrator = PersistentFactoryOrchestrator(registry, StateStore(args.state), recover_interrupted=False)
     host = WorkerHost(
         orchestrator,
         poll_seconds=args.poll_seconds,
