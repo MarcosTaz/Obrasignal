@@ -3,7 +3,7 @@ from __future__ import annotations
 from .models import CompanyManifest, Evidence, TruthState
 
 
-LIVE_KINDS = {"live_adapter", "factory_feed", "business_metric_feed"}
+LIVE_KINDS = {"live_adapter", "factory_feed", "business_metric_feed", "operational_metric_feed"}
 
 
 def _entry(label: str, category: str, evidence: Evidence | None, claimed_state: str | None = None) -> dict:
@@ -61,7 +61,6 @@ def source_summary(company: CompanyManifest) -> dict:
         "total": len(entries),
         "connected_source_count": len(connected),
         "fresh_live_source_count": len(fresh_connected),
-        # Backwards-compatible field, now truthfully means currently fresh live source.
         "live_source_count": len(fresh_connected),
         "freshness_counts": counts,
         "sources": entries,
