@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable, TypeVar
 
 from .models import ApplicationState, CompanyManifest, Evidence, FactoryState, Metric, RepositoryState, Risk, TruthState
-from .security import validate_public_http_url
+from .security import normalize_source_label, validate_public_http_url
 from .seed import build_seed_companies
 
 DB_PATH = os.getenv("FCC_DB", str(Path(__file__).with_name("founder_control_center.db")))
@@ -230,9 +230,10 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
 
 def ingest_factory_state(*, company_id: str, factory_name: str, active: str, next_value: str, wait: str, source: str, observed_at: str | None = None, freshness_seconds: int = 3600, material_delta: str | None = None) -> CompanyManifest:
     """Ingest one Factory's own state without granting it authority over the whole company manifest."""
-    values = [factory_name, active, next_value, wait, source]
+    values = [factory_name, active, next_value, wait]
     if not all(isinstance(value, str) and value.strip() for value in values):
-        raise ValueError("factory_name, active, next, wait and source are required")
+        raise ValueError("factory_name, active, next and wait are required")
+    source_label = normalize_source_label(source)
     factory_name = factory_name.strip()[:160]
     observed_at = observed_at or now_iso()
     if not isinstance(observed_at, str):
@@ -247,12 +248,11 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
         raise ValueError("observed_at must be ISO-8601") from exc
     if (incoming_observed - datetime.now(timezone.utc)).total_seconds() > 300:
         raise ValueError("future-dated Factory state evidence rejected")
-    try:
-        freshness_seconds = max(60, min(int(freshness_seconds), 7 * 24 * 3600))
-    except (TypeError, ValueError) as exc:
-        raise ValueError("freshness_seconds must be an integer") from exc
+    if isinstance(freshness_seconds, bool) or not isinstance(freshness_seconds, int):
+        raise ValueError("freshness_seconds must be an integer")
+    freshness_seconds = max(60, min(freshness_seconds, 7 * 24 * 3600))
 
-    evidence = Evidence(source=source.strip()[:300], observed_at=observed_at, freshness_seconds=freshness_seconds, kind="factory_feed", detail="Factory-owned ACTIVE/NEXT/WAIT feed; does not override global company truth.")
+    evidence = Evidence(source=source_label, observed_at=observed_at, freshness_seconds=freshness_seconds, kind="factory_feed", detail="Factory-owned ACTIVE/NEXT/WAIT feed; does not override global company truth.")
 
     def apply(company: CompanyManifest) -> FactoryState:
         existing = next((item for item in company.factories if item.name == factory_name), None)
