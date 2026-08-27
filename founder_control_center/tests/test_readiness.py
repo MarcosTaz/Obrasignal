@@ -45,6 +45,26 @@ class ReadinessTests(unittest.TestCase):
         self.assertIn(b"PARTIAL", response.data)
         self.assertIn(b"DNS rebinding", response.data)
 
+    def test_dashboard_surfaces_private_github_and_persistence_readiness(self):
+        values = {
+            "FCC_GITHUB_TOKEN": "github-secret-value",
+            "FCC_DB": "/tmp/private-control.db",
+        }
+        with patch.dict(os.environ, values, clear=False):
+            response = self.client.get("/")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Private GitHub", response.data)
+            self.assertIn(b"optional server-side token configured", response.data)
+            self.assertIn(b"Persistence path", response.data)
+            self.assertIn(b"explicit database path configured", response.data)
+
+    def test_dashboard_identifies_present_but_unusable_github_token(self):
+        with patch.dict(os.environ, {"FCC_GITHUB_TOKEN": "tiny"}, clear=False):
+            response = self.client.get("/")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Private GitHub", response.data)
+            self.assertIn(b"present but unusable", response.data)
+
     def test_weak_present_secrets_are_blocked_not_configured(self):
         values = {
             "FCC_ADMIN_TOKEN": "short",
