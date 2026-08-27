@@ -13,11 +13,31 @@ from .registry import get_company, ingest_factory_state, init_db, list_audit, li
 
 
 def create_app(test_config: dict | None = None) -> Flask:
+    session_secret = os.getenv("FCC_SESSION_SECRET")
     app = Flask(__name__, template_folder="templates", static_folder="static")
-    app.config.update(SECRET_KEY=os.getenv("FCC_SESSION_SECRET", os.urandom(32).hex()), SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_SECURE=os.getenv("FCC_SECURE_COOKIE", "1") == "1", MAX_CONTENT_LENGTH=128 * 1024)
+    app.config.update(
+        SECRET_KEY=session_secret or os.urandom(32).hex(),
+        FCC_SESSION_SECRET_CONFIGURED=bool(session_secret),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Strict",
+        SESSION_COOKIE_SECURE=os.getenv("FCC_SECURE_COOKIE", "1") == "1",
+        MAX_CONTENT_LENGTH=128 * 1024,
+    )
     if test_config:
         app.config.update(test_config)
     init_db()
+
+    @app.after_request
+    def security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        response.headers.setdefault("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+        response.headers.setdefault("Cache-Control", "no-store")
+        if app.config.get("SESSION_COOKIE_SECURE"):
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        return response
 
     def is_authenticated() -> bool:
         if app.config.get("TESTING") and app.config.get("BYPASS_AUTH"):
@@ -74,20 +94,23 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
-        configured = os.getenv("FCC_ADMIN_TOKEN")
+        admin_token = os.getenv("FCC_ADMIN_TOKEN")
+        session_configured = bool(app.config.get("FCC_SESSION_SECRET_CONFIGURED"))
         error = None
         if request.method == "POST":
             candidate = request.form.get("token", "")
-            if not configured:
+            if not admin_token:
                 error = "FCC_ADMIN_TOKEN is not configured. Access fails closed."
-            elif hmac.compare_digest(candidate, configured):
+            elif not session_configured and not app.config.get("TESTING"):
+                error = "FCC_SESSION_SECRET is not configured. Access fails closed."
+            elif hmac.compare_digest(candidate, admin_token):
                 session.clear()
                 session["fcc_auth"] = True
                 session["csrf_token"] = secrets.token_urlsafe(32)
                 return redirect(request.args.get("next") or url_for("dashboard"))
             else:
                 error = "Invalid access token."
-        return render_template("login.html", error=error, configured=bool(configured))
+        return render_template("login.html", error=error, configured=bool(admin_token), session_configured=session_configured)
 
     @app.post("/logout")
     @auth_required
