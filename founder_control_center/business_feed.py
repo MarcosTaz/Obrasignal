@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import re
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -12,6 +14,8 @@ ALLOWED_METRICS = {
     "pipeline": {"label": "Pipeline", "unit": "EUR", "kind": "money"},
     "customers": {"label": "Customers", "unit": "count", "kind": "count"},
 }
+RESERVED_METRIC_KEYS = frozenset(ALLOWED_METRICS)
+CUSTOM_METRIC_KEY = re.compile(r"[a-z][a-z0-9_.-]{1,63}")
 ALLOWED_STATES = {TruthState.GREEN, TruthState.DEGRADED, TruthState.UNKNOWN, TruthState.STALE}
 
 
@@ -38,6 +42,18 @@ def _freshness(value: Any) -> int:
         raise ValueError("freshness_seconds must be an integer") from exc
 
 
+def _truth_state(state: str, value: Any) -> TruthState:
+    try:
+        truth_state = TruthState(str(state).strip().upper())
+    except ValueError as exc:
+        raise ValueError("state must be GREEN, DEGRADED, UNKNOWN or STALE") from exc
+    if truth_state not in ALLOWED_STATES:
+        raise ValueError("invalid metric state")
+    if value is None:
+        return TruthState.UNKNOWN
+    return truth_state
+
+
 def _normalized_value(metric_key: str, value: Any) -> int | float | None:
     if value is None:
         return None
@@ -59,6 +75,22 @@ def _normalized_value(metric_key: str, value: Any) -> int | float | None:
     if not parsed.is_finite() or parsed < 0:
         raise ValueError(f"{metric_key} must be a non-negative number")
     return float(parsed)
+
+
+def _normalized_custom_value(value: Any) -> int | float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError("metric value must be a finite number or null")
+    if isinstance(value, int):
+        return value
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("metric value must be a finite number or null") from exc
+    if not math.isfinite(parsed):
+        raise ValueError("metric value must be a finite number or null")
+    return parsed
 
 
 def _reject_out_of_order(existing: Metric, incoming_observed_at: str) -> None:
@@ -90,12 +122,7 @@ def ingest_business_metric(
     unit: str | None = None,
     detail: str | None = None,
 ) -> Metric:
-    """Ingest one canonical business metric with explicit source/freshness evidence.
-
-    A metric can only be GREEN when a non-null value is supplied by the authenticated
-    feed. Null values are always UNKNOWN. Delayed or future-dated evidence cannot
-    overwrite newer canonical evidence. Read-modify-write is atomic per company.
-    """
+    """Ingest one canonical business metric with explicit source/freshness evidence."""
     metric_key = str(metric_key).strip().lower()
     if metric_key not in ALLOWED_METRICS:
         raise ValueError("metric_key must be one of: revenue, pipeline, customers")
@@ -103,15 +130,8 @@ def ingest_business_metric(
         raise ValueError("source is required")
     observed = _observed_at(observed_at)
     freshness = _freshness(freshness_seconds)
-    try:
-        truth_state = TruthState(str(state).strip().upper())
-    except ValueError as exc:
-        raise ValueError("state must be GREEN, DEGRADED, UNKNOWN or STALE") from exc
-    if truth_state not in ALLOWED_STATES:
-        raise ValueError("invalid metric state")
     normalized = _normalized_value(metric_key, value)
-    if normalized is None:
-        truth_state = TruthState.UNKNOWN
+    truth_state = _truth_state(state, normalized)
     spec = ALLOWED_METRICS[metric_key]
     evidence = Evidence(
         source=source.strip()[:300],
@@ -139,6 +159,71 @@ def ingest_business_metric(
     append_audit(
         actor="business_metric_feed",
         action="ingest_business_metric",
+        level="GREEN",
+        company_id=company_id,
+        result=f"{metric_key}_ingested_{truth_state.value.lower()}",
+        source_data={"metric_key": metric_key, "source": evidence.source, "observed_at": observed, "freshness_seconds": freshness, "state": truth_state.value},
+    )
+    return metric
+
+
+def ingest_operational_metric(
+    *,
+    company_id: str,
+    metric_key: str,
+    label: str,
+    value: Any,
+    source: str,
+    observed_at: str | None = None,
+    freshness_seconds: int = 3600,
+    state: str = "GREEN",
+    unit: str | None = None,
+    detail: str | None = None,
+) -> Metric:
+    """Ingest a source-owned numeric KPI without promoting it to business truth.
+
+    Custom KPIs live only in `company.metrics`; they cannot overwrite the canonical
+    revenue/pipeline/customer fields. Null values are UNKNOWN and out-of-order or
+    future evidence cannot replace newer observations.
+    """
+    metric_key = str(metric_key).strip().lower()
+    if not CUSTOM_METRIC_KEY.fullmatch(metric_key) or metric_key in RESERVED_METRIC_KEYS:
+        raise ValueError("metric_key must be a 2-64 character KPI slug and not a reserved business metric")
+    if not isinstance(label, str) or not label.strip():
+        raise ValueError("label is required")
+    if not isinstance(source, str) or not source.strip():
+        raise ValueError("source is required")
+    observed = _observed_at(observed_at)
+    freshness = _freshness(freshness_seconds)
+    normalized = _normalized_custom_value(value)
+    truth_state = _truth_state(state, normalized)
+    evidence = Evidence(
+        source=source.strip()[:300],
+        observed_at=observed,
+        freshness_seconds=freshness,
+        kind="operational_metric_feed",
+        detail=(detail.strip()[:1000] if isinstance(detail, str) and detail.strip() else "Authenticated source-owned operational KPI feed."),
+    )
+
+    def apply(company):
+        existing = next((item for item in company.metrics if item.key == metric_key), None)
+        if existing is not None:
+            _reject_out_of_order(existing, observed)
+        metric = Metric(
+            key=metric_key,
+            label=label.strip()[:120],
+            value=normalized,
+            unit=(str(unit).strip()[:32] if unit else None),
+            state=truth_state,
+            evidence=evidence,
+        )
+        company.metrics = [item for item in company.metrics if item.key != metric_key] + [metric]
+        return metric
+
+    _, metric = mutate_company(company_id, apply)
+    append_audit(
+        actor="operational_metric_feed",
+        action="ingest_operational_metric",
         level="GREEN",
         company_id=company_id,
         result=f"{metric_key}_ingested_{truth_state.value.lower()}",
