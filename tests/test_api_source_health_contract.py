@@ -4,6 +4,7 @@ import sqlite3
 
 def _setup_api(monkeypatch, tmp_path):
     import api
+    from decision_log import ensure_decision_table
 
     class Identity:
         account_id = "company-source-health"
@@ -31,14 +32,15 @@ def _setup_api(monkeypatch, tmp_path):
             country TEXT,
             cpv TEXT,
             deadline TEXT,
+            publication_date TEXT,
             first_seen TEXT,
             score INTEGER,
             market TEXT
         )"""
     )
-    conn.execute(
-        "CREATE TABLE opportunity_decisions(id INTEGER PRIMARY KEY, account_id TEXT, source TEXT, external_id TEXT, score INTEGER)"
-    )
+    # Source-health API acceptance must exercise the current decision contract,
+    # not a historical five-column fixture that bypasses rule/profile authority.
+    ensure_decision_table(conn)
     conn.execute("CREATE TABLE sync_runs(id INTEGER PRIMARY KEY, finished_at TEXT)")
     conn.execute("INSERT INTO sync_runs VALUES (1, '2026-08-25T10:00:00+00:00')")
     conn.commit()
