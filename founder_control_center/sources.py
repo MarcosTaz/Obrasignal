@@ -35,6 +35,13 @@ def risk_view(risk: Risk) -> dict:
     }
 
 
+def company_api_view(company: CompanyManifest) -> dict:
+    """Return one normalized company payload without losing derived truth semantics."""
+    payload = company.to_dict()
+    payload["risks"] = [risk_view(risk) for risk in company.risks]
+    return payload
+
+
 def _entry(label: str, category: str, evidence: Evidence | None, claimed_state: str | None = None, current_truth: str | None = None) -> dict:
     if evidence is None:
         return {
