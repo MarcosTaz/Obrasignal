@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from .adapters import GitHubAdapter, HealthAdapter
 from .models import ActionLevel, TruthState
-from .registry import append_audit, get_company, save_company
+from .registry import append_audit, get_company, mutate_company
 
 
 @dataclass(frozen=True)
@@ -48,32 +48,63 @@ def execute(action_id: str, company_id: str, payload: dict | None = None) -> tup
         append_audit(actor="founder_control_center", action=action_id, level="YELLOW", company_id=company_id, result="approval_required", source_data=_audit_payload_shape(payload))
         return {"ok": False, "state": "APPROVAL_REQUIRED", "prepared": True}, 202
     if action_id == "update_factory_state":
-        for field in ("active", "next", "wait"):
-            if field in payload and isinstance(payload[field], str) and payload[field].strip():
-                setattr(company, field, payload[field].strip()[:500])
-        save_company(company)
-        append_audit(actor="founder_control_center", action=action_id, level="GREEN", company_id=company_id, result="state_updated", source_data={k: payload.get(k) for k in ("active", "next", "wait")})
-        return {"ok": True, "state": "UPDATED", "company": company.to_dict()}, 200
+        changed_fields = [
+            field for field in ("active", "next", "wait")
+            if field in payload and isinstance(payload[field], str) and payload[field].strip()
+        ]
+
+        def apply(latest):
+            for field in changed_fields:
+                setattr(latest, field, payload[field].strip()[:500])
+            return changed_fields
+
+        updated, _ = mutate_company(company_id, apply)
+        append_audit(
+            actor="founder_control_center",
+            action=action_id,
+            level="GREEN",
+            company_id=company_id,
+            result="state_updated",
+            source_data={"changed_fields": changed_fields, **_audit_payload_shape(payload)},
+        )
+        return {"ok": True, "state": "UPDATED", "company": updated.to_dict()}, 200
     if action_id == "refresh_diagnostics":
         changes = []
+        repository_state = None
+        deployment_state = None
+        deployment_evidence = None
+        environment_url = None
+        health_state = None
+        health_evidence = None
+
         if company.repository.full_name:
             github = GitHubAdapter()
-            company.repository = github.refresh_repo(company.repository.full_name)
+            repository_state = github.refresh_repo(company.repository.full_name)
             changes.append("repository")
-            deployment, deployment_evidence, environment_url = github.refresh_deployment(company.repository.full_name)
-            company.application.deployment = deployment
-            company.application.deployment_evidence = deployment_evidence
-            if environment_url and not company.application.url:
-                company.application.url = environment_url
+            deployment_state, deployment_evidence, environment_url = github.refresh_deployment(company.repository.full_name)
             changes.append("deployment")
-        if company.application.url:
-            health, health_evidence = HealthAdapter().refresh(company.application.url.rstrip("/") + "/health")
-            company.application.health = health
-            company.application.health_evidence = health_evidence
+
+        health_url = company.application.url or environment_url
+        if health_url:
+            health_state, health_evidence = HealthAdapter().refresh(health_url.rstrip("/") + "/health")
             changes.append("application_health")
-        if not changes:
-            company.data_freshness = TruthState.UNKNOWN
-        save_company(company)
+
+        def apply(latest):
+            if repository_state is not None:
+                latest.repository = repository_state
+            if deployment_state is not None:
+                latest.application.deployment = deployment_state
+                latest.application.deployment_evidence = deployment_evidence
+            if environment_url and not latest.application.url:
+                latest.application.url = environment_url
+            if health_state is not None:
+                latest.application.health = health_state
+                latest.application.health_evidence = health_evidence
+            if not changes:
+                latest.data_freshness = TruthState.UNKNOWN
+            return changes
+
+        updated, _ = mutate_company(company_id, apply)
         append_audit(actor="founder_control_center", action=action_id, level="GREEN", company_id=company_id, result="diagnostics_refreshed", source_data={"changes": changes})
-        return {"ok": True, "changes": changes, "company": company.to_dict()}, 200
+        return {"ok": True, "changes": changes, "company": updated.to_dict()}, 200
     return {"ok": False, "error": "not_implemented"}, 501
