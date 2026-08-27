@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "activation_code": "Ω",
   "registry_scope": "application_development_only",
   "rules": {
@@ -9,13 +9,16 @@
     "no_automatic_merge": true,
     "no_automatic_deploy": true,
     "no_production_mutation": true,
-    "independent_trust_boundaries": true
+    "independent_trust_boundaries": true,
+    "no_shared_production_authority": true,
+    "metadata_only_persistence": true
   },
   "applications": [
     {
       "app_id": "obrasignal",
       "name": "ObraSignal",
       "kind": "application",
+      "mission": "Advance ObraSignal application development using repository-safe, exact-source, evidence-first execution while preserving all owner and production authorization boundaries.",
       "development_state": "ACTIVE",
       "source_truth": {
         "provider": "github",
@@ -39,6 +42,7 @@
       "app_id": "k3-fatality",
       "name": "K3 Fatality / Probability Intelligence",
       "kind": "application",
+      "mission": "Advance K3 Fatality only through source-safe work until canonical repository truth is resolved, then continue application development without crossing production authority boundaries.",
       "development_state": "ACTIVE_RUNTIME_SOURCE_UNRESOLVED",
       "source_truth": {
         "provider": "vercel",
