@@ -1,0 +1,36 @@
+import unittest
+
+from founder_control_center.app import create_app
+
+
+class RegistrationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = create_app({"TESTING": True, "BYPASS_AUTH": True, "SESSION_COOKIE_SECURE": False})
+        cls.client = cls.app.test_client()
+
+    def test_future_company_registers_with_unknown_operational_truth(self):
+        response = self.client.post("/api/companies/register", json={
+            "id": "future-company",
+            "name": "Future Company",
+            "mission": "Validate a future company without inventing business truth.",
+            "repository": "owner/future-company",
+        })
+        self.assertEqual(response.status_code, 201)
+        company = response.get_json()["company"]
+        self.assertEqual(company["status"], "UNKNOWN")
+        self.assertEqual(company["data_freshness"], "UNKNOWN")
+        self.assertEqual(company["revenue"]["state"], "UNKNOWN")
+        self.assertEqual(company["repository"]["full_name"], "owner/future-company")
+
+    def test_duplicate_company_id_is_rejected(self):
+        response = self.client.post("/api/companies/register", json={
+            "id": "future-company",
+            "name": "Duplicate",
+            "mission": "Should not overwrite existing truth.",
+        })
+        self.assertEqual(response.status_code, 400)
+
+
+if __name__ == "__main__":
+    unittest.main()
