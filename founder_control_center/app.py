@@ -13,6 +13,7 @@ from .ranking import highest_value_actions, rank_portfolio
 from .readiness import readiness_snapshot
 from .registry import append_audit, get_company, ingest_factory_state, init_db, list_audit, list_companies, list_company_history, register_company_stub
 from .security import safe_local_redirect_target
+from .sources import source_summary
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -147,7 +148,15 @@ def create_app(test_config: dict | None = None) -> Flask:
         if not company:
             return "Not found", 404
         ranking = rank_portfolio([company])[0]
-        return render_template("company.html", company=company, ranking=ranking, actions=list_actions(), history=list_company_history(company_id, 12), csrf_token=session.get("csrf_token", ""))
+        return render_template(
+            "company.html",
+            company=company,
+            ranking=ranking,
+            actions=list_actions(),
+            history=list_company_history(company_id, 12),
+            sources=source_summary(company),
+            csrf_token=session.get("csrf_token", ""),
+        )
 
     @app.get("/api/readiness")
     @auth_required
@@ -231,6 +240,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         except ValueError:
             return jsonify({"ok": False, "error": "invalid_history_limit"}), 400
         return jsonify({"company_id": company.id, "history": list_company_history(company_id, limit)})
+
+    @app.get("/api/companies/<company_id>/sources")
+    @auth_required
+    def api_company_sources(company_id: str):
+        company, error = company_or_404(company_id)
+        if error: return error
+        return jsonify(source_summary(company))
 
     @app.get("/api/companies/<company_id>/risks")
     @auth_required
