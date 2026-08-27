@@ -10,7 +10,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session, u
 from .actions import execute, list_actions
 from .business_api import business_api
 from .ranking import highest_value_actions, rank_portfolio
-from .registry import get_company, ingest_factory_state, init_db, list_audit, list_companies, register_company_stub
+from .registry import append_audit, get_company, ingest_factory_state, init_db, list_audit, list_companies, list_company_history, register_company_stub
 from .security import safe_local_redirect_target
 
 
@@ -137,7 +137,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if not company:
             return "Not found", 404
         ranking = rank_portfolio([company])[0]
-        return render_template("company.html", company=company, ranking=ranking, actions=list_actions(), csrf_token=session.get("csrf_token", ""))
+        return render_template("company.html", company=company, ranking=ranking, actions=list_actions(), history=list_company_history(company_id, 12), csrf_token=session.get("csrf_token", ""))
 
     @app.get("/api/companies")
     @auth_required
@@ -171,6 +171,15 @@ def create_app(test_config: dict | None = None) -> Flask:
                 material_delta=data.get("material_delta"),
             )
         except (TypeError, ValueError) as exc:
+            append_audit(
+                actor="factory_ingest",
+                action="ingest_factory_state",
+                level="GREEN",
+                company_id=str(data.get("company_id", ""))[:120] or None,
+                result="rejected_invalid_factory_state",
+                source_data={"factory_name": str(data.get("factory_name", ""))[:160], "source": str(data.get("source", ""))[:300], "payload_keys": sorted(str(key)[:120] for key in data.keys())[:50]},
+                failure_state=str(exc)[:300],
+            )
             return jsonify({"ok": False, "error": "invalid_factory_state", "detail": str(exc)}), 400
         factory_name = str(data.get("factory_name", "")).strip()
         factory = next((item for item in company.to_dict()["factories"] if item["name"] == factory_name), None)
@@ -196,6 +205,17 @@ def create_app(test_config: dict | None = None) -> Flask:
         company, error = company_or_404(company_id)
         if error: return error
         return jsonify({"company_id": company_id, "ACTIVE": company.active, "NEXT": company.next, "WAIT": company.wait, "factories": company.to_dict()["factories"], "last_update": company.last_update})
+
+    @app.get("/api/companies/<company_id>/history")
+    @auth_required
+    def api_company_history(company_id: str):
+        company, error = company_or_404(company_id)
+        if error: return error
+        try:
+            limit = int(request.args.get("limit", "50"))
+        except ValueError:
+            return jsonify({"ok": False, "error": "invalid_history_limit"}), 400
+        return jsonify({"company_id": company.id, "history": list_company_history(company_id, limit)})
 
     @app.get("/api/companies/<company_id>/risks")
     @auth_required
