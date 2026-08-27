@@ -93,8 +93,10 @@ Founder-authenticated diagnostics include:
 
 ## Security and authority status
 
-`FCC_ADMIN_TOKEN`, `FCC_SESSION_SECRET`, Factory/metric ingest tokens and optional GitHub credentials remain server-side. Founder session mutations require CSRF validation. Missing required private-session configuration fails closed.
+`FCC_ADMIN_TOKEN`, `FCC_SESSION_SECRET`, Factory/metric ingest tokens and optional GitHub credentials remain server-side. Founder session mutations require CSRF validation. Missing or materially weak required private-session configuration fails closed.
 
 Health checks reject localhost/private/non-global destinations and do not automatically follow arbitrary redirects. Deployment metadata cannot silently grant health-check authority to an unsafe environment URL. Repository identifiers cannot inject extra GitHub API path/query authority.
+
+The current health adapter validates DNS answers before a request, but the HTTP client subsequently resolves the hostname again. Therefore DNS rebinding between validation and connection remains a residual SSRF/TOCTOU risk. Do not treat the current health network policy as complete SSRF isolation until connection-time address pinning (with correct TLS/SNI handling) is implemented and tested.
 
 2FA/IdP integration remains `UNKNOWN / NOT CONNECTED`. Production deployment, merge, billing changes, external communications, destructive data operations and irreversible commitments remain owner-controlled and are not executed by this MVP.
