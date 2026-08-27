@@ -13,16 +13,17 @@ from .history import safe_company_history
 from .ranking import highest_value_actions, rank_portfolio
 from .readiness import readiness_snapshot
 from .registry import append_audit, get_company, ingest_factory_state, init_db, list_audit, list_companies, register_company_stub
-from .security import normalize_github_repository, safe_local_redirect_target
-from .sources import source_summary
+from .security import normalize_github_repository, safe_local_redirect_target, secret_is_usable
+from .sources import company_api_view, source_summary
 
 
 def create_app(test_config: dict | None = None) -> Flask:
     session_secret = os.getenv("FCC_SESSION_SECRET")
+    session_secret_usable = secret_is_usable(session_secret, 32)
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config.update(
-        SECRET_KEY=session_secret or os.urandom(32).hex(),
-        FCC_SESSION_SECRET_CONFIGURED=bool(session_secret),
+        SECRET_KEY=session_secret if session_secret_usable else os.urandom(32).hex(),
+        FCC_SESSION_SECRET_CONFIGURED=session_secret_usable,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Strict",
         SESSION_COOKIE_SECURE=os.getenv("FCC_SECURE_COOKIE", "1") == "1",
@@ -78,7 +79,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         @wraps(fn)
         def wrapped(*args, **kwargs):
             expected = os.getenv("FCC_FACTORY_INGEST_TOKEN")
-            if not expected:
+            if not secret_is_usable(expected, 16):
                 return jsonify({"ok": False, "error": "factory_ingest_not_configured"}), 503
             header = request.headers.get("Authorization", "")
             prefix = "Bearer "
@@ -98,11 +99,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             return company, None
         return None, (jsonify({"error": "not_found", "company_id": company_id}), 404)
 
-    def company_api_view(company) -> dict:
-        payload = company.to_dict()
-        payload["risks"] = source_summary(company)["risks"]
-        return payload
-
     @app.get("/health")
     def health():
         return jsonify({"status": "ok", "truth": "process_alive_not_global_green"})
@@ -110,14 +106,15 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.route("/login", methods=["GET", "POST"])
     def login():
         admin_token = os.getenv("FCC_ADMIN_TOKEN")
+        admin_configured = secret_is_usable(admin_token, 16)
         session_configured = bool(app.config.get("FCC_SESSION_SECRET_CONFIGURED"))
         error = None
         if request.method == "POST":
             candidate = request.form.get("token", "")
-            if not admin_token:
-                error = "FCC_ADMIN_TOKEN is not configured. Access fails closed."
+            if not admin_configured:
+                error = "FCC_ADMIN_TOKEN is missing or too weak. Access fails closed."
             elif not session_configured and not app.config.get("TESTING"):
-                error = "FCC_SESSION_SECRET is not configured. Access fails closed."
+                error = "FCC_SESSION_SECRET is missing or too weak. Access fails closed."
             elif hmac.compare_digest(candidate, admin_token):
                 session.clear()
                 session["fcc_auth"] = True
@@ -126,7 +123,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                 return redirect(target)
             else:
                 error = "Invalid access token."
-        return render_template("login.html", error=error, configured=bool(admin_token), session_configured=session_configured)
+        return render_template("login.html", error=error, configured=admin_configured, session_configured=session_configured)
 
     @app.post("/logout")
     @auth_required
