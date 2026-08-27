@@ -1,0 +1,262 @@
+from __future__ import annotations
+
+import argparse
+import json
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from factory_cloud.adapters import AdapterRegistry, ExecutionRequest, ExecutionResult
+from factory_cloud.control_plane import ACTIVATION_CODE, RegistryError, load_registry
+from factory_cloud.state_store import StateStore, utc_now
+
+DEFAULT_STATE_PATH = Path(__file__).with_name("factory_cloud_state.sqlite3")
+TERMINAL_SAFE_STATUSES = {"DONE", "WAIT", "BLOCKED", "ERROR"}
+
+
+@dataclass(frozen=True)
+class DispatchDecision:
+    app_id: str
+    mode: str
+    task: str
+    source: str | None
+    canonical_head: str | None
+    resume_at: str
+
+
+class OrchestratorError(RuntimeError):
+    pass
+
+
+class PersistentFactoryOrchestrator:
+    """Process-restart-safe Factory Cloud scheduler.
+
+    Continuity is durable while a host process is run/restarted. This class does not
+    claim to create an always-running background service by itself; service lifetime
+    belongs to the external process manager hosting this runtime.
+    """
+
+    def __init__(
+        self,
+        registry: dict[str, Any],
+        store: StateStore,
+        adapters: AdapterRegistry | None = None,
+    ):
+        self.registry = registry
+        self.store = store
+        self.adapters = adapters or AdapterRegistry()
+        self._apps = {app["app_id"]: app for app in registry.get("applications", [])}
+        self.recover_registry()
+        self.recover_interrupted_executions()
+
+    def recover_registry(self) -> None:
+        for app in self.registry.get("applications", []):
+            activation = app.get("activation") or {}
+            if activation.get("enabled") is True:
+                self.store.upsert_from_registry(app)
+
+    def recover_interrupted_executions(self) -> None:
+        """Convert crash/interruption into an exact resumable checkpoint."""
+        for app in self.store.list_apps():
+            current = app.get("current_execution")
+            if app.get("state") != "EXECUTING" or not current:
+                continue
+            task = str(current.get("task") or app.get("resume_at") or app.get("active") or "")
+            retry = dict(app.get("retry_state") or {})
+            retry["interrupted_count"] = int(retry.get("interrupted_count", 0)) + 1
+            retry["last_interrupted_at"] = utc_now()
+            self.store.checkpoint(
+                app["app_id"],
+                state="READY",
+                active=task,
+                resume_at=task,
+                current_execution_json=None,
+                retry_state_json=retry,
+                error_state_json={"type": "PROCESS_INTERRUPTED", "task": task},
+            )
+
+    def _app_config(self, app_id: str) -> dict[str, Any]:
+        try:
+            return self._apps[app_id]
+        except KeyError as exc:
+            raise OrchestratorError(f"app missing from registry: {app_id}") from exc
+
+    def _decision_for(self, state: dict[str, Any]) -> DispatchDecision | None:
+        app = self._app_config(state["app_id"])
+        activation = app.get("activation") or {}
+        mode = activation.get("mode")
+        if activation.get("enabled") is not True:
+            return None
+        active = str(state.get("active") or "").strip()
+        next_items = list(state.get("next") or [])
+        task = active or (str(next_items[0]) if next_items else "")
+        if not task:
+            return None
+        source_truth = app.get("source_truth") or {}
+        source = source_truth.get("repository") or source_truth.get("canonical_repository") or source_truth.get("project")
+        return DispatchDecision(
+            app_id=state["app_id"],
+            mode=mode,
+            task=task,
+            source=source,
+            canonical_head=state.get("canonical_head"),
+            resume_at=str(state.get("resume_at") or task),
+        )
+
+    def choose_next(self, attempted: set[str] | None = None) -> DispatchDecision | None:
+        attempted = attempted or set()
+        for state in self.store.list_apps():
+            if state["app_id"] in attempted:
+                continue
+            decision = self._decision_for(state)
+            if decision is not None:
+                return decision
+        return None
+
+    def _checkpoint_result(self, decision: DispatchDecision, result: ExecutionResult) -> None:
+        state = self.store.get_app(decision.app_id)
+        if state is None:
+            raise OrchestratorError(f"state vanished for {decision.app_id}")
+        current_next = list(state.get("next") or [])
+        if result.next_items:
+            next_items = list(result.next_items)
+        else:
+            next_items = current_next
+            if result.status == "DONE" and next_items and next_items[0] == decision.task:
+                next_items = next_items[1:]
+        next_active = result.next_active
+        if result.status == "DONE" and not next_active:
+            next_active = str(next_items[0]) if next_items else ""
+        if result.status in {"WAIT", "BLOCKED", "ERROR"} and not next_active:
+            next_active = decision.task
+        wait_items = list(result.wait_items) if result.wait_items else list(state.get("wait") or [])
+        blockers = list(result.blockers)
+        retry = dict(state.get("retry_state") or {})
+        if result.status == "ERROR":
+            retry["attempts"] = int(retry.get("attempts", 0)) + 1
+            retry["last_error_at"] = utc_now()
+        elif result.status == "DONE":
+            retry = {}
+        resume_at = result.resume_at or next_active or decision.task
+        self.store.checkpoint(
+            decision.app_id,
+            state="READY" if result.status == "DONE" else result.status,
+            active=next_active,
+            next_json=next_items,
+            wait_json=wait_items,
+            blockers_json=blockers,
+            last_verified=result.last_verified or state.get("last_verified"),
+            last_green=result.last_green or state.get("last_green"),
+            resume_at=resume_at,
+            current_execution_json=None,
+            error_state_json=result.error,
+            retry_state_json=retry,
+        )
+
+    def execute_one(self, decision: DispatchDecision) -> ExecutionResult:
+        execution_id = uuid.uuid4().hex
+        payload = {
+            "execution_id": execution_id,
+            "app_id": decision.app_id,
+            "mode": decision.mode,
+            "task": decision.task,
+            "source": decision.source,
+            "canonical_head": decision.canonical_head,
+            "resume_at": decision.resume_at,
+        }
+        self.store.start_execution(decision.app_id, execution_id, decision.task, payload)
+        adapter = self.adapters.for_app(decision.app_id, decision.mode)
+        try:
+            result = adapter.execute(
+                ExecutionRequest(
+                    app_id=decision.app_id,
+                    mode=decision.mode,
+                    task=decision.task,
+                    source=decision.source,
+                    canonical_head=decision.canonical_head,
+                    resume_at=decision.resume_at,
+                )
+            )
+        except Exception as exc:  # fail closed and persist exact resume point
+            result = ExecutionResult(
+                status="ERROR",
+                evidence={"exception_type": type(exc).__name__},
+                next_active=decision.task,
+                blockers=("adapter_execution_error",),
+                resume_at=decision.task,
+                error={"type": type(exc).__name__, "message": str(exc)},
+            )
+        if result.status not in TERMINAL_SAFE_STATUSES:
+            result = ExecutionResult(
+                status="ERROR",
+                evidence={"invalid_adapter_status": result.status},
+                next_active=decision.task,
+                blockers=("invalid_adapter_status",),
+                resume_at=decision.task,
+                error={"type": "INVALID_ADAPTER_STATUS", "status": result.status},
+            )
+        self.store.finish_execution(decision.app_id, execution_id, result.status, result.evidence, result.error)
+        self._checkpoint_result(decision, result)
+        return result
+
+    def run_cycle(self, max_dispatches: int = 100) -> dict[str, Any]:
+        """Run safe work until every eligible app yielded once or budget is exhausted."""
+        attempted: set[str] = set()
+        dispatches: list[dict[str, Any]] = []
+        while len(dispatches) < max_dispatches:
+            decision = self.choose_next(attempted)
+            if decision is None:
+                break
+            result = self.execute_one(decision)
+            dispatches.append(
+                {
+                    "app_id": decision.app_id,
+                    "task": decision.task,
+                    "status": result.status,
+                    "evidence": result.evidence,
+                }
+            )
+            if result.status == "DONE":
+                # DONE -> persist -> immediately execute NEXT for same app unless no task remains.
+                state = self.store.get_app(decision.app_id)
+                if state and self._decision_for(state) is not None:
+                    continue
+            attempted.add(decision.app_id)
+        states = self.store.list_apps()
+        eligible = [self._decision_for(state) for state in states]
+        global_wait = not any(item is not None and item.app_id not in attempted for item in eligible)
+        return {
+            "activation_code": ACTIVATION_CODE,
+            "dispatches": dispatches,
+            "global_state": "WAIT" if global_wait else "READY",
+            "blockers": {
+                state["app_id"]: state.get("blockers") or []
+                for state in states
+                if state.get("blockers")
+            },
+            "apps": states,
+        }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Persistent Factory Cloud orchestrator")
+    parser.add_argument("code", help="activation code; must be Ω")
+    parser.add_argument("--registry", type=Path, default=None)
+    parser.add_argument("--state", type=Path, default=DEFAULT_STATE_PATH)
+    parser.add_argument("--max-dispatches", type=int, default=100)
+    args = parser.parse_args()
+    if args.code != ACTIVATION_CODE:
+        parser.error("Factory Cloud activation requires Ω")
+    try:
+        registry = load_registry(args.registry) if args.registry else load_registry()
+        orchestrator = PersistentFactoryOrchestrator(registry, StateStore(args.state))
+        result = orchestrator.run_cycle(max_dispatches=max(1, args.max_dispatches))
+    except (OSError, json.JSONDecodeError, RegistryError, OrchestratorError) as exc:
+        parser.error(str(exc))
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
