@@ -28,6 +28,11 @@ def list_actions() -> list[dict]:
     return [{"id": x.id, "label": x.label, "level": x.level.value, "description": x.description} for x in ACTIONS.values()]
 
 
+def _audit_payload_shape(payload: dict) -> dict:
+    """Audit action intent without persisting arbitrary potentially-sensitive values."""
+    return {"payload_keys": sorted(str(key)[:120] for key in payload.keys())[:50]}
+
+
 def execute(action_id: str, company_id: str, payload: dict | None = None) -> tuple[dict, int]:
     payload = payload or {}
     action = ACTIONS.get(action_id)
@@ -37,10 +42,10 @@ def execute(action_id: str, company_id: str, payload: dict | None = None) -> tup
     if not company:
         return {"ok": False, "error": "unknown_company"}, 404
     if action.level == ActionLevel.RED:
-        append_audit(actor="founder_control_center", action=action_id, level="RED", company_id=company_id, result="blocked_owner_only", source_data=payload)
+        append_audit(actor="founder_control_center", action=action_id, level="RED", company_id=company_id, result="blocked_owner_only", source_data=_audit_payload_shape(payload))
         return {"ok": False, "state": "OWNER_ONLY", "message": "This action can never be executed autonomously."}, 403
     if action.level == ActionLevel.YELLOW:
-        append_audit(actor="founder_control_center", action=action_id, level="YELLOW", company_id=company_id, result="approval_required", source_data=payload)
+        append_audit(actor="founder_control_center", action=action_id, level="YELLOW", company_id=company_id, result="approval_required", source_data=_audit_payload_shape(payload))
         return {"ok": False, "state": "APPROVAL_REQUIRED", "prepared": True}, 202
     if action_id == "update_factory_state":
         for field in ("active", "next", "wait"):
