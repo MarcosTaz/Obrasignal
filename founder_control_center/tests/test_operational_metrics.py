@@ -67,6 +67,31 @@ class OperationalMetricFeedTests(unittest.TestCase):
         self.assertIn(b"Source coverage", page.data)
         self.assertIn(b"62.5", page.data)
 
+    def test_operational_unit_must_be_string_or_null(self):
+        base = {
+            "company_id": "founder-control-center",
+            "metric_key": "typed_unit_kpi",
+            "label": "Typed unit KPI",
+            "value": 1,
+            "source": "ci:typed-unit-kpi",
+        }
+        for unit in (123, True, ["%"], {"unit": "%"}):
+            response = self._post(dict(base, unit=unit))
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("unit must be a string or null", response.get_json()["detail"])
+
+    def test_operational_unit_is_not_silently_truncated(self):
+        response = self._post({
+            "company_id": "founder-control-center",
+            "metric_key": "long_unit_kpi",
+            "label": "Long unit KPI",
+            "value": 1,
+            "unit": "x" * 33,
+            "source": "ci:long-unit-kpi",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("at most 32", response.get_json()["detail"])
+
     def test_reserved_business_metric_cannot_be_shadowed(self):
         response = self._post({
             "company_id": "founder-control-center",
