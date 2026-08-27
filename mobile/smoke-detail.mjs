@@ -10,7 +10,7 @@ const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 const checks = [
   ['detail receives selected opportunity', /<Detail\s+item=\{selected\}/],
   ['detail owns local opportunity state', /function Detail\(\{item,/],
-  ['workflow is rendered in detail', /const status=current\.workflow\?\.status\|\|'NEW'/],
+  ['workflow is rendered in detail without fabricated default', /const status=current\.workflow\?\.status\?\?null;const statusKnown=workflowStatusKnown\(status\)/],
   ['workflow action calls API', /api\.setWorkflow\(current\.id,next/],
   ['official source action is rendered', /Abrir fonte oficial/],
   ['onboarding asks for business interests', /Que trabalhos ou contratos procuras/],
