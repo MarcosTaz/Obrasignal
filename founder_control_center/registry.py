@@ -205,18 +205,27 @@ def mutate_company(company_id: str, mutator: Callable[[CompanyManifest], T]) -> 
 
 
 def register_company_stub(*, company_id: str, name: str, mission: str, kind: str = "company", repository_full_name: str | None = None, application_url: str | None = None) -> CompanyManifest:
-    """Register a future company without inventing operational or network authority."""
+    """Register a future company without inventing or silently truncating founder-provided identity truth."""
+    if not all(isinstance(value, str) for value in (company_id, name, mission, kind)):
+        raise ValueError("company_id, name, mission and kind must be strings")
     company_id = company_id.strip().lower()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,62}[a-z0-9]", company_id):
         raise ValueError("company_id must be a 3-64 character lowercase slug")
     name = name.strip()
     mission = mission.strip()
+    kind = kind.strip() or "company"
     if not name or not mission:
         raise ValueError("name and mission are required")
+    if len(name) > 120:
+        raise ValueError("name must be at most 120 characters")
+    if len(mission) > 1000:
+        raise ValueError("mission must be at most 1000 characters")
+    if len(kind) > 80:
+        raise ValueError("kind must be at most 80 characters")
     normalized_application_url = validate_public_http_url(application_url) if application_url else None
     evidence = Evidence(source="founder_manual_registry", observed_at=now_iso(), freshness_seconds=None, kind="manual_registry", detail="Identity fields are founder-provided. Operational status remains UNKNOWN until canonical adapters provide evidence.")
     company = CompanyManifest(
-        id=company_id, name=name[:120], mission=mission[:1000], kind=(kind or "company")[:80],
+        id=company_id, name=name, mission=mission, kind=kind,
         status="UNKNOWN", stage="UNKNOWN", active="Connect canonical truth sources", next="Establish ACTIVE / NEXT / WAIT from evidence", wait="NONE",
         repository=RepositoryState(full_name=repository_full_name.strip() if repository_full_name else None, evidence=evidence),
         application=ApplicationState(name=name, url=normalized_application_url, evidence=evidence),
