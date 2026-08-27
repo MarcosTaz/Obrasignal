@@ -85,6 +85,7 @@ def _from_payload(payload: dict) -> CompanyManifest:
     for item in payload.get("factories", []):
         item = dict(item)
         item["evidence"] = _evidence(item.get("evidence"))
+        item["freshness"] = item["evidence"].freshness_state() if item["evidence"] else TruthState.UNKNOWN
         factories.append(FactoryState(**item))
 
     return CompanyManifest(
@@ -168,11 +169,19 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
     except (TypeError, ValueError) as exc:
         raise ValueError("freshness_seconds must be an integer") from exc
     evidence = Evidence(source=source.strip()[:300], observed_at=observed_at, freshness_seconds=freshness_seconds, kind="factory_feed", detail="Factory-owned ACTIVE/NEXT/WAIT feed; does not override global company truth.")
-    factory = FactoryState(factory_name.strip()[:160], active.strip()[:1000], next_value.strip()[:1000], wait.strip()[:1000], material_delta.strip()[:2000] if isinstance(material_delta, str) else None, evidence)
+    factory = FactoryState(
+        name=factory_name.strip()[:160],
+        active=active.strip()[:1000],
+        next=next_value.strip()[:1000],
+        wait=wait.strip()[:1000],
+        material_delta=material_delta.strip()[:2000] if isinstance(material_delta, str) else None,
+        evidence=evidence,
+        freshness=evidence.freshness_state(),
+    )
     company.factories = [item for item in company.factories if item.name != factory.name] + [factory]
     company.last_update = now_iso()
     save_company(company)
-    append_audit(actor=f"factory:{factory.name}", action="ingest_factory_state", level="GREEN", company_id=company_id, result="factory_state_ingested", source_data={"source": evidence.source, "observed_at": observed_at, "freshness_seconds": freshness_seconds})
+    append_audit(actor=f"factory:{factory.name}", action="ingest_factory_state", level="GREEN", company_id=company_id, result="factory_state_ingested", source_data={"source": evidence.source, "observed_at": observed_at, "freshness_seconds": freshness_seconds, "freshness": factory.freshness.value})
     return company
 
 
