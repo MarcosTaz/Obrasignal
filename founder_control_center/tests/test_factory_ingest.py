@@ -106,6 +106,21 @@ class FactoryIngestTests(unittest.TestCase):
         self.assertEqual(factory.active, "Newest active")
         self.assertEqual(factory.evidence.source, "ci:newer-factory-source")
 
+    def test_future_dated_factory_feed_is_rejected(self):
+        os.environ["FCC_FACTORY_INGEST_TOKEN"] = "factory-test-secret"
+        payload = dict(self.payload)
+        payload.update({
+            "factory_name": "Future Factory Feed",
+            "observed_at": "2099-01-01T00:00:00Z",
+        })
+        response = self.client.post(
+            "/api/ingest/factory-state",
+            json=payload,
+            headers={"Authorization": "Bearer factory-test-secret"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("future-dated", response.get_json()["detail"])
+
 
 if __name__ == "__main__":
     unittest.main()
