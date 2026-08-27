@@ -51,11 +51,35 @@ class FactoryIngestTests(unittest.TestCase):
         self.assertTrue(body["ok"])
         self.assertEqual(body["factory"]["name"], "CI Factory Feed")
         self.assertEqual(body["factory"]["evidence"]["source"], "ci:test_factory_ingest")
+        self.assertEqual(body["factory"]["freshness"], "GREEN")
         after = get_company("obrasignal")
         self.assertEqual(after.active, global_active)
         factory = next(item for item in after.factories if item.name == "CI Factory Feed")
         self.assertEqual(factory.active, "Validate machine feed")
         self.assertEqual(factory.evidence.freshness_seconds, 900)
+        self.assertEqual(factory.freshness.value, "GREEN")
+
+    def test_old_factory_feed_is_rendered_stale_not_current(self):
+        os.environ["FCC_FACTORY_INGEST_TOKEN"] = "factory-test-secret"
+        stale_payload = dict(self.payload)
+        stale_payload.update({
+            "factory_name": "Stale Factory Feed",
+            "observed_at": "2020-01-01T00:00:00Z",
+            "freshness_seconds": 60,
+        })
+        response = self.client.post(
+            "/api/ingest/factory-state",
+            json=stale_payload,
+            headers={"Authorization": "Bearer factory-test-secret"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["factory"]["freshness"], "STALE")
+        api = self.client.get("/api/companies/obrasignal/factory-state").get_json()
+        stale = next(item for item in api["factories"] if item["name"] == "Stale Factory Feed")
+        self.assertEqual(stale["freshness"], "STALE")
+        page = self.client.get("/company/obrasignal")
+        self.assertIn(b"Stale Factory Feed", page.data)
+        self.assertIn(b"STALE", page.data)
 
 
 if __name__ == "__main__":
