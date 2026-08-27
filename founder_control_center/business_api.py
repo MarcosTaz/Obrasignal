@@ -27,6 +27,11 @@ def metric_ingest_required(fn):
     return wrapped
 
 
+def _request_object() -> dict:
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else {}
+
+
 def _metric_json(metric):
     return metric.__dict__ | {"state": metric.state.value, "evidence": metric.evidence.__dict__ if metric.evidence else None}
 
@@ -50,7 +55,7 @@ def _audit_rejection(action: str, data: dict, exc: Exception) -> None:
 @business_api.post("/api/ingest/business-metric")
 @metric_ingest_required
 def api_ingest_business_metric():
-    data = request.get_json(silent=True) or {}
+    data = _request_object()
     try:
         metric = ingest_business_metric(
             company_id=str(data.get("company_id", "")),
@@ -72,7 +77,7 @@ def api_ingest_business_metric():
 @business_api.post("/api/ingest/metric")
 @metric_ingest_required
 def api_ingest_operational_metric():
-    data = request.get_json(silent=True) or {}
+    data = _request_object()
     try:
         metric = ingest_operational_metric(
             company_id=str(data.get("company_id", "")),
