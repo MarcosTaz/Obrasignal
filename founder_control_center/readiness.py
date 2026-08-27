@@ -36,6 +36,10 @@ def readiness_snapshot() -> dict:
             "state": "CONFIGURED" if secure_cookie else "LOCAL_ONLY",
             "secure_cookie": secure_cookie,
         },
+        "health_network_policy": {
+            "state": "PARTIAL",
+            "claim": "Public-address and redirect validation is enforced, but connection-time DNS is not pinned; DNS rebinding remains a residual risk.",
+        },
         "factory_feed": {
             "state": "CONFIGURED" if factory_feed else "NOT_CONFIGURED",
             "token_configured": factory_feed,
