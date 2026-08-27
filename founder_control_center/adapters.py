@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 import requests
 
 from .models import Evidence, RepositoryState, TruthState
-from .security import UnsafeDestination, normalize_github_repository, validate_public_http_url, validated_redirect_target
+from .security import UnsafeDestination, normalize_github_repository, secret_is_usable, validate_public_http_url, validated_redirect_target
 
 
 def utcnow() -> str:
@@ -32,7 +32,8 @@ class GitHubAdapter:
     """Read-only repository/deployment adapter. Public repos work without a token; inaccessible source truth fails closed to UNKNOWN."""
 
     def __init__(self, token: str | None = None, timeout: int = 8):
-        self.token = token or os.getenv("FCC_GITHUB_TOKEN")
+        configured = os.getenv("FCC_GITHUB_TOKEN") if token is None else token
+        self.token = configured if secret_is_usable(configured, 16) else None
         self.timeout = timeout
 
     def _headers(self) -> dict[str, str]:
