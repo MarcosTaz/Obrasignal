@@ -74,10 +74,10 @@ class GitHubAdapter:
                         if any(not isinstance(item, dict) for item in raw_statuses):
                             raise ValueError("GitHub statuses must be a list of objects")
                         status_count = len(raw_statuses)
-                    elif isinstance(total_count, bool):
-                        raise ValueError("GitHub combined status total_count must be an integer")
                     else:
-                        status_count = int(total_count)
+                        if isinstance(total_count, bool) or not isinstance(total_count, int):
+                            raise ValueError("GitHub combined status total_count must be an integer")
+                        status_count = total_count
                         if status_count < 0:
                             raise ValueError("GitHub combined status total_count cannot be negative")
                 except (ValueError, TypeError, AttributeError):
