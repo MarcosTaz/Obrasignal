@@ -125,8 +125,9 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
         except (TypeError, ValueError) as exc:
             return jsonify({"ok": False, "error": "invalid_factory_state", "detail": str(exc)}), 400
-        factory = next((item for item in company.factories if item.name == str(data.get("factory_name", "")).strip()), None)
-        return jsonify({"ok": True, "company_id": company.id, "factory": factory.__dict__ if factory else None, "last_update": company.last_update}), 200
+        factory_name = str(data.get("factory_name", "")).strip()
+        factory = next((item for item in company.to_dict()["factories"] if item["name"] == factory_name), None)
+        return jsonify({"ok": True, "company_id": company.id, "factory": factory, "last_update": company.last_update}), 200
 
     @app.get("/api/companies/<company_id>")
     @auth_required
