@@ -101,6 +101,23 @@ class OperationalMetricFeedTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["metric"]["state"], "UNKNOWN")
 
+    def test_stale_custom_metric_is_stale_in_immediate_response(self):
+        stale = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        response = self._post({
+            "company_id": "founder-control-center",
+            "metric_key": "stale_kpi",
+            "label": "Stale KPI",
+            "value": 10,
+            "source": "ci:stale-kpi",
+            "observed_at": stale,
+            "freshness_seconds": 60,
+            "state": "GREEN",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["metric"]["state"], "STALE")
+        persisted = next(item for item in get_company("founder-control-center").metrics if item.key == "stale_kpi")
+        self.assertEqual(persisted.state.value, "STALE")
+
     def test_delayed_custom_metric_cannot_replace_newer_observation(self):
         now = datetime.now(timezone.utc)
         newer = (now - timedelta(seconds=30)).isoformat()
