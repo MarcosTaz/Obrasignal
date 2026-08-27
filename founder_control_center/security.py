@@ -37,6 +37,27 @@ def safe_local_redirect_target(candidate: str | None, fallback: str) -> str:
     return target
 
 
+def normalize_source_label(source: str) -> str:
+    """Normalize a machine-feed provenance label without accepting free-form secrets.
+
+    Source labels are persisted into audit/provenance views. Keep them as compact
+    identifiers such as ``ci:billing-sync`` or ``crm:hubspot`` rather than URLs,
+    query strings, credentials or arbitrary free text.
+    """
+    if not isinstance(source, str) or not source.strip():
+        raise ValueError("source is required")
+    value = source.strip()
+    if len(value) > 120:
+        raise ValueError("source must be at most 120 characters")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        raise ValueError("source contains unsafe characters")
+    if "://" in value or any(token in value for token in ("?", "#", "@", "=", "\\")):
+        raise ValueError("source must be a non-secret label, not a URL or credential")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]*", value):
+        raise ValueError("source must use identifier characters only")
+    return value
+
+
 def normalize_github_repository(full_name: str) -> str:
     """Return a strict `owner/repository` identifier, never a GitHub API path.
 
