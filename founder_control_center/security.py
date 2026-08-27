@@ -72,7 +72,8 @@ def validate_public_http_url(url: str, *, resolve_dns: bool = True) -> str:
 
     The policy rejects credentials, localhost/private/link-local/reserved address
     space, non-HTTP schemes, control/backslash ambiguity and query/fragment input.
-    DNS is resolved before use and every redirect hop must call this function again.
+    Literal IPs are always checked for public routability, even when DNS lookup is
+    intentionally skipped. DNS hostnames are resolved before network use.
     """
     if not isinstance(url, str) or not url.strip():
         raise UnsafeDestination("application_url is required")
@@ -107,15 +108,20 @@ def validate_public_http_url(url: str, *, resolve_dns: bool = True) -> str:
     if port is not None and not (1 <= port <= 65535):
         raise UnsafeDestination("application_url port is invalid")
     effective_port = port or (443 if scheme == "https" else 80)
-    if resolve_dns:
-        _public_addresses(host, effective_port)
 
     try:
         literal = ipaddress.ip_address(host)
     except ValueError:
-        display_host = host
-    else:
+        literal = None
+    if literal is not None:
+        if not literal.is_global:
+            raise UnsafeDestination("destination resolves to a non-public address")
         display_host = f"[{host}]" if literal.version == 6 else host
+    else:
+        if resolve_dns:
+            _public_addresses(host, effective_port)
+        display_host = host
+
     netloc = display_host + (f":{port}" if port is not None else "")
     path = parts.path or ""
     return urlunsplit((scheme, netloc, path.rstrip("/"), "", ""))
