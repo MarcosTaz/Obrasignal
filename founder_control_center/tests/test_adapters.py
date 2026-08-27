@@ -11,7 +11,7 @@ from founder_control_center.models import TruthState
 class FakeResponse:
     def __init__(self, status_code=200, payload=None):
         self.status_code = status_code
-        self._payload = payload or {}
+        self._payload = {} if payload is None else payload
         self.ok = 200 <= status_code < 300
 
     def json(self):
@@ -32,12 +32,55 @@ class GitHubAdapterTests(unittest.TestCase):
             FakeResponse(payload={"default_branch": "main"}),
             FakeResponse(payload={"sha": "abc123"}),
             FakeResponse(payload={"check_runs": [{"status": "completed", "conclusion": "success"}]}),
-            FakeResponse(payload={"state": "success"}),
+            FakeResponse(payload={"state": "success", "total_count": 1}),
         ]
         state = GitHubAdapter(token=None).refresh_repo("owner/public")
         self.assertEqual(state.branch, "main")
         self.assertEqual(state.commit, "abc123")
         self.assertEqual(state.ci, TruthState.GREEN)
+
+    @patch("founder_control_center.adapters.requests.get")
+    def test_successful_checks_can_prove_green_when_no_commit_statuses_exist(self, get):
+        get.side_effect = [
+            FakeResponse(payload={"default_branch": "main"}),
+            FakeResponse(payload={"sha": "checks-only"}),
+            FakeResponse(payload={"check_runs": [{"status": "completed", "conclusion": "success"}]}),
+            FakeResponse(payload={"state": "pending", "total_count": 0, "statuses": []}),
+        ]
+        state = GitHubAdapter(token=None).refresh_repo("owner/public")
+        self.assertEqual(state.ci, TruthState.GREEN)
+        self.assertIn("no separate commit statuses", state.evidence.detail)
+
+    @patch("founder_control_center.adapters.requests.get")
+    def test_success_status_cannot_green_when_check_source_is_unavailable(self, get):
+        get.side_effect = [
+            FakeResponse(payload={"default_branch": "main"}),
+            FakeResponse(payload={"sha": "partial-checks"}),
+            FakeResponse(status_code=503),
+            FakeResponse(payload={"state": "success", "total_count": 1}),
+        ]
+        state = GitHubAdapter(token=None).refresh_repo("owner/public")
+        self.assertEqual(state.ci, TruthState.UNKNOWN)
+        self.assertIn("inaccessible", state.evidence.detail.lower())
+
+    @patch("founder_control_center.adapters.requests.get")
+    def test_success_checks_cannot_green_when_status_source_is_unavailable(self, get):
+        get.side_effect = [
+            FakeResponse(payload={"default_branch": "main"}),
+            FakeResponse(payload={"sha": "partial-status"}),
+            FakeResponse(payload={"check_runs": [{"status": "completed", "conclusion": "success"}]}),
+            FakeResponse(status_code=503),
+        ]
+        state = GitHubAdapter(token=None).refresh_repo("owner/public")
+        self.assertEqual(state.ci, TruthState.UNKNOWN)
+        self.assertIn("inaccessible", state.evidence.detail.lower())
+
+    @patch("founder_control_center.adapters.requests.get")
+    def test_malformed_repository_payload_fails_closed(self, get):
+        get.return_value = FakeResponse(payload=[])
+        state = GitHubAdapter(token=None).refresh_repo("owner/public")
+        self.assertEqual(state.ci, TruthState.UNKNOWN)
+        self.assertIn("safely", state.evidence.detail.lower())
 
     @patch("founder_control_center.adapters.requests.get")
     def test_invalid_repository_identifier_is_rejected_before_network_call(self, get):
@@ -73,7 +116,7 @@ class GitHubAdapterTests(unittest.TestCase):
             FakeResponse(payload={"default_branch": "main"}),
             FakeResponse(payload={"sha": "bad123"}),
             FakeResponse(payload={"check_runs": [{"status": "completed", "conclusion": "failure"}]}),
-            FakeResponse(payload={"state": "failure"}),
+            FakeResponse(payload={"state": "failure", "total_count": 1}),
         ]
         state = GitHubAdapter(token=None).refresh_repo("owner/public")
         self.assertEqual(state.ci, TruthState.DEGRADED)
@@ -84,7 +127,7 @@ class GitHubAdapterTests(unittest.TestCase):
             FakeResponse(payload={"default_branch": "main"}),
             FakeResponse(payload={"sha": "skip123"}),
             FakeResponse(payload={"check_runs": [{"status": "completed", "conclusion": "skipped"}]}),
-            FakeResponse(payload={"state": "success"}),
+            FakeResponse(payload={"state": "success", "total_count": 1}),
         ]
         state = GitHubAdapter(token=None).refresh_repo("owner/public")
         self.assertEqual(state.ci, TruthState.UNKNOWN)
@@ -96,7 +139,7 @@ class GitHubAdapterTests(unittest.TestCase):
             FakeResponse(payload={"default_branch": "main"}),
             FakeResponse(payload={"sha": "neutral123"}),
             FakeResponse(payload={"check_runs": [{"status": "completed", "conclusion": "neutral"}]}),
-            FakeResponse(payload={"state": "success"}),
+            FakeResponse(payload={"state": "success", "total_count": 1}),
         ]
         state = GitHubAdapter(token=None).refresh_repo("owner/public")
         self.assertEqual(state.ci, TruthState.UNKNOWN)
