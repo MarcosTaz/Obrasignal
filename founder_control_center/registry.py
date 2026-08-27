@@ -53,7 +53,8 @@ def _from_payload(payload: dict) -> CompanyManifest:
     app = dict(payload.get("application") or {})
     app["deployment"] = TruthState(app.get("deployment", "UNKNOWN"))
     app["health"] = TruthState(app.get("health", "UNKNOWN"))
-    app["evidence"] = _evidence(app.get("evidence"))
+    for key in ("evidence", "deployment_evidence", "health_evidence"):
+        app[key] = _evidence(app.get(key))
     risks = []
     for item in payload.get("risks", []):
         item = dict(item); item["evidence"] = _evidence(item.get("evidence")); risks.append(Risk(**item))
@@ -125,6 +126,8 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
     if not all(isinstance(value, str) and value.strip() for value in values):
         raise ValueError("factory_name, active, next, wait and source are required")
     observed_at = observed_at or now_iso()
+    if not isinstance(observed_at, str):
+        raise ValueError("observed_at must be ISO-8601")
     try:
         parsed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
@@ -132,7 +135,10 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
         observed_at = parsed.astimezone(timezone.utc).isoformat()
     except ValueError as exc:
         raise ValueError("observed_at must be ISO-8601") from exc
-    freshness_seconds = max(60, min(int(freshness_seconds), 7 * 24 * 3600))
+    try:
+        freshness_seconds = max(60, min(int(freshness_seconds), 7 * 24 * 3600))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("freshness_seconds must be an integer") from exc
     evidence = Evidence(source=source.strip()[:300], observed_at=observed_at, freshness_seconds=freshness_seconds, kind="factory_feed", detail="Factory-owned ACTIVE/NEXT/WAIT feed; does not override global company truth.")
     factory = FactoryState(factory_name.strip()[:160], active.strip()[:1000], next_value.strip()[:1000], wait.strip()[:1000], material_delta.strip()[:2000] if isinstance(material_delta, str) else None, evidence)
     company.factories = [item for item in company.factories if item.name != factory.name] + [factory]
