@@ -54,6 +54,14 @@ def _truth_state(state: str, value: Any) -> TruthState:
     return truth_state
 
 
+def _effective_state(requested: TruthState, evidence: Evidence) -> TruthState:
+    """Never return a stronger current state than the evidence freshness supports."""
+    if requested == TruthState.UNKNOWN:
+        return requested
+    freshness = evidence.freshness_state()
+    return requested if freshness == TruthState.GREEN else freshness
+
+
 def _normalized_value(metric_key: str, value: Any) -> int | float | None:
     if value is None:
         return None
@@ -75,6 +83,15 @@ def _normalized_value(metric_key: str, value: Any) -> int | float | None:
     if not parsed.is_finite() or parsed < 0:
         raise ValueError(f"{metric_key} must be a non-negative number")
     return float(parsed)
+
+
+def _canonical_business_unit(metric_key: str, unit: Any) -> str:
+    canonical = ALLOWED_METRICS[metric_key]["unit"]
+    if unit is None or (isinstance(unit, str) and not unit.strip()):
+        return canonical
+    if not isinstance(unit, str) or unit.strip().lower() != canonical.lower():
+        raise ValueError(f"{metric_key} unit must be {canonical}; conversion is not performed by this feed")
+    return canonical
 
 
 def _normalized_custom_value(value: Any) -> int | float | None:
@@ -131,8 +148,9 @@ def ingest_business_metric(
     observed = _observed_at(observed_at)
     freshness = _freshness(freshness_seconds)
     normalized = _normalized_value(metric_key, value)
-    truth_state = _truth_state(state, normalized)
+    requested_state = _truth_state(state, normalized)
     spec = ALLOWED_METRICS[metric_key]
+    canonical_unit = _canonical_business_unit(metric_key, unit)
     evidence = Evidence(
         source=source.strip()[:300],
         observed_at=observed,
@@ -140,6 +158,7 @@ def ingest_business_metric(
         kind="business_metric_feed",
         detail=(detail.strip()[:1000] if isinstance(detail, str) and detail.strip() else "Authenticated canonical business metric feed."),
     )
+    effective_state = _effective_state(requested_state, evidence)
 
     def apply(company):
         existing = getattr(company, metric_key)
@@ -148,8 +167,8 @@ def ingest_business_metric(
             key=metric_key,
             label=spec["label"],
             value=normalized,
-            unit=(str(unit).strip()[:32] if unit else spec["unit"]),
-            state=truth_state,
+            unit=canonical_unit,
+            state=effective_state,
             evidence=evidence,
         )
         setattr(company, metric_key, metric)
@@ -161,8 +180,8 @@ def ingest_business_metric(
         action="ingest_business_metric",
         level="GREEN",
         company_id=company_id,
-        result=f"{metric_key}_ingested_{truth_state.value.lower()}",
-        source_data={"metric_key": metric_key, "source": evidence.source, "observed_at": observed, "freshness_seconds": freshness, "state": truth_state.value},
+        result=f"{metric_key}_ingested_{effective_state.value.lower()}",
+        source_data={"metric_key": metric_key, "source": evidence.source, "observed_at": observed, "freshness_seconds": freshness, "state": effective_state.value},
     )
     return metric
 
@@ -183,8 +202,8 @@ def ingest_operational_metric(
     """Ingest a source-owned numeric KPI without promoting it to business truth.
 
     Custom KPIs live only in `company.metrics`; they cannot overwrite the canonical
-    revenue/pipeline/customer fields. Null values are UNKNOWN and out-of-order or
-    future evidence cannot replace newer observations.
+    revenue/pipeline/customer fields. Null values are UNKNOWN and out-of-order,
+    stale or future evidence cannot be returned as fresh current truth.
     """
     metric_key = str(metric_key).strip().lower()
     if not CUSTOM_METRIC_KEY.fullmatch(metric_key) or metric_key in RESERVED_METRIC_KEYS:
@@ -196,7 +215,7 @@ def ingest_operational_metric(
     observed = _observed_at(observed_at)
     freshness = _freshness(freshness_seconds)
     normalized = _normalized_custom_value(value)
-    truth_state = _truth_state(state, normalized)
+    requested_state = _truth_state(state, normalized)
     evidence = Evidence(
         source=source.strip()[:300],
         observed_at=observed,
@@ -204,6 +223,7 @@ def ingest_operational_metric(
         kind="operational_metric_feed",
         detail=(detail.strip()[:1000] if isinstance(detail, str) and detail.strip() else "Authenticated source-owned operational KPI feed."),
     )
+    effective_state = _effective_state(requested_state, evidence)
 
     def apply(company):
         existing = next((item for item in company.metrics if item.key == metric_key), None)
@@ -214,7 +234,7 @@ def ingest_operational_metric(
             label=label.strip()[:120],
             value=normalized,
             unit=(str(unit).strip()[:32] if unit else None),
-            state=truth_state,
+            state=effective_state,
             evidence=evidence,
         )
         company.metrics = [item for item in company.metrics if item.key != metric_key] + [metric]
@@ -226,7 +246,7 @@ def ingest_operational_metric(
         action="ingest_operational_metric",
         level="GREEN",
         company_id=company_id,
-        result=f"{metric_key}_ingested_{truth_state.value.lower()}",
-        source_data={"metric_key": metric_key, "source": evidence.source, "observed_at": observed, "freshness_seconds": freshness, "state": truth_state.value},
+        result=f"{metric_key}_ingested_{effective_state.value.lower()}",
+        source_data={"metric_key": metric_key, "source": evidence.source, "observed_at": observed, "freshness_seconds": freshness, "state": effective_state.value},
     )
     return metric
