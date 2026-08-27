@@ -12,8 +12,10 @@ class HistoryTests(unittest.TestCase):
         cls.app = create_app({"TESTING": True, "BYPASS_AUTH": True, "SESSION_COOKIE_SECURE": False})
         cls.client = cls.app.test_client()
 
-    def test_history_records_prior_and_current_state(self):
+    def setUp(self):
         save_company(CompanyManifest(id="history-company", name="History Company", mission="Test history.", active="First active"))
+
+    def test_history_records_prior_and_current_state(self):
         body, status = execute("update_factory_state", "history-company", {"active": "Second active", "next": "Third step"})
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
