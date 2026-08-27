@@ -37,6 +37,25 @@ class AuthTests(unittest.TestCase):
         self.assertIn(b"Portfolio", response.data)
         self.assertEqual(client.get("/api/companies").status_code, 200)
 
+    def test_founder_mutation_requires_csrf_after_login(self):
+        os.environ["FCC_ADMIN_TOKEN"] = "test-only-secret"
+        app = create_app({"TESTING": True, "SESSION_COOKIE_SECURE": False, "SECRET_KEY": "csrf-session-secret"})
+        client = app.test_client()
+        login = client.post("/login", data={"token": "test-only-secret"})
+        self.assertEqual(login.status_code, 302)
+        missing = client.post("/api/actions/update_factory_state/execute", json={"company_id": "founder-control-center", "payload": {"active": "CSRF test"}})
+        self.assertEqual(missing.status_code, 403)
+        self.assertEqual(missing.get_json()["error"], "csrf_validation_failed")
+        with client.session_transaction() as session_state:
+            csrf = session_state["csrf_token"]
+        accepted = client.post(
+            "/api/actions/update_factory_state/execute",
+            json={"company_id": "founder-control-center", "payload": {"active": "CSRF test"}},
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(accepted.status_code, 200)
+        self.assertTrue(accepted.get_json()["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()
