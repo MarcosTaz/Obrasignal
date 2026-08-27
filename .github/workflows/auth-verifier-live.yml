@@ -25,9 +25,10 @@ jobs:
       E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+          persist-credentials: false
       - name: Confirm exact revision under test
         run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
       - uses: actions/setup-python@v5
