@@ -66,6 +66,18 @@ class BusinessMetricFeedTests(unittest.TestCase):
         self.assertEqual(response.get_json()["error"], "invalid_business_metric")
         self.assertIn("source is required", response.get_json()["detail"])
 
+    def test_explicit_falsy_observed_at_cannot_be_promoted_to_now(self):
+        for observed_at in ("", False, 0):
+            response = self._authorized_post(dict(self.payload, observed_at=observed_at))
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("observed_at must be ISO-8601", response.get_json()["detail"])
+
+    def test_freshness_seconds_requires_json_integer(self):
+        for freshness in (True, "900", 900.5):
+            response = self._authorized_post(dict(self.payload, freshness_seconds=freshness))
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("freshness_seconds must be an integer", response.get_json()["detail"])
+
     def test_null_value_cannot_be_green(self):
         payload = dict(self.payload, metric_key="pipeline", value=None, state="GREEN")
         response = self._authorized_post(payload)
