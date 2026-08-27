@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import os
+import secrets
 from functools import wraps
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
@@ -30,6 +31,20 @@ def create_app(test_config: dict | None = None) -> Flask:
                 if request.path.startswith("/api/"):
                     return jsonify({"ok": False, "error": "authentication_required"}), 401
                 return redirect(url_for("login", next=request.path))
+            return fn(*args, **kwargs)
+        return wrapped
+
+    def csrf_required(fn):
+        @wraps(fn)
+        def wrapped(*args, **kwargs):
+            if app.config.get("TESTING") and app.config.get("BYPASS_AUTH"):
+                return fn(*args, **kwargs)
+            expected = session.get("csrf_token")
+            candidate = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
+            if not expected or not candidate or not hmac.compare_digest(str(candidate), str(expected)):
+                if request.path.startswith("/api/"):
+                    return jsonify({"ok": False, "error": "csrf_validation_failed"}), 403
+                return "CSRF validation failed", 403
             return fn(*args, **kwargs)
         return wrapped
 
@@ -66,13 +81,17 @@ def create_app(test_config: dict | None = None) -> Flask:
             if not configured:
                 error = "FCC_ADMIN_TOKEN is not configured. Access fails closed."
             elif hmac.compare_digest(candidate, configured):
+                session.clear()
                 session["fcc_auth"] = True
+                session["csrf_token"] = secrets.token_urlsafe(32)
                 return redirect(request.args.get("next") or url_for("dashboard"))
             else:
                 error = "Invalid access token."
         return render_template("login.html", error=error, configured=bool(configured))
 
     @app.post("/logout")
+    @auth_required
+    @csrf_required
     def logout():
         session.clear()
         return redirect(url_for("login"))
@@ -82,7 +101,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     def dashboard():
         companies = list_companies(); ranks = rank_portfolio(companies); by_id = {c.id: c for c in companies}
         ranked = [{"rank": r, "company": by_id[r.company_id]} for r in ranks]
-        return render_template("dashboard.html", companies=companies, ranked=ranked, actions=list_actions(), portfolio_actions=highest_value_actions(companies), audit=list_audit(12))
+        return render_template("dashboard.html", companies=companies, ranked=ranked, actions=list_actions(), portfolio_actions=highest_value_actions(companies), audit=list_audit(12), csrf_token=session.get("csrf_token", ""))
 
     @app.get("/company/<company_id>")
     @auth_required
@@ -91,7 +110,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if not company:
             return "Not found", 404
         ranking = rank_portfolio([company])[0]
-        return render_template("company.html", company=company, ranking=ranking, actions=list_actions())
+        return render_template("company.html", company=company, ranking=ranking, actions=list_actions(), csrf_token=session.get("csrf_token", ""))
 
     @app.get("/api/companies")
     @auth_required
@@ -101,6 +120,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.post("/api/companies/register")
     @auth_required
+    @csrf_required
     def api_register_company():
         data = request.get_json(silent=True) or {}
         try:
@@ -178,6 +198,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.post("/api/actions/<action_id>/execute")
     @auth_required
+    @csrf_required
     def api_execute(action_id: str):
         data = request.get_json(silent=True) or {}; company_id = data.get("company_id")
         if not isinstance(company_id, str) or not company_id:
