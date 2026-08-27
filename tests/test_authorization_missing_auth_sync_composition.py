@@ -4,6 +4,7 @@ import importlib
 
 
 def test_missing_auth_configuration_cannot_reach_global_sync(monkeypatch):
+    # CI-only resynchronization marker: preserve the exact authority invariant.
     monkeypatch.delenv("OBRASIGNAL_AUTH_MODE", raising=False)
     monkeypatch.delenv("OBRASIGNAL_ACCOUNT_ID", raising=False)
 
