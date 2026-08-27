@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, request
 
 from .business_feed import ingest_business_metric, ingest_operational_metric
 from .registry import append_audit
+from .security import secret_is_usable
 
 business_api = Blueprint("business_api", __name__)
 
@@ -16,7 +17,7 @@ def metric_ingest_required(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
         expected = os.getenv("FCC_METRIC_INGEST_TOKEN")
-        if not expected:
+        if not secret_is_usable(expected, 16):
             return jsonify({"ok": False, "error": "metric_ingest_not_configured"}), 503
         header = request.headers.get("Authorization", "")
         prefix = "Bearer "
