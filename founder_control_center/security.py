@@ -10,6 +10,15 @@ class UnsafeDestination(ValueError):
     """Raised when a URL would grant broader network authority than intended."""
 
 
+def secret_is_usable(value: str | None, minimum_length: int = 16) -> bool:
+    """Return whether a configured bearer/session secret clears a minimal fail-closed floor."""
+    if not isinstance(value, str) or len(value) < minimum_length:
+        return False
+    if value != value.strip():
+        return False
+    return not any(ord(ch) < 32 or ord(ch) == 127 for ch in value)
+
+
 def safe_local_redirect_target(candidate: str | None, fallback: str) -> str:
     """Return only an application-local absolute path after authentication.
 
