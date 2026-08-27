@@ -12,6 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Confirm exact Founder Control Center revision under test
+        shell: bash
+        run: |
+          ACTUAL="$(git rev-parse HEAD)"
+          EXPECTED="${{ github.event.pull_request.head.sha }}"
+          echo "actual=$ACTUAL"
+          echo "expected=${EXPECTED:-workflow-dispatch-head}"
+          if [ -n "$EXPECTED" ] && [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "Exact-head mismatch"
+            exit 1
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -21,3 +34,19 @@ jobs:
       - run: python -m unittest discover -s founder_control_center/tests -v
       - name: Build private deployment image
         run: docker build -f founder_control_center/Dockerfile -t founder-control-center:ci .
+      - name: Smoke-run private deployment image
+        shell: bash
+        run: |
+          docker run -d --rm --name fcc-ci -p 127.0.0.1:18088:8088 \
+            -e FCC_ADMIN_TOKEN=ci-admin-token \
+            -e FCC_SESSION_SECRET=ci-session-secret-long-enough-for-smoke \
+            founder-control-center:ci
+          trap 'docker logs fcc-ci || true; docker rm -f fcc-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:18088/health | grep -q 'process_alive_not_global_green'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'Container did not become healthy'
+          exit 1
