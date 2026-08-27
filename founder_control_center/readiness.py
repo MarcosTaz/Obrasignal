@@ -2,19 +2,26 @@ from __future__ import annotations
 
 import os
 
+from .security import secret_is_usable
 
-def _configured(name: str) -> bool:
+
+def _present(name: str) -> bool:
     return bool(os.getenv(name))
 
 
 def readiness_snapshot() -> dict:
     """Return configuration readiness without returning any credential material."""
-    admin = _configured("FCC_ADMIN_TOKEN")
-    session = _configured("FCC_SESSION_SECRET")
+    admin_present = _present("FCC_ADMIN_TOKEN")
+    session_present = _present("FCC_SESSION_SECRET")
+    factory_present = _present("FCC_FACTORY_INGEST_TOKEN")
+    metric_present = _present("FCC_METRIC_INGEST_TOKEN")
+    github = _present("FCC_GITHUB_TOKEN")
+
+    admin = secret_is_usable(os.getenv("FCC_ADMIN_TOKEN"), 16)
+    session = secret_is_usable(os.getenv("FCC_SESSION_SECRET"), 32)
+    factory_feed = secret_is_usable(os.getenv("FCC_FACTORY_INGEST_TOKEN"), 16)
+    metric_feed = secret_is_usable(os.getenv("FCC_METRIC_INGEST_TOKEN"), 16)
     secure_cookie = os.getenv("FCC_SECURE_COOKIE", "1") == "1"
-    factory_feed = _configured("FCC_FACTORY_INGEST_TOKEN")
-    metric_feed = _configured("FCC_METRIC_INGEST_TOKEN")
-    github = _configured("FCC_GITHUB_TOKEN")
     persistent_db = bool(os.getenv("FCC_DB"))
 
     return {
@@ -22,6 +29,8 @@ def readiness_snapshot() -> dict:
             "state": "CONFIGURED" if admin and session else "BLOCKED",
             "admin_token_configured": admin,
             "session_secret_configured": session,
+            "admin_token_present": admin_present,
+            "session_secret_present": session_present,
         },
         "transport_policy": {
             "state": "CONFIGURED" if secure_cookie else "LOCAL_ONLY",
@@ -30,10 +39,12 @@ def readiness_snapshot() -> dict:
         "factory_feed": {
             "state": "CONFIGURED" if factory_feed else "NOT_CONFIGURED",
             "token_configured": factory_feed,
+            "token_present": factory_present,
         },
         "business_metric_feed": {
             "state": "CONFIGURED" if metric_feed else "NOT_CONFIGURED",
             "token_configured": metric_feed,
+            "token_present": metric_present,
         },
         "private_github": {
             "state": "CONFIGURED" if github else "OPTIONAL_NOT_CONFIGURED",
