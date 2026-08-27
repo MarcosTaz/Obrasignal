@@ -30,9 +30,18 @@ class ReadinessTests(unittest.TestCase):
             self.assertEqual(payload["private_access"]["state"], "CONFIGURED")
             self.assertEqual(payload["factory_feed"]["state"], "CONFIGURED")
             self.assertEqual(payload["business_metric_feed"]["state"], "CONFIGURED")
+            self.assertEqual(payload["health_network_policy"]["state"], "PARTIAL")
+            self.assertIn("DNS rebinding", payload["health_network_policy"]["claim"])
             serialized = json.dumps(payload)
             for secret in values.values():
                 self.assertNotIn(secret, serialized)
+
+    def test_dashboard_does_not_render_health_network_policy_as_green(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Health network isolation", response.data)
+        self.assertIn(b"PARTIAL", response.data)
+        self.assertIn(b"DNS rebinding", response.data)
 
     def test_weak_present_secrets_are_blocked_not_configured(self):
         values = {
@@ -52,6 +61,7 @@ class ReadinessTests(unittest.TestCase):
             self.assertTrue(payload["factory_feed"]["token_present"])
             self.assertFalse(payload["factory_feed"]["token_configured"])
             self.assertEqual(payload["business_metric_feed"]["state"], "NOT_CONFIGURED")
+            self.assertEqual(payload["health_network_policy"]["state"], "PARTIAL")
 
     def test_missing_required_private_access_is_blocked_not_green(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -60,6 +70,7 @@ class ReadinessTests(unittest.TestCase):
             self.assertEqual(payload["factory_feed"]["state"], "NOT_CONFIGURED")
             self.assertEqual(payload["business_metric_feed"]["state"], "NOT_CONFIGURED")
             self.assertEqual(payload["two_factor"]["state"], "NOT_CONNECTED")
+            self.assertEqual(payload["health_network_policy"]["state"], "PARTIAL")
 
 
 if __name__ == "__main__":
