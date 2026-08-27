@@ -3,29 +3,30 @@ from unittest.mock import patch
 
 from founder_control_center.actions import execute
 from founder_control_center.models import Evidence, RepositoryState, TruthState
-from founder_control_center.registry import get_company
+from founder_control_center.registry import get_company, now_iso
 
 
 class DiagnosticsTests(unittest.TestCase):
     @patch("founder_control_center.actions.HealthAdapter")
     @patch("founder_control_center.actions.GitHubAdapter")
     def test_refresh_keeps_repo_deployment_and_health_truth_separate(self, github_cls, health_cls):
+        observed_at = now_iso()
         github = github_cls.return_value
         github.refresh_repo.return_value = RepositoryState(
             full_name="MarcosTaz/Obrasignal",
             branch="main",
             commit="diagnostic-sha",
             ci=TruthState.GREEN,
-            evidence=Evidence("ci:repo", "2026-08-27T15:00:00+00:00", 3600, "test"),
+            evidence=Evidence("ci:repo", observed_at, 3600, "test"),
         )
         github.refresh_deployment.return_value = (
             TruthState.GREEN,
-            Evidence("ci:deployment", "2026-08-27T15:00:00+00:00", 600, "test"),
+            Evidence("ci:deployment", observed_at, 3600, "test"),
             "https://app.example.test",
         )
         health_cls.return_value.refresh.return_value = (
             TruthState.GREEN,
-            Evidence("ci:health", "2026-08-27T15:00:00+00:00", 300, "test"),
+            Evidence("ci:health", observed_at, 3600, "test"),
         )
 
         body, status = execute("refresh_diagnostics", "obrasignal", {})
