@@ -1,8 +1,9 @@
-"""Owner repair for the legacy platform-wide sync mutation boundary.
+"""Composed Auth/Authz contract for the legacy platform-wide sync boundary.
 
-Global ingestion is an internal worker responsibility. Until ObraSignal defines an
-explicit server/operator capability, neither a normal authenticated tenant nor the
-development fallback identity may authorize POST /sync.
+Global ingestion is an internal worker responsibility. Missing authentication
+configuration must fail at authentication, while an explicitly selected local
+identity or an authenticated tenant principal still has no platform-wide sync
+authority. None of those HTTP paths may invoke ``sync_once``.
 """
 
 import pytest
@@ -40,15 +41,29 @@ def test_authenticated_principal_alone_cannot_trigger_global_sync(monkeypatch):
     assert response.get_json()["code"] == "global_sync_forbidden"
 
 
-def test_missing_auth_configuration_cannot_trigger_global_sync(monkeypatch):
-    monkeypatch.delenv("OBRASIGNAL_AUTH_MODE", raising=False)
-    monkeypatch.delenv("OBRASIGNAL_ACCOUNT_ID", raising=False)
+def test_explicit_development_identity_cannot_trigger_global_sync(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
+    monkeypatch.setenv("OBRASIGNAL_ACCOUNT_ID", "default")
 
     response, calls = _probe_sync(monkeypatch)
 
     assert calls == []
     assert response.status_code == 403
     assert response.get_json()["code"] == "global_sync_forbidden"
+
+
+def test_missing_auth_configuration_fails_before_global_sync(monkeypatch):
+    monkeypatch.delenv("OBRASIGNAL_AUTH_MODE", raising=False)
+    monkeypatch.delenv("OBRASIGNAL_ACCOUNT_ID", raising=False)
+
+    response, calls = _probe_sync(monkeypatch)
+
+    # In the composed #557 x #556 tree, authentication failure has precedence
+    # over authorization failure. The critical invariant is that sync_once is
+    # unreachable; 401 is therefore the truthful boundary, not #556's isolated
+    # 403 expectation from the former development fallback semantics.
+    assert calls == []
+    assert response.status_code == 401
 
 
 def test_internal_background_worker_keeps_sync_authority(monkeypatch):
