@@ -6,12 +6,14 @@ import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable, TypeVar
 
 from .models import ApplicationState, CompanyManifest, Evidence, FactoryState, Metric, RepositoryState, Risk, TruthState
 from .security import validate_public_http_url
 from .seed import build_seed_companies
 
 DB_PATH = os.getenv("FCC_DB", str(Path(__file__).with_name("founder_control_center.db")))
+T = TypeVar("T")
 
 
 def now_iso() -> str:
@@ -114,10 +116,26 @@ def get_company(company_id: str) -> CompanyManifest | None:
 
 
 def save_company(company: CompanyManifest) -> None:
-    company.last_update = company.last_update or now_iso()
+    stamp = now_iso()
+    company.last_update = stamp
     with connect() as conn:
-        conn.execute("INSERT INTO companies(id,payload,updated_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at", (company.id, json.dumps(company.to_dict(), ensure_ascii=False), now_iso()))
+        conn.execute("INSERT INTO companies(id,payload,updated_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at", (company.id, json.dumps(company.to_dict(), ensure_ascii=False), stamp))
         conn.commit()
+
+
+def mutate_company(company_id: str, mutator: Callable[[CompanyManifest], T]) -> tuple[CompanyManifest, T]:
+    """Atomically read-modify-write one company row to prevent concurrent feed lost updates."""
+    with connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT payload FROM companies WHERE id=?", (company_id,)).fetchone()
+        if not row:
+            raise ValueError("unknown company_id")
+        company = _from_payload(json.loads(row["payload"]))
+        result = mutator(company)
+        stamp = now_iso()
+        company.last_update = stamp
+        conn.execute("UPDATE companies SET payload=?, updated_at=? WHERE id=?", (json.dumps(company.to_dict(), ensure_ascii=False), stamp, company_id))
+    return company, result
 
 
 def register_company_stub(*, company_id: str, name: str, mission: str, kind: str = "company", repository_full_name: str | None = None, application_url: str | None = None) -> CompanyManifest:
@@ -138,7 +156,7 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
         status="UNKNOWN", stage="UNKNOWN", active="Connect canonical truth sources", next="Establish ACTIVE / NEXT / WAIT from evidence", wait="NONE",
         repository=RepositoryState(full_name=repository_full_name.strip() if repository_full_name else None, evidence=evidence),
         application=ApplicationState(name=name, url=normalized_application_url, evidence=evidence),
-        last_update=now_iso(), data_freshness=TruthState.UNKNOWN, synthetic=False,
+        data_freshness=TruthState.UNKNOWN, synthetic=False,
         source_note="Registered manually; business, application and repository health remain UNKNOWN until source adapters prove them.",
     )
     save_company(company)
@@ -148,9 +166,6 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
 
 def ingest_factory_state(*, company_id: str, factory_name: str, active: str, next_value: str, wait: str, source: str, observed_at: str | None = None, freshness_seconds: int = 3600, material_delta: str | None = None) -> CompanyManifest:
     """Ingest one Factory's own state without granting it authority over the whole company manifest."""
-    company = get_company(company_id)
-    if not company:
-        raise ValueError("unknown company_id")
     values = [factory_name, active, next_value, wait, source]
     if not all(isinstance(value, str) and value.strip() for value in values):
         raise ValueError("factory_name, active, next, wait and source are required")
@@ -173,30 +188,32 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
     except (TypeError, ValueError) as exc:
         raise ValueError("freshness_seconds must be an integer") from exc
 
-    existing = next((item for item in company.factories if item.name == factory_name), None)
-    if existing and existing.evidence and existing.evidence.kind == "factory_feed" and existing.evidence.observed_at:
-        try:
-            current_observed = datetime.fromisoformat(existing.evidence.observed_at.replace("Z", "+00:00"))
-            if current_observed.tzinfo is None:
-                current_observed = current_observed.replace(tzinfo=timezone.utc)
-            if incoming_observed < current_observed.astimezone(timezone.utc):
-                raise ValueError("out-of-order Factory state evidence rejected")
-        except AttributeError:
-            pass
-
     evidence = Evidence(source=source.strip()[:300], observed_at=observed_at, freshness_seconds=freshness_seconds, kind="factory_feed", detail="Factory-owned ACTIVE/NEXT/WAIT feed; does not override global company truth.")
-    factory = FactoryState(
-        name=factory_name,
-        active=active.strip()[:1000],
-        next=next_value.strip()[:1000],
-        wait=wait.strip()[:1000],
-        material_delta=material_delta.strip()[:2000] if isinstance(material_delta, str) else None,
-        evidence=evidence,
-        freshness=evidence.freshness_state(),
-    )
-    company.factories = [item for item in company.factories if item.name != factory.name] + [factory]
-    company.last_update = now_iso()
-    save_company(company)
+
+    def apply(company: CompanyManifest) -> FactoryState:
+        existing = next((item for item in company.factories if item.name == factory_name), None)
+        if existing and existing.evidence and existing.evidence.kind == "factory_feed" and existing.evidence.observed_at:
+            try:
+                current_observed = datetime.fromisoformat(existing.evidence.observed_at.replace("Z", "+00:00"))
+                if current_observed.tzinfo is None:
+                    current_observed = current_observed.replace(tzinfo=timezone.utc)
+                if incoming_observed < current_observed.astimezone(timezone.utc):
+                    raise ValueError("out-of-order Factory state evidence rejected")
+            except AttributeError:
+                pass
+        factory = FactoryState(
+            name=factory_name,
+            active=active.strip()[:1000],
+            next=next_value.strip()[:1000],
+            wait=wait.strip()[:1000],
+            material_delta=material_delta.strip()[:2000] if isinstance(material_delta, str) else None,
+            evidence=evidence,
+            freshness=evidence.freshness_state(),
+        )
+        company.factories = [item for item in company.factories if item.name != factory.name] + [factory]
+        return factory
+
+    company, factory = mutate_company(company_id, apply)
     append_audit(actor=f"factory:{factory.name}", action="ingest_factory_state", level="GREEN", company_id=company_id, result="factory_state_ingested", source_data={"source": evidence.source, "observed_at": observed_at, "freshness_seconds": freshness_seconds, "freshness": factory.freshness.value})
     return company
 
