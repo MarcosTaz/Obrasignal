@@ -154,6 +154,7 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
     values = [factory_name, active, next_value, wait, source]
     if not all(isinstance(value, str) and value.strip() for value in values):
         raise ValueError("factory_name, active, next, wait and source are required")
+    factory_name = factory_name.strip()[:160]
     observed_at = observed_at or now_iso()
     if not isinstance(observed_at, str):
         raise ValueError("observed_at must be ISO-8601")
@@ -161,16 +162,29 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
         parsed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
-        observed_at = parsed.astimezone(timezone.utc).isoformat()
+        incoming_observed = parsed.astimezone(timezone.utc)
+        observed_at = incoming_observed.isoformat()
     except ValueError as exc:
         raise ValueError("observed_at must be ISO-8601") from exc
     try:
         freshness_seconds = max(60, min(int(freshness_seconds), 7 * 24 * 3600))
     except (TypeError, ValueError) as exc:
         raise ValueError("freshness_seconds must be an integer") from exc
+
+    existing = next((item for item in company.factories if item.name == factory_name), None)
+    if existing and existing.evidence and existing.evidence.kind == "factory_feed" and existing.evidence.observed_at:
+        try:
+            current_observed = datetime.fromisoformat(existing.evidence.observed_at.replace("Z", "+00:00"))
+            if current_observed.tzinfo is None:
+                current_observed = current_observed.replace(tzinfo=timezone.utc)
+            if incoming_observed < current_observed.astimezone(timezone.utc):
+                raise ValueError("out-of-order Factory state evidence rejected")
+        except AttributeError:
+            pass
+
     evidence = Evidence(source=source.strip()[:300], observed_at=observed_at, freshness_seconds=freshness_seconds, kind="factory_feed", detail="Factory-owned ACTIVE/NEXT/WAIT feed; does not override global company truth.")
     factory = FactoryState(
-        name=factory_name.strip()[:160],
+        name=factory_name,
         active=active.strip()[:1000],
         next=next_value.strip()[:1000],
         wait=wait.strip()[:1000],
