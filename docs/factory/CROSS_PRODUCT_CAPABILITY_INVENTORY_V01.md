@@ -97,3 +97,14 @@ NO AUTOMATIC MERGE OR PRODUCTION ROLLOUT.
 ACTIVE: locate canonical source truth for K3 and remaining products; classify without writes to their runtimes.
 NEXT: produce evidence-backed duplicate-candidate matrix and rank first low-blast-radius pilot.
 WAIT: any shared-package extraction, auth/billing changes, production rollout, data movement, or merge authorization remains blocked until required gates and explicit authority exist.
+
+## Autonomous safe work while source truth is blocked
+
+If another product source tree is not reachable from the connected evidence surface, continue with non-destructive work rather than inventing equivalence:
+- deepen ObraSignal capability contracts;
+- classify domain coupling and blast radius;
+- define evidence requirements for each candidate;
+- inspect CI/testing patterns that can later be compared;
+- keep second-consumer-dependent promotion gates closed.
+
+Do not manufacture a second consumer merely to satisfy G1/G5.
