@@ -110,9 +110,13 @@ def _normalized_custom_value(value: Any) -> int | float | None:
     return parsed
 
 
-def _reject_out_of_order(existing: Metric, incoming_observed_at: str) -> None:
-    """Prevent delayed/replayed feeds from replacing newer canonical metric evidence."""
-    if not existing.evidence or not existing.evidence.observed_at:
+def _reject_out_of_order(existing: Metric, incoming_observed_at: str, authoritative_kinds: set[str]) -> None:
+    """Prevent delayed/replayed authoritative feeds from replacing newer truth.
+
+    Context/manual seed timestamps describe when the control plane learned a hint,
+    not the source observation time. They must never block the first canonical feed.
+    """
+    if not existing.evidence or existing.evidence.kind not in authoritative_kinds or not existing.evidence.observed_at:
         return
     try:
         current = datetime.fromisoformat(existing.evidence.observed_at.replace("Z", "+00:00"))
@@ -162,7 +166,7 @@ def ingest_business_metric(
 
     def apply(company):
         existing = getattr(company, metric_key)
-        _reject_out_of_order(existing, observed)
+        _reject_out_of_order(existing, observed, {"business_metric_feed"})
         metric = Metric(
             key=metric_key,
             label=spec["label"],
@@ -228,7 +232,7 @@ def ingest_operational_metric(
     def apply(company):
         existing = next((item for item in company.metrics if item.key == metric_key), None)
         if existing is not None:
-            _reject_out_of_order(existing, observed)
+            _reject_out_of_order(existing, observed, {"operational_metric_feed"})
         metric = Metric(
             key=metric_key,
             label=label.strip()[:120],
