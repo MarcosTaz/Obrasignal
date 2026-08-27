@@ -69,10 +69,11 @@ class GitHubAdapter:
                     total_count = statuses_payload.get("total_count")
                     if total_count is None:
                         raw_statuses = statuses_payload.get("statuses")
-                        if isinstance(raw_statuses, list):
-                            status_count = len(raw_statuses)
-                        elif status_state in {"success", "failure", "error", "pending", "expected"}:
-                            status_count = 1
+                        if not isinstance(raw_statuses, list):
+                            raise ValueError("GitHub combined status must include total_count or a statuses list")
+                        if any(not isinstance(item, dict) for item in raw_statuses):
+                            raise ValueError("GitHub statuses must be a list of objects")
+                        status_count = len(raw_statuses)
                     elif isinstance(total_count, bool):
                         raise ValueError("GitHub combined status total_count must be an integer")
                     else:
