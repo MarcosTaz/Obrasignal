@@ -81,6 +81,31 @@ class FactoryIngestTests(unittest.TestCase):
         self.assertIn(b"Stale Factory Feed", page.data)
         self.assertIn(b"STALE", page.data)
 
+    def test_out_of_order_factory_feed_is_rejected(self):
+        os.environ["FCC_FACTORY_INGEST_TOKEN"] = "factory-test-secret"
+        headers = {"Authorization": "Bearer factory-test-secret"}
+        newer = dict(self.payload)
+        newer.update({
+            "factory_name": "Ordered Factory Feed",
+            "active": "Newest active",
+            "observed_at": "2026-08-27T15:00:00Z",
+            "source": "ci:newer-factory-source",
+        })
+        older = dict(newer)
+        older.update({
+            "active": "Delayed old active",
+            "observed_at": "2026-08-27T14:00:00Z",
+            "source": "ci:delayed-factory-source",
+        })
+        self.assertEqual(self.client.post("/api/ingest/factory-state", json=newer, headers=headers).status_code, 200)
+        rejected = self.client.post("/api/ingest/factory-state", json=older, headers=headers)
+        self.assertEqual(rejected.status_code, 400)
+        self.assertIn("out-of-order", rejected.get_json()["detail"])
+        persisted = get_company("obrasignal")
+        factory = next(item for item in persisted.factories if item.name == "Ordered Factory Feed")
+        self.assertEqual(factory.active, "Newest active")
+        self.assertEqual(factory.evidence.source, "ci:newer-factory-source")
+
 
 if __name__ == "__main__":
     unittest.main()
