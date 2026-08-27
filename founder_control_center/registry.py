@@ -37,30 +37,55 @@ def _evidence(value):
     return Evidence(**value) if value else None
 
 
+def _freshness_guard(state: TruthState, evidence: Evidence | None) -> TruthState:
+    """A previously good/bad operational state is not current truth without fresh evidence."""
+    if state == TruthState.UNKNOWN:
+        return state
+    if evidence is None:
+        return TruthState.UNKNOWN
+    freshness = evidence.freshness_state()
+    if freshness != TruthState.GREEN:
+        return freshness
+    return state
+
+
 def _metric(value):
     if not value:
         return Metric("unknown", "Unknown")
     value = dict(value)
     value["state"] = TruthState(value.get("state", "UNKNOWN"))
     value["evidence"] = _evidence(value.get("evidence"))
-    return Metric(**value)
+    metric = Metric(**value)
+    metric.state = _freshness_guard(metric.state, metric.evidence)
+    return metric
 
 
 def _from_payload(payload: dict) -> CompanyManifest:
     repo = dict(payload.get("repository") or {})
     repo["ci"] = TruthState(repo.get("ci", "UNKNOWN"))
     repo["evidence"] = _evidence(repo.get("evidence"))
+    repo["ci"] = _freshness_guard(repo["ci"], repo["evidence"])
+
     app = dict(payload.get("application") or {})
     app["deployment"] = TruthState(app.get("deployment", "UNKNOWN"))
     app["health"] = TruthState(app.get("health", "UNKNOWN"))
     for key in ("evidence", "deployment_evidence", "health_evidence"):
         app[key] = _evidence(app.get(key))
+    app["deployment"] = _freshness_guard(app["deployment"], app.get("deployment_evidence"))
+    app["health"] = _freshness_guard(app["health"], app.get("health_evidence"))
+
     risks = []
     for item in payload.get("risks", []):
-        item = dict(item); item["evidence"] = _evidence(item.get("evidence")); risks.append(Risk(**item))
+        item = dict(item)
+        item["evidence"] = _evidence(item.get("evidence"))
+        risks.append(Risk(**item))
+
     factories = []
     for item in payload.get("factories", []):
-        item = dict(item); item["evidence"] = _evidence(item.get("evidence")); factories.append(FactoryState(**item))
+        item = dict(item)
+        item["evidence"] = _evidence(item.get("evidence"))
+        factories.append(FactoryState(**item))
+
     return CompanyManifest(
         id=payload["id"], name=payload["name"], mission=payload["mission"], kind=payload.get("kind", "company"),
         status=payload.get("status", "UNKNOWN"), stage=payload.get("stage", "UNKNOWN"), active=payload.get("active", "UNKNOWN"),
@@ -98,7 +123,8 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
     company_id = company_id.strip().lower()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,62}[a-z0-9]", company_id):
         raise ValueError("company_id must be a 3-64 character lowercase slug")
-    name = name.strip(); mission = mission.strip()
+    name = name.strip()
+    mission = mission.strip()
     if not name or not mission:
         raise ValueError("name and mission are required")
     if get_company(company_id):
