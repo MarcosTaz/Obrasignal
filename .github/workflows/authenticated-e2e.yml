@@ -26,7 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Wait for target production deployment
         env:
@@ -186,9 +188,13 @@ jobs:
             python - <<'PY'
           import json
           detail=json.load(open('/tmp/detail.json'))
-          workflow=json.load(open('/tmp/workflow.json'))
+          workflow_payload=json.load(open('/tmp/workflow.json'))
+          opportunities=json.load(open('/tmp/opportunities.json'))
+          workflow=workflow_payload.get('workflow')
           assert detail.get('id')
           assert isinstance(detail.get('workflow'), dict)
+          assert isinstance(workflow, dict)
+          assert str(workflow_payload.get('account_id')) == str(opportunities.get('account_id'))
           assert workflow.get('status') in {'NEW','REVIEWING','PREPARING','SUBMITTED','WON','LOST'}
           PY
           else
@@ -223,9 +229,14 @@ jobs:
               'API_AUTH_HEALTH_UNAVAILABLE',
               'AUTHENTICATED_DETAIL_WORKFLOW=NOT_RUN_EMPTY_OPPORTUNITY',
               'TARGET_BUILD: ${{ github.sha }}',
+              'actions/checkout@11d5960a326750d5838078e36cf38b85af677262',
+              'persist-credentials: false',
+              "workflow_payload.get('workflow')",
           )
           missing=[needle for needle in required if needle not in text]
           if missing:
-              raise SystemExit('automatic production E2E lost required safety evidence: '+', '.join(missing))
+              raise SystemExit('automatic production E2E lost required safety/contract evidence: '+', '.join(missing))
           print('AUTOMATIC_PRODUCTION_E2E_READ_ONLY=true')
+          print('AUTH_E2E_WORKFLOW_ENVELOPE_CONSUMER=nested')
+          print('AUTH_E2E_CHECKOUT_IMMUTABLE=true')
           PY
