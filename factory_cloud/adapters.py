@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+
+
+@dataclass(frozen=True)
+class ExecutionRequest:
+    app_id: str
+    mode: str
+    task: str
+    source: str | None
+    canonical_head: str | None
+    resume_at: str
+
+
+@dataclass(frozen=True)
+class ExecutionResult:
+    status: str
+    evidence: dict[str, Any] = field(default_factory=dict)
+    next_active: str = ""
+    next_items: tuple[str, ...] = ()
+    wait_items: tuple[str, ...] = ()
+    blockers: tuple[str, ...] = ()
+    resume_at: str = ""
+    last_verified: str | None = None
+    last_green: str | None = None
+    error: dict[str, Any] | None = None
+
+
+class AppAdapter(Protocol):
+    def execute(self, request: ExecutionRequest) -> ExecutionResult: ...
+
+
+class RepositorySafeAdapter:
+    """Fail-closed default adapter for repository-safe applications.
+
+    The persistent orchestrator owns dispatch/checkpointing, not GitHub or production
+    authority. Concrete repository tooling must be injected by the host process.
+    Until then this adapter returns a deterministic dispatch boundary rather than
+    pretending repository work happened.
+    """
+
+    def execute(self, request: ExecutionRequest) -> ExecutionResult:
+        return ExecutionResult(
+            status="WAIT",
+            evidence={
+                "dispatch_boundary": "repository_tooling_adapter_required",
+                "source": request.source,
+                "canonical_head": request.canonical_head,
+            },
+            next_active=request.task,
+            blockers=("repository_tooling_adapter_required",),
+            resume_at=request.task,
+        )
+
+
+class ReadOnlySourceAdapter:
+    """Adapter for applications whose canonical repository/source is unresolved."""
+
+    def execute(self, request: ExecutionRequest) -> ExecutionResult:
+        return ExecutionResult(
+            status="WAIT",
+            evidence={
+                "dispatch_boundary": "canonical_source_unresolved",
+                "mode": request.mode,
+                "source": request.source,
+            },
+            next_active=request.task,
+            blockers=("canonical_source_truth_required_before_repository_mutation",),
+            resume_at=request.task,
+        )
+
+
+class AdapterRegistry:
+    def __init__(self, overrides: dict[str, AppAdapter] | None = None):
+        self._overrides = dict(overrides or {})
+
+    def for_app(self, app_id: str, mode: str) -> AppAdapter:
+        if app_id in self._overrides:
+            return self._overrides[app_id]
+        if mode == "repository_safe_execution":
+            return RepositorySafeAdapter()
+        if mode == "read_only_until_source_resolved":
+            return ReadOnlySourceAdapter()
+        raise ValueError(f"unsupported Factory Cloud mode: {mode}")
