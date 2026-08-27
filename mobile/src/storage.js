@@ -62,6 +62,8 @@ export const storage = {
   getPushBinding: () => activePrivateTenant ? privateStorage.getPushBinding(activePrivateTenant) : Promise.resolve(null),
   setPushBinding: (binding) => privateStorage.setPushBinding(requirePrivateTenant(), binding),
   clearPushBinding: () => activePrivateTenant ? privateStorage.clearPushBinding(activePrivateTenant) : Promise.resolve(),
+  getLocalNotificationScheduled: () => activePrivateTenant ? privateStorage.getLocalNotificationScheduled(activePrivateTenant) : Promise.resolve([]),
+  setLocalNotificationScheduled: (eventIds) => privateStorage.setLocalNotificationScheduled(requirePrivateTenant(), eventIds),
   async ensurePushInstallationId() {
     const current = (await AsyncStorage.getItem(KEYS.pushInstallation) || '').trim();
     if (current) return current;
