@@ -136,6 +136,26 @@ class OperationalMetricFeedTests(unittest.TestCase):
         persisted = next(item for item in get_company("founder-control-center").metrics if item.key == "activation_rate")
         self.assertEqual(persisted.value, 42.0)
 
+    def test_same_observation_time_cannot_carry_two_kpi_truths(self):
+        observed = (datetime.now(timezone.utc) - timedelta(seconds=20)).isoformat()
+        base = {
+            "company_id": "founder-control-center",
+            "metric_key": "same_time_conflict",
+            "label": "Same time conflict",
+            "unit": "%",
+            "source": "ci:same-time-kpi",
+            "observed_at": observed,
+        }
+        first = self._post(dict(base, value=25.0))
+        self.assertEqual(first.status_code, 200)
+        replay = self._post(dict(base, value=25.0))
+        self.assertEqual(replay.status_code, 200)
+        conflict = self._post(dict(base, value=50.0))
+        self.assertEqual(conflict.status_code, 400)
+        self.assertIn("identical observed_at", conflict.get_json()["detail"])
+        persisted = next(item for item in get_company("founder-control-center").metrics if item.key == "same_time_conflict")
+        self.assertEqual(persisted.value, 25.0)
+
 
 if __name__ == "__main__":
     unittest.main()
