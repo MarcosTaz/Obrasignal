@@ -22,6 +22,14 @@ class BusinessMetricFeedTests(unittest.TestCase):
     def tearDown(self):
         os.environ.pop("FCC_METRIC_INGEST_TOKEN", None)
 
+    def _authorized_post(self, payload):
+        os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
+        return self.client.post(
+            "/api/ingest/business-metric",
+            json=payload,
+            headers={"Authorization": "Bearer metric-test-secret"},
+        )
+
     def test_feed_fails_closed_when_not_configured(self):
         os.environ.pop("FCC_METRIC_INGEST_TOKEN", None)
         response = self.client.post("/api/ingest/business-metric", json=self.payload)
@@ -39,12 +47,7 @@ class BusinessMetricFeedTests(unittest.TestCase):
         self.assertEqual(response.get_json()["error"], "metric_ingest_authentication_required")
 
     def test_valid_feed_persists_value_source_and_freshness(self):
-        os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
-        response = self.client.post(
-            "/api/ingest/business-metric",
-            json=self.payload,
-            headers={"Authorization": "Bearer metric-test-secret"},
-        )
+        response = self._authorized_post(self.payload)
         self.assertEqual(response.status_code, 200)
         metric = response.get_json()["metric"]
         self.assertEqual(metric["state"], "GREEN")
@@ -55,22 +58,21 @@ class BusinessMetricFeedTests(unittest.TestCase):
         self.assertEqual(persisted.state.value, "GREEN")
         self.assertEqual(persisted.value, 1250.5)
 
+    def test_missing_source_is_rejected_instead_of_stringified(self):
+        response = self._authorized_post(dict(self.payload, source=None))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "invalid_business_metric")
+        self.assertIn("source is required", response.get_json()["detail"])
+
     def test_null_value_cannot_be_green(self):
-        os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
         payload = dict(self.payload, metric_key="pipeline", value=None, state="GREEN")
-        response = self.client.post(
-            "/api/ingest/business-metric",
-            json=payload,
-            headers={"Authorization": "Bearer metric-test-secret"},
-        )
+        response = self._authorized_post(payload)
         self.assertEqual(response.status_code, 200)
         metric = response.get_json()["metric"]
         self.assertEqual(metric["state"], "UNKNOWN")
         self.assertIsNone(metric["value"])
 
     def test_out_of_order_metric_is_rejected_without_replacing_newer_truth(self):
-        os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
-        headers = {"Authorization": "Bearer metric-test-secret"}
         newer = dict(
             self.payload,
             metric_key="customers",
@@ -84,8 +86,8 @@ class BusinessMetricFeedTests(unittest.TestCase):
             observed_at="2026-08-27T14:00:00Z",
             source="ci:delayed-customer-source",
         )
-        self.assertEqual(self.client.post("/api/ingest/business-metric", json=newer, headers=headers).status_code, 200)
-        rejected = self.client.post("/api/ingest/business-metric", json=older, headers=headers)
+        self.assertEqual(self._authorized_post(newer).status_code, 200)
+        rejected = self._authorized_post(older)
         self.assertEqual(rejected.status_code, 400)
         self.assertIn("out-of-order", rejected.get_json()["detail"])
         persisted = get_company("founder-control-center").customers
@@ -93,35 +95,20 @@ class BusinessMetricFeedTests(unittest.TestCase):
         self.assertEqual(persisted.evidence.source, "ci:newer-customer-source")
 
     def test_future_dated_metric_is_rejected(self):
-        os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
         payload = dict(self.payload, metric_key="pipeline", value=999, observed_at="2099-01-01T00:00:00Z")
-        response = self.client.post(
-            "/api/ingest/business-metric",
-            json=payload,
-            headers={"Authorization": "Bearer metric-test-secret"},
-        )
+        response = self._authorized_post(payload)
         self.assertEqual(response.status_code, 400)
         self.assertIn("future-dated", response.get_json()["detail"])
 
     def test_customers_reject_fractional_or_negative_values(self):
-        os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
         for value in (-1, 1.5):
             payload = dict(self.payload, metric_key="customers", value=value)
-            response = self.client.post(
-                "/api/ingest/business-metric",
-                json=payload,
-                headers={"Authorization": "Bearer metric-test-secret"},
-            )
+            response = self._authorized_post(payload)
             self.assertEqual(response.status_code, 400)
 
     def test_unknown_metric_is_rejected(self):
-        os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
         payload = dict(self.payload, metric_key="vanity_score")
-        response = self.client.post(
-            "/api/ingest/business-metric",
-            json=payload,
-            headers={"Authorization": "Bearer metric-test-secret"},
-        )
+        response = self._authorized_post(payload)
         self.assertEqual(response.status_code, 400)
 
 
