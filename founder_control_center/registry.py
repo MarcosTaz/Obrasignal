@@ -97,8 +97,7 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
     company_id = company_id.strip().lower()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,62}[a-z0-9]", company_id):
         raise ValueError("company_id must be a 3-64 character lowercase slug")
-    name = name.strip()
-    mission = mission.strip()
+    name = name.strip(); mission = mission.strip()
     if not name or not mission:
         raise ValueError("name and mission are required")
     if get_company(company_id):
@@ -114,6 +113,32 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
     )
     save_company(company)
     append_audit(actor="founder", action="register_company", level="GREEN", company_id=company_id, result="registered_unknown_truth", source_data={"repository": repository_full_name, "application_url": application_url})
+    return company
+
+
+def ingest_factory_state(*, company_id: str, factory_name: str, active: str, next_value: str, wait: str, source: str, observed_at: str | None = None, freshness_seconds: int = 3600, material_delta: str | None = None) -> CompanyManifest:
+    """Ingest one Factory's own state without granting it authority over the whole company manifest."""
+    company = get_company(company_id)
+    if not company:
+        raise ValueError("unknown company_id")
+    values = [factory_name, active, next_value, wait, source]
+    if not all(isinstance(value, str) and value.strip() for value in values):
+        raise ValueError("factory_name, active, next, wait and source are required")
+    observed_at = observed_at or now_iso()
+    try:
+        parsed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        observed_at = parsed.astimezone(timezone.utc).isoformat()
+    except ValueError as exc:
+        raise ValueError("observed_at must be ISO-8601") from exc
+    freshness_seconds = max(60, min(int(freshness_seconds), 7 * 24 * 3600))
+    evidence = Evidence(source=source.strip()[:300], observed_at=observed_at, freshness_seconds=freshness_seconds, kind="factory_feed", detail="Factory-owned ACTIVE/NEXT/WAIT feed; does not override global company truth.")
+    factory = FactoryState(factory_name.strip()[:160], active.strip()[:1000], next_value.strip()[:1000], wait.strip()[:1000], material_delta.strip()[:2000] if isinstance(material_delta, str) else None, evidence)
+    company.factories = [item for item in company.factories if item.name != factory.name] + [factory]
+    company.last_update = now_iso()
+    save_company(company)
+    append_audit(actor=f"factory:{factory.name}", action="ingest_factory_state", level="GREEN", company_id=company_id, result="factory_state_ingested", source_data={"source": evidence.source, "observed_at": observed_at, "freshness_seconds": freshness_seconds})
     return company
 
 
