@@ -71,6 +71,7 @@ class FactoryState:
     wait: str = "NONE"
     material_delta: str | None = None
     evidence: Evidence | None = None
+    freshness: TruthState = TruthState.UNKNOWN
 
 
 @dataclass
