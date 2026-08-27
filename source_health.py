@@ -242,10 +242,17 @@ def source_health_snapshot(conn, stale_after_minutes=15, *, now=None):
         item = dict(row)
         state = _derive_source_state(item, now=now, default_stale_after_minutes=stale_after_minutes)
         if item['status'] == 'healthy':
-            if state['health'] != 'healthy':
-                item['status'] = state['health']
+            failures = _failure_count(item)
+            if state['freshness'] == 'unknown' or state['health'] == 'unknown':
+                item['status'] = 'unknown'
+            elif state['health'] == 'unavailable':
+                item['status'] = 'unavailable'
+            elif state['health'] == 'degraded' and failures not in (None, 0):
+                item['status'] = 'degraded'
             elif state['freshness'] == 'stale':
                 item['status'] = 'stale'
+            elif state['health'] != 'healthy':
+                item['status'] = state['health']
         item.update(state)
         cursor = conn.execute('SELECT watermark FROM source_cursor WHERE source=?', (item['source'],)).fetchone()
         item['watermark'] = cursor['watermark'] if cursor else None
