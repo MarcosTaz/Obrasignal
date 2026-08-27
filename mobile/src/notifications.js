@@ -5,6 +5,7 @@ import { storage } from './storage';
 
 const EXPO_PROJECT_ID = 'c277466b-a418-45f7-b070-4fc3f96386b7';
 const handledResponseIds = new Set();
+const MAX_LOCAL_SCHEDULED_EVENT_IDS = 100;
 
 function newLocalBindingId() {
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}-${Math.random().toString(36).slice(2, 14)}`;
@@ -12,6 +13,31 @@ function newLocalBindingId() {
 
 function isRemoteBinding(binding) {
   return Boolean(binding?.bindingId && binding?.installationId && binding?.expoPushToken);
+}
+
+function normalizeScheduledEventIds(values) {
+  const ids = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const id = Number(value);
+    if (Number.isInteger(id) && id > 0 && !ids.includes(id)) ids.push(id);
+  }
+  return ids.slice(-MAX_LOCAL_SCHEDULED_EVENT_IDS);
+}
+
+async function rememberLocalScheduledEvent(eventId) {
+  const id = Number(eventId);
+  if (!Number.isInteger(id) || id <= 0) return;
+  const current = normalizeScheduledEventIds(await storage.getLocalNotificationScheduled());
+  if (current.includes(id)) return;
+  await storage.setLocalNotificationScheduled([...current, id].slice(-MAX_LOCAL_SCHEDULED_EVENT_IDS));
+}
+
+async function forgetLocalScheduledEvent(eventId) {
+  const id = Number(eventId);
+  if (!Number.isInteger(id) || id <= 0) return;
+  const current = normalizeScheduledEventIds(await storage.getLocalNotificationScheduled());
+  if (!current.includes(id)) return;
+  await storage.setLocalNotificationScheduled(current.filter(value => value !== id));
 }
 
 if (Platform.OS !== 'web') {
@@ -84,6 +110,7 @@ export async function unregisterRemoteOpportunityPush() {
   // Local tap authority is revoked before any network call. A slow/offline
   // unregister cannot leave a disabled or signed-out account locally tap-valid.
   try { await storage.clearPushBinding(); } catch (_) {}
+  try { await storage.setLocalNotificationScheduled([]); } catch (_) {}
   try {
     if (binding?.installationId) await api.unregisterPushDevice(binding.installationId);
   } finally {
@@ -114,28 +141,38 @@ export async function showLocalOpportunityAlert(item) {
 }
 
 export async function syncUnreadOpportunityAlerts() {
-  if (Platform.OS === 'web') return { status: 'unsupported', delivered: 0 };
+  if (Platform.OS === 'web') return { status: 'unsupported', scheduled: 0 };
   const settings = await storage.getSettings();
-  if (!settings.notifications) return { status: 'disabled', delivered: 0 };
+  if (!settings.notifications) return { status: 'disabled', scheduled: 0 };
 
   const granted = await configureNotifications();
-  if (!granted) return { status: 'permission_denied', delivered: 0 };
+  if (!granted) return { status: 'permission_denied', scheduled: 0 };
 
   const result = await api.alerts({ unreadOnly: true, limit: 10 });
   const items = result?.items || [];
-  let delivered = 0;
+  const alreadyScheduled = new Set(normalizeScheduledEventIds(await storage.getLocalNotificationScheduled()));
+  let scheduled = 0;
 
   for (const item of items) {
+    const eventId = Number(item?.event_id);
+    if (Number.isInteger(eventId) && eventId > 0 && alreadyScheduled.has(eventId)) continue;
     try {
       await showLocalOpportunityAlert(item);
-      if (item.event_id != null) await api.markAlertDelivered(item.event_id);
-      delivered += 1;
+      // Scheduling acceptance is only local pending evidence. It must not write
+      // opportunity_events.delivered_at. User response/tap below is the first
+      // current path with direct user-observation authority.
+      if (Number.isInteger(eventId) && eventId > 0) {
+        await rememberLocalScheduledEvent(eventId);
+        alreadyScheduled.add(eventId);
+      }
+      scheduled += 1;
     } catch (_) {
-      // Keep the server event unread when local delivery fails so it can retry.
+      // Keep the server event unread and do not persist local scheduling evidence
+      // when scheduling itself fails so a later verification may retry.
     }
   }
 
-  return { status: 'ready', delivered };
+  return { status: 'ready', scheduled };
 }
 
 export async function notificationOpportunityTarget(response) {
@@ -157,7 +194,14 @@ export async function notificationOpportunityTarget(response) {
     return null;
   }
   if (Number.isInteger(eventId) && eventId > 0) {
-    try { await api.markAlertDelivered(eventId); } catch (_) {}
+    try {
+      await api.markAlertDelivered(eventId);
+      await forgetLocalScheduledEvent(eventId);
+    } catch (_) {
+      // The tap is consumed locally, but server completion remains unproven.
+      // Retain local scheduled evidence so a transient server failure does not
+      // immediately re-present the same unread event as a new notification.
+    }
   }
   return opportunityId;
 }
