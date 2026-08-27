@@ -50,8 +50,14 @@ def execute(action_id: str, company_id: str, payload: dict | None = None) -> tup
         append_audit(actor="founder_control_center", action=action_id, level="RED", company_id=company_id, result="blocked_owner_only", source_data=_audit_payload_shape(payload))
         return {"ok": False, "state": "OWNER_ONLY", "message": "This action can never be executed autonomously."}, 403
     if action.level == ActionLevel.YELLOW:
-        append_audit(actor="founder_control_center", action=action_id, level="YELLOW", company_id=company_id, result="approval_required", source_data=_audit_payload_shape(payload))
-        return {"ok": False, "state": "APPROVAL_REQUIRED", "prepared": True}, 202
+        append_audit(actor="founder_control_center", action=action_id, level="YELLOW", company_id=company_id, result="approval_required_no_execution", source_data=_audit_payload_shape(payload))
+        return {
+            "ok": False,
+            "state": "APPROVAL_REQUIRED",
+            "prepared": False,
+            "executed": False,
+            "message": "Approval is required. No external action or preparation artifact was executed by this request.",
+        }, 202
     if action_id == "update_factory_state":
         candidates = {
             field: payload[field].strip()[:500]
