@@ -77,8 +77,10 @@ def ensure_account_table(conn):
         if name not in columns:
             conn.execute(statement)
     ensure_evaluation_schema(conn)
+    # Historical direct-helper probes need only connection-local ordering memory.
+    # Keep it TEMP so no new customer-private persistent dataset is invented.
     conn.execute(
-        """CREATE TABLE IF NOT EXISTS billing_event_observations(
+        """CREATE TEMP TABLE IF NOT EXISTS billing_event_observations(
            account_id TEXT PRIMARY KEY,
            provider_event_ms INTEGER NOT NULL,
            observed_at TEXT NOT NULL
