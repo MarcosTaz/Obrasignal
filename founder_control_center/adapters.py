@@ -28,7 +28,7 @@ class GitHubAdapter:
         return headers
 
     def _ci_state(self, full_name: str, commit: str, headers: dict[str, str]) -> tuple[TruthState, str]:
-        """Conservatively combine checks and commit statuses. Absence of evidence stays UNKNOWN."""
+        """Conservatively combine checks and commit statuses. Absence of proof stays UNKNOWN."""
         try:
             checks_response = requests.get(f"https://api.github.com/repos/{full_name}/commits/{commit}/check-runs", headers=headers, timeout=self.timeout)
             statuses_response = requests.get(f"https://api.github.com/repos/{full_name}/commits/{commit}/status", headers=headers, timeout=self.timeout)
@@ -46,9 +46,12 @@ class GitHubAdapter:
                 return TruthState.DEGRADED, "CI/check evidence contains a failing state."
             if check_statuses & running or status_state == "pending":
                 return TruthState.UNKNOWN, "CI/check evidence is still running or pending."
-            if checks and all(item.get("status") == "completed" and item.get("conclusion") in ("success", "neutral", "skipped") for item in checks):
-                if status_state in (None, "success", "expected"):
-                    return TruthState.GREEN, f"{len(checks)} completed GitHub check run(s) contain no failure."
+            if checks:
+                if all(item.get("status") == "completed" and item.get("conclusion") == "success" for item in checks):
+                    if status_state in (None, "success", "expected"):
+                        return TruthState.GREEN, f"{len(checks)} completed GitHub check run(s) are explicitly successful."
+                if any(item.get("conclusion") in ("neutral", "skipped") for item in checks):
+                    return TruthState.UNKNOWN, "CI/check evidence contains neutral or skipped checks; success is not proven."
             if status_state == "success" and not checks:
                 return TruthState.GREEN, "GitHub combined commit status is success."
             return TruthState.UNKNOWN, "No complete CI proof is available for this commit."
