@@ -47,10 +47,14 @@ class ControlCenterTests(unittest.TestCase):
         self.assertEqual(status, 403)
         self.assertEqual(body["state"], "OWNER_ONLY")
 
-    def test_yellow_action_requires_approval(self):
-        body, status = execute("prepare_deployment", "obrasignal", {})
-        self.assertEqual(status, 202)
-        self.assertEqual(body["state"], "APPROVAL_REQUIRED")
+    def test_yellow_action_requires_approval_without_fake_preparation(self):
+        for action_id in ("prepare_deployment", "send_outreach"):
+            body, status = execute(action_id, "obrasignal", {})
+            self.assertEqual(status, 202)
+            self.assertEqual(body["state"], "APPROVAL_REQUIRED")
+            self.assertFalse(body["ok"])
+            self.assertFalse(body["prepared"])
+            self.assertFalse(body["executed"])
 
     def test_green_state_update_executes(self):
         body, status = execute("update_factory_state", "founder-control-center", {"active": "Run tests"})
