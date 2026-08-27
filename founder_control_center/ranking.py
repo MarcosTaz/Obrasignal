@@ -20,12 +20,20 @@ def _known(metric) -> bool:
     return getattr(metric, "state", TruthState.UNKNOWN) not in (TruthState.UNKNOWN, TruthState.STALE)
 
 
+def _factory_feed_states(company: CompanyManifest) -> list[TruthState]:
+    return [
+        factory.freshness
+        for factory in company.factories
+        if factory.evidence is not None and factory.evidence.kind == "factory_feed"
+    ]
+
+
 def rank_company(company: CompanyManifest) -> RankResult:
     """Evidence-weighted attention ranking. Score is guidance, never objective truth."""
     score = 20.0
     reasons: list[str] = []
     known = 0
-    total = 11
+    total = 12
 
     if company.status == "ACTIVE":
         score += 6
@@ -92,6 +100,18 @@ def rank_company(company: CompanyManifest) -> RankResult:
             reasons.append("high-severity risk")
         known += 1
 
+    factory_states = _factory_feed_states(company)
+    if any(state == TruthState.STALE for state in factory_states):
+        score += 10
+        reasons.append("Factory feed evidence stale")
+    elif any(state == TruthState.GREEN for state in factory_states):
+        known += 1
+        reasons.append("live Factory feed evidence available")
+    elif any(state == TruthState.DEGRADED for state in factory_states):
+        score += 10
+        known += 1
+        reasons.append("Factory feed degraded")
+
     if company.data_freshness == TruthState.DEGRADED:
         score += 6
         reasons.append("portfolio data freshness degraded")
@@ -120,6 +140,7 @@ def highest_value_actions(companies: list[CompanyManifest], limit: int = 8) -> l
     for company in companies:
         rank = ranks[company.id]
         severity = next((r.severity for r in company.risks if r.severity in ("CRITICAL", "HIGH")), None)
+        factory_states = _factory_feed_states(company)
 
         if company.application.health == TruthState.DEGRADED:
             action, boundary, urgency = "Diagnose degraded application health", "GREEN", "critical"
@@ -127,6 +148,8 @@ def highest_value_actions(companies: list[CompanyManifest], limit: int = 8) -> l
             action, boundary, urgency = "Diagnose degraded deployment before any release action", "GREEN", "critical"
         elif company.repository.ci == TruthState.DEGRADED:
             action, boundary, urgency = "Diagnose failing repository CI", "GREEN", "critical"
+        elif any(state == TruthState.STALE for state in factory_states):
+            action, boundary, urgency = "Refresh stale Factory feed before portfolio decisions", "GREEN", "high"
         elif company.data_freshness == TruthState.STALE:
             action, boundary, urgency = "Refresh stale canonical sources before deciding", "GREEN", "high"
         elif company.repository.full_name and company.repository.commit is None:
