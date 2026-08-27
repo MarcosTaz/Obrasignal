@@ -98,6 +98,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             return company, None
         return None, (jsonify({"error": "not_found", "company_id": company_id}), 404)
 
+    def company_api_view(company) -> dict:
+        payload = company.to_dict()
+        payload["risks"] = source_summary(company)["risks"]
+        return payload
+
     @app.get("/health")
     def health():
         return jsonify({"status": "ok", "truth": "process_alive_not_global_green"})
@@ -172,7 +177,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     @auth_required
     def api_companies():
         companies = list_companies(); ranks = {r.company_id: r.to_dict() for r in rank_portfolio(companies)}
-        return jsonify({"companies": [c.to_dict() for c in companies], "ranking": ranks})
+        return jsonify({"companies": [company_api_view(c) for c in companies], "ranking": ranks})
 
     @app.post("/api/companies/register")
     @auth_required
@@ -198,7 +203,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
         except (TypeError, ValueError) as exc:
             return jsonify({"ok": False, "error": "invalid_company_manifest", "detail": str(exc)}), 400
-        return jsonify({"ok": True, "company": company.to_dict()}), 201
+        return jsonify({"ok": True, "company": company_api_view(company)}), 201
 
     @app.post("/api/ingest/factory-state")
     @factory_ingest_required
@@ -239,7 +244,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     @auth_required
     def api_company(company_id: str):
         company, error = company_or_404(company_id)
-        return error or jsonify(company.to_dict())
+        return error or jsonify(company_api_view(company))
 
     @app.get("/api/companies/<company_id>/metrics")
     @auth_required
