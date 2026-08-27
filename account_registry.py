@@ -101,12 +101,14 @@ def _billing_projection_blocked(account):
 
 def update_subscription(conn, account_id, *, plan, subscription_status,
                         entitlement_expires_at=None, store=None, product_id=None,
-                        original_transaction_id=None):
-    """Update local billing projection unless account deletion is terminal.
+                        original_transaction_id=None, commit=True):
+    """Project subscription state unless deletion is terminal.
 
-    RevenueCat/provider observations must not recreate customer-linked local
-    billing state after the account has entered deletion lifecycle. Recovery from
-    those states requires a separate explicit Privacy recovery contract.
+    Direct/manual synchronization keeps historical commit-by-default behavior.
+    Webhook processing passes ``commit=False`` so account/Evaluation projection
+    and durable event acknowledgement share one transaction and cannot split.
+    RevenueCat/provider observations must never recreate local customer-linked
+    billing state after the account enters deletion lifecycle.
     """
     ensure_account_table(conn)
     row = conn.execute("SELECT status FROM accounts WHERE account_id=?", (str(account_id),)).fetchone()
@@ -125,7 +127,8 @@ def update_subscription(conn, account_id, *, plan, subscription_status,
         mark_evaluation_paid(conn, account_id)
     elif plan == 'expired' or subscription_status == 'expired':
         mark_post_conversion_churn(conn, account_id)
-    conn.commit()
+    if commit:
+        conn.commit()
     return True
 
 
@@ -201,6 +204,7 @@ def _sync_revenuecat_if_due(conn, account_id, force=False):
 
 
 def _sync_account_from_webhook(conn, event):
+    """Stage one webhook projection; caller owns the acknowledgement transaction."""
     app_user_id = event.get('app_user_id') or event.get('original_app_user_id')
     if not app_user_id:
         return
@@ -214,11 +218,11 @@ def _sync_account_from_webhook(conn, event):
     active_events = {'INITIAL_PURCHASE', 'RENEWAL', 'UNCANCELLATION', 'PRODUCT_CHANGE', 'SUBSCRIPTION_EXTENDED', 'TRIAL_STARTED', 'TRIAL_CONVERTED'}
     if event_type in active_events:
         status = 'trial' if event_type == 'TRIAL_STARTED' else 'active'
-        update_subscription(conn, app_user_id, plan='pro', subscription_status=status, entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
+        update_subscription(conn, app_user_id, plan='pro', subscription_status=status, entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx, commit=False)
     elif event_type == 'EXPIRATION':
-        update_subscription(conn, app_user_id, plan='expired', subscription_status='expired', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
+        update_subscription(conn, app_user_id, plan='expired', subscription_status='expired', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx, commit=False)
     elif event_type in {'CANCELLATION', 'BILLING_ISSUE'}:
-        update_subscription(conn, app_user_id, plan='pro', subscription_status='cancelled' if event_type == 'CANCELLATION' else 'grace_period', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
+        update_subscription(conn, app_user_id, plan='pro', subscription_status='cancelled' if event_type == 'CANCELLATION' else 'grace_period', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx, commit=False)
 
 
 def _verify_webhook(raw_body, signature):
