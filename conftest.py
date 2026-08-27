@@ -1,13 +1,15 @@
-"""Pytest-wide isolation for process-level background ingestion.
+"""Pytest-wide isolation for background worker side effects."""
+from __future__ import annotations
 
-The production WSGI entrypoint starts the ingestion worker on import. Some tests
-import that entrypoint during collection; without this guard a daemon sync can
-race later transport tests and consume their monkeypatched HTTP calls.
+import os
 
-Mark the worker as already started before test modules are collected. Production
-code is unchanged; this file is loaded by pytest only.
-"""
+# Development identity is a deliberate test contract, never an absent-config
+# fallback. Individual auth tests may delete/override this variable explicitly.
+os.environ.setdefault("OBRASIGNAL_AUTH_MODE", "development")
+
 import app
 
-
+# Production WSGI startup explicitly calls ``start_background_worker``. Tests
+# import application modules for request-level assertions and must never spawn a
+# daemon that performs live network ingestion or holds SQLite locks.
 app._worker_started = True
