@@ -24,6 +24,7 @@ class ControlCenterTests(unittest.TestCase):
         ids = {c.id for c in list_companies()}
         expected = {"obrasignal", "k3-fatality", "revenue-recovery", "billionaire-search", "black-leaf-tattoos", "money-leakage-auditor", "contract-os", "founder-control-center"}
         self.assertTrue(expected.issubset(ids))
+        self.assertGreaterEqual(len(get_company("obrasignal").factories), 16)
 
     def test_unknown_revenue_stays_unknown(self):
         company = get_company("obrasignal")
@@ -66,6 +67,16 @@ class ControlCenterTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Founder Control Center", response.data)
         self.assertIn(b"ObraSignal", response.data)
+
+    def test_normalized_company_api_surfaces(self):
+        routes = ["metrics", "factory-state", "risks", "revenue", "actions"]
+        for route in routes:
+            response = self.client.get(f"/api/companies/obrasignal/{route}")
+            self.assertEqual(response.status_code, 200, route)
+            self.assertEqual(response.get_json()["company_id"], "obrasignal", route)
+        revenue = self.client.get("/api/companies/obrasignal/revenue").get_json()["revenue"]
+        self.assertEqual(revenue["state"], "UNKNOWN")
+        self.assertIsNone(revenue["value"])
 
 
 if __name__ == "__main__":
