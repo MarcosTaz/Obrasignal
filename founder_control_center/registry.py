@@ -166,6 +166,8 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
         observed_at = incoming_observed.isoformat()
     except ValueError as exc:
         raise ValueError("observed_at must be ISO-8601") from exc
+    if (incoming_observed - datetime.now(timezone.utc)).total_seconds() > 300:
+        raise ValueError("future-dated Factory state evidence rejected")
     try:
         freshness_seconds = max(60, min(int(freshness_seconds), 7 * 24 * 3600))
     except (TypeError, ValueError) as exc:
