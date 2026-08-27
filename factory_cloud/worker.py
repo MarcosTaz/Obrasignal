@@ -9,9 +9,11 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
+from factory_cloud.adapters import AdapterRegistry
 from factory_cloud.control_plane import ACTIVATION_CODE, load_registry
 from factory_cloud.orchestrator import DEFAULT_STATE_PATH, PersistentFactoryOrchestrator
 from factory_cloud.state_store import StateStore
+from factory_cloud.work_queue import DurableWorkQueue, QueuedAppAdapter
 
 LEASE_NAME = "factory_cloud_dispatch"
 
@@ -109,6 +111,15 @@ def _install_signal_handlers(host: WorkerHost) -> None:
     signal.signal(signal.SIGTERM, request_stop)
 
 
+def _runtime_adapters(registry: dict[str, Any], queue: DurableWorkQueue) -> AdapterRegistry:
+    overrides = {}
+    for app in registry.get("applications", []):
+        activation = app.get("activation") or {}
+        if activation.get("enabled") is True and activation.get("mode") == "repository_safe_execution":
+            overrides[app["app_id"]] = QueuedAppAdapter(queue)
+    return AdapterRegistry(overrides)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Long-lived Factory Cloud worker host")
     parser.add_argument("code", help="activation code; must be Ω")
@@ -122,7 +133,14 @@ def main() -> int:
     if args.code != ACTIVATION_CODE:
         parser.error("Factory Cloud activation requires Ω")
     registry = load_registry(args.registry) if args.registry else load_registry()
-    orchestrator = PersistentFactoryOrchestrator(registry, StateStore(args.state), recover_interrupted=False)
+    store = StateStore(args.state)
+    queue = DurableWorkQueue(store)
+    orchestrator = PersistentFactoryOrchestrator(
+        registry,
+        store,
+        adapters=_runtime_adapters(registry, queue),
+        recover_interrupted=False,
+    )
     host = WorkerHost(
         orchestrator,
         poll_seconds=args.poll_seconds,
