@@ -183,8 +183,8 @@ class GitHubAdapter:
             deployment_id = deployment.get("id")
             environment = deployment.get("environment") or "unknown environment"
             deploy_sha = deployment.get("sha") or "unknown sha"
-            if not deployment_id:
-                evidence.detail = f"Latest deployment for {environment} has no resolvable deployment id."
+            if isinstance(deployment_id, bool) or not isinstance(deployment_id, int) or deployment_id <= 0:
+                evidence.detail = f"Latest deployment for {environment} has an invalid deployment id; deployment truth remains UNKNOWN."
                 return TruthState.UNKNOWN, evidence, None
             statuses = requests.get(f"https://api.github.com/repos/{full_name}/deployments/{deployment_id}/statuses?per_page=1", headers=headers, timeout=self.timeout)
             if statuses.status_code in (401, 403, 404):
