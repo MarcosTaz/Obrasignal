@@ -19,23 +19,57 @@ class GitHubAdapter:
         self.token = token or os.getenv("FCC_GITHUB_TOKEN")
         self.timeout = timeout
 
-    def refresh_repo(self, full_name: str) -> RepositoryState:
-        evidence = Evidence(source=f"github:{full_name}", observed_at=utcnow(), freshness_seconds=3600, kind="live_adapter", url=f"https://github.com/{full_name}")
+    def _headers(self) -> dict[str, str]:
         headers = {"Accept": "application/vnd.github+json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+        return headers
+
+    def _ci_state(self, full_name: str, commit: str, headers: dict[str, str]) -> tuple[TruthState, str]:
+        """Conservatively combine checks and commit statuses. Absence of evidence stays UNKNOWN."""
+        try:
+            checks_response = requests.get(f"https://api.github.com/repos/{full_name}/commits/{commit}/check-runs", headers=headers, timeout=self.timeout)
+            statuses_response = requests.get(f"https://api.github.com/repos/{full_name}/commits/{commit}/status", headers=headers, timeout=self.timeout)
+            checks = []
+            status_state = None
+            if checks_response.ok:
+                checks = checks_response.json().get("check_runs", [])
+            if statuses_response.ok:
+                status_state = statuses_response.json().get("state")
+            failed = {"failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"}
+            running = {"queued", "in_progress", "requested", "waiting", "pending"}
+            check_conclusions = {item.get("conclusion") for item in checks if item.get("status") == "completed"}
+            check_statuses = {item.get("status") for item in checks}
+            if check_conclusions & failed or status_state in ("failure", "error"):
+                return TruthState.DEGRADED, "CI/check evidence contains a failing state."
+            if check_statuses & running or status_state == "pending":
+                return TruthState.UNKNOWN, "CI/check evidence is still running or pending."
+            if checks and all(item.get("status") == "completed" and item.get("conclusion") in ("success", "neutral", "skipped") for item in checks):
+                if status_state in (None, "success", "expected"):
+                    return TruthState.GREEN, f"{len(checks)} completed GitHub check run(s) contain no failure."
+            if status_state == "success" and not checks:
+                return TruthState.GREEN, "GitHub combined commit status is success."
+            return TruthState.UNKNOWN, "No complete CI proof is available for this commit."
+        except requests.RequestException as exc:
+            return TruthState.UNKNOWN, f"CI evidence could not be refreshed: {type(exc).__name__}."
+
+    def refresh_repo(self, full_name: str) -> RepositoryState:
+        evidence = Evidence(source=f"github:{full_name}", observed_at=utcnow(), freshness_seconds=3600, kind="live_adapter", url=f"https://github.com/{full_name}")
+        headers = self._headers()
         try:
             repo = requests.get(f"https://api.github.com/repos/{full_name}", headers=headers, timeout=self.timeout)
             if repo.status_code in (401, 403, 404) and not self.token:
                 evidence.detail = "Repository is not publicly accessible. Configure FCC_GITHUB_TOKEN for private repository truth; state remains UNKNOWN."
                 return RepositoryState(full_name=full_name, ci=TruthState.UNKNOWN, evidence=evidence)
             repo.raise_for_status()
-            data = repo.json(); branch = data.get("default_branch"); commit = None
+            data = repo.json(); branch = data.get("default_branch"); commit = None; ci = TruthState.UNKNOWN; ci_detail = "No commit available for CI proof."
             if branch:
                 ref = requests.get(f"https://api.github.com/repos/{full_name}/commits/{branch}", headers=headers, timeout=self.timeout)
                 ref.raise_for_status(); commit = ref.json().get("sha")
-            evidence.detail = "Live GitHub repository snapshot. CI remains UNKNOWN until a checks/status adapter proves it."
-            return RepositoryState(full_name, branch, commit, TruthState.UNKNOWN, evidence)
+            if commit:
+                ci, ci_detail = self._ci_state(full_name, commit, headers)
+            evidence.detail = f"Live GitHub repository snapshot. {ci_detail}"
+            return RepositoryState(full_name, branch, commit, ci, evidence)
         except requests.RequestException as exc:
             evidence.detail = f"GitHub adapter transport failure: {type(exc).__name__}"
             return RepositoryState(full_name=full_name, ci=TruthState.DEGRADED, evidence=evidence)
