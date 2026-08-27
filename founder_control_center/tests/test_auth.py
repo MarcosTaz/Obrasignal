@@ -13,6 +13,7 @@ from founder_control_center.app import create_app
 class AuthTests(unittest.TestCase):
     def tearDown(self):
         os.environ.pop("FCC_ADMIN_TOKEN", None)
+        os.environ.pop("FCC_SESSION_SECRET", None)
 
     def test_api_fails_closed_without_authentication(self):
         app = create_app({"TESTING": True, "SESSION_COOKIE_SECURE": False})
@@ -27,6 +28,14 @@ class AuthTests(unittest.TestCase):
         response = app.test_client().post("/login", data={"token": "anything"})
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"fails closed", response.data)
+
+    def test_login_fails_closed_without_session_secret_outside_test_mode(self):
+        os.environ["FCC_ADMIN_TOKEN"] = "test-only-secret"
+        os.environ.pop("FCC_SESSION_SECRET", None)
+        app = create_app({"SESSION_COOKIE_SECURE": False})
+        response = app.test_client().post("/login", data={"token": "test-only-secret"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"FCC_SESSION_SECRET", response.data)
 
     def test_valid_admin_token_creates_private_session(self):
         os.environ["FCC_ADMIN_TOKEN"] = "test-only-secret"
@@ -55,6 +64,14 @@ class AuthTests(unittest.TestCase):
         )
         self.assertEqual(accepted.status_code, 200)
         self.assertTrue(accepted.get_json()["ok"])
+
+    def test_security_headers_are_present(self):
+        app = create_app({"TESTING": True, "SESSION_COOKIE_SECURE": False})
+        response = app.test_client().get("/health")
+        self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertIn("default-src 'self'", response.headers.get("Content-Security-Policy", ""))
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
 
 
 if __name__ == "__main__":
