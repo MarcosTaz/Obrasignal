@@ -24,6 +24,10 @@ ACTIONS = {
 }
 
 
+class NoStateChange(ValueError):
+    pass
+
+
 def list_actions() -> list[dict]:
     return [{"id": x.id, "label": x.label, "level": x.level.value, "description": x.description} for x in ACTIONS.values()]
 
@@ -48,17 +52,44 @@ def execute(action_id: str, company_id: str, payload: dict | None = None) -> tup
         append_audit(actor="founder_control_center", action=action_id, level="YELLOW", company_id=company_id, result="approval_required", source_data=_audit_payload_shape(payload))
         return {"ok": False, "state": "APPROVAL_REQUIRED", "prepared": True}, 202
     if action_id == "update_factory_state":
-        changed_fields = [
-            field for field in ("active", "next", "wait")
+        candidates = {
+            field: payload[field].strip()[:500]
+            for field in ("active", "next", "wait")
             if field in payload and isinstance(payload[field], str) and payload[field].strip()
-        ]
+        }
+        if not candidates:
+            append_audit(
+                actor="founder_control_center",
+                action=action_id,
+                level="GREEN",
+                company_id=company_id,
+                result="rejected_state_fields_required",
+                source_data=_audit_payload_shape(payload),
+                failure_state="active, next or wait is required",
+            )
+            return {"ok": False, "error": "state_fields_required"}, 400
 
         def apply(latest):
+            changed_fields = [field for field, value in candidates.items() if getattr(latest, field) != value]
+            if not changed_fields:
+                raise NoStateChange("submitted state matches current state")
             for field in changed_fields:
-                setattr(latest, field, payload[field].strip()[:500])
+                setattr(latest, field, candidates[field])
             return changed_fields
 
-        updated, _ = mutate_company(company_id, apply)
+        try:
+            updated, changed_fields = mutate_company(company_id, apply)
+        except NoStateChange:
+            append_audit(
+                actor="founder_control_center",
+                action=action_id,
+                level="GREEN",
+                company_id=company_id,
+                result="rejected_no_state_change",
+                source_data={"candidate_fields": sorted(candidates), **_audit_payload_shape(payload)},
+                failure_state="submitted state matches current state",
+            )
+            return {"ok": False, "error": "no_state_change"}, 409
         append_audit(
             actor="founder_control_center",
             action=action_id,
@@ -67,7 +98,7 @@ def execute(action_id: str, company_id: str, payload: dict | None = None) -> tup
             result="state_updated",
             source_data={"changed_fields": changed_fields, **_audit_payload_shape(payload)},
         )
-        return {"ok": True, "state": "UPDATED", "company": updated.to_dict()}, 200
+        return {"ok": True, "state": "UPDATED", "changed_fields": changed_fields, "company": updated.to_dict()}, 200
     if action_id == "refresh_diagnostics":
         changes = []
         repository_state = None
