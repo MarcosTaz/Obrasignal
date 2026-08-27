@@ -1,11 +1,16 @@
-"""Current-spine failing-before for stale source observation resurrection."""
+"""Current-spine acceptance for stale source observation resurrection."""
 import sqlite3
 
 from opportunity_lifecycle import lifecycle_for
 from signal_store import get_signal_record
 from source_health import ensure_source_health, get_source_cursor
 from source_metadata import get_source_metadata
-from source_runtime import commit_staged_source_syncs, discard_staged_source_syncs, stage_source_sync
+from source_runtime import (
+    _aware_source_instant,
+    commit_staged_source_syncs,
+    discard_staged_source_syncs,
+    stage_source_sync,
+)
 
 
 def _conn():
@@ -57,3 +62,9 @@ def test_late_older_source_observation_cannot_overwrite_newer_cancellation():
     assert lifecycle["is_actionable"] == 0
     assert lifecycle["lifecycle_status"] == "cancelled"
     assert lifecycle["source_updated_at"] == "2026-08-24T12:00:00Z"
+
+
+def test_source_ordering_does_not_invent_timezone_for_naive_or_malformed_time():
+    assert _aware_source_instant("2026-08-24T12:00:00") is None
+    assert _aware_source_instant("not-a-time") is None
+    assert _aware_source_instant(None) is None
