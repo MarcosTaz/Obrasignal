@@ -227,9 +227,9 @@ def _derive_source_state(item, *, now, default_stale_after_minutes=15):
 def source_health_snapshot(conn, stale_after_minutes=15, *, now=None):
     """Compatibility snapshot for sources that already have observability rows.
 
-    ``status='stale'`` remains for legacy consumers. New consumers must use the
-    additive ``freshness`` and ``health`` fields, which keep time and connector
-    availability as separate dimensions.
+    ``status`` is a legacy compatibility field and must never remain stronger than
+    the derived freshness/health authority. New consumers should use the additive
+    ``freshness`` and ``health`` fields directly.
     """
     ensure_source_health(conn)
     rows = conn.execute('SELECT * FROM source_health ORDER BY source').fetchall()
@@ -241,8 +241,11 @@ def source_health_snapshot(conn, stale_after_minutes=15, *, now=None):
     for row in rows:
         item = dict(row)
         state = _derive_source_state(item, now=now, default_stale_after_minutes=stale_after_minutes)
-        if item['status'] == 'healthy' and state['freshness'] == 'stale':
-            item['status'] = 'stale'
+        if item['status'] == 'healthy':
+            if state['health'] != 'healthy':
+                item['status'] = state['health']
+            elif state['freshness'] == 'stale':
+                item['status'] = 'stale'
         item.update(state)
         cursor = conn.execute('SELECT watermark FROM source_cursor WHERE source=?', (item['source'],)).fetchone()
         item['watermark'] = cursor['watermark'] if cursor else None
