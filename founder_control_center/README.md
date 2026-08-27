@@ -10,6 +10,7 @@ Private, fail-closed control plane for the founder portfolio.
 - dashboard state never replaces source-of-truth systems
 - every material operational status carries source/freshness metadata
 - concurrent source feeds must not silently overwrite one another
+- source connectivity does not imply freshness or correctness
 - RED actions never execute autonomously
 - YELLOW actions prepare only and require founder approval
 - GREEN actions are read-only or internal/non-destructive
@@ -27,16 +28,17 @@ Private, fail-closed control plane for the founder portfolio.
 - GREEN / YELLOW / RED authority enforcement
 - persistent SQLite registry, audit log and company state snapshots
 - atomic per-company read/modify/write for concurrent Factory, metric and founder-control updates
+- production snapshot retention capped at the newest 2,000 state snapshots per company
 - read-only GitHub repository, CI and deployment adapters
 - strict CI truth: only explicitly successful completed checks prove GREEN; neutral/skipped/pending remain UNKNOWN
 - application health adapter with public-network and same-host redirect constraints
 - canonical server-to-server business metric feed for revenue, pipeline and customers
 - out-of-order and materially future-dated Factory/business evidence rejected
-- provenance inventory per company with source, kind, observation time and independent freshness
+- provenance inventory per company with connected-source count and independently evaluated freshness
 - readiness diagnostics that reveal configuration state without returning secret material
 - normalized per-company APIs for metrics, Factory state, risks, revenue, history, provenance and actions
 - responsive desktop/mobile UI
-- container definition for a private deployment; deployment itself is not automatic
+- Gunicorn WSGI entrypoint and container definition for a private deployment; deployment itself is not automatic
 
 ## Run locally
 
@@ -57,7 +59,7 @@ Keep `FCC_SECURE_COOKIE=1` behind HTTPS.
 docker build -f founder_control_center/Dockerfile -t founder-control-center .
 ```
 
-The container defaults to a single Gunicorn worker and `FCC_DB=/data/founder_control_center.db`. Mount `/data` on persistent storage for durable registry, audit and history state. This SQLite topology is intentionally single-instance; horizontal scaling requires a canonical shared database before replicas can be trusted.
+The container defaults to a single Gunicorn worker and `FCC_DB=/data/founder_control_center.db`. Mount `/data` on persistent storage for durable registry, audit and history state. The production WSGI entrypoint installs a SQLite trigger that retains only the newest 2,000 snapshots per company and prunes older excess. This SQLite topology is intentionally single-instance; horizontal scaling requires a canonical shared database before replicas can be trusted.
 
 ## Tests
 
@@ -65,7 +67,7 @@ The container defaults to a single Gunicorn worker and `FCC_DB=/data/founder_con
 python -m unittest discover -s founder_control_center/tests -v
 ```
 
-The dedicated pull-request workflow also compiles the package and builds the private deployment image without deploying it.
+The dedicated pull-request workflow checks out the exact PR head, verifies the revision, compiles the package, runs the unit/integration suite, builds the private image, then starts that image and proves `/health` responds. It does not merge or deploy.
 
 ## Live integrations
 
@@ -81,7 +83,7 @@ Founder-authenticated diagnostics include:
 
 - `/api/readiness` — configuration readiness only, never credential values;
 - `/api/companies/<company_id>/sources` — provenance/freshness inventory;
-- `/api/companies/<company_id>/history` — bounded read window over immutable state snapshots;
+- `/api/companies/<company_id>/history` — bounded read window over retained state snapshots;
 - `/api/audit` — recent action/evidence-ingestion audit events.
 
 ## Security and authority status
