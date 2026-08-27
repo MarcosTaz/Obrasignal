@@ -6,7 +6,7 @@ from factory_cloud.adapters import AdapterRegistry, ExecutionResult
 from factory_cloud.control_plane import load_registry
 from factory_cloud.orchestrator import PersistentFactoryOrchestrator
 from factory_cloud.state_store import StateStore
-from factory_cloud.worker import WorkerHost
+from factory_cloud.worker import LEASE_NAME, WorkerHost
 
 
 class WaitingAdapter:
@@ -25,12 +25,10 @@ class FactoryCloudWorkerHostTests(unittest.TestCase):
             k3 = WaitingAdapter()
             store = StateStore(Path(tmp) / "state.sqlite3")
             orchestrator = PersistentFactoryOrchestrator(
-                load_registry(),
-                store,
-                AdapterRegistry({"obrasignal": obra, "k3-fatality": k3}),
+                load_registry(), store, AdapterRegistry({"obrasignal": obra, "k3-fatality": k3})
             )
             sleeps = []
-            host = WorkerHost(orchestrator, poll_seconds=0.01, sleeper=sleeps.append)
+            host = WorkerHost(orchestrator, poll_seconds=0.01, sleeper=sleeps.append, owner_id="worker-a")
             final = host.run_forever(max_cycles=2)
 
             self.assertEqual(final["global_state"], "WAIT")
@@ -39,12 +37,49 @@ class FactoryCloudWorkerHostTests(unittest.TestCase):
             self.assertEqual(sleeps, [0.01])
             self.assertEqual(len(store.history("obrasignal")), 2)
             self.assertEqual(len(store.history("k3-fatality")), 2)
+            self.assertIsNone(store.lease(LEASE_NAME))
+
+    def test_second_worker_is_standby_while_dispatch_lease_is_held(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.sqlite3"
+            first_adapter = WaitingAdapter()
+            second_adapter = WaitingAdapter()
+            first_store = StateStore(path)
+            first = WorkerHost(
+                PersistentFactoryOrchestrator(
+                    load_registry(), first_store, AdapterRegistry({"obrasignal": first_adapter})
+                ),
+                poll_seconds=0,
+                owner_id="worker-a",
+                lease_ttl_seconds=30,
+            )
+            second = WorkerHost(
+                PersistentFactoryOrchestrator(
+                    load_registry(), StateStore(path), AdapterRegistry({"obrasignal": second_adapter})
+                ),
+                poll_seconds=0,
+                owner_id="worker-b",
+                lease_ttl_seconds=30,
+            )
+
+            first_result = first.run_once()
+            second_result = second.run_once()
+
+            self.assertNotEqual(first_result["global_state"], "STANDBY")
+            self.assertEqual(second_result["global_state"], "STANDBY")
+            self.assertEqual(second_result["dispatches"], [])
+            self.assertEqual(second_adapter.calls, 0)
+            self.assertEqual(first_store.lease(LEASE_NAME)["owner_id"], "worker-a")
+            first.stop()
+            takeover = second.run_once()
+            self.assertNotEqual(takeover["global_state"], "STANDBY")
+            second.stop()
 
     def test_stop_prevents_another_cycle(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = StateStore(Path(tmp) / "state.sqlite3")
             orchestrator = PersistentFactoryOrchestrator(load_registry(), store)
-            host = WorkerHost(orchestrator, poll_seconds=0, sleeper=lambda _: None)
+            host = WorkerHost(orchestrator, poll_seconds=0, sleeper=lambda _: None, owner_id="worker-a")
             host.stop()
             self.assertIsNone(host.run_forever())
             self.assertEqual(store.history("obrasignal"), [])
