@@ -138,6 +138,24 @@ class BusinessMetricFeedTests(unittest.TestCase):
         self.assertEqual(persisted.value, 12)
         self.assertEqual(persisted.evidence.source, "ci:newer-customer-source")
 
+    def test_same_observation_time_cannot_carry_two_business_truths(self):
+        observed = (datetime.now(timezone.utc) - timedelta(seconds=20)).isoformat()
+        first = dict(
+            self.payload,
+            company_id="black-leaf-tattoos",
+            metric_key="customers",
+            value=7,
+            observed_at=observed,
+            source="ci:black-leaf-customer-source",
+        )
+        self.assertEqual(self._authorized_post(first).status_code, 200)
+        replay = self._authorized_post(first)
+        self.assertEqual(replay.status_code, 200)
+        conflict = self._authorized_post(dict(first, value=8))
+        self.assertEqual(conflict.status_code, 400)
+        self.assertIn("identical observed_at", conflict.get_json()["detail"])
+        self.assertEqual(get_company("black-leaf-tattoos").customers.value, 7)
+
     def test_future_dated_metric_is_rejected(self):
         payload = dict(self.payload, metric_key="pipeline", value=999, observed_at="2099-01-01T00:00:00Z")
         response = self._authorized_post(payload)
