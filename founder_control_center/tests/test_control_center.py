@@ -82,6 +82,13 @@ class ControlCenterTests(unittest.TestCase):
         self.assertIn(b"Founder Control Center", response.data)
         self.assertIn(b"ObraSignal", response.data)
 
+    def test_company_page_exposes_real_state_editor(self):
+        response = self.client.get("/company/founder-control-center")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'id="stateUpdateForm"', response.data)
+        self.assertIn(b"Save ACTIVE", response.data)
+        self.assertNotIn(b'data-action="update_factory_state"', response.data)
+
     def test_normalized_company_api_surfaces(self):
         routes = ["metrics", "factory-state", "risks", "revenue", "actions"]
         for route in routes:
