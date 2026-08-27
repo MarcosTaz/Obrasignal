@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -89,6 +90,31 @@ def save_company(company: CompanyManifest) -> None:
     with connect() as conn:
         conn.execute("INSERT INTO companies(id,payload,updated_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at", (company.id, json.dumps(company.to_dict(), ensure_ascii=False), now_iso()))
         conn.commit()
+
+
+def register_company_stub(*, company_id: str, name: str, mission: str, kind: str = "company", repository_full_name: str | None = None, application_url: str | None = None) -> CompanyManifest:
+    """Register a future company without inventing operational truth."""
+    company_id = company_id.strip().lower()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,62}[a-z0-9]", company_id):
+        raise ValueError("company_id must be a 3-64 character lowercase slug")
+    name = name.strip()
+    mission = mission.strip()
+    if not name or not mission:
+        raise ValueError("name and mission are required")
+    if get_company(company_id):
+        raise ValueError("company_id already exists")
+    evidence = Evidence(source="founder_manual_registry", observed_at=now_iso(), freshness_seconds=None, kind="manual_registry", detail="Identity fields are founder-provided. Operational status remains UNKNOWN until canonical adapters provide evidence.")
+    company = CompanyManifest(
+        id=company_id, name=name[:120], mission=mission[:1000], kind=(kind or "company")[:80],
+        status="UNKNOWN", stage="UNKNOWN", active="Connect canonical truth sources", next="Establish ACTIVE / NEXT / WAIT from evidence", wait="NONE",
+        repository=RepositoryState(full_name=repository_full_name.strip() if repository_full_name else None, evidence=evidence),
+        application=ApplicationState(name=name, url=application_url.strip() if application_url else None, evidence=evidence),
+        last_update=now_iso(), data_freshness=TruthState.UNKNOWN, synthetic=False,
+        source_note="Registered manually; business, application and repository health remain UNKNOWN until source adapters prove them.",
+    )
+    save_company(company)
+    append_audit(actor="founder", action="register_company", level="GREEN", company_id=company_id, result="registered_unknown_truth", source_data={"repository": repository_full_name, "application_url": application_url})
+    return company
 
 
 def append_audit(*, actor: str, action: str, level: str, result: str, company_id: str | None = None, source_data: dict | None = None, failure_state: str | None = None) -> None:
