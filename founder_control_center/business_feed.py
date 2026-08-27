@@ -96,6 +96,21 @@ def _canonical_business_unit(metric_key: str, unit: Any) -> str:
     return canonical
 
 
+def _normalized_custom_unit(unit: Any) -> str | None:
+    if unit is None:
+        return None
+    if not isinstance(unit, str):
+        raise ValueError("unit must be a string or null")
+    value = unit.strip()
+    if not value:
+        return None
+    if len(value) > 32:
+        raise ValueError("unit must be at most 32 characters")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        raise ValueError("unit contains unsafe characters")
+    return value
+
+
 def _normalized_custom_value(value: Any) -> int | float | None:
     if value is None:
         return None
@@ -222,6 +237,7 @@ def ingest_operational_metric(
     observed = _observed_at(observed_at)
     freshness = _freshness(freshness_seconds)
     normalized = _normalized_custom_value(value)
+    normalized_unit = _normalized_custom_unit(unit)
     requested_state = _truth_state(state, normalized)
     evidence = Evidence(
         source=source_label,
@@ -235,7 +251,7 @@ def ingest_operational_metric(
         key=metric_key,
         label=label.strip()[:120],
         value=normalized,
-        unit=(str(unit).strip()[:32] if unit else None),
+        unit=normalized_unit,
         state=effective_state,
         evidence=evidence,
     )
