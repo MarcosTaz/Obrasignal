@@ -210,6 +210,14 @@ def create_app(test_config: dict | None = None) -> Flask:
     def api_ingest_factory_state():
         data = request_object()
         try:
+            if "observed_at" in data:
+                observed_at = data.get("observed_at")
+                if not isinstance(observed_at, str) or not observed_at.strip():
+                    raise ValueError("observed_at must be ISO-8601")
+            if "freshness_seconds" in data:
+                freshness = data.get("freshness_seconds")
+                if isinstance(freshness, bool) or not isinstance(freshness, int):
+                    raise ValueError("freshness_seconds must be an integer")
             company = ingest_factory_state(
                 company_id=data.get("company_id"),
                 factory_name=data.get("factory_name"),
