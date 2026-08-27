@@ -33,6 +33,18 @@ class DeploymentAdapterTests(unittest.TestCase):
         self.assertIn("state=success", evidence.detail)
 
     @patch("founder_control_center.adapters.requests.get")
+    def test_private_environment_url_is_not_granted_health_check_authority(self, get):
+        get.side_effect = [
+            FakeResponse(payload=[{"id": 43, "environment": "production", "sha": "deploy-private"}]),
+            FakeResponse(payload=[{"state": "success", "environment_url": "http://127.0.0.1:8080"}]),
+        ]
+        state, evidence, url = GitHubAdapter(token=None).refresh_deployment("owner/public")
+        self.assertEqual(state, TruthState.GREEN)
+        self.assertIsNone(url)
+        self.assertIn("environment_url rejected", evidence.detail)
+        self.assertNotEqual(evidence.url, "http://127.0.0.1:8080")
+
+    @patch("founder_control_center.adapters.requests.get")
     def test_no_deployment_is_unknown(self, get):
         get.return_value = FakeResponse(payload=[])
         state, _, url = GitHubAdapter(token=None).refresh_deployment("owner/public")
