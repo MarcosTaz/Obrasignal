@@ -8,7 +8,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session, u
 
 from .actions import execute, list_actions
 from .ranking import highest_value_actions, rank_portfolio
-from .registry import get_company, init_db, list_audit, list_companies
+from .registry import get_company, init_db, list_audit, list_companies, register_company_stub
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -84,6 +84,19 @@ def create_app(test_config: dict | None = None) -> Flask:
     def api_companies():
         companies = list_companies(); ranks = {r.company_id: r.to_dict() for r in rank_portfolio(companies)}
         return jsonify({"companies": [c.to_dict() for c in companies], "ranking": ranks})
+
+    @app.post("/api/companies/register")
+    @auth_required
+    def api_register_company():
+        data = request.get_json(silent=True) or {}
+        try:
+            company = register_company_stub(
+                company_id=str(data.get("id", "")), name=str(data.get("name", "")), mission=str(data.get("mission", "")),
+                kind=str(data.get("kind", "company")), repository_full_name=data.get("repository"), application_url=data.get("application_url"),
+            )
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": "invalid_company_manifest", "detail": str(exc)}), 400
+        return jsonify({"ok": True, "company": company.to_dict()}), 201
 
     @app.get("/api/companies/<company_id>")
     @auth_required
