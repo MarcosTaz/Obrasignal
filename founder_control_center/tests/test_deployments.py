@@ -46,6 +46,15 @@ class DeploymentAdapterTests(unittest.TestCase):
         self.assertNotEqual(evidence.url, "http://127.0.0.1:8080")
 
     @patch("founder_control_center.adapters.requests.get")
+    def test_malformed_deployment_id_fails_closed_before_status_request(self, get):
+        get.return_value = FakeResponse(payload=[{"id": "../../repos/other", "environment": "production", "sha": "deploy-malformed"}])
+        state, evidence, url = GitHubAdapter(token=None).refresh_deployment("owner/public")
+        self.assertEqual(state, TruthState.UNKNOWN)
+        self.assertIsNone(url)
+        self.assertIn("invalid deployment id", evidence.detail)
+        self.assertEqual(get.call_count, 1)
+
+    @patch("founder_control_center.adapters.requests.get")
     def test_no_deployment_is_unknown(self, get):
         get.return_value = FakeResponse(payload=[])
         state, _, url = GitHubAdapter(token=None).refresh_deployment("owner/public")
