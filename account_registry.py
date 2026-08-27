@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS accounts (
 """
 PROTECTED_PATHS = ('/api/v1/opportunities', '/api/v1/stats', '/api/v1/alerts', '/api/v1/workflow')
 PRO_ENTITLEMENT = 'pro'
+DELETION_BILLING_TERMINAL_STATUSES = frozenset({
+    'deletion_pending',
+    'deletion_failed',
+    'deleted_pending_revocation',
+    'deleted',
+})
 
 
 def ensure_account_table(conn):
@@ -89,10 +95,23 @@ def get_account(conn, account_id):
     return dict(row) if row else None
 
 
+def _billing_projection_blocked(account):
+    return bool(account and account.get('status') in DELETION_BILLING_TERMINAL_STATUSES)
+
+
 def update_subscription(conn, account_id, *, plan, subscription_status,
                         entitlement_expires_at=None, store=None, product_id=None,
                         original_transaction_id=None):
+    """Update local billing projection unless account deletion is terminal.
+
+    RevenueCat/provider observations must not recreate customer-linked local
+    billing state after the account has entered deletion lifecycle. Recovery from
+    those states requires a separate explicit Privacy recovery contract.
+    """
     ensure_account_table(conn)
+    row = conn.execute("SELECT status FROM accounts WHERE account_id=?", (str(account_id),)).fetchone()
+    if row and row[0] in DELETION_BILLING_TERMINAL_STATUSES:
+        return False
     conn.execute(
         """UPDATE accounts SET plan=?, subscription_status=?,
            entitlement_expires_at=COALESCE(?, entitlement_expires_at), billing_synced_at=?,
@@ -107,11 +126,14 @@ def update_subscription(conn, account_id, *, plan, subscription_status,
     elif plan == 'expired' or subscription_status == 'expired':
         mark_post_conversion_churn(conn, account_id)
     conn.commit()
+    return True
 
 
 def subscription_state(account):
     if not account:
         return {"plan": "none", "active": False, "source": None, "expires_at": None}
+    if _billing_projection_blocked(account):
+        return {"plan": "expired", "active": False, "source": None, "expires_at": None}
     now = datetime.now(timezone.utc)
     if account.get("plan") == "pro" and account.get("subscription_status") in {
         "active", "trial", "grace_period", "paused", "cancelled"
@@ -146,7 +168,7 @@ def _sync_revenuecat_if_due(conn, account_id, force=False):
         return
     row = conn.execute("SELECT * FROM accounts WHERE account_id=?", (str(account_id),)).fetchone()
     account = dict(row) if row else None
-    if not account:
+    if not account or _billing_projection_blocked(account):
         return
     if not force and account.get('billing_synced_at'):
         age = (datetime.now(timezone.utc) - _parse_iso(account['billing_synced_at'])).total_seconds()
@@ -170,6 +192,10 @@ def _sync_revenuecat_if_due(conn, account_id, force=False):
     elif entitlement and entitlement.get('is_active') is True:
         update_subscription(conn, account_id, plan='pro', subscription_status='active', entitlement_expires_at=None, store=entitlement.get('store'), product_id=entitlement.get('product_identifier'))
     else:
+        # Re-check lifecycle after network I/O before writing even observation metadata.
+        current = get_account(conn, account_id)
+        if _billing_projection_blocked(current):
+            return
         conn.execute("UPDATE accounts SET billing_synced_at=? WHERE account_id=?", (datetime.now(timezone.utc).isoformat(), str(account_id)))
         conn.commit()
 
