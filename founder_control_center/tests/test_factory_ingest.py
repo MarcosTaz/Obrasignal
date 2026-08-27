@@ -60,6 +60,18 @@ class FactoryIngestTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["error"], "invalid_factory_state")
 
+    def test_explicit_falsy_observed_at_cannot_be_promoted_to_now(self):
+        for observed_at in ("", False, 0):
+            response = self._post(dict(self.payload, observed_at=observed_at))
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("observed_at must be ISO-8601", response.get_json()["detail"])
+
+    def test_freshness_seconds_requires_json_integer(self):
+        for freshness in (True, "900", 900.5):
+            response = self._post(dict(self.payload, freshness_seconds=freshness))
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("freshness_seconds must be an integer", response.get_json()["detail"])
+
     def test_valid_feed_updates_only_named_factory_state(self):
         before = get_company("obrasignal")
         global_active = before.active
