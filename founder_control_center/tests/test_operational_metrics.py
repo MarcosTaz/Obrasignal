@@ -92,6 +92,32 @@ class OperationalMetricFeedTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("at most 32", response.get_json()["detail"])
 
+    def test_operational_label_is_not_silently_truncated(self):
+        response = self._post({
+            "company_id": "founder-control-center",
+            "metric_key": "long_label_kpi",
+            "label": "L" * 121,
+            "value": 1,
+            "source": "ci:long-label-kpi",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("label must be at most 120 characters", response.get_json()["detail"])
+
+    def test_operational_detail_is_typed_and_not_silently_truncated(self):
+        base = {
+            "company_id": "founder-control-center",
+            "metric_key": "detail_kpi",
+            "label": "Detail KPI",
+            "value": 1,
+            "source": "ci:detail-kpi",
+        }
+        invalid = self._post(dict(base, detail=["not", "text"]))
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("detail must be a string or null", invalid.get_json()["detail"])
+        oversized = self._post(dict(base, detail="D" * 1001))
+        self.assertEqual(oversized.status_code, 400)
+        self.assertIn("detail must be at most 1000 characters", oversized.get_json()["detail"])
+
     def test_reserved_business_metric_cannot_be_shadowed(self):
         response = self._post({
             "company_id": "founder-control-center",
