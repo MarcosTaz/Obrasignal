@@ -13,7 +13,7 @@ import threading
 
 from opportunity_lifecycle import persist_lifecycle_observations
 from signal_store import persist_signal_records
-from source_health import set_source_cursor
+from source_health import record_source_ingestion_failure, set_source_cursor
 from source_metadata import persist_source_metadata
 
 
@@ -69,6 +69,10 @@ def commit_staged_source_syncs(conn):
     together. A malformed Signal identity/type, metadata/lifecycle write failure
     or cursor failure rolls back the complete source-side transaction, preventing
     silent data loss and preserving fail-closed cursor semantics.
+
+    Fetch health may already have been committed before this transaction begins.
+    When canonical persistence fails, compensate that observation after rollback
+    by degrading every staged source before re-raising the original error.
     """
     pending = staged_source_syncs()
     if not pending:
@@ -95,8 +99,19 @@ def commit_staged_source_syncs(conn):
                 set_source_cursor(conn, item.source, item.cursor, commit=False)
                 cursors += 1
         conn.commit()
-    except Exception:
+    except Exception as exc:
         conn.rollback()
+        compensation_error = None
+        for item in pending:
+            try:
+                record_source_ingestion_failure(conn, item.source, error=exc)
+            except Exception as health_exc:
+                compensation_error = health_exc
+                break
+        if compensation_error is not None:
+            raise RuntimeError(
+                f"{exc}; source health compensation failed: {type(compensation_error).__name__}"
+            ) from exc
         raise
     finally:
         discard_staged_source_syncs()

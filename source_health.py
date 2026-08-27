@@ -85,6 +85,29 @@ def record_source_result(conn, source, *, success, duration_ms, found=0, new_ite
     conn.commit()
 
 
+def record_source_ingestion_failure(conn, source, *, error, observed_at=None):
+    """Degrade source currentness after canonical persistence rolls back.
+
+    Fetch success and durable ingestion are distinct evidence. Preserve the prior
+    successful fetch timestamp/counts for diagnosis, but record a bounded failure
+    observation and degraded status so the public Source Health contract cannot
+    mistake successful transport for committed source state.
+    """
+    ensure_source_health(conn)
+    now = _utc_iso(observed_at)
+    conn.execute('''INSERT INTO source_health
+        (source,last_attempt,last_success,last_failed,consecutive_failures,last_error,last_duration_ms,last_found,last_new_items,status)
+        VALUES(?,?,NULL,?,1,?,NULL,0,0,'degraded')
+        ON CONFLICT(source) DO UPDATE SET
+          last_attempt=excluded.last_attempt,
+          last_failed=excluded.last_failed,
+          consecutive_failures=COALESCE(source_health.consecutive_failures,0)+1,
+          last_error=excluded.last_error,
+          status='degraded' ''',
+        (str(source), now, now, f"ingestion_commit_failed:{type(error).__name__}"))
+    conn.commit()
+
+
 def get_source_cursor(conn, source):
     ensure_source_health(conn)
     row = conn.execute('SELECT watermark FROM source_cursor WHERE source=?', (source,)).fetchone()
@@ -133,8 +156,6 @@ def _failure_count(item):
         return None
     if failures < 0:
         return None
-    # Legacy rows created before the failure counter existed may carry only the
-    # old degraded status. Preserve that evidence instead of declaring healthy.
     if failures == 0 and item.get('status') == 'degraded':
         return 1
     return failures
@@ -206,9 +227,9 @@ def _derive_source_state(item, *, now, default_stale_after_minutes=15):
 def source_health_snapshot(conn, stale_after_minutes=15, *, now=None):
     """Compatibility snapshot for sources that already have observability rows.
 
-    ``status='stale'`` remains for legacy consumers. New consumers must use the
-    additive ``freshness`` and ``health`` fields, which keep time and connector
-    availability as separate dimensions.
+    ``status`` is a legacy compatibility field and must never remain stronger than
+    the derived freshness/health authority. New consumers should use the additive
+    ``freshness`` and ``health`` fields directly.
     """
     ensure_source_health(conn)
     rows = conn.execute('SELECT * FROM source_health ORDER BY source').fetchall()
@@ -220,8 +241,18 @@ def source_health_snapshot(conn, stale_after_minutes=15, *, now=None):
     for row in rows:
         item = dict(row)
         state = _derive_source_state(item, now=now, default_stale_after_minutes=stale_after_minutes)
-        if item['status'] == 'healthy' and state['freshness'] == 'stale':
-            item['status'] = 'stale'
+        if item['status'] == 'healthy':
+            failures = _failure_count(item)
+            if state['freshness'] == 'unknown' or state['health'] == 'unknown':
+                item['status'] = 'unknown'
+            elif state['health'] == 'unavailable':
+                item['status'] = 'unavailable'
+            elif state['health'] == 'degraded' and failures not in (None, 0):
+                item['status'] = 'degraded'
+            elif state['freshness'] == 'stale':
+                item['status'] = 'stale'
+            elif state['health'] != 'healthy':
+                item['status'] = state['health']
         item.update(state)
         cursor = conn.execute('SELECT watermark FROM source_cursor WHERE source=?', (item['source'],)).fetchone()
         item['watermark'] = cursor['watermark'] if cursor else None
