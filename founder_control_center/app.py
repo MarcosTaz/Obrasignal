@@ -8,7 +8,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session, u
 
 from .actions import execute, list_actions
 from .ranking import highest_value_actions, rank_portfolio
-from .registry import get_company, init_db, list_audit, list_companies, register_company_stub
+from .registry import get_company, ingest_factory_state, init_db, list_audit, list_companies, register_company_stub
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -30,6 +30,20 @@ def create_app(test_config: dict | None = None) -> Flask:
                 if request.path.startswith("/api/"):
                     return jsonify({"ok": False, "error": "authentication_required"}), 401
                 return redirect(url_for("login", next=request.path))
+            return fn(*args, **kwargs)
+        return wrapped
+
+    def factory_ingest_required(fn):
+        @wraps(fn)
+        def wrapped(*args, **kwargs):
+            expected = os.getenv("FCC_FACTORY_INGEST_TOKEN")
+            if not expected:
+                return jsonify({"ok": False, "error": "factory_ingest_not_configured"}), 503
+            header = request.headers.get("Authorization", "")
+            prefix = "Bearer "
+            candidate = header[len(prefix):] if header.startswith(prefix) else ""
+            if not candidate or not hmac.compare_digest(candidate, expected):
+                return jsonify({"ok": False, "error": "factory_ingest_authentication_required"}), 401
             return fn(*args, **kwargs)
         return wrapped
 
@@ -97,6 +111,22 @@ def create_app(test_config: dict | None = None) -> Flask:
         except ValueError as exc:
             return jsonify({"ok": False, "error": "invalid_company_manifest", "detail": str(exc)}), 400
         return jsonify({"ok": True, "company": company.to_dict()}), 201
+
+    @app.post("/api/ingest/factory-state")
+    @factory_ingest_required
+    def api_ingest_factory_state():
+        data = request.get_json(silent=True) or {}
+        try:
+            company = ingest_factory_state(
+                company_id=str(data.get("company_id", "")), factory_name=str(data.get("factory_name", "")),
+                active=str(data.get("active", "")), next_value=str(data.get("next", "")), wait=str(data.get("wait", "")),
+                source=str(data.get("source", "")), observed_at=data.get("observed_at"), freshness_seconds=data.get("freshness_seconds", 3600),
+                material_delta=data.get("material_delta"),
+            )
+        except (TypeError, ValueError) as exc:
+            return jsonify({"ok": False, "error": "invalid_factory_state", "detail": str(exc)}), 400
+        factory = next((item for item in company.factories if item.name == str(data.get("factory_name", "")).strip()), None)
+        return jsonify({"ok": True, "company_id": company.id, "factory": factory.__dict__ if factory else None, "last_update": company.last_update}), 200
 
     @app.get("/api/companies/<company_id>")
     @auth_required
