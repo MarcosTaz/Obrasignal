@@ -9,7 +9,7 @@ from typing import Any
 
 from factory_cloud.adapters import AdapterRegistry, ExecutionRequest, ExecutionResult
 from factory_cloud.control_plane import ACTIVATION_CODE, RegistryError, load_registry
-from factory_cloud.state_store import StateStore, utc_now
+from factory_cloud.state_store import StateStore, StateStoreError, utc_now
 
 DEFAULT_STATE_PATH = Path(__file__).with_name("factory_cloud_state.sqlite3")
 TERMINAL_SAFE_STATUSES = {"DONE", "WAIT", "BLOCKED", "ERROR"}
@@ -57,15 +57,34 @@ class PersistentFactoryOrchestrator:
                 self.store.upsert_from_registry(app)
 
     def recover_interrupted_executions(self) -> None:
-        """Convert crash/interruption into an exact resumable checkpoint."""
+        """Close interrupted history and restore the exact task as RESUME_AT."""
         for app in self.store.list_apps():
             current = app.get("current_execution")
             if app.get("state") != "EXECUTING" or not current:
                 continue
             task = str(current.get("task") or app.get("resume_at") or app.get("active") or "")
+            execution_id = str(current.get("execution_id") or "").strip()
             retry = dict(app.get("retry_state") or {})
+            interrupted_at = utc_now()
             retry["interrupted_count"] = int(retry.get("interrupted_count", 0)) + 1
-            retry["last_interrupted_at"] = utc_now()
+            retry["last_interrupted_at"] = interrupted_at
+            interruption = {
+                "type": "PROCESS_INTERRUPTED",
+                "task": task,
+                "execution_id": execution_id or None,
+            }
+            if execution_id:
+                try:
+                    self.store.finish_execution(
+                        app["app_id"],
+                        execution_id,
+                        "INTERRUPTED",
+                        {"recovered_at": interrupted_at, "resume_at": task},
+                        interruption,
+                    )
+                except StateStoreError as exc:
+                    # Never erase continuity when history is already inconsistent.
+                    interruption["history_error"] = str(exc)
             self.store.checkpoint(
                 app["app_id"],
                 state="READY",
@@ -73,7 +92,7 @@ class PersistentFactoryOrchestrator:
                 resume_at=task,
                 current_execution_json=None,
                 retry_state_json=retry,
-                error_state_json={"type": "PROCESS_INTERRUPTED", "task": task},
+                error_state_json=interruption,
             )
 
     def _app_config(self, app_id: str) -> dict[str, Any]:
@@ -218,7 +237,6 @@ class PersistentFactoryOrchestrator:
                 }
             )
             if result.status == "DONE":
-                # DONE -> persist -> immediately execute NEXT for same app unless no task remains.
                 state = self.store.get_app(decision.app_id)
                 if state and self._decision_for(state) is not None:
                     continue
