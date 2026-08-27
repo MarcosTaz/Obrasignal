@@ -7,7 +7,7 @@ _tmp = tempfile.NamedTemporaryFile(prefix="fcc-test-", suffix=".db", delete=Fals
 _tmp.close()
 os.environ["FCC_DB"] = _tmp.name
 
-from founder_control_center.actions import execute
+from founder_control_center.actions import execute, list_actions
 from founder_control_center.app import create_app
 from founder_control_center.models import TruthState
 from founder_control_center.ranking import highest_value_actions, rank_portfolio
@@ -55,6 +55,13 @@ class ControlCenterTests(unittest.TestCase):
             self.assertFalse(body["ok"])
             self.assertFalse(body["prepared"])
             self.assertFalse(body["executed"])
+
+    def test_yellow_action_catalog_names_the_approval_gate(self):
+        actions = {item["id"]: item for item in list_actions()}
+        self.assertIn("approval gate", actions["prepare_deployment"]["label"].lower())
+        self.assertIn("does not create or execute", actions["prepare_deployment"]["description"].lower())
+        self.assertIn("approval gate", actions["send_outreach"]["label"].lower())
+        self.assertIn("does not send", actions["send_outreach"]["description"].lower())
 
     def test_green_state_update_executes(self):
         body, status = execute("update_factory_state", "founder-control-center", {"active": "Run tests"})
