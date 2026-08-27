@@ -92,6 +92,17 @@ class BusinessMetricFeedTests(unittest.TestCase):
         self.assertEqual(persisted.value, 12)
         self.assertEqual(persisted.evidence.source, "ci:newer-customer-source")
 
+    def test_future_dated_metric_is_rejected(self):
+        os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
+        payload = dict(self.payload, metric_key="pipeline", value=999, observed_at="2099-01-01T00:00:00Z")
+        response = self.client.post(
+            "/api/ingest/business-metric",
+            json=payload,
+            headers={"Authorization": "Bearer metric-test-secret"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("future-dated", response.get_json()["detail"])
+
     def test_customers_reject_fractional_or_negative_values(self):
         os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
         for value in (-1, 1.5):
