@@ -4,7 +4,7 @@ import pytest
 import app
 import preload
 import source_runtime
-from source_health import get_source_cursor, source_health_contract
+from source_health import get_source_cursor, source_health_snapshot
 
 
 def _point_db(monkeypatch, tmp_path):
@@ -24,6 +24,12 @@ def _ted_row():
     }
 
 
+def _ted_health(conn):
+    items = [item for item in source_health_snapshot(conn) if item["source"] == "TED"]
+    assert len(items) == 1
+    return items[0]
+
+
 def test_fetch_success_cannot_remain_current_ingestion_truth_after_commit_failure(monkeypatch, tmp_path):
     _point_db(monkeypatch, tmp_path)
     source_runtime.discard_staged_source_syncs()
@@ -34,10 +40,9 @@ def test_fetch_success_cannot_remain_current_ingestion_truth_after_commit_failur
 
     conn = app.db()
     try:
-        before = source_health_contract(conn, sources=["TED"])
-        before_item = before["items"][0]
-        assert before_item["health"] == "healthy"
-        assert before_item["freshness"] == "fresh"
+        before = _ted_health(conn)
+        assert before["status"] == "healthy"
+        # #238's repaired TED path stages the cursor until canonical source commit.
         assert get_source_cursor(conn, "TED") is None
 
         def fail_metadata(*_args, **_kwargs):
@@ -47,15 +52,19 @@ def test_fetch_success_cannot_remain_current_ingestion_truth_after_commit_failur
         with pytest.raises(RuntimeError, match="synthetic canonical commit failure"):
             source_runtime.commit_staged_source_syncs(conn)
 
+        # Cursor atomicity remains correct after rollback.
         assert get_source_cursor(conn, "TED") is None
-        after = source_health_contract(conn, sources=["TED"])
-        after_item = after["items"][0]
-        assert not (
-            after_item["health"] == "healthy"
-            and after_item["freshness"] == "fresh"
-            and after_item["stats_state"] == "current"
-        ), "FETCH_SUCCESS_OUTLIVED_FAILED_INGESTION: failed canonical commit still looks fresh/current"
-        assert after["summary"]["all_expected_sources_current"] is False
+        after = _ted_health(conn)
+
+        # Current #238 has no separate ingestion-health dimension. If the one
+        # public/durable source-health state remains healthy after the staged
+        # canonical commit failed, fetch success can be mistaken for durable
+        # ingestion truth. Owner repair may instead add an explicit ingestion
+        # dimension; this concrete assertion is only the failing-before shape.
+        assert after["status"] != "healthy", (
+            "FETCH_SUCCESS_OUTLIVED_FAILED_INGESTION: fetch observation remains healthy "
+            "after canonical source commit failed and no cursor became durable"
+        )
     finally:
         conn.close()
         source_runtime.discard_staged_source_syncs()
