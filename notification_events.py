@@ -22,6 +22,7 @@ EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts"
 # ladder. There is deliberately no ninth provider replay for the same pair.
 MAX_PUSH_ATTEMPTS = 8
 _INSTALLATION_RE = re.compile(r"^[A-Za-z0-9._:-]{8,160}$")
+_TICKET_PARENTAGE_CONFLICT = "provider_ticket_parentage_conflict"
 
 
 def _norm(value):
@@ -139,6 +140,30 @@ def ensure_push_tables(conn):
         if column not in delivery_cols:
             conn.execute(f"ALTER TABLE push_deliveries ADD COLUMN {column} {ddl}")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_push_deliveries_event_device ON push_deliveries(event_id,push_device_id)")
+    # Provider tickets are external receipt identities. Keep a separate additive
+    # parent ledger so historical duplicate ticket rows can remain visible for
+    # audit without being laundered into one invented authoritative parent.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS push_ticket_parents(
+            ticket_id TEXT PRIMARY KEY,
+            push_delivery_id INTEGER NOT NULL UNIQUE,
+            claimed_at TEXT NOT NULL
+        )"""
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_push_ticket_parent_delivery ON push_ticket_parents(push_delivery_id)")
+    # Safe migration only: bind historical tickets that already have exactly one
+    # local delivery parent. Duplicate historical tickets remain UNKNOWN.
+    conn.execute(
+        """INSERT OR IGNORE INTO push_ticket_parents(ticket_id,push_delivery_id,claimed_at)
+           SELECT pd.ticket_id,pd.id,COALESCE(pd.submitted_at,pd.last_attempt_at,?)
+           FROM push_deliveries pd
+           WHERE pd.ticket_id IS NOT NULL
+             AND TRIM(pd.ticket_id)<>''
+             AND pd.submitted_at IS NOT NULL
+             AND COALESCE(pd.receipt_error,'')<>?
+             AND (SELECT COUNT(*) FROM push_deliveries other WHERE other.ticket_id=pd.ticket_id)=1""",
+        (_iso_now(), _TICKET_PARENTAGE_CONFLICT),
+    )
 
 
 def _revoke_device_row(conn, device_id, *, expected_token=None, error=None):
@@ -312,6 +337,48 @@ def _record_push_attempt(conn, row, *, ticket_id=None, submitted_at=None, error=
     )
 
 
+def _claim_provider_ticket_parent(conn, row, ticket_id, claimed_at=None):
+    """Bind one provider ticket to one exact local delivery or fail closed."""
+    ticket_id = str(ticket_id or "").strip()
+    if not ticket_id:
+        return False
+    local = conn.execute(
+        "SELECT id FROM push_deliveries WHERE event_id=? AND push_device_id=? AND ticket_id=?",
+        (row["event_id"], row["push_device_id"], ticket_id),
+    ).fetchone()
+    if not local:
+        return False
+    count = conn.execute("SELECT COUNT(*) FROM push_deliveries WHERE ticket_id=?", (ticket_id,)).fetchone()[0]
+    if int(count) != 1:
+        return False
+    conn.execute(
+        "INSERT OR IGNORE INTO push_ticket_parents(ticket_id,push_delivery_id,claimed_at) VALUES (?,?,?)",
+        (ticket_id, local["id"], claimed_at or _iso_now()),
+    )
+    owner = conn.execute(
+        "SELECT push_delivery_id FROM push_ticket_parents WHERE ticket_id=?",
+        (ticket_id,),
+    ).fetchone()
+    return bool(owner and int(owner["push_delivery_id"]) == int(local["id"]))
+
+
+def _mark_ticket_parentage_conflict(conn, ticket_id, now=None):
+    """Preserve ambiguous provider evidence but make it non-authoritative."""
+    ticket_id = str(ticket_id or "").strip()
+    if not ticket_id:
+        return 0
+    now = now or _iso_now()
+    conn.execute("DELETE FROM push_ticket_parents WHERE ticket_id=?", (ticket_id,))
+    cursor = conn.execute(
+        """UPDATE push_deliveries
+           SET receipt_status='error',receipt_checked_at=?,receipt_error=?,last_error=?,
+               failed_at=COALESCE(failed_at,?),next_attempt_at=NULL
+           WHERE ticket_id=?""",
+        (now, _TICKET_PARENTAGE_CONFLICT, _TICKET_PARENTAGE_CONFLICT, now, ticket_id),
+    )
+    return cursor.rowcount
+
+
 def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
     """Submit pending account-scoped events to Expo; retries terminate after the owner budget."""
     _finalize_exhausted_pushes(conn, account_id)
@@ -362,6 +429,17 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
         conn.commit()
         return 0
 
+    # Detect duplicate provider ticket identities in the same response before any
+    # one row can claim authority. A duplicate provider id means causal parentage
+    # is UNKNOWN even if Expo accepted every payload.
+    ticket_counts = {}
+    for ticket in tickets:
+        if not isinstance(ticket, dict) or ticket.get("status") != "ok":
+            continue
+        ticket_id = str(ticket.get("id") or "").strip()
+        if ticket_id:
+            ticket_counts[ticket_id] = ticket_counts.get(ticket_id, 0) + 1
+
     submitted = 0
     now_dt = datetime.now(timezone.utc)
     now = now_dt.isoformat()
@@ -371,6 +449,13 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
         ticket_id = str(ticket.get("id") or "").strip() if isinstance(ticket, dict) else ""
         if status == "ok" and ticket_id:
             _record_push_attempt(conn, row, ticket_id=ticket_id, submitted_at=now, attempted_at=now)
+            if ticket_counts.get(ticket_id, 0) != 1 or not _claim_provider_ticket_parent(conn, row, ticket_id, now):
+                _mark_ticket_parentage_conflict(conn, ticket_id, now)
+                conn.execute(
+                    "UPDATE push_devices SET last_error=? WHERE id=?",
+                    (_TICKET_PARENTAGE_CONFLICT, row["push_device_id"]),
+                )
+                continue
             conn.execute("UPDATE push_devices SET last_error=NULL WHERE id=?", (row["push_device_id"],))
             submitted += 1
             continue
@@ -409,11 +494,28 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
 def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, min_age_seconds=900):
     """Reconcile Expo tickets to provider receipts without claiming device/user delivery."""
     ensure_push_tables(conn)
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    # Parentage is global to the external ticket identity, not tenant-local. Any
+    # duplicate historical/current ticket is made terminally non-authoritative
+    # before the provider is queried, so one receipt can never fan out.
+    duplicate_tickets = conn.execute(
+        """SELECT ticket_id FROM push_deliveries
+           WHERE ticket_id IS NOT NULL AND TRIM(ticket_id)<>''
+           GROUP BY ticket_id HAVING COUNT(*)>1"""
+    ).fetchall()
+    for duplicate in duplicate_tickets:
+        _mark_ticket_parentage_conflict(conn, duplicate["ticket_id"], now)
+    if duplicate_tickets:
+        conn.commit()
+
     candidates = conn.execute(
         """SELECT pd.id,pd.event_id,pd.push_device_id,pd.ticket_id,pd.submitted_at,
                   pd.receipt_checked_at,pd.expo_push_token,pd.attempt_count
            FROM push_deliveries pd
            JOIN opportunity_events e ON e.id=pd.event_id
+           JOIN push_ticket_parents ptp
+             ON ptp.ticket_id=pd.ticket_id AND ptp.push_delivery_id=pd.id
            WHERE e.account_id=?
              AND pd.ticket_id IS NOT NULL
              AND pd.submitted_at IS NOT NULL
@@ -425,7 +527,6 @@ def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, mi
     if not candidates:
         return 0
 
-    now_dt = datetime.now(timezone.utc)
     due = []
     for row in candidates:
         reference = _parse_iso(row["receipt_checked_at"]) or _parse_iso(row["submitted_at"])
@@ -489,6 +590,10 @@ def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, mi
             # Expo explicitly recommends exponential backoff and retry for this
             # receipt state, but the local owner budget still forbids replay > 8.
             retry_at = _next_retry_at(int(row["attempt_count"]) + 1, now_dt)
+            conn.execute(
+                "DELETE FROM push_ticket_parents WHERE ticket_id=? AND push_delivery_id=?",
+                (row["ticket_id"], row["id"]),
+            )
             conn.execute(
                 """UPDATE push_deliveries
                    SET ticket_id=NULL,submitted_at=NULL,last_error=?,next_attempt_at=?,
