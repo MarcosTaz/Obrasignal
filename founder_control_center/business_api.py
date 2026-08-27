@@ -7,6 +7,7 @@ from functools import wraps
 from flask import Blueprint, jsonify, request
 
 from .business_feed import ingest_business_metric
+from .registry import append_audit
 
 business_api = Blueprint("business_api", __name__)
 
@@ -43,5 +44,18 @@ def api_ingest_business_metric():
             detail=data.get("detail"),
         )
     except (TypeError, ValueError) as exc:
+        append_audit(
+            actor="business_metric_feed",
+            action="ingest_business_metric",
+            level="GREEN",
+            company_id=str(data.get("company_id", ""))[:120] or None,
+            result="rejected_invalid_business_metric",
+            source_data={
+                "metric_key": str(data.get("metric_key", ""))[:120],
+                "source": str(data.get("source", ""))[:300],
+                "payload_keys": sorted(str(key)[:120] for key in data.keys())[:50],
+            },
+            failure_state=str(exc)[:300],
+        )
         return jsonify({"ok": False, "error": "invalid_business_metric", "detail": str(exc)}), 400
     return jsonify({"ok": True, "company_id": str(data.get("company_id", "")), "metric": metric.__dict__ | {"state": metric.state.value, "evidence": metric.evidence.__dict__ if metric.evidence else None}}), 200
