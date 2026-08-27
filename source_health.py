@@ -85,6 +85,29 @@ def record_source_result(conn, source, *, success, duration_ms, found=0, new_ite
     conn.commit()
 
 
+def record_source_ingestion_failure(conn, source, *, error, observed_at=None):
+    """Degrade source currentness after canonical persistence rolls back.
+
+    Fetch success and durable ingestion are distinct evidence. Preserve the prior
+    successful fetch timestamp/counts for diagnosis, but record a bounded failure
+    observation and degraded status so the public Source Health contract cannot
+    mistake successful transport for committed source state.
+    """
+    ensure_source_health(conn)
+    now = _utc_iso(observed_at)
+    conn.execute('''INSERT INTO source_health
+        (source,last_attempt,last_success,last_failed,consecutive_failures,last_error,last_duration_ms,last_found,last_new_items,status)
+        VALUES(?,?,NULL,?,1,?,NULL,0,0,'degraded')
+        ON CONFLICT(source) DO UPDATE SET
+          last_attempt=excluded.last_attempt,
+          last_failed=excluded.last_failed,
+          consecutive_failures=COALESCE(source_health.consecutive_failures,0)+1,
+          last_error=excluded.last_error,
+          status='degraded' ''',
+        (str(source), now, now, f"ingestion_commit_failed:{type(error).__name__}"))
+    conn.commit()
+
+
 def get_source_cursor(conn, source):
     ensure_source_health(conn)
     row = conn.execute('SELECT watermark FROM source_cursor WHERE source=?', (source,)).fetchone()
@@ -133,8 +156,6 @@ def _failure_count(item):
         return None
     if failures < 0:
         return None
-    # Legacy rows created before the failure counter existed may carry only the
-    # old degraded status. Preserve that evidence instead of declaring healthy.
     if failures == 0 and item.get('status') == 'degraded':
         return 1
     return failures
