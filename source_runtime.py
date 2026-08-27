@@ -13,7 +13,7 @@ import threading
 
 from opportunity_lifecycle import persist_lifecycle_observations
 from signal_store import persist_signal_records
-from source_health import set_source_cursor
+from source_health import record_source_result, set_source_cursor
 from source_metadata import persist_source_metadata
 
 
@@ -61,6 +61,31 @@ def _empty_commit_result():
     }
 
 
+def _record_failed_durable_ingestion(conn, pending, exc):
+    """Degrade fetch health after a staged source transaction rolls back.
+
+    Fetch observability is committed before this durable source transaction. If
+    persistence later fails, keeping that earlier observation as healthy would
+    make transport success masquerade as durable-ingestion success. Record a
+    fail-closed source attempt after rollback while preserving the original
+    ingestion exception as the caller-visible failure.
+    """
+    for item in pending:
+        try:
+            record_source_result(
+                conn,
+                item.source,
+                success=False,
+                duration_ms=0,
+                error=f"durable ingestion failed: {exc}",
+            )
+        except Exception:
+            # Health compensation must never mask the original persistence
+            # failure. Roll back any partial compensation and keep propagating
+            # the authoritative ingestion exception below.
+            conn.rollback()
+
+
 def commit_staged_source_syncs(conn):
     """Atomically persist Signal, metadata, lifecycle and source cursors.
 
@@ -69,6 +94,10 @@ def commit_staged_source_syncs(conn):
     together. A malformed Signal identity/type, metadata/lifecycle write failure
     or cursor failure rolls back the complete source-side transaction, preventing
     silent data loss and preserving fail-closed cursor semantics.
+
+    Fetch observability may already have recorded a successful transport. If this
+    durable transaction fails, the affected source health is degraded after the
+    rollback so currentness never remains stronger than durable ingestion truth.
     """
     pending = staged_source_syncs()
     if not pending:
@@ -95,8 +124,9 @@ def commit_staged_source_syncs(conn):
                 set_source_cursor(conn, item.source, item.cursor, commit=False)
                 cursors += 1
         conn.commit()
-    except Exception:
+    except Exception as exc:
         conn.rollback()
+        _record_failed_durable_ingestion(conn, pending, exc)
         raise
     finally:
         discard_staged_source_syncs()
