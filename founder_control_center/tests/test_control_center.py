@@ -94,6 +94,28 @@ class ControlCenterTests(unittest.TestCase):
         self.assertFalse(body["ok"])
         self.assertEqual(body["error"], "no_state_change")
 
+    def test_oversized_state_update_is_rejected_not_truncated(self):
+        before = get_company("founder-control-center").active
+        body, status = execute("update_factory_state", "founder-control-center", {"active": "A" * 501})
+        self.assertEqual(status, 400)
+        self.assertFalse(body["ok"])
+        self.assertEqual(body["error"], "state_field_too_long")
+        self.assertEqual(body["field"], "active")
+        self.assertEqual(get_company("founder-control-center").active, before)
+
+    def test_invalid_supplied_state_field_is_rejected_not_ignored(self):
+        before = get_company("founder-control-center").next
+        body, status = execute(
+            "update_factory_state",
+            "founder-control-center",
+            {"active": 123, "next": "Would otherwise be accepted"},
+        )
+        self.assertEqual(status, 400)
+        self.assertFalse(body["ok"])
+        self.assertEqual(body["error"], "invalid_state_field")
+        self.assertEqual(body["field"], "active")
+        self.assertEqual(get_company("founder-control-center").next, before)
+
     def test_health_does_not_claim_global_green(self):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
