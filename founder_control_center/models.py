@@ -36,9 +36,15 @@ class Evidence:
         except (AttributeError, ValueError):
             return TruthState.UNKNOWN
         now = now or datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-        age = max(0, int((now - dt.astimezone(timezone.utc)).total_seconds()))
+        dt = dt.astimezone(timezone.utc)
+        now = now.astimezone(timezone.utc)
+        if (dt - now).total_seconds() > 300:
+            return TruthState.UNKNOWN
+        age = max(0, int((now - dt).total_seconds()))
         if self.freshness_seconds is not None and age > self.freshness_seconds:
             return TruthState.STALE
         return TruthState.GREEN
