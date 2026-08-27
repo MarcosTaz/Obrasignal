@@ -48,7 +48,7 @@ class FactoryIngestTests(unittest.TestCase):
     def test_missing_source_is_rejected_not_stringified(self):
         response = self._post(dict(self.payload, source=None))
         self.assertEqual(response.status_code, 400)
-        self.assertIn("source are required", response.get_json()["detail"])
+        self.assertIn("source is required", response.get_json()["detail"])
 
     def test_non_object_payload_is_rejected_without_server_error(self):
         os.environ["FCC_FACTORY_INGEST_TOKEN"] = "factory-test-secret"
