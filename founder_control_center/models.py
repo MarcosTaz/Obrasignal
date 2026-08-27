@@ -33,7 +33,7 @@ class Evidence:
             return TruthState.UNKNOWN
         try:
             dt = datetime.fromisoformat(self.observed_at.replace("Z", "+00:00"))
-        except ValueError:
+        except (AttributeError, ValueError):
             return TruthState.UNKNOWN
         now = now or datetime.now(timezone.utc)
         if dt.tzinfo is None:
@@ -89,6 +89,8 @@ class ApplicationState:
     deployment: TruthState = TruthState.UNKNOWN
     health: TruthState = TruthState.UNKNOWN
     evidence: Evidence | None = None
+    deployment_evidence: Evidence | None = None
+    health_evidence: Evidence | None = None
 
 
 @dataclass
