@@ -229,22 +229,52 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
 
 
 def ingest_factory_state(*, company_id: str, factory_name: str, active: str, next_value: str, wait: str, source: str, observed_at: str | None = None, freshness_seconds: int = 3600, material_delta: str | None = None) -> CompanyManifest:
-    """Ingest one Factory's own state without granting it authority over the whole company manifest."""
-    values = [factory_name, active, next_value, wait]
-    if not all(isinstance(value, str) and value.strip() for value in values):
-        raise ValueError("factory_name, active, next and wait are required")
+    """Ingest one Factory's own state without truncating or fabricating source truth."""
+    if not isinstance(company_id, str) or not company_id.strip() or len(company_id.strip()) > 120:
+        raise ValueError("company_id must be a non-empty string of at most 120 characters")
+    company_id = company_id.strip()
+
+    raw_fields = {
+        "factory_name": (factory_name, 160),
+        "active": (active, 1000),
+        "next": (next_value, 1000),
+        "wait": (wait, 1000),
+    }
+    normalized_fields: dict[str, str] = {}
+    for field, (value, limit) in raw_fields.items():
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("factory_name, active, next and wait are required")
+        normalized = value.strip()
+        if len(normalized) > limit:
+            raise ValueError(f"{field} must be at most {limit} characters")
+        normalized_fields[field] = normalized
+
+    if material_delta is not None:
+        if not isinstance(material_delta, str):
+            raise ValueError("material_delta must be a string or null")
+        material_delta = material_delta.strip()
+        if len(material_delta) > 2000:
+            raise ValueError("material_delta must be at most 2000 characters")
+
     source_label = normalize_source_label(source)
-    factory_name = factory_name.strip()[:160]
-    observed_at = observed_at or now_iso()
-    if not isinstance(observed_at, str):
+    factory_name = normalized_fields["factory_name"]
+    active = normalized_fields["active"]
+    next_value = normalized_fields["next"]
+    wait = normalized_fields["wait"]
+
+    if observed_at is None:
+        observed_at = now_iso()
+    elif not isinstance(observed_at, str) or not observed_at.strip():
         raise ValueError("observed_at must be ISO-8601")
+    else:
+        observed_at = observed_at.strip()
     try:
         parsed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
         incoming_observed = parsed.astimezone(timezone.utc)
         observed_at = incoming_observed.isoformat()
-    except ValueError as exc:
+    except (AttributeError, ValueError) as exc:
         raise ValueError("observed_at must be ISO-8601") from exc
     if (incoming_observed - datetime.now(timezone.utc)).total_seconds() > 300:
         raise ValueError("future-dated Factory state evidence rejected")
@@ -253,6 +283,7 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
     freshness_seconds = max(60, min(freshness_seconds, 7 * 24 * 3600))
 
     evidence = Evidence(source=source_label, observed_at=observed_at, freshness_seconds=freshness_seconds, kind="factory_feed", detail="Factory-owned ACTIVE/NEXT/WAIT feed; does not override global company truth.")
+    incoming_fingerprint = (active, next_value, wait, material_delta, source_label, freshness_seconds)
 
     def apply(company: CompanyManifest) -> FactoryState:
         existing = next((item for item in company.factories if item.name == factory_name), None)
@@ -261,16 +292,28 @@ def ingest_factory_state(*, company_id: str, factory_name: str, active: str, nex
                 current_observed = datetime.fromisoformat(existing.evidence.observed_at.replace("Z", "+00:00"))
                 if current_observed.tzinfo is None:
                     current_observed = current_observed.replace(tzinfo=timezone.utc)
-                if incoming_observed < current_observed.astimezone(timezone.utc):
-                    raise ValueError("out-of-order Factory state evidence rejected")
-            except AttributeError:
-                pass
+                current_observed = current_observed.astimezone(timezone.utc)
+            except (AttributeError, ValueError) as exc:
+                raise ValueError("existing Factory state evidence has invalid observed_at") from exc
+            if incoming_observed < current_observed:
+                raise ValueError("out-of-order Factory state evidence rejected")
+            if incoming_observed == current_observed:
+                existing_fingerprint = (
+                    existing.active,
+                    existing.next,
+                    existing.wait,
+                    existing.material_delta,
+                    existing.evidence.source,
+                    existing.evidence.freshness_seconds,
+                )
+                if existing_fingerprint != incoming_fingerprint:
+                    raise ValueError("conflicting Factory state evidence at identical observed_at rejected")
         factory = FactoryState(
             name=factory_name,
-            active=active.strip()[:1000],
-            next=next_value.strip()[:1000],
-            wait=wait.strip()[:1000],
-            material_delta=material_delta.strip()[:2000] if isinstance(material_delta, str) else None,
+            active=active,
+            next=next_value,
+            wait=wait,
+            material_delta=material_delta,
             evidence=evidence,
             freshness=evidence.freshness_state(),
         )
