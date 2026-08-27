@@ -5,6 +5,7 @@ Private, fail-closed control plane for the founder portfolio.
 ## Invariants
 
 - `UNKNOWN != GREEN`
+- stale evidence invalidates previously trusted operational states
 - dashboard state never replaces source-of-truth systems
 - every material status carries source/freshness metadata
 - RED actions never execute autonomously
@@ -14,31 +15,42 @@ Private, fail-closed control plane for the founder portfolio.
 
 ## Current MVP
 
-- private token-based authentication (fails closed if token is absent)
-- normalized Company Manifest model
+- private founder authentication with stable server-side session secret
+- CSRF protection for founder mutations and hardened response headers
+- normalized Company Manifest model for current and future companies
 - all known portfolio items visible from first boot
-- ACTIVE / NEXT / WAIT per company
-- CEO attention ranking with explicit uncertainty
+- ACTIVE / NEXT / WAIT per company and source-aware Factory feeds
+- CEO attention ranking with explicit uncertainty and escalation for degraded CI/deployment/health
 - central highest-value Action Center
-- company detail pages
 - GREEN / YELLOW / RED enforcement
-- audit log for every attempted control action
-- read-only GitHub adapter
+- persistent SQLite registry and audit history
+- read-only GitHub repository, CI and deployment adapters
 - application health adapter
+- canonical server-to-server business metric feed for revenue, pipeline and customers
 - normalized per-company APIs for metrics, Factory state, risks, revenue and actions
 - responsive desktop/mobile UI
+- container definition for a private deployment; deployment itself is not automatic
 
-## Run
+## Run locally
 
 ```bash
 export FCC_ADMIN_TOKEN='use-a-long-random-secret'
 export FCC_SESSION_SECRET='use-another-long-random-secret'
+export FCC_SECURE_COOKIE=0
 python -m founder_control_center.app
 ```
 
 Open `http://127.0.0.1:8088`.
 
-For local HTTP only, set `FCC_SECURE_COOKIE=0`. Keep it enabled behind HTTPS.
+Keep `FCC_SECURE_COOKIE=1` behind HTTPS.
+
+## Container build
+
+```bash
+docker build -f founder_control_center/Dockerfile -t founder-control-center .
+```
+
+The container defaults to a single Gunicorn worker and `FCC_DB=/data/founder_control_center.db`. Mount `/data` on persistent storage for durable audit/registry state. This SQLite topology is intentionally single-instance; horizontal scaling requires a canonical shared database before replicas can be trusted.
 
 ## Tests
 
@@ -46,14 +58,20 @@ For local HTTP only, set `FCC_SECURE_COOKIE=0`. Keep it enabled behind HTTPS.
 python -m unittest discover -s founder_control_center/tests -v
 ```
 
+The dedicated pull-request workflow also builds the container image.
+
 ## Live integrations
 
-Public GitHub repositories can be refreshed read-only without credentials. Set `FCC_GITHUB_TOKEN` to enable private-repository truth and improve API allowance. A repository that cannot be accessed without credentials remains `UNKNOWN`; it is not silently marked healthy.
+Public GitHub repositories can be refreshed read-only without credentials. Set `FCC_GITHUB_TOKEN` to enable private-repository truth and improve API allowance. An inaccessible repository remains `UNKNOWN`.
 
-Application health refreshes use each manifest's configured application URL and deliberately distinguish transport/process health from business correctness.
+GitHub deployment status is a separate evidence channel from repository CI. Application health is separate again: HTTP/process health does not prove business correctness.
 
-Production deployment, billing changes, external communications, destructive data operations and irreversible commitments are not executed by this MVP.
+Factories can push only their own `ACTIVE / NEXT / WAIT` state through `/api/ingest/factory-state` using the separate `FCC_FACTORY_INGEST_TOKEN`. A Factory feed cannot overwrite global company truth.
 
-## Security status
+Canonical billing/CRM adapters can push only `revenue`, `pipeline` or `customers` through `/api/ingest/business-metric` using `FCC_METRIC_INGEST_TOKEN`. Every value requires explicit source, observation time and freshness. A null value is forced to `UNKNOWN`; the endpoint does not infer revenue or customers from product activity.
 
-Authentication is fail-closed. `FCC_ADMIN_TOKEN` and `FCC_SESSION_SECRET` stay server-side. The MVP does not claim 2FA is enabled: 2FA remains `UNKNOWN / NOT CONNECTED` until a real identity provider is integrated. Production deployment remains a YELLOW action requiring founder approval.
+## Security and authority status
+
+`FCC_ADMIN_TOKEN`, `FCC_SESSION_SECRET`, Factory/metric ingest tokens and optional GitHub credentials remain server-side. Founder session mutations require CSRF validation. Missing required private-session configuration fails closed.
+
+2FA/IdP integration remains `UNKNOWN / NOT CONNECTED`. Production deployment, billing changes, external communications, destructive data operations and irreversible commitments remain owner-controlled and are not executed by this MVP.
