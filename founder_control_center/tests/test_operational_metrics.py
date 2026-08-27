@@ -68,6 +68,17 @@ class OperationalMetricFeedTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["error"], "invalid_operational_metric")
 
+    def test_missing_source_is_rejected_instead_of_stringified(self):
+        response = self._post({
+            "company_id": "founder-control-center",
+            "metric_key": "evidence_gap",
+            "label": "Evidence gap",
+            "value": 1,
+            "source": None,
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "invalid_operational_metric")
+
     def test_null_custom_metric_is_unknown(self):
         response = self._post({
             "company_id": "founder-control-center",
