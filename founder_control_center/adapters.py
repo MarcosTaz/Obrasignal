@@ -71,7 +71,7 @@ class GitHubAdapter:
                         raw_statuses = statuses_payload.get("statuses")
                         if isinstance(raw_statuses, list):
                             status_count = len(raw_statuses)
-                        elif status_state in {"success", "failure", "error", "pending"}:
+                        elif status_state in {"success", "failure", "error", "pending", "expected"}:
                             status_count = 1
                     elif isinstance(total_count, bool):
                         raise ValueError("GitHub combined status total_count must be an integer")
@@ -86,16 +86,18 @@ class GitHubAdapter:
             running = {"queued", "in_progress", "requested", "waiting", "pending"}
             check_conclusions = {item.get("conclusion") for item in checks if item.get("status") == "completed"}
             check_statuses = {item.get("status") for item in checks}
+            status_failed = status_count > 0 and status_state in ("failure", "error")
+            status_pending = status_count > 0 and status_state in ("pending", "expected")
 
-            if check_conclusions & failed or status_state in ("failure", "error"):
+            if check_conclusions & failed or status_failed:
                 return TruthState.DEGRADED, "CI/check evidence contains a failing state."
 
             if not checks_response.ok or not statuses_response.ok:
                 return TruthState.UNKNOWN, "One or more GitHub CI evidence channels are inaccessible; success is not proven."
             if malformed:
                 return TruthState.UNKNOWN, "GitHub CI evidence shape is malformed; success is not proven."
-            if check_statuses & running or status_state == "pending":
-                return TruthState.UNKNOWN, "CI/check evidence is still running or pending."
+            if check_statuses & running or status_pending:
+                return TruthState.UNKNOWN, "CI/check evidence is still running, pending or expected."
             if any(item.get("conclusion") in ("neutral", "skipped") for item in checks):
                 return TruthState.UNKNOWN, "CI/check evidence contains neutral or skipped checks; success is not proven."
 
