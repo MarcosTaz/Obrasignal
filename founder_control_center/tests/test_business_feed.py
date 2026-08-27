@@ -78,6 +78,14 @@ class BusinessMetricFeedTests(unittest.TestCase):
             self.assertEqual(response.status_code, 400)
             self.assertIn("freshness_seconds must be an integer", response.get_json()["detail"])
 
+    def test_detail_is_typed_and_not_silently_truncated(self):
+        invalid = self._authorized_post(dict(self.payload, detail=["not", "text"]))
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("detail must be a string or null", invalid.get_json()["detail"])
+        oversized = self._authorized_post(dict(self.payload, detail="D" * 1001))
+        self.assertEqual(oversized.status_code, 400)
+        self.assertIn("detail must be at most 1000 characters", oversized.get_json()["detail"])
+
     def test_null_value_cannot_be_green(self):
         payload = dict(self.payload, metric_key="pipeline", value=None, state="GREEN")
         response = self._authorized_post(payload)
