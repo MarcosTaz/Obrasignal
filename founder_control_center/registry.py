@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import ApplicationState, CompanyManifest, Evidence, FactoryState, Metric, RepositoryState, Risk, TruthState
+from .security import validate_public_http_url
 from .seed import build_seed_companies
 
 DB_PATH = os.getenv("FCC_DB", str(Path(__file__).with_name("founder_control_center.db")))
@@ -119,7 +120,7 @@ def save_company(company: CompanyManifest) -> None:
 
 
 def register_company_stub(*, company_id: str, name: str, mission: str, kind: str = "company", repository_full_name: str | None = None, application_url: str | None = None) -> CompanyManifest:
-    """Register a future company without inventing operational truth."""
+    """Register a future company without inventing operational or network authority."""
     company_id = company_id.strip().lower()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,62}[a-z0-9]", company_id):
         raise ValueError("company_id must be a 3-64 character lowercase slug")
@@ -129,17 +130,18 @@ def register_company_stub(*, company_id: str, name: str, mission: str, kind: str
         raise ValueError("name and mission are required")
     if get_company(company_id):
         raise ValueError("company_id already exists")
+    normalized_application_url = validate_public_http_url(application_url) if application_url else None
     evidence = Evidence(source="founder_manual_registry", observed_at=now_iso(), freshness_seconds=None, kind="manual_registry", detail="Identity fields are founder-provided. Operational status remains UNKNOWN until canonical adapters provide evidence.")
     company = CompanyManifest(
         id=company_id, name=name[:120], mission=mission[:1000], kind=(kind or "company")[:80],
         status="UNKNOWN", stage="UNKNOWN", active="Connect canonical truth sources", next="Establish ACTIVE / NEXT / WAIT from evidence", wait="NONE",
         repository=RepositoryState(full_name=repository_full_name.strip() if repository_full_name else None, evidence=evidence),
-        application=ApplicationState(name=name, url=application_url.strip() if application_url else None, evidence=evidence),
+        application=ApplicationState(name=name, url=normalized_application_url, evidence=evidence),
         last_update=now_iso(), data_freshness=TruthState.UNKNOWN, synthetic=False,
         source_note="Registered manually; business, application and repository health remain UNKNOWN until source adapters prove them.",
     )
     save_company(company)
-    append_audit(actor="founder", action="register_company", level="GREEN", company_id=company_id, result="registered_unknown_truth", source_data={"repository": repository_full_name, "application_url": application_url})
+    append_audit(actor="founder", action="register_company", level="GREEN", company_id=company_id, result="registered_unknown_truth", source_data={"repository": repository_full_name, "application_url_configured": bool(normalized_application_url)})
     return company
 
 
