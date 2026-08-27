@@ -1,0 +1,47 @@
+from __future__ import annotations
+
+import hmac
+import os
+from functools import wraps
+
+from flask import Blueprint, jsonify, request
+
+from .business_feed import ingest_business_metric
+
+business_api = Blueprint("business_api", __name__)
+
+
+def metric_ingest_required(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        expected = os.getenv("FCC_METRIC_INGEST_TOKEN")
+        if not expected:
+            return jsonify({"ok": False, "error": "metric_ingest_not_configured"}), 503
+        header = request.headers.get("Authorization", "")
+        prefix = "Bearer "
+        candidate = header[len(prefix):] if header.startswith(prefix) else ""
+        if not candidate or not hmac.compare_digest(candidate, expected):
+            return jsonify({"ok": False, "error": "metric_ingest_authentication_required"}), 401
+        return fn(*args, **kwargs)
+    return wrapped
+
+
+@business_api.post("/api/ingest/business-metric")
+@metric_ingest_required
+def api_ingest_business_metric():
+    data = request.get_json(silent=True) or {}
+    try:
+        metric = ingest_business_metric(
+            company_id=str(data.get("company_id", "")),
+            metric_key=str(data.get("metric_key", "")),
+            value=data.get("value"),
+            source=str(data.get("source", "")),
+            observed_at=data.get("observed_at"),
+            freshness_seconds=data.get("freshness_seconds", 3600),
+            state=str(data.get("state", "GREEN")),
+            unit=data.get("unit"),
+            detail=data.get("detail"),
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": "invalid_business_metric", "detail": str(exc)}), 400
+    return jsonify({"ok": True, "company_id": str(data.get("company_id", "")), "metric": metric.__dict__ | {"state": metric.state.value, "evidence": metric.evidence.__dict__ if metric.evidence else None}}), 200
