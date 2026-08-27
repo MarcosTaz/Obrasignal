@@ -19,3 +19,5 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m compileall -q founder_control_center
       - run: python -m unittest discover -s founder_control_center/tests -v
+      - name: Build private deployment image
+        run: docker build -f founder_control_center/Dockerfile -t founder-control-center:ci .
