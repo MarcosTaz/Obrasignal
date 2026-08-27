@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .models import CompanyManifest, Risk, TruthState
+from .models import CompanyManifest, TruthState
+from .sources import risk_current_state
 
 
 @dataclass
@@ -28,25 +29,9 @@ def _factory_feed_states(company: CompanyManifest) -> list[TruthState]:
     ]
 
 
-AUTHORITATIVE_RISK_KINDS = {"risk_feed", "live_adapter"}
-
-
-def _risk_evidence_state(risk: Risk) -> TruthState:
-    """Return current risk evidence state without promoting contextual seed risks.
-
-    Context/manual/bootstrap risks are useful hypotheses and guardrails but do not
-    prove a currently active operational risk. Only an explicitly live risk source
-    can affect current-risk urgency, and stale live evidence becomes a refresh need.
-    """
-    evidence = risk.evidence
-    if evidence is None or evidence.kind not in AUTHORITATIVE_RISK_KINDS:
-        return TruthState.UNKNOWN
-    return evidence.freshness_state()
-
-
 def _high_risk_states(company: CompanyManifest) -> list[TruthState]:
     return [
-        _risk_evidence_state(risk)
+        risk_current_state(risk)
         for risk in company.risks
         if str(risk.severity).upper() in {"CRITICAL", "HIGH"}
     ]
