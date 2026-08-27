@@ -30,6 +30,8 @@ class ReadinessTests(unittest.TestCase):
             self.assertEqual(payload["private_access"]["state"], "CONFIGURED")
             self.assertEqual(payload["factory_feed"]["state"], "CONFIGURED")
             self.assertEqual(payload["business_metric_feed"]["state"], "CONFIGURED")
+            self.assertEqual(payload["private_github"]["state"], "CONFIGURED")
+            self.assertTrue(payload["private_github"]["token_configured"])
             self.assertEqual(payload["health_network_policy"]["state"], "PARTIAL")
             self.assertIn("DNS rebinding", payload["health_network_policy"]["claim"])
             serialized = json.dumps(payload)
@@ -49,6 +51,7 @@ class ReadinessTests(unittest.TestCase):
             "FCC_SESSION_SECRET": "also-short",
             "FCC_FACTORY_INGEST_TOKEN": "tiny",
             "FCC_METRIC_INGEST_TOKEN": "tiny",
+            "FCC_GITHUB_TOKEN": "tiny",
         }
         with patch.dict(os.environ, values, clear=True):
             payload = readiness_snapshot()
@@ -61,6 +64,9 @@ class ReadinessTests(unittest.TestCase):
             self.assertTrue(payload["factory_feed"]["token_present"])
             self.assertFalse(payload["factory_feed"]["token_configured"])
             self.assertEqual(payload["business_metric_feed"]["state"], "NOT_CONFIGURED")
+            self.assertEqual(payload["private_github"]["state"], "OPTIONAL_NOT_CONFIGURED")
+            self.assertTrue(payload["private_github"]["token_present"])
+            self.assertFalse(payload["private_github"]["token_configured"])
             self.assertEqual(payload["health_network_policy"]["state"], "PARTIAL")
 
     def test_missing_required_private_access_is_blocked_not_green(self):
@@ -69,6 +75,9 @@ class ReadinessTests(unittest.TestCase):
             self.assertEqual(payload["private_access"]["state"], "BLOCKED")
             self.assertEqual(payload["factory_feed"]["state"], "NOT_CONFIGURED")
             self.assertEqual(payload["business_metric_feed"]["state"], "NOT_CONFIGURED")
+            self.assertEqual(payload["private_github"]["state"], "OPTIONAL_NOT_CONFIGURED")
+            self.assertFalse(payload["private_github"]["token_present"])
+            self.assertFalse(payload["private_github"]["token_configured"])
             self.assertEqual(payload["two_factor"]["state"], "NOT_CONNECTED")
             self.assertEqual(payload["health_network_policy"]["state"], "PARTIAL")
 
