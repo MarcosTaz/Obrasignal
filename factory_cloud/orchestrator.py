@@ -32,9 +32,8 @@ class OrchestratorError(RuntimeError):
 class PersistentFactoryOrchestrator:
     """Process-restart-safe Factory Cloud scheduler.
 
-    Continuity is durable while a host process is run/restarted. This class does not
-    claim to create an always-running background service by itself; service lifetime
-    belongs to the external process manager hosting this runtime.
+    Interrupted execution recovery is intentionally explicit. A long-lived worker
+    must acquire dispatch authority before declaring an EXECUTING record interrupted.
     """
 
     def __init__(
@@ -42,13 +41,15 @@ class PersistentFactoryOrchestrator:
         registry: dict[str, Any],
         store: StateStore,
         adapters: AdapterRegistry | None = None,
+        recover_interrupted: bool = False,
     ):
         self.registry = registry
         self.store = store
         self.adapters = adapters or AdapterRegistry()
         self._apps = {app["app_id"]: app for app in registry.get("applications", [])}
         self.recover_registry()
-        self.recover_interrupted_executions()
+        if recover_interrupted:
+            self.recover_interrupted_executions()
 
     def recover_registry(self) -> None:
         for app in self.registry.get("applications", []):
@@ -68,31 +69,18 @@ class PersistentFactoryOrchestrator:
             interrupted_at = utc_now()
             retry["interrupted_count"] = int(retry.get("interrupted_count", 0)) + 1
             retry["last_interrupted_at"] = interrupted_at
-            interruption = {
-                "type": "PROCESS_INTERRUPTED",
-                "task": task,
-                "execution_id": execution_id or None,
-            }
+            interruption = {"type": "PROCESS_INTERRUPTED", "task": task, "execution_id": execution_id or None}
             if execution_id:
                 try:
                     self.store.finish_execution(
-                        app["app_id"],
-                        execution_id,
-                        "INTERRUPTED",
-                        {"recovered_at": interrupted_at, "resume_at": task},
-                        interruption,
+                        app["app_id"], execution_id, "INTERRUPTED",
+                        {"recovered_at": interrupted_at, "resume_at": task}, interruption,
                     )
                 except StateStoreError as exc:
-                    # Never erase continuity when history is already inconsistent.
                     interruption["history_error"] = str(exc)
             self.store.checkpoint(
-                app["app_id"],
-                state="READY",
-                active=task,
-                resume_at=task,
-                current_execution_json=None,
-                retry_state_json=retry,
-                error_state_json=interruption,
+                app["app_id"], state="READY", active=task, resume_at=task,
+                current_execution_json=None, retry_state_json=retry, error_state_json=interruption,
             )
 
     def _app_config(self, app_id: str) -> dict[str, Any]:
@@ -115,12 +103,8 @@ class PersistentFactoryOrchestrator:
         source_truth = app.get("source_truth") or {}
         source = source_truth.get("repository") or source_truth.get("canonical_repository") or source_truth.get("project")
         return DispatchDecision(
-            app_id=state["app_id"],
-            mode=mode,
-            task=task,
-            source=source,
-            canonical_head=state.get("canonical_head"),
-            resume_at=str(state.get("resume_at") or task),
+            app_id=state["app_id"], mode=mode, task=task, source=source,
+            canonical_head=state.get("canonical_head"), resume_at=str(state.get("resume_at") or task),
         )
 
     def choose_next(self, attempted: set[str] | None = None) -> DispatchDecision | None:
@@ -159,29 +143,18 @@ class PersistentFactoryOrchestrator:
             retry = {}
         resume_at = result.resume_at or next_active or decision.task
         self.store.checkpoint(
-            decision.app_id,
-            state="READY" if result.status == "DONE" else result.status,
-            active=next_active,
-            next_json=next_items,
-            wait_json=wait_items,
-            blockers_json=blockers,
+            decision.app_id, state="READY" if result.status == "DONE" else result.status,
+            active=next_active, next_json=next_items, wait_json=wait_items, blockers_json=blockers,
             last_verified=result.last_verified or state.get("last_verified"),
-            last_green=result.last_green or state.get("last_green"),
-            resume_at=resume_at,
-            current_execution_json=None,
-            error_state_json=result.error,
-            retry_state_json=retry,
+            last_green=result.last_green or state.get("last_green"), resume_at=resume_at,
+            current_execution_json=None, error_state_json=result.error, retry_state_json=retry,
         )
 
     def execute_one(self, decision: DispatchDecision) -> ExecutionResult:
         execution_id = uuid.uuid4().hex
         payload = {
-            "execution_id": execution_id,
-            "app_id": decision.app_id,
-            "mode": decision.mode,
-            "task": decision.task,
-            "source": decision.source,
-            "canonical_head": decision.canonical_head,
+            "execution_id": execution_id, "app_id": decision.app_id, "mode": decision.mode,
+            "task": decision.task, "source": decision.source, "canonical_head": decision.canonical_head,
             "resume_at": decision.resume_at,
         }
         self.store.start_execution(decision.app_id, execution_id, decision.task, payload)
@@ -189,30 +162,20 @@ class PersistentFactoryOrchestrator:
         try:
             result = adapter.execute(
                 ExecutionRequest(
-                    app_id=decision.app_id,
-                    mode=decision.mode,
-                    task=decision.task,
-                    source=decision.source,
-                    canonical_head=decision.canonical_head,
-                    resume_at=decision.resume_at,
+                    app_id=decision.app_id, mode=decision.mode, task=decision.task,
+                    source=decision.source, canonical_head=decision.canonical_head, resume_at=decision.resume_at,
                 )
             )
-        except Exception as exc:  # fail closed and persist exact resume point
+        except Exception as exc:
             result = ExecutionResult(
-                status="ERROR",
-                evidence={"exception_type": type(exc).__name__},
-                next_active=decision.task,
-                blockers=("adapter_execution_error",),
-                resume_at=decision.task,
+                status="ERROR", evidence={"exception_type": type(exc).__name__},
+                next_active=decision.task, blockers=("adapter_execution_error",), resume_at=decision.task,
                 error={"type": type(exc).__name__, "message": str(exc)},
             )
         if result.status not in TERMINAL_SAFE_STATUSES:
             result = ExecutionResult(
-                status="ERROR",
-                evidence={"invalid_adapter_status": result.status},
-                next_active=decision.task,
-                blockers=("invalid_adapter_status",),
-                resume_at=decision.task,
+                status="ERROR", evidence={"invalid_adapter_status": result.status}, next_active=decision.task,
+                blockers=("invalid_adapter_status",), resume_at=decision.task,
                 error={"type": "INVALID_ADAPTER_STATUS", "status": result.status},
             )
         self.store.finish_execution(decision.app_id, execution_id, result.status, result.evidence, result.error)
@@ -220,7 +183,6 @@ class PersistentFactoryOrchestrator:
         return result
 
     def run_cycle(self, max_dispatches: int = 100) -> dict[str, Any]:
-        """Run safe work until every eligible app yielded once or budget is exhausted."""
         attempted: set[str] = set()
         dispatches: list[dict[str, Any]] = []
         while len(dispatches) < max_dispatches:
@@ -228,14 +190,7 @@ class PersistentFactoryOrchestrator:
             if decision is None:
                 break
             result = self.execute_one(decision)
-            dispatches.append(
-                {
-                    "app_id": decision.app_id,
-                    "task": decision.task,
-                    "status": result.status,
-                    "evidence": result.evidence,
-                }
-            )
+            dispatches.append({"app_id": decision.app_id, "task": decision.task, "status": result.status, "evidence": result.evidence})
             if result.status == "DONE":
                 state = self.store.get_app(decision.app_id)
                 if state and self._decision_for(state) is not None:
@@ -245,14 +200,9 @@ class PersistentFactoryOrchestrator:
         eligible = [self._decision_for(state) for state in states]
         global_wait = not any(item is not None and item.app_id not in attempted for item in eligible)
         return {
-            "activation_code": ACTIVATION_CODE,
-            "dispatches": dispatches,
+            "activation_code": ACTIVATION_CODE, "dispatches": dispatches,
             "global_state": "WAIT" if global_wait else "READY",
-            "blockers": {
-                state["app_id"]: state.get("blockers") or []
-                for state in states
-                if state.get("blockers")
-            },
+            "blockers": {state["app_id"]: state.get("blockers") or [] for state in states if state.get("blockers")},
             "apps": states,
         }
 
@@ -268,7 +218,7 @@ def main() -> int:
         parser.error("Factory Cloud activation requires Ω")
     try:
         registry = load_registry(args.registry) if args.registry else load_registry()
-        orchestrator = PersistentFactoryOrchestrator(registry, StateStore(args.state))
+        orchestrator = PersistentFactoryOrchestrator(registry, StateStore(args.state), recover_interrupted=True)
         result = orchestrator.run_cycle(max_dispatches=max(1, args.max_dispatches))
     except (OSError, json.JSONDecodeError, RegistryError, OrchestratorError) as exc:
         parser.error(str(exc))
