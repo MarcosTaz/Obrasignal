@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch
 
+import requests
+
 from founder_control_center.adapters import GitHubAdapter
 from founder_control_center.models import TruthState
 
@@ -16,7 +18,6 @@ class FakeResponse:
 
     def raise_for_status(self):
         if not self.ok:
-            import requests
             raise requests.HTTPError(f"HTTP {self.status_code}")
 
 
@@ -50,6 +51,22 @@ class DeploymentAdapterTests(unittest.TestCase):
         state, _, url = GitHubAdapter(token=None).refresh_deployment("owner/public")
         self.assertEqual(state, TruthState.UNKNOWN)
         self.assertIsNone(url)
+
+    @patch("founder_control_center.adapters.requests.get")
+    def test_inaccessible_deployment_source_is_unknown(self, get):
+        get.return_value = FakeResponse(status_code=403)
+        state, evidence, url = GitHubAdapter(token="configured-but-denied").refresh_deployment("owner/private")
+        self.assertEqual(state, TruthState.UNKNOWN)
+        self.assertIsNone(url)
+        self.assertIn("inaccessible", evidence.detail)
+
+    @patch("founder_control_center.adapters.requests.get")
+    def test_deployment_source_transport_failure_is_unknown(self, get):
+        get.side_effect = requests.ConnectionError("offline")
+        state, evidence, url = GitHubAdapter(token=None).refresh_deployment("owner/public")
+        self.assertEqual(state, TruthState.UNKNOWN)
+        self.assertIsNone(url)
+        self.assertIn("remains UNKNOWN", evidence.detail)
 
     @patch("founder_control_center.adapters.requests.get")
     def test_failure_status_is_degraded(self, get):
