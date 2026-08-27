@@ -8,6 +8,9 @@ from factory_cloud.orchestrator import PersistentFactoryOrchestrator
 from factory_cloud.state_store import StateStore
 
 
+SENSITIVE_SENTINEL = "credential-like-sentinel-must-not-persist"
+
+
 class ScriptedAdapter:
     def __init__(self, results):
         self.results = list(results)
@@ -22,7 +25,7 @@ class ScriptedAdapter:
 
 class ExplodingAdapter:
     def execute(self, request):
-        raise RuntimeError("deterministic adapter failure")
+        raise RuntimeError(SENSITIVE_SENTINEL)
 
 
 class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
@@ -101,7 +104,7 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
         self.assertEqual(history[0]["error"]["type"], "PROCESS_INTERRUPTED")
         self.assertEqual(history[0]["evidence"]["resume_at"], task)
 
-    def test_adapter_exception_is_fail_closed_and_persisted(self):
+    def test_adapter_exception_is_fail_closed_and_message_is_not_persisted(self):
         store = StateStore(self.state_path)
         cloud = PersistentFactoryOrchestrator(self.registry, store, AdapterRegistry({"obrasignal": ExplodingAdapter()}))
         result = cloud.run_cycle(max_dispatches=1)
@@ -109,8 +112,12 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
         state = store.get_app("obrasignal")
         self.assertEqual(state["state"], "ERROR")
         self.assertEqual(state["resume_at"], state["active"])
-        self.assertEqual(state["error_state"]["type"], "RuntimeError")
-        self.assertEqual(store.history("obrasignal")[0]["status"], "ERROR")
+        self.assertEqual(state["error_state"], {"type": "RuntimeError"})
+        history = store.history("obrasignal")[0]
+        self.assertEqual(history["status"], "ERROR")
+        self.assertEqual(history["error"], {"type": "RuntimeError"})
+        persisted = str(state) + str(history) + str(result)
+        self.assertNotIn(SENSITIVE_SENTINEL, persisted)
 
     def test_k3_default_adapter_never_claims_repository_mutation_authority(self):
         cloud = PersistentFactoryOrchestrator(self.registry, StateStore(self.state_path))
