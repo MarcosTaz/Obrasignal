@@ -30,6 +30,11 @@ class OperationalMetricFeedTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.get_json()["error"], "metric_ingest_not_configured")
 
+    def test_non_object_body_is_rejected_without_server_error(self):
+        response = self._post(["bad", "shape"])
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "invalid_operational_metric")
+
     def test_custom_metric_persists_without_overwriting_business_metrics(self):
         before = get_company("founder-control-center")
         revenue_before = before.revenue.value
@@ -56,6 +61,11 @@ class OperationalMetricFeedTests(unittest.TestCase):
         summary = source_summary(company)
         source = next(item for item in summary["sources"] if item["label"] == "Source coverage")
         self.assertEqual(source["kind"], "operational_metric_feed")
+        page = self.client.get("/company/founder-control-center")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"Source-owned KPIs", page.data)
+        self.assertIn(b"Source coverage", page.data)
+        self.assertIn(b"62.5", page.data)
 
     def test_reserved_business_metric_cannot_be_shadowed(self):
         response = self._post({
