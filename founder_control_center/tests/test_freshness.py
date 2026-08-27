@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, timezone
 
 from founder_control_center.models import ApplicationState, CompanyManifest, Evidence, Metric, RepositoryState, TruthState
 from founder_control_center.registry import get_company, save_company
@@ -49,6 +50,16 @@ class FreshnessTests(unittest.TestCase):
         self.assertEqual(loaded.repository.ci, TruthState.UNKNOWN)
         self.assertEqual(loaded.application.deployment, TruthState.UNKNOWN)
         self.assertEqual(loaded.application.health, TruthState.UNKNOWN)
+
+    def test_future_dated_evidence_is_not_fresh(self):
+        evidence = Evidence(
+            source="ci:future-fixture",
+            observed_at="2030-01-01T00:20:00+00:00",
+            freshness_seconds=3600,
+            kind="test",
+        )
+        now = datetime(2030, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        self.assertEqual(evidence.freshness_state(now=now), TruthState.UNKNOWN)
 
 
 if __name__ == "__main__":
