@@ -279,7 +279,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     def api_company_risks(company_id: str):
         company, error = company_or_404(company_id)
         if error: return error
-        return jsonify({"company_id": company_id, "risks": company.to_dict()["risks"], "data_freshness": company.data_freshness.value})
+        summary = source_summary(company)
+        return jsonify({"company_id": company_id, "risks": summary["risks"], "data_freshness": company.data_freshness.value})
 
     @app.get("/api/companies/<company_id>/revenue")
     @auth_required
