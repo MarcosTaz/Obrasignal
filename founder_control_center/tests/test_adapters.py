@@ -56,6 +56,29 @@ class GitHubAdapterTests(unittest.TestCase):
         state = GitHubAdapter(token=None).refresh_repo("owner/public")
         self.assertEqual(state.ci, TruthState.DEGRADED)
 
+    @patch("founder_control_center.adapters.requests.get")
+    def test_skipped_check_does_not_prove_green(self, get):
+        get.side_effect = [
+            FakeResponse(payload={"default_branch": "main"}),
+            FakeResponse(payload={"sha": "skip123"}),
+            FakeResponse(payload={"check_runs": [{"status": "completed", "conclusion": "skipped"}]}),
+            FakeResponse(payload={"state": "success"}),
+        ]
+        state = GitHubAdapter(token=None).refresh_repo("owner/public")
+        self.assertEqual(state.ci, TruthState.UNKNOWN)
+        self.assertIn("skipped", state.evidence.detail.lower())
+
+    @patch("founder_control_center.adapters.requests.get")
+    def test_neutral_check_does_not_prove_green(self, get):
+        get.side_effect = [
+            FakeResponse(payload={"default_branch": "main"}),
+            FakeResponse(payload={"sha": "neutral123"}),
+            FakeResponse(payload={"check_runs": [{"status": "completed", "conclusion": "neutral"}]}),
+            FakeResponse(payload={"state": "success"}),
+        ]
+        state = GitHubAdapter(token=None).refresh_repo("owner/public")
+        self.assertEqual(state.ci, TruthState.UNKNOWN)
+
 
 if __name__ == "__main__":
     unittest.main()
