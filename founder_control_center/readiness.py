@@ -15,12 +15,13 @@ def readiness_snapshot() -> dict:
     session_present = _present("FCC_SESSION_SECRET")
     factory_present = _present("FCC_FACTORY_INGEST_TOKEN")
     metric_present = _present("FCC_METRIC_INGEST_TOKEN")
-    github = _present("FCC_GITHUB_TOKEN")
+    github_present = _present("FCC_GITHUB_TOKEN")
 
     admin = secret_is_usable(os.getenv("FCC_ADMIN_TOKEN"), 16)
     session = secret_is_usable(os.getenv("FCC_SESSION_SECRET"), 32)
     factory_feed = secret_is_usable(os.getenv("FCC_FACTORY_INGEST_TOKEN"), 16)
     metric_feed = secret_is_usable(os.getenv("FCC_METRIC_INGEST_TOKEN"), 16)
+    github = secret_is_usable(os.getenv("FCC_GITHUB_TOKEN"), 16)
     secure_cookie = os.getenv("FCC_SECURE_COOKIE", "1") == "1"
     persistent_db = bool(os.getenv("FCC_DB"))
 
@@ -53,6 +54,7 @@ def readiness_snapshot() -> dict:
         "private_github": {
             "state": "CONFIGURED" if github else "OPTIONAL_NOT_CONFIGURED",
             "token_configured": github,
+            "token_present": github_present,
         },
         "persistence": {
             "state": "CONFIGURED" if persistent_db else "DEFAULT_LOCAL_PATH",
