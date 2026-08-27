@@ -52,6 +52,18 @@ class GitHubAdapterTests(unittest.TestCase):
         self.assertIn("no separate commit statuses", state.evidence.detail)
 
     @patch("founder_control_center.adapters.requests.get")
+    def test_ambiguous_success_status_shape_cannot_green(self, get):
+        get.side_effect = [
+            FakeResponse(payload={"default_branch": "main"}),
+            FakeResponse(payload={"sha": "ambiguous-status"}),
+            FakeResponse(payload={"check_runs": [{"status": "completed", "conclusion": "success"}]}),
+            FakeResponse(payload={"state": "success"}),
+        ]
+        state = GitHubAdapter(token=None).refresh_repo("owner/public")
+        self.assertEqual(state.ci, TruthState.UNKNOWN)
+        self.assertIn("malformed", state.evidence.detail.lower())
+
+    @patch("founder_control_center.adapters.requests.get")
     def test_success_status_cannot_green_when_check_source_is_unavailable(self, get):
         get.side_effect = [
             FakeResponse(payload={"default_branch": "main"}),
