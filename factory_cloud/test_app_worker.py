@@ -10,6 +10,9 @@ from factory_cloud.state_store import StateStore
 from factory_cloud.work_queue import DurableWorkQueue, QueuedAppAdapter
 
 
+SENSITIVE_SENTINEL = "app-worker-private-sentinel-must-not-persist"
+
+
 class DoneAdapter:
     def __init__(self):
         self.calls = 0
@@ -24,6 +27,11 @@ class DoneAdapter:
             last_verified="2026-08-28T00:00:00+00:00",
             last_green=request.canonical_head,
         )
+
+
+class ExplodingAdapter:
+    def execute(self, request):
+        raise RuntimeError(SENSITIVE_SENTINEL)
 
 
 class FactoryCloudAppWorkerTests(unittest.TestCase):
@@ -99,6 +107,26 @@ class FactoryCloudAppWorkerTests(unittest.TestCase):
             consumed = dispatch.execute(request)
             self.assertEqual(consumed.status, "WAIT")
             self.assertIn("repository_tooling_adapter_required", consumed.blockers)
+
+    def test_app_worker_exception_message_is_not_persisted_in_shared_queue(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, queue = self._queue(tmp)
+            request = ExecutionRequest(
+                app_id="obrasignal", mode="repository_safe_execution", task="safe task",
+                source="MarcosTaz/Obrasignal", canonical_head="abc", resume_at="safe task",
+            )
+            dispatch = QueuedAppAdapter(queue)
+            dispatch.execute(request)
+            worker = AppWorkerHost(
+                "obrasignal", queue, AdapterRegistry({"obrasignal": ExplodingAdapter()}),
+                worker_id="obra-error", poll_seconds=0,
+            )
+            worker_result = worker.run_once()
+            self.assertEqual(worker_result["state"], "ERROR")
+            completed = dispatch.execute(request)
+            self.assertEqual(completed.error, {"type": "RuntimeError"})
+            persisted = str(queue.jobs("obrasignal")) + str(worker_result) + str(completed)
+            self.assertNotIn(SENSITIVE_SENTINEL, persisted)
 
 
 if __name__ == "__main__":
