@@ -8,6 +8,7 @@ from typing import Any
 
 from .models import Evidence, Metric, TruthState
 from .registry import append_audit, mutate_company, now_iso
+from .security import normalize_source_label
 
 ALLOWED_METRICS = {
     "revenue": {"label": "Revenue", "unit": "EUR", "kind": "money"},
@@ -148,8 +149,7 @@ def ingest_business_metric(
     metric_key = str(metric_key).strip().lower()
     if metric_key not in ALLOWED_METRICS:
         raise ValueError("metric_key must be one of: revenue, pipeline, customers")
-    if not isinstance(source, str) or not source.strip():
-        raise ValueError("source is required")
+    source_label = normalize_source_label(source)
     observed = _observed_at(observed_at)
     freshness = _freshness(freshness_seconds)
     normalized = _normalized_value(metric_key, value)
@@ -157,7 +157,7 @@ def ingest_business_metric(
     spec = ALLOWED_METRICS[metric_key]
     canonical_unit = _canonical_business_unit(metric_key, unit)
     evidence = Evidence(
-        source=source.strip()[:300],
+        source=source_label,
         observed_at=observed,
         freshness_seconds=freshness,
         kind="business_metric_feed",
@@ -215,14 +215,13 @@ def ingest_operational_metric(
         raise ValueError("metric_key must be a 2-64 character KPI slug and not a reserved business metric")
     if not isinstance(label, str) or not label.strip():
         raise ValueError("label is required")
-    if not isinstance(source, str) or not source.strip():
-        raise ValueError("source is required")
+    source_label = normalize_source_label(source)
     observed = _observed_at(observed_at)
     freshness = _freshness(freshness_seconds)
     normalized = _normalized_custom_value(value)
     requested_state = _truth_state(state, normalized)
     evidence = Evidence(
-        source=source.strip()[:300],
+        source=source_label,
         observed_at=observed,
         freshness_seconds=freshness,
         kind="operational_metric_feed",
