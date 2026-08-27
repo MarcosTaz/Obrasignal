@@ -10,6 +10,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session, u
 from .actions import execute, list_actions
 from .business_api import business_api
 from .ranking import highest_value_actions, rank_portfolio
+from .readiness import readiness_snapshot
 from .registry import append_audit, get_company, ingest_factory_state, init_db, list_audit, list_companies, list_company_history, register_company_stub
 from .security import safe_local_redirect_target
 
@@ -128,7 +129,16 @@ def create_app(test_config: dict | None = None) -> Flask:
     def dashboard():
         companies = list_companies(); ranks = rank_portfolio(companies); by_id = {c.id: c for c in companies}
         ranked = [{"rank": r, "company": by_id[r.company_id]} for r in ranks]
-        return render_template("dashboard.html", companies=companies, ranked=ranked, actions=list_actions(), portfolio_actions=highest_value_actions(companies), audit=list_audit(12), csrf_token=session.get("csrf_token", ""))
+        return render_template(
+            "dashboard.html",
+            companies=companies,
+            ranked=ranked,
+            actions=list_actions(),
+            portfolio_actions=highest_value_actions(companies),
+            audit=list_audit(12),
+            readiness=readiness_snapshot(),
+            csrf_token=session.get("csrf_token", ""),
+        )
 
     @app.get("/company/<company_id>")
     @auth_required
@@ -138,6 +148,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             return "Not found", 404
         ranking = rank_portfolio([company])[0]
         return render_template("company.html", company=company, ranking=ranking, actions=list_actions(), history=list_company_history(company_id, 12), csrf_token=session.get("csrf_token", ""))
+
+    @app.get("/api/readiness")
+    @auth_required
+    def api_readiness():
+        return jsonify(readiness_snapshot())
 
     @app.get("/api/companies")
     @auth_required
