@@ -28,6 +28,15 @@ class RiskTruthUITests(unittest.TestCase):
         self.assertIn(b"CURRENT UNKNOWN", response.data)
         self.assertIn(b"context_seed", response.data)
 
+    def test_risk_api_separates_severity_from_current_truth(self):
+        response = self.client.get("/api/companies/founder-control-center/risks")
+        self.assertEqual(response.status_code, 200)
+        risks = response.get_json()["risks"]
+        critical = next(item for item in risks if item["severity"] == "CRITICAL")
+        self.assertEqual(critical["current_truth"], "UNKNOWN")
+        self.assertEqual(critical["source_kind"], "context_seed")
+        self.assertNotIn("evidence", critical)
+
 
 if __name__ == "__main__":
     unittest.main()
