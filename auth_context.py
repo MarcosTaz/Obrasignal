@@ -74,8 +74,8 @@ def _invalid_token_reason(error: InvalidTokenError) -> str:
 
 
 def configured_identity() -> RequestIdentity:
-    """Resolve identity from development configuration or a verified JWT."""
-    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
+    """Resolve identity only from an explicitly selected authentication mode."""
+    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "").strip().lower()
     if auth_mode not in _ALLOWED_AUTH_MODES:
         raise RuntimeError("Invalid OBRASIGNAL_AUTH_MODE")
 
