@@ -207,6 +207,22 @@ def create_app(test_config: dict | None = None) -> Flask:
     def api_ingest_factory_state():
         data = request_object()
         try:
+            company_id = data.get("company_id")
+            if not isinstance(company_id, str) or not company_id.strip() or len(company_id.strip()) > 120:
+                raise ValueError("company_id must be a non-empty string of at most 120 characters")
+            field_limits = {"factory_name": 160, "active": 1000, "next": 1000, "wait": 1000}
+            for field, limit in field_limits.items():
+                value = data.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError("factory_name, active, next and wait are required")
+                if len(value.strip()) > limit:
+                    raise ValueError(f"{field} must be at most {limit} characters")
+            if "material_delta" in data and data.get("material_delta") is not None:
+                material_delta = data.get("material_delta")
+                if not isinstance(material_delta, str):
+                    raise ValueError("material_delta must be a string or null")
+                if len(material_delta.strip()) > 2000:
+                    raise ValueError("material_delta must be at most 2000 characters")
             if "observed_at" in data:
                 observed_at = data.get("observed_at")
                 if not isinstance(observed_at, str) or not observed_at.strip():
@@ -216,7 +232,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                 if isinstance(freshness, bool) or not isinstance(freshness, int):
                     raise ValueError("freshness_seconds must be an integer")
             company = ingest_factory_state(
-                company_id=data.get("company_id"),
+                company_id=company_id.strip(),
                 factory_name=data.get("factory_name"),
                 active=data.get("active"),
                 next_value=data.get("next"),
