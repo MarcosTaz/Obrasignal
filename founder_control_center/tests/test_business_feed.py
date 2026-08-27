@@ -68,6 +68,30 @@ class BusinessMetricFeedTests(unittest.TestCase):
         self.assertEqual(metric["state"], "UNKNOWN")
         self.assertIsNone(metric["value"])
 
+    def test_out_of_order_metric_is_rejected_without_replacing_newer_truth(self):
+        os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
+        headers = {"Authorization": "Bearer metric-test-secret"}
+        newer = dict(
+            self.payload,
+            metric_key="customers",
+            value=12,
+            observed_at="2026-08-27T15:00:00Z",
+            source="ci:newer-customer-source",
+        )
+        older = dict(
+            newer,
+            value=3,
+            observed_at="2026-08-27T14:00:00Z",
+            source="ci:delayed-customer-source",
+        )
+        self.assertEqual(self.client.post("/api/ingest/business-metric", json=newer, headers=headers).status_code, 200)
+        rejected = self.client.post("/api/ingest/business-metric", json=older, headers=headers)
+        self.assertEqual(rejected.status_code, 400)
+        self.assertIn("out-of-order", rejected.get_json()["detail"])
+        persisted = get_company("founder-control-center").customers
+        self.assertEqual(persisted.value, 12)
+        self.assertEqual(persisted.evidence.source, "ci:newer-customer-source")
+
     def test_customers_reject_fractional_or_negative_values(self):
         os.environ["FCC_METRIC_INGEST_TOKEN"] = "metric-test-secret"
         for value in (-1, 1.5):
