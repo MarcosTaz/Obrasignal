@@ -13,7 +13,7 @@ from .history import safe_company_history
 from .ranking import highest_value_actions, rank_portfolio
 from .readiness import readiness_snapshot
 from .registry import append_audit, get_company, ingest_factory_state, init_db, list_audit, list_companies, register_company_stub
-from .security import safe_local_redirect_target
+from .security import normalize_github_repository, safe_local_redirect_target
 from .sources import source_summary
 
 
@@ -87,6 +87,10 @@ def create_app(test_config: dict | None = None) -> Flask:
                 return jsonify({"ok": False, "error": "factory_ingest_authentication_required"}), 401
             return fn(*args, **kwargs)
         return wrapped
+
+    def request_object() -> dict:
+        data = request.get_json(silent=True)
+        return data if isinstance(data, dict) else {}
 
     def company_or_404(company_id: str):
         company = get_company(company_id)
@@ -174,25 +178,42 @@ def create_app(test_config: dict | None = None) -> Flask:
     @auth_required
     @csrf_required
     def api_register_company():
-        data = request.get_json(silent=True) or {}
+        data = request_object()
         try:
+            company_id = data.get("id")
+            name = data.get("name")
+            mission = data.get("mission")
+            kind = data.get("kind", "company")
+            if not all(isinstance(value, str) for value in (company_id, name, mission, kind)):
+                raise ValueError("id, name, mission and kind must be strings")
+            repo_input = data.get("repository")
+            repository = normalize_github_repository(repo_input) if repo_input else None
             company = register_company_stub(
-                company_id=str(data.get("id", "")), name=str(data.get("name", "")), mission=str(data.get("mission", "")),
-                kind=str(data.get("kind", "company")), repository_full_name=data.get("repository"), application_url=data.get("application_url"),
+                company_id=company_id,
+                name=name,
+                mission=mission,
+                kind=kind,
+                repository_full_name=repository,
+                application_url=data.get("application_url"),
             )
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             return jsonify({"ok": False, "error": "invalid_company_manifest", "detail": str(exc)}), 400
         return jsonify({"ok": True, "company": company.to_dict()}), 201
 
     @app.post("/api/ingest/factory-state")
     @factory_ingest_required
     def api_ingest_factory_state():
-        data = request.get_json(silent=True) or {}
+        data = request_object()
         try:
             company = ingest_factory_state(
-                company_id=str(data.get("company_id", "")), factory_name=str(data.get("factory_name", "")),
-                active=str(data.get("active", "")), next_value=str(data.get("next", "")), wait=str(data.get("wait", "")),
-                source=str(data.get("source", "")), observed_at=data.get("observed_at"), freshness_seconds=data.get("freshness_seconds", 3600),
+                company_id=data.get("company_id"),
+                factory_name=data.get("factory_name"),
+                active=data.get("active"),
+                next_value=data.get("next"),
+                wait=data.get("wait"),
+                source=data.get("source"),
+                observed_at=data.get("observed_at"),
+                freshness_seconds=data.get("freshness_seconds", 3600),
                 material_delta=data.get("material_delta"),
             )
         except (TypeError, ValueError) as exc:
@@ -202,11 +223,15 @@ def create_app(test_config: dict | None = None) -> Flask:
                 level="GREEN",
                 company_id=str(data.get("company_id", ""))[:120] or None,
                 result="rejected_invalid_factory_state",
-                source_data={"factory_name": str(data.get("factory_name", ""))[:160], "source": str(data.get("source", ""))[:300], "payload_keys": sorted(str(key)[:120] for key in data.keys())[:50]},
+                source_data={
+                    "factory_name": str(data.get("factory_name", ""))[:160],
+                    "source_present": isinstance(data.get("source"), str) and bool(data.get("source", "").strip()),
+                    "payload_keys": sorted(str(key)[:120] for key in data.keys())[:50],
+                },
                 failure_state=str(exc)[:300],
             )
             return jsonify({"ok": False, "error": "invalid_factory_state", "detail": str(exc)}), 400
-        factory_name = str(data.get("factory_name", "")).strip()
+        factory_name = data.get("factory_name", "").strip()
         factory = next((item for item in company.to_dict()["factories"] if item["name"] == factory_name), None)
         return jsonify({"ok": True, "company_id": company.id, "factory": factory, "last_update": company.last_update}), 200
 
@@ -279,10 +304,14 @@ def create_app(test_config: dict | None = None) -> Flask:
     @auth_required
     @csrf_required
     def api_execute(action_id: str):
-        data = request.get_json(silent=True) or {}; company_id = data.get("company_id")
+        data = request_object()
+        company_id = data.get("company_id")
+        payload = data.get("payload") or {}
         if not isinstance(company_id, str) or not company_id:
             return jsonify({"ok": False, "error": "company_id_required"}), 400
-        result, status = execute(action_id, company_id, data.get("payload") or {})
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "error": "payload_must_be_object"}), 400
+        result, status = execute(action_id, company_id, payload)
         return jsonify(result), status
 
     @app.get("/api/audit")
