@@ -13,7 +13,7 @@ def utcnow() -> str:
 
 
 class GitHubAdapter:
-    """Read-only repository adapter. Public repos work without a token; private repos fail closed to UNKNOWN."""
+    """Read-only repository/deployment adapter. Public repos work without a token; private repos fail closed to UNKNOWN."""
 
     def __init__(self, token: str | None = None, timeout: int = 8):
         self.token = token or os.getenv("FCC_GITHUB_TOKEN")
@@ -73,6 +73,51 @@ class GitHubAdapter:
         except requests.RequestException as exc:
             evidence.detail = f"GitHub adapter transport failure: {type(exc).__name__}"
             return RepositoryState(full_name=full_name, ci=TruthState.DEGRADED, evidence=evidence)
+
+    def refresh_deployment(self, full_name: str) -> tuple[TruthState, Evidence, str | None]:
+        """Read latest GitHub deployment/status without equating repository green with production green."""
+        evidence = Evidence(source=f"github-deployments:{full_name}", observed_at=utcnow(), freshness_seconds=600, kind="live_adapter", url=f"https://github.com/{full_name}/deployments")
+        headers = self._headers()
+        try:
+            response = requests.get(f"https://api.github.com/repos/{full_name}/deployments?per_page=1", headers=headers, timeout=self.timeout)
+            if response.status_code in (401, 403, 404) and not self.token:
+                evidence.detail = "Deployment source is not publicly accessible; deployment state remains UNKNOWN."
+                return TruthState.UNKNOWN, evidence, None
+            response.raise_for_status()
+            deployments = response.json()
+            if not deployments:
+                evidence.detail = "No GitHub deployment exists; absence of a deployment is not deployment health."
+                return TruthState.UNKNOWN, evidence, None
+            deployment = deployments[0]
+            deployment_id = deployment.get("id")
+            environment = deployment.get("environment") or "unknown environment"
+            deploy_sha = deployment.get("sha") or "unknown sha"
+            if not deployment_id:
+                evidence.detail = f"Latest deployment for {environment} has no resolvable deployment id."
+                return TruthState.UNKNOWN, evidence, None
+            statuses = requests.get(f"https://api.github.com/repos/{full_name}/deployments/{deployment_id}/statuses?per_page=1", headers=headers, timeout=self.timeout)
+            statuses.raise_for_status()
+            status_items = statuses.json()
+            if not status_items:
+                evidence.detail = f"Deployment {deployment_id} ({environment}, {deploy_sha}) has no status evidence."
+                return TruthState.UNKNOWN, evidence, None
+            status = status_items[0]
+            state = status.get("state")
+            environment_url = status.get("environment_url") or deployment.get("environment_url")
+            target_url = status.get("target_url")
+            if environment_url:
+                evidence.url = environment_url
+            elif target_url:
+                evidence.url = target_url
+            evidence.detail = f"GitHub deployment {deployment_id}; environment={environment}; sha={deploy_sha}; state={state or 'UNKNOWN'}."
+            if state == "success":
+                return TruthState.GREEN, evidence, environment_url
+            if state in ("failure", "error"):
+                return TruthState.DEGRADED, evidence, environment_url
+            return TruthState.UNKNOWN, evidence, environment_url
+        except requests.RequestException as exc:
+            evidence.detail = f"Deployment adapter transport failure: {type(exc).__name__}"
+            return TruthState.DEGRADED, evidence, None
 
 
 class HealthAdapter:
