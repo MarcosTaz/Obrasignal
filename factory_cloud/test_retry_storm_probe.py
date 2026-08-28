@@ -54,12 +54,16 @@ class RetryStormProbeTests(unittest.TestCase):
             self.assertEqual(consumed["dispatches"][0]["status"], "WAIT")
             self.assertEqual(len(queue.jobs("obrasignal")), 1)
 
-            # An immediately following cycle must not turn the unchanged blocker
-            # into another identical queued job. A persistent host polls often;
-            # without a durable retry gate this becomes an unbounded retry storm.
+            # An immediately following cycle may legitimately yield to another app,
+            # but ObraSignal itself must not be re-queued while its unchanged WAIT
+            # retry gate is closed.
             immediate = control.run_cycle(max_dispatches=1)
-            self.assertEqual(immediate["dispatches"], [])
+            self.assertFalse(any(item["app_id"] == "obrasignal" for item in immediate["dispatches"]))
             self.assertEqual(len(queue.jobs("obrasignal")), 1)
+            obra_state = store.get_app("obrasignal")
+            self.assertEqual(obra_state["active"], obra_state["retry_state"]["task"])
+            self.assertEqual(obra_state["retry_state"]["retry_reason"], "WAIT")
+            self.assertIn("next_attempt_at", obra_state["retry_state"])
 
 
 if __name__ == "__main__":
