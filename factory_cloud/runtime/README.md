@@ -15,9 +15,11 @@ Example config: `app-adapter.example.json`.
 ## systemd topology
 
 - `factory-cloud-control.service`: one durable control-plane dispatcher.
-- `factory-cloud-app@.service`: one OS user/process per app, sharing only the metadata SQLite group boundary.
+- `factory-cloud-app@.service`: one private OS user/group per app plus membership in the shared `factory-cloud` metadata group.
 - `factory-cloud.target`: groups the services.
 - `systemd/install.sh`: host-side provisioning helper. It requires external per-app adapter configs before starting workers.
+
+The state directory is setgid `2770` and both service types use `UMask=0007`, so SQLite/WAL/SHM files remain writable by the shared metadata group without giving app workers a shared primary identity. App secret environment files should be owned `root:factory-cloud-<app>` with mode `0640`; never make them readable by the shared `factory-cloud` group.
 
 The app workspace and app executable are intentionally outside the shared repository/runtime configuration. Give each app OS user access only to its own development workspace and credentials. Do not mount production databases or shared secret stores into Factory Cloud.
 
@@ -27,7 +29,7 @@ A host is not considered provisioned until all of the following have been observ
 
 1. control service is active and owns the dispatch lease;
 2. each enabled app worker is active under its own OS user;
-3. `/var/lib/factory-cloud/state.sqlite3` survives process restarts;
+3. `/var/lib/factory-cloud/state.sqlite3` survives process restarts and remains writable through WAL/SHM creation by both control and app worker processes;
 4. killing/restarting the control service records interruption/recovery without duplicate dispatch;
 5. killing/restarting an app worker allows an expired app-scoped job claim to be reclaimed;
 6. ObraSignal adapter refuses a stale local HEAD;

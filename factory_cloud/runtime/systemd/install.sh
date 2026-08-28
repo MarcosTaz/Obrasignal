@@ -17,7 +17,9 @@ fi
 getent group factory-cloud >/dev/null || groupadd --system factory-cloud
 id -u factory-cloud-control >/dev/null 2>&1 || useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin --gid factory-cloud factory-cloud-control
 
-install -d -o factory-cloud-control -g factory-cloud -m 0770 "${STATE_DIR}"
+# setgid keeps SQLite/WAL/SHM files on the shared metadata group even when an
+# isolated app user creates them. Service UMask=0007 keeps them group-writable.
+install -d -o factory-cloud-control -g factory-cloud -m 2770 "${STATE_DIR}"
 install -d -o root -g factory-cloud -m 0750 "${CONFIG_DIR}" "${CONFIG_DIR}/apps"
 install -m 0644 "${REPO_DIR}/factory_cloud/runtime/systemd/factory-cloud-control.service" /etc/systemd/system/factory-cloud-control.service
 install -m 0644 "${REPO_DIR}/factory_cloud/runtime/systemd/factory-cloud-app@.service" /etc/systemd/system/factory-cloud-app@.service
@@ -25,7 +27,12 @@ install -m 0644 "${REPO_DIR}/factory_cloud/runtime/systemd/factory-cloud.target"
 
 for app in ${APPS}; do
   user="factory-cloud-${app}"
-  id -u "${user}" >/dev/null 2>&1 || useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin --gid factory-cloud "${user}"
+  getent group "${user}" >/dev/null || groupadd --system "${user}"
+  if ! id -u "${user}" >/dev/null 2>&1; then
+    useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin --gid "${user}" --groups factory-cloud "${user}"
+  else
+    usermod -a -G factory-cloud "${user}"
+  fi
   config="${CONFIG_DIR}/apps/${app}.json"
   if [[ ! -f "${config}" ]]; then
     echo "missing ${config}; copy app-adapter.example.json and set an app-owned workspace/command" >&2
