@@ -150,12 +150,13 @@ class ProcessAgentAdapter:
                 blockers=("app_workspace_unavailable",),
                 resume_at=request.task,
             )
-        if not request.canonical_head:
+        expected_head = request.target_head
+        if not expected_head:
             return ExecutionResult(
                 status="WAIT",
-                evidence={"adapter": "process_agent", "source_truth": "CANONICAL_HEAD_MISSING"},
+                evidence={"adapter": "process_agent", "source_truth": "EXECUTION_HEAD_MISSING"},
                 next_active=request.task,
-                blockers=("canonical_source_truth_required_before_repository_mutation",),
+                blockers=("execution_source_truth_required_before_repository_execution",),
                 resume_at=request.task,
             )
         observed_head = self._observed_local_head()
@@ -167,13 +168,15 @@ class ProcessAgentAdapter:
                 blockers=("local_workspace_head_unverifiable",),
                 resume_at=request.task,
             )
-        if observed_head != request.canonical_head:
+        if observed_head != expected_head:
             return ExecutionResult(
                 status="WAIT",
                 evidence={
                     "adapter": "process_agent",
-                    "expected_head": request.canonical_head,
+                    "expected_head": expected_head,
                     "observed_head": observed_head,
+                    "canonical_head": request.canonical_head,
+                    "execution_head": request.execution_head,
                 },
                 next_active=request.task,
                 blockers=("local_workspace_head_mismatch",),
@@ -187,6 +190,8 @@ class ProcessAgentAdapter:
                 "task": request.task,
                 "source": request.source,
                 "canonical_head": request.canonical_head,
+                "execution_branch": request.execution_branch,
+                "execution_head": request.execution_head,
                 "resume_at": request.resume_at,
             },
             ensure_ascii=False,
