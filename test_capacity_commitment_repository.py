@@ -1,5 +1,5 @@
 import sqlite3
-from pathlib import Path
+from decimal import Decimal
 
 import pytest
 
@@ -16,6 +16,8 @@ def make_state(tenant_id: str, case_id: str) -> AssistedCaseState:
         program_id="program-1",
         recovery_case=case(case_id),
         evidence_refs=("contract:1",),
+        contract_id="lta-2026-01",
+        forecast_units=Decimal("110000"),
     )
 
 
