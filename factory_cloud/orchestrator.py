@@ -31,6 +31,7 @@ class DispatchDecision:
     resume_at: str
     execution_branch: str | None = None
     execution_head: str | None = None
+    required_capabilities: tuple[str, ...] = ()
 
 
 class OrchestratorError(RuntimeError):
@@ -150,6 +151,9 @@ class PersistentFactoryOrchestrator:
             execution_branch = str(source_truth.get("canonical_branch") or "").strip() or None
             execution_head = state.get("canonical_head")
 
+        contracts = app.get("task_capabilities") or {}
+        required_capabilities = tuple(str(value) for value in contracts.get(task, []))
+
         return DispatchDecision(
             app_id=state["app_id"],
             mode=mode,
@@ -159,6 +163,7 @@ class PersistentFactoryOrchestrator:
             resume_at=str(state.get("resume_at") or task),
             execution_branch=execution_branch,
             execution_head=execution_head,
+            required_capabilities=required_capabilities,
         )
 
     def choose_next(self, attempted: set[str] | None = None) -> DispatchDecision | None:
@@ -240,6 +245,7 @@ class PersistentFactoryOrchestrator:
             "canonical_head": decision.canonical_head,
             "execution_branch": decision.execution_branch,
             "execution_head": decision.execution_head,
+            "required_capabilities": list(decision.required_capabilities),
             "resume_at": decision.resume_at,
         }
         self.store.start_execution(decision.app_id, execution_id, decision.task, payload)
@@ -255,6 +261,7 @@ class PersistentFactoryOrchestrator:
                     resume_at=decision.resume_at,
                     execution_branch=decision.execution_branch,
                     execution_head=decision.execution_head,
+                    required_capabilities=decision.required_capabilities,
                 )
             )
         except Exception as exc:
