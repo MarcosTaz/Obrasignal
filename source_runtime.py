@@ -80,10 +80,13 @@ def _aware_source_instant(value):
 
 
 def _temporally_authoritative_records(conn, records):
-    """Reject only observations proven older by the publisher's own update clock.
+    """Accept only observations provably newer by the publisher's own update clock.
 
-    Processing/arrival time has no business authority here. Missing, malformed or
-    timezone-naive source timestamps remain UNKNOWN and therefore are not ordered.
+    Processing/arrival time has no business authority here. When both persisted and
+    incoming publisher instants are explicit and timezone-aware, an incoming record
+    must be strictly newer to replace durable truth. Equal instants establish no
+    causal winner and therefore fail closed. Missing, malformed or timezone-naive
+    source timestamps remain UNKNOWN and are not assigned an ordering here.
     """
     ensure_signal_records(conn)
     accepted = []
@@ -107,7 +110,7 @@ def _temporally_authoritative_records(conn, records):
             (source, signal_type, external_id),
         ).fetchone()
         existing = _aware_source_instant(row[0]) if row else None
-        if existing is not None and incoming < existing:
+        if existing is not None and incoming <= existing:
             continue
         accepted.append(record)
     return accepted
