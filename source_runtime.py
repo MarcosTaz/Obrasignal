@@ -149,6 +149,45 @@ def _temporally_authoritative_records(conn, records):
     return accepted
 
 
+def _table_exists(conn, name):
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+    ).fetchone() is not None
+
+
+def _reconcile_legacy_tender_projection(conn, pending, accepted_tenders):
+    """Restore the legacy Radar projection from canonical Signal truth.
+
+    The legacy application commits before source-side temporal authority runs.
+    Reconciliation is therefore mandatory for staged TENDER identities: accepted
+    records project canonical content forward; rejected/rolled-back records project
+    the prior canonical state back. This runs before downstream decision consumers.
+    """
+    if not _table_exists(conn, "tenders"):
+        return {"reconciled": 0, "deleted": 0}
+
+    accepted_last_seen = None
+    if _table_exists(conn, "sync_runs"):
+        run = conn.execute(
+            "SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if run is not None:
+            accepted_last_seen = run["finished_at"] if hasattr(run, "keys") else run[0]
+
+    # Lazy imports avoid coupling source-only unit tests to the Flask application.
+    import app as legacy_app
+    from legacy_tender_projection import reconcile_staged_tender_projection
+
+    return reconcile_staged_tender_projection(
+        conn,
+        pending,
+        accepted_tender_identities=accepted_tenders,
+        accepted_last_seen=accepted_last_seen,
+        commercial_score=legacy_app.commercial_score,
+        commit=True,
+    )
+
+
 def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
     """Atomically persist Signal, metadata, lifecycle and source cursors.
 
@@ -158,11 +197,16 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
     or cursor failure rolls back the complete source-side transaction, preventing
     silent data loss and preserving fail-closed cursor semantics.
 
-    ``accepted_tender_identities`` is an optional mutable set used by the runtime
-    composition layer. When supplied, it receives only TENDER identities admitted
-    by publisher-time authority in the transaction that actually commits. On any
-    rollback the set is cleared, so compatibility projection code cannot mistake
-    rolled-back work for accepted customer truth.
+    ``accepted_tender_identities`` is an optional mutable set used by composition
+    code. It receives only TENDER identities admitted by publisher-time authority
+    in the source transaction that actually commits. Any source rollback clears it.
+
+    After the source transaction, staged TENDER identities are reconciled into the
+    legacy ``tenders`` compatibility table from canonical Signal truth. This closes
+    the two-transaction split-brain window before account decisioning can consume a
+    stale late arrival. If the source transaction rolls back, reconciliation restores
+    the prior canonical projection (or removes a first-time legacy row with no
+    canonical Signal record) before the original persistence error is re-raised.
 
     Fetch health may already have been committed before this transaction begins.
     When canonical persistence fails, compensate that observation after rollback
@@ -172,25 +216,28 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
     those compensation writes themselves.
     """
     pending = staged_source_syncs()
-    if accepted_tender_identities is not None:
-        accepted_tender_identities.clear()
+    external_accepted = accepted_tender_identities
+    if external_accepted is not None:
+        external_accepted.clear()
     if not pending:
         return _empty_commit_result()
+
+    committed_tenders = set()
     signal_records = 0
     metadata_records = 0
     lifecycle_records = 0
     cursors = 0
+
     try:
         for item in pending:
             records = _temporally_authoritative_records(conn, item.records)
-            if accepted_tender_identities is not None:
-                for record in records:
-                    if not isinstance(record, Mapping):
-                        continue
-                    source = str(record.get("source") or "").strip()
-                    external_id = str(record.get("external_id") or "").strip()
-                    if source and external_id and signal_type_of(record) == "TENDER":
-                        accepted_tender_identities.add((source, external_id))
+            for record in records:
+                if not isinstance(record, Mapping):
+                    continue
+                source = str(record.get("source") or "").strip()
+                external_id = str(record.get("external_id") or "").strip()
+                if source and external_id and signal_type_of(record) == "TENDER":
+                    committed_tenders.add((source, external_id))
             signal_records += persist_signal_records(
                 conn,
                 records,
@@ -209,22 +256,54 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
         conn.commit()
     except Exception as exc:
         conn.rollback()
-        if accepted_tender_identities is not None:
-            accepted_tender_identities.clear()
-        compensation_error = None
+        committed_tenders.clear()
+        if external_accepted is not None:
+            external_accepted.clear()
+
+        compensation_errors = []
         for item in pending:
             try:
                 record_source_ingestion_failure(conn, item.source, error=exc)
             except Exception as health_exc:
-                if compensation_error is None:
-                    compensation_error = health_exc
-        if compensation_error is not None:
-            raise RuntimeError(
-                f"{exc}; source health compensation failed: {type(compensation_error).__name__}"
-            ) from exc
+                compensation_errors.append((item.source, health_exc))
+                continue
+
+        projection_error = None
+        try:
+            _reconcile_legacy_tender_projection(conn, pending, set())
+        except Exception as reconcile_exc:
+            projection_error = reconcile_exc
+
+        auxiliary = []
+        if compensation_errors:
+            failed_sources = ",".join(source for source, _ in compensation_errors)
+            auxiliary.append(
+                "source health compensation failed for "
+                f"{failed_sources}: {type(compensation_errors[0][1]).__name__}"
+            )
+        if projection_error is not None:
+            auxiliary.append(
+                "legacy projection reconciliation failed: "
+                f"{type(projection_error).__name__}"
+            )
+        if auxiliary:
+            raise RuntimeError(f"{exc}; " + "; ".join(auxiliary)) from exc
         raise
+
+    try:
+        _reconcile_legacy_tender_projection(conn, pending, committed_tenders)
+    except Exception as projection_exc:
+        if external_accepted is not None:
+            external_accepted.clear()
+        raise RuntimeError(
+            "source transaction committed but legacy projection reconciliation failed: "
+            f"{type(projection_exc).__name__}: {projection_exc}"
+        ) from projection_exc
     finally:
         discard_staged_source_syncs()
+
+    if external_accepted is not None:
+        external_accepted.update(committed_tenders)
     return {
         "sources": len(pending),
         "signal_records": signal_records,
