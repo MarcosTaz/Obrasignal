@@ -84,11 +84,12 @@ def parse_outcome(body: dict) -> tuple[MigrationOutcomeRecord, Decimal, Observat
     )
 
 
-def reconcile_payload(body: dict) -> OutcomeReconciliation:
+def reconcile_payload(body: dict) -> tuple[MigrationOutcomeRecord, OutcomeReconciliation]:
     record, pre_run_cost, pre_window, post_window = parse_outcome(body)
-    return reconcile_outcome(
+    reconciliation = reconcile_outcome(
         record,
         pre_run_cost=pre_run_cost,
         pre_window=pre_window,
         post_window=post_window,
     )
+    return record, reconciliation
