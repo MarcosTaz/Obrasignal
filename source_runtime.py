@@ -155,6 +155,47 @@ def _table_exists(conn, name):
     ).fetchone() is not None
 
 
+def _cursor_snapshots(conn, pending):
+    """Capture exact pre-commit cursor rows for bounded post-commit compensation."""
+    snapshots = {}
+    if not _table_exists(conn, "source_cursor"):
+        return {item.source: None for item in pending}
+    for item in pending:
+        row = conn.execute(
+            "SELECT watermark,updated_at FROM source_cursor WHERE source=?",
+            (item.source,),
+        ).fetchone()
+        if row is None:
+            snapshots[item.source] = None
+        elif hasattr(row, "keys"):
+            snapshots[item.source] = (row["watermark"], row["updated_at"])
+        else:
+            snapshots[item.source] = (row[0], row[1])
+    return snapshots
+
+
+def _restore_cursor_snapshots(conn, snapshots):
+    """Restore the exact pre-commit cursor set atomically after projection failure."""
+    try:
+        for source, snapshot in snapshots.items():
+            if snapshot is None:
+                conn.execute("DELETE FROM source_cursor WHERE source=?", (source,))
+            else:
+                watermark, updated_at = snapshot
+                conn.execute(
+                    """INSERT INTO source_cursor(source,watermark,updated_at)
+                       VALUES(?,?,?)
+                       ON CONFLICT(source) DO UPDATE SET
+                         watermark=excluded.watermark,
+                         updated_at=excluded.updated_at""",
+                    (source, watermark, updated_at),
+                )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def _reconcile_legacy_tender_projection(conn, pending, accepted_tenders):
     """Restore the legacy Radar projection from canonical Signal truth.
 
@@ -208,6 +249,11 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
     the prior canonical projection (or removes a first-time legacy row with no
     canonical Signal record) before the original persistence error is re-raised.
 
+    If that post-commit reconciliation itself fails, canonical source truth remains
+    committed but the exact pre-commit source cursors are restored. This preserves
+    retryability: a later source fetch cannot skip truth that the customer-facing
+    compatibility projection has not successfully reconciled yet.
+
     Fetch health may already have been committed before this transaction begins.
     When canonical persistence fails, compensate that observation after rollback
     by degrading every staged source before re-raising the original error. Health
@@ -222,6 +268,7 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
     if not pending:
         return _empty_commit_result()
 
+    previous_cursors = _cursor_snapshots(conn, pending)
     committed_tenders = set()
     signal_records = 0
     metadata_records = 0
@@ -299,10 +346,25 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
     except Exception as projection_exc:
         if external_accepted is not None:
             external_accepted.clear()
-        raise RuntimeError(
+        # A reconciliation implementation can have uncommitted partial writes at
+        # the failure point. Discard them before cursor compensation so restoring
+        # cursor state cannot accidentally commit a partial customer projection.
+        conn.rollback()
+        cursor_restore_error = None
+        try:
+            _restore_cursor_snapshots(conn, previous_cursors)
+        except Exception as restore_exc:
+            cursor_restore_error = restore_exc
+        detail = (
             "source transaction committed but legacy projection reconciliation failed: "
             f"{type(projection_exc).__name__}: {projection_exc}"
-        ) from projection_exc
+        )
+        if cursor_restore_error is not None:
+            detail += (
+                "; source cursor restoration failed: "
+                f"{type(cursor_restore_error).__name__}"
+            )
+        raise RuntimeError(detail) from projection_exc
     finally:
         discard_staged_source_syncs()
 
