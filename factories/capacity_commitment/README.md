@@ -1,8 +1,8 @@
 # Capacity Commitment — T1 Assisted Recoverability
 
-Status: **T1 IN PROGRESS / NOT YET PILOT CAPABLE**
+Status: **T1 CANDIDATE — FINAL EXACT-HEAD VERIFICATION REQUIRED**
 
-Engine version: **`capacity-recoverability-t1.4`**
+Engine version: **`capacity-recoverability-t1.5`**
 
 This isolated lane implements the narrowed wedge validated by the Capacity Commitment Factory:
 
@@ -16,20 +16,22 @@ It is deliberately not a forecasting, S&OP, ERP, CLM, or generic claims replacem
 2. Recoverable/claimable is not recovered, settled, invoiced, or paid.
 3. Forecast-only volume is never promoted into a firm commitment.
 4. Ambiguous or missing contract/evidence/integrity states fail closed.
-5. Mitigation and prior customer payments reduce exposure before recoverability.
-6. Shared capex is not treated as dedicated capex.
-7. Fully amortized/already-paid cost cannot become a new recovery.
-8. Duplicate claims are blocked.
-9. Wrong program, period, currency, unit, actual completeness/deduplication, cancelled-order reconciliation, amortization basis, notice window, current contract, or amendment review block claimability.
-10. An asserted verified notice window requires a persisted canonical `YYYY-MM-DD` deadline.
-11. Expired notice/deadline means zero claimable amount.
-12. Correct zero recovery is a successful result.
-13. Positive recoverability still requires authorized human review before any external submission.
-14. Historical state is checksummed, tenant-bound, engine-version-bound, and cannot be silently reinterpreted by a later engine.
+5. Mitigation and prior customer recovery/payments reduce exposure before recoverability.
+6. Mitigation and prior recovery must be explicitly reviewed before a positive position.
+7. Shared capex is not treated as dedicated capex; dedication must itself be verified.
+8. Fully amortized/already-paid cost cannot become a new recovery.
+9. Duplicate claims are blocked.
+10. Wrong customer, program, period, currency, unit, actual completeness/deduplication, cancelled-order reconciliation, amortization basis, contract, amendment, notice window, or asset-dedication state blocks claimability.
+11. An asserted verified notice window requires a persisted canonical `YYYY-MM-DD` deadline.
+12. Expired notice/deadline means zero claimable amount.
+13. Correct zero recovery is a successful result.
+14. Positive recoverability still requires authorized human review before any external submission.
+15. Historical state is checksummed, tenant-bound, engine-version-bound, and cannot be silently reinterpreted by a later engine.
+16. Exact retries are idempotent; changed retries and concurrent changed creates cannot overwrite the first accepted state.
 
 ## Domain path
 
-`contract/nomination anchor -> commitment -> forecast context (non-entitlement) -> actual consumption -> exposure -> mitigation/prior payment -> integrity -> contractual/commercial right -> evidence -> verified notice window/deadline -> recoverability -> assisted package -> human review`
+`company -> customer -> program -> contract/nomination -> commitment -> capacity/investment -> forecast context (non-entitlement) -> actual consumption -> exposure -> mitigation/prior recovery -> integrity -> contractual/commercial right -> evidence -> verified notice window/deadline -> recoverability -> assisted package -> human review -> save/return`
 
 ## Implemented T1 capabilities
 
@@ -39,13 +41,16 @@ It is deliberately not a forecasting, S&OP, ERP, CLM, or generic claims replacem
 - direct unused labor capacity;
 - direct committed material exposure;
 - mitigation/reuse and prior payment/customer-credit reconciliation;
-- strict program/period/currency/unit/actual/amortization/contract/amendment/notice integrity gates;
+- explicit review gates for mitigation and prior recovery;
+- strict customer/program/period/currency/unit/actual/amortization/asset-dedication/contract/amendment/notice integrity gates;
 - independent frozen synthetic oracle with positive, zero, non-recoverable, expired and unknown outcomes;
 - truth-preserving recovery/action package with evidence, missing evidence, reasons, deadline and next actions;
 - `verified_recovery=false` and `payment_received=false` on generated packages;
 - checksummed state snapshots with contract/nomination and separate forecast context;
 - durable tenant-scoped SQLite persistence;
-- duplicate create protection: same tenant + case ID cannot silently overwrite prior state;
+- exact retry idempotency;
+- changed duplicate create protection: same tenant + case ID cannot silently overwrite prior state;
+- concurrent changed-create race protection with one persisted winner;
 - save -> close/reopen repository -> return with state preserved;
 - backup/restore with corruption and engine-version drift rejection before live mutation;
 - tenant isolation tests;
@@ -53,10 +58,13 @@ It is deliberately not a forecasting, S&OP, ERP, CLM, or generic claims replacem
 - production tenant resolver using the repository's verified JWT provider identity and refusing unauthenticated development identity;
 - request-size, schema, numeric, boolean and unknown-field hardening;
 - explicit create-intent header requirement;
-- authenticated assisted operator console;
+- authenticated assisted operator console with material gates defaulting to Unknown;
 - no-store, CSP, anti-framing and related response security headers;
 - end-to-end synthetic assisted journey tests;
-- root test wiring into the repository's exact-head Python quality job.
+- forecast revision/extreme-forecast invariance tests;
+- timeout-style retry and concurrent-create tests;
+- root test wiring into the repository's exact-head Python quality job;
+- explicit `T1_GATE.md` P0/P1 decision matrix.
 
 ## Synthetic oracle / red team
 
@@ -68,13 +76,20 @@ The independent case matrix includes:
 - dedicated/shared capex, tooling, NRE, labor and material;
 - mitigation, reuse and prior customer credit;
 - duplicate claim;
-- wrong program/period/currency/unit;
+- wrong customer/program/period/currency/unit;
 - missing/late call-off, duplicate volume and cancelled-order contamination;
 - wrong/unknown amortization basis verification;
+- unverified/unknown asset dedication;
+- mitigation review missing/unknown;
+- prior recovery review missing/unknown;
 - unverified/unknown notice window;
-- superseded contract and unreconciled amendment;
+- wrong/superseded contract;
+- unreconciled/wrong amendment;
 - expired or unknown notice validity;
 - prior payment/mitigation exhausting exposure;
+- revised/extreme forecast without entitlement drift;
+- exact retry, changed duplicate and concurrent changed create;
+- restart, backup and restore;
 - correct zero-recovery outcomes.
 
 The production evaluator never computes its own expected oracle values.
@@ -84,6 +99,8 @@ The production evaluator never computes its own expected oracle values.
 Authoritative persisted state is source input, not derived recovery output. Results/packages are recomputed from the stored source state only when the stored engine version matches the active engine. Version drift requires explicit reassessment instead of silent reinterpretation.
 
 A verified notice window must carry a persisted canonical absolute deadline. Evidence-supported state requires at least one persisted evidence reference. Blank and duplicate evidence references are rejected.
+
+T1 is intentionally create-only. Exact repeated submission of the same snapshot is idempotent; a different source snapshot for the same tenant/case conflicts. This preserves commitment history and gives a safe recovery path after a client timeout.
 
 ## Authentication and isolation
 
@@ -99,28 +116,34 @@ There is intentionally no production fallback to the repository's unauthenticate
 
 The repository's existing `.github/workflows/quality.yml` runs root `test_*.py` files on every pull request and checks the exact PR HEAD.
 
-Capacity Commitment's Python suite is part of that root run. The repository-wide mobile job currently has an unrelated Expo Doctor dependency drift: Expo expects `react-native 0.86.3` while the unchanged mobile project pins `0.86.2`. This lane does not modify mobile dependencies or treat that external red job as a Capacity Commitment pass.
+The last pre-documentation t1.5 exact head passed the full Python repository suite, including Capacity Commitment's oracle, E2E, retry and concurrency tests. This documentation commit intentionally requires one final exact-head Python run before terminal promotion.
 
-## Still not implemented / not proven
+The repository-wide mobile job remains independently red because current Expo Doctor expects `react-native 0.86.3` while the unchanged mobile project pins `0.86.2`. This lane does not modify mobile dependencies or treat that external red job as a Capacity Commitment pass.
+
+## Still not implemented / not T1 blockers
+
+Manual contract review is explicitly acceptable for the controlled assisted T1 journey. Therefore the following remain later-stage work unless new evidence makes one a P0/P1:
 
 - automatic contract/amendment/document extraction from raw customer files;
-- source-file upload/storage and page/line provenance extraction;
-- mutable post-create case editing with explicit revision history (T1 is intentionally create-only to avoid silent overwrite);
+- automatic page/line provenance extraction;
+- mutable post-create case editing with explicit revision history;
 - automated external customer submission;
 - settlement/payment reconciliation from a real customer workflow;
-- production deployment of this isolated assisted runtime;
+- production market deployment of this isolated assisted runtime;
 - real-customer dataset verification;
 - customer willingness-to-pay or commercial proof.
 
 ## T1 promotion gate
 
-Do **not** claim `T1 PILOT CAPABLE` until all of the following are simultaneously true:
+The detailed gate matrix lives in `T1_GATE.md`.
 
-1. exact current Capacity Commitment HEAD Python quality job is green;
+Promote to `T1 — PILOT CAPABLE` only when all of the following are simultaneously true:
+
+1. exact final branch HEAD Python quality is green;
 2. synthetic oracle and end-to-end assisted matrix are green;
 3. no known applicable P0/P1 remains in the create-only assisted journey;
-4. tenant isolation, save/return, backup/restore, evidence anchoring, notice/deadline integrity and recovery-package truth survive end-to-end validation;
-5. any repository-wide unrelated failing job is explicitly evidenced and not caused by this lane;
-6. README and PR description match repository truth.
+4. tenant isolation, save/return, retry/concurrency, backup/restore, evidence anchoring, mitigation/prior-recovery review, notice/deadline integrity and recovery-package truth survive validation;
+5. the repository-wide mobile failure remains evidenced as external to this lane;
+6. README, T1 gate matrix and PR description match repository truth.
 
 No merge is authorized by this Factory lane.
