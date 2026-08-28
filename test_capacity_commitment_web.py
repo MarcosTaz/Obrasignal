@@ -55,8 +55,7 @@ def test_web_create_returns_truth_preserving_result_and_package(tmp_path):
 
 def test_web_forecast_only_keeps_exposure_but_zero_claimable(tmp_path):
     app, _ = app_for(tmp_path)
-    request_payload = payload("forecast-only", commitment_state="FORECAST_ONLY")
-    # helper expects enum in Python; overwrite serialized enum value explicitly.
+    request_payload = payload("forecast-only")
     request_payload["recovery_case"]["commitment_state"] = "FORECAST_ONLY"
     response = app.test_client().post(
         "/api/capacity/cases",
