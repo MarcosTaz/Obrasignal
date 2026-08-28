@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Callable, Optional
 
 from flask import Flask, g, jsonify, request
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from .operator_ui import OPERATOR_HTML
 from .repository import CapacityRepository
@@ -14,6 +15,7 @@ from .state import AssistedCaseState, recovery_case_from_payload
 
 
 TenantResolver = Callable[[object], Optional[str]]
+MAX_REQUEST_BYTES = 1_000_000
 
 
 _TOP_LEVEL_FIELDS = {
@@ -42,6 +44,22 @@ def _json_safe(value):
     return value
 
 
+def _required_string(payload: dict, key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{key} is required and must be a string")
+    return value
+
+
+def _optional_string(payload: dict, key: str) -> Optional[str]:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must be a string or null")
+    return value
+
+
 def _string_list(payload: dict, key: str) -> tuple[str, ...]:
     raw = payload.get(key, [])
     if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
@@ -55,7 +73,7 @@ def _optional_decimal(payload: dict, key: str) -> Optional[Decimal]:
         return None
     try:
         return Decimal(str(raw))
-    except (InvalidOperation, ValueError) as exc:
+    except (InvalidOperation, ValueError, TypeError) as exc:
         raise ValueError(f"{key} must be numeric") from exc
 
 
@@ -72,15 +90,15 @@ def _state_from_payload(payload: dict, tenant_id: str) -> AssistedCaseState:
 
     return AssistedCaseState(
         tenant_id=tenant_id,
-        company_id=str(payload["company_id"]),
-        customer_id=str(payload["customer_id"]),
-        program_id=str(payload["program_id"]),
+        company_id=_required_string(payload, "company_id"),
+        customer_id=_required_string(payload, "customer_id"),
+        program_id=_required_string(payload, "program_id"),
         recovery_case=recovery_case_from_payload(payload["recovery_case"]),
         evidence_refs=_string_list(payload, "evidence_refs"),
         missing_evidence=_string_list(payload, "missing_evidence"),
-        deadline=payload.get("deadline"),
-        contract_id=payload.get("contract_id"),
-        nomination_id=payload.get("nomination_id"),
+        deadline=_optional_string(payload, "deadline"),
+        contract_id=_optional_string(payload, "contract_id"),
+        nomination_id=_optional_string(payload, "nomination_id"),
         forecast_units=_optional_decimal(payload, "forecast_units"),
     )
 
@@ -118,6 +136,7 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
         raise ValueError("tenant_resolver is required")
 
     app = Flask("capacity_commitment_assisted")
+    app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BYTES
 
     @app.before_request
     def require_tenant():
@@ -154,6 +173,16 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
     @app.errorhandler(KeyError)
     def not_found(_exc):
         return jsonify({"error": "case_not_found"}), 404
+
+    @app.errorhandler(RuntimeError)
+    def reassessment_required(exc):
+        if "engine version drift" in str(exc):
+            return jsonify({"error": "reassessment_required"}), 409
+        return jsonify({"error": "runtime_integrity_failure"}), 500
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def request_too_large(_exc):
+        return jsonify({"error": "request_too_large"}), 413
 
     @app.route("/", methods=["GET"])
     def operator_console():
