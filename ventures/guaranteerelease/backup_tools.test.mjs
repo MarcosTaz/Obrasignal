@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,writeFile,readFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {createBackup,verifyBackup,restoreBackup} from './backup_tools.mjs';
+const d=await mkdtemp(join(tmpdir(),'gr-backup-')),data=join(d,'data.json'),dir=join(d,'backups'),restore=join(d,'restored','data.json');
+const original={version:3,instruments:[{tenantId:'a',instrumentId:'I1'}],audit:[{event:'X'}]};
+await writeFile(data,JSON.stringify(original));
+const b=await createBackup({dataFile:data,backupDir:dir}); assert.equal(b.manifest.sourceFile,'data.json'); assert.ok(b.manifest.sha256.length===64);
+let v=await verifyBackup({backupPath:b.backupPath,manifestPath:b.manifestPath}); assert.equal(v.ok,true);
+await writeFile(data,JSON.stringify({version:3,instruments:[],audit:[]}));
+await restoreBackup({backupPath:b.backupPath,manifestPath:b.manifestPath,targetPath:restore}); assert.deepEqual(JSON.parse(await readFile(restore,'utf8')),original);
+await assert.rejects(()=>restoreBackup({backupPath:b.backupPath,manifestPath:b.manifestPath,targetPath:restore}),/explicit overwrite required/);
+await restoreBackup({backupPath:b.backupPath,manifestPath:b.manifestPath,targetPath:restore,overwrite:true});
+await writeFile(b.backupPath,JSON.stringify({tampered:true}));
+await assert.rejects(()=>verifyBackup({backupPath:b.backupPath,manifestPath:b.manifestPath}),/checksum mismatch/);
+await assert.rejects(()=>restoreBackup({backupPath:b.backupPath,manifestPath:b.manifestPath,targetPath:join(d,'bad.json')}),/checksum mismatch/);
+console.log('PASS 8/8 backup-restore assertions');
