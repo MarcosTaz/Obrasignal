@@ -27,14 +27,32 @@
         "canonical_head": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
         "verified": true
       },
+      "execution_adapter": {
+        "kind": "obrasignal_verification_v1",
+        "configured": true,
+        "config_path": "factory_cloud/runtime/obrasignal-adapter.json",
+        "allowlisted_tasks": [
+          "verify:canonical:compile",
+          "verify:canonical:python",
+          "verify:canonical:mobile",
+          "verify:canonical:quality"
+        ],
+        "repository_mutation_capability": false
+      },
+      "development_evidence": {
+        "last_green_candidate": "#677@ea9f31b224ff7758bc28532acd3c5d4731971afa",
+        "classification": "NONCANONICAL_CURRENT_SPINE_GREEN",
+        "scope": "temporal authority + source atomicity + best-effort source-health compensation + direct Persistence owner + current Mobile compatibility"
+      },
       "baton": {
-        "active": "Classify intra-batch publisher chronology probe #664 and repair the Temporal/source-runtime owner if deterministically RED",
+        "active": "verify:canonical:compile",
         "next": [
-          "Close Persistence #238 direct owner registration passing-after through #662 exact-head validation",
-          "Continue selective executable producer-to-consumer Contracts coverage without promoting registry GREEN to global compatibility",
-          "Continue source-to-canonical causal, normalization and historical provenance probes while preserving UNKNOWN where authority is absent"
+          "verify:canonical:python",
+          "verify:canonical:mobile",
+          "Continue source-to-canonical causal, normalization and historical provenance probes from GREEN current spine #677 while preserving UNKNOWN where authority is absent"
         ],
         "wait": [
+          "repository mutation/code-authoring tasks require a separately verified repository-safe coding adapter",
           "canonical adoption",
           "merge",
           "deploy",
