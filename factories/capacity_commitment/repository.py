@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
-from .engine import ENGINE_VERSION
+from .engine import ENGINE_VERSION, evaluate_recoverability
 from .state import AssistedCaseState, dump_state, load_state
 
 
@@ -57,12 +57,11 @@ class CapacityRepository:
                 raise RuntimeError("capacity repository schema requires explicit migration")
 
     def save(self, state: AssistedCaseState) -> None:
-        """Create a case without permitting silent replacement."""
+        """Create a validated case without permitting silent replacement."""
 
+        evaluate_recoverability(state.recovery_case)
         snapshot = dump_state(state)
         case_id = state.recovery_case.case_id
-        if not case_id or not case_id.strip():
-            raise ValueError("case_id is required")
         updated_at = datetime.now(timezone.utc).isoformat()
         try:
             with self._connect() as conn:
@@ -92,7 +91,9 @@ class CapacityRepository:
             raise KeyError("case not found")
         if row["engine_version"] != ENGINE_VERSION:
             raise RuntimeError("case requires explicit reassessment for engine version drift")
-        return load_state(row["snapshot"], expected_tenant_id=tenant_id)
+        state = load_state(row["snapshot"], expected_tenant_id=tenant_id)
+        evaluate_recoverability(state.recovery_case)
+        return state
 
     def list_case_ids(self, *, tenant_id: str) -> List[str]:
         if not tenant_id:
@@ -149,7 +150,8 @@ class CapacityRepository:
             for row in rows:
                 if row["engine_version"] != ENGINE_VERSION:
                     raise ValueError("restore source requires explicit engine reassessment")
-                load_state(row["snapshot"], expected_tenant_id=row["tenant_id"])
+                state = load_state(row["snapshot"], expected_tenant_id=row["tenant_id"])
+                evaluate_recoverability(state.recovery_case)
 
             with self._connect() as destination:
                 source.backup(destination)
