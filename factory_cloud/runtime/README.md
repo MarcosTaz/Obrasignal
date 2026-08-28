@@ -10,18 +10,42 @@ The app-owned executable receives one `ExecutionRequest` JSON object on stdin. I
 
 Before the executable runs, the worker independently checks `git rev-parse HEAD` inside the configured workspace and requires exact equality with the canonical head already verified by the control plane. A stale/unverifiable workspace fails closed.
 
-Example config: `app-adapter.example.json`.
+`app-adapter.example.json` remains the generic example. `obrasignal-adapter.json` is now a concrete non-secret configuration for the built-in ObraSignal verification agent.
+
+## Concrete ObraSignal host path
+
+The built-in ObraSignal adapter expects:
+
+- application workspace: `/srv/factory-cloud/apps/obrasignal`;
+- Factory Cloud control-plane checkout: `/opt/factory-cloud/current`;
+- concrete executable: `/usr/bin/python3 /opt/factory-cloud/current/factory_cloud/obrasignal_agent.py`.
+
+`systemd/prepare-obrasignal-workspace.sh` reads the **verified canonical SHA** from `factory_cloud/apps.json`, creates a private development checkout when absent, refuses to move a dirty existing workspace, fetches `origin/main`, and checks out the registered SHA detached. It does not reset/clean a dirty checkout and does not touch K3.
+
+The concrete agent supports only `verify:canonical:python`, `verify:canonical:mobile`, and `verify:canonical:quality`. It accepts no arbitrary shell task. Mobile verification deliberately requires pre-existing `mobile/node_modules`; it never installs dependencies itself. Python tooling may be selected in the isolated worker environment with `FACTORY_CLOUD_OBRASIGNAL_PYTHON`; no such path is persisted in shared Factory Cloud state.
 
 ## systemd topology
 
 - `factory-cloud-control.service`: one durable control-plane dispatcher.
 - `factory-cloud-app@.service`: one private OS user/group per app plus membership in the shared `factory-cloud` metadata group.
 - `factory-cloud.target`: groups the services.
-- `systemd/install.sh`: host-side provisioning helper. It requires external per-app adapter configs before starting workers.
+- `systemd/install.sh`: host-side provisioning helper. By default it provisions only `obrasignal`, installs the built-in adapter config into the private app group, prepares the exact ObraSignal development checkout, then starts the services. Additional apps still require their own safe adapter/config and source authority.
 
-The state directory is setgid `2770` and both service types use `UMask=0007`, so SQLite/WAL/SHM files remain writable by the shared metadata group without giving app workers a shared primary identity. App secret environment files should be owned `root:factory-cloud-<app>` with mode `0640`; never make them readable by the shared `factory-cloud` group.
+The state directory is setgid `2770` and both service types use `UMask=0007`, so SQLite/WAL/SHM files remain writable by the shared metadata group without giving app workers a shared primary identity. App config files are `root:factory-cloud-<app>` mode `0640`; app secret environment files should use the same private app group and must never be readable by the shared `factory-cloud` group.
 
-The app workspace and app executable are intentionally outside the shared repository/runtime configuration. Give each app OS user access only to its own development workspace and credentials. Do not mount production databases or shared secret stores into Factory Cloud.
+The app workspace and app executable remain outside shared orchestration state. Give each app OS user access only to its own development workspace and credentials. Do not mount production databases or shared secret stores into Factory Cloud.
+
+## Host preparation
+
+On an explicitly authorized isolated Linux host, after placing the Factory Cloud branch at `/opt/factory-cloud/current`:
+
+```bash
+sudo bash /opt/factory-cloud/current/factory_cloud/runtime/systemd/install.sh
+```
+
+The default install path prepares ObraSignal only. `PREPARE_WORKSPACES=0` can be used to install service/config artifacts without moving or cloning an app workspace. The preparer fails closed on unverified registry truth, dirty workspace state, unavailable registered commit, or final HEAD mismatch.
+
+This installer does **not** install ObraSignal Python/mobile dependencies, create production credentials, grant deployment authority, or activate providers. The app environment/toolchain must be prepared separately under the app-specific OS identity. Missing mobile dependencies cause the concrete agent to WAIT instead of installing them.
 
 ## Activation/verification gate
 
@@ -32,7 +56,9 @@ A host is not considered provisioned until all of the following have been observ
 3. `/var/lib/factory-cloud/state.sqlite3` survives process restarts and remains writable through WAL/SHM creation by both control and app worker processes;
 4. killing/restarting the control service records interruption/recovery without duplicate dispatch;
 5. killing/restarting an app worker allows an expired app-scoped job claim to be reclaimed;
-6. ObraSignal adapter refuses a stale local HEAD;
-7. K3 remains without a repository-mutating process adapter until canonical source truth is independently verified.
+6. ObraSignal workspace HEAD exactly matches independently verified canonical source truth;
+7. ObraSignal concrete adapter successfully executes at least one allowlisted verification task and persists metadata-only evidence;
+8. ObraSignal adapter refuses a stale local HEAD and refuses a non-allowlisted task;
+9. K3 remains without a repository-mutating process adapter until canonical source truth is independently verified.
 
 Until those checks pass on a real external host, do **not** describe Factory Cloud as 24/7 autonomous execution.
