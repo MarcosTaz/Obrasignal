@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 
 from .ledger import LedgerKind, LedgerRecord, reconcile_ledger
+from .recovery_queue import build_invoice_recovery_queue
 
 
 class PayloadError(ValueError):
@@ -67,8 +68,17 @@ def reconcile_payload(rows: object, *, tenant_id: str) -> dict:
         records.append(record)
 
     result = reconcile_ledger(tuple(records))
+    currencies = {record.currency for record in records}
+    currency = next(iter(currencies)) if len(currencies) == 1 else None
+    queue = (
+        build_invoice_recovery_queue(result, currency=currency)
+        if currency is not None
+        else ()
+    )
+
     return {
         "tenant_id": tenant_id,
+        "currency": currency,
         "verified_cash": str(result.verified_cash),
         "due_unpaid": str(result.due_unpaid),
         "not_yet_due": str(result.not_yet_due),
@@ -86,6 +96,21 @@ def reconcile_payload(rows: object, *, tenant_id: str) -> dict:
                 "evidence_chain": list(p.evidence_chain),
             }
             for p in result.positions
+        ],
+        "recovery_queue": [
+            {
+                "case_id": item.case_id,
+                "category": item.category,
+                "amount": str(item.amount),
+                "currency": item.currency,
+                "confidence": item.confidence,
+                "evidence_quality": item.evidence_quality,
+                "blocker": item.blocker,
+                "action": item.action,
+                "priority_score": item.priority_score,
+                "evidence_chain": list(item.evidence_chain),
+            }
+            for item in queue
         ],
         "anomalies": [
             {
