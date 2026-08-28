@@ -149,6 +149,7 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
     optional_bool_fields = (
         "explicit_recovery_right",
         "notice_valid",
+        "customer_matches",
         "program_matches",
         "period_matches",
         "currency_matches",
@@ -157,9 +158,14 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
         "actuals_deduplicated",
         "cancelled_orders_excluded",
         "amortization_verified",
+        "asset_dedication_verified",
+        "mitigation_reviewed",
+        "prior_recovery_reviewed",
         "notice_window_verified",
+        "contract_matches",
         "contract_current",
         "amendment_reviewed",
+        "amendment_matches",
     )
     for key in required_bool_fields:
         if key in values and type(values[key]) is not bool:
