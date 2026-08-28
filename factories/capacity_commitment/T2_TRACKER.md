@@ -26,7 +26,16 @@ Unsolicited commercial email remains **HOLD — LSSI BASIS** unless a lawful aut
 
 ### United Kingdom
 
-Generic corporate-address route is the currently preferred first test because UK PECR rules distinguish corporate subscribers from individual subscribers. Any eventual message must identify the sender and offer a simple opt-out. Owner approval remains required before external send.
+Preferred first test channel.
+
+ICO B2B/PECR guidance checked on 2026-08-28 states that the electronic-mail direct-marketing rule does not apply to **corporate subscribers** such as limited companies. Unsolicited B2B electronic mail may be sent to corporate subscribers without PECR consent, but the sender must not conceal identity and must provide a valid opt-out/unsubscribe route. UK GDPR still applies when personal data is processed; therefore generic corporate mailboxes are preferred for this first test.
+
+Compliance evidence retained:
+
+- https://ico.org.uk/for-organisations/direct-marketing-and-privacy-and-electronic-communications/business-to-business-marketing/
+- https://ico.org.uk/for-organisations/direct-marketing-and-privacy-and-electronic-communications/guidance-on-direct-marketing-using-electronic-mail/how-do-we-comply-with-the-pecr-electronic-mail-marketing-rules/
+
+Owner approval remains required by the Factory before any external send.
 
 ## Draft state
 
@@ -36,6 +45,8 @@ Generic corporate-address route is the currently preferred first test because UK
 - Fehst — `r3228309606481883657` — HOLD DGC.
 - COINDU — `r-2357619079086902254` — HOLD DGC.
 - Teknia — `r1319900680223442801` — HOLD Spain LSSI.
+- CT Automotive — `r612899160223014657` — HOLD OWNER APPROVAL; UK generic corporate address; opt-out included.
+- Autins — `r3003373423423377339` — HOLD OWNER APPROVAL; UK generic corporate address; opt-out included.
 
 No draft counts as CONTACTED.
 
@@ -43,6 +54,8 @@ No draft counts as CONTACTED.
 
 - TARGETS_RESEARCHED = 7
 - PUBLIC_SIGNAL_QUALIFIED = 7
+- DRAFTS_PREPARED = 6
+- SEND_READY_UK = 2
 - CONTACTED = 0
 - DELIVERED = 0
 - REPLIED = 0
@@ -57,6 +70,6 @@ No draft counts as CONTACTED.
 
 ## Current bottleneck
 
-**OWNER-AUTHORIZED REAL MARKET EXPOSURE through the lowest-friction lawful route.**
+**OWNER-AUTHORIZED REAL MARKET EXPOSURE.**
 
-Before surfacing that gate, prepare UK drafts to corporate generic addresses and ensure the final copy contains only supported public trigger facts, no invented exposure, no invented customer result and a clear opt-out.
+All safe pre-send work is complete for the first UK test: target evidence, generic corporate routes, target-specific copy, sender identity, opt-out, pilot scope and truthful tracker are prepared. External send remains the only action that can move CONTACTED from 0.
