@@ -44,6 +44,19 @@ def valid_payload():
             "partner_incentive_approved": "10000",
             "partner_incentive_received": "5000",
         },
+        "forecast": {
+            "case_id": "case-1",
+            "source_platform": "vmware",
+            "destination_platform": "aws",
+            "workload_class": "vm",
+            "migration_strategy": "rehost",
+            "migration_cost": "100000",
+            "duration_days": "180",
+            "annual_run_cost": "180000",
+            "downtime_minutes": "30",
+            "incentive_total": "40000",
+            "methodology_version": "v0.1",
+        },
         "incentives": [
             {
                 "incentive_id": "provider",
@@ -91,7 +104,7 @@ def test_analyze_requires_authenticated_tenant_resolver(tmp_path):
     assert response.status_code == 401
 
 
-def test_assisted_web_flow_builds_saves_returns_decision_and_options(tmp_path):
+def test_assisted_web_flow_builds_saves_returns_decision_options_and_forecast(tmp_path):
     client = make_app(tmp_path).test_client()
     response = client.post(
         "/cloud-switching/api/analyze",
@@ -105,6 +118,8 @@ def test_assisted_web_flow_builds_saves_returns_decision_and_options(tmp_path):
     assert body["decision_package"]["captured_incentives"] == "30000"
     assert body["option_comparison"]["economic_winner_id"] == "aws"
     assert body["option_comparison"]["customer_cash_winner_id"] == "aws"
+    assert body["frozen_forecast"]["migration_cost"] == "100000"
+    assert body["frozen_forecast"]["incentive_total"] == "40000"
     assert body["delivery_content_hash"]
 
     loaded = client.get(
@@ -116,6 +131,7 @@ def test_assisted_web_flow_builds_saves_returns_decision_and_options(tmp_path):
     assert loaded_body["delivery_content_hash"] == body["delivery_content_hash"]
     assert loaded_body["delivery"]["decision"] == body["decision_package"]
     assert loaded_body["delivery"]["options"] == body["option_comparison"]
+    assert loaded_body["delivery"]["forecast"] == body["frozen_forecast"]
 
 
 def test_other_tenant_cannot_read_saved_package(tmp_path):
@@ -157,3 +173,16 @@ def test_web_flow_requires_real_alternative_comparison(tmp_path):
     )
     assert response.status_code == 422
     assert "at least two" in response.get_json()["error"]
+
+
+def test_forecast_financials_must_reconcile_before_being_frozen(tmp_path):
+    client = make_app(tmp_path).test_client()
+    payload = valid_payload()
+    payload["forecast"]["migration_cost"] = "99999"
+    response = client.post(
+        "/cloud-switching/api/analyze",
+        json=payload,
+        headers={"X-Test-Tenant": "tenant-a"},
+    )
+    assert response.status_code == 422
+    assert "gross switching cost" in response.get_json()["error"]
