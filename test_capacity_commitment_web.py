@@ -21,6 +21,13 @@ def payload(case_id="web-case", **case_overrides):
     }
 
 
+def headers(tenant="tenant-a", *, include_intent=True):
+    values = {"X-Test-Tenant": tenant}
+    if include_intent:
+        values["X-Capacity-Intent"] = "create-case"
+    return values
+
+
 def app_for(tmp_path):
     repository = CapacityRepository(str(tmp_path / "capacity.db"))
     app = create_app(repository, lambda req: req.headers.get("X-Test-Tenant"))
@@ -35,11 +42,37 @@ def test_web_requires_authenticated_tenant(tmp_path):
     assert response.get_json()["error"] == "authentication_required"
 
 
+def test_operator_console_is_authenticated_and_truth_labeled(tmp_path):
+    app, _ = app_for(tmp_path)
+    unauthenticated = app.test_client().get("/")
+    assert unauthenticated.status_code == 401
+
+    response = app.test_client().get("/", headers=headers(include_intent=False))
+    assert response.status_code == 200
+    text = response.get_data(as_text=True)
+    assert "Capacity Commitment" in text
+    assert "Economic exposure is kept separate" in text
+    assert "No result on this screen is a verified recovery or payment" in text
+    assert response.headers["Cache-Control"] == "no-store"
+    assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+
+
+def test_web_create_requires_explicit_same_origin_intent_header(tmp_path):
+    app, _ = app_for(tmp_path)
+    response = app.test_client().post(
+        "/api/capacity/cases",
+        headers=headers(include_intent=False),
+        json=payload("missing-intent"),
+    )
+    assert response.status_code == 403
+    assert response.get_json()["error"] == "create_intent_required"
+
+
 def test_web_create_returns_truth_preserving_result_and_package(tmp_path):
     app, _ = app_for(tmp_path)
     response = app.test_client().post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(),
         json=payload(),
     )
     assert response.status_code == 201
@@ -61,7 +94,7 @@ def test_web_forecast_only_keeps_exposure_but_zero_claimable(tmp_path):
     request_payload["recovery_case"]["commitment_state"] = "FORECAST_ONLY"
     response = app.test_client().post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(),
         json=request_payload,
     )
     assert response.status_code == 201
@@ -76,26 +109,26 @@ def test_web_tenant_isolation_on_get_and_list(tmp_path):
     client = app.test_client()
     created = client.post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers("tenant-a"),
         json=payload("isolated-case"),
     )
     assert created.status_code == 201
 
     own = client.get(
         "/api/capacity/cases/isolated-case",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers("tenant-a", include_intent=False),
     )
     assert own.status_code == 200
 
     other = client.get(
         "/api/capacity/cases/isolated-case",
-        headers={"X-Test-Tenant": "tenant-b"},
+        headers=headers("tenant-b", include_intent=False),
     )
     assert other.status_code == 404
 
     other_list = client.get(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-b"},
+        headers=headers("tenant-b", include_intent=False),
     )
     assert other_list.status_code == 200
     assert other_list.get_json() == {"count": 0, "items": []}
@@ -108,7 +141,7 @@ def test_web_save_return_survives_repository_reopen(tmp_path):
     first_app.config.update(TESTING=True)
     created = first_app.test_client().post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(),
         json=payload("restart-case"),
     )
     assert created.status_code == 201
@@ -118,7 +151,7 @@ def test_web_save_return_survives_repository_reopen(tmp_path):
     reopened_app.config.update(TESTING=True)
     restored = reopened_app.test_client().get(
         "/api/capacity/cases/restart-case",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(include_intent=False),
     )
     assert restored.status_code == 200
     assert restored.get_json()["case"]["case_id"] == "restart-case"
@@ -130,7 +163,7 @@ def test_web_duplicate_creation_conflicts_and_preserves_first_snapshot(tmp_path)
     first = payload("duplicate-case")
     created = client.post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(),
         json=first,
     )
     assert created.status_code == 201
@@ -138,7 +171,7 @@ def test_web_duplicate_creation_conflicts_and_preserves_first_snapshot(tmp_path)
     changed = payload("duplicate-case", actual_units=Decimal("0"))
     conflict = client.post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(),
         json=changed,
     )
     assert conflict.status_code == 409
@@ -154,7 +187,7 @@ def test_web_rejects_supported_evidence_without_persisted_refs(tmp_path):
     request_payload["evidence_refs"] = []
     response = app.test_client().post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(),
         json=request_payload,
     )
     assert response.status_code == 400
@@ -169,7 +202,7 @@ def test_web_rejects_unknown_top_level_and_case_fields(tmp_path):
     top["invented"] = "value"
     top_response = client.post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(),
         json=top,
     )
     assert top_response.status_code == 400
@@ -178,7 +211,7 @@ def test_web_rejects_unknown_top_level_and_case_fields(tmp_path):
     nested["recovery_case"]["invented"] = True
     nested_response = client.post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(),
         json=nested,
     )
     assert nested_response.status_code == 400
@@ -190,7 +223,7 @@ def test_web_requires_contract_or_nomination_anchor(tmp_path):
     request_payload.pop("contract_id")
     response = app.test_client().post(
         "/api/capacity/cases",
-        headers={"X-Test-Tenant": "tenant-a"},
+        headers=headers(),
         json=request_payload,
     )
     assert response.status_code == 400
