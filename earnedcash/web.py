@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 import sqlite3
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, render_template, request
 
 from auth_context import configured_identity
 
@@ -30,6 +30,10 @@ def create_earnedcash_blueprint(store: EarnedCashStore | None = None) -> Bluepri
         if isinstance(exc, sqlite3.IntegrityError):
             return jsonify({"error": "resource_conflict"}), 409
         return jsonify({"error": str(exc)}), 400
+
+    @bp.get("/")
+    def dashboard():
+        return render_template("earnedcash/index.html")
 
     @bp.get("/health")
     def health():
