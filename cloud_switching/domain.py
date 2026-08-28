@@ -70,6 +70,8 @@ class EconomicsResult:
 def _payback_months(cost: Money, annual_saving: Money) -> Optional[Decimal]:
     if annual_saving <= 0:
         return None
+    if cost <= 0:
+        return Decimal("0.00")
     return (cost / annual_saving * Decimal("12")).quantize(Decimal("0.01"))
 
 
@@ -89,7 +91,7 @@ def calculate(case: MigrationCase) -> EconomicsResult:
     )
     received_capital = case.provider_credit_received + case.partner_incentive_received
     cash_cost = gross - received_capital
-    # Preserve negative cash cost instead of silently flooring it: over-subsidy is material evidence.
+    # Preserve over-subsidy as evidence in cash cost, but never express it as a negative payback duration.
     status_quo_avoidance = case.status_quo_annual_cost - case.target_annual_cost
     operating_saving = case.current_annual_cost - case.target_annual_cost
     return EconomicsResult(
