@@ -22,7 +22,7 @@ class SourceVerification:
 
 
 class GitHubHeadVerifier:
-    """Read-only canonical-head verifier; credentials, if any, stay in process env."""
+    """Read-only exact branch-head verifier; credentials stay in process env."""
 
     def __init__(self, opener: Callable[..., Any] | None = None):
         self.opener = opener or urllib.request.urlopen
@@ -62,7 +62,7 @@ class GitHubHeadVerifier:
 
 
 class VerifiedDispatchAdapter:
-    """Fail closed unless live read-only source truth matches the registered head."""
+    """Fail closed unless request and live exact execution source both match."""
 
     def __init__(
         self,
@@ -79,12 +79,36 @@ class VerifiedDispatchAdapter:
         self.verifier = verifier or GitHubHeadVerifier()
 
     def execute(self, request: ExecutionRequest) -> ExecutionResult:
+        request_branch = request.execution_branch or self.branch
+        if (
+            request.source != self.repository
+            or request_branch != self.branch
+            or request.target_head != self.expected_head
+        ):
+            return ExecutionResult(
+                status="WAIT",
+                evidence={
+                    "source_verification": "REQUEST_MISMATCH",
+                    "repository": self.repository,
+                    "branch": self.branch,
+                    "expected_head": self.expected_head,
+                    "request_source": request.source,
+                    "request_branch": request.execution_branch,
+                    "request_target_head": request.target_head,
+                    "canonical_head": request.canonical_head,
+                },
+                next_active=request.task,
+                blockers=("execution_source_request_mismatch",),
+                resume_at=request.task,
+            )
+
         verification = self.verifier.verify(self.repository, self.branch, self.expected_head)
         if verification.status != "VERIFIED":
             return ExecutionResult(
                 status="WAIT",
                 evidence={
                     "source_verification": verification.status,
+                    "verification_scope": "execution_source",
                     "expected_head": verification.expected_head,
                     "observed_head": verification.observed_head,
                     **verification.evidence,
