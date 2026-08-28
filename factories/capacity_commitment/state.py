@@ -139,6 +139,7 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
         "actuals_complete",
         "actuals_deduplicated",
         "cancelled_orders_excluded",
+        "amortization_verified",
         "contract_current",
         "amendment_reviewed",
     )
