@@ -48,3 +48,16 @@ def test_mobile_funnel_does_not_present_reported_wins_as_verified_outcomes():
     assert "Ganhos reportados" in source
     assert "não verificado" in source.lower()
     assert ">Ganhos: {counts.WON || 0}<" not in source
+
+
+def test_mobile_detail_qualifies_terminal_workflow_before_it_can_be_read_as_verified_outcome():
+    app = Path("mobile/App.js").read_text(encoding="utf-8")
+    explanation = Path("mobile/components/OpportunityExplanation.js").read_text(encoding="utf-8")
+
+    # App.js still lets the user record terminal workflow states; this is allowed
+    # only because the same detail journey renders the canonical truth qualifier.
+    assert "['WON','Ganho']" in app
+    assert "<OpportunityExplanation item={current}/>" in app
+    assert "ESTADO REPORTADO · NÃO VERIFICADO" in explanation
+    assert "Não prova adjudicação, resultado económico, pagamento" in explanation
+    assert "workflowStatus === 'WON' || workflowStatus === 'LOST'" in explanation
