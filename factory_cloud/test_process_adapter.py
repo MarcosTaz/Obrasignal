@@ -9,20 +9,22 @@ from factory_cloud.process_adapter import ProcessAdapterConfig, ProcessAdapterCo
 
 
 CANONICAL = "a" * 40
+EXECUTION = "c" * 40
 SENSITIVE = "private-process-output-must-not-persist"
 
 
 class FakeRunner:
-    def __init__(self, agent_result=None, agent_returncode=0, agent_stderr=""):
+    def __init__(self, agent_result=None, agent_returncode=0, agent_stderr="", observed_head=CANONICAL):
         self.agent_result = agent_result or {"status": "DONE"}
         self.agent_returncode = agent_returncode
         self.agent_stderr = agent_stderr
+        self.observed_head = observed_head
         self.calls = []
 
     def __call__(self, argv, **kwargs):
         self.calls.append((list(argv), kwargs))
         if list(argv) == ["git", "rev-parse", "HEAD"]:
-            return subprocess.CompletedProcess(argv, 0, stdout=CANONICAL + "\n", stderr="")
+            return subprocess.CompletedProcess(argv, 0, stdout=self.observed_head + "\n", stderr="")
         return subprocess.CompletedProcess(
             argv,
             self.agent_returncode,
@@ -40,8 +42,8 @@ class MismatchRunner(FakeRunner):
 
 
 class ProcessAdapterTests(unittest.TestCase):
-    def _request(self):
-        return ExecutionRequest(
+    def _request(self, **changes):
+        payload = dict(
             app_id="obrasignal",
             mode="repository_safe_execution",
             task="safe repository task",
@@ -49,6 +51,8 @@ class ProcessAdapterTests(unittest.TestCase):
             canonical_head=CANONICAL,
             resume_at="safe repository task",
         )
+        payload.update(changes)
+        return ExecutionRequest(**payload)
 
     def test_config_is_app_scoped_and_repository_safe_only(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -85,6 +89,31 @@ class ProcessAdapterTests(unittest.TestCase):
             self.assertIn("local_workspace_head_mismatch", result.blockers)
             self.assertEqual(len(runner.calls), 1)
 
+    def test_execution_head_overrides_canonical_for_local_gate_and_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = {
+                "status": "DONE",
+                "evidence": {"commit_sha": EXECUTION, "verified_head": EXECUTION, "test_state": "SUCCESS"},
+                "last_green": EXECUTION,
+            }
+            runner = FakeRunner(agent_result=raw, observed_head=EXECUTION)
+            config = ProcessAdapterConfig(
+                app_id="obrasignal",
+                mode="repository_safe_execution",
+                workspace=Path(tmp),
+                command=("agent",),
+            )
+            result = ProcessAgentAdapter(config, runner=runner).execute(self._request(
+                execution_branch="integration/current-spine",
+                execution_head=EXECUTION,
+            ))
+            self.assertEqual(result.status, "DONE")
+            payload = json.loads(runner.calls[1][1]["input"])
+            self.assertEqual(payload["canonical_head"], CANONICAL)
+            self.assertEqual(payload["execution_head"], EXECUTION)
+            self.assertEqual(payload["execution_branch"], "integration/current-spine")
+            self.assertEqual(result.evidence["local_head"], EXECUTION)
+
     def test_success_contract_persists_only_bounded_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             raw = {
@@ -119,6 +148,7 @@ class ProcessAdapterTests(unittest.TestCase):
             self.assertEqual(len(runner.calls), 2)
             payload = json.loads(runner.calls[1][1]["input"])
             self.assertEqual(payload["canonical_head"], CANONICAL)
+            self.assertIsNone(payload["execution_head"])
 
     def test_nonzero_exit_never_persists_stderr(self):
         with tempfile.TemporaryDirectory() as tmp:
