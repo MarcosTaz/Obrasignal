@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+from dataclasses import asdict
+from decimal import Decimal, InvalidOperation
+from typing import Callable
+
+from flask import Blueprint, jsonify, request
+
+from .baseline import BaselineCost, Certainty, CurrentStateBaseline
+from .domain import MigrationCase
+from .incentives import Incentive, IncentiveStatus
+from .service import build_decision_package
+
+
+TenantResolver = Callable[[], str | None]
+
+
+def _money(value, field: str) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f"{field} must be a decimal value") from exc
+
+
+def _optional_money(value, field: str):
+    return None if value is None else _money(value, field)
+
+
+def _json_safe(value):
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def _baseline(tenant_id: str, body: dict) -> CurrentStateBaseline:
+    components = []
+    for item in body.get("baseline", []):
+        certainty = Certainty(item.get("certainty", "unknown"))
+        components.append(
+            BaselineCost(
+                name=str(item.get("name", "")),
+                annual_value=_optional_money(item.get("annual_value"), "baseline.annual_value"),
+                certainty=certainty,
+                material=bool(item.get("material", True)),
+                source_id=item.get("source_id"),
+            )
+        )
+    return CurrentStateBaseline(company_id=tenant_id, components=components)
+
+
+def _migration_case(body: dict) -> MigrationCase:
+    item = body["migration_case"]
+    money_fields = (
+        "current_annual_cost",
+        "status_quo_annual_cost",
+        "target_annual_cost",
+        "migration_engineering_cost",
+        "partner_services_cost",
+        "internal_labour_cost",
+        "training_cost",
+        "parallel_run_cost",
+        "refactoring_cost",
+        "risk_contingency_cost",
+        "provider_credit_approved",
+        "provider_credit_received",
+        "partner_incentive_approved",
+        "partner_incentive_received",
+    )
+    values = {field: _money(item.get(field, "0"), f"migration_case.{field}") for field in money_fields}
+    return MigrationCase(
+        case_id=str(item.get("case_id", "")),
+        observation_months=int(item.get("observation_months", 12)),
+        actual_post_annual_cost=_optional_money(item.get("actual_post_annual_cost"), "migration_case.actual_post_annual_cost"),
+        **values,
+    )
+
+
+def _incentives(body: dict) -> list[Incentive]:
+    results = []
+    for item in body.get("incentives", []):
+        results.append(
+            Incentive(
+                incentive_id=str(item.get("incentive_id", "")),
+                program=str(item.get("program", "")),
+                status=IncentiveStatus(item.get("status", "unknown")),
+                potential_amount=_optional_money(item.get("potential_amount"), "incentive.potential_amount"),
+                approved_amount=_optional_money(item.get("approved_amount"), "incentive.approved_amount"),
+                received_amount=_optional_money(item.get("received_amount"), "incentive.received_amount"),
+                cap_amount=_optional_money(item.get("cap_amount"), "incentive.cap_amount"),
+                eligibility_evidence_id=item.get("eligibility_evidence_id"),
+                approval_evidence_id=item.get("approval_evidence_id"),
+                receipt_evidence_id=item.get("receipt_evidence_id"),
+            )
+        )
+    return results
+
+
+def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
+    blueprint = Blueprint("cloud_switching", __name__, url_prefix="/cloud-switching")
+
+    def tenant_or_error():
+        tenant_id = resolve_tenant()
+        if not tenant_id or not tenant_id.strip():
+            return None, (jsonify({"error": "authenticated tenant required"}), 401)
+        return tenant_id, None
+
+    @blueprint.get("/health")
+    def health():
+        return jsonify({"service": "cloud-switching", "status": "ok"})
+
+    @blueprint.post("/api/analyze")
+    def analyze():
+        tenant_id, error = tenant_or_error()
+        if error:
+            return error
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            return jsonify({"error": "JSON object required"}), 400
+        package_id = str(body.get("package_id", "")).strip()
+        if not package_id:
+            return jsonify({"error": "package_id required"}), 400
+        try:
+            baseline = _baseline(tenant_id, body)
+            case = _migration_case(body)
+            incentives = _incentives(body)
+            package = build_decision_package(baseline, case, incentives)
+            stored = workspace.save(
+                tenant_id=tenant_id,
+                package_id=package_id,
+                package=package,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 422
+        return jsonify(
+            {
+                "package_id": package_id,
+                "version": stored.version,
+                "content_hash": stored.content_hash,
+                "decision_package": _json_safe(asdict(package)),
+            }
+        ), 201
+
+    @blueprint.get("/api/packages/<package_id>")
+    def get_package(package_id: str):
+        tenant_id, error = tenant_or_error()
+        if error:
+            return error
+        record = workspace.load(tenant_id=tenant_id, package_id=package_id)
+        if record is None:
+            return jsonify({"error": "not found"}), 404
+        return jsonify(
+            {
+                "package_id": record.package_id,
+                "version": record.version,
+                "content_hash": record.content_hash,
+                "decision_package": _json_safe(asdict(record.payload)),
+            }
+        )
+
+    return blueprint
