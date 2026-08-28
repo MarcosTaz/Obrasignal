@@ -5,9 +5,10 @@ Factory Cloud is orchestration infrastructure above registered applications. It 
 ## Runtime topology
 
 1. `factory_cloud.worker` is the control-plane host. It loads `apps.json`, acquires the durable dispatch lease, recovers interrupted BATON state, verifies current source truth where supported, chooses safe work, and hands repository-safe jobs to the durable app-worker queue.
-2. `factory_cloud.app_worker` is restricted to one `app_id`. Separate processes may be hosted with separate OS users, credentials and environments. The default adapter remains fail-closed. A repository-safe app can now inject an external app-owned executable through `--adapter-config`.
-3. `factory_cloud.process_adapter` is the concrete process boundary between a queued Factory Cloud job and an application-specific execution agent. It independently verifies the configured local workspace HEAD before invocation, uses argv without a shell, accepts only a bounded JSON result contract and never persists raw stdout/stderr.
-4. SQLite stores orchestration metadata only: BATON/checkpoints, leases, execution history and worker-job envelopes/results. It is not a shared application database.
+2. `factory_cloud.app_worker` is restricted to one `app_id`. Separate processes may be hosted with separate OS users, credentials and environments. With no configured process adapter it remains fail-closed. A repository-safe app can inject an app-owned executable through `--adapter-config`.
+3. `factory_cloud.process_adapter` is the process boundary between a queued Factory Cloud job and an application-specific execution agent. It independently verifies the configured local workspace HEAD before invocation, uses argv without a shell, accepts only a bounded JSON result contract and never persists raw stdout/stderr.
+4. `factory_cloud.obrasignal_agent` is the first concrete application-specific agent. It is deliberately non-mutating and supports only an explicit ObraSignal verification task allowlist; it is not a general shell or an LLM coding agent.
+5. SQLite stores orchestration metadata only: BATON/checkpoints, leases, execution history and worker-job envelopes/results. It is not a shared application database.
 
 The control-plane process and each app worker may be restarted. State is recovered from the durable SQLite checkpoint. A dispatch lease prevents two control-plane hosts from dispatching simultaneously. App jobs use app-scoped claims with expiries so an abandoned job can be reclaimed after a worker crash.
 
@@ -21,15 +22,29 @@ python -m factory_cloud.app_worker Ω \
   --adapter-config /etc/factory-cloud/apps/obrasignal.json
 ```
 
-With no `--adapter-config`, repository-safe workers intentionally retain the previous `WAIT / repository_tooling_adapter_required` behavior. A process adapter config is allowed only for `repository_safe_execution`; it cannot be used to bypass K3's unresolved-source boundary.
+With no `--adapter-config`, repository-safe workers intentionally retain `WAIT / repository_tooling_adapter_required`. A process adapter config is allowed only for `repository_safe_execution`; it cannot be used to bypass K3's unresolved-source boundary.
 
 Host-side systemd templates and the provisioning helper live under `factory_cloud/runtime/`. They are deployment artifacts, not proof that an external host is running. Keeping Factory Cloud alive across machine/process failure still requires those services to be provisioned and acceptance-tested on a real isolated host.
+
+## Concrete ObraSignal executor
+
+`factory_cloud.obrasignal_agent` currently accepts exactly these tasks:
+
+- `verify:canonical:python` — compile root Python modules and run the repository Python test contract;
+- `verify:canonical:mobile` — run Expo Doctor and the existing mobile smoke contracts only when `mobile/node_modules` is already present;
+- `verify:canonical:quality` — run Python verification and then mobile verification.
+
+Task text is never interpolated into a command. The agent uses fixed argv, no shell, performs its own defense-in-depth local HEAD check, captures subprocess output without returning it, and emits metadata-only evidence. Unsupported tasks WAIT rather than being interpreted as commands.
+
+The agent does **not** install mobile dependencies, modify source files, create branches, commit, merge, deploy, activate sources/providers, access billing, or communicate externally. Dependency/tool preparation belongs to the isolated app workspace/worker environment. This closes a concrete execution-adapter gap for safe verification work; it does not yet provide autonomous code-authoring capability.
+
+The built-in non-secret runtime config is `factory_cloud/runtime/obrasignal-adapter.json`. It points the app worker at `/srv/factory-cloud/apps/obrasignal` and the control-plane copy of the concrete agent. The host installer can copy that config into the private per-app config group and prepare the development checkout at the exact verified canonical SHA recorded in `apps.json`.
 
 ## App process contract
 
 The external app executable receives one `ExecutionRequest` JSON object on stdin and returns one metadata-only JSON object on stdout. Supported terminal statuses are `DONE`, `WAIT`, `BLOCKED` and `ERROR`. Raw stdout/stderr is discarded. Persisted evidence is restricted to a narrow allowlist (`commit_sha`, `verified_head`, `test_state`, `task_state`, `evidence_codes`) plus Factory Cloud-generated adapter/head metadata.
 
-The app worker performs an independent `git rev-parse HEAD` check in the configured workspace and requires exact equality with the request's canonical head before the external process can run. This is in addition to the control plane's live GitHub branch-head verification before queue dispatch.
+The app worker performs an independent `git rev-parse HEAD` check in the configured workspace and requires exact equality with the request's canonical head before the external process can run. This is in addition to the control plane's live GitHub branch-head verification before queue dispatch. The ObraSignal agent repeats that HEAD comparison before its allowlisted verification commands.
 
 Adapter JSON files must not contain credentials, customer data, billing authority, deployment authority or production secrets. App-specific credentials belong only to the isolated worker process environment.
 
