@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.2"
+ENGINE_VERSION = "capacity-recoverability-t1.3"
 
 
 class CommitmentState(str, Enum):
@@ -66,6 +66,7 @@ class RecoveryCase:
     actuals_complete: Optional[bool] = None
     actuals_deduplicated: Optional[bool] = None
     cancelled_orders_excluded: Optional[bool] = None
+    amortization_verified: Optional[bool] = None
     contract_current: Optional[bool] = None
     amendment_reviewed: Optional[bool] = None
     duplicate_claim: bool = False
@@ -140,6 +141,7 @@ def _validate(case: RecoveryCase) -> None:
         "actuals_complete": case.actuals_complete,
         "actuals_deduplicated": case.actuals_deduplicated,
         "cancelled_orders_excluded": case.cancelled_orders_excluded,
+        "amortization_verified": case.amortization_verified,
         "contract_current": case.contract_current,
         "amendment_reviewed": case.amendment_reviewed,
     }
@@ -187,6 +189,11 @@ def _integrity_gate(case: RecoveryCase) -> Optional[tuple[RecoverabilityState, s
             case.cancelled_orders_excluded,
             "cancelled_order_reconciliation_unknown",
             "cancelled_order_in_actuals",
+        ),
+        (
+            case.amortization_verified,
+            "amortization_verification_unknown",
+            "amortization_basis_not_verified",
         ),
         (case.contract_current, "contract_current_unknown", "superseded_contract"),
         (case.amendment_reviewed, "amendment_review_unknown", "customer_amendment_not_reconciled"),
