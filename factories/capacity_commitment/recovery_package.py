@@ -78,9 +78,12 @@ def build_recovery_package(
     commitment_baseline = {
         "commitment_state": case.commitment_state.value,
         "committed_units": case.committed_units,
+        "customer_matches": case.customer_matches,
         "explicit_recovery_right": case.explicit_recovery_right,
+        "contract_matches": case.contract_matches,
         "contract_current": case.contract_current,
         "amendment_reviewed": case.amendment_reviewed,
+        "amendment_matches": case.amendment_matches,
     }
 
     actual_consumption = {
@@ -93,6 +96,7 @@ def build_recovery_package(
     shortfall = {"shortfall_units": result.shortfall_units}
     dedicated_capacity = {
         "asset_dedicated": case.asset_dedicated,
+        "asset_dedication_verified": case.asset_dedication_verified,
         "exposure_type": case.exposure_type.value,
         "amortization_basis_units": case.amortization_basis_units,
         "amortization_verified": case.amortization_verified,
@@ -109,18 +113,26 @@ def build_recovery_package(
     }
     mitigation = {
         "mitigation": result.mitigation,
+        "mitigation_reviewed": case.mitigation_reviewed,
         "prior_payment": result.prior_payment,
+        "prior_recovery_reviewed": case.prior_recovery_reviewed,
     }
     contractual_basis = {
+        "customer_matches": case.customer_matches,
         "explicit_recovery_right": case.explicit_recovery_right,
         "program_matches": case.program_matches,
         "period_matches": case.period_matches,
         "currency_matches": case.currency_matches,
         "unit_matches": case.unit_matches,
         "amortization_verified": case.amortization_verified,
+        "asset_dedication_verified": case.asset_dedication_verified,
+        "mitigation_reviewed": case.mitigation_reviewed,
+        "prior_recovery_reviewed": case.prior_recovery_reviewed,
         "notice_window_verified": case.notice_window_verified,
+        "contract_matches": case.contract_matches,
         "contract_current": case.contract_current,
         "amendment_reviewed": case.amendment_reviewed,
+        "amendment_matches": case.amendment_matches,
         "asset_dedicated": case.asset_dedicated,
         "evidence_supported": case.evidence_supported,
         "notice_valid": case.notice_valid,
@@ -139,6 +151,12 @@ def build_recovery_package(
         "source_evidence_refs": evidence_refs,
         "missing_evidence": missing_evidence,
         "deadline": deadline,
+        "customer_matches": case.customer_matches,
+        "contract_matches": case.contract_matches,
+        "amendment_matches": case.amendment_matches,
+        "asset_dedication_verified": case.asset_dedication_verified,
+        "mitigation_reviewed": case.mitigation_reviewed,
+        "prior_recovery_reviewed": case.prior_recovery_reviewed,
         "notice_window_verified": case.notice_window_verified,
         "engine_reasons": result.reasons,
         "human_review_required_before_external_submission": positive_position,
