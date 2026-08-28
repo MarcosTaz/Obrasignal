@@ -5,6 +5,9 @@ from decimal import Decimal, InvalidOperation
 from typing import Callable
 
 from flask import Blueprint, jsonify, request
+from jwt import InvalidTokenError
+
+from auth_context_jwt import JwksUnavailableError
 
 from .baseline import BaselineCost, Certainty, CurrentStateBaseline
 from .domain import MigrationCase
@@ -103,9 +106,14 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
     blueprint = Blueprint("cloud_switching", __name__, url_prefix="/cloud-switching")
 
     def tenant_or_error():
-        tenant_id = resolve_tenant()
+        try:
+            tenant_id = resolve_tenant()
+        except JwksUnavailableError:
+            return None, (jsonify({"error": "authentication_service_unavailable"}), 503)
+        except (RuntimeError, InvalidTokenError):
+            return None, (jsonify({"error": "authentication_required"}), 401)
         if not tenant_id or not tenant_id.strip():
-            return None, (jsonify({"error": "authenticated tenant required"}), 401)
+            return None, (jsonify({"error": "authentication_required"}), 401)
         return tenant_id, None
 
     @blueprint.get("/health")
