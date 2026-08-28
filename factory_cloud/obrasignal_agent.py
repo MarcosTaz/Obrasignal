@@ -16,6 +16,14 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
+# The process adapter deliberately launches this file by absolute path while using
+# the application checkout as cwd. Make the Factory Cloud package importable from
+# its own installation root without depending on cwd/PYTHONPATH or app-owned env.
+if __package__ in {None, ""}:
+    control_root = str(Path(__file__).resolve().parents[1])
+    if control_root not in sys.path:
+        sys.path.insert(0, control_root)
+
 from factory_cloud.capabilities import Capability, CapabilityContractError, parse_capabilities, require_capabilities
 
 APP_ID = "obrasignal"
