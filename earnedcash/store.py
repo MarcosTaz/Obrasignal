@@ -5,6 +5,8 @@ import json
 import sqlite3
 
 from .audit import AuditEvent, append_event, verify_history
+from .case_workflow import CaseState, transition_case as validate_case_transition
+from .cash_verification import CashEvidence, CashVerificationState, verify_cash_evidence
 from .recovery_queue import RecoveryQueueItem
 
 
@@ -22,7 +24,7 @@ def _money(value: Decimal | str) -> Decimal:
 
 
 class EarnedCashStore:
-    """Small tenant-safe persistence boundary for assisted-pilot workflows.
+    """Tenant-safe persistence boundary for assisted-pilot workflows.
 
     The caller owns the SQLite connection/path. Nothing here wires EarnedCash to
     the ObraSignal production database or deployment.
@@ -96,6 +98,8 @@ class EarnedCashStore:
                 verified INTEGER NOT NULL,
                 PRIMARY KEY (tenant_id, receipt_id)
             );
+            CREATE UNIQUE INDEX IF NOT EXISTS earnedcash_unique_cash_evidence
+                ON earnedcash_cash_receipts (tenant_id, evidence_ref);
             CREATE TABLE IF NOT EXISTS earnedcash_audit_events (
                 tenant_id TEXT NOT NULL,
                 sequence INTEGER NOT NULL,
@@ -184,8 +188,15 @@ class EarnedCashStore:
     ) -> None:
         if not self._exists("earnedcash_companies", tenant_id, "company_id", company_id):
             raise ValueError("company_not_found_for_tenant")
-        if not self._exists("earnedcash_customers", tenant_id, "customer_id", customer_id):
+        customer = self.connection.execute(
+            """SELECT company_id FROM earnedcash_customers
+               WHERE tenant_id=? AND customer_id=?""",
+            (tenant_id, customer_id),
+        ).fetchone()
+        if customer is None:
             raise ValueError("customer_not_found_for_tenant")
+        if customer["company_id"] != company_id:
+            raise ValueError("customer_company_mismatch")
         project_id = self._required(project_id, "project_id")
         name = self._required(name, "name")
         currency = self._required(currency, "currency").upper()
@@ -237,6 +248,13 @@ class EarnedCashStore:
         project_currency = project["currency"]
         if any(item.currency != project_currency for item in items):
             raise ValueError("case_currency_mismatch")
+        progressed = self.connection.execute(
+            """SELECT 1 FROM earnedcash_cases
+               WHERE tenant_id=? AND project_id=? AND status<>'OPEN' LIMIT 1""",
+            (tenant_id, project_id),
+        ).fetchone()
+        if progressed is not None:
+            raise ValueError("progressed_case_requires_review_before_reconcile")
         with self.connection:
             self.connection.execute(
                 "DELETE FROM earnedcash_cases WHERE tenant_id=? AND project_id=?",
@@ -288,10 +306,26 @@ class EarnedCashStore:
             for row in rows
         ]
 
+    def _verified_cash_insert(
+        self, *, tenant_id: str, project_id: str, receipt_id: str,
+        amount: Decimal, currency: str, evidence_ref: str
+    ) -> None:
+        self.connection.execute(
+            """INSERT INTO earnedcash_cash_receipts
+               (tenant_id, project_id, receipt_id, amount, currency,
+                evidence_ref, verified)
+               VALUES (?, ?, ?, ?, ?, ?, 1)""",
+            (tenant_id, project_id, receipt_id, str(amount), currency, evidence_ref),
+        )
+        self._audit(
+            tenant_id, "VERIFIED_CASH_RECORDED", receipt_id,
+            {"project_id": project_id, "amount": str(amount),
+             "currency": currency, "evidence_ref": evidence_ref},
+        )
+
     def record_verified_cash(
         self, *, tenant_id: str, project_id: str, receipt_id: str,
-        amount: Decimal | str, currency: str, evidence_ref: str,
-        verified: bool
+        amount: Decimal | str, currency: str, evidence: CashEvidence
     ) -> None:
         project = self.connection.execute(
             "SELECT currency FROM earnedcash_projects WHERE tenant_id=? AND project_id=?",
@@ -299,27 +333,102 @@ class EarnedCashStore:
         ).fetchone()
         if project is None:
             raise ValueError("project_not_found_for_tenant")
-        if verified is not True:
-            raise ValueError("cash_requires_verified_evidence")
-        evidence_ref = self._required(evidence_ref, "evidence_ref")
         receipt_id = self._required(receipt_id, "receipt_id")
         currency = self._required(currency, "currency").upper()
         if currency != project["currency"]:
             raise ValueError("cash_currency_mismatch")
         value = _money(amount)
+        verification = verify_cash_evidence(
+            tenant_id=tenant_id,
+            project_id=project_id,
+            currency=currency,
+            claimed_amount=value,
+            evidence=evidence,
+        )
+        if verification.state != CashVerificationState.VERIFIED:
+            raise ValueError(f"cash_evidence_not_verified:{verification.reason}")
+        evidence_ref = self._required(verification.evidence_ref or "", "evidence_ref")
+        with self.connection:
+            self._verified_cash_insert(
+                tenant_id=tenant_id,
+                project_id=project_id,
+                receipt_id=receipt_id,
+                amount=value,
+                currency=currency,
+                evidence_ref=evidence_ref,
+            )
+
+    def transition_case(
+        self, *, tenant_id: str, project_id: str, case_id: str,
+        target: CaseState, customer_approved: bool = False,
+        settlement_evidence_verified: bool = False,
+        receipt_id: str | None = None,
+        cash_evidence: CashEvidence | None = None,
+    ) -> None:
+        row = self.connection.execute(
+            """SELECT amount, currency, status FROM earnedcash_cases
+               WHERE tenant_id=? AND project_id=? AND case_id=?""",
+            (tenant_id, project_id, case_id),
+        ).fetchone()
+        if row is None:
+            raise ValueError("case_not_found_for_tenant_project")
+        current = CaseState(row["status"])
+        amount = _money(row["amount"])
+        cash_verified = False
+        verified_ref: str | None = None
+        if target == CaseState.PAID:
+            if cash_evidence is None or receipt_id is None:
+                raise ValueError("verified cash evidence required")
+            verification = verify_cash_evidence(
+                tenant_id=tenant_id,
+                project_id=project_id,
+                currency=row["currency"],
+                claimed_amount=amount,
+                evidence=cash_evidence,
+            )
+            cash_verified = verification.state == CashVerificationState.VERIFIED
+            verified_ref = verification.evidence_ref
+            if not cash_verified:
+                raise ValueError(f"cash_evidence_not_verified:{verification.reason}")
+            receipt_id = self._required(receipt_id, "receipt_id")
+
+        validate_case_transition(
+            current=current,
+            target=target,
+            amount=amount,
+            customer_approved=customer_approved,
+            settlement_evidence_verified=settlement_evidence_verified,
+            cash_evidence_verified=cash_verified,
+        )
+
         with self.connection:
             self.connection.execute(
-                """INSERT INTO earnedcash_cash_receipts
-                   (tenant_id, project_id, receipt_id, amount, currency,
-                    evidence_ref, verified)
-                   VALUES (?, ?, ?, ?, ?, ?, 1)""",
-                (tenant_id, project_id, receipt_id, str(value), currency, evidence_ref),
+                """UPDATE earnedcash_cases SET status=?
+                   WHERE tenant_id=? AND project_id=? AND case_id=?""",
+                (target.value, tenant_id, project_id, case_id),
             )
             self._audit(
-                tenant_id, "VERIFIED_CASH_RECORDED", receipt_id,
-                {"project_id": project_id, "amount": str(value),
-                 "currency": currency, "evidence_ref": evidence_ref},
+                tenant_id,
+                "CASE_STATE_CHANGED",
+                case_id,
+                {
+                    "project_id": project_id,
+                    "from": current.value,
+                    "to": target.value,
+                    "customer_approved": bool(customer_approved),
+                    "settlement_evidence_verified": bool(settlement_evidence_verified),
+                    "cash_evidence_ref": verified_ref,
+                },
             )
+            if target == CaseState.PAID:
+                self._verified_cash_insert(
+                    tenant_id=tenant_id,
+                    project_id=project_id,
+                    receipt_id=receipt_id or "",
+                    amount=amount,
+                    currency=row["currency"],
+                    evidence_ref=self._required(verified_ref or "", "evidence_ref"),
+                )
 
     def verified_cash_total(self, *, tenant_id: str, project_id: str) -> Decimal:
         rows = self.connection.execute(
