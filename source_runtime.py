@@ -274,6 +274,10 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
         except Exception as reconcile_exc:
             projection_error = reconcile_exc
 
+        # The staged batch is terminal for this attempt regardless of which
+        # compensation path failed. Never leak it into a later commit attempt.
+        discard_staged_source_syncs()
+
         auxiliary = []
         if compensation_errors:
             failed_sources = ",".join(source for source, _ in compensation_errors)
