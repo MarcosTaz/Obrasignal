@@ -21,13 +21,16 @@ class StoredDelivery:
 
 
 class SQLiteDecisionWorkspace:
+    BUSY_TIMEOUT_SECONDS = 15
+
     def __init__(self, database_path: str | Path) -> None:
         self.database_path = str(database_path)
         self._init_schema()
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path)
+        connection = sqlite3.connect(self.database_path, timeout=self.BUSY_TIMEOUT_SECONDS)
         connection.row_factory = sqlite3.Row
+        connection.execute(f"PRAGMA busy_timeout={self.BUSY_TIMEOUT_SECONDS * 1000}")
         return connection
 
     def _init_schema(self) -> None:
@@ -69,6 +72,16 @@ class SQLiteDecisionWorkspace:
     def _payload_hash(cls, payload: dict) -> str:
         return sha256(cls._canonical_json(payload).encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _next_version(connection: sqlite3.Connection, table: str, tenant_id: str, package_id: str) -> int:
+        if table not in {"cloud_switching_decision_packages", "cloud_switching_deliveries"}:
+            raise ValueError("unsupported workspace table")
+        previous = connection.execute(
+            f"SELECT version FROM {table} WHERE tenant_id=? AND package_id=?",
+            (tenant_id, package_id),
+        ).fetchone()
+        return 1 if previous is None else int(previous["version"]) + 1
+
     def save(self, *, tenant_id: str, package_id: str, package: DecisionPackage) -> StoredDecisionPackage:
         if not tenant_id.strip() or not package_id.strip():
             raise ValueError("tenant_id and package_id are required")
@@ -77,11 +90,8 @@ class SQLiteDecisionWorkspace:
         content_hash = DecisionWorkspace._hash(package)
         payload_json = self._serialize(package)
         with self._connect() as connection:
-            previous = connection.execute(
-                "SELECT version FROM cloud_switching_decision_packages WHERE tenant_id=? AND package_id=?",
-                (tenant_id, package_id),
-            ).fetchone()
-            version = 1 if previous is None else int(previous["version"]) + 1
+            connection.execute("BEGIN IMMEDIATE")
+            version = self._next_version(connection, "cloud_switching_decision_packages", tenant_id, package_id)
             connection.execute(
                 """
                 INSERT INTO cloud_switching_decision_packages
@@ -139,11 +149,8 @@ class SQLiteDecisionWorkspace:
         payload_json = self._canonical_json(payload)
         content_hash = self._payload_hash(payload)
         with self._connect() as connection:
-            previous = connection.execute(
-                "SELECT version FROM cloud_switching_deliveries WHERE tenant_id=? AND package_id=?",
-                (tenant_id, package_id),
-            ).fetchone()
-            version = 1 if previous is None else int(previous["version"]) + 1
+            connection.execute("BEGIN IMMEDIATE")
+            version = self._next_version(connection, "cloud_switching_deliveries", tenant_id, package_id)
             connection.execute(
                 """
                 INSERT INTO cloud_switching_deliveries
