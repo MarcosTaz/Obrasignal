@@ -27,15 +27,24 @@
         "canonical_head": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
         "verified": true
       },
+      "execution_source": {
+        "provider": "github",
+        "repository": "MarcosTaz/Obrasignal",
+        "branch": "integration/source-health-compensation-on-current-spine-20260828",
+        "head": "ea9f31b224ff7758bc28532acd3c5d4731971afa",
+        "verified": true,
+        "classification": "NONCANONICAL_DEVELOPMENT_GREEN",
+        "evidence": "PR #677 / ObraSignal Quality #2814 / run 33185013423"
+      },
       "execution_adapter": {
-        "kind": "obrasignal_verification_v1",
+        "kind": "obrasignal_verification_v2_execution_source",
         "configured": true,
         "config_path": "factory_cloud/runtime/obrasignal-adapter.json",
         "allowlisted_tasks": [
-          "verify:canonical:compile",
-          "verify:canonical:python",
-          "verify:canonical:mobile",
-          "verify:canonical:quality"
+          "verify:execution:compile",
+          "verify:execution:python",
+          "verify:execution:mobile",
+          "verify:execution:quality"
         ],
         "repository_mutation_capability": false
       },
@@ -45,10 +54,10 @@
         "scope": "temporal authority + source atomicity + best-effort source-health compensation + direct Persistence owner + current Mobile compatibility"
       },
       "baton": {
-        "active": "verify:canonical:compile",
+        "active": "verify:execution:compile",
         "next": [
-          "verify:canonical:python",
-          "verify:canonical:mobile",
+          "verify:execution:python",
+          "verify:execution:mobile",
           "Continue source-to-canonical causal, normalization and historical provenance probes from GREEN current spine #677 while preserving UNKNOWN where authority is absent"
         ],
         "wait": [
