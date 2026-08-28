@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Optional, Tuple
 
@@ -64,6 +65,22 @@ def _validate_reference_list(name: str, values) -> None:
 def _validate_evidence_consistency(recovery_case: RecoveryCase, evidence_refs) -> None:
     if recovery_case.evidence_supported and not evidence_refs:
         raise ValueError("evidence_supported requires at least one persisted evidence reference")
+
+
+def _validate_deadline(deadline: Optional[str], recovery_case: RecoveryCase) -> None:
+    if deadline is not None:
+        if not isinstance(deadline, str) or not deadline.strip():
+            raise ValueError("deadline must be an ISO date or null")
+        if deadline != deadline.strip():
+            raise ValueError("deadline must be canonical YYYY-MM-DD")
+        try:
+            parsed = date.fromisoformat(deadline)
+        except ValueError as exc:
+            raise ValueError("deadline must be canonical YYYY-MM-DD") from exc
+        if parsed.isoformat() != deadline:
+            raise ValueError("deadline must be canonical YYYY-MM-DD")
+    if recovery_case.notice_window_verified is True and deadline is None:
+        raise ValueError("notice_window_verified requires a persisted ISO deadline")
 
 
 def recovery_case_to_payload(recovery_case: RecoveryCase) -> dict:
@@ -140,6 +157,7 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
         "actuals_deduplicated",
         "cancelled_orders_excluded",
         "amortization_verified",
+        "notice_window_verified",
         "contract_current",
         "amendment_reviewed",
     )
@@ -175,6 +193,7 @@ def dump_state(state: AssistedCaseState) -> str:
     _validate_reference_list("evidence_refs", state.evidence_refs)
     _validate_reference_list("missing_evidence", state.missing_evidence)
     _validate_evidence_consistency(state.recovery_case, state.evidence_refs)
+    _validate_deadline(state.deadline, state.recovery_case)
 
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -240,6 +259,7 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
 
     recovery_case = recovery_case_from_payload(payload["recovery_case"])
     _validate_evidence_consistency(recovery_case, evidence_refs)
+    _validate_deadline(payload.get("deadline"), recovery_case)
 
     return AssistedCaseState(
         tenant_id=tenant_id,
