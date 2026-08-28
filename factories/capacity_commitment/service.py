@@ -28,8 +28,11 @@ def process_state(state: AssistedCaseState) -> ProcessedCase:
 
 
 def save_and_process(repository: CapacityRepository, state: AssistedCaseState) -> ProcessedCase:
+    """Validate and assess first; persist only a state that the engine accepts."""
+
+    processed = process_state(state)
     repository.save(state)
-    return process_state(state)
+    return processed
 
 
 def load_and_process(
