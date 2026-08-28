@@ -5,12 +5,15 @@ import unittest
 from pathlib import Path
 
 from factory_cloud.adapters import ExecutionRequest
+from factory_cloud.capabilities import Capability
 from factory_cloud.process_adapter import ProcessAdapterConfig, ProcessAdapterConfigError, ProcessAgentAdapter
 
 
 CANONICAL = "a" * 40
 EXECUTION = "c" * 40
 SENSITIVE = "private-process-output-must-not-persist"
+VERIFY_CAPABILITIES = frozenset({Capability.READ_REPOSITORY, Capability.RUN_TESTS, Capability.UPDATE_BATON})
+VERIFY_CAPABILITY_VALUES = tuple(sorted(item.value for item in VERIFY_CAPABILITIES))
 
 
 class FakeRunner:
@@ -50,11 +53,21 @@ class ProcessAdapterTests(unittest.TestCase):
             source="MarcosTaz/Obrasignal",
             canonical_head=CANONICAL,
             resume_at="safe repository task",
+            required_capabilities=VERIFY_CAPABILITY_VALUES,
         )
         payload.update(changes)
         return ExecutionRequest(**payload)
 
-    def test_config_is_app_scoped_and_repository_safe_only(self):
+    def _config(self, root: Path, *command: str):
+        return ProcessAdapterConfig(
+            app_id="obrasignal",
+            mode="repository_safe_execution",
+            workspace=root,
+            command=command or ("agent",),
+            capabilities=VERIFY_CAPABILITIES,
+        )
+
+    def test_config_is_app_scoped_repository_safe_and_requires_explicit_capabilities(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "adapter.json"
             config_path.write_text(json.dumps({
@@ -62,6 +75,7 @@ class ProcessAdapterTests(unittest.TestCase):
                 "mode": "repository_safe_execution",
                 "workspace": str(Path(tmp).resolve()),
                 "command": ["agent"],
+                "capabilities": list(VERIFY_CAPABILITY_VALUES),
             }), encoding="utf-8")
             with self.assertRaises(ProcessAdapterConfigError):
                 ProcessAdapterConfig.load(config_path, expected_app_id="obrasignal")
@@ -71,23 +85,43 @@ class ProcessAdapterTests(unittest.TestCase):
                 "mode": "read_only_until_source_resolved",
                 "workspace": str(Path(tmp).resolve()),
                 "command": ["agent"],
+                "capabilities": list(VERIFY_CAPABILITY_VALUES),
+            }), encoding="utf-8")
+            with self.assertRaises(ProcessAdapterConfigError):
+                ProcessAdapterConfig.load(config_path, expected_app_id="obrasignal")
+
+            config_path.write_text(json.dumps({
+                "app_id": "obrasignal",
+                "mode": "repository_safe_execution",
+                "workspace": str(Path(tmp).resolve()),
+                "command": ["agent"],
             }), encoding="utf-8")
             with self.assertRaises(ProcessAdapterConfigError):
                 ProcessAdapterConfig.load(config_path, expected_app_id="obrasignal")
 
     def test_local_head_mismatch_fails_closed_before_agent_execution(self):
         with tempfile.TemporaryDirectory() as tmp:
+            runner = MismatchRunner()
+            result = ProcessAgentAdapter(self._config(Path(tmp)), runner=runner).execute(self._request())
+            self.assertEqual(result.status, "WAIT")
+            self.assertIn("local_workspace_head_mismatch", result.blockers)
+            self.assertEqual(len(runner.calls), 1)
+
+    def test_missing_required_capability_blocks_before_workspace_or_agent_execution(self):
+        with tempfile.TemporaryDirectory() as tmp:
             config = ProcessAdapterConfig(
                 app_id="obrasignal",
                 mode="repository_safe_execution",
                 workspace=Path(tmp),
                 command=("agent",),
+                capabilities=frozenset({Capability.READ_REPOSITORY}),
             )
-            runner = MismatchRunner()
+            runner = FakeRunner()
             result = ProcessAgentAdapter(config, runner=runner).execute(self._request())
-            self.assertEqual(result.status, "WAIT")
-            self.assertIn("local_workspace_head_mismatch", result.blockers)
-            self.assertEqual(len(runner.calls), 1)
+            self.assertEqual(result.status, "BLOCKED")
+            self.assertEqual(result.evidence["task_state"], "AUTHORITY_REQUIRED")
+            self.assertIn("adapter_capability_required", result.blockers)
+            self.assertEqual(runner.calls, [])
 
     def test_execution_head_overrides_canonical_for_local_gate_and_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -97,13 +131,7 @@ class ProcessAdapterTests(unittest.TestCase):
                 "last_green": EXECUTION,
             }
             runner = FakeRunner(agent_result=raw, observed_head=EXECUTION)
-            config = ProcessAdapterConfig(
-                app_id="obrasignal",
-                mode="repository_safe_execution",
-                workspace=Path(tmp),
-                command=("agent",),
-            )
-            result = ProcessAgentAdapter(config, runner=runner).execute(self._request(
+            result = ProcessAgentAdapter(self._config(Path(tmp)), runner=runner).execute(self._request(
                 execution_branch="integration/current-spine",
                 execution_head=EXECUTION,
             ))
@@ -112,6 +140,7 @@ class ProcessAdapterTests(unittest.TestCase):
             self.assertEqual(payload["canonical_head"], CANONICAL)
             self.assertEqual(payload["execution_head"], EXECUTION)
             self.assertEqual(payload["execution_branch"], "integration/current-spine")
+            self.assertEqual(tuple(payload["required_capabilities"]), VERIFY_CAPABILITY_VALUES)
             self.assertEqual(result.evidence["local_head"], EXECUTION)
 
     def test_success_contract_persists_only_bounded_metadata(self):
@@ -133,13 +162,7 @@ class ProcessAdapterTests(unittest.TestCase):
                 "last_green": CANONICAL,
             }
             runner = FakeRunner(agent_result=raw, agent_stderr=SENSITIVE)
-            config = ProcessAdapterConfig(
-                app_id="obrasignal",
-                mode="repository_safe_execution",
-                workspace=Path(tmp),
-                command=("agent", "execute"),
-            )
-            result = ProcessAgentAdapter(config, runner=runner).execute(self._request())
+            result = ProcessAgentAdapter(self._config(Path(tmp), "agent", "execute"), runner=runner).execute(self._request())
             self.assertEqual(result.status, "DONE")
             self.assertEqual(result.next_active, "next safe task")
             self.assertEqual(result.evidence["test_state"], "SUCCESS")
@@ -153,13 +176,7 @@ class ProcessAdapterTests(unittest.TestCase):
     def test_nonzero_exit_never_persists_stderr(self):
         with tempfile.TemporaryDirectory() as tmp:
             runner = FakeRunner(agent_returncode=7, agent_stderr=SENSITIVE)
-            config = ProcessAdapterConfig(
-                app_id="obrasignal",
-                mode="repository_safe_execution",
-                workspace=Path(tmp),
-                command=("agent",),
-            )
-            result = ProcessAgentAdapter(config, runner=runner).execute(self._request())
+            result = ProcessAgentAdapter(self._config(Path(tmp)), runner=runner).execute(self._request())
             self.assertEqual(result.status, "ERROR")
             self.assertEqual(result.error, {"type": "APP_AGENT_NONZERO_EXIT"})
             self.assertEqual(result.evidence["exit_code"], 7)
@@ -175,13 +192,7 @@ class ProcessAdapterTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             runner = InvalidRunner()
-            config = ProcessAdapterConfig(
-                app_id="obrasignal",
-                mode="repository_safe_execution",
-                workspace=Path(tmp),
-                command=("agent",),
-            )
-            result = ProcessAgentAdapter(config, runner=runner).execute(self._request())
+            result = ProcessAgentAdapter(self._config(Path(tmp)), runner=runner).execute(self._request())
             self.assertEqual(result.status, "ERROR")
             self.assertEqual(result.error, {"type": "APP_AGENT_INVALID_RESULT"})
             self.assertNotIn(SENSITIVE, str(result))
