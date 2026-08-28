@@ -116,16 +116,21 @@ def _runtime_adapters(registry: dict[str, Any], queue: DurableWorkQueue) -> Adap
     overrides = {}
     for app in registry.get("applications", []):
         activation = app.get("activation") or {}
-        source = app.get("source_truth") or {}
+        canonical = app.get("source_truth") or {}
         if activation.get("enabled") is not True or activation.get("mode") != "repository_safe_execution":
             continue
         delegate = QueuedAppAdapter(queue)
-        if source.get("provider") == "github":
+        execution = app.get("execution_source") or {}
+        repository = str(execution.get("repository") or canonical.get("repository") or "")
+        branch = str(execution.get("branch") or canonical.get("canonical_branch") or "")
+        expected_head = execution.get("head") or canonical.get("canonical_head")
+        provider = execution.get("provider") or canonical.get("provider")
+        if provider == "github":
             delegate = VerifiedDispatchAdapter(
                 delegate,
-                repository=str(source.get("repository") or ""),
-                branch=str(source.get("canonical_branch") or ""),
-                expected_head=source.get("canonical_head"),
+                repository=repository,
+                branch=branch,
+                expected_head=expected_head,
             )
         overrides[app["app_id"]] = delegate
     return AdapterRegistry(overrides)
