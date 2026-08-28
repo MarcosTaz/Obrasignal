@@ -4,6 +4,7 @@ import argparse
 import json
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,11 @@ from factory_cloud.state_store import StateStore, StateStoreError, utc_now
 
 DEFAULT_STATE_PATH = Path(__file__).with_name("factory_cloud_state.sqlite3")
 TERMINAL_SAFE_STATUSES = {"DONE", "WAIT", "BLOCKED", "ERROR"}
+PENDING_WORKER_BLOCKER = "app_worker_execution_pending"
+WAIT_RETRY_SECONDS = 60
+BLOCKED_RETRY_SECONDS = 300
+ERROR_RETRY_BASE_SECONDS = 30
+MAX_RETRY_SECONDS = 900
 
 
 @dataclass(frozen=True)
@@ -27,6 +33,25 @@ class DispatchDecision:
 
 class OrchestratorError(RuntimeError):
     pass
+
+
+def _future_retry_at(delay_seconds: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)).isoformat()
+
+
+def _retry_gate_open(retry: dict[str, Any], task: str) -> bool:
+    if retry.get("task") != task:
+        return True
+    raw = retry.get("next_attempt_at")
+    if not raw:
+        return True
+    try:
+        when = datetime.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return False
+    if when.tzinfo is None or when.utcoffset() is None:
+        return False
+    return when.astimezone(timezone.utc) <= datetime.now(timezone.utc)
 
 
 class PersistentFactoryOrchestrator:
@@ -100,6 +125,8 @@ class PersistentFactoryOrchestrator:
         task = active or (str(next_items[0]) if next_items else "")
         if not task:
             return None
+        if not _retry_gate_open(dict(state.get("retry_state") or {}), task):
+            return None
         source_truth = app.get("source_truth") or {}
         source = source_truth.get("repository") or source_truth.get("canonical_repository") or source_truth.get("project")
         return DispatchDecision(
@@ -136,9 +163,29 @@ class PersistentFactoryOrchestrator:
         wait_items = list(result.wait_items) if result.wait_items else list(state.get("wait") or [])
         blockers = list(result.blockers)
         retry = dict(state.get("retry_state") or {})
+        now = utc_now()
+
         if result.status == "ERROR":
-            retry["attempts"] = int(retry.get("attempts", 0)) + 1
-            retry["last_error_at"] = utc_now()
+            attempts = int(retry.get("attempts", 0)) + 1
+            delay = min(ERROR_RETRY_BASE_SECONDS * (2 ** max(0, attempts - 1)), MAX_RETRY_SECONDS)
+            retry.update({
+                "attempts": attempts,
+                "last_error_at": now,
+                "next_attempt_at": _future_retry_at(delay),
+                "retry_reason": "ERROR",
+                "task": decision.task,
+            })
+        elif result.status in {"WAIT", "BLOCKED"} and PENDING_WORKER_BLOCKER not in blockers:
+            wait_attempts = int(retry.get("wait_attempts", 0)) + 1
+            base = WAIT_RETRY_SECONDS if result.status == "WAIT" else BLOCKED_RETRY_SECONDS
+            delay = min(base * (2 ** max(0, wait_attempts - 1)), MAX_RETRY_SECONDS)
+            retry.update({
+                "wait_attempts": wait_attempts,
+                "last_wait_at": now,
+                "next_attempt_at": _future_retry_at(delay),
+                "retry_reason": result.status,
+                "task": decision.task,
+            })
         elif result.status == "DONE":
             retry = {}
 
