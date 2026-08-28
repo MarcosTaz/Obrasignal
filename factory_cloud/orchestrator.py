@@ -141,7 +141,15 @@ class PersistentFactoryOrchestrator:
             retry["last_error_at"] = utc_now()
         elif result.status == "DONE":
             retry = {}
-        resume_at = result.resume_at or next_active or decision.task
+
+        # A completed task is no longer a valid resume target. Even if a queued
+        # app result echoes the request's former resume_at, DONE must advance the
+        # durable baton atomically so ACTIVE and RESUME_AT cannot diverge.
+        if result.status == "DONE":
+            resume_at = next_active or decision.task
+        else:
+            resume_at = result.resume_at or next_active or decision.task
+
         self.store.checkpoint(
             decision.app_id, state="READY" if result.status == "DONE" else result.status,
             active=next_active, next_json=next_items, wait_json=wait_items, blockers_json=blockers,
