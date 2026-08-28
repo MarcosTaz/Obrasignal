@@ -39,9 +39,11 @@ def _identity():
 
 def _cors_origin():
     origin = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
-    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
+    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "").strip().lower()
     if auth_mode == "development":
         return "*" if origin == "*" else origin
+    if auth_mode != "provider":
+        raise RuntimeError("OBRASIGNAL_AUTH_MODE must be explicitly configured")
     if not origin or origin == "*":
         raise RuntimeError("OBRASIGNAL_CORS_ORIGIN must be configured for provider mode")
     parsed = urlsplit(origin)
