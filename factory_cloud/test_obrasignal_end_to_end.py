@@ -6,7 +6,8 @@ from pathlib import Path
 
 from factory_cloud.adapters import AdapterRegistry
 from factory_cloud.app_worker import AppWorkerHost
-from factory_cloud.obrasignal_agent import TASK_COMPILE, TASK_PYTHON
+from factory_cloud.capabilities import Capability
+from factory_cloud.obrasignal_agent import AGENT_CAPABILITIES, TASK_COMPILE, TASK_PYTHON
 from factory_cloud.orchestrator import PersistentFactoryOrchestrator
 from factory_cloud.process_adapter import ProcessAdapterConfig, ProcessAgentAdapter
 from factory_cloud.state_store import StateStore, utc_now
@@ -17,6 +18,7 @@ from factory_cloud.worker import WorkerHost
 
 AGENT_PATH = Path(__file__).with_name("obrasignal_agent.py").resolve()
 EXECUTION_BRANCH = "integration/current-spine"
+CAPABILITY_VALUES = [item.value for item in sorted(AGENT_CAPABILITIES, key=lambda item: item.value)]
 
 
 class StaticVerifiedHead:
@@ -91,6 +93,17 @@ def _registry(canonical_head, execution_head):
                     "head": execution_head,
                     "verified": True,
                 },
+                "execution_adapter": {
+                    "kind": "test-verification-adapter",
+                    "configured": True,
+                    "allowlisted_tasks": [TASK_COMPILE, TASK_PYTHON],
+                    "capabilities": list(CAPABILITY_VALUES),
+                    "repository_mutation_capability": False,
+                },
+                "task_capabilities": {
+                    TASK_COMPILE: list(CAPABILITY_VALUES),
+                    TASK_PYTHON: list(CAPABILITY_VALUES),
+                },
                 "baton": {
                     "active": TASK_COMPILE,
                     "next": [TASK_COMPILE, TASK_PYTHON],
@@ -147,9 +160,8 @@ class ObraSignalEndToEndTests(unittest.TestCase):
             self.assertEqual(jobs[0]["request"]["canonical_head"], canonical_head)
             self.assertEqual(jobs[0]["request"]["execution_branch"], EXECUTION_BRANCH)
             self.assertEqual(jobs[0]["request"]["execution_head"], execution_head)
+            self.assertEqual(jobs[0]["request"]["required_capabilities"], CAPABILITY_VALUES)
 
-            # Canonical truth remains main in durable state; execution authority is
-            # carried by the job instead of rewriting canonical persistence.
             self.assertEqual(store.get_app("obrasignal")["canonical_head"], canonical_head)
 
             process_config = ProcessAdapterConfig(
@@ -157,6 +169,7 @@ class ObraSignalEndToEndTests(unittest.TestCase):
                 mode="repository_safe_execution",
                 workspace=workspace,
                 command=(sys.executable, str(AGENT_PATH)),
+                capabilities=AGENT_CAPABILITIES,
                 timeout_seconds=60,
             )
             app_host = AppWorkerHost(
@@ -193,7 +206,6 @@ class ObraSignalEndToEndTests(unittest.TestCase):
             self.assertIn("DONE", statuses)
             self.assertIn("WAIT", statuses)
 
-            # Verification-only execution never mutates the development checkout.
             self.assertEqual(_run(("git", "rev-parse", "HEAD"), workspace).stdout.strip(), execution_head)
             self.assertEqual(_run(("git", "status", "--porcelain"), workspace).stdout, "")
 
