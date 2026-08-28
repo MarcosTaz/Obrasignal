@@ -90,3 +90,24 @@ def test_company_e_zero_opportunity_remains_valid_zero_value_result():
             assert conn.execute("SELECT COUNT(*) FROM opportunity_workflow WHERE account_id=?", (account_id,)).fetchone()[0] == 0
     finally:
         conn.close()
+
+
+def test_zero_value_web_state_is_a_truthful_terminal_result_not_a_prompt_to_manufacture_signal():
+    from radar_web import render_radar_page
+
+    html = render_radar_page([], minscore=0)
+    assert "RESULTADO VÁLIDO · ZERO-VALUE" in html
+    assert "Nada material encontrado neste momento." in html
+    assert "Não baixamos critérios nem fabricamos uma oportunidade" in html
+    assert "manter o perfil correto" in html
+
+
+def test_filter_empty_state_does_not_claim_zero_value_or_force_lower_thresholds():
+    from radar_web import render_radar_page
+
+    html = render_radar_page([], minscore=75)
+    assert "FILTRO ATUAL" in html
+    assert "Nenhuma oportunidade neste filtro." in html
+    assert "Isto não significa que exista valor escondido." in html
+    assert "Altera o filtro apenas se os critérios comerciais da empresa também justificarem" in html
+    assert "RESULTADO VÁLIDO · ZERO-VALUE" not in html
