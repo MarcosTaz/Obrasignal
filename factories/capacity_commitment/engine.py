@@ -11,9 +11,24 @@ ZERO = Decimal("0")
 
 class CommitmentState(str, Enum):
     FIRM = "FIRM"
+    FLEX_WINDOW = "FLEX_WINDOW"
     FORECAST_ONLY = "FORECAST_ONLY"
     AMBIGUOUS = "AMBIGUOUS"
     NONE = "NONE"
+
+
+class ExposureType(str, Enum):
+    DEDICATED_CAPEX = "DEDICATED_CAPEX"
+    TOOLING = "TOOLING"
+    NRE = "NRE"
+    LABOR = "LABOR"
+    MATERIAL = "MATERIAL"
+    OTHER = "OTHER"
+
+
+class CostRecoveryMode(str, Enum):
+    UNIT_AMORTIZED = "UNIT_AMORTIZED"
+    DIRECT_UNRECOVERED = "DIRECT_UNRECOVERED"
 
 
 class RecoverabilityState(str, Enum):
@@ -40,6 +55,15 @@ class RecoveryCase:
     notice_valid: Optional[bool] = None
     asset_dedicated: bool = True
     already_fully_amortized: bool = False
+    already_paid: bool = False
+    exposure_type: ExposureType = ExposureType.DEDICATED_CAPEX
+    cost_recovery_mode: CostRecoveryMode = CostRecoveryMode.UNIT_AMORTIZED
+    program_matches: Optional[bool] = None
+    period_matches: Optional[bool] = None
+    currency_matches: Optional[bool] = None
+    contract_current: Optional[bool] = None
+    amendment_reviewed: Optional[bool] = None
+    duplicate_claim: bool = False
 
 
 @dataclass(frozen=True)
@@ -73,25 +97,23 @@ def _validate(case: RecoveryCase) -> None:
     for name, value in numeric.items():
         if value < ZERO:
             raise ValueError(f"{name} must be non-negative")
-    if case.dedicated_cost > ZERO and case.amortization_basis_units <= ZERO:
-        raise ValueError("amortization_basis_units must be positive when dedicated_cost is positive")
-    if not case.currency or len(case.currency) != 3:
-        raise ValueError("currency must be a 3-letter code")
+    if (
+        case.cost_recovery_mode is CostRecoveryMode.UNIT_AMORTIZED
+        and case.dedicated_cost > ZERO
+        and case.amortization_basis_units <= ZERO
+    ):
+        raise ValueError("amortization_basis_units must be positive for unit-amortized cost")
+    if not case.currency or len(case.currency) != 3 or not case.currency.isalpha():
+        raise ValueError("currency must be a 3-letter alphabetic code")
 
 
-def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
-    """Evaluate a single dedicated-investment/volume-shortfall case.
+def _economic_exposure(case: RecoveryCase) -> tuple[Decimal, Decimal, Decimal]:
+    if case.already_fully_amortized or case.already_paid:
+        return ZERO, ZERO, ZERO
 
-    Truth discipline:
-    - economic exposure is calculated independently of legal/commercial entitlement;
-    - a forecast-only or ambiguous volume is never promoted into a firm commitment;
-    - mitigation and prior payments reduce the amount before any recoverability result;
-    - unknown evidence/right/notice states fail closed to zero claimable amount.
-    """
+    if case.cost_recovery_mode is CostRecoveryMode.DIRECT_UNRECOVERED:
+        return ZERO, ZERO, case.dedicated_cost
 
-    _validate(case)
-
-    shortfall_units = max(case.committed_units - case.actual_units, ZERO)
     unit_amortization = (
         case.dedicated_cost / case.amortization_basis_units
         if case.amortization_basis_units > ZERO
@@ -101,74 +123,90 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
         case.dedicated_cost,
         min(case.actual_units, case.amortization_basis_units) * unit_amortization,
     )
+    exposure = max(case.dedicated_cost - recovered_via_actual_units, ZERO)
+    return unit_amortization, recovered_via_actual_units, exposure
 
-    if case.already_fully_amortized:
-        economic_exposure = ZERO
-    else:
-        economic_exposure = max(case.dedicated_cost - recovered_via_actual_units, ZERO)
 
-    net_exposure = max(
-        economic_exposure - case.mitigation - case.prior_payment,
-        ZERO,
+def _integrity_gate(case: RecoveryCase) -> Optional[tuple[RecoverabilityState, str]]:
+    checks = (
+        (case.program_matches, "program_match_unknown", "wrong_program"),
+        (case.period_matches, "period_match_unknown", "wrong_period"),
+        (case.currency_matches, "currency_match_unknown", "wrong_currency"),
+        (case.contract_current, "contract_currency_unknown", "superseded_contract"),
+        (case.amendment_reviewed, "amendment_review_unknown", "customer_amendment_not_reconciled"),
     )
+    for value, unknown_reason, false_reason in checks:
+        if value is None:
+            return RecoverabilityState.UNKNOWN, unknown_reason
+        if value is False:
+            return RecoverabilityState.UNKNOWN, false_reason
+    if case.duplicate_claim:
+        return RecoverabilityState.NON_RECOVERABLE, "duplicate_claim"
+    return None
+
+
+def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
+    """Evaluate a single capacity/dedicated-investment recovery case.
+
+    The evaluator deliberately separates economic exposure from entitlement.
+    Unknown or contradictory contract/evidence/integrity states fail closed to
+    zero claimable value; a correct zero is a successful result.
+    """
+
+    _validate(case)
+
+    shortfall_units = max(case.committed_units - case.actual_units, ZERO)
+    unit_amortization, recovered_via_actual_units, economic_exposure = _economic_exposure(case)
+    net_exposure = max(economic_exposure - case.mitigation - case.prior_payment, ZERO)
 
     reasons = []
+    state: RecoverabilityState
+    recoverable = ZERO
+    claimable = ZERO
 
     if net_exposure == ZERO:
         state = RecoverabilityState.ZERO_EXPOSURE
-        recoverable = ZERO
-        claimable = ZERO
         reasons.append("no_net_exposure_remaining")
-    elif not case.asset_dedicated:
-        state = RecoverabilityState.NON_RECOVERABLE
-        recoverable = ZERO
-        claimable = ZERO
-        reasons.append("asset_not_proven_dedicated")
-    elif case.commitment_state is CommitmentState.FORECAST_ONLY:
-        state = RecoverabilityState.NON_RECOVERABLE
-        recoverable = ZERO
-        claimable = ZERO
-        reasons.append("forecast_is_not_firm_commitment")
-    elif case.commitment_state is CommitmentState.NONE:
-        state = RecoverabilityState.NON_RECOVERABLE
-        recoverable = ZERO
-        claimable = ZERO
-        reasons.append("no_customer_commitment")
-    elif case.commitment_state is CommitmentState.AMBIGUOUS:
-        state = RecoverabilityState.UNKNOWN
-        recoverable = ZERO
-        claimable = ZERO
-        reasons.append("commitment_ambiguous")
-    elif case.explicit_recovery_right is False:
-        state = RecoverabilityState.NON_RECOVERABLE
-        recoverable = ZERO
-        claimable = ZERO
-        reasons.append("recovery_right_not_supported")
-    elif case.explicit_recovery_right is None:
-        state = RecoverabilityState.UNKNOWN
-        recoverable = ZERO
-        claimable = ZERO
-        reasons.append("recovery_right_unknown")
-    elif not case.evidence_supported:
-        state = RecoverabilityState.UNKNOWN
-        recoverable = ZERO
-        claimable = ZERO
-        reasons.append("evidence_incomplete")
-    elif case.notice_valid is False:
-        state = RecoverabilityState.EXPIRED
-        recoverable = ZERO
-        claimable = ZERO
-        reasons.append("notice_or_deadline_expired")
-    elif case.notice_valid is None:
-        state = RecoverabilityState.UNKNOWN
-        recoverable = ZERO
-        claimable = ZERO
-        reasons.append("notice_validity_unknown")
     else:
-        state = RecoverabilityState.RECOVERABLE
-        recoverable = net_exposure
-        claimable = net_exposure
-        reasons.append("firm_commitment_right_evidence_and_notice_supported")
+        integrity = _integrity_gate(case)
+        if integrity is not None:
+            state, reason = integrity
+            reasons.append(reason)
+        elif not case.asset_dedicated and case.exposure_type in {
+            ExposureType.DEDICATED_CAPEX,
+            ExposureType.TOOLING,
+        }:
+            state = RecoverabilityState.NON_RECOVERABLE
+            reasons.append("asset_not_proven_dedicated")
+        elif case.commitment_state is CommitmentState.FORECAST_ONLY:
+            state = RecoverabilityState.NON_RECOVERABLE
+            reasons.append("forecast_is_not_firm_commitment")
+        elif case.commitment_state is CommitmentState.NONE:
+            state = RecoverabilityState.NON_RECOVERABLE
+            reasons.append("no_customer_commitment")
+        elif case.commitment_state is CommitmentState.AMBIGUOUS:
+            state = RecoverabilityState.UNKNOWN
+            reasons.append("commitment_ambiguous")
+        elif case.explicit_recovery_right is False:
+            state = RecoverabilityState.NON_RECOVERABLE
+            reasons.append("recovery_right_not_supported")
+        elif case.explicit_recovery_right is None:
+            state = RecoverabilityState.UNKNOWN
+            reasons.append("recovery_right_unknown")
+        elif not case.evidence_supported:
+            state = RecoverabilityState.UNKNOWN
+            reasons.append("evidence_incomplete")
+        elif case.notice_valid is False:
+            state = RecoverabilityState.EXPIRED
+            reasons.append("notice_or_deadline_expired")
+        elif case.notice_valid is None:
+            state = RecoverabilityState.UNKNOWN
+            reasons.append("notice_validity_unknown")
+        else:
+            state = RecoverabilityState.RECOVERABLE
+            recoverable = net_exposure
+            claimable = net_exposure
+            reasons.append("commitment_right_evidence_integrity_and_notice_supported")
 
     return RecoveryResult(
         case_id=case.case_id,
