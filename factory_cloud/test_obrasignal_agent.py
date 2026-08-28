@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from factory_cloud.obrasignal_agent import (
+    AGENT_CAPABILITIES,
     ObraSignalVerificationAgent,
     TASK_COMPILE,
     TASK_MOBILE,
@@ -14,6 +15,7 @@ from factory_cloud.obrasignal_agent import (
 
 HEAD = "a" * 40
 SENSITIVE = "raw-command-output-must-not-enter-result"
+CAPABILITIES = sorted(item.value for item in AGENT_CAPABILITIES)
 
 
 class FakeRunner:
@@ -41,6 +43,7 @@ class ObraSignalVerificationAgentTests(unittest.TestCase):
             "task": task,
             "source": "MarcosTaz/Obrasignal",
             "canonical_head": HEAD,
+            "required_capabilities": list(CAPABILITIES),
             "resume_at": task,
         }
 
@@ -93,6 +96,27 @@ class ObraSignalVerificationAgentTests(unittest.TestCase):
             )
             self.assertEqual(result["status"], "WAIT")
             self.assertIn("obrasignal_agent_task_not_allowlisted", result["blockers"])
+            self.assertEqual(runner.calls, [])
+
+    def test_capability_contract_mismatch_blocks_before_any_process(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = FakeRunner()
+            payload = self._payload(TASK_PYTHON)
+            payload["required_capabilities"] = ["READ_REPOSITORY"]
+            result = ObraSignalVerificationAgent(Path(tmp), runner=runner).execute(payload)
+            self.assertEqual(result["status"], "BLOCKED")
+            self.assertEqual(result["evidence"]["task_state"], "AUTHORITY_REQUIRED")
+            self.assertIn("obrasignal_agent_capability_contract_mismatch", result["blockers"])
+            self.assertEqual(runner.calls, [])
+
+    def test_high_risk_capability_is_invalid_request_and_runs_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = FakeRunner()
+            payload = self._payload(TASK_PYTHON)
+            payload["required_capabilities"].append("MERGE_MAIN")
+            result = ObraSignalVerificationAgent(Path(tmp), runner=runner).execute(payload)
+            self.assertEqual(result["status"], "ERROR")
+            self.assertEqual(result["error"], {"type": "INVALID_REQUEST"})
             self.assertEqual(runner.calls, [])
 
     def test_defense_in_depth_head_mismatch_stops_before_tests(self):
