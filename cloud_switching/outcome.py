@@ -63,4 +63,9 @@ class MigrationOutcomeRecord:
             self.provider_incentive,
         )
         disallowed = {EvidenceStrength.PARTNER, EvidenceStrength.PUBLIC, EvidenceStrength.UNVERIFIED}
-        return all(field.actual is not None and field.evidence.strength not in disallowed for field in fields)
+        return all(
+            field.actual is not None
+            and field.evidence.independent
+            and field.evidence.strength not in disallowed
+            for field in fields
+        )
