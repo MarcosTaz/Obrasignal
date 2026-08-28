@@ -15,6 +15,10 @@ class CapacityRepository:
     It stores only checksummed state envelopes. Derived recoverability/package
     outputs are recomputed from the restored source state rather than persisted
     as authoritative truth.
+
+    T1 deliberately treats ``save`` as create-only. A duplicate same-tenant
+    case is a conflict, never an implicit overwrite. This preserves the first
+    accepted snapshot until a separately versioned update workflow exists.
     """
 
     def __init__(self, db_path: str):
@@ -44,22 +48,30 @@ class CapacityRepository:
             )
 
     def save(self, state: AssistedCaseState) -> None:
+        """Create a case without permitting silent replacement.
+
+        Concurrent or repeated creation of the same tenant/case primary key
+        fails closed with FileExistsError. A later editable workflow must use
+        explicit revisions/history rather than changing this create semantic.
+        """
+
         snapshot = dump_state(state)
         case_id = state.recovery_case.case_id
         if not case_id or not case_id.strip():
             raise ValueError("case_id is required")
         updated_at = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO capacity_commitment_cases (tenant_id, case_id, snapshot, updated_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(tenant_id, case_id) DO UPDATE SET
-                    snapshot=excluded.snapshot,
-                    updated_at=excluded.updated_at
-                """,
-                (state.tenant_id, case_id, snapshot, updated_at),
-            )
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO capacity_commitment_cases
+                        (tenant_id, case_id, snapshot, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (state.tenant_id, case_id, snapshot, updated_at),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise FileExistsError("case already exists") from exc
 
     def load(self, *, tenant_id: str, case_id: str) -> AssistedCaseState:
         if not tenant_id or not case_id:
