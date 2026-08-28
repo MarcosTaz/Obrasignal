@@ -12,6 +12,7 @@ from auth_context_jwt import JwksUnavailableError
 
 from .baseline import BaselineCost, Certainty, CurrentStateBaseline
 from .domain import MigrationCase
+from .forecast import FrozenMigrationForecast
 from .incentives import Incentive, IncentiveStatus
 from .options import OptionType, SwitchingOption, compare_options
 from .service import build_decision_package
@@ -124,6 +125,51 @@ def _options(body: dict) -> list[SwitchingOption]:
     return results
 
 
+def _forecast(body: dict, case: MigrationCase) -> FrozenMigrationForecast:
+    item = body.get("forecast")
+    if not isinstance(item, dict):
+        raise ValueError("forecast object is required and must be frozen before analysis")
+    forecast = FrozenMigrationForecast(
+        case_id=str(item.get("case_id", "")).strip(),
+        source_platform=str(item.get("source_platform", "")).strip(),
+        destination_platform=str(item.get("destination_platform", "")).strip(),
+        workload_class=str(item.get("workload_class", "")).strip(),
+        migration_strategy=str(item.get("migration_strategy", "")).strip(),
+        migration_cost=_money(item.get("migration_cost"), "forecast.migration_cost"),
+        duration_days=_money(item.get("duration_days"), "forecast.duration_days"),
+        annual_run_cost=_money(item.get("annual_run_cost"), "forecast.annual_run_cost"),
+        downtime_minutes=_money(item.get("downtime_minutes"), "forecast.downtime_minutes"),
+        incentive_total=_money(item.get("incentive_total"), "forecast.incentive_total"),
+        methodology_version=str(item.get("methodology_version", "")).strip(),
+    )
+    forecast.validate_against_case(case)
+    return forecast
+
+
+def _assert_frozen_forecast(record, frozen: dict) -> None:
+    identity_pairs = (
+        (record.case_id, str(frozen.get("case_id", "")), "case_id"),
+        (record.source_platform, str(frozen.get("source_platform", "")), "source_platform"),
+        (record.destination_platform, str(frozen.get("destination_platform", "")), "destination_platform"),
+        (record.workload_class, str(frozen.get("workload_class", "")), "workload_class"),
+        (record.migration_strategy, str(frozen.get("migration_strategy", "")), "migration_strategy"),
+    )
+    for actual, expected, field in identity_pairs:
+        if actual != expected:
+            raise ValueError(f"outcome {field} does not match frozen forecast")
+
+    numeric_pairs = (
+        (record.migration_cost.forecast, "migration_cost"),
+        (record.duration_days.forecast, "duration_days"),
+        (record.annual_run_cost.forecast, "annual_run_cost"),
+        (record.downtime_minutes.forecast, "downtime_minutes"),
+        (record.provider_incentive.forecast, "incentive_total"),
+    )
+    for supplied, field in numeric_pairs:
+        if supplied != Decimal(str(frozen.get(field))):
+            raise ValueError(f"outcome forecast {field} does not match frozen forecast")
+
+
 def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
     blueprint = Blueprint("cloud_switching", __name__, url_prefix="/cloud-switching")
 
@@ -164,6 +210,10 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
                 options,
                 horizon_years=int(body.get("horizon_years", 3)),
             )
+            forecast = _forecast(body, case)
+            destinations = {option.destination for option in options}
+            if forecast.destination_platform not in destinations:
+                raise ValueError("forecast destination must match a compared option")
             package = build_decision_package(baseline, case, incentives)
             stored = workspace.save(
                 tenant_id=tenant_id,
@@ -173,6 +223,7 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
             delivery_payload = {
                 "decision": _json_safe(asdict(package)),
                 "options": _json_safe(asdict(option_comparison)),
+                "forecast": _json_safe(asdict(forecast)),
                 "outcome": None,
             }
             stored_delivery = None
@@ -190,6 +241,7 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
             "content_hash": stored.content_hash,
             "decision_package": delivery_payload["decision"],
             "option_comparison": delivery_payload["options"],
+            "frozen_forecast": delivery_payload["forecast"],
         }
         if stored_delivery is not None:
             response["delivery_version"] = stored_delivery.version
@@ -211,9 +263,10 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
             return jsonify({"error": "JSON object required"}), 400
         try:
             record, reconciliation = reconcile_payload(body)
-            decision_case_id = str(existing.payload.get("decision", {}).get("case_id", ""))
-            if record.case_id != decision_case_id:
-                raise ValueError("outcome case_id does not match stored decision case_id")
+            frozen = existing.payload.get("forecast")
+            if not isinstance(frozen, dict):
+                raise ValueError("stored delivery has no frozen forecast")
+            _assert_frozen_forecast(record, frozen)
             updated_payload = dict(existing.payload)
             updated_payload["outcome"] = {
                 "identity": {
