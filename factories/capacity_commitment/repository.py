@@ -6,19 +6,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
+from .engine import ENGINE_VERSION
 from .state import AssistedCaseState, dump_state, load_state
 
 
 class CapacityRepository:
     """Small tenant-scoped SQLite repository for assisted T1 cases.
 
-    It stores only checksummed state envelopes. Derived recoverability/package
-    outputs are recomputed from the restored source state rather than persisted
-    as authoritative truth.
+    It stores checksummed source-state envelopes together with the engine
+    version that accepted them. Derived recoverability/package outputs are
+    recomputed only when the stored engine version matches the running engine;
+    semantic version drift fails closed and requires explicit reassessment.
 
     T1 deliberately treats ``save`` as create-only. A duplicate same-tenant
-    case is a conflict, never an implicit overwrite. This preserves the first
-    accepted snapshot until a separately versioned update workflow exists.
+    case is a conflict, never an implicit overwrite.
     """
 
     def __init__(self, db_path: str):
@@ -41,19 +42,22 @@ class CapacityRepository:
                     tenant_id TEXT NOT NULL,
                     case_id TEXT NOT NULL,
                     snapshot TEXT NOT NULL,
+                    engine_version TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     PRIMARY KEY (tenant_id, case_id)
                 )
                 """
             )
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(capacity_commitment_cases)").fetchall()
+            }
+            required = {"tenant_id", "case_id", "snapshot", "engine_version", "updated_at"}
+            if not required.issubset(columns):
+                raise RuntimeError("capacity repository schema requires explicit migration")
 
     def save(self, state: AssistedCaseState) -> None:
-        """Create a case without permitting silent replacement.
-
-        Concurrent or repeated creation of the same tenant/case primary key
-        fails closed with FileExistsError. A later editable workflow must use
-        explicit revisions/history rather than changing this create semantic.
-        """
+        """Create a case without permitting silent replacement."""
 
         snapshot = dump_state(state)
         case_id = state.recovery_case.case_id
@@ -65,10 +69,10 @@ class CapacityRepository:
                 conn.execute(
                     """
                     INSERT INTO capacity_commitment_cases
-                        (tenant_id, case_id, snapshot, updated_at)
-                    VALUES (?, ?, ?, ?)
+                        (tenant_id, case_id, snapshot, engine_version, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
-                    (state.tenant_id, case_id, snapshot, updated_at),
+                    (state.tenant_id, case_id, snapshot, ENGINE_VERSION, updated_at),
                 )
         except sqlite3.IntegrityError as exc:
             raise FileExistsError("case already exists") from exc
@@ -79,13 +83,15 @@ class CapacityRepository:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT snapshot FROM capacity_commitment_cases
+                SELECT snapshot, engine_version FROM capacity_commitment_cases
                 WHERE tenant_id=? AND case_id=?
                 """,
                 (tenant_id, case_id),
             ).fetchone()
         if row is None:
             raise KeyError("case not found")
+        if row["engine_version"] != ENGINE_VERSION:
+            raise RuntimeError("case requires explicit reassessment for engine version drift")
         return load_state(row["snapshot"], expected_tenant_id=tenant_id)
 
     def list_case_ids(self, *, tenant_id: str) -> List[str]:
@@ -112,11 +118,7 @@ class CapacityRepository:
             source.backup(dest)
 
     def restore_from(self, source_path: str) -> None:
-        """Restore only after fully validating the backup snapshots.
-
-        A malformed/corrupted source raises before the live repository is
-        modified.
-        """
+        """Restore only after fully validating the backup snapshots/version."""
 
         if not source_path or not Path(source_path).is_file():
             raise ValueError("restore source does not exist")
@@ -134,10 +136,19 @@ class CapacityRepository:
             ).fetchone()
             if table is None:
                 raise ValueError("restore source lacks capacity schema")
+            columns = {
+                row["name"]
+                for row in source.execute("PRAGMA table_info(capacity_commitment_cases)").fetchall()
+            }
+            required = {"tenant_id", "snapshot", "engine_version"}
+            if not required.issubset(columns):
+                raise ValueError("restore source lacks required capacity columns")
             rows = source.execute(
-                "SELECT tenant_id, snapshot FROM capacity_commitment_cases"
+                "SELECT tenant_id, snapshot, engine_version FROM capacity_commitment_cases"
             ).fetchall()
             for row in rows:
+                if row["engine_version"] != ENGINE_VERSION:
+                    raise ValueError("restore source requires explicit engine reassessment")
                 load_state(row["snapshot"], expected_tenant_id=row["tenant_id"])
 
             with self._connect() as destination:
