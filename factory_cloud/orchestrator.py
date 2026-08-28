@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -19,6 +20,7 @@ WAIT_RETRY_SECONDS = 60
 BLOCKED_RETRY_SECONDS = 300
 ERROR_RETRY_BASE_SECONDS = 30
 MAX_RETRY_SECONDS = 900
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 @dataclass(frozen=True)
@@ -60,12 +62,8 @@ def _retry_gate_open(retry: dict[str, Any], task: str) -> bool:
 class PersistentFactoryOrchestrator:
     """Process-restart-safe Factory Cloud scheduler.
 
-    Canonical source truth remains persisted separately from the optional execution
-    source. Dispatches may target a separately verified non-canonical development
-    branch/head without promoting it to canonical main.
-
-    Interrupted execution recovery is intentionally explicit. A long-lived worker
-    must acquire dispatch authority before declaring an EXECUTING record interrupted.
+    Canonical source truth remains persisted separately from the mutable development
+    execution source. A successful repository-safe task may advance only the latter.
     """
 
     def __init__(
@@ -141,28 +139,34 @@ class PersistentFactoryOrchestrator:
             or source_truth.get("canonical_repository")
             or source_truth.get("project")
         )
-        execution = app.get("execution_source") or {}
-        if mode == "repository_safe_execution" and execution:
-            source = execution.get("repository") or canonical_source
-            execution_branch = str(execution.get("branch") or "").strip() or None
-            execution_head = str(execution.get("head") or "").strip() or None
+        registry_execution = app.get("execution_source") or {}
+        if mode == "repository_safe_execution":
+            source = registry_execution.get("repository") or canonical_source
+            execution_branch = (
+                str(state.get("execution_branch") or "").strip()
+                or str(registry_execution.get("branch") or "").strip()
+                or str(source_truth.get("canonical_branch") or "").strip()
+                or None
+            )
+            execution_head = (
+                str(state.get("execution_head") or "").strip()
+                or str(registry_execution.get("head") or "").strip()
+                or str(state.get("canonical_head") or "").strip()
+                or None
+            )
         else:
             source = canonical_source
-            execution_branch = str(source_truth.get("canonical_branch") or "").strip() or None
-            execution_head = state.get("canonical_head")
+            execution_branch = None
+            execution_head = None
 
         contracts = app.get("task_capabilities") or {}
         required_capabilities = tuple(str(value) for value in contracts.get(task, []))
 
         return DispatchDecision(
-            app_id=state["app_id"],
-            mode=mode,
-            task=task,
-            source=source,
+            app_id=state["app_id"], mode=mode, task=task, source=source,
             canonical_head=state.get("canonical_head"),
             resume_at=str(state.get("resume_at") or task),
-            execution_branch=execution_branch,
-            execution_head=execution_head,
+            execution_branch=execution_branch, execution_head=execution_head,
             required_capabilities=required_capabilities,
         )
 
@@ -175,6 +179,37 @@ class PersistentFactoryOrchestrator:
             if decision is not None:
                 return decision
         return None
+
+    def _validated_result(self, decision: DispatchDecision, result: ExecutionResult) -> ExecutionResult:
+        if result.status not in TERMINAL_SAFE_STATUSES:
+            return ExecutionResult(
+                status="ERROR", evidence={"invalid_adapter_status": result.status}, next_active=decision.task,
+                blockers=("invalid_adapter_status",), resume_at=decision.task,
+                error={"type": "INVALID_ADAPTER_STATUS", "status": result.status},
+            )
+        has_branch = bool(result.execution_branch)
+        has_head = bool(result.execution_head)
+        if has_branch != has_head:
+            return ExecutionResult(
+                status="ERROR", evidence={"task_state": "INVALID_EXECUTION_SOURCE_RESULT"},
+                next_active=decision.task, blockers=("invalid_execution_source_result",), resume_at=decision.task,
+                error={"type": "INVALID_EXECUTION_SOURCE_RESULT"},
+            )
+        if has_head and (result.status != "DONE" or not _SHA_RE.fullmatch(str(result.execution_head))):
+            return ExecutionResult(
+                status="ERROR", evidence={"task_state": "INVALID_EXECUTION_SOURCE_RESULT"},
+                next_active=decision.task, blockers=("invalid_execution_source_result",), resume_at=decision.task,
+                error={"type": "INVALID_EXECUTION_SOURCE_RESULT"},
+            )
+        if has_branch:
+            canonical_branch = str((self._app_config(decision.app_id).get("source_truth") or {}).get("canonical_branch") or "").strip()
+            if canonical_branch and result.execution_branch == canonical_branch:
+                return ExecutionResult(
+                    status="ERROR", evidence={"task_state": "CANONICAL_BRANCH_MUTATION_REJECTED"},
+                    next_active=decision.task, blockers=("canonical_branch_mutation_rejected",), resume_at=decision.task,
+                    error={"type": "CANONICAL_BRANCH_MUTATION_REJECTED"},
+                )
+        return result
 
     def _checkpoint_result(self, decision: DispatchDecision, result: ExecutionResult) -> None:
         state = self.store.get_app(decision.app_id)
@@ -200,67 +235,50 @@ class PersistentFactoryOrchestrator:
         if result.status == "ERROR":
             attempts = int(retry.get("attempts", 0)) + 1
             delay = min(ERROR_RETRY_BASE_SECONDS * (2 ** max(0, attempts - 1)), MAX_RETRY_SECONDS)
-            retry.update({
-                "attempts": attempts,
-                "last_error_at": now,
-                "next_attempt_at": _future_retry_at(delay),
-                "retry_reason": "ERROR",
-                "task": decision.task,
-            })
+            retry.update({"attempts": attempts, "last_error_at": now, "next_attempt_at": _future_retry_at(delay), "retry_reason": "ERROR", "task": decision.task})
         elif result.status in {"WAIT", "BLOCKED"} and PENDING_WORKER_BLOCKER not in blockers:
             wait_attempts = int(retry.get("wait_attempts", 0)) + 1
             base = WAIT_RETRY_SECONDS if result.status == "WAIT" else BLOCKED_RETRY_SECONDS
             delay = min(base * (2 ** max(0, wait_attempts - 1)), MAX_RETRY_SECONDS)
-            retry.update({
-                "wait_attempts": wait_attempts,
-                "last_wait_at": now,
-                "next_attempt_at": _future_retry_at(delay),
-                "retry_reason": result.status,
-                "task": decision.task,
-            })
+            retry.update({"wait_attempts": wait_attempts, "last_wait_at": now, "next_attempt_at": _future_retry_at(delay), "retry_reason": result.status, "task": decision.task})
         elif result.status == "DONE":
             retry = {}
 
-        if result.status == "DONE":
-            resume_at = next_active or decision.task
-        else:
-            resume_at = result.resume_at or next_active or decision.task
-
-        self.store.checkpoint(
-            decision.app_id, state="READY" if result.status == "DONE" else result.status,
-            active=next_active, next_json=next_items, wait_json=wait_items, blockers_json=blockers,
-            last_verified=result.last_verified or state.get("last_verified"),
-            last_green=result.last_green or state.get("last_green"), resume_at=resume_at,
-            current_execution_json=None, error_state_json=result.error, retry_state_json=retry,
-        )
+        resume_at = (next_active or decision.task) if result.status == "DONE" else (result.resume_at or next_active or decision.task)
+        checkpoint: dict[str, Any] = {
+            "state": "READY" if result.status == "DONE" else result.status,
+            "active": next_active,
+            "next_json": next_items,
+            "wait_json": wait_items,
+            "blockers_json": blockers,
+            "last_verified": result.last_verified or state.get("last_verified"),
+            "last_green": result.last_green or result.execution_head or state.get("last_green"),
+            "resume_at": resume_at,
+            "current_execution_json": None,
+            "error_state_json": result.error,
+            "retry_state_json": retry,
+        }
+        if result.status == "DONE" and result.execution_head and result.execution_branch:
+            checkpoint["execution_branch"] = result.execution_branch
+            checkpoint["execution_head"] = result.execution_head
+        self.store.checkpoint(decision.app_id, **checkpoint)
 
     def execute_one(self, decision: DispatchDecision) -> ExecutionResult:
         execution_id = uuid.uuid4().hex
         payload = {
-            "execution_id": execution_id,
-            "app_id": decision.app_id,
-            "mode": decision.mode,
-            "task": decision.task,
-            "source": decision.source,
-            "canonical_head": decision.canonical_head,
-            "execution_branch": decision.execution_branch,
-            "execution_head": decision.execution_head,
-            "required_capabilities": list(decision.required_capabilities),
-            "resume_at": decision.resume_at,
+            "execution_id": execution_id, "app_id": decision.app_id, "mode": decision.mode,
+            "task": decision.task, "source": decision.source, "canonical_head": decision.canonical_head,
+            "execution_branch": decision.execution_branch, "execution_head": decision.execution_head,
+            "required_capabilities": list(decision.required_capabilities), "resume_at": decision.resume_at,
         }
         self.store.start_execution(decision.app_id, execution_id, decision.task, payload)
         adapter = self.adapters.for_app(decision.app_id, decision.mode)
         try:
             result = adapter.execute(
                 ExecutionRequest(
-                    app_id=decision.app_id,
-                    mode=decision.mode,
-                    task=decision.task,
-                    source=decision.source,
-                    canonical_head=decision.canonical_head,
-                    resume_at=decision.resume_at,
-                    execution_branch=decision.execution_branch,
-                    execution_head=decision.execution_head,
+                    app_id=decision.app_id, mode=decision.mode, task=decision.task,
+                    source=decision.source, canonical_head=decision.canonical_head, resume_at=decision.resume_at,
+                    execution_branch=decision.execution_branch, execution_head=decision.execution_head,
                     required_capabilities=decision.required_capabilities,
                 )
             )
@@ -270,12 +288,7 @@ class PersistentFactoryOrchestrator:
                 next_active=decision.task, blockers=("adapter_execution_error",), resume_at=decision.task,
                 error={"type": type(exc).__name__},
             )
-        if result.status not in TERMINAL_SAFE_STATUSES:
-            result = ExecutionResult(
-                status="ERROR", evidence={"invalid_adapter_status": result.status}, next_active=decision.task,
-                blockers=("invalid_adapter_status",), resume_at=decision.task,
-                error={"type": "INVALID_ADAPTER_STATUS", "status": result.status},
-            )
+        result = self._validated_result(decision, result)
         self.store.finish_execution(decision.app_id, execution_id, result.status, result.evidence, result.error)
         self._checkpoint_result(decision, result)
         return result
