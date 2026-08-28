@@ -20,12 +20,14 @@ class FactoryCloudControlPlaneTests(unittest.TestCase):
         with self.assertRaises(RegistryError):
             activation_plan("A", registry)
 
-    def test_plan_preserves_safety_boundaries(self):
+    def test_plan_preserves_safety_boundaries_and_surfaces_capabilities(self):
         plan = activation_plan("Ω", load_registry())
         self.assertFalse(plan["safety"]["automatic_merge"])
         self.assertFalse(plan["safety"]["automatic_deploy"])
         self.assertFalse(plan["safety"]["production_mutation"])
         self.assertFalse(plan["safety"]["cross_app_secret_or_data_authority"])
+        obra = next(item for item in plan["queue"] if item["app_id"] == "obrasignal")
+        self.assertEqual(set(obra["adapter_capabilities"]), {"READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"})
 
     def test_research_factory_is_rejected(self):
         registry = load_registry()
@@ -65,7 +67,34 @@ class FactoryCloudControlPlaneTests(unittest.TestCase):
         with self.assertRaises(RegistryError):
             validate_registry(bad_sha)
 
-    def test_read_only_app_cannot_gain_execution_source(self):
+    def test_high_risk_or_implicit_capability_escalation_is_rejected(self):
+        registry = copy.deepcopy(load_registry())
+        obra = next(app for app in registry["applications"] if app["app_id"] == "obrasignal")
+        obra["execution_adapter"]["capabilities"].append("MERGE_MAIN")
+        with self.assertRaises(RegistryError):
+            validate_registry(registry)
+
+        missing = copy.deepcopy(load_registry())
+        obra = next(app for app in missing["applications"] if app["app_id"] == "obrasignal")
+        obra["execution_adapter"].pop("capabilities")
+        with self.assertRaises(RegistryError):
+            validate_registry(missing)
+
+    def test_task_capability_contract_must_match_allowlist_and_declared_authority(self):
+        registry = copy.deepcopy(load_registry())
+        obra = next(app for app in registry["applications"] if app["app_id"] == "obrasignal")
+        task = obra["execution_adapter"]["allowlisted_tasks"][0]
+        obra["task_capabilities"][task].append("WRITE_FILES")
+        with self.assertRaises(RegistryError):
+            validate_registry(registry)
+
+        missing_task = copy.deepcopy(load_registry())
+        obra = next(app for app in missing_task["applications"] if app["app_id"] == "obrasignal")
+        obra["task_capabilities"].pop(obra["execution_adapter"]["allowlisted_tasks"][0])
+        with self.assertRaises(RegistryError):
+            validate_registry(missing_task)
+
+    def test_read_only_app_cannot_gain_execution_source_or_capabilities(self):
         registry = copy.deepcopy(load_registry())
         k3 = next(app for app in registry["applications"] if app["app_id"] == "k3-fatality")
         k3["execution_source"] = {
@@ -75,6 +104,18 @@ class FactoryCloudControlPlaneTests(unittest.TestCase):
             "head": "a" * 40,
             "verified": True,
         }
+        with self.assertRaises(RegistryError):
+            validate_registry(registry)
+
+        registry = copy.deepcopy(load_registry())
+        k3 = next(app for app in registry["applications"] if app["app_id"] == "k3-fatality")
+        k3["execution_adapter"] = {
+            "configured": True,
+            "allowlisted_tasks": ["unsafe"],
+            "capabilities": ["READ_REPOSITORY"],
+            "repository_mutation_capability": False,
+        }
+        k3["task_capabilities"] = {"unsafe": ["READ_REPOSITORY"]}
         with self.assertRaises(RegistryError):
             validate_registry(registry)
 
