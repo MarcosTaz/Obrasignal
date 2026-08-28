@@ -5,6 +5,7 @@ from pathlib import Path
 
 from factory_cloud.obrasignal_agent import (
     ObraSignalVerificationAgent,
+    TASK_COMPILE,
     TASK_MOBILE,
     TASK_PYTHON,
     TASK_QUALITY,
@@ -47,6 +48,23 @@ class ObraSignalVerificationAgentTests(unittest.TestCase):
         (root / "tests").mkdir()
         (root / "app.py").write_text("VALUE = 1\n", encoding="utf-8")
         (root / "test_root.py").write_text("def test_ok(): assert True\n", encoding="utf-8")
+
+    def test_compile_task_needs_no_pytest_or_mobile_dependencies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._workspace(root)
+            runner = FakeRunner()
+            agent = ObraSignalVerificationAgent(root, runner=runner, environ={"FACTORY_CLOUD_OBRASIGNAL_PYTHON": "/safe/python"})
+            result = agent.execute(self._payload(TASK_COMPILE))
+
+            self.assertEqual(result["status"], "DONE")
+            self.assertEqual(result["evidence"]["evidence_codes"], ["compile_green"])
+            self.assertEqual([call[0][0:3] for call in runner.calls], [
+                ["git", "rev-parse", "HEAD"],
+                ["/safe/python", "-m", "py_compile"],
+            ])
+            self.assertFalse(any("pytest" in " ".join(call[0]) for call in runner.calls))
+            self.assertFalse(any(call[0] and call[0][0] in {"npm", "npx"} for call in runner.calls))
 
     def test_python_verification_is_allowlisted_and_uses_fixed_argv(self):
         with tempfile.TemporaryDirectory() as tmp:
