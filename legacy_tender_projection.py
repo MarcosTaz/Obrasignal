@@ -58,6 +58,11 @@ def reconcile_staged_tender_projection(
     source transaction rolled back), any legacy row created by the earlier legacy
     transaction is removed. This is fail-closed: compatibility data cannot outrun
     canonical source persistence.
+
+    A direct source-runtime unit/integration call with no legacy sync run is not a
+    customer-projection event. In that case an accepted canonical Signal may update
+    an already-existing compatibility row, but it must not manufacture a new
+    ``tenders`` row merely because the compatibility table happens to exist.
     """
     if not _table_exists(conn, "tenders"):
         return {"reconciled": 0, "deleted": 0}
@@ -89,6 +94,16 @@ def reconcile_staged_tender_projection(
                 deleted += int(cur.rowcount or 0)
                 continue
 
+            existing = conn.execute(
+                "SELECT id, first_seen, last_seen FROM tenders WHERE source=? AND external_id=?",
+                (source, external_id),
+            ).fetchone()
+            if identity in accepted and existing is None and not accepted_last_seen:
+                # No legacy sync transaction occurred. Canonical source storage is
+                # valid, but creating a compatibility row here would widen the
+                # source transaction into an unrelated customer-projection write.
+                continue
+
             snapshot = _snapshot(canonical)
             title = canonical.get("title")
             description = canonical.get("description")
@@ -105,10 +120,6 @@ def reconcile_staged_tender_projection(
                 title or "", description or "", cpv or "", deadline
             )
 
-            existing = conn.execute(
-                "SELECT id, first_seen, last_seen FROM tenders WHERE source=? AND external_id=?",
-                (source, external_id),
-            ).fetchone()
             canonical_seen = canonical.get("last_observed") or canonical.get("first_observed")
             last_seen = (
                 accepted_last_seen
