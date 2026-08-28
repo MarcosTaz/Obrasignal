@@ -3,6 +3,7 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from factory_cloud.obrasignal_agent import ALLOWED_TASKS, TASK_COMPILE
 from factory_cloud.process_adapter import ProcessAdapterConfig
 
 
@@ -27,6 +28,22 @@ class RuntimeProvisioningTests(unittest.TestCase):
         encoded = json.dumps(payload).lower()
         for forbidden in ("token", "password", "secret", "customer", "billing"):
             self.assertNotIn(forbidden, encoded)
+
+    def test_registry_seeds_an_executable_obrasignal_baton_but_not_a_k3_mutation_adapter(self):
+        registry = json.loads((ROOT / "apps.json").read_text(encoding="utf-8"))
+        apps = {item["app_id"]: item for item in registry["applications"]}
+        obrasignal = apps["obrasignal"]
+        k3 = apps["k3-fatality"]
+
+        self.assertEqual(obrasignal["baton"]["active"], TASK_COMPILE)
+        self.assertTrue(set(obrasignal["execution_adapter"]["allowlisted_tasks"]).issubset(ALLOWED_TASKS))
+        self.assertFalse(obrasignal["execution_adapter"]["repository_mutation_capability"])
+        self.assertEqual(obrasignal["source_truth"]["canonical_branch"], "main")
+        self.assertTrue(obrasignal["source_truth"]["verified"])
+
+        self.assertNotIn("execution_adapter", k3)
+        self.assertFalse(k3["source_truth"]["verified_source"])
+        self.assertEqual(k3["activation"]["mode"], "read_only_until_source_resolved")
 
     def test_host_shell_artifacts_are_syntactically_valid(self):
         for path in (SYSTEMD / "install.sh", SYSTEMD / "prepare-obrasignal-workspace.sh"):
