@@ -51,8 +51,9 @@ def reconcile_staged_tender_projection(
     ``accepted_tender_identities`` is the exact set admitted by the just-completed
     source transaction. Accepted rows retain the legacy sync-run ``last_seen`` so
     downstream decisioning sees newly accepted work. Rejected rows are restored
-    from canonical Signal truth and use the canonical ``last_observed`` timestamp,
-    preventing a stale arrival from masquerading as newly accepted work.
+    from canonical Signal truth and use canonical first/last observation timestamps,
+    preventing stale arrivals from masquerading as newly discovered or newly accepted
+    work when the compatibility projection had to be recreated.
 
     If a staged TENDER has no canonical Signal record (for example a first-time
     source transaction rolled back), any legacy row created by the earlier legacy
@@ -120,17 +121,26 @@ def reconcile_staged_tender_projection(
                 title or "", description or "", cpv or "", deadline
             )
 
-            canonical_seen = canonical.get("last_observed") or canonical.get("first_observed")
+            canonical_first_seen = canonical.get("first_observed")
+            canonical_last_seen = canonical.get("last_observed") or canonical_first_seen
             last_seen = (
                 accepted_last_seen
                 if identity in accepted and accepted_last_seen
-                else canonical_seen
+                else canonical_last_seen
             )
-            first_seen = (
-                existing["first_seen"]
-                if existing is not None and existing["first_seen"]
-                else canonical.get("first_observed")
-            )
+            if identity in accepted:
+                # A genuinely admitted update must retain the historical discovery
+                # instant already carried by an existing compatibility row.
+                first_seen = (
+                    existing["first_seen"]
+                    if existing is not None and existing["first_seen"]
+                    else canonical_first_seen
+                )
+            else:
+                # Rejected input has zero authority over discovery time. In
+                # particular, if the legacy transaction recreated a missing row,
+                # its sync-time first_seen must not survive reconciliation.
+                first_seen = canonical_first_seen
 
             values = (
                 title,
@@ -154,10 +164,10 @@ def reconcile_staged_tender_projection(
                 conn.execute(
                     """UPDATE tenders SET
                         title=?,description=?,buyer=?,country=?,cpv=?,value=?,deadline=?,
-                        publication_date=?,url=?,score=?,last_seen=?,published_at=?,
+                        publication_date=?,url=?,score=?,first_seen=?,last_seen=?,published_at=?,
                         match_reason=?,priority_label=?,priority_class=?,market=?
                         WHERE id=?""",
-                    values + (existing["id"],),
+                    values[:10] + (first_seen,) + values[10:] + (existing["id"],),
                 )
             else:
                 conn.execute(
