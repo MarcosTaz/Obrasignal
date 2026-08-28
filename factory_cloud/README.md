@@ -30,6 +30,7 @@ Host-side systemd templates and the provisioning helper live under `factory_clou
 
 `factory_cloud.obrasignal_agent` currently accepts exactly these tasks:
 
+- `verify:canonical:compile` — dependency-free root Python syntax compilation, suitable as the first host acceptance dispatch;
 - `verify:canonical:python` — compile root Python modules and run the repository Python test contract;
 - `verify:canonical:mobile` — run Expo Doctor and the existing mobile smoke contracts only when `mobile/node_modules` is already present;
 - `verify:canonical:quality` — run Python verification and then mobile verification.
@@ -39,6 +40,8 @@ Task text is never interpolated into a command. The agent uses fixed argv, no sh
 The agent does **not** install mobile dependencies, modify source files, create branches, commit, merge, deploy, activate sources/providers, access billing, or communicate externally. Dependency/tool preparation belongs to the isolated app workspace/worker environment. This closes a concrete execution-adapter gap for safe verification work; it does not yet provide autonomous code-authoring capability.
 
 The built-in non-secret runtime config is `factory_cloud/runtime/obrasignal-adapter.json`. It points the app worker at `/srv/factory-cloud/apps/obrasignal` and the control-plane copy of the concrete agent. The host installer can copy that config into the private per-app config group and prepare the development checkout at the exact verified canonical SHA recorded in `apps.json`.
+
+The registry now seeds ObraSignal with `verify:canonical:compile` as the first executable BATON item, followed by deeper Python/mobile verification. Once those allowlisted tasks are exhausted, source-mutating/code-authoring work remains an explicit WAIT boundary until a separately verified repository-safe coding adapter exists.
 
 ## App process contract
 
