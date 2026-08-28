@@ -40,6 +40,7 @@ MANDATORY_CASE_IDS = {
 }
 
 RED_TEAM_CASE_IDS = {
+    "wrong-customer",
     "wrong-unit",
     "missing-call-off",
     "late-call-off-not-reconciled",
@@ -47,8 +48,19 @@ RED_TEAM_CASE_IDS = {
     "cancelled-order-in-actuals",
     "wrong-amortization-basis",
     "amortization-verification-unknown",
+    "asset-dedication-not-verified",
+    "asset-dedication-verification-unknown",
+    "mitigation-not-reviewed",
+    "mitigation-review-unknown",
+    "prior-recovery-not-reviewed",
+    "prior-recovery-review-unknown",
     "notice-window-not-verified",
     "notice-window-verification-unknown",
+    "wrong-contract",
+    "contract-match-unknown",
+    "wrong-amendment",
+    "amendment-match-unknown",
+    "customer-match-unknown",
     "program-match-unknown",
     "period-match-unknown",
     "currency-match-unknown",
@@ -88,22 +100,33 @@ def test_capacity_commitment_unknown_integrity_fails_closed():
     assert result.claimable_amount == Decimal("0")
 
 
-def test_capacity_commitment_wrong_amortization_fails_closed():
-    recovery_case = case("wrong-amortization-direct-test", amortization_verified=False)
+@pytest.mark.parametrize(
+    "field,reason",
+    [
+        ("amortization_verified", "amortization_basis_not_verified"),
+        ("mitigation_reviewed", "mitigation_not_reviewed"),
+        ("prior_recovery_reviewed", "prior_recovery_not_reviewed"),
+        ("notice_window_verified", "notice_window_not_verified"),
+        ("contract_matches", "wrong_contract"),
+        ("amendment_matches", "wrong_amendment"),
+        ("customer_matches", "wrong_customer"),
+    ],
+)
+def test_capacity_commitment_material_integrity_failures_are_zero_claimable(field, reason):
+    recovery_case = case(f"direct-{field}", **{field: False})
     result = evaluate_recoverability(recovery_case)
     assert result.recoverability_state == RecoverabilityState.UNKNOWN
     assert result.economic_exposure == Decimal("100000")
     assert result.claimable_amount == Decimal("0")
-    assert result.reasons == ("amortization_basis_not_verified",)
+    assert result.reasons == (reason,)
 
 
-def test_capacity_commitment_unverified_notice_window_fails_closed():
-    recovery_case = case("unverified-notice-window-direct-test", notice_window_verified=False)
+def test_capacity_commitment_unverified_dedication_fails_closed_before_shared_asset_classification():
+    recovery_case = case("unverified-dedication", asset_dedication_verified=False)
     result = evaluate_recoverability(recovery_case)
     assert result.recoverability_state == RecoverabilityState.UNKNOWN
-    assert result.economic_exposure == Decimal("100000")
     assert result.claimable_amount == Decimal("0")
-    assert result.reasons == ("notice_window_not_verified",)
+    assert result.reasons == ("asset_dedication_not_verified",)
 
 
 def test_capacity_commitment_rejects_negative_inputs():
