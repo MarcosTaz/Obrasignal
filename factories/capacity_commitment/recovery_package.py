@@ -118,6 +118,7 @@ def build_recovery_package(
         "currency_matches": case.currency_matches,
         "unit_matches": case.unit_matches,
         "amortization_verified": case.amortization_verified,
+        "notice_window_verified": case.notice_window_verified,
         "contract_current": case.contract_current,
         "amendment_reviewed": case.amendment_reviewed,
         "asset_dedicated": case.asset_dedicated,
@@ -137,6 +138,8 @@ def build_recovery_package(
         "engine_version": result.engine_version,
         "source_evidence_refs": evidence_refs,
         "missing_evidence": missing_evidence,
+        "deadline": deadline,
+        "notice_window_verified": case.notice_window_verified,
         "engine_reasons": result.reasons,
         "human_review_required_before_external_submission": positive_position,
     }
