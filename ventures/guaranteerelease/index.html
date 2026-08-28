@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GuaranteeRelease — Security Release Queue</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#152019;background:#f4f6f2}*{box-sizing:border-box}body{margin:0}button,select{font:inherit}.shell{max-width:1240px;margin:0 auto;padding:24px}.top{display:flex;gap:18px;align-items:flex-start;justify-content:space-between;margin-bottom:18px}.brand h1{font-size:26px;margin:0 0 5px}.brand p{margin:0;color:#59645d}.badge{display:inline-flex;padding:7px 10px;border:1px solid #d5ddd4;border-radius:999px;background:white;font-size:12px;font-weight:700}.warning{background:#fff7d8;border:1px solid #eadb91;padding:12px 14px;border-radius:12px;margin:14px 0 18px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.metric,.panel{background:#fff;border:1px solid #dfe5dd;border-radius:15px}.metric{padding:15px}.metric small{display:block;color:#667168;margin-bottom:6px}.metric strong{font-size:24px}.metric span{display:block;font-size:12px;color:#6c766e;margin-top:5px}.panel{margin-top:14px;padding:16px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.panel h2{font-size:16px;margin:0}.controls{display:flex;gap:8px;flex-wrap:wrap}select{border:1px solid #ccd5cb;background:#fff;border-radius:9px;padding:8px 10px}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;border-bottom:1px solid #edf0eb;padding:11px 8px;white-space:nowrap}th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6c756e}tr[data-id]{cursor:pointer}tr[data-id]:hover{background:#f7f9f6}.state{display:inline-flex;padding:5px 8px;border-radius:999px;font-weight:700;font-size:11px;background:#edf3ec}.state.supported{background:#e5f4e5}.state.zero{background:#edf0f4}.state.unknown{background:#fff1d6}.money{font-variant-numeric:tabular-nums;font-weight:650}.two{display:grid;grid-template-columns:1.25fr .75fr;gap:14px}.queue-item{border-top:1px solid #edf0eb;padding:12px 0}.queue-item:first-child{border-top:0}.queue-item strong{display:block}.queue-item small{color:#657066}.detail{min-height:240px}.detail dl{display:grid;grid-template-columns:140px 1fr;gap:7px 10px;margin:0}.detail dt{font-size:12px;color:#687269}.detail dd{margin:0;font-size:13px}.truth{margin-top:12px;padding:11px 12px;border-radius:10px;background:#f5f7f3;font-size:13px}.foot{margin:20px 0;color:#69736b;font-size:12px}@media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}@media(max-width:560px){.shell{padding:14px}.grid{grid-template-columns:1fr}.top{display:block}.badge{margin-top:10px}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <div class="top">
+    <div class="brand">
+      <h1>GuaranteeRelease</h1>
+      <p>Independent contractor-side security release & reduction recoverability assurance.</p>
+    </div>
+    <span class="badge">T1 PROTOTYPE · SYNTHETIC ONLY</span>
+  </div>
+
+  <div class="warning"><strong>Truth boundary:</strong> this prototype uses synthetic oracle cases only. Potential reduction/release is not a verified bank/surety outcome. Expiry is never treated as cancellation, and cancellation is never treated as collateral release.</div>
+
+  <section class="grid" id="metrics"></section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Security portfolio</h2>
+      <div class="controls">
+        <select id="stateFilter"><option value="ALL">All states</option></select>
+        <select id="companyFilter"><option value="ALL">All companies</option></select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Case</th><th>Company</th><th>Instrument</th><th>Current</th><th>State</th><th>Potential action</th><th>Verified release</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="two">
+    <div class="panel">
+      <div class="panel-head"><h2>Evidence-backed action queue</h2><span class="badge">No external action</span></div>
+      <div id="queue"></div>
+    </div>
+    <div class="panel detail">
+      <div class="panel-head"><h2>Case truth</h2><span class="badge" id="detailState">Select a case</span></div>
+      <div id="detail">Click a portfolio row to inspect the independent truth boundary.</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Minimum controlled pilot input</h2></div>
+    <div class="two">
+      <div>
+        <strong>Instrument truth</strong>
+        <p>Instrument register, bank/surety, amount, currency, issue/expiry, auto-extension, facility, collateral and fee/premium where evidenced.</p>
+      </div>
+      <div>
+        <strong>Contract + project truth</strong>
+        <p>Governing amendments, release/reduction clause, payment certificates, completion/acceptance, defects, final account, claims and release/cancellation evidence.</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">Prototype objective: demonstrate the decision surface and fail-closed truth states before any production integration, bank connectivity or customer action.</p>
+</div>
+<script>
+const cases=[
+{id:'GR-001',company:'ALPHA EPC',instrument:'Advance Payment Guarantee',currency:'EUR',current:2000000,state:'REDUCTION_EVIDENCE_SUPPORTED',potentialReduction:1200000,potentialRelease:0,verifiedRelease:0,reason:'Certified advance repayment supports a progressive reduction, but beneficiary/bank implementation is not verified.',blocker:'Beneficiary + bank action required'},
+{id:'GR-002',company:'NOVA CONSTRUCTION',instrument:'Performance Bond',currency:'GBP',current:1000000,state:'REDUCTION_EVIDENCE_SUPPORTED',potentialReduction:500000,potentialRelease:0,verifiedRelease:0,reason:'Practical completion supports the first 50% contractual reduction; final release remains premature.',blocker:'Final certificate not yet issued'},
+{id:'GR-003',company:'TITAN ENERGY',instrument:'Warranty Guarantee',currency:'EUR',current:750000,state:'RELEASE_NOT_YET_DUE',potentialReduction:0,potentialRelease:0,verifiedRelease:0,reason:'A valid unresolved defect keeps security required. Correct zero is a pass.',blocker:'Valid defect remains open'},
+{id:'GR-004',company:'PRIME INFRASTRUCTURE',instrument:'Performance Guarantee',currency:'AUD',current:1500000,state:'RELEASE_EVIDENCE_SUPPORTED',potentialReduction:0,potentialRelease:1500000,verifiedRelease:0,reason:'Final-certificate evidence supports release, but expired-by-date is not bank cancellation.',blocker:'Release letter + bank cancellation missing'},
+{id:'GR-005',company:'LEGACY INDUSTRIAL',instrument:'Retention Guarantee',currency:'EUR',current:0,state:'VERIFIED_RELEASE',potentialReduction:0,potentialRelease:0,verifiedRelease:600000,collateralReleased:300000,reason:'Historical release and collateral return are evidenced; this is not a new recovery opportunity.',blocker:'None — outcome already verified'},
+{id:'GR-006',company:'REDTEAM CONTRACTING',instrument:'Advance Payment Guarantee',currency:'EUR',current:900000,state:'UNKNOWN',potentialReduction:0,potentialRelease:0,verifiedRelease:0,reason:'Wrong-project and superseded amendment evidence conflict. Engine must fail closed.',blocker:'Contradictory evidence'},
+{id:'GR-007',company:'ALPHA EPC',instrument:'Performance Guarantee',currency:'EUR',current:1250000,state:'REDUCTION_NOT_YET_DUE',potentialReduction:0,potentialRelease:0,verifiedRelease:0,reason:'72% progress does not create a reduction right where the contract requires full security until practical completion.',blocker:'Practical completion not achieved'}
+];
+const fmt=(n,c)=>new Intl.NumberFormat('en-GB',{style:'currency',currency:c,maximumFractionDigits:0}).format(n||0);
+const stateClass=s=>s==='UNKNOWN'?'unknown':(s.includes('SUPPORTED')||s==='VERIFIED_RELEASE')?'supported':'zero';
+function renderMetrics(){
+ const exposure=cases.reduce((a,c)=>a+c.current,0), potential=cases.reduce((a,c)=>a+c.potentialReduction+c.potentialRelease,0), supported=cases.filter(c=>c.state.includes('SUPPORTED')).length, zeros=cases.filter(c=>!c.potentialReduction&&!c.potentialRelease&&c.state!=='VERIFIED_RELEASE').length;
+ document.getElementById('metrics').innerHTML=[
+ ['Synthetic current exposure',fmt(exposure,'EUR'),'Cross-currency display is illustrative only; do not aggregate unlike currencies in production.'],
+ ['Evidence-supported cases',supported,'Candidates with evidence-supported reduction/release state.'],
+ ['Potential action amount',fmt(potential,'EUR'),'Illustrative only; mixed currencies are not economic cash.'],
+ ['Correct-zero / fail-closed',zeros,'Cases where the safe result is no release or UNKNOWN.']
+ ].map(x=>`<div class="metric"><small>${x[0]}</small><strong>${x[1]}</strong><span>${x[2]}</span></div>`).join('');
+}
+function initFilters(){
+ const sf=document.getElementById('stateFilter'),cf=document.getElementById('companyFilter');
+ [...new Set(cases.map(c=>c.state))].sort().forEach(v=>sf.insertAdjacentHTML('beforeend',`<option>${v}</option>`));
+ [...new Set(cases.map(c=>c.company))].sort().forEach(v=>cf.insertAdjacentHTML('beforeend',`<option>${v}</option>`));
+ sf.onchange=cf.onchange=renderRows;
+}
+function renderRows(){
+ const s=document.getElementById('stateFilter').value,c=document.getElementById('companyFilter').value;
+ const out=cases.filter(x=>(s==='ALL'||x.state===s)&&(c==='ALL'||x.company===c));
+ document.getElementById('rows').innerHTML=out.map(x=>`<tr data-id="${x.id}"><td><strong>${x.id}</strong></td><td>${x.company}</td><td>${x.instrument}</td><td class="money">${fmt(x.current,x.currency)}</td><td><span class="state ${stateClass(x.state)}">${x.state}</span></td><td class="money">${fmt(x.potentialReduction+x.potentialRelease,x.currency)}</td><td class="money">${fmt(x.verifiedRelease,x.currency)}</td></tr>`).join('');
+ document.querySelectorAll('tr[data-id]').forEach(r=>r.onclick=()=>showDetail(r.dataset.id));
+}
+function renderQueue(){
+ const q=cases.filter(c=>c.state.includes('SUPPORTED')).sort((a,b)=>(b.potentialReduction+b.potentialRelease)-(a.potentialReduction+a.potentialRelease));
+ document.getElementById('queue').innerHTML=q.map((x,i)=>`<div class="queue-item"><small>#${i+1} · ${x.state}</small><strong>${x.company} — ${fmt(x.potentialReduction+x.potentialRelease,x.currency)}</strong><small>${x.instrument} · Blocker: ${x.blocker}</small></div>`).join('')||'No evidence-supported actions.';
+}
+function showDetail(id){
+ const x=cases.find(c=>c.id===id); document.getElementById('detailState').textContent=x.state;
+ document.getElementById('detail').innerHTML=`<dl><dt>Company</dt><dd>${x.company}</dd><dt>Instrument</dt><dd>${x.instrument}</dd><dt>Current amount</dt><dd>${fmt(x.current,x.currency)}</dd><dt>Potential reduction</dt><dd>${fmt(x.potentialReduction,x.currency)}</dd><dt>Potential release</dt><dd>${fmt(x.potentialRelease,x.currency)}</dd><dt>Verified release</dt><dd>${fmt(x.verifiedRelease,x.currency)}</dd><dt>Blocker</dt><dd>${x.blocker}</dd></dl><div class="truth"><strong>Independent oracle:</strong> ${x.reason}</div>`;
+}
+renderMetrics();initFilters();renderRows();renderQueue();showDetail('GR-001');
+</script>
+</body>
+</html>
