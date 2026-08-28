@@ -19,10 +19,10 @@ from typing import Any, Callable, Sequence
 APP_ID = "obrasignal"
 MODE = "repository_safe_execution"
 SOURCE = "MarcosTaz/Obrasignal"
-TASK_COMPILE = "verify:canonical:compile"
-TASK_PYTHON = "verify:canonical:python"
-TASK_MOBILE = "verify:canonical:mobile"
-TASK_QUALITY = "verify:canonical:quality"
+TASK_COMPILE = "verify:execution:compile"
+TASK_PYTHON = "verify:execution:python"
+TASK_MOBILE = "verify:execution:mobile"
+TASK_QUALITY = "verify:execution:quality"
 ALLOWED_TASKS = frozenset({TASK_COMPILE, TASK_PYTHON, TASK_MOBILE, TASK_QUALITY})
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 COMMAND_TIMEOUT_SECONDS = 1200
@@ -49,7 +49,7 @@ def _text(value: Any, field: str, *, required: bool = True) -> str:
     return value
 
 
-def _request(payload: Any) -> dict[str, str]:
+def _request(payload: Any) -> dict[str, str | None]:
     if not isinstance(payload, dict):
         raise ObraSignalAgentError("request must be an object")
     app_id = _text(payload.get("app_id"), "app_id")
@@ -57,6 +57,8 @@ def _request(payload: Any) -> dict[str, str]:
     task = _text(payload.get("task"), "task")
     source = _text(payload.get("source"), "source")
     canonical_head = _text(payload.get("canonical_head"), "canonical_head")
+    execution_branch = _text(payload.get("execution_branch"), "execution_branch", required=False) or None
+    execution_head = _text(payload.get("execution_head"), "execution_head", required=False) or None
     resume_at = _text(payload.get("resume_at"), "resume_at", required=False) or task
     if app_id != APP_ID:
         raise ObraSignalAgentError("wrong app_id")
@@ -66,12 +68,18 @@ def _request(payload: Any) -> dict[str, str]:
         raise ObraSignalAgentError("wrong repository source")
     if not SHA_RE.fullmatch(canonical_head):
         raise ObraSignalAgentError("canonical_head must be a lowercase 40-character git SHA")
+    if execution_head is not None and not SHA_RE.fullmatch(execution_head):
+        raise ObraSignalAgentError("execution_head must be a lowercase 40-character git SHA")
+    if execution_head is not None and execution_branch is None:
+        raise ObraSignalAgentError("execution_branch is required with execution_head")
     return {
         "app_id": app_id,
         "mode": mode,
         "task": task,
         "source": source,
         "canonical_head": canonical_head,
+        "execution_branch": execution_branch,
+        "execution_head": execution_head,
         "resume_at": resume_at,
     }
 
@@ -222,8 +230,8 @@ class ObraSignalVerificationAgent:
                 "error": {"type": "INVALID_REQUEST"},
             }
 
-        task = request["task"]
-        expected = request["canonical_head"]
+        task = str(request["task"])
+        expected = str(request.get("execution_head") or request["canonical_head"])
         if task not in ALLOWED_TASKS:
             return self._wait(task, None, "obrasignal_agent_task_not_allowlisted", "task_not_allowlisted")
         if not self.workspace.is_dir():
