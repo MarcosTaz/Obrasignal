@@ -18,7 +18,7 @@ if ! id -u "${APP_USER}" >/dev/null 2>&1; then
   exit 3
 fi
 
-EXPECTED_HEAD="$((python3 - "${CONTROL_REPO}/factory_cloud/apps.json" <<'PY'
+EXPECTED_HEAD="$(python3 - "${CONTROL_REPO}/factory_cloud/apps.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -34,7 +34,7 @@ for app in payload.get("applications", []):
 else:
     raise SystemExit("ObraSignal missing from Factory Cloud registry")
 PY
-))"
+)"
 
 install -d -o root -g root -m 0755 /srv/factory-cloud /srv/factory-cloud/apps
 
