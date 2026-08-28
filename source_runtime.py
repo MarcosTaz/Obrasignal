@@ -80,7 +80,7 @@ def _aware_source_instant(value):
 
 
 def _temporally_authoritative_records(conn, records):
-    """Accept only observations that cannot regress known publisher chronology.
+    """Accept only observations that cannot manufacture publisher chronology.
 
     Processing/arrival time has no business authority here. Once durable truth has
     an explicit timezone-aware publisher instant, replacement requires an incoming
@@ -89,11 +89,12 @@ def _temporally_authoritative_records(conn, records):
     timestamps have UNKNOWN position relative to known durable time and therefore
     also fail closed rather than being promoted by arrival order.
 
-    If durable publisher time is itself UNKNOWN, this layer still does not invent an
-    ordering: incoming records remain eligible for the downstream identity/schema
-    contracts to decide. This preserves current behavior for UNKNOWN↔UNKNOWN and
-    allows an explicit publisher instant to improve previously UNKNOWN temporal
-    evidence without claiming retroactive ordering among unknown observations.
+    If durable publisher time is UNKNOWN and an incoming observation is also
+    UNKNOWN, their relative causal order remains UNKNOWN, so an existing canonical
+    record must not be replaced merely because another observation was processed
+    later. A provable incoming publisher instant may still improve previously
+    UNKNOWN temporal evidence without claiming retroactive ordering among unknown
+    observations.
     """
     ensure_signal_records(conn)
     accepted = []
@@ -117,6 +118,8 @@ def _temporally_authoritative_records(conn, records):
         if existing is not None:
             if incoming is None or incoming <= existing:
                 continue
+        elif row is not None and incoming is None:
+            continue
         accepted.append(record)
     return accepted
 
