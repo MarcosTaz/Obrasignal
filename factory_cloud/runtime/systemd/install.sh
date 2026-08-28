@@ -8,6 +8,7 @@ REPO_DIR="${REPO_DIR:-/opt/factory-cloud/current}"
 STATE_DIR="${STATE_DIR:-/var/lib/factory-cloud}"
 CONFIG_DIR="${CONFIG_DIR:-/etc/factory-cloud}"
 APPS="${APPS:-obrasignal}"
+PREPARE_WORKSPACES="${PREPARE_WORKSPACES:-1}"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "install.sh must run as root on the isolated Factory Cloud host" >&2
@@ -33,12 +34,31 @@ for app in ${APPS}; do
   else
     usermod -a -G factory-cloud "${user}"
   fi
+
   config="${CONFIG_DIR}/apps/${app}.json"
   if [[ ! -f "${config}" ]]; then
-    echo "missing ${config}; copy app-adapter.example.json and set an app-owned workspace/command" >&2
-    exit 3
+    builtin="${REPO_DIR}/factory_cloud/runtime/${app}-adapter.json"
+    if [[ ! -f "${builtin}" ]]; then
+      echo "missing ${config} and no built-in adapter exists for ${app}" >&2
+      exit 3
+    fi
+    install -o root -g "${user}" -m 0640 "${builtin}" "${config}"
+  else
+    chown root:"${user}" "${config}"
+    chmod 0640 "${config}"
   fi
+
 done
+
+# ObraSignal has a concrete repository-safe verification adapter. Prepare only
+# its isolated development checkout; K3 is intentionally not provisioned here.
+if [[ "${PREPARE_WORKSPACES}" == "1" ]]; then
+  for app in ${APPS}; do
+    if [[ "${app}" == "obrasignal" ]]; then
+      CONTROL_REPO="${REPO_DIR}" bash "${REPO_DIR}/factory_cloud/runtime/systemd/prepare-obrasignal-workspace.sh"
+    fi
+  done
+fi
 
 systemctl daemon-reload
 systemctl enable factory-cloud-control.service factory-cloud.target
