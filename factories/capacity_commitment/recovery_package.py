@@ -13,6 +13,7 @@ class RecoveryPackage:
     commitment_baseline: dict
     actual_consumption: dict
     shortfall: dict
+    dedicated_capacity: dict
     investment_exposure: dict
     mitigation: dict
     contractual_basis: dict
@@ -82,8 +83,19 @@ def build_recovery_package(
         "amendment_reviewed": case.amendment_reviewed,
     }
 
-    actual_consumption = {"actual_units": case.actual_units}
+    actual_consumption = {
+        "actual_units": case.actual_units,
+        "unit_matches": case.unit_matches,
+        "actuals_complete": case.actuals_complete,
+        "actuals_deduplicated": case.actuals_deduplicated,
+        "cancelled_orders_excluded": case.cancelled_orders_excluded,
+    }
     shortfall = {"shortfall_units": result.shortfall_units}
+    dedicated_capacity = {
+        "asset_dedicated": case.asset_dedicated,
+        "exposure_type": case.exposure_type.value,
+        "amortization_basis_units": case.amortization_basis_units,
+    }
     investment_exposure = {
         "exposure_type": case.exposure_type.value,
         "cost_recovery_mode": case.cost_recovery_mode.value,
@@ -97,9 +109,13 @@ def build_recovery_package(
         "prior_payment": result.prior_payment,
     }
     contractual_basis = {
+        "explicit_recovery_right": case.explicit_recovery_right,
         "program_matches": case.program_matches,
         "period_matches": case.period_matches,
         "currency_matches": case.currency_matches,
+        "unit_matches": case.unit_matches,
+        "contract_current": case.contract_current,
+        "amendment_reviewed": case.amendment_reviewed,
         "asset_dedicated": case.asset_dedicated,
         "evidence_supported": case.evidence_supported,
         "notice_valid": case.notice_valid,
@@ -126,6 +142,7 @@ def build_recovery_package(
         commitment_baseline=commitment_baseline,
         actual_consumption=actual_consumption,
         shortfall=shortfall,
+        dedicated_capacity=dedicated_capacity,
         investment_exposure=investment_exposure,
         mitigation=mitigation,
         contractual_basis=contractual_basis,
