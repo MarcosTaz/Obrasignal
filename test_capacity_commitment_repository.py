@@ -28,11 +28,20 @@ def test_repository_save_return_persists_across_reopen(tmp_path):
     db_path = tmp_path / "capacity.db"
     repo = CapacityRepository(str(db_path))
     state = make_state("tenant-a", "case-1")
-    repo.save(state)
+    assert repo.save(state) is True
 
     reopened = CapacityRepository(str(db_path))
     restored = reopened.load(tenant_id="tenant-a", case_id="case-1")
     assert restored == state
+
+
+def test_repository_exact_retry_is_idempotent_and_preserves_single_state(tmp_path):
+    repo = CapacityRepository(str(tmp_path / "capacity.db"))
+    state = make_state("tenant-a", "retry-case")
+    assert repo.save(state) is True
+    assert repo.save(state) is False
+    assert repo.list_case_ids(tenant_id="tenant-a") == ["retry-case"]
+    assert repo.load(tenant_id="tenant-a", case_id="retry-case") == state
 
 
 def test_repository_cross_tenant_lookup_returns_nothing(tmp_path):
@@ -59,7 +68,7 @@ def test_repository_duplicate_same_tenant_fails_without_overwrite(tmp_path):
     changed = make_state("tenant-a", "same-case", actual_units=Decimal("0"))
     repo.save(original)
 
-    with pytest.raises(FileExistsError, match="already exists"):
+    with pytest.raises(FileExistsError, match="different source state"):
         repo.save(changed)
 
     assert repo.load(tenant_id="tenant-a", case_id="same-case") == original
@@ -78,8 +87,8 @@ def test_repository_concurrent_duplicate_create_has_one_winner_and_no_overwrite(
         repo = CapacityRepository(db_path)
         barrier.wait()
         try:
-            repo.save(state)
-            return "saved", state.recovery_case.actual_units
+            created = repo.save(state)
+            return "saved" if created else "replayed", state.recovery_case.actual_units
         except FileExistsError:
             return "conflict", state.recovery_case.actual_units
 
