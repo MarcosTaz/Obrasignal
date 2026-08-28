@@ -95,9 +95,18 @@ def _temporally_authoritative_records(conn, records):
     later. A provable incoming publisher instant may still improve previously
     UNKNOWN temporal evidence without claiming retroactive ordering among unknown
     observations.
+
+    The same authority rules apply within one staged batch. For a repeated canonical
+    identity, a strictly newer explicit publisher instant replaces the earlier batch
+    candidate before persistence; an older/equal/UNKNOWN later list item cannot win
+    merely because it appears later in connector output. If the first candidate has
+    UNKNOWN chronology, a later KNOWN instant may improve it, while another UNKNOWN
+    candidate cannot displace it by list order alone.
     """
     ensure_signal_records(conn)
     accepted = []
+    batch_positions = {}
+    batch_instants = {}
     for record in records or []:
         if not isinstance(record, Mapping):
             accepted.append(record)
@@ -108,18 +117,34 @@ def _temporally_authoritative_records(conn, records):
             accepted.append(record)
             continue
         signal_type = signal_type_of(record)
+        identity = (source, signal_type, external_id)
+        incoming = _aware_source_instant(record.get("source_updated_at"))
+
+        if identity in batch_positions:
+            previous = batch_instants[identity]
+            if previous is not None:
+                if incoming is None or incoming <= previous:
+                    continue
+            elif incoming is None:
+                continue
+            position = batch_positions[identity]
+            accepted[position] = record
+            batch_instants[identity] = incoming
+            continue
+
         row = conn.execute(
             "SELECT source_updated_at FROM signal_records "
             "WHERE source=? AND signal_type=? AND external_id=?",
-            (source, signal_type, external_id),
+            identity,
         ).fetchone()
         existing = _aware_source_instant(row[0]) if row else None
-        incoming = _aware_source_instant(record.get("source_updated_at"))
         if existing is not None:
             if incoming is None or incoming <= existing:
                 continue
         elif row is not None and incoming is None:
             continue
+        batch_positions[identity] = len(accepted)
+        batch_instants[identity] = incoming
         accepted.append(record)
     return accepted
 
