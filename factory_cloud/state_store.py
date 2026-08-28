@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-STATE_SCHEMA_VERSION = 2
+STATE_SCHEMA_VERSION = 3
 
 
 def utc_now() -> str:
@@ -37,13 +37,27 @@ class StateStore:
         finally:
             conn.close()
 
+    @staticmethod
+    def _ensure_column(conn: sqlite3.Connection, table: str, name: str, declaration: str) -> None:
+        columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if name in columns:
+            return
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {declaration}")
+        except sqlite3.OperationalError as exc:
+            # Concurrent process startup may race between PRAGMA and ALTER. Only a
+            # duplicate-column outcome is safe to accept; everything else remains fatal.
+            if "duplicate column" not in str(exc).lower():
+                raise
+
     def _initialize(self) -> None:
         with self.connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS factory_cloud_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS app_state (
                     app_id TEXT PRIMARY KEY, mission TEXT NOT NULL DEFAULT '', repo_source TEXT,
-                    canonical_head TEXT, runtime TEXT, state TEXT NOT NULL, active TEXT NOT NULL DEFAULT '',
+                    canonical_head TEXT, execution_branch TEXT, execution_head TEXT,
+                    runtime TEXT, state TEXT NOT NULL, active TEXT NOT NULL DEFAULT '',
                     next_json TEXT NOT NULL DEFAULT '[]', wait_json TEXT NOT NULL DEFAULT '[]',
                     blockers_json TEXT NOT NULL DEFAULT '[]', last_verified TEXT, last_green TEXT,
                     priority INTEGER NOT NULL DEFAULT 0, resume_at TEXT NOT NULL DEFAULT '',
@@ -51,6 +65,8 @@ class StateStore:
                     retry_state_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
                 )"""
             )
+            self._ensure_column(conn, "app_state", "execution_branch", "TEXT")
+            self._ensure_column(conn, "app_state", "execution_head", "TEXT")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS execution_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, app_id TEXT NOT NULL, execution_id TEXT NOT NULL,
@@ -107,30 +123,44 @@ class StateStore:
 
     def upsert_from_registry(self, app: dict[str, Any]) -> None:
         source = app.get("source_truth") or {}
+        execution = app.get("execution_source") or {}
         activation = app.get("activation") or {}
         baton = app.get("baton") or {}
         repo_source = source.get("repository") or source.get("canonical_repository") or source.get("project")
         canonical_head = source.get("canonical_head")
+        execution_branch = str(execution.get("branch") or "").strip() or None
+        execution_head = str(execution.get("head") or "").strip() or None
         runtime = source.get("provider")
         now = utc_now()
         with self.connection() as conn:
             existing = conn.execute("SELECT app_id FROM app_state WHERE app_id=?", (app["app_id"],)).fetchone()
             if existing:
                 conn.execute(
-                    "UPDATE app_state SET repo_source=?, canonical_head=?, runtime=?, priority=?, updated_at=? WHERE app_id=?",
-                    (repo_source, canonical_head, runtime, int(activation.get("priority", 0)), now, app["app_id"]),
+                    """UPDATE app_state SET repo_source=?, canonical_head=?,
+                       execution_branch=COALESCE(execution_branch, ?),
+                       execution_head=COALESCE(execution_head, ?),
+                       runtime=?, priority=?, updated_at=? WHERE app_id=?""",
+                    (
+                        repo_source, canonical_head, execution_branch, execution_head, runtime,
+                        int(activation.get("priority", 0)), now, app["app_id"],
+                    ),
                 )
             else:
                 conn.execute(
-                    """INSERT INTO app_state(app_id,mission,repo_source,canonical_head,runtime,state,active,next_json,
-                    wait_json,blockers_json,last_verified,last_green,priority,resume_at,current_execution_json,
-                    error_state_json,retry_state_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (app["app_id"], app.get("mission", ""), repo_source, canonical_head, runtime,
-                     app.get("development_state", "UNKNOWN"), str(baton.get("active") or ""),
-                     json.dumps(baton.get("next", [])), json.dumps(baton.get("wait", [])), "[]",
-                     now if source.get("verified") or source.get("verified_runtime") else None,
-                     canonical_head if source.get("verified") else None, int(activation.get("priority", 0)),
-                     str(baton.get("active") or ""), None, None, "{}", now),
+                    """INSERT INTO app_state(app_id,mission,repo_source,canonical_head,execution_branch,execution_head,
+                    runtime,state,active,next_json,wait_json,blockers_json,last_verified,last_green,priority,resume_at,
+                    current_execution_json,error_state_json,retry_state_json,updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        app["app_id"], app.get("mission", ""), repo_source, canonical_head,
+                        execution_branch, execution_head, runtime, app.get("development_state", "UNKNOWN"),
+                        str(baton.get("active") or ""), json.dumps(baton.get("next", [])),
+                        json.dumps(baton.get("wait", [])), "[]",
+                        now if source.get("verified") or source.get("verified_runtime") else None,
+                        execution_head or (canonical_head if source.get("verified") else None),
+                        int(activation.get("priority", 0)), str(baton.get("active") or ""),
+                        None, None, "{}", now,
+                    ),
                 )
             conn.commit()
 
@@ -145,9 +175,11 @@ class StateStore:
         return [self._decode(row) for row in rows]
 
     def checkpoint(self, app_id: str, **changes: Any) -> None:
-        allowed = {"mission", "canonical_head", "state", "active", "last_verified", "last_green", "priority",
-                   "resume_at", "current_execution_json", "error_state_json", "retry_state_json", "next_json",
-                   "wait_json", "blockers_json"}
+        allowed = {
+            "mission", "canonical_head", "execution_branch", "execution_head", "state", "active",
+            "last_verified", "last_green", "priority", "resume_at", "current_execution_json",
+            "error_state_json", "retry_state_json", "next_json", "wait_json", "blockers_json",
+        }
         unknown = set(changes) - allowed
         if unknown:
             raise StateStoreError(f"unsupported checkpoint fields: {sorted(unknown)}")
