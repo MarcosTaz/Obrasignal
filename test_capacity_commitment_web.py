@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from factories.capacity_commitment.engine import ENGINE_VERSION
 from factories.capacity_commitment.repository import CapacityRepository
 from factories.capacity_commitment.state import recovery_case_to_payload
 from factories.capacity_commitment.synthetic_cases import case
@@ -81,8 +82,8 @@ def test_web_create_returns_truth_preserving_result_and_package(tmp_path):
     assert body["case"]["committed_units"] == "100000"
     assert body["result"]["recoverability_state"] == "RECOVERABLE"
     assert body["result"]["recoverable_amount"] == "100000"
-    assert body["result"]["engine_version"] == "capacity-recoverability-t1.1"
-    assert body["recovery_package"]["audit_trail"]["engine_version"] == "capacity-recoverability-t1.1"
+    assert body["result"]["engine_version"] == ENGINE_VERSION
+    assert body["recovery_package"]["audit_trail"]["engine_version"] == ENGINE_VERSION
     assert body["recovery_package"]["executive_summary"]["verified_recovery"] is False
     assert body["recovery_package"]["executive_summary"]["payment_received"] is False
     assert response.headers["Cache-Control"] == "no-store"
@@ -192,6 +193,34 @@ def test_web_rejects_supported_evidence_without_persisted_refs(tmp_path):
     )
     assert response.status_code == 400
     assert "evidence_supported requires" in response.get_json()["detail"]
+
+
+def test_web_rejects_string_boolean_without_persisting(tmp_path):
+    app, repository = app_for(tmp_path)
+    request_payload = payload("string-boolean")
+    request_payload["recovery_case"]["evidence_supported"] = "false"
+    response = app.test_client().post(
+        "/api/capacity/cases",
+        headers=headers(),
+        json=request_payload,
+    )
+    assert response.status_code == 400
+    assert "evidence_supported must be boolean" in response.get_json()["detail"]
+    assert repository.list_case_ids(tenant_id="tenant-a") == []
+
+
+def test_web_rejects_invalid_numeric_without_persisting(tmp_path):
+    app, repository = app_for(tmp_path)
+    request_payload = payload("bad-number")
+    request_payload["recovery_case"]["dedicated_cost"] = "not-a-number"
+    response = app.test_client().post(
+        "/api/capacity/cases",
+        headers=headers(),
+        json=request_payload,
+    )
+    assert response.status_code == 400
+    assert "dedicated_cost must be numeric" in response.get_json()["detail"]
+    assert repository.list_case_ids(tenant_id="tenant-a") == []
 
 
 def test_web_rejects_unknown_top_level_and_case_fields(tmp_path):
