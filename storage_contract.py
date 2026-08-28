@@ -34,7 +34,16 @@ STARTUP_CONTRACTS: dict[str, TableContract] = {
     "company_profiles": TableContract("company_profile", frozenset({"account_id","profile_json","updated_at"}), tenant_column="account_id"),
     "opportunity_decisions": TableContract("decision_log", frozenset({"id","account_id","source","external_id","decision","features_json","rule_version","decided_at"}), tenant_column="account_id"),
     "opportunity_events": TableContract("notification_events", frozenset({"id","account_id","event_key","event_type","created_at","delivered_at"}), tenant_column="account_id", unique_keys=(("event_key",),)),
-    "opportunity_workflow": TableContract("opportunity_workflow", frozenset({"id","account_id","source","external_id","status","note","updated_at"}), tenant_column="account_id", unique_keys=(("account_id","source","external_id"),)),
+    "opportunity_workflow": TableContract(
+        "opportunity_workflow",
+        frozenset({"id","account_id","source","external_id","status","note","updated_at","priority","saved_at"}),
+        tenant_column="account_id",
+        unique_keys=(("account_id","source","external_id"),),
+        required_indexes=(
+            "idx_opportunity_workflow_account_saved",
+            "idx_opportunity_workflow_account_status_priority",
+        ),
+    ),
     "pipeline_latency": TableContract("latency_metrics", frozenset({"id","source","stage","started_at","finished_at","duration_ms","items"})),
     "source_health": TableContract("source_health", frozenset({"source","last_attempt","last_success","last_error","last_duration_ms","last_found","last_new_items","status"})),
     "source_cursor": TableContract("source_health", frozenset({"source","watermark","updated_at"})),
@@ -85,6 +94,38 @@ PREBUILD_CONTRACTS: dict[str, TableContract] = {
         unique_keys=(("event_id", "push_device_id"),),
         required_indexes=("idx_push_deliveries_event_device",),
     ),
+    "pursuit_workspaces": TableContract(
+        "Pursuit Workspace / pursuit_workspace",
+        frozenset({
+            "workspace_id", "account_id", "opportunity_id", "owner_id",
+            "workspace_status", "review_state", "submission_state",
+            "created_at", "updated_at",
+        }),
+        tenant_column="account_id",
+        unique_keys=(("account_id", "opportunity_id"),),
+        required_indexes=("idx_pursuit_workspace_account",),
+    ),
+    "pursuit_workspace_blockers": TableContract(
+        "Pursuit Workspace / pursuit_workspace",
+        frozenset({
+            "blocker_id", "workspace_id", "title", "status", "severity",
+            "created_by", "created_at", "resolved_at",
+        }),
+        required_indexes=("idx_pursuit_blocker_workspace",),
+    ),
+    "pursuit_workspace_notes": TableContract(
+        "Pursuit Workspace / pursuit_workspace",
+        frozenset({"note_id", "workspace_id", "body", "created_by", "created_at"}),
+        required_indexes=("idx_pursuit_note_workspace",),
+    ),
+    "pursuit_workspace_questions": TableContract(
+        "Pursuit Workspace / pursuit_workspace",
+        frozenset({
+            "question_id", "workspace_id", "question", "status", "source_ref",
+            "owner_id", "created_at", "updated_at",
+        }),
+        required_indexes=("idx_pursuit_question_workspace",),
+    ),
 }
 
 # Explicitly owned persistence that is test infrastructure only. These tables are
@@ -117,6 +158,7 @@ REGISTERED_ADDITIVE_MIGRATIONS: dict[str, tuple[str, ...]] = {
     "accounts": ("trial_ends_at","entitlement_expires_at","store","product_id","original_transaction_id","subscription_status","billing_synced_at","evaluation_type","evaluation_status","evaluation_activated_at","evaluation_ends_at","evaluation_extension_days","evaluation_value_status","evaluation_activation_reason","evaluation_extension_reason"),
     "opportunity_decisions": ("account_id",),
     "opportunity_events": ("account_id",),
+    "opportunity_workflow": ("priority", "saved_at"),
     "push_devices": ("revoked_at",),
     "push_deliveries": (
         "attempt_count", "last_attempt_at", "next_attempt_at", "expo_push_token",
