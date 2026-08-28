@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
+from factory_cloud.capabilities import Capability, CapabilityContractError, parse_capabilities, require_capabilities
+
 APP_ID = "obrasignal"
 MODE = "repository_safe_execution"
 SOURCE = "MarcosTaz/Obrasignal"
@@ -24,6 +26,11 @@ TASK_PYTHON = "verify:execution:python"
 TASK_MOBILE = "verify:execution:mobile"
 TASK_QUALITY = "verify:execution:quality"
 ALLOWED_TASKS = frozenset({TASK_COMPILE, TASK_PYTHON, TASK_MOBILE, TASK_QUALITY})
+AGENT_CAPABILITIES = frozenset({Capability.READ_REPOSITORY, Capability.RUN_TESTS, Capability.UPDATE_BATON})
+TASK_REQUIRED_CAPABILITIES = {
+    task: AGENT_CAPABILITIES
+    for task in ALLOWED_TASKS
+}
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 COMMAND_TIMEOUT_SECONDS = 1200
 READ_ONLY_COMPILE_SCRIPT = (
@@ -49,7 +56,7 @@ def _text(value: Any, field: str, *, required: bool = True) -> str:
     return value
 
 
-def _request(payload: Any) -> dict[str, str | None]:
+def _request(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ObraSignalAgentError("request must be an object")
     app_id = _text(payload.get("app_id"), "app_id")
@@ -60,6 +67,13 @@ def _request(payload: Any) -> dict[str, str | None]:
     execution_branch = _text(payload.get("execution_branch"), "execution_branch", required=False) or None
     execution_head = _text(payload.get("execution_head"), "execution_head", required=False) or None
     resume_at = _text(payload.get("resume_at"), "resume_at", required=False) or task
+    raw_capabilities = payload.get("required_capabilities")
+    if not isinstance(raw_capabilities, list):
+        raise ObraSignalAgentError("required_capabilities must be an explicit list")
+    try:
+        required_capabilities = parse_capabilities(raw_capabilities, require_explicit=True)
+    except CapabilityContractError as exc:
+        raise ObraSignalAgentError(str(exc)) from exc
     if app_id != APP_ID:
         raise ObraSignalAgentError("wrong app_id")
     if mode != MODE:
@@ -80,6 +94,7 @@ def _request(payload: Any) -> dict[str, str | None]:
         "canonical_head": canonical_head,
         "execution_branch": execution_branch,
         "execution_head": execution_head,
+        "required_capabilities": required_capabilities,
         "resume_at": resume_at,
     }
 
@@ -234,6 +249,34 @@ class ObraSignalVerificationAgent:
         expected = str(request.get("execution_head") or request["canonical_head"])
         if task not in ALLOWED_TASKS:
             return self._wait(task, None, "obrasignal_agent_task_not_allowlisted", "task_not_allowlisted")
+        expected_caps = TASK_REQUIRED_CAPABILITIES[task]
+        requested_caps = request["required_capabilities"]
+        if requested_caps != expected_caps:
+            return {
+                "status": "BLOCKED",
+                "evidence": {
+                    "test_state": "NOT_RUN",
+                    "task_state": "AUTHORITY_REQUIRED",
+                    "evidence_codes": ["capability_contract_mismatch"],
+                },
+                "next_active": task,
+                "blockers": ["obrasignal_agent_capability_contract_mismatch"],
+                "resume_at": task,
+            }
+        try:
+            require_capabilities(AGENT_CAPABILITIES, requested_caps)
+        except CapabilityContractError:
+            return {
+                "status": "BLOCKED",
+                "evidence": {
+                    "test_state": "NOT_RUN",
+                    "task_state": "AUTHORITY_REQUIRED",
+                    "evidence_codes": ["agent_capability_missing"],
+                },
+                "next_active": task,
+                "blockers": ["obrasignal_agent_capability_required"],
+                "resume_at": task,
+            }
         if not self.workspace.is_dir():
             return self._wait(task, None, "obrasignal_workspace_unavailable", "workspace_unavailable")
         observed = self._head()
