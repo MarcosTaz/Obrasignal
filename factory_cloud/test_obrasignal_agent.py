@@ -59,10 +59,10 @@ class ObraSignalVerificationAgentTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "DONE")
             self.assertEqual(result["evidence"]["evidence_codes"], ["compile_green"])
-            self.assertEqual([call[0][0:3] for call in runner.calls], [
-                ["git", "rev-parse", "HEAD"],
-                ["/safe/python", "-m", "py_compile"],
-            ])
+            self.assertEqual(runner.calls[0][0], ["git", "rev-parse", "HEAD"])
+            self.assertEqual(runner.calls[1][0][0:2], ["/safe/python", "-c"])
+            self.assertIn("compile(", runner.calls[1][0][2])
+            self.assertNotIn("py_compile", " ".join(runner.calls[1][0]))
             self.assertFalse(any("pytest" in " ".join(call[0]) for call in runner.calls))
             self.assertFalse(any(call[0] and call[0][0] in {"npm", "npx"} for call in runner.calls))
 
@@ -79,7 +79,8 @@ class ObraSignalVerificationAgentTests(unittest.TestCase):
             self.assertEqual(result["evidence"]["verified_head"], HEAD)
             self.assertEqual(result["last_green"], HEAD)
             self.assertEqual(runner.calls[0][0], ["git", "rev-parse", "HEAD"])
-            self.assertEqual(runner.calls[1][0][0:3], ["/safe/python", "-m", "py_compile"])
+            self.assertEqual(runner.calls[1][0][0:2], ["/safe/python", "-c"])
+            self.assertIn("compile(", runner.calls[1][0][2])
             self.assertEqual(runner.calls[2][0][0:5], ["/safe/python", "-m", "pytest", "-q", "--import-mode=importlib"])
             self.assertNotIn("shell", runner.calls[1][1])
             self.assertNotIn(SENSITIVE, str(result))
