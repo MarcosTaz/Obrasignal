@@ -15,6 +15,7 @@ from .domain import MigrationCase
 from .incentives import Incentive, IncentiveStatus
 from .options import OptionType, SwitchingOption, compare_options
 from .service import build_decision_package
+from .web_outcome import reconcile_payload
 
 
 TenantResolver = Callable[[], str | None]
@@ -194,6 +195,51 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
             response["delivery_version"] = stored_delivery.version
             response["delivery_content_hash"] = stored_delivery.content_hash
         return jsonify(response), 201
+
+    @blueprint.post("/api/packages/<package_id>/reconcile")
+    def reconcile(package_id: str):
+        tenant_id, error = tenant_or_error()
+        if error:
+            return error
+        if not hasattr(workspace, "load_delivery") or not hasattr(workspace, "save_delivery"):
+            return jsonify({"error": "persistent delivery workspace required"}), 409
+        existing = workspace.load_delivery(tenant_id=tenant_id, package_id=package_id)
+        if existing is None:
+            return jsonify({"error": "not found"}), 404
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            return jsonify({"error": "JSON object required"}), 400
+        try:
+            record, reconciliation = reconcile_payload(body)
+            decision_case_id = str(existing.payload.get("decision", {}).get("case_id", ""))
+            if record.case_id != decision_case_id:
+                raise ValueError("outcome case_id does not match stored decision case_id")
+            updated_payload = dict(existing.payload)
+            updated_payload["outcome"] = {
+                "identity": {
+                    "case_id": record.case_id,
+                    "source_platform": record.source_platform,
+                    "destination_platform": record.destination_platform,
+                    "workload_class": record.workload_class,
+                    "migration_strategy": record.migration_strategy,
+                },
+                "reconciliation": _json_safe(asdict(reconciliation)),
+            }
+            stored_delivery = workspace.save_delivery(
+                tenant_id=tenant_id,
+                package_id=package_id,
+                payload=updated_payload,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 422
+        return jsonify(
+            {
+                "package_id": package_id,
+                "delivery_version": stored_delivery.version,
+                "delivery_content_hash": stored_delivery.content_hash,
+                "outcome": updated_payload["outcome"],
+            }
+        )
 
     @blueprint.get("/api/packages/<package_id>")
     def get_package(package_id: str):
