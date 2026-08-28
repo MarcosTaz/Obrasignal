@@ -12,6 +12,7 @@ from typing import Any, Callable
 from factory_cloud.adapters import AdapterRegistry, ExecutionRequest, ExecutionResult
 from factory_cloud.control_plane import ACTIVATION_CODE
 from factory_cloud.orchestrator import DEFAULT_STATE_PATH
+from factory_cloud.process_adapter import ProcessAdapterConfig, ProcessAdapterConfigError, ProcessAgentAdapter
 from factory_cloud.state_store import StateStore
 from factory_cloud.work_queue import DurableWorkQueue
 
@@ -114,21 +115,34 @@ class AppWorkerHost:
         return self.last_result
 
 
+def _runtime_adapters(app_id: str, adapter_config: Path | None) -> AdapterRegistry:
+    if adapter_config is None:
+        return AdapterRegistry()
+    config = ProcessAdapterConfig.load(adapter_config, expected_app_id=app_id)
+    return AdapterRegistry({app_id: ProcessAgentAdapter(config)})
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Isolated Factory Cloud application worker")
     parser.add_argument("code", help="activation code; must be Ω")
     parser.add_argument("--app-id", required=True)
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE_PATH)
+    parser.add_argument("--adapter-config", type=Path, default=None, help="external app-owned process adapter JSON; must not contain secrets")
     parser.add_argument("--poll-seconds", type=float, default=5.0)
     parser.add_argument("--job-lease-seconds", type=float, default=60.0)
     parser.add_argument("--max-cycles", type=int, default=None)
     args = parser.parse_args()
     if args.code != ACTIVATION_CODE:
         parser.error("Factory Cloud activation requires Ω")
+    try:
+        adapters = _runtime_adapters(args.app_id, args.adapter_config)
+    except ProcessAdapterConfigError as exc:
+        parser.error(str(exc))
     queue = DurableWorkQueue(StateStore(args.state))
     host = AppWorkerHost(
         args.app_id,
         queue,
+        adapters=adapters,
         poll_seconds=args.poll_seconds,
         job_lease_seconds=args.job_lease_seconds,
     )

@@ -1,0 +1,7 @@
+[Unit]
+Description=Factory Cloud control plane and isolated application workers
+Wants=factory-cloud-control.service
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target

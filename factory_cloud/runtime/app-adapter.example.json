@@ -1,0 +1,7 @@
+{
+  "app_id": "obrasignal",
+  "mode": "repository_safe_execution",
+  "workspace": "/srv/factory-cloud/apps/obrasignal",
+  "command": ["/usr/local/bin/obrasignal-factory-agent"],
+  "timeout_seconds": 1800
+}
