@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+from dataclasses import asdict
+import json
+import sqlite3
+from pathlib import Path
+from typing import Optional
+
+from .service import DecisionPackage
+from .workspace import DecisionWorkspace, StoredDecisionPackage, WorkspaceAccessError
+
+
+class SQLiteDecisionWorkspace:
+    def __init__(self, database_path: str | Path) -> None:
+        self.database_path = str(database_path)
+        self._init_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.database_path)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    def _init_schema(self) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cloud_switching_decision_packages (
+                    tenant_id TEXT NOT NULL,
+                    package_id TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    content_hash TEXT NOT NULL,
+                    version INTEGER NOT NULL,
+                    PRIMARY KEY (tenant_id, package_id)
+                )
+                """
+            )
+
+    @staticmethod
+    def _serialize(package: DecisionPackage) -> str:
+        return json.dumps(asdict(package), sort_keys=True, default=str, separators=(",", ":"))
+
+    def save(self, *, tenant_id: str, package_id: str, package: DecisionPackage) -> StoredDecisionPackage:
+        if not tenant_id.strip() or not package_id.strip():
+            raise ValueError("tenant_id and package_id are required")
+        if package.company_id != tenant_id:
+            raise WorkspaceAccessError("decision package company does not match tenant")
+        content_hash = DecisionWorkspace._hash(package)
+        payload_json = self._serialize(package)
+        with self._connect() as connection:
+            previous = connection.execute(
+                "SELECT version FROM cloud_switching_decision_packages WHERE tenant_id=? AND package_id=?",
+                (tenant_id, package_id),
+            ).fetchone()
+            version = 1 if previous is None else int(previous["version"]) + 1
+            connection.execute(
+                """
+                INSERT INTO cloud_switching_decision_packages
+                    (tenant_id, package_id, payload_json, content_hash, version)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(tenant_id, package_id) DO UPDATE SET
+                    payload_json=excluded.payload_json,
+                    content_hash=excluded.content_hash,
+                    version=excluded.version
+                """,
+                (tenant_id, package_id, payload_json, content_hash, version),
+            )
+        return StoredDecisionPackage(tenant_id, package_id, package, content_hash, version)
+
+    def load(self, *, tenant_id: str, package_id: str) -> Optional[StoredDecisionPackage]:
+        if not tenant_id.strip() or not package_id.strip():
+            raise ValueError("tenant_id and package_id are required")
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT tenant_id, package_id, payload_json, content_hash, version
+                FROM cloud_switching_decision_packages
+                WHERE tenant_id=? AND package_id=?
+                """,
+                (tenant_id, package_id),
+            ).fetchone()
+        if row is None:
+            return None
+        package = DecisionWorkspace._package_from_dict(json.loads(row["payload_json"]))
+        actual_hash = DecisionWorkspace._hash(package)
+        if actual_hash != row["content_hash"]:
+            raise ValueError("stored decision package content hash mismatch")
+        if package.company_id != tenant_id:
+            raise WorkspaceAccessError("stored package company does not match tenant")
+        return StoredDecisionPackage(
+            tenant_id=row["tenant_id"],
+            package_id=row["package_id"],
+            payload=package,
+            content_hash=row["content_hash"],
+            version=int(row["version"]),
+        )
+
+    def require(self, *, tenant_id: str, package_id: str) -> StoredDecisionPackage:
+        record = self.load(tenant_id=tenant_id, package_id=package_id)
+        if record is None:
+            raise KeyError("decision package not found for tenant")
+        return record
