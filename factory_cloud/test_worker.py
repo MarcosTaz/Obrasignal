@@ -19,7 +19,7 @@ class WaitingAdapter:
 
 
 class FactoryCloudWorkerHostTests(unittest.TestCase):
-    def test_foreground_worker_repeats_cycles_without_resetting_state(self):
+    def test_foreground_worker_repeats_cycles_without_retrying_unchanged_wait_immediately(self):
         with tempfile.TemporaryDirectory() as tmp:
             obra = WaitingAdapter()
             k3 = WaitingAdapter()
@@ -31,11 +31,13 @@ class FactoryCloudWorkerHostTests(unittest.TestCase):
             host = WorkerHost(orchestrator, poll_seconds=0.01, sleeper=sleeps.append, owner_id="worker-a")
             final = host.run_forever(max_cycles=2)
             self.assertEqual(final["global_state"], "WAIT")
-            self.assertEqual(obra.calls, 2)
-            self.assertEqual(k3.calls, 2)
+            self.assertEqual(obra.calls, 1)
+            self.assertEqual(k3.calls, 1)
             self.assertEqual(sleeps, [0.01])
-            self.assertEqual(len(store.history("obrasignal")), 2)
-            self.assertEqual(len(store.history("k3-fatality")), 2)
+            self.assertEqual(len(store.history("obrasignal")), 1)
+            self.assertEqual(len(store.history("k3-fatality")), 1)
+            self.assertIn("next_attempt_at", store.get_app("obrasignal")["retry_state"])
+            self.assertIn("next_attempt_at", store.get_app("k3-fatality")["retry_state"])
             self.assertIsNone(store.lease(LEASE_NAME))
 
     def test_second_worker_is_standby_while_dispatch_lease_is_held(self):
