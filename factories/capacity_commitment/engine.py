@@ -61,6 +61,10 @@ class RecoveryCase:
     program_matches: Optional[bool] = None
     period_matches: Optional[bool] = None
     currency_matches: Optional[bool] = None
+    unit_matches: Optional[bool] = None
+    actuals_complete: Optional[bool] = None
+    actuals_deduplicated: Optional[bool] = None
+    cancelled_orders_excluded: Optional[bool] = None
     contract_current: Optional[bool] = None
     amendment_reviewed: Optional[bool] = None
     duplicate_claim: bool = False
@@ -132,6 +136,14 @@ def _integrity_gate(case: RecoveryCase) -> Optional[tuple[RecoverabilityState, s
         (case.program_matches, "program_match_unknown", "wrong_program"),
         (case.period_matches, "period_match_unknown", "wrong_period"),
         (case.currency_matches, "currency_match_unknown", "wrong_currency"),
+        (case.unit_matches, "unit_match_unknown", "wrong_unit"),
+        (case.actuals_complete, "actuals_completeness_unknown", "actuals_incomplete"),
+        (case.actuals_deduplicated, "actuals_deduplication_unknown", "duplicate_volume"),
+        (
+            case.cancelled_orders_excluded,
+            "cancelled_order_reconciliation_unknown",
+            "cancelled_order_in_actuals",
+        ),
         (case.contract_current, "contract_current_unknown", "superseded_contract"),
         (case.amendment_reviewed, "amendment_review_unknown", "customer_amendment_not_reconciled"),
     )
