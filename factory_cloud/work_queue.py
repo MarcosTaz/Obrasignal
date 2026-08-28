@@ -171,14 +171,11 @@ class QueuedAppAdapter:
         completed = self.queue.consume(job["job_id"])
         result = completed["result"] or {}
         return ExecutionResult(
-            status=result.get("status", "ERROR"),
-            evidence=result.get("evidence") or {},
-            next_active=result.get("next_active") or "",
-            next_items=tuple(result.get("next_items") or ()),
-            wait_items=tuple(result.get("wait_items") or ()),
-            blockers=tuple(result.get("blockers") or ()),
+            status=result.get("status", "ERROR"), evidence=result.get("evidence") or {},
+            next_active=result.get("next_active") or "", next_items=tuple(result.get("next_items") or ()),
+            wait_items=tuple(result.get("wait_items") or ()), blockers=tuple(result.get("blockers") or ()),
             resume_at=result.get("resume_at") or request.task,
-            last_verified=result.get("last_verified"),
-            last_green=result.get("last_green"),
+            last_verified=result.get("last_verified"), last_green=result.get("last_green"),
+            execution_branch=result.get("execution_branch"), execution_head=result.get("execution_head"),
             error=result.get("error"),
         )
