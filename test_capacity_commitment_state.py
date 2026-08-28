@@ -32,6 +32,7 @@ def test_state_roundtrip_preserves_truth_inputs():
     assert evaluate_recoverability(restored.recovery_case) == evaluate_recoverability(original.recovery_case)
     assert restored.forecast_units == Decimal("120000")
     assert restored.recovery_case.committed_units == Decimal("100000")
+    assert restored.deadline == "2026-09-30"
 
 
 def test_state_checksum_detects_mutation():
@@ -97,6 +98,7 @@ def test_state_preserves_decimal_exactness():
         contract_id=original.contract_id,
         evidence_refs=("contract:decimal",),
         forecast_units=Decimal("34567.8901"),
+        deadline="2026-10-15",
     )
 
     restored = load_state(dump_state(state), expected_tenant_id="tenant-a")
@@ -161,3 +163,37 @@ def test_state_rejects_blank_or_duplicate_evidence_refs():
         dump_state(blank)
     with pytest.raises(ValueError, match="duplicate references"):
         dump_state(duplicate)
+
+
+def test_state_verified_notice_window_requires_absolute_deadline():
+    original = make_state()
+    missing_deadline = AssistedCaseState(
+        tenant_id=original.tenant_id,
+        company_id=original.company_id,
+        customer_id=original.customer_id,
+        program_id=original.program_id,
+        recovery_case=original.recovery_case,
+        contract_id=original.contract_id,
+        evidence_refs=original.evidence_refs,
+        deadline=None,
+    )
+
+    with pytest.raises(ValueError, match="notice_window_verified requires"):
+        dump_state(missing_deadline)
+
+
+def test_state_rejects_noncanonical_or_impossible_deadline():
+    original = make_state()
+    for deadline in ("2026/09/30", "2026-02-30", " 2026-09-30"):
+        invalid = AssistedCaseState(
+            tenant_id=original.tenant_id,
+            company_id=original.company_id,
+            customer_id=original.customer_id,
+            program_id=original.program_id,
+            recovery_case=original.recovery_case,
+            contract_id=original.contract_id,
+            evidence_refs=original.evidence_refs,
+            deadline=deadline,
+        )
+        with pytest.raises(ValueError, match="deadline"):
+            dump_state(invalid)
