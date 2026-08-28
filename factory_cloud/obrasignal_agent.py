@@ -26,6 +26,12 @@ TASK_QUALITY = "verify:canonical:quality"
 ALLOWED_TASKS = frozenset({TASK_COMPILE, TASK_PYTHON, TASK_MOBILE, TASK_QUALITY})
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 COMMAND_TIMEOUT_SECONDS = 1200
+READ_ONLY_COMPILE_SCRIPT = (
+    "import pathlib,sys\n"
+    "for name in sys.argv[1:]:\n"
+    " path=pathlib.Path(name)\n"
+    " compile(path.read_text(encoding='utf-8'), str(path), 'exec')\n"
+)
 
 
 class ObraSignalAgentError(ValueError):
@@ -156,7 +162,7 @@ class ObraSignalVerificationAgent:
             return False, "compile_targets_unavailable"
         try:
             completed = self._run(
-                [python, "-m", "py_compile", *root_modules],
+                [python, "-c", READ_ONLY_COMPILE_SCRIPT, *root_modules],
                 cwd=self.workspace,
                 env=env,
             )
