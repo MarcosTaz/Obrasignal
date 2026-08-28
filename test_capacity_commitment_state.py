@@ -18,6 +18,8 @@ def make_state():
         evidence_refs=("contract:12", "actuals:2026Q2"),
         missing_evidence=("signed-amendment",),
         deadline="2026-09-30",
+        contract_id="lta-2026-01",
+        forecast_units=Decimal("120000"),
     )
 
 
@@ -28,6 +30,8 @@ def test_state_roundtrip_preserves_truth_inputs():
 
     assert restored == original
     assert evaluate_recoverability(restored.recovery_case) == evaluate_recoverability(original.recovery_case)
+    assert restored.forecast_units == Decimal("120000")
+    assert restored.recovery_case.committed_units == Decimal("100000")
 
 
 def test_state_checksum_detects_mutation():
@@ -55,9 +59,24 @@ def test_state_rejects_missing_required_identity():
         customer_id=original.customer_id,
         program_id=original.program_id,
         recovery_case=original.recovery_case,
+        contract_id=original.contract_id,
     )
 
     with pytest.raises(ValueError, match="company_id"):
+        dump_state(invalid)
+
+
+def test_state_requires_contract_or_nomination_anchor():
+    original = make_state()
+    invalid = AssistedCaseState(
+        tenant_id=original.tenant_id,
+        company_id=original.company_id,
+        customer_id=original.customer_id,
+        program_id=original.program_id,
+        recovery_case=original.recovery_case,
+    )
+
+    with pytest.raises(ValueError, match="contract_id or nomination_id"):
         dump_state(invalid)
 
 
@@ -75,7 +94,26 @@ def test_state_preserves_decimal_exactness():
         customer_id=original.customer_id,
         program_id=original.program_id,
         recovery_case=custom_case,
+        contract_id=original.contract_id,
+        forecast_units=Decimal("34567.8901"),
     )
 
     restored = load_state(dump_state(state), expected_tenant_id="tenant-a")
     assert restored.recovery_case.dedicated_cost == Decimal("123456.7891")
+    assert restored.forecast_units == Decimal("34567.8901")
+
+
+def test_state_rejects_negative_forecast_context():
+    original = make_state()
+    invalid = AssistedCaseState(
+        tenant_id=original.tenant_id,
+        company_id=original.company_id,
+        customer_id=original.customer_id,
+        program_id=original.program_id,
+        recovery_case=original.recovery_case,
+        contract_id=original.contract_id,
+        forecast_units=Decimal("-1"),
+    )
+
+    with pytest.raises(ValueError, match="forecast_units"):
+        dump_state(invalid)
