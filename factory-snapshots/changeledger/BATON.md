@@ -9,7 +9,8 @@ BATON.SOURCE_HEAD = befaecce8a1cb931d1afe6f748542ddf904d15b3 (historical source 
 BATON.GITHUB_SNAPSHOT_BRANCH = factory/changeledger-cumulative-delay-snapshot-20260828.
 BATON.GITHUB_SOURCE_DURABILITY = METADATA_ONLY / NO_PR / MAIN_UNTOUCHED / FULL_SOURCE_NOT_MATERIALIZED_ON_GITHUB.
 BATON.CANONICAL_RESTORABLE_SOURCE = validated downloadable ZIP.
-BATON.ARTIFACT_MANIFEST_SHA256 = 06a315e4bcf268ef801b2a2c27fac2435c54a3d0af036fa433c287b1003cc555 (BATON excluded from manifest to avoid recursion).
+BATON.ARTIFACT_MANIFEST_SHA256 = cca06bca02ca3248896c0bbd599d1b06032d1b85f4ddec62b4590aaaa2c2345e (BATON excluded from manifest to avoid recursion).
+BATON.ZIP_SHA256 = c43dffab01f706d11892369f68fc2131fedbd1afacc3b8c5b4768e53656f1ced.
 BATON.TEST_STATE = 75/75 PASS via canonical npm test; synthetic delivery dry-run PASS.
 BATON.PRODUCT_TRUTH = SCREENING_ONLY evidence/project-controls application. Entitlement, forensic CPM, critical path, concurrency liability, notice validity, deduction invalidity and legal remedies remain NOT_DETERMINED unless separately supported/reviewed.
 BATON.MARKET_TRUTH = Problem evidence strong; narrow WTP UNKNOWN; paid pilots 0; replies 0; observed objections 0; price tests 0.
@@ -24,6 +25,7 @@ BATON.DGC_LIST_STATE = Article 13-B(2) confirms a national-scope corporate oppos
 BATON.DGC_REQUEST_DRAFT = Gmail draft `r4293171257938926382` to `dgc@dgconsumidor.gov.pt` / UPDATED / NOT SENT. Draft requests both the current Article 13-B list and official clarification whether list consultation applies when a Portugal-based sender contacts exclusively a US-incorporated legal person through the company's generic corporate mailbox.
 BATON.SUPPRESSION_TRUTH = 0 outbound / 0 observed opt-outs. Any future opt-out => SUPPRESSED_DO_NOT_CONTACT and must not be counted as price/product objection.
 
+BATON.DELTA_X3 = Fresh canonical ZIP rehydrated and re-tested: 75/75 PASS; synthetic dry-run PASS. DGC request state documented; owner-unlock file now reduces the remaining path to a valid physical postal address + authorization to send the DGC request, followed by DGC response/list check and one explicit ProSystems outbound authorization. No product logic changed.
 BATON.BLOCKERS = PRE-OUTBOUND: (1) valid physical postal address; (2) owner authorization to send DGC list/territorial-scope clarification request; (3) authoritative DGC response/current-list consultation; (4) final explicit owner authorization for commercial outbound. POST-SEND: buyer response, real redacted project access, price/payment acceptance, payment mechanism, real delivery measurement.
 BATON.OWNER_ONLY = Sending external messages/forms; external commercial commitments; confidential project intake; invoice/payment actions that commit externally; production deployment; formal notices/claims; settlement/negotiation; legal representation; spend.
 BATON.EXACT_NEXT_EXTERNAL_ACTION = NONE until the DGC/address gates pass and owner explicitly authorizes outbound. Then send exactly ONE compliant ProSystems corporate-mailbox message and record factual SENT/reply state.
