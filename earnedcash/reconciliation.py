@@ -39,6 +39,7 @@ def _case(
     confidence: str,
     action: str,
 ) -> RecoveryCase:
+    # Never promote a positive amount to evidence-supported recovery without evidence.
     state = (
         TruthState.EVIDENCE_SUPPORTED
         if amount > ZERO and evidence_ids
@@ -74,10 +75,31 @@ def reconcile_project(input_: ProjectCashInput) -> ReconciliationResult:
     potentially_recoverable = ZERO
     not_yet_due = ZERO
     unknown = False
-    verified_paid = paid or ZERO
 
-    # Cash-chain inconsistencies are review states, never inferred recoveries.
+    # `paid_value` is an operational input, not proof of cash. Only payment
+    # evidence with explicit verified amounts can establish VERIFIED_CASH.
+    payment_evidence = verified_evidence(input_.evidence, EvidenceKind.PAYMENT)
+    payment_amounts = [item.amount for item in payment_evidence]
+    payment_evidence_complete = bool(payment_evidence) and all(
+        amount is not None for amount in payment_amounts
+    )
+    payment_evidence_total = (
+        sum((amount for amount in payment_amounts if amount is not None), ZERO)
+        if payment_evidence_complete
+        else ZERO
+    )
+    if (paid or ZERO) == ZERO:
+        verified_paid = ZERO
+    elif payment_evidence_complete and payment_evidence_total == paid:
+        verified_paid = paid
+    else:
+        verified_paid = ZERO
+        unknown = True
+
+    # Fail closed if core cash chain is materially inconsistent.
     if certified is not None and invoiced is not None and invoiced > certified:
+        # This can be legitimate in unusual contract structures, but it cannot be
+        # safely interpreted without review.
         return ReconciliationResult(
             project_id=input_.project_id,
             currency=input_.currency,
@@ -100,7 +122,7 @@ def reconcile_project(input_: ProjectCashInput) -> ReconciliationResult:
             unknown=True,
         )
 
-    # Certified but not invoiced: surface only if certification evidence exists.
+    # Certified but not invoiced: only surface if certification evidence exists.
     if certified is not None and invoiced is not None and certified > invoiced:
         amount = certified - invoiced
         evidence_ids = _require_verified(input_, EvidenceKind.CERTIFICATE)
@@ -145,7 +167,7 @@ def reconcile_project(input_: ProjectCashInput) -> ReconciliationResult:
             else:
                 unknown = True
 
-    # Retention stays separate from ordinary invoice balance to prevent implicit merging.
+    # Retention is separate from ordinary invoiced balance to avoid double-counting.
     if retention is not None and retention > ZERO:
         retention_ids = _require_verified(input_, EvidenceKind.RETENTION_RELEASE)
         if input_.retention_matured is True:
@@ -168,7 +190,7 @@ def reconcile_project(input_: ProjectCashInput) -> ReconciliationResult:
         else:
             unknown = True
 
-    # Agreed final account is only surfaced with independently verified evidence.
+    # Final account agreed balance: surface only from independently verified final account.
     if final_account is not None and paid is not None and final_account > paid:
         balance = max(ZERO, final_account - paid - disputed - deductions)
         if balance > ZERO:
@@ -183,6 +205,7 @@ def reconcile_project(input_: ProjectCashInput) -> ReconciliationResult:
                     confidence="HIGH",
                     action="PREPARE_FINAL_ACCOUNT_PAYMENT_PACKAGE",
                 )
+                # De-duplicate against an identical invoiced balance.
                 duplicate = any(
                     c.amount == case.amount and c.category == "INVOICED_DUE_UNPAID"
                     for c in cases
