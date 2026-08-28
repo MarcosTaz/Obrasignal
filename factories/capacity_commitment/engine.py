@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
+ENGINE_VERSION = "capacity-recoverability-t1.1"
 
 
 class CommitmentState(str, Enum):
@@ -72,6 +73,7 @@ class RecoveryCase:
 
 @dataclass(frozen=True)
 class RecoveryResult:
+    engine_version: str
     case_id: str
     currency: str
     committed_units: Decimal
@@ -221,6 +223,7 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
             reasons.append("commitment_right_evidence_integrity_and_notice_supported")
 
     return RecoveryResult(
+        engine_version=ENGINE_VERSION,
         case_id=case.case_id,
         currency=case.currency.upper(),
         committed_units=case.committed_units,
