@@ -160,7 +160,10 @@ def commit_staged_source_syncs(conn):
 
     Fetch health may already have been committed before this transaction begins.
     When canonical persistence fails, compensate that observation after rollback
-    by degrading every staged source before re-raising the original error.
+    by degrading every staged source before re-raising the original error. Health
+    compensation is best-effort per source: one failed health write must not stop
+    attempts for the remaining staged sources, but no atomicity is claimed for
+    those compensation writes themselves.
     """
     pending = staged_source_syncs()
     if not pending:
@@ -195,8 +198,8 @@ def commit_staged_source_syncs(conn):
             try:
                 record_source_ingestion_failure(conn, item.source, error=exc)
             except Exception as health_exc:
-                compensation_error = health_exc
-                break
+                if compensation_error is None:
+                    compensation_error = health_exc
         if compensation_error is not None:
             raise RuntimeError(
                 f"{exc}; source health compensation failed: {type(compensation_error).__name__}"
