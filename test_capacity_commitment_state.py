@@ -95,6 +95,7 @@ def test_state_preserves_decimal_exactness():
         program_id=original.program_id,
         recovery_case=custom_case,
         contract_id=original.contract_id,
+        evidence_refs=("contract:decimal",),
         forecast_units=Decimal("34567.8901"),
     )
 
@@ -117,3 +118,46 @@ def test_state_rejects_negative_forecast_context():
 
     with pytest.raises(ValueError, match="forecast_units"):
         dump_state(invalid)
+
+
+def test_state_supported_evidence_requires_persisted_reference():
+    original = make_state()
+    invalid = AssistedCaseState(
+        tenant_id=original.tenant_id,
+        company_id=original.company_id,
+        customer_id=original.customer_id,
+        program_id=original.program_id,
+        recovery_case=original.recovery_case,
+        contract_id=original.contract_id,
+        evidence_refs=(),
+    )
+
+    with pytest.raises(ValueError, match="evidence_supported requires"):
+        dump_state(invalid)
+
+
+def test_state_rejects_blank_or_duplicate_evidence_refs():
+    original = make_state()
+    blank = AssistedCaseState(
+        tenant_id=original.tenant_id,
+        company_id=original.company_id,
+        customer_id=original.customer_id,
+        program_id=original.program_id,
+        recovery_case=original.recovery_case,
+        contract_id=original.contract_id,
+        evidence_refs=("contract:1", " "),
+    )
+    duplicate = AssistedCaseState(
+        tenant_id=original.tenant_id,
+        company_id=original.company_id,
+        customer_id=original.customer_id,
+        program_id=original.program_id,
+        recovery_case=original.recovery_case,
+        contract_id=original.contract_id,
+        evidence_refs=("contract:1", "contract:1"),
+    )
+
+    with pytest.raises(ValueError, match="blank references"):
+        dump_state(blank)
+    with pytest.raises(ValueError, match="duplicate references"):
+        dump_state(duplicate)
