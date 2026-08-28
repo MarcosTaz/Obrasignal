@@ -12,6 +12,29 @@ def _canonical_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _identity_hash(payload: dict[str, Any]) -> str:
+    return _canonical_hash(payload)
+
+
+def recovery_identity(case: dict[str, Any]) -> dict[str, str]:
+    record = {
+        "tenant_id": case.get("tenant_id"),
+        "change_id": case.get("change_id"),
+    }
+    technical_delta = {
+        "tenant_id": case.get("tenant_id"),
+        "customer": case.get("customer"),
+        "program": case.get("program"),
+        "part": case.get("part"),
+        "revision_from": case.get("revision_from"),
+        "revision_to": case.get("revision_to"),
+    }
+    return {
+        "change_record_key": _identity_hash(record),
+        "technical_delta_key": _identity_hash(technical_delta),
+    }
+
+
 def build_commercial_package(case: dict[str, Any], analysis: dict[str, Any] | None = None) -> dict[str, Any]:
     analysis = analysis or analyze_case(case)
     entitlement = case.get("entitlement") or {}
@@ -47,8 +70,11 @@ def build_commercial_package(case: dict[str, Any], analysis: dict[str, Any] | No
     else:
         notice_state = "UNKNOWN"
 
+    identity = recovery_identity(case)
     return {
         "package_type": "ENGINEERING_CHANGE_RECOVERABILITY_REVIEW",
+        "change_record_key": identity["change_record_key"],
+        "technical_delta_key": identity["technical_delta_key"],
         "assisted_human_review_required": True,
         "engineering_change_summary": {
             "change_id": case.get("change_id"),
@@ -95,7 +121,8 @@ def build_commercial_package(case: dict[str, Any], analysis: dict[str, Any] | No
             "status": analysis.get("status"),
         },
         "evidence": [
-            {"id": item.get("id"), "type": item.get("type"), "verified": item.get("verified") is True}
+            {"id": item.get("id"), "type": item.get("type"), "verified": item.get("verified") is True,
+             "superseded": item.get("superseded") is True, "asserts": item.get("asserts") or {}}
             for item in evidence
         ],
         "evidence_graph": analysis.get("evidence_graph") or {"nodes": [], "edges": []},

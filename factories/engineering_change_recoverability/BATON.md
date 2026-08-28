@@ -1,22 +1,24 @@
 # BATON — Engineering Change Recoverability Assurance
 
 MISSION: prove and build the narrowed independent engineering-change recoverability business.
-CURRENT_TERMINAL: T0 — NARROW / SURVIVED
-NEXT_TERMINAL: T1 — PILOT CAPABLE
+CURRENT_TERMINAL: T1 — PILOT CAPABLE (assisted local prototype)
+NEXT_TERMINAL: T2 — MARKET EXPOSED
 CURRENT_WEDGE: independent recoverability assurance for Tier-1/Tier-2 automotive suppliers; no PLM/ERP/CPQ replacement.
 REPOSITORY: MarcosTaz/Obrasignal
 BRANCH: factory/engineering-change-recoverability
-BASE_MAIN_HEAD: 66d43f6fd51cf9cea08016dad335aaa04b711a24
-DONE: forensic validation; direct collision; buyer/trigger evidence; wedge freeze; assisted-offer definition; deterministic recovery engine; 10 synthetic cases; independent oracle; evidence graph/missing-evidence model; append-only SQLite history; signed expiring bearer auth; tenant isolation; concurrent append protection; atomic case+analysis persistence; invalid-input no-partial-write HTTP red-team; restart persistence; backup/restore integrity; commercial action package; local HTTP E2E.
-EVIDENCE: academic EC materiality/frequency; public supply agreements linking engineering changes to price/cost/obsolete inventory; current automotive roles explicitly owning EC commercialisation/recovery; Campfire direct competitive collision; public supplier standards showing EC quoting/tooling/PPAP/obsolescence workflow.
-ACTIVE: strengthen evidence-content matching for customer/program/part/revision/cost assertions; add adversarial wrong-customer/wrong-program/wrong-part tests; then re-run full oracle + HTTP E2E and decide T1 promotion strictly.
-NEXT: persist verified context assertions in evidence objects; reject mismatch fail-closed; test superseded contract/change, duplicate evidence IDs, missing notice proof and prior-payment proof; update dossier; commit next verified slice.
-WAIT: real customer data and WTP remain unavailable until legitimate T2 market exposure.
-BLOCKER: no external blocker for safe prototype work.
-P0: none currently known in the isolated local real-record path after auth/tenant red-team; T1 still withheld because context evidence matching is incomplete and could permit a materially wrong customer/program/part to inherit otherwise valid evidence.
-P1: context-identity evidence mismatch detection incomplete; therefore T1 NOT YET PROMOTED.
-TEST_STATE: 21 tests pass with ResourceWarning treated as error; HTTP save/analyze/package/history E2E passes; unauthenticated access=401; cross-tenant token read=404.
-COMMERCIAL_STATE: T0 evidence only; no paid pilot; no real customer; no verified recovery; no revenue.
-MODIFIED_FILES: README.md, VALIDATION.md, RESEARCH_EVIDENCE.md, BATON.md, engine.py, synthetic_cases.json, auth.py, store.py, commercial_package.py, app.py, test_engine.py, test_store.py, test_auth.py, test_commercial_package.py.
-UNFINISHED_WORK: context evidence-content matching; additional red-team; repository commit/draft PR; T1 decision; then safe T2 preparation.
-RESUME_AT: add evidence assertions for customer/program/part/revisions and cost amount/currency; make engine compare input against those assertions and fail closed on mismatch.
+BASE_MAIN_AT_FACTORY_START: 66d43f6fd51cf9cea08016dad335aaa04b711a24
+PRE_T1_HEAD: 953e4f1793a99930e4ef602cbdff391e7f8a8f64
+VERSION_RULE: the commit containing this BATON is the T1 replay checkpoint; verify the live branch ref before every new write.
+DONE: forensic validation; direct collision; buyer/trigger evidence; T0 NARROW; assisted-offer freeze; deterministic recovery engine; 26-case mandatory synthetic matrix; independent oracle; evidence-content assertions; exact customer/program/part/revision binding; amount/currency/causality binding; zero/non-zero mitigation and prior-payment reconciliation; contract/notice/deadline/approval binding; superseded/duplicate evidence rejection; commercial package identity keys; signed expiring bearer auth; tenant isolation; atomic case+analysis persistence; concurrent append protection; invalid-input no-partial-write HTTP red-team; restart persistence; backup/restore; local HTTP E2E; T1 replay after baton recovery.
+EVIDENCE: academic EC materiality/frequency; public supply agreements linking engineering changes to price/cost/obsolete inventory; current automotive roles explicitly owning EC commercialisation/recovery; Campfire direct competitive collision; 38 green tests plus HTTP E2E.
+ACTIVE: T2 readiness — qualify target accounts, buyer roles and observable engineering-change/commercial triggers; build market-facing pilot package and minimum data request; prepare controlled outreach without broadening product scope.
+NEXT: create ranked Tier-1/Tier-2 prospect dossier with trigger evidence; freeze concise value proposition and data-request checklist; prepare first outreach cohort; open/maintain draft PR for the isolated T1 slice; do not merge automatically.
+WAIT: real WTP, real customer data, verified real recovery and revenue require legitimate market interaction. External messages must preserve evidence-backed claims and must not imply results not yet achieved.
+BLOCKER: no blocker for safe T2 preparation.
+P0: none currently known in the tested isolated T1 path.
+P1: none currently known applicable to the tested T1 path; production/integration risks remain outside the promoted scope and are not represented as solved.
+TEST_STATE: 38 tests pass with ResourceWarning treated as error; 26 independent-oracle synthetic cases cover the mandatory scenario matrix; HTTP E2E passes; unauthenticated=401; cross-tenant=404; valid persisted case=201; invalid input=400 with no partial history.
+COMMERCIAL_STATE: T1 only; no paid pilot; no real customer; no verified real recovery; no revenue.
+MODIFIED_FILES_T1_REPLAY: README.md, T1_EVIDENCE.md, BATON.md, engine.py, app.py, synthetic_cases.py, commercial_package.py, test_engine.py, test_commercial_package.py; stale synthetic_cases.json removed from this checkpoint.
+UNFINISHED_WORK: T2 prospect qualification and market exposure; draft PR if not already open; real buyer/WTP evidence.
+RESUME_AT: research and rank first Tier-1/Tier-2 automotive supplier cohort by engineering-change volume proxies, program P&L ownership, buyer accessibility and fit with the independent recoverability wedge; then freeze pilot offer/data request and controlled outreach package.

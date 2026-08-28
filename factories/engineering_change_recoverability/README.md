@@ -20,7 +20,7 @@ It is intentionally **not** a PLM, ERP, CPQ, program-management or profitability
 ## What exists
 
 - deterministic recoverability engine;
-- 10 synthetic companies/cases with an independent oracle;
+- 26 synthetic companies/cases covering the complete mandatory scenario matrix with an independent oracle;
 - explicit recoverable / non-recoverable / unknown / mitigated / prior-payment buckets;
 - evidence objects + evidence graph + missing-evidence output;
 - append-only SQLite case and analysis history;
@@ -37,7 +37,7 @@ It is intentionally **not** a PLM, ERP, CPQ, program-management or profitability
 python -W error::ResourceWarning -m unittest -v
 ```
 
-Current tested slice: **21 tests passing**.
+Current tested slice: **38 tests passing**.
 
 The tests cover independent-oracle outcomes, mixed currency, missing evidence, notice risk, evidence self-assertion, token tampering/expiry, cross-tenant isolation, append-only history, concurrent writes, restart persistence, backup/restore and commercial-package truth including correct zero recovery.
 
@@ -55,11 +55,11 @@ Then open `http://127.0.0.1:8765` for the synthetic demo. Real-record endpoints 
 ## Current maturity
 
 - T0: **NARROW / SURVIVED**
-- T1: **IN PROGRESS — strong local pilot slice, not yet promoted**
+- T1: **PILOT CAPABLE — assisted local prototype**
 - Real customer data: **NONE**
 - Commercial proof: **NONE**
 - Market exposure: **NOT YET**
 
-Why T1 is not yet promoted: customer/program/part identity assertions still need stronger evidence-content matching and more adversarial context-mismatch tests before the Factory can claim the complete fail-closed T1 journey.
+T1 is promoted only for the assisted local prototype: identity, revision, cost, causality, mitigation, prior-payment, contract, notice/deadline and approval claims must match verified evidence assertions; zero balances also require reconciliation evidence. This is not production certification and not commercial proof.
 
 Do not expose this prototype as production truth.
