@@ -170,8 +170,8 @@ def commit_staged_source_syncs(conn):
             try:
                 record_source_ingestion_failure(conn, item.source, error=exc)
             except Exception as health_exc:
-                compensation_error = health_exc
-                break
+                if compensation_error is None:
+                    compensation_error = health_exc
         if compensation_error is not None:
             raise RuntimeError(
                 f"{exc}; source health compensation failed: {type(compensation_error).__name__}"
