@@ -132,7 +132,7 @@ def _integrity_gate(case: RecoveryCase) -> Optional[tuple[RecoverabilityState, s
         (case.program_matches, "program_match_unknown", "wrong_program"),
         (case.period_matches, "period_match_unknown", "wrong_period"),
         (case.currency_matches, "currency_match_unknown", "wrong_currency"),
-        (case.contract_current, "contract_currency_unknown", "superseded_contract"),
+        (case.contract_current, "contract_current_unknown", "superseded_contract"),
         (case.amendment_reviewed, "amendment_review_unknown", "customer_amendment_not_reconciled"),
     )
     for value, unknown_reason, false_reason in checks:
