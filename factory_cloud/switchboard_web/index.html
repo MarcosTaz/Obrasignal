@@ -1,1 +1,246 @@
-<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080b0f"><title>Factory Switchboard</title><style>:root{color-scheme:dark;--bg:#080b0f;--line:#27313d;--line-hi:#3a4756;--text:#f2f5f8;--muted:#8d9aaa;--green:#58d68d;--amber:#f2c94c;--red:#ff6b6b;--shadow:0 18px 55px rgba(0,0,0,.36)}*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;min-height:100vh;background:radial-gradient(circle at 10% 0%,rgba(104,167,255,.07),transparent 27rem),radial-gradient(circle at 90% 0%,rgba(88,214,141,.06),transparent 25rem),var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}button,input{font:inherit}button{color:inherit}.shell{width:min(1180px,calc(100% - 28px));margin:0 auto;padding:28px 0 54px}.masthead{border:1px solid var(--line);background:linear-gradient(180deg,rgba(19,26,34,.96),rgba(12,17,23,.96));border-radius:18px;padding:22px;box-shadow:var(--shadow)}.eyebrow{display:flex;align-items:center;gap:9px;color:var(--green);font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:800}.pilot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 14px rgba(88,214,141,.7)}h1{margin:10px 0 6px;font-size:clamp(28px,5vw,54px);line-height:1;letter-spacing:-.04em}.subtitle{margin:0;color:var(--muted);line-height:1.55;max-width:860px;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-top:19px}.btn{border:1px solid var(--line-hi);background:#151c24;padding:11px 14px;border-radius:10px;cursor:pointer;transition:transform .12s ease,border-color .12s ease,background .12s ease;font-weight:800;font-size:13px}.btn:hover{transform:translateY(-1px);border-color:#596879}.btn.primary{background:#133222;border-color:#2f8055;color:#dff9e9}.btn.danger{border-color:#5c3538}.truth{margin-top:14px;padding:12px 14px;border:1px dashed #3b4653;border-radius:11px;color:#aeb8c4;font-size:12px;line-height:1.55;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 0}.stat{background:#0d1218;border:1px solid var(--line);border-radius:11px;padding:11px 12px}.stat strong{display:block;font-size:20px}.stat span{color:var(--muted);font-size:11px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:28px 2px 12px}.section-head h2{margin:0;font-size:16px}.section-head span{color:var(--muted);font-size:11px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.breaker{border:1px solid var(--line);background:linear-gradient(180deg,#111820,#0d1218);border-radius:15px;padding:15px;min-width:0}.breaker.bound{border-color:rgba(88,214,141,.35)}.breaker.fired{box-shadow:inset 3px 0 0 var(--green)}.breaker-top{display:grid;grid-template-columns:42px 1fr auto;align-items:start;gap:11px}.signal{display:grid;place-items:center;width:42px;height:42px;border-radius:10px;border:1px solid #43505e;background:#1b232c;font-weight:900;font-size:18px}.signal.omega{color:#b9d4ff;border-color:#456b9b;background:#13243a}.signal.x{color:#dff9e9;border-color:#3b7658;background:#14271d}.name{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:790;font-size:15px;line-height:1.25;overflow-wrap:anywhere}.target{color:var(--muted);font-size:10px;margin-top:5px;overflow-wrap:anywhere}.wire{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:10px;color:#9aa6b4;border:1px solid #303b47;border-radius:999px;padding:5px 7px}.wire::before{content:"";width:6px;height:6px;border-radius:50%;background:#687482}.bound .wire{color:#c9f6da;border-color:#315f46}.bound .wire::before{background:var(--green)}.breaker-actions{display:grid;grid-template-columns:1.15fr .85fr;gap:8px;margin-top:14px}.breaker-actions .btn{width:100%;padding:10px 9px}.breaker-actions .on{border-color:#397650;background:#12301f}.statusline{min-height:17px;margin-top:9px;color:#7f8b98;font-size:10px}.statusline.ok{color:var(--green)}.statusline.warn{color:var(--amber)}.statusline.err{color:var(--red)}.footer{margin-top:26px;padding:16px 2px 0;border-top:1px solid #1d2630;color:#697686;font-size:10px;line-height:1.6;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);width:min(560px,calc(100% - 28px));padding:13px 15px;border-radius:12px;border:1px solid #385047;background:rgba(12,20,17,.97);color:#dff9e9;opacity:0;pointer-events:none;transition:.18s;z-index:20;font-size:12px}.toast.show{opacity:1;transform:translate(-50%,0)}dialog{width:min(610px,calc(100% - 28px));color:var(--text);background:#10161d;border:1px solid #344150;border-radius:16px;padding:0}dialog::backdrop{background:rgba(0,0,0,.68)}.dialog-body{padding:20px}.dialog-body h3{margin:0 0 8px}.dialog-body p{margin:0 0 13px;color:var(--muted);font:13px/1.5 system-ui,-apple-system,sans-serif}.url-input{width:100%;border:1px solid #394654;background:#090e13;color:var(--text);border-radius:9px;padding:12px}.dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:13px}@media(max-width:760px){.shell{width:min(100% - 18px,1180px);padding-top:10px}.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,1fr)}.breaker-top{grid-template-columns:40px 1fr}.wire{grid-column:2;justify-self:start}}@media(max-width:430px){.stats{grid-template-columns:1fr}.breaker-actions{grid-template-columns:1fr}}</style></head><body><main class="shell"><section class="masthead"><div class="eyebrow"><span class="pilot"></span> FACTORY CLOUD · SWITCHBOARD ONLY</div><h1>Factory Switchboard</h1><p class="subtitle">Quadro geral de arranque. Não centraliza BATON, pesquisa, estado de negócio nem lógica das Factories. Serve apenas para encontrares o destino certo e forneceres o sinal de retoma correto.</p><div class="toolbar"><button class="btn primary" id="allBtn">⚡ LIGAR TODAS</button><button class="btn" id="exportBtn">EXPORTAR LIGAÇÕES</button><button class="btn" id="importBtn">IMPORTAR LIGAÇÕES</button><button class="btn danger" id="clearBtn">LIMPAR LIGAÇÕES</button></div><div class="truth"><strong>Funcionamento real:</strong> associa o URL de cada conversa uma única vez. Depois, <strong>LIGAR</strong> copia automaticamente o comando correto e abre diretamente essa conversa. Por segurança/origem do navegador, uma página web não consegue escrever e enviar uma mensagem dentro de outro separador do ChatGPT; o envio final continua a ser feito no próprio chat.</div><div class="stats"><div class="stat"><strong id="countFactories">16</strong><span>disjuntores</span></div><div class="stat"><strong id="countBound">0</strong><span>chats associados</span></div><div class="stat"><strong id="countReady">0</strong><span>prontos para abrir</span></div></div></section><div class="section-head"><h2>QUADRO</h2><span>X = retoma Factory · Ω = Factory Cloud</span></div><section class="grid" id="grid"></section><footer class="footer">Registry source: Factory Cloud · scope: switchboard_only. As ligações aos chats ficam apenas no armazenamento local deste navegador. Não são enviadas para o repositório nem incorporadas no registry.</footer></main><dialog id="bindDialog"><form method="dialog" class="dialog-body" id="bindForm"><h3 id="dialogTitle">Associar chat</h3><p>Copia o endereço da conversa existente no ChatGPT e cola-o aqui. O quadro guardará este endereço apenas neste navegador.</p><input class="url-input" id="chatUrl" inputmode="url" autocomplete="off" placeholder="https://chatgpt.com/c/..."><div class="dialog-actions"><button class="btn danger" value="remove" id="removeBinding">REMOVER</button><button class="btn" value="cancel">CANCELAR</button><button class="btn primary" value="save" id="saveBinding">GUARDAR</button></div></form></dialog><input type="file" id="importFile" accept="application/json,.json" hidden><div class="toast" id="toast" role="status" aria-live="polite"></div><script>const FACTORIES=[{id:'factory-cloud',name:'Factory Cloud / Control Tower',signal:'Ω',target:'factory-cloud/app-development-control-plane'},{id:'obrasignal',name:'ObraSignal',signal:'X',target:'ObraSignal'},{id:'k3-fatality',name:'K3 Fatality / Probability Intelligence',signal:'X',target:'K3 Fatality'},{id:'industrial-claims',name:'Industrial Supplier Claims & Margin Recovery',signal:'X',target:'Industrial Claims'},{id:'recovery-radar',name:'Recovery Radar',signal:'X',target:'Recovery Radar'},{id:'changeledger',name:'ChangeLedger',signal:'X',target:'ChangeLedger'},{id:'sourcing-recovery',name:'Sourcing Recovery & Supplier Margin Control',signal:'X',target:'Sourcing Recovery'},{id:'product-market-access',name:'Product Market Access / Legal Product Checker',signal:'X',target:'Product Market Access / Legal Product Checker'},{id:'eu-cloud-switching',name:'EU Cloud Switching / Migration Capital Network',signal:'X',target:'Cloud Switching Factory'},{id:'aviation-lease-entitlement-recovery',name:'Aviation Lease Entitlement Recovery',signal:'X',target:'Aviation'},{id:'scopeledger',name:'ScopeLedger',signal:'X',target:'ScopeLedger'},{id:'capacity-commitment',name:'Capacity Commitment',signal:'X',target:'Capacity Commitment'},{id:'longlead',name:'LongLead',signal:'X',target:'LongLead'},{id:'machine-release-safety',name:'MachineRelease Safety',signal:'X',target:'MachineRelease Safety'},{id:'obrasignal-customer-journey',name:'Customer Journey, First Value & Outcome Integrity',signal:'X',target:'Customer Journey, First Value & Outcome Integrity'},{id:'obrasignal-global-market-entry',name:'Global Market Entry, Localization & Country Launch Automation',signal:'X',target:'Global Market Entry, Localization & Country Launch Automation'}];const P='factory-switchboard:chat:',grid=document.getElementById('grid'),toast=document.getElementById('toast'),dialog=document.getElementById('bindDialog'),dialogTitle=document.getElementById('dialogTitle'),chatUrl=document.getElementById('chatUrl'),importFile=document.getElementById('importFile');let activeFactory=null,timer=null;const packet=f=>`${f.signal} — RESUME THE EXISTING FACTORY. DO NOT RESTART. CONTINUE AUTONOMOUSLY WITH MAXIMUM SAFE AUTONOMY. A TURN OR TECHNICAL WINDOW END IS NOT A STOP CONDITION. FREEZE THE EXACT BATON AND RESUME THE NEXT EXECUTABLE ACTION UNTIL REAL COMPLETION OR A TRUE EXTERNAL BLOCKER.`,getUrl=id=>localStorage.getItem(P+id)||'',setUrl=(id,u)=>u?localStorage.setItem(P+id,u):localStorage.removeItem(P+id);function valid(v){try{const u=new URL(v);return u.protocol==='https:'&&(u.hostname==='chatgpt.com'||u.hostname.endsWith('.chatgpt.com'))}catch{return false}}async function copy(t){if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(t);const a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}function msg(m){clearTimeout(timer);toast.textContent=m;toast.classList.add('show');timer=setTimeout(()=>toast.classList.remove('show'),3400)}function stats(){const n=FACTORIES.filter(f=>getUrl(f.id)).length;countFactories.textContent=FACTORIES.length;countBound.textContent=n;countReady.textContent=n}function render(){grid.innerHTML='';FACTORIES.forEach(f=>{const u=getUrl(f.id),c=document.createElement('article');c.className='breaker'+(u?' bound':'');c.innerHTML=`<div class="breaker-top"><div class="signal ${f.signal==='Ω'?'omega':'x'}">${f.signal}</div><div><div class="name"></div><div class="target"></div></div><div class="wire">${u?'CHAT ASSOCIADO':'SEM CHAT'}</div></div><div class="breaker-actions"><button class="btn on" data-fire>⚡ LIGAR</button><button class="btn" data-bind>${u?'ALTERAR CHAT':'ASSOCIAR CHAT'}</button></div><div class="statusline">${u?'Pronto: copia o sinal e abre o destino.':'Associa a conversa uma vez para abrir diretamente.'}</div>`;c.querySelector('.name').textContent=f.name;c.querySelector('.target').textContent='TARGET · '+f.target;c.querySelector('[data-bind]').onclick=()=>openBind(f);c.querySelector('[data-fire]').onclick=()=>fire(f,c);grid.appendChild(c)});stats()}function openBind(f){activeFactory=f;dialogTitle.textContent='Associar chat · '+f.name;chatUrl.value=getUrl(f.id);removeBinding.style.display=chatUrl.value?'':'none';dialog.showModal()}bindForm.addEventListener('submit',e=>{const a=e.submitter?.value;if(!activeFactory||a==='cancel')return;if(a==='remove'){setUrl(activeFactory.id,'');msg('Ligação removida: '+activeFactory.name);render();return}if(a==='save'){e.preventDefault();const v=chatUrl.value.trim();if(!valid(v)){msg('Usa o URL https://chatgpt.com/... da conversa existente.');return}setUrl(activeFactory.id,v);dialog.close();msg('Chat associado: '+activeFactory.name);render()}});async function fire(f,c){try{await copy(packet(f));c.classList.add('fired');const s=c.querySelector('.statusline'),u=getUrl(f.id);if(u){s.className='statusline ok';s.textContent=`${f.signal} copiado · destino aberto. Cola e envia.`;msg(`${f.signal} copiado. A abrir ${f.name}.`);window.open(u,'_blank','noopener,noreferrer')}else{s.className='statusline warn';s.textContent=`${f.signal} copiado · falta associar o URL do chat.`;msg(`${f.signal} copiado. Associa o chat para o quadro o abrir diretamente.`)}}catch{const s=c.querySelector('.statusline');s.className='statusline err';s.textContent='Não foi possível copiar o sinal neste navegador.'}}allBtn.onclick=async()=>{const b=FACTORIES.map(f=>`${f.name}\nTARGET: ${f.target}\n${packet(f)}`).join('\n\n---\n\n');await copy(b);msg(`Pacote de ${FACTORIES.length} sinais copiado.`)};exportBtn.onclick=()=>{const bindings={};FACTORIES.forEach(f=>{const u=getUrl(f.id);if(u)bindings[f.id]=u});const blob=new Blob([JSON.stringify({schema_version:1,bindings},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='factory-switchboard-bindings.json';a.click();URL.revokeObjectURL(a.href)};importBtn.onclick=()=>importFile.click();importFile.onchange=async()=>{const file=importFile.files?.[0];if(!file)return;try{const d=JSON.parse(await file.text()),b=d?.bindings||{};let n=0;FACTORIES.forEach(f=>{if(typeof b[f.id]==='string'&&valid(b[f.id])){setUrl(f.id,b[f.id]);n++}});render();msg(`${n} ligações importadas.`)}catch{msg('Ficheiro inválido.')}importFile.value=''};clearBtn.onclick=()=>{if(confirm('Remover todas as ligações guardadas?')){FACTORIES.forEach(f=>setUrl(f.id,''));render();msg('Ligações removidas.')}};render();</script></body></html>
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#12080a">
+<title>Founder Switchboard</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0b0607;
+  --bg2:#14090c;
+  --panel:#160c0f;
+  --panel2:#1d1014;
+  --line:#47252d;
+  --line2:#67343f;
+  --text:#f7eff1;
+  --muted:#b3949c;
+  --red:#d04c61;
+  --red2:#8f2639;
+  --hot:#ff758b;
+  --green:#70d79d;
+  --gold:#d8bd83;
+  --shadow:0 22px 70px rgba(0,0,0,.46);
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{
+  margin:0;
+  min-height:100vh;
+  color:var(--text);
+  background:
+    radial-gradient(circle at 50% -10%,rgba(177,45,66,.22),transparent 38rem),
+    radial-gradient(circle at 15% 35%,rgba(122,26,43,.12),transparent 28rem),
+    linear-gradient(180deg,#120709 0%,#090506 62%,#070405 100%);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+button,input{font:inherit}
+button{color:inherit}
+.shell{width:min(1160px,calc(100% - 28px));margin:0 auto;padding:28px 0 60px}
+.hero{
+  position:relative;
+  overflow:hidden;
+  text-align:center;
+  min-height:340px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:42px 22px 34px;
+  border:1px solid #45232b;
+  border-radius:28px;
+  background:linear-gradient(180deg,rgba(30,14,18,.96),rgba(14,7,9,.98));
+  box-shadow:var(--shadow);
+}
+.hero:before{
+  content:"⚜";
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-49%);
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:clamp(250px,42vw,500px);
+  line-height:1;
+  color:rgba(190,51,72,.085);
+  text-shadow:0 0 70px rgba(194,51,72,.12);
+  pointer-events:none;
+}
+.hero:after{
+  content:"";
+  position:absolute;
+  inset:12px;
+  border:1px solid rgba(158,62,78,.12);
+  border-radius:21px;
+  pointer-events:none;
+}
+.brandmark{
+  position:relative;
+  display:grid;
+  place-items:center;
+  width:92px;height:92px;
+  border-radius:50%;
+  border:1px solid #6c3441;
+  background:radial-gradient(circle,#33131b,#170a0d 72%);
+  color:#ed8799;
+  font:56px/1 Georgia,"Times New Roman",serif;
+  box-shadow:0 0 45px rgba(182,48,69,.18),inset 0 0 28px rgba(255,99,124,.04);
+  z-index:1;
+}
+.kicker{position:relative;z-index:1;margin-top:18px;color:#c67a88;font-size:11px;font-weight:800;letter-spacing:.22em;text-transform:uppercase}
+h1{position:relative;z-index:1;margin:7px 0 5px;font-size:clamp(34px,6vw,64px);line-height:.96;letter-spacing:-.055em}
+.subtitle{position:relative;z-index:1;margin:4px auto 0;max-width:760px;color:#b99aa2;font-size:14px;line-height:1.55}
+.stats{position:relative;z-index:1;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:20px}
+.stat{min-width:112px;padding:9px 13px;border:1px solid #402129;border-radius:999px;background:rgba(15,7,9,.7);font-size:11px;color:#b998a0}
+.stat strong{color:#fff;font-size:13px}
+.controls{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;margin:18px auto 0}
+.btn{border:1px solid #57303a;background:#211116;padding:10px 14px;border-radius:11px;cursor:pointer;font-weight:800;font-size:12px;transition:.16s ease}
+.btn:hover{transform:translateY(-1px);border-color:#874353;background:#2a151b}
+.btn.primary{background:linear-gradient(180deg,#7e2638,#591a28);border-color:#ad465a;color:#fff2f5;box-shadow:0 8px 22px rgba(128,31,50,.22)}
+.btn.ghost{background:transparent}
+.search-wrap{width:min(760px,100%);margin:22px auto 0;display:flex;gap:9px}
+.search{width:100%;border:1px solid #44242c;background:#10080a;color:#f8eef1;border-radius:13px;padding:13px 15px;outline:none}
+.search:focus{border-color:#8d4555;box-shadow:0 0 0 3px rgba(157,63,82,.1)}
+.filters{display:flex;justify-content:center;gap:7px;flex-wrap:wrap;margin:13px auto 0}
+.filter{border:1px solid #3e2329;background:#12090b;color:#af9399;border-radius:999px;padding:7px 10px;cursor:pointer;font-size:10px;font-weight:800;letter-spacing:.04em}
+.filter.active{border-color:#91485a;color:#ffeef2;background:#2b1118}
+.section-title{text-align:center;margin:30px 0 13px;color:#d2b5bc;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;align-items:stretch}
+.breaker{
+  position:relative;
+  border:1px solid #382026;
+  background:linear-gradient(180deg,#170d10,#10090b);
+  border-radius:16px;
+  padding:15px;
+  min-width:0;
+  box-shadow:0 10px 28px rgba(0,0,0,.16);
+  transition:.16s ease;
+}
+.breaker:hover{transform:translateY(-1px);border-color:#5c2f39}
+.breaker.bound{border-color:#59402f;box-shadow:inset 3px 0 0 #ba8c45}
+.breaker.fired{box-shadow:inset 3px 0 0 var(--hot),0 12px 28px rgba(0,0,0,.22)}
+.breaker-top{display:grid;grid-template-columns:44px 1fr auto;gap:11px;align-items:start}
+.signal{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;border:1px solid #60303c;background:#241116;color:#ff8ca0;font-size:18px;font-weight:950}
+.signal.omega{border-color:#71513b;color:#e1c997;background:#2a1a11}
+.name{font-weight:850;font-size:14px;line-height:1.28;overflow-wrap:anywhere}
+.target{margin-top:4px;color:#876e74;font-size:9px;line-height:1.3;overflow-wrap:anywhere}
+.tag{align-self:start;border:1px solid #392128;border-radius:999px;padding:4px 7px;color:#957b81;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap}
+.bound .tag{color:#d8c09a;border-color:#604a32}
+.actions{display:grid;grid-template-columns:1.1fr .9fr;gap:7px;margin-top:12px}
+.actions .btn{width:100%;padding:9px 8px}
+.on{background:linear-gradient(180deg,#682030,#4b1622);border-color:#8e384a}
+.status{min-height:14px;margin-top:8px;color:#776268;font-size:9px;line-height:1.35}
+.status.ok{color:#d6b77e}.status.warn{color:#d7a870}.status.err{color:#ff8b99}
+.empty{text-align:center;color:#8e7379;padding:40px 10px;grid-column:1/-1}
+.footer{text-align:center;margin-top:25px;padding-top:16px;border-top:1px solid #2b181d;color:#745e63;font-size:10px;line-height:1.5}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,18px);width:min(540px,calc(100% - 28px));padding:12px 14px;border:1px solid #693643;border-radius:12px;background:rgba(27,12,16,.97);color:#f9e7eb;box-shadow:0 18px 48px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:.18s;z-index:20;font-size:11px;text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+dialog{width:min(610px,calc(100% - 28px));color:var(--text);background:#160c0f;border:1px solid #5b303a;border-radius:18px;padding:0;box-shadow:0 28px 90px rgba(0,0,0,.62)}
+dialog::backdrop{background:rgba(5,2,3,.78);backdrop-filter:blur(4px)}
+.dialog-body{padding:21px}.dialog-body h3{margin:0 0 8px}.dialog-body p{margin:0 0 13px;color:#aa8d94;font-size:12px;line-height:1.5}.url-input{width:100%;border:1px solid #4f2a33;background:#090506;color:#fff;border-radius:10px;padding:12px;outline:none}.dialog-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap;margin-top:12px}
+@media(max-width:760px){.shell{width:min(100% - 16px,1160px);padding-top:8px}.hero{min-height:320px;border-radius:20px}.grid{grid-template-columns:1fr}.breaker-top{grid-template-columns:44px 1fr}.tag{grid-column:2;justify-self:start}.search-wrap{flex-direction:column}}
+@media(max-width:430px){.actions{grid-template-columns:1fr}.hero{padding-left:15px;padding-right:15px}.brandmark{width:78px;height:78px;font-size:47px}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <section class="hero">
+    <div class="brandmark">⚜</div>
+    <div class="kicker">Factory Cloud · Founder Control</div>
+    <h1>Switchboard</h1>
+    <p class="subtitle">Um quadro só para ligar. Cada Factory mantém o seu próprio estado, BATON e trabalho. Aqui escolhes o disjuntor, copias o sinal certo e abres o chat certo.</p>
+    <div class="stats">
+      <div class="stat"><strong id="totalCount">29</strong> disjuntores</div>
+      <div class="stat"><strong id="boundCount">0</strong> associados</div>
+      <div class="stat"><strong id="visibleCount">29</strong> visíveis</div>
+    </div>
+  </section>
+
+  <div class="controls">
+    <button class="btn primary" id="allBtn">⚡ LIGAR TODAS</button>
+    <button class="btn ghost" id="exportBtn">EXPORTAR LIGAÇÕES</button>
+    <button class="btn ghost" id="importBtn">IMPORTAR LIGAÇÕES</button>
+  </div>
+
+  <div class="search-wrap">
+    <input class="search" id="search" placeholder="Procurar Factory, negócio ou target…" autocomplete="off">
+  </div>
+  <div class="filters" id="filters"></div>
+  <div class="section-title">Quadro geral de arranque</div>
+  <section class="grid" id="grid"></section>
+
+  <footer class="footer">Switchboard-only · X = retomar Factory · Ω = Factory Cloud · Os URLs dos chats ficam apenas neste navegador.</footer>
+</main>
+
+<dialog id="bindDialog">
+  <form method="dialog" class="dialog-body" id="bindForm">
+    <h3 id="dialogTitle">Associar chat</h3>
+    <p>Cola o URL da conversa existente. Fica guardado apenas neste navegador.</p>
+    <input class="url-input" id="chatUrl" inputmode="url" autocomplete="off" placeholder="https://chatgpt.com/c/...">
+    <div class="dialog-actions">
+      <button class="btn ghost" value="remove" id="removeBinding">REMOVER</button>
+      <button class="btn ghost" value="cancel">CANCELAR</button>
+      <button class="btn primary" value="save">GUARDAR</button>
+    </div>
+  </form>
+</dialog>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const FACTORIES=[
+{id:'factory-cloud',name:'Factory Cloud / Control Tower',signal:'Ω',target:'factory-cloud/app-development-control-plane',group:'control'},
+{id:'obrasignal',name:'ObraSignal',signal:'X',target:'ObraSignal',group:'obrasignal'},
+{id:'industrial-claims',name:'Industrial Supplier Claims & Margin Recovery',signal:'X',target:'Industrial Claims',group:'business'},
+{id:'scopeledger',name:'ScopeLedger',signal:'X',target:'ScopeLedger',group:'business'},
+{id:'changeledger',name:'ChangeLedger',signal:'X',target:'ChangeLedger',group:'business'},
+{id:'recovery-radar',name:'Recovery Radar',signal:'X',target:'Recovery Radar',group:'business'},
+{id:'sourcing-recovery',name:'Sourcing Recovery & Supplier Margin Control',signal:'X',target:'Sourcing Recovery',group:'business'},
+{id:'product-market-access',name:'Product Market Access / Legal Product Checker',signal:'X',target:'Product Market Access / Legal Product Checker',group:'business'},
+{id:'eu-cloud-switching',name:'EU Cloud Switching / Migration Capital Network',signal:'X',target:'Cloud Switching Factory',group:'business'},
+{id:'aviation-lease-entitlement-recovery',name:'Aviation Lease Entitlement Recovery',signal:'X',target:'Aviation',group:'business'},
+{id:'capacity-commitment',name:'Capacity Commitment',signal:'X',target:'Capacity Commitment',group:'business'},
+{id:'longlead',name:'LongLead',signal:'X',target:'LongLead',group:'business'},
+{id:'machine-release-safety',name:'MachineRelease Safety',signal:'X',target:'MachineRelease Safety',group:'business'},
+{id:'k3-fatality',name:'K3 Fatality / Probability Intelligence',signal:'X',target:'K3 Fatality',group:'business'},
+{id:'recoverable-money',name:'Recoverable Money Business Discovery',signal:'X',target:'Recoverable Money Business Discovery',group:'developing'},
+{id:'private-freight-orchestration',name:'Private Freight Orchestration / Global Personal Asset Logistics',signal:'X',target:'Private Freight Orchestration',group:'developing'},
+{id:'autonomous-revenue-recovery',name:'Autonomous Revenue Recovery & Commercial Entitlement Integrity',signal:'X',target:'Autonomous Revenue Recovery & Commercial Entitlement Integrity',group:'developing'},
+{id:'obrasignal-data-runner',name:'ObraSignal Data Runner',signal:'X',target:'ObraSignal Data Runner',group:'obrasignal'},
+{id:'obrasignal-data-truth',name:'ObraSignal / Data Truth Factory',signal:'X',target:'ObraSignal / Data Truth Factory',group:'obrasignal'},
+{id:'os-side-factory',name:'OS SIDE FACTORY — RECOVERY SUCCESSOR',signal:'X',target:'OS SIDE FACTORY — RECOVERY SUCCESSOR',group:'obrasignal'},
+{id:'obrasignal-customer-journey',name:'Customer Journey, First Value & Outcome Integrity',signal:'X',target:'Customer Journey, First Value & Outcome Integrity',group:'obrasignal'},
+{id:'obrasignal-global-market-entry',name:'Global Market Entry, Localization & Country Launch Automation',signal:'X',target:'Global Market Entry, Localization & Country Launch Automation',group:'obrasignal'},
+{id:'obrasignal-gtm',name:'ObraSignal GTM / First Revenue',signal:'X',target:'ObraSignal GTM / First Revenue',group:'obrasignal'},
+{id:'obrasignal-customer-decision',name:'Customer Decision & Outcome Intelligence Factory',signal:'X',target:'Customer Decision & Outcome Intelligence Factory',group:'obrasignal'},
+{id:'obrasignal-product-strategy',name:'Product Strategy, Capability & Roadmap Factory',signal:'X',target:'Product Strategy, Capability & Roadmap Factory',group:'obrasignal'},
+{id:'obrasignal-data-analytics',name:'Data, Analytics & Learning System Factory',signal:'X',target:'Data, Analytics & Learning System Factory',group:'obrasignal'},
+{id:'obrasignal-release-safety',name:'Release, Deployment & Change Safety Factory',signal:'X',target:'Release, Deployment & Change Safety Factory',group:'obrasignal'},
+{id:'obrasignal-support-ops',name:'Customer Support, Incident & Service Operations Factory',signal:'X',target:'Customer Support, Incident & Service Operations Factory',group:'obrasignal'},
+{id:'eu-switching-evidence-pack',name:'EU Switching Evidence Pack / Verified Migration Outcomes',signal:'X',target:'EU Switching Evidence Pack',group:'specialist'}
+];
+const LABELS={all:'TODAS',control:'CONTROLO',business:'NEGÓCIOS',developing:'EM DESENVOLVIMENTO',obrasignal:'OBRASIGNAL',specialist:'ESPECIALISTAS'};
+const P='factory-switchboard:chat:';
+const grid=document.getElementById('grid'),toast=document.getElementById('toast'),dialog=document.getElementById('bindDialog'),dialogTitle=document.getElementById('dialogTitle'),chatUrl=document.getElementById('chatUrl'),importFile=document.getElementById('importFile'),search=document.getElementById('search'),filters=document.getElementById('filters');
+let activeFactory=null,activeGroup='all',timer=null;
+function packet(f){return `${f.signal} — RESUME THE EXISTING FACTORY. DO NOT RESTART. CONTINUE AUTONOMOUSLY WITH MAXIMUM SAFE AUTONOMY. A TURN OR TECHNICAL WINDOW END IS NOT A STOP CONDITION. FREEZE THE EXACT BATON AND RESUME THE NEXT EXECUTABLE ACTION UNTIL REAL COMPLETION OR A TRUE EXTERNAL BLOCKER.`}
+function getUrl(id){return localStorage.getItem(P+id)||''}
+function setUrl(id,url){url?localStorage.setItem(P+id,url):localStorage.removeItem(P+id)}
+function valid(v){try{const u=new URL(v);return u.protocol==='https:'&&(u.hostname==='chatgpt.com'||u.hostname.endsWith('.chatgpt.com'))}catch{return false}}
+async function copy(t){if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(t);const a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}
+function msg(m){clearTimeout(timer);toast.textContent=m;toast.classList.add('show');timer=setTimeout(()=>toast.classList.remove('show'),3300)}
+function filtered(){const q=search.value.trim().toLowerCase();return FACTORIES.filter(f=>(activeGroup==='all'||f.group===activeGroup)&&(!q||`${f.name} ${f.target}`.toLowerCase().includes(q)))}
+function stats(list){document.getElementById('totalCount').textContent=FACTORIES.length;document.getElementById('boundCount').textContent=FACTORIES.filter(f=>getUrl(f.id)).length;document.getElementById('visibleCount').textContent=list.length}
+function renderFilters(){filters.innerHTML='';['all','business','developing','obrasignal','specialist','control'].forEach(g=>{const b=document.createElement('button');b.className='filter'+(activeGroup===g?' active':'');b.textContent=LABELS[g];b.onclick=()=>{activeGroup=g;renderFilters();render()};filters.appendChild(b)})}
+function render(){const list=filtered();grid.innerHTML='';if(!list.length){grid.innerHTML='<div class="empty">Nenhuma Factory corresponde a este filtro.</div>';stats(list);return}list.forEach(f=>{const u=getUrl(f.id),c=document.createElement('article');c.className='breaker'+(u?' bound':'');c.innerHTML=`<div class="breaker-top"><div class="signal ${f.signal==='Ω'?'omega':''}">${f.signal}</div><div><div class="name"></div><div class="target"></div></div><div class="tag">${u?'ASSOCIADO':LABELS[f.group]}</div></div><div class="actions"><button class="btn on" data-fire>⚡ LIGAR</button><button class="btn ghost" data-bind>${u?'ALTERAR CHAT':'ASSOCIAR CHAT'}</button></div><div class="status">${u?'Pronto: copia o sinal e abre o chat certo.':'Ainda sem URL associado neste navegador.'}</div>`;c.querySelector('.name').textContent=f.name;c.querySelector('.target').textContent='TARGET · '+f.target;c.querySelector('[data-bind]').onclick=()=>openBind(f);c.querySelector('[data-fire]').onclick=()=>fire(f,c);grid.appendChild(c)});stats(list)}
+function openBind(f){activeFactory=f;dialogTitle.textContent='Associar · '+f.name;chatUrl.value=getUrl(f.id);document.getElementById('removeBinding').style.display=chatUrl.value?'':'none';dialog.showModal();setTimeout(()=>chatUrl.focus(),40)}
+document.getElementById('bindForm').addEventListener('submit',e=>{const a=e.submitter?.value;if(!activeFactory||a==='cancel')return;if(a==='remove'){setUrl(activeFactory.id,'');msg('Ligação removida.');render();return}if(a==='save'){e.preventDefault();const v=chatUrl.value.trim();if(!valid(v)){msg('Cola um URL válido de chatgpt.com.');return}setUrl(activeFactory.id,v);dialog.close();msg('Chat associado a '+activeFactory.name);render()}});
+async function fire(f,c){try{await copy(packet(f));c.classList.add('fired');const s=c.querySelector('.status'),u=getUrl(f.id);if(u){s.className='status ok';s.textContent=`${f.signal} copiado · a abrir chat.`;msg(`${f.signal} copiado · ${f.name}`);window.open(u,'_blank','noopener,noreferrer')}else{s.className='status warn';s.textContent=`${f.signal} copiado · associa o chat para abertura direta.`;msg(`${f.signal} copiado. Falta apenas associar o chat.`)}}catch{const s=c.querySelector('.status');s.className='status err';s.textContent='Não foi possível copiar o sinal.'}}
+document.getElementById('allBtn').onclick=async()=>{const list=filtered(),b=list.map(f=>`${f.name}\nTARGET: ${f.target}\n${packet(f)}`).join('\n\n---\n\n');await copy(b);msg(`${list.length} sinais copiados.`)};
+document.getElementById('exportBtn').onclick=()=>{const bindings={};FACTORIES.forEach(f=>{const u=getUrl(f.id);if(u)bindings[f.id]=u});const blob=new Blob([JSON.stringify({schema_version:2,bindings},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='factory-switchboard-bindings.json';a.click();URL.revokeObjectURL(a.href);msg('Ligações exportadas.')};
+document.getElementById('importBtn').onclick=()=>importFile.click();
+importFile.onchange=async()=>{const file=importFile.files?.[0];if(!file)return;try{const d=JSON.parse(await file.text()),b=d?.bindings||{};let n=0;FACTORIES.forEach(f=>{if(typeof b[f.id]==='string'&&valid(b[f.id])){setUrl(f.id,b[f.id]);n++}});render();msg(`${n} ligações importadas.`)}catch{msg('Ficheiro de ligações inválido.')}importFile.value=''};
+search.addEventListener('input',render);
+renderFilters();render();
+</script>
+</body>
+</html>
