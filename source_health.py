@@ -87,14 +87,8 @@ def record_source_result(conn, source, *, success, duration_ms, found=0, new_ite
     conn.commit()
 
 
-def record_source_ingestion_failure(conn, source, *, error, observed_at=None):
-    """Degrade source currentness after canonical persistence rolls back.
-
-    Fetch success and durable ingestion are distinct evidence. Preserve the prior
-    successful fetch timestamp/counts for diagnosis, but record a bounded failure
-    observation and degraded status so the public Source Health contract cannot
-    mistake successful transport for committed source state.
-    """
+def _record_source_durable_failure(conn, source, *, error, error_prefix, observed_at=None):
+    """Record a bounded failure after fetch transport without erasing last success."""
     ensure_source_health(conn)
     now = _utc_iso(observed_at)
     conn.execute('''INSERT INTO source_health
@@ -106,8 +100,41 @@ def record_source_ingestion_failure(conn, source, *, error, observed_at=None):
           consecutive_failures=COALESCE(source_health.consecutive_failures,0)+1,
           last_error=excluded.last_error,
           status='degraded' ''',
-        (str(source), now, now, f"ingestion_commit_failed:{type(error).__name__}"))
+        (str(source), now, now, f"{error_prefix}:{type(error).__name__}"))
     conn.commit()
+
+
+def record_source_ingestion_failure(conn, source, *, error, observed_at=None):
+    """Degrade source currentness after canonical persistence rolls back.
+
+    Fetch success and durable ingestion are distinct evidence. Preserve the prior
+    successful fetch timestamp/counts for diagnosis, but record a bounded failure
+    observation and degraded status so the public Source Health contract cannot
+    mistake successful transport for committed source state.
+    """
+    _record_source_durable_failure(
+        conn,
+        source,
+        error=error,
+        error_prefix="ingestion_commit_failed",
+        observed_at=observed_at,
+    )
+
+
+def record_source_projection_failure(conn, source, *, error, observed_at=None):
+    """Degrade currentness when canonical truth cannot reach customer projection.
+
+    The source transaction may already be durable, so this is not an ingestion
+    rollback. Preserve its prior successful fetch evidence and counts while making
+    the end-to-end projection failure explicit in the public Source Health truth.
+    """
+    _record_source_durable_failure(
+        conn,
+        source,
+        error=error,
+        error_prefix="projection_reconciliation_failed",
+        observed_at=observed_at,
+    )
 
 
 def get_source_cursor(conn, source):
