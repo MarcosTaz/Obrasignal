@@ -149,7 +149,7 @@ def _temporally_authoritative_records(conn, records):
     return accepted
 
 
-def commit_staged_source_syncs(conn):
+def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
     """Atomically persist Signal, metadata, lifecycle and source cursors.
 
     The legacy opportunity transaction has already committed by the time this
@@ -157,6 +157,12 @@ def commit_staged_source_syncs(conn):
     together. A malformed Signal identity/type, metadata/lifecycle write failure
     or cursor failure rolls back the complete source-side transaction, preventing
     silent data loss and preserving fail-closed cursor semantics.
+
+    ``accepted_tender_identities`` is an optional mutable set used by the runtime
+    composition layer. When supplied, it receives only TENDER identities admitted
+    by publisher-time authority in the transaction that actually commits. On any
+    rollback the set is cleared, so compatibility projection code cannot mistake
+    rolled-back work for accepted customer truth.
 
     Fetch health may already have been committed before this transaction begins.
     When canonical persistence fails, compensate that observation after rollback
@@ -166,6 +172,8 @@ def commit_staged_source_syncs(conn):
     those compensation writes themselves.
     """
     pending = staged_source_syncs()
+    if accepted_tender_identities is not None:
+        accepted_tender_identities.clear()
     if not pending:
         return _empty_commit_result()
     signal_records = 0
@@ -175,6 +183,14 @@ def commit_staged_source_syncs(conn):
     try:
         for item in pending:
             records = _temporally_authoritative_records(conn, item.records)
+            if accepted_tender_identities is not None:
+                for record in records:
+                    if not isinstance(record, Mapping):
+                        continue
+                    source = str(record.get("source") or "").strip()
+                    external_id = str(record.get("external_id") or "").strip()
+                    if source and external_id and signal_type_of(record) == "TENDER":
+                        accepted_tender_identities.add((source, external_id))
             signal_records += persist_signal_records(
                 conn,
                 records,
@@ -193,6 +209,8 @@ def commit_staged_source_syncs(conn):
         conn.commit()
     except Exception as exc:
         conn.rollback()
+        if accepted_tender_identities is not None:
+            accepted_tender_identities.clear()
         compensation_error = None
         for item in pending:
             try:
