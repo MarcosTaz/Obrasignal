@@ -1,8 +1,10 @@
 # Capacity Commitment — T1 Gate Matrix
 
-Decision state: **T1 CANDIDATE — exact-head verification required after final documentation sync**
+Decision state: **T1 — PILOT CAPABLE**
 
 Engine: `capacity-recoverability-t1.5`
+
+Promotion evidence: exact candidate HEAD `bfeda970dfc9c7681d85d8a2afaccbc3dee6afe0` passed the full repository Python quality run with **855 passed / 2 skipped**. No applicable known P0/P1 remains in the controlled create-only assisted journey. This promotion does not imply merge, production deployment, market exposure, customer proof, settlement, payment, WTP, or revenue.
 
 Scope: controlled assisted automotive supplier volume-shortfall / dedicated-investment recoverability service. Manual contract review remains allowed. T1 is create-only: a case cannot be silently edited or overwritten after creation.
 
@@ -82,12 +84,14 @@ Those belong to later product/market terminals unless evidence creates a new P0/
 
 The repository-wide mobile job is currently red on an unchanged mobile dependency: Expo Doctor expects `react-native 0.86.3` while the existing mobile project pins `0.86.2`. Capacity Commitment does not modify mobile dependencies. This external red must remain visible but is not evidence of a Capacity Commitment domain regression.
 
-## Promotion rule
+## T1 terminal rule
 
-Promote to `T1 — PILOT CAPABLE` only when:
+T1 remains valid while:
 
-1. final exact branch HEAD Python quality is green;
-2. this matrix and README match current code;
-3. no applicable known P0/P1 remains;
-4. the unrelated mobile failure is still evidenced as external to this lane;
-5. no merge or production deployment is implied by promotion.
+1. the final branch HEAD continues to pass Capacity Commitment's Python quality suite;
+2. no applicable P0/P1 is discovered;
+3. assisted scope remains create-only unless revision history is explicitly implemented;
+4. the unrelated mobile failure is not misrepresented as green;
+5. no merge or production deployment is implied by this terminal.
+
+Any later regression immediately reopens T1 and becomes ACTIVE before T2 work continues.
