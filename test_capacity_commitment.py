@@ -47,6 +47,8 @@ RED_TEAM_CASE_IDS = {
     "cancelled-order-in-actuals",
     "wrong-amortization-basis",
     "amortization-verification-unknown",
+    "notice-window-not-verified",
+    "notice-window-verification-unknown",
     "program-match-unknown",
     "period-match-unknown",
     "currency-match-unknown",
@@ -93,6 +95,15 @@ def test_capacity_commitment_wrong_amortization_fails_closed():
     assert result.economic_exposure == Decimal("100000")
     assert result.claimable_amount == Decimal("0")
     assert result.reasons == ("amortization_basis_not_verified",)
+
+
+def test_capacity_commitment_unverified_notice_window_fails_closed():
+    recovery_case = case("unverified-notice-window-direct-test", notice_window_verified=False)
+    result = evaluate_recoverability(recovery_case)
+    assert result.recoverability_state == RecoverabilityState.UNKNOWN
+    assert result.economic_exposure == Decimal("100000")
+    assert result.claimable_amount == Decimal("0")
+    assert result.reasons == ("notice_window_not_verified",)
 
 
 def test_capacity_commitment_rejects_negative_inputs():
