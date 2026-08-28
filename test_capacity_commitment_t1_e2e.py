@@ -83,6 +83,20 @@ def test_assisted_api_end_to_end_matrix(tmp_path, case_id, overrides, expected_s
     assert cross_tenant.status_code == 404
 
 
+def test_timeout_style_exact_retry_is_idempotent_through_http(tmp_path):
+    repository = CapacityRepository(str(tmp_path / "capacity.db"))
+    app = create_app(repository, lambda req: req.headers.get("X-Test-Tenant"))
+    app.config.update(TESTING=True)
+    client = app.test_client()
+    payload = request_payload("timeout-retry")
+
+    first = client.post("/api/capacity/cases", headers=HEADERS, json=payload)
+    retry = client.post("/api/capacity/cases", headers=HEADERS, json=payload)
+    assert first.status_code == retry.status_code == 201
+    assert first.get_json()["result"] == retry.get_json()["result"]
+    assert repository.list_case_ids(tenant_id="tenant-a") == ["timeout-retry"]
+
+
 def test_forecast_revision_cannot_change_firm_commitment_entitlement(tmp_path):
     repository = CapacityRepository(str(tmp_path / "capacity.db"))
     app = create_app(repository, lambda req: req.headers.get("X-Test-Tenant"))
