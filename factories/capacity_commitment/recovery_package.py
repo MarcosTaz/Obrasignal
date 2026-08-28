@@ -95,11 +95,14 @@ def build_recovery_package(
         "asset_dedicated": case.asset_dedicated,
         "exposure_type": case.exposure_type.value,
         "amortization_basis_units": case.amortization_basis_units,
+        "amortization_verified": case.amortization_verified,
     }
     investment_exposure = {
         "exposure_type": case.exposure_type.value,
         "cost_recovery_mode": case.cost_recovery_mode.value,
         "dedicated_cost": case.dedicated_cost,
+        "amortization_basis_units": case.amortization_basis_units,
+        "amortization_verified": case.amortization_verified,
         "recovered_via_actual_units": result.recovered_via_actual_units,
         "economic_exposure": result.economic_exposure,
         "net_exposure": result.net_exposure,
@@ -114,6 +117,7 @@ def build_recovery_package(
         "period_matches": case.period_matches,
         "currency_matches": case.currency_matches,
         "unit_matches": case.unit_matches,
+        "amortization_verified": case.amortization_verified,
         "contract_current": case.contract_current,
         "amendment_reviewed": case.amendment_reviewed,
         "asset_dedicated": case.asset_dedicated,
