@@ -29,6 +29,8 @@ class DispatchDecision:
     source: str | None
     canonical_head: str | None
     resume_at: str
+    execution_branch: str | None = None
+    execution_head: str | None = None
 
 
 class OrchestratorError(RuntimeError):
@@ -56,6 +58,10 @@ def _retry_gate_open(retry: dict[str, Any], task: str) -> bool:
 
 class PersistentFactoryOrchestrator:
     """Process-restart-safe Factory Cloud scheduler.
+
+    Canonical source truth remains persisted separately from the optional execution
+    source. Dispatches may target a separately verified non-canonical development
+    branch/head without promoting it to canonical main.
 
     Interrupted execution recovery is intentionally explicit. A long-lived worker
     must acquire dispatch authority before declaring an EXECUTING record interrupted.
@@ -127,11 +133,32 @@ class PersistentFactoryOrchestrator:
             return None
         if not _retry_gate_open(dict(state.get("retry_state") or {}), task):
             return None
+
         source_truth = app.get("source_truth") or {}
-        source = source_truth.get("repository") or source_truth.get("canonical_repository") or source_truth.get("project")
+        canonical_source = (
+            source_truth.get("repository")
+            or source_truth.get("canonical_repository")
+            or source_truth.get("project")
+        )
+        execution = app.get("execution_source") or {}
+        if mode == "repository_safe_execution" and execution:
+            source = execution.get("repository") or canonical_source
+            execution_branch = str(execution.get("branch") or "").strip() or None
+            execution_head = str(execution.get("head") or "").strip() or None
+        else:
+            source = canonical_source
+            execution_branch = str(source_truth.get("canonical_branch") or "").strip() or None
+            execution_head = state.get("canonical_head")
+
         return DispatchDecision(
-            app_id=state["app_id"], mode=mode, task=task, source=source,
-            canonical_head=state.get("canonical_head"), resume_at=str(state.get("resume_at") or task),
+            app_id=state["app_id"],
+            mode=mode,
+            task=task,
+            source=source,
+            canonical_head=state.get("canonical_head"),
+            resume_at=str(state.get("resume_at") or task),
+            execution_branch=execution_branch,
+            execution_head=execution_head,
         )
 
     def choose_next(self, attempted: set[str] | None = None) -> DispatchDecision | None:
@@ -189,9 +216,6 @@ class PersistentFactoryOrchestrator:
         elif result.status == "DONE":
             retry = {}
 
-        # A completed task is no longer a valid resume target. Even if a queued
-        # app result echoes the request's former resume_at, DONE must advance the
-        # durable baton atomically so ACTIVE and RESUME_AT cannot diverge.
         if result.status == "DONE":
             resume_at = next_active or decision.task
         else:
@@ -208,8 +232,14 @@ class PersistentFactoryOrchestrator:
     def execute_one(self, decision: DispatchDecision) -> ExecutionResult:
         execution_id = uuid.uuid4().hex
         payload = {
-            "execution_id": execution_id, "app_id": decision.app_id, "mode": decision.mode,
-            "task": decision.task, "source": decision.source, "canonical_head": decision.canonical_head,
+            "execution_id": execution_id,
+            "app_id": decision.app_id,
+            "mode": decision.mode,
+            "task": decision.task,
+            "source": decision.source,
+            "canonical_head": decision.canonical_head,
+            "execution_branch": decision.execution_branch,
+            "execution_head": decision.execution_head,
             "resume_at": decision.resume_at,
         }
         self.store.start_execution(decision.app_id, execution_id, decision.task, payload)
@@ -217,8 +247,14 @@ class PersistentFactoryOrchestrator:
         try:
             result = adapter.execute(
                 ExecutionRequest(
-                    app_id=decision.app_id, mode=decision.mode, task=decision.task,
-                    source=decision.source, canonical_head=decision.canonical_head, resume_at=decision.resume_at,
+                    app_id=decision.app_id,
+                    mode=decision.mode,
+                    task=decision.task,
+                    source=decision.source,
+                    canonical_head=decision.canonical_head,
+                    resume_at=decision.resume_at,
+                    execution_branch=decision.execution_branch,
+                    execution_head=decision.execution_head,
                 )
             )
         except Exception as exc:
