@@ -5,6 +5,11 @@ SQLite/storage envelope versions. Historical canonical rows are deliberately not
 backfilled: absence means the transformation used for that historical row is
 UNKNOWN. Rows inserted or rewritten through the current canonical projection are
 stamped by source-specific SQLite triggers installed at schema initialization.
+
+The same source-projection schema boundary also fails closed for newly written
+malformed publication dates. An unparsable publisher date has UNKNOWN temporal
+authority; it must not survive as an arbitrary sortable string. Historical rows
+are not silently rewritten by schema initialization.
 """
 
 NORMALIZATION_SEMANTIC_VERSIONS = {
@@ -31,6 +36,8 @@ def ensure_normalization_provenance(conn):
 
     conn.execute("DROP TRIGGER IF EXISTS tenders_normalization_provenance_insert")
     conn.execute("DROP TRIGGER IF EXISTS tenders_normalization_provenance_update")
+    conn.execute("DROP TRIGGER IF EXISTS tenders_publication_date_validity_insert")
+    conn.execute("DROP TRIGGER IF EXISTS tenders_publication_date_validity_update")
 
     ted = NORMALIZATION_SEMANTIC_VERSIONS["TED"].replace("'", "''")
     base = NORMALIZATION_SEMANTIC_VERSIONS["BASE"].replace("'", "''")
@@ -62,5 +69,29 @@ def ensure_normalization_provenance(conn):
           UPDATE tenders
              SET normalization_version={expression}
            WHERE id=NEW.id;
+        END"""
+    )
+
+    # A non-empty date that SQLite cannot interpret is UNKNOWN publisher time.
+    # Normalize only new/changed projection writes to NULL so existing ordering
+    # falls back to discovery chronology. Do not backfill historical rows here.
+    conn.execute(
+        """CREATE TRIGGER tenders_publication_date_validity_insert
+        AFTER INSERT ON tenders
+        WHEN NEW.publication_date IS NOT NULL
+             AND TRIM(NEW.publication_date)<>''
+             AND julianday(NEW.publication_date) IS NULL
+        BEGIN
+          UPDATE tenders SET publication_date=NULL WHERE id=NEW.id;
+        END"""
+    )
+    conn.execute(
+        """CREATE TRIGGER tenders_publication_date_validity_update
+        AFTER UPDATE OF publication_date ON tenders
+        WHEN NEW.publication_date IS NOT NULL
+             AND TRIM(NEW.publication_date)<>''
+             AND julianday(NEW.publication_date) IS NULL
+        BEGIN
+          UPDATE tenders SET publication_date=NULL WHERE id=NEW.id;
         END"""
     )
