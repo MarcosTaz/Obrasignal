@@ -333,8 +333,8 @@ def fixture_opportunity_workflow(fixture_ref: str):
                 payload.get("status"),
                 payload.get("note"),
             )
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+        except ValueError:
+            return jsonify({"error": "invalid_workflow_request"}), 400
         return jsonify({"ok": True, "workflow": workflow, "account_id": identity.account_id})
     finally:
         conn.close()
