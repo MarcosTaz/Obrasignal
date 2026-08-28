@@ -130,6 +130,7 @@ def build_recovery_package(
     }
     audit_trail = {
         "case_id": case.case_id,
+        "engine_version": result.engine_version,
         "source_evidence_refs": evidence_refs,
         "missing_evidence": missing_evidence,
         "engine_reasons": result.reasons,
