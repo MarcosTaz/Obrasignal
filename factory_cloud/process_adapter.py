@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 from factory_cloud.adapters import ExecutionRequest, ExecutionResult
+from factory_cloud.capabilities import (
+    Capability,
+    CapabilityContractError,
+    parse_capabilities,
+    require_capabilities,
+)
 
 SAFE_STATUSES = {"DONE", "WAIT", "BLOCKED", "ERROR"}
 MAX_METADATA_TEXT = 512
@@ -23,7 +29,7 @@ def _bounded_text(value: Any, *, field: str, allow_empty: bool = True) -> str:
     if not isinstance(value, str):
         raise ProcessAdapterConfigError(f"{field} must be a string")
     value = value.strip()
-    if not allow_empty and not value:
+    if required := (not allow_empty and not value):
         raise ProcessAdapterConfigError(f"{field} must not be empty")
     if len(value) > MAX_METADATA_TEXT:
         raise ProcessAdapterConfigError(f"{field} exceeds metadata limit")
@@ -59,6 +65,7 @@ class ProcessAdapterConfig:
     mode: str
     workspace: Path
     command: tuple[str, ...]
+    capabilities: frozenset[Capability]
     timeout_seconds: float = 1800.0
 
     @classmethod
@@ -83,13 +90,24 @@ class ProcessAdapterConfig:
         if not isinstance(command_value, list) or not command_value:
             raise ProcessAdapterConfigError("command must be a non-empty argv list")
         command = tuple(_bounded_text(item, field="command", allow_empty=False) for item in command_value)
+        try:
+            capabilities = parse_capabilities(payload.get("capabilities"), require_explicit=True)
+        except CapabilityContractError as exc:
+            raise ProcessAdapterConfigError(str(exc)) from exc
         timeout_value = payload.get("timeout_seconds", 1800.0)
         if not isinstance(timeout_value, (int, float)) or isinstance(timeout_value, bool):
             raise ProcessAdapterConfigError("timeout_seconds must be numeric")
         timeout_seconds = float(timeout_value)
         if timeout_seconds <= 0 or timeout_seconds > 21600:
             raise ProcessAdapterConfigError("timeout_seconds must be > 0 and <= 21600")
-        return cls(app_id=app_id, mode=mode, workspace=workspace, command=command, timeout_seconds=timeout_seconds)
+        return cls(
+            app_id=app_id,
+            mode=mode,
+            workspace=workspace,
+            command=command,
+            capabilities=capabilities,
+            timeout_seconds=timeout_seconds,
+        )
 
 
 class ProcessAgentAdapter:
@@ -142,6 +160,21 @@ class ProcessAgentAdapter:
     def execute(self, request: ExecutionRequest) -> ExecutionResult:
         if request.app_id != self.config.app_id or request.mode != self.config.mode:
             return self._error(request, "app_worker_adapter_identity_mismatch", "ADAPTER_IDENTITY_MISMATCH")
+        try:
+            require_capabilities(self.config.capabilities, request.required_capabilities)
+        except CapabilityContractError:
+            return ExecutionResult(
+                status="BLOCKED",
+                evidence={
+                    "adapter": "process_agent",
+                    "task_state": "AUTHORITY_REQUIRED",
+                    "required_capabilities": list(request.required_capabilities),
+                    "declared_capabilities": sorted(item.value for item in self.config.capabilities),
+                },
+                next_active=request.task,
+                blockers=("adapter_capability_required",),
+                resume_at=request.task,
+            )
         if not self.config.workspace.is_dir():
             return ExecutionResult(
                 status="WAIT",
@@ -192,6 +225,7 @@ class ProcessAgentAdapter:
                 "canonical_head": request.canonical_head,
                 "execution_branch": request.execution_branch,
                 "execution_head": request.execution_head,
+                "required_capabilities": list(request.required_capabilities),
                 "resume_at": request.resume_at,
             },
             ensure_ascii=False,
