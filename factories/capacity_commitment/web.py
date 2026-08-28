@@ -139,6 +139,10 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
     def invalid_input(exc):
         return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
 
+    @app.errorhandler(FileExistsError)
+    def case_conflict(_exc):
+        return jsonify({"error": "case_already_exists"}), 409
+
     @app.errorhandler(KeyError)
     def not_found(_exc):
         return jsonify({"error": "case_not_found"}), 404
