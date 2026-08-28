@@ -39,6 +39,27 @@ MANDATORY_CASE_IDS = {
     "zero-recovery-right-unknown",
 }
 
+RED_TEAM_CASE_IDS = {
+    "wrong-unit",
+    "missing-call-off",
+    "late-call-off-not-reconciled",
+    "duplicate-volume",
+    "cancelled-order-in-actuals",
+    "wrong-amortization-basis",
+    "amortization-verification-unknown",
+    "program-match-unknown",
+    "period-match-unknown",
+    "currency-match-unknown",
+    "unit-match-unknown",
+    "actuals-completeness-unknown",
+    "actuals-deduplication-unknown",
+    "cancelled-order-reconciliation-unknown",
+    "contract-current-unknown",
+    "amendment-review-unknown",
+    "prior-payment-exhausts-exposure",
+    "mitigation-exceeds-exposure",
+}
+
 
 @pytest.mark.parametrize("recovery_case,expected", CASES, ids=lambda value: getattr(value, "case_id", None))
 def test_capacity_commitment_oracle(recovery_case, expected):
@@ -50,9 +71,10 @@ def test_capacity_commitment_oracle(recovery_case, expected):
     assert result.claimable_amount == expected["recoverable"]
 
 
-def test_capacity_commitment_mandatory_matrix_present():
+def test_capacity_commitment_mandatory_and_red_team_matrix_present():
     actual = {recovery_case.case_id for recovery_case, _ in CASES}
     assert MANDATORY_CASE_IDS.issubset(actual)
+    assert RED_TEAM_CASE_IDS.issubset(actual)
 
 
 def test_capacity_commitment_unknown_integrity_fails_closed():
@@ -62,6 +84,15 @@ def test_capacity_commitment_unknown_integrity_fails_closed():
     assert result.economic_exposure > Decimal("0")
     assert result.recoverable_amount == Decimal("0")
     assert result.claimable_amount == Decimal("0")
+
+
+def test_capacity_commitment_wrong_amortization_fails_closed():
+    recovery_case = case("wrong-amortization-direct-test", amortization_verified=False)
+    result = evaluate_recoverability(recovery_case)
+    assert result.recoverability_state == RecoverabilityState.UNKNOWN
+    assert result.economic_exposure == Decimal("100000")
+    assert result.claimable_amount == Decimal("0")
+    assert result.reasons == ("amortization_basis_not_verified",)
 
 
 def test_capacity_commitment_rejects_negative_inputs():
