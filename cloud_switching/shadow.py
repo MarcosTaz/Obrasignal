@@ -66,7 +66,7 @@ def run_alpha_shadow_customer() -> ShadowCustomerResult:
     options = [
         SwitchingOption("renew-vmware", OptionType.RENEW, "vmware", "EUR", D("300000")),
         SwitchingOption("destination-a", OptionType.SWITCH, "public-cloud-a", "EUR", D("180000"), D("100000"), D("30000")),
-        SwitchingOption("destination-b", OptionType.SWITCH, "alternative-virtualization", "EUR", D("195000"), D("65000"), D("5000")),
+        SwitchingOption("destination-b", OptionType.SWITCH, "alternative-virtualization", "EUR", D("188000"), D("60000"), D("5000")),
     ]
 
     machine = Evidence("verified-outcome-export", EvidenceStrength.MACHINE, True, "v0.1")
