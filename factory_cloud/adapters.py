@@ -12,6 +12,18 @@ class ExecutionRequest:
     source: str | None
     canonical_head: str | None
     resume_at: str
+    execution_branch: str | None = None
+    execution_head: str | None = None
+
+    @property
+    def target_head(self) -> str | None:
+        """Exact repository revision this execution is allowed to observe/mutate.
+
+        `canonical_head` remains canonical source truth. `execution_head` may point to
+        a separately verified non-canonical development candidate. Falling back to
+        canonical keeps old jobs/configs fail-safe and backward compatible.
+        """
+        return self.execution_head or self.canonical_head
 
 
 @dataclass(frozen=True)
@@ -48,6 +60,8 @@ class RepositorySafeAdapter:
                 "dispatch_boundary": "repository_tooling_adapter_required",
                 "source": request.source,
                 "canonical_head": request.canonical_head,
+                "execution_head": request.execution_head,
+                "execution_branch": request.execution_branch,
             },
             next_active=request.task,
             blockers=("repository_tooling_adapter_required",),
