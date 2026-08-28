@@ -20,6 +20,11 @@ class MigrationCase:
     parallel_run_cost: Money
     refactoring_cost: Money
     risk_contingency_cost: Money
+    egress_data_movement_cost: Money = Decimal("0")
+    decommissioning_cost: Money = Decimal("0")
+    backup_dr_transition_cost: Money = Decimal("0")
+    security_transition_cost: Money = Decimal("0")
+    support_transition_cost: Money = Decimal("0")
     provider_credit_approved: Money = Decimal("0")
     provider_credit_received: Money = Decimal("0")
     partner_incentive_approved: Money = Decimal("0")
@@ -39,6 +44,11 @@ class MigrationCase:
             self.parallel_run_cost,
             self.refactoring_cost,
             self.risk_contingency_cost,
+            self.egress_data_movement_cost,
+            self.decommissioning_cost,
+            self.backup_dr_transition_cost,
+            self.security_transition_cost,
+            self.support_transition_cost,
             self.provider_credit_approved,
             self.provider_credit_received,
             self.partner_incentive_approved,
@@ -86,6 +96,11 @@ def calculate(case: MigrationCase) -> EconomicsResult:
             case.parallel_run_cost,
             case.refactoring_cost,
             case.risk_contingency_cost,
+            case.egress_data_movement_cost,
+            case.decommissioning_cost,
+            case.backup_dr_transition_cost,
+            case.security_transition_cost,
+            case.support_transition_cost,
         ),
         Decimal("0"),
     )
