@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 from .engine import CommitmentState, CostRecoveryMode, ExposureType, RecoveryCase
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,9 @@ class AssistedCaseState:
     evidence_refs: Tuple[str, ...] = ()
     missing_evidence: Tuple[str, ...] = ()
     deadline: Optional[str] = None
+    contract_id: Optional[str] = None
+    nomination_id: Optional[str] = None
+    forecast_units: Optional[Decimal] = None
 
 
 def _validate_identifier(name: str, value: str) -> None:
@@ -29,7 +32,14 @@ def _validate_identifier(name: str, value: str) -> None:
         raise ValueError(f"{name} is required")
 
 
-def _case_to_payload(recovery_case: RecoveryCase) -> dict:
+def _validate_contract_anchor(contract_id: Optional[str], nomination_id: Optional[str]) -> None:
+    contract = (contract_id or "").strip()
+    nomination = (nomination_id or "").strip()
+    if not contract and not nomination:
+        raise ValueError("contract_id or nomination_id is required")
+
+
+def recovery_case_to_payload(recovery_case: RecoveryCase) -> dict:
     raw = asdict(recovery_case)
     for key in (
         "committed_units",
@@ -46,7 +56,9 @@ def _case_to_payload(recovery_case: RecoveryCase) -> dict:
     return raw
 
 
-def _case_from_payload(raw: dict) -> RecoveryCase:
+def recovery_case_from_payload(raw: dict) -> RecoveryCase:
+    if not isinstance(raw, dict):
+        raise ValueError("recovery_case must be an object")
     required = {
         "case_id",
         "currency",
@@ -62,6 +74,11 @@ def _case_from_payload(raw: dict) -> RecoveryCase:
     if missing:
         raise ValueError(f"state missing case fields: {sorted(missing)}")
 
+    allowed = set(RecoveryCase.__dataclass_fields__)
+    unknown = set(raw) - allowed
+    if unknown:
+        raise ValueError(f"unknown recovery_case fields: {sorted(unknown)}")
+
     values = dict(raw)
     for key in (
         "committed_units",
@@ -71,6 +88,8 @@ def _case_from_payload(raw: dict) -> RecoveryCase:
         "mitigation",
         "prior_payment",
     ):
+        if key not in values:
+            values[key] = "0"
         values[key] = Decimal(str(values[key]))
     values["commitment_state"] = CommitmentState(values["commitment_state"])
     values["exposure_type"] = ExposureType(values["exposure_type"])
@@ -85,6 +104,13 @@ def _canonical_json(payload: dict) -> str:
 def dump_state(state: AssistedCaseState) -> str:
     for name in ("tenant_id", "company_id", "customer_id", "program_id"):
         _validate_identifier(name, getattr(state, name))
+    _validate_contract_anchor(state.contract_id, state.nomination_id)
+    if state.forecast_units is not None and state.forecast_units < Decimal("0"):
+        raise ValueError("forecast_units must be non-negative")
+    if not all(isinstance(item, str) for item in state.evidence_refs):
+        raise ValueError("evidence_refs must contain strings")
+    if not all(isinstance(item, str) for item in state.missing_evidence):
+        raise ValueError("missing_evidence must contain strings")
 
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -92,7 +118,10 @@ def dump_state(state: AssistedCaseState) -> str:
         "company_id": state.company_id,
         "customer_id": state.customer_id,
         "program_id": state.program_id,
-        "recovery_case": _case_to_payload(state.recovery_case),
+        "contract_id": state.contract_id,
+        "nomination_id": state.nomination_id,
+        "forecast_units": str(state.forecast_units) if state.forecast_units is not None else None,
+        "recovery_case": recovery_case_to_payload(state.recovery_case),
         "evidence_refs": list(state.evidence_refs),
         "missing_evidence": list(state.missing_evidence),
         "deadline": state.deadline,
@@ -127,6 +156,7 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
 
     for key in ("company_id", "customer_id", "program_id"):
         _validate_identifier(key, payload.get(key, ""))
+    _validate_contract_anchor(payload.get("contract_id"), payload.get("nomination_id"))
 
     evidence_refs = payload.get("evidence_refs", [])
     missing_evidence = payload.get("missing_evidence", [])
@@ -135,13 +165,21 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
     if not isinstance(missing_evidence, list) or not all(isinstance(item, str) for item in missing_evidence):
         raise ValueError("missing_evidence must be a string list")
 
+    forecast_raw = payload.get("forecast_units")
+    forecast_units = Decimal(str(forecast_raw)) if forecast_raw is not None else None
+    if forecast_units is not None and forecast_units < Decimal("0"):
+        raise ValueError("forecast_units must be non-negative")
+
     return AssistedCaseState(
         tenant_id=tenant_id,
         company_id=payload["company_id"],
         customer_id=payload["customer_id"],
         program_id=payload["program_id"],
-        recovery_case=_case_from_payload(payload["recovery_case"]),
+        recovery_case=recovery_case_from_payload(payload["recovery_case"]),
         evidence_refs=tuple(evidence_refs),
         missing_evidence=tuple(missing_evidence),
         deadline=payload.get("deadline"),
+        contract_id=payload.get("contract_id"),
+        nomination_id=payload.get("nomination_id"),
+        forecast_units=forecast_units,
     )
