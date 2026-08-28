@@ -7,6 +7,7 @@ from typing import Callable, Optional
 
 from flask import Flask, g, jsonify, request
 
+from .operator_ui import OPERATOR_HTML
 from .repository import CapacityRepository
 from .service import load_and_process, save_and_process
 from .state import AssistedCaseState, recovery_case_from_payload
@@ -130,9 +131,16 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
         return None
 
     @app.after_request
-    def no_store(response):
+    def security_headers(response):
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Capacity-Commitment"] = "assisted-t1"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+            "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+        )
         return response
 
     @app.errorhandler(ValueError)
@@ -147,6 +155,10 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
     def not_found(_exc):
         return jsonify({"error": "case_not_found"}), 404
 
+    @app.route("/", methods=["GET"])
+    def operator_console():
+        return OPERATOR_HTML, 200, {"Content-Type": "text/html; charset=utf-8"}
+
     @app.route("/api/capacity/cases", methods=["GET"])
     def list_cases():
         items = repository.list_case_ids(tenant_id=g.capacity_tenant_id)
@@ -154,6 +166,8 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
 
     @app.route("/api/capacity/cases", methods=["POST"])
     def create_case():
+        if request.headers.get("X-Capacity-Intent") != "create-case":
+            return jsonify({"error": "create_intent_required"}), 403
         payload = request.get_json(silent=False)
         state = _state_from_payload(payload, g.capacity_tenant_id)
         processed = save_and_process(repository, state)
