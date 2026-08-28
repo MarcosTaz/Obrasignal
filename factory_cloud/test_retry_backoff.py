@@ -22,6 +22,10 @@ class ErrorAdapter:
 
 
 class RetryBackoffTests(unittest.TestCase):
+    @staticmethod
+    def _obrasignal_decision(cloud):
+        return cloud._decision_for(cloud.store.get_app("obrasignal"))
+
     def test_pending_worker_wait_does_not_delay_consumption_poll(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = StateStore(Path(tmp) / "cloud.sqlite3")
@@ -36,7 +40,7 @@ class RetryBackoffTests(unittest.TestCase):
             self.assertEqual(result["dispatches"][0]["status"], "WAIT")
             self.assertIn("app_worker_execution_pending", store.get_app("obrasignal")["blockers"])
             self.assertNotIn("next_attempt_at", store.get_app("obrasignal")["retry_state"])
-            self.assertIsNotNone(cloud.choose_next())
+            self.assertIsNotNone(self._obrasignal_decision(cloud))
 
     def test_error_retry_gate_survives_orchestrator_restart_and_expires_by_timestamp(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -59,11 +63,11 @@ class RetryBackoffTests(unittest.TestCase):
             self.assertGreater(datetime.fromisoformat(retry["next_attempt_at"]), datetime.now(timezone.utc))
 
             restarted = PersistentFactoryOrchestrator(registry, StateStore(path))
-            self.assertIsNone(restarted.choose_next())
+            self.assertIsNone(self._obrasignal_decision(restarted))
 
             retry["next_attempt_at"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
             restarted.store.checkpoint("obrasignal", retry_state_json=retry)
-            decision = restarted.choose_next()
+            decision = self._obrasignal_decision(restarted)
             self.assertIsNotNone(decision)
             self.assertEqual(decision.task, state["active"])
 
@@ -83,7 +87,7 @@ class RetryBackoffTests(unittest.TestCase):
             self.assertNotEqual(old_task, new_task)
 
             store.checkpoint("obrasignal", active=new_task, resume_at=new_task)
-            decision = cloud.choose_next()
+            decision = self._obrasignal_decision(cloud)
             self.assertIsNotNone(decision)
             self.assertEqual(decision.task, new_task)
 
@@ -96,7 +100,7 @@ class RetryBackoffTests(unittest.TestCase):
                 "obrasignal",
                 retry_state_json={"task": task, "next_attempt_at": "not-a-time", "retry_reason": "WAIT"},
             )
-            self.assertIsNone(cloud.choose_next())
+            self.assertIsNone(self._obrasignal_decision(cloud))
 
 
 if __name__ == "__main__":
