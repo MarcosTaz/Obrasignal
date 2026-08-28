@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.1"
+ENGINE_VERSION = "capacity-recoverability-t1.2"
 
 
 class CommitmentState(str, Enum):
@@ -92,6 +92,17 @@ class RecoveryResult:
 
 
 def _validate(case: RecoveryCase) -> None:
+    if not isinstance(case.case_id, str) or not case.case_id.strip() or len(case.case_id) > 200:
+        raise ValueError("case_id must be a non-empty string up to 200 characters")
+    if not isinstance(case.currency, str) or len(case.currency) != 3 or not case.currency.isalpha():
+        raise ValueError("currency must be a 3-letter alphabetic code")
+    if not isinstance(case.commitment_state, CommitmentState):
+        raise ValueError("commitment_state must be a valid CommitmentState")
+    if not isinstance(case.exposure_type, ExposureType):
+        raise ValueError("exposure_type must be a valid ExposureType")
+    if not isinstance(case.cost_recovery_mode, CostRecoveryMode):
+        raise ValueError("cost_recovery_mode must be a valid CostRecoveryMode")
+
     numeric = {
         "committed_units": case.committed_units,
         "actual_units": case.actual_units,
@@ -101,16 +112,47 @@ def _validate(case: RecoveryCase) -> None:
         "prior_payment": case.prior_payment,
     }
     for name, value in numeric.items():
+        if not isinstance(value, Decimal):
+            raise ValueError(f"{name} must be an exact Decimal value")
+        if not value.is_finite():
+            raise ValueError(f"{name} must be finite")
         if value < ZERO:
             raise ValueError(f"{name} must be non-negative")
+
+    required_bools = {
+        "evidence_supported": case.evidence_supported,
+        "asset_dedicated": case.asset_dedicated,
+        "already_fully_amortized": case.already_fully_amortized,
+        "already_paid": case.already_paid,
+        "duplicate_claim": case.duplicate_claim,
+    }
+    for name, value in required_bools.items():
+        if type(value) is not bool:
+            raise ValueError(f"{name} must be boolean")
+
+    optional_bools = {
+        "explicit_recovery_right": case.explicit_recovery_right,
+        "notice_valid": case.notice_valid,
+        "program_matches": case.program_matches,
+        "period_matches": case.period_matches,
+        "currency_matches": case.currency_matches,
+        "unit_matches": case.unit_matches,
+        "actuals_complete": case.actuals_complete,
+        "actuals_deduplicated": case.actuals_deduplicated,
+        "cancelled_orders_excluded": case.cancelled_orders_excluded,
+        "contract_current": case.contract_current,
+        "amendment_reviewed": case.amendment_reviewed,
+    }
+    for name, value in optional_bools.items():
+        if value is not None and type(value) is not bool:
+            raise ValueError(f"{name} must be boolean or null")
+
     if (
         case.cost_recovery_mode is CostRecoveryMode.UNIT_AMORTIZED
         and case.dedicated_cost > ZERO
         and case.amortization_basis_units <= ZERO
     ):
         raise ValueError("amortization_basis_units must be positive for unit-amortized cost")
-    if not case.currency or len(case.currency) != 3 or not case.currency.isalpha():
-        raise ValueError("currency must be a 3-letter alphabetic code")
 
 
 def _economic_exposure(case: RecoveryCase) -> tuple[Decimal, Decimal, Decimal]:
