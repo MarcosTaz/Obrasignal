@@ -54,9 +54,29 @@ def test_received_credit_cannot_exceed_approved_credit():
         calculate(base_case(provider_credit_received=D("40000")))
 
 
+def test_oversubsidy_never_produces_negative_payback_duration():
+    result = calculate(
+        base_case(
+            provider_credit_approved=D("90000"),
+            provider_credit_received=D("90000"),
+            partner_incentive_approved=D("20000"),
+            partner_incentive_received=D("20000"),
+        )
+    )
+    assert result.customer_cash_switching_cost == D("-10000")
+    assert result.customer_cash_payback_months == D("0.00")
+
+
 def test_partner_self_attestation_is_excluded_from_verified_benchmark():
     partner = Evidence("partner-case", EvidenceStrength.PARTNER, False, "v0.1")
     field = ForecastActual(D("100"), D("90"), partner)
+    record = MigrationOutcomeRecord("x", "vmware", "aws", "vm", "rehost", field, field, field, field, field)
+    assert not record.verified_for_benchmark()
+
+
+def test_non_independent_customer_attestation_is_excluded_from_verified_benchmark():
+    customer = Evidence("customer-sheet", EvidenceStrength.CUSTOMER, False, "v0.1")
+    field = ForecastActual(D("100"), D("90"), customer)
     record = MigrationOutcomeRecord("x", "vmware", "aws", "vm", "rehost", field, field, field, field, field)
     assert not record.verified_for_benchmark()
 
