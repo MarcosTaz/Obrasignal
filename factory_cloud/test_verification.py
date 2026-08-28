@@ -29,8 +29,8 @@ class RecordingAdapter:
 
 
 class FactoryCloudSourceVerificationTests(unittest.TestCase):
-    def request(self):
-        return ExecutionRequest(
+    def request(self, **changes):
+        payload = dict(
             app_id="obrasignal",
             mode="repository_safe_execution",
             task="safe task",
@@ -38,6 +38,8 @@ class FactoryCloudSourceVerificationTests(unittest.TestCase):
             canonical_head="expected-head",
             resume_at="safe task",
         )
+        payload.update(changes)
+        return ExecutionRequest(**payload)
 
     def test_matching_head_allows_delegate(self):
         verifier = GitHubHeadVerifier(opener=lambda request, timeout: FakeResponse({"commit": {"sha": "expected-head"}}))
@@ -47,6 +49,43 @@ class FactoryCloudSourceVerificationTests(unittest.TestCase):
         self.assertEqual(result.status, "WAIT")
         self.assertIsNotNone(result.last_verified)
 
+    def test_explicit_execution_source_matching_head_allows_delegate(self):
+        verifier = GitHubHeadVerifier(opener=lambda request, timeout: FakeResponse({"commit": {"sha": "execution-head"}}))
+        delegate = RecordingAdapter()
+        result = VerifiedDispatchAdapter(
+            delegate,
+            "MarcosTaz/Obrasignal",
+            "integration/current-spine",
+            "execution-head",
+            verifier,
+        ).execute(self.request(execution_branch="integration/current-spine", execution_head="execution-head"))
+        self.assertEqual(delegate.calls, 1)
+        self.assertEqual(result.status, "WAIT")
+        self.assertIsNotNone(result.last_verified)
+
+    def test_request_execution_source_mismatch_fails_before_live_verification(self):
+        class NeverVerify:
+            def verify(self, repository, branch, expected_head):
+                raise AssertionError("live verifier must not run for mismatched request authority")
+
+        delegate = RecordingAdapter()
+        adapter = VerifiedDispatchAdapter(
+            delegate,
+            "MarcosTaz/Obrasignal",
+            "integration/current-spine",
+            "execution-head",
+            NeverVerify(),
+        )
+        for request in (
+            self.request(source="MarcosTaz/Other", execution_branch="integration/current-spine", execution_head="execution-head"),
+            self.request(execution_branch="other-branch", execution_head="execution-head"),
+            self.request(execution_branch="integration/current-spine", execution_head="wrong-head"),
+        ):
+            result = adapter.execute(request)
+            self.assertEqual(result.status, "WAIT")
+            self.assertIn("execution_source_request_mismatch", result.blockers)
+        self.assertEqual(delegate.calls, 0)
+
     def test_mismatching_head_stays_wait(self):
         verifier = GitHubHeadVerifier(opener=lambda request, timeout: FakeResponse({"commit": {"sha": "new-head"}}))
         delegate = RecordingAdapter()
@@ -55,6 +94,7 @@ class FactoryCloudSourceVerificationTests(unittest.TestCase):
         self.assertEqual(result.status, "WAIT")
         self.assertIn("canonical_head_changed", result.blockers)
         self.assertEqual(result.evidence["observed_head"], "new-head")
+        self.assertEqual(result.evidence["verification_scope"], "execution_source")
 
     def test_unavailable_verification_remains_unknown(self):
         def unavailable(request, timeout):
