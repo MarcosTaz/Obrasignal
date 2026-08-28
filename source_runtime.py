@@ -80,22 +80,25 @@ def _aware_source_instant(value):
 
 
 def _temporally_authoritative_records(conn, records):
-    """Accept only observations provably newer by the publisher's own update clock.
+    """Accept only observations that cannot regress known publisher chronology.
 
-    Processing/arrival time has no business authority here. When both persisted and
-    incoming publisher instants are explicit and timezone-aware, an incoming record
-    must be strictly newer to replace durable truth. Equal instants establish no
-    causal winner and therefore fail closed. Missing, malformed or timezone-naive
-    source timestamps remain UNKNOWN and are not assigned an ordering here.
+    Processing/arrival time has no business authority here. Once durable truth has
+    an explicit timezone-aware publisher instant, replacement requires an incoming
+    explicit timezone-aware instant that is strictly newer. Equal instants establish
+    no causal winner and fail closed. Missing, malformed or timezone-naive incoming
+    timestamps have UNKNOWN position relative to known durable time and therefore
+    also fail closed rather than being promoted by arrival order.
+
+    If durable publisher time is itself UNKNOWN, this layer still does not invent an
+    ordering: incoming records remain eligible for the downstream identity/schema
+    contracts to decide. This preserves current behavior for UNKNOWN↔UNKNOWN and
+    allows an explicit publisher instant to improve previously UNKNOWN temporal
+    evidence without claiming retroactive ordering among unknown observations.
     """
     ensure_signal_records(conn)
     accepted = []
     for record in records or []:
         if not isinstance(record, Mapping):
-            accepted.append(record)
-            continue
-        incoming = _aware_source_instant(record.get("source_updated_at"))
-        if incoming is None:
             accepted.append(record)
             continue
         source = str(record.get("source") or "").strip()
@@ -110,8 +113,10 @@ def _temporally_authoritative_records(conn, records):
             (source, signal_type, external_id),
         ).fetchone()
         existing = _aware_source_instant(row[0]) if row else None
-        if existing is not None and incoming <= existing:
-            continue
+        incoming = _aware_source_instant(record.get("source_updated_at"))
+        if existing is not None:
+            if incoming is None or incoming <= existing:
+                continue
         accepted.append(record)
     return accepted
 
