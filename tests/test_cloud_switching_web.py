@@ -105,13 +105,17 @@ def test_assisted_web_flow_builds_saves_returns_decision_and_options(tmp_path):
     assert body["decision_package"]["captured_incentives"] == "30000"
     assert body["option_comparison"]["economic_winner_id"] == "aws"
     assert body["option_comparison"]["customer_cash_winner_id"] == "aws"
+    assert body["delivery_content_hash"]
 
     loaded = client.get(
         "/cloud-switching/api/packages/case-1",
         headers={"X-Test-Tenant": "tenant-a"},
     )
     assert loaded.status_code == 200
-    assert loaded.get_json()["content_hash"] == body["content_hash"]
+    loaded_body = loaded.get_json()
+    assert loaded_body["delivery_content_hash"] == body["delivery_content_hash"]
+    assert loaded_body["delivery"]["decision"] == body["decision_package"]
+    assert loaded_body["delivery"]["options"] == body["option_comparison"]
 
 
 def test_other_tenant_cannot_read_saved_package(tmp_path):
