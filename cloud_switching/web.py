@@ -169,23 +169,48 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
                 package_id=package_id,
                 package=package,
             )
+            delivery_payload = {
+                "decision": _json_safe(asdict(package)),
+                "options": _json_safe(asdict(option_comparison)),
+                "outcome": None,
+            }
+            stored_delivery = None
+            if hasattr(workspace, "save_delivery"):
+                stored_delivery = workspace.save_delivery(
+                    tenant_id=tenant_id,
+                    package_id=package_id,
+                    payload=delivery_payload,
+                )
         except (KeyError, TypeError, ValueError) as exc:
             return jsonify({"error": str(exc)}), 422
-        return jsonify(
-            {
-                "package_id": package_id,
-                "version": stored.version,
-                "content_hash": stored.content_hash,
-                "decision_package": _json_safe(asdict(package)),
-                "option_comparison": _json_safe(asdict(option_comparison)),
-            }
-        ), 201
+        response = {
+            "package_id": package_id,
+            "version": stored.version,
+            "content_hash": stored.content_hash,
+            "decision_package": delivery_payload["decision"],
+            "option_comparison": delivery_payload["options"],
+        }
+        if stored_delivery is not None:
+            response["delivery_version"] = stored_delivery.version
+            response["delivery_content_hash"] = stored_delivery.content_hash
+        return jsonify(response), 201
 
     @blueprint.get("/api/packages/<package_id>")
     def get_package(package_id: str):
         tenant_id, error = tenant_or_error()
         if error:
             return error
+        if hasattr(workspace, "load_delivery"):
+            delivery = workspace.load_delivery(tenant_id=tenant_id, package_id=package_id)
+            if delivery is not None:
+                return jsonify(
+                    {
+                        "package_id": delivery.package_id,
+                        "delivery_version": delivery.version,
+                        "delivery_content_hash": delivery.content_hash,
+                        "delivery": delivery.payload,
+                    }
+                )
         record = workspace.load(tenant_id=tenant_id, package_id=package_id)
         if record is None:
             return jsonify({"error": "not found"}), 404
