@@ -48,6 +48,8 @@ def test_web_create_returns_truth_preserving_result_and_package(tmp_path):
     assert body["case"]["committed_units"] == "100000"
     assert body["result"]["recoverability_state"] == "RECOVERABLE"
     assert body["result"]["recoverable_amount"] == "100000"
+    assert body["result"]["engine_version"] == "capacity-recoverability-t1.1"
+    assert body["recovery_package"]["audit_trail"]["engine_version"] == "capacity-recoverability-t1.1"
     assert body["recovery_package"]["executive_summary"]["verified_recovery"] is False
     assert body["recovery_package"]["executive_summary"]["payment_received"] is False
     assert response.headers["Cache-Control"] == "no-store"
@@ -144,6 +146,19 @@ def test_web_duplicate_creation_conflicts_and_preserves_first_snapshot(tmp_path)
 
     restored = repository.load(tenant_id="tenant-a", case_id="duplicate-case")
     assert restored.recovery_case.actual_units == Decimal("80000")
+
+
+def test_web_rejects_supported_evidence_without_persisted_refs(tmp_path):
+    app, _ = app_for(tmp_path)
+    request_payload = payload("evidence-gap")
+    request_payload["evidence_refs"] = []
+    response = app.test_client().post(
+        "/api/capacity/cases",
+        headers={"X-Test-Tenant": "tenant-a"},
+        json=request_payload,
+    )
+    assert response.status_code == 400
+    assert "evidence_supported requires" in response.get_json()["detail"]
 
 
 def test_web_rejects_unknown_top_level_and_case_fields(tmp_path):
