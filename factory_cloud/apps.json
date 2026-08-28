@@ -28,9 +28,18 @@
         "verified": true
       },
       "baton": {
-        "active": "Persistence composition and current trust-spine revalidation",
-        "next": ["Watchlist #150 reanchor", "Pursuit #172", "Q090 #223"],
-        "wait": ["canonical adoption", "merge", "deploy", "production/provider/secrets/config/source activation"]
+        "active": "Classify intra-batch publisher chronology probe #664 and repair the Temporal/source-runtime owner if deterministically RED",
+        "next": [
+          "Close Persistence #238 direct owner registration passing-after through #662 exact-head validation",
+          "Continue selective executable producer-to-consumer Contracts coverage without promoting registry GREEN to global compatibility",
+          "Continue source-to-canonical causal, normalization and historical provenance probes while preserving UNKNOWN where authority is absent"
+        ],
+        "wait": [
+          "canonical adoption",
+          "merge",
+          "deploy",
+          "production/provider/secrets/config/source activation"
+        ]
       },
       "activation": {
         "enabled": true,
