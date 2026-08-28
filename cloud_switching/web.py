@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from decimal import Decimal, InvalidOperation
+from enum import Enum
 from typing import Callable
 
 from flask import Blueprint, jsonify, request
@@ -12,6 +13,7 @@ from auth_context_jwt import JwksUnavailableError
 from .baseline import BaselineCost, Certainty, CurrentStateBaseline
 from .domain import MigrationCase
 from .incentives import Incentive, IncentiveStatus
+from .options import OptionType, SwitchingOption, compare_options
 from .service import build_decision_package
 
 
@@ -32,6 +34,8 @@ def _optional_money(value, field: str):
 def _json_safe(value):
     if isinstance(value, Decimal):
         return str(value)
+    if isinstance(value, Enum):
+        return value.value
     if isinstance(value, dict):
         return {key: _json_safe(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
@@ -102,6 +106,23 @@ def _incentives(body: dict) -> list[Incentive]:
     return results
 
 
+def _options(body: dict) -> list[SwitchingOption]:
+    results = []
+    for item in body.get("options", []):
+        results.append(
+            SwitchingOption(
+                option_id=str(item.get("option_id", "")),
+                option_type=OptionType(item.get("option_type", "switch")),
+                destination=str(item.get("destination", "")),
+                currency=str(item.get("currency", "EUR")),
+                annual_run_cost=_money(item.get("annual_run_cost", "0"), "option.annual_run_cost"),
+                one_time_switching_cost=_money(item.get("one_time_switching_cost", "0"), "option.one_time_switching_cost"),
+                received_incentives=_money(item.get("received_incentives", "0"), "option.received_incentives"),
+            )
+        )
+    return results
+
+
 def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
     blueprint = Blueprint("cloud_switching", __name__, url_prefix="/cloud-switching")
 
@@ -135,6 +156,13 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
             baseline = _baseline(tenant_id, body)
             case = _migration_case(body)
             incentives = _incentives(body)
+            options = _options(body)
+            if len(options) < 2:
+                raise ValueError("at least two switching options are required")
+            option_comparison = compare_options(
+                options,
+                horizon_years=int(body.get("horizon_years", 3)),
+            )
             package = build_decision_package(baseline, case, incentives)
             stored = workspace.save(
                 tenant_id=tenant_id,
@@ -149,6 +177,7 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
                 "version": stored.version,
                 "content_hash": stored.content_hash,
                 "decision_package": _json_safe(asdict(package)),
+                "option_comparison": _json_safe(asdict(option_comparison)),
             }
         ), 201
 
