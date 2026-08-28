@@ -1,3 +1,4 @@
+import copy
 import unittest
 
 from factory_cloud.control_plane import RegistryError, activation_plan, build_queue, load_registry, validate_registry
@@ -39,6 +40,43 @@ class FactoryCloudControlPlaneTests(unittest.TestCase):
         ]
         with self.assertRaises(RegistryError):
             validate_registry(bad)
+
+    def test_verified_execution_source_must_stay_on_canonical_repository(self):
+        registry = load_registry()
+        obra = next(app for app in registry["applications"] if app["app_id"] == "obrasignal")
+        self.assertEqual(obra["source_truth"]["canonical_branch"], "main")
+        self.assertNotEqual(obra["execution_source"]["branch"], "main")
+        self.assertNotEqual(obra["execution_source"]["head"], obra["source_truth"]["canonical_head"])
+        self.assertEqual(obra["execution_source"]["repository"], obra["source_truth"]["repository"])
+        self.assertTrue(obra["execution_source"]["verified"])
+
+        unverified = copy.deepcopy(registry)
+        next(app for app in unverified["applications"] if app["app_id"] == "obrasignal")["execution_source"]["verified"] = False
+        with self.assertRaises(RegistryError):
+            validate_registry(unverified)
+
+        other_repo = copy.deepcopy(registry)
+        next(app for app in other_repo["applications"] if app["app_id"] == "obrasignal")["execution_source"]["repository"] = "MarcosTaz/Other"
+        with self.assertRaises(RegistryError):
+            validate_registry(other_repo)
+
+        bad_sha = copy.deepcopy(registry)
+        next(app for app in bad_sha["applications"] if app["app_id"] == "obrasignal")["execution_source"]["head"] = "not-a-sha"
+        with self.assertRaises(RegistryError):
+            validate_registry(bad_sha)
+
+    def test_read_only_app_cannot_gain_execution_source(self):
+        registry = copy.deepcopy(load_registry())
+        k3 = next(app for app in registry["applications"] if app["app_id"] == "k3-fatality")
+        k3["execution_source"] = {
+            "provider": "github",
+            "repository": "MarcosTaz/k3-fatality",
+            "branch": "main",
+            "head": "a" * 40,
+            "verified": True,
+        }
+        with self.assertRaises(RegistryError):
+            validate_registry(registry)
 
 
 if __name__ == "__main__":
