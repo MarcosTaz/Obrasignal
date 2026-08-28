@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional, Tuple
 
 from .engine import CommitmentState, CostRecoveryMode, ExposureType, RecoveryCase
@@ -28,13 +28,21 @@ class AssistedCaseState:
 
 
 def _validate_identifier(name: str, value: str) -> None:
-    if not value or not value.strip():
+    if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} is required")
+    if len(value) > 200:
+        raise ValueError(f"{name} must be at most 200 characters")
 
 
 def _validate_contract_anchor(contract_id: Optional[str], nomination_id: Optional[str]) -> None:
-    contract = (contract_id or "").strip()
-    nomination = (nomination_id or "").strip()
+    contract = (contract_id or "").strip() if isinstance(contract_id, (str, type(None))) else ""
+    nomination = (nomination_id or "").strip() if isinstance(nomination_id, (str, type(None))) else ""
+    if contract_id is not None and not isinstance(contract_id, str):
+        raise ValueError("contract_id must be a string or null")
+    if nomination_id is not None and not isinstance(nomination_id, str):
+        raise ValueError("nomination_id must be a string or null")
+    if len(contract) > 200 or len(nomination) > 200:
+        raise ValueError("contract_id and nomination_id must be at most 200 characters")
     if not contract and not nomination:
         raise ValueError("contract_id or nomination_id is required")
 
@@ -42,9 +50,13 @@ def _validate_contract_anchor(contract_id: Optional[str], nomination_id: Optiona
 def _validate_reference_list(name: str, values) -> None:
     if not isinstance(values, (tuple, list)) or not all(isinstance(item, str) for item in values):
         raise ValueError(f"{name} must contain strings")
+    if len(values) > 100:
+        raise ValueError(f"{name} cannot exceed 100 references")
     normalized = [item.strip() for item in values]
     if any(not item for item in normalized):
         raise ValueError(f"{name} cannot contain blank references")
+    if any(len(item) > 500 for item in normalized):
+        raise ValueError(f"{name} references must be at most 500 characters")
     if len(set(normalized)) != len(normalized):
         raise ValueError(f"{name} cannot contain duplicate references")
 
@@ -105,10 +117,44 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
     ):
         if key not in values:
             values[key] = "0"
-        values[key] = Decimal(str(values[key]))
-    values["commitment_state"] = CommitmentState(values["commitment_state"])
-    values["exposure_type"] = ExposureType(values["exposure_type"])
-    values["cost_recovery_mode"] = CostRecoveryMode(values["cost_recovery_mode"])
+        try:
+            values[key] = Decimal(str(values[key]))
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            raise ValueError(f"{key} must be numeric") from exc
+
+    required_bool_fields = (
+        "evidence_supported",
+        "asset_dedicated",
+        "already_fully_amortized",
+        "already_paid",
+        "duplicate_claim",
+    )
+    optional_bool_fields = (
+        "explicit_recovery_right",
+        "notice_valid",
+        "program_matches",
+        "period_matches",
+        "currency_matches",
+        "unit_matches",
+        "actuals_complete",
+        "actuals_deduplicated",
+        "cancelled_orders_excluded",
+        "contract_current",
+        "amendment_reviewed",
+    )
+    for key in required_bool_fields:
+        if key in values and type(values[key]) is not bool:
+            raise ValueError(f"{key} must be boolean")
+    for key in optional_bool_fields:
+        if key in values and values[key] is not None and type(values[key]) is not bool:
+            raise ValueError(f"{key} must be boolean or null")
+
+    try:
+        values["commitment_state"] = CommitmentState(values["commitment_state"])
+        values["exposure_type"] = ExposureType(values["exposure_type"])
+        values["cost_recovery_mode"] = CostRecoveryMode(values["cost_recovery_mode"])
+    except ValueError as exc:
+        raise ValueError("invalid recovery_case enum value") from exc
     return RecoveryCase(**values)
 
 
@@ -120,8 +166,11 @@ def dump_state(state: AssistedCaseState) -> str:
     for name in ("tenant_id", "company_id", "customer_id", "program_id"):
         _validate_identifier(name, getattr(state, name))
     _validate_contract_anchor(state.contract_id, state.nomination_id)
-    if state.forecast_units is not None and state.forecast_units < Decimal("0"):
-        raise ValueError("forecast_units must be non-negative")
+    if state.forecast_units is not None:
+        if not isinstance(state.forecast_units, Decimal) or not state.forecast_units.is_finite():
+            raise ValueError("forecast_units must be a finite Decimal value")
+        if state.forecast_units < Decimal("0"):
+            raise ValueError("forecast_units must be non-negative")
     _validate_reference_list("evidence_refs", state.evidence_refs)
     _validate_reference_list("missing_evidence", state.missing_evidence)
     _validate_evidence_consistency(state.recovery_case, state.evidence_refs)
@@ -178,9 +227,15 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
     _validate_reference_list("missing_evidence", missing_evidence)
 
     forecast_raw = payload.get("forecast_units")
-    forecast_units = Decimal(str(forecast_raw)) if forecast_raw is not None else None
-    if forecast_units is not None and forecast_units < Decimal("0"):
-        raise ValueError("forecast_units must be non-negative")
+    if forecast_raw is None:
+        forecast_units = None
+    else:
+        try:
+            forecast_units = Decimal(str(forecast_raw))
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            raise ValueError("forecast_units must be numeric") from exc
+        if not forecast_units.is_finite() or forecast_units < Decimal("0"):
+            raise ValueError("forecast_units must be a finite non-negative value")
 
     recovery_case = recovery_case_from_payload(payload["recovery_case"])
     _validate_evidence_consistency(recovery_case, evidence_refs)
