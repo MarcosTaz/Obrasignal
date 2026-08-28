@@ -4,7 +4,12 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, Sequence
 
-from .comparability import ComparabilityAssessment, ObservationWindow, assess_comparability
+from .comparability import (
+    ComparabilityAssessment,
+    ComparabilityGrade,
+    ObservationWindow,
+    assess_comparability,
+)
 from .options import OptionComparison, SwitchingOption, compare_options
 from .outcome import MigrationOutcomeRecord
 from .service import DecisionPackage
@@ -41,7 +46,7 @@ def reconcile_outcome(
 ) -> OutcomeReconciliation:
     if record.annual_run_cost.actual is None:
         comparability = ComparabilityAssessment(
-            grade=__import__("cloud_switching.comparability", fromlist=["ComparabilityGrade"]).ComparabilityGrade.U,
+            grade=ComparabilityGrade.U,
             comparable=False,
             reasons=("actual annual run cost unavailable",),
             normalized_pre_cost_per_unit=None,
