@@ -18,8 +18,9 @@ class CapacityRepository:
     recomputed only when the stored engine version matches the running engine;
     semantic version drift fails closed and requires explicit reassessment.
 
-    T1 deliberately treats ``save`` as create-only. A duplicate same-tenant
-    case is a conflict, never an implicit overwrite.
+    T1 treats save as create-only. An exact retry of the same tenant/case
+    snapshot is idempotent; a different snapshot for the same identity is a
+    conflict and never an implicit overwrite.
     """
 
     def __init__(self, db_path: str):
@@ -30,7 +31,7 @@ class CapacityRepository:
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -56,8 +57,8 @@ class CapacityRepository:
             if not required.issubset(columns):
                 raise RuntimeError("capacity repository schema requires explicit migration")
 
-    def save(self, state: AssistedCaseState) -> None:
-        """Create a validated case without permitting silent replacement."""
+    def save(self, state: AssistedCaseState) -> bool:
+        """Create validated state, returning True if inserted and False for exact retry."""
 
         evaluate_recoverability(state.recovery_case)
         snapshot = dump_state(state)
@@ -73,8 +74,23 @@ class CapacityRepository:
                     """,
                     (state.tenant_id, case_id, snapshot, ENGINE_VERSION, updated_at),
                 )
+            return True
         except sqlite3.IntegrityError as exc:
-            raise FileExistsError("case already exists") from exc
+            with self._connect() as conn:
+                existing = conn.execute(
+                    """
+                    SELECT snapshot, engine_version FROM capacity_commitment_cases
+                    WHERE tenant_id=? AND case_id=?
+                    """,
+                    (state.tenant_id, case_id),
+                ).fetchone()
+            if existing is None:
+                raise FileExistsError("case already exists") from exc
+            if existing["engine_version"] != ENGINE_VERSION:
+                raise RuntimeError("case requires explicit reassessment for engine version drift") from exc
+            if existing["snapshot"] == snapshot:
+                return False
+            raise FileExistsError("case already exists with different source state") from exc
 
     def load(self, *, tenant_id: str, case_id: str) -> AssistedCaseState:
         if not tenant_id or not case_id:
