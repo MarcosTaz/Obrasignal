@@ -7,6 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from factory_cloud.capabilities import (
+    Capability,
+    CapabilityContractError,
+    parse_capabilities,
+    require_capabilities,
+)
+
 REGISTRY_PATH = Path(__file__).with_name("apps.json")
 ACTIVATION_CODE = "Ω"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -58,6 +65,42 @@ def _validate_execution_source(app: dict[str, Any], mode: str) -> None:
         raise RegistryError(f"execution_source repository must match canonical repository: {app_id}")
 
 
+def _validate_capability_contract(app: dict[str, Any], mode: str) -> None:
+    app_id = app["app_id"]
+    adapter = app.get("execution_adapter")
+    task_contracts = app.get("task_capabilities")
+
+    if mode != "repository_safe_execution":
+        if adapter is not None or task_contracts is not None:
+            raise RegistryError(f"read-only app cannot declare repository execution capabilities: {app_id}")
+        return
+
+    if not isinstance(adapter, dict) or adapter.get("configured") is not True:
+        raise RegistryError(f"repository-safe app requires an explicit configured execution_adapter: {app_id}")
+    allowlisted = adapter.get("allowlisted_tasks")
+    if not isinstance(allowlisted, list) or not allowlisted or any(not isinstance(item, str) or not item.strip() for item in allowlisted):
+        raise RegistryError(f"execution_adapter allowlisted_tasks must be explicit: {app_id}")
+    if len(set(allowlisted)) != len(allowlisted):
+        raise RegistryError(f"execution_adapter allowlisted_tasks must be unique: {app_id}")
+    if not isinstance(task_contracts, dict):
+        raise RegistryError(f"task_capabilities must be an object: {app_id}")
+    if set(task_contracts) != set(allowlisted):
+        raise RegistryError(f"every allowlisted task must have exactly one capability contract: {app_id}")
+
+    try:
+        declared = parse_capabilities(adapter.get("capabilities"), require_explicit=True)
+        for task in allowlisted:
+            required = parse_capabilities(task_contracts.get(task), require_explicit=True)
+            require_capabilities(declared, required)
+    except CapabilityContractError as exc:
+        raise RegistryError(f"invalid capability contract for {app_id}: {exc}") from exc
+
+    mutation_caps = {Capability.CREATE_BRANCH, Capability.WRITE_FILES, Capability.CREATE_PR}
+    declared_mutation = bool(declared & mutation_caps)
+    if bool(adapter.get("repository_mutation_capability")) != declared_mutation:
+        raise RegistryError(f"repository_mutation_capability disagrees with declared capabilities: {app_id}")
+
+
 def validate_registry(registry: dict[str, Any]) -> None:
     if registry.get("activation_code") != ACTIVATION_CODE:
         raise RegistryError("activation_code must be Ω")
@@ -98,6 +141,7 @@ def validate_registry(registry: dict[str, Any]) -> None:
         if mode not in {"repository_safe_execution", "read_only_until_source_resolved"}:
             raise RegistryError(f"unsupported activation mode for {app_id}: {mode}")
         _validate_execution_source(app, mode)
+        _validate_capability_contract(app, mode)
 
 
 def build_queue(registry: dict[str, Any]) -> list[AppWorkItem]:
@@ -125,6 +169,7 @@ def activation_plan(code: str, registry: dict[str, Any]) -> dict[str, Any]:
     if code != ACTIVATION_CODE:
         raise RegistryError("Factory Cloud activation requires Ω")
     queue = build_queue(registry)
+    app_by_id = {app["app_id"]: app for app in registry.get("applications", [])}
     return {
         "activation_code": ACTIVATION_CODE,
         "scope": "application_development_only",
@@ -151,6 +196,7 @@ def activation_plan(code: str, registry: dict[str, Any]) -> dict[str, Any]:
                 "active": item.active,
                 "next": list(item.next_items),
                 "wait": list(item.wait_items),
+                "adapter_capabilities": list((app_by_id[item.app_id].get("execution_adapter") or {}).get("capabilities") or []),
             }
             for item in queue
         ],
