@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+import pytest
+
 from earnedcash.ledger import LedgerKind, LedgerRecord, Severity, reconcile_ledger
 
 
@@ -134,3 +136,37 @@ def test_unknown_due_date_fails_closed():
     result = reconcile_ledger(chain(due=None))
     assert result.due_unpaid == Decimal("0")
     assert result.unknown_value == Decimal("100")
+
+
+def test_independent_multiple_tenants_fail_closed_as_p0():
+    tenant_two = (
+        record("app2", LedgerKind.APPLICATION, "50", tenant="t2"),
+        record("cert2", LedgerKind.CERTIFICATE, "50", relates_to="app2", tenant="t2"),
+        record("inv2", LedgerKind.INVOICE, "50", relates_to="cert2", tenant="t2", due=True),
+    )
+    result = reconcile_ledger(chain() + tenant_two)
+    assert result.p0_count == 1
+    assert any(a.code == "MULTI_TENANT_DATASET" for a in result.anomalies)
+    assert result.due_unpaid == Decimal("0")
+    assert result.unknown_value == Decimal("150")
+
+
+def test_multiple_currencies_are_never_summed():
+    euro = (
+        record("app2", LedgerKind.APPLICATION, "50", currency="EUR"),
+        record("cert2", LedgerKind.CERTIFICATE, "50", relates_to="app2", currency="EUR"),
+        record("inv2", LedgerKind.INVOICE, "50", relates_to="cert2", currency="EUR", due=True),
+    )
+    result = reconcile_ledger(chain() + euro)
+    assert any(
+        a.code == "MULTI_CURRENCY_DATASET" and a.severity == Severity.P1
+        for a in result.anomalies
+    )
+    assert result.verified_cash == Decimal("0")
+    assert result.due_unpaid == Decimal("0")
+    assert result.unknown_value == Decimal("150")
+
+
+def test_non_finite_amount_is_rejected_at_ledger_boundary():
+    with pytest.raises(ValueError, match="invalid amount"):
+        reconcile_ledger((record("a1", LedgerKind.APPLICATION, "NaN"),))
