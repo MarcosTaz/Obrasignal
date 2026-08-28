@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 REGISTRY_PATH = Path(__file__).with_name("apps.json")
 ACTIVATION_CODE = "Ω"
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 class RegistryError(RuntimeError):
@@ -30,6 +32,30 @@ def load_registry(path: Path = REGISTRY_PATH) -> dict[str, Any]:
         registry = json.load(handle)
     validate_registry(registry)
     return registry
+
+
+def _validate_execution_source(app: dict[str, Any], mode: str) -> None:
+    execution = app.get("execution_source")
+    if execution is None:
+        return
+    app_id = app["app_id"]
+    if mode != "repository_safe_execution":
+        raise RegistryError(f"execution_source requires repository_safe_execution: {app_id}")
+    if not isinstance(execution, dict):
+        raise RegistryError(f"execution_source must be an object: {app_id}")
+    if execution.get("provider") != "github":
+        raise RegistryError(f"unsupported execution_source provider: {app_id}")
+    repository = str(execution.get("repository") or "").strip()
+    branch = str(execution.get("branch") or "").strip()
+    head = str(execution.get("head") or "").strip()
+    if not repository or not branch or not _SHA_RE.fullmatch(head):
+        raise RegistryError(f"execution_source must have repository, branch and exact SHA: {app_id}")
+    if execution.get("verified") is not True:
+        raise RegistryError(f"execution_source must be explicitly verified before activation: {app_id}")
+    canonical = app.get("source_truth") or {}
+    canonical_repo = str(canonical.get("repository") or canonical.get("canonical_repository") or "").strip()
+    if not canonical_repo or repository != canonical_repo:
+        raise RegistryError(f"execution_source repository must match canonical repository: {app_id}")
 
 
 def validate_registry(registry: dict[str, Any]) -> None:
@@ -71,6 +97,7 @@ def validate_registry(registry: dict[str, Any]) -> None:
         mode = activation.get("mode")
         if mode not in {"repository_safe_execution", "read_only_until_source_resolved"}:
             raise RegistryError(f"unsupported activation mode for {app_id}: {mode}")
+        _validate_execution_source(app, mode)
 
 
 def build_queue(registry: dict[str, Any]) -> list[AppWorkItem]:
