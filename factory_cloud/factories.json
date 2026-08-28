@@ -1,121 +1,23 @@
 {
   "schema_version": 1,
-  "mesh_scope": "portfolio_directory_only",
-  "purpose": "Keep a thin, non-authoritative directory of known factories/businesses so Factory Cloud can identify them and emit a deterministic resume/continuous-execution start packet without importing their full state.",
-  "defaults": {
-    "wake_code": "X",
-    "continue_code": "A",
-    "continuity_mode": "MAXIMUM_SAFE_AUTONOMY_CONTINUOUS_EXECUTION"
-  },
-  "rules": {
-    "directory_only": true,
-    "no_execution_authority": true,
-    "no_repository_mutation_authority": true,
-    "no_production_authority": true,
-    "no_shared_credentials": true,
-    "no_customer_data": true,
-    "no_full_factory_state": true,
-    "unknown_locator_is_allowed": true,
-    "apps_registry_remains_authoritative_for_application_dispatch": true
-  },
+  "scope": "switchboard_only",
+  "default_signal": "X",
   "factories": [
-    {
-      "factory_id": "factory-cloud",
-      "name": "Factory Cloud / Control Tower",
-      "family": "infrastructure",
-      "wake_code": "Ω",
-      "continue_code": "Ω",
-      "route": {"kind": "repository", "repository": "MarcosTaz/Obrasignal", "branch": "factory-cloud/app-development-control-plane"}
-    },
-    {
-      "factory_id": "obrasignal",
-      "name": "ObraSignal",
-      "family": "application",
-      "route": {"kind": "application_registry", "app_id": "obrasignal"}
-    },
-    {
-      "factory_id": "k3-fatality",
-      "name": "K3 Fatality / Probability Intelligence",
-      "family": "application_business",
-      "route": {"kind": "application_registry", "app_id": "k3-fatality"}
-    },
-    {
-      "factory_id": "industrial-claims",
-      "name": "Industrial Supplier Claims & Margin Recovery",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "Industrial Claims"}
-    },
-    {
-      "factory_id": "recovery-radar",
-      "name": "Recovery Radar",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "Recovery Radar"}
-    },
-    {
-      "factory_id": "changeledger",
-      "name": "ChangeLedger",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "ChangeLedger"}
-    },
-    {
-      "factory_id": "sourcing-recovery",
-      "name": "Sourcing Recovery & Supplier Margin Control",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "Sourcing Recovery"}
-    },
-    {
-      "factory_id": "product-market-access",
-      "name": "Product Market Access / Legal Product Checker",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "Product Market Access / Legal Product Checker"}
-    },
-    {
-      "factory_id": "eu-cloud-switching",
-      "name": "EU Cloud Switching / Migration Capital Network",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "Cloud Switching Factory"}
-    },
-    {
-      "factory_id": "aviation-lease-entitlement-recovery",
-      "name": "Aviation Lease Entitlement Recovery",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "Aviation"}
-    },
-    {
-      "factory_id": "scopeledger",
-      "name": "ScopeLedger",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "ScopeLedger"}
-    },
-    {
-      "factory_id": "capacity-commitment",
-      "name": "Capacity Commitment",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "Capacity Commitment"}
-    },
-    {
-      "factory_id": "longlead",
-      "name": "LongLead",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "LongLead"}
-    },
-    {
-      "factory_id": "machine-release-safety",
-      "name": "MachineRelease Safety",
-      "family": "independent_business_factory",
-      "route": {"kind": "conversation", "title": "MachineRelease Safety"}
-    },
-    {
-      "factory_id": "obrasignal-customer-journey",
-      "name": "Customer Journey, First Value & Outcome Integrity",
-      "family": "obrasignal_specialist_factory",
-      "route": {"kind": "conversation", "title": "Customer Journey, First Value & Outcome Integrity"}
-    },
-    {
-      "factory_id": "obrasignal-global-market-entry",
-      "name": "Global Market Entry, Localization & Country Launch Automation",
-      "family": "obrasignal_specialist_factory",
-      "route": {"kind": "conversation", "title": "Global Market Entry, Localization & Country Launch Automation"}
-    }
+    {"id": "factory-cloud", "name": "Factory Cloud / Control Tower", "signal": "Ω", "target": "factory-cloud/app-development-control-plane"},
+    {"id": "obrasignal", "name": "ObraSignal", "target": "ObraSignal"},
+    {"id": "k3-fatality", "name": "K3 Fatality / Probability Intelligence", "target": "K3 Fatality"},
+    {"id": "industrial-claims", "name": "Industrial Supplier Claims & Margin Recovery", "target": "Industrial Claims"},
+    {"id": "recovery-radar", "name": "Recovery Radar", "target": "Recovery Radar"},
+    {"id": "changeledger", "name": "ChangeLedger", "target": "ChangeLedger"},
+    {"id": "sourcing-recovery", "name": "Sourcing Recovery & Supplier Margin Control", "target": "Sourcing Recovery"},
+    {"id": "product-market-access", "name": "Product Market Access / Legal Product Checker", "target": "Product Market Access / Legal Product Checker"},
+    {"id": "eu-cloud-switching", "name": "EU Cloud Switching / Migration Capital Network", "target": "Cloud Switching Factory"},
+    {"id": "aviation-lease-entitlement-recovery", "name": "Aviation Lease Entitlement Recovery", "target": "Aviation"},
+    {"id": "scopeledger", "name": "ScopeLedger", "target": "ScopeLedger"},
+    {"id": "capacity-commitment", "name": "Capacity Commitment", "target": "Capacity Commitment"},
+    {"id": "longlead", "name": "LongLead", "target": "LongLead"},
+    {"id": "machine-release-safety", "name": "MachineRelease Safety", "target": "MachineRelease Safety"},
+    {"id": "obrasignal-customer-journey", "name": "Customer Journey, First Value & Outcome Integrity", "target": "Customer Journey, First Value & Outcome Integrity"},
+    {"id": "obrasignal-global-market-entry", "name": "Global Market Entry, Localization & Country Launch Automation", "target": "Global Market Entry, Localization & Country Launch Automation"}
   ]
 }
