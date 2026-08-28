@@ -19,10 +19,11 @@ from typing import Any, Callable, Sequence
 APP_ID = "obrasignal"
 MODE = "repository_safe_execution"
 SOURCE = "MarcosTaz/Obrasignal"
+TASK_COMPILE = "verify:canonical:compile"
 TASK_PYTHON = "verify:canonical:python"
 TASK_MOBILE = "verify:canonical:mobile"
 TASK_QUALITY = "verify:canonical:quality"
-ALLOWED_TASKS = frozenset({TASK_PYTHON, TASK_MOBILE, TASK_QUALITY})
+ALLOWED_TASKS = frozenset({TASK_COMPILE, TASK_PYTHON, TASK_MOBILE, TASK_QUALITY})
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 COMMAND_TIMEOUT_SECONDS = 1200
 
@@ -140,29 +141,48 @@ class ObraSignalVerificationAgent:
             "last_verified": head,
         }
 
-    def _python_commands(self) -> list[tuple[list[str], Path, dict[str, str]]]:
+    def _python_context(self) -> tuple[str, list[str], list[str], dict[str, str]]:
         python = self.environ.get("FACTORY_CLOUD_OBRASIGNAL_PYTHON", sys.executable)
         root_modules = sorted(path.name for path in self.workspace.glob("*.py") if path.is_file())
         root_tests = sorted(path.name for path in self.workspace.glob("test_*.py") if path.is_file())
         env = dict(self.environ)
         prior = env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = str(self.workspace) + (os.pathsep + prior if prior else "")
-        commands: list[tuple[list[str], Path, dict[str, str]]] = []
-        if root_modules:
-            commands.append(([python, "-m", "py_compile", *root_modules], self.workspace, env))
-        commands.append(([
-            python, "-m", "pytest", "-q", "--import-mode=importlib", "tests", *root_tests
-        ], self.workspace, env))
-        return commands
+        return python, root_modules, root_tests, env
+
+    def _run_compile(self) -> tuple[bool, str]:
+        python, root_modules, _, env = self._python_context()
+        if not root_modules:
+            return False, "compile_targets_unavailable"
+        try:
+            completed = self._run(
+                [python, "-m", "py_compile", *root_modules],
+                cwd=self.workspace,
+                env=env,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False, "compile_tool_unavailable"
+        if completed.returncode != 0:
+            return False, "compile_failed"
+        return True, "compile_green"
 
     def _run_python(self) -> tuple[bool, str]:
-        for argv, cwd, env in self._python_commands():
-            try:
-                completed = self._run(argv, cwd=cwd, env=env)
-            except (OSError, subprocess.SubprocessError):
+        python, _, root_tests, env = self._python_context()
+        compiled, compile_code = self._run_compile()
+        if not compiled:
+            if compile_code == "compile_tool_unavailable":
                 return False, "python_tool_unavailable"
-            if completed.returncode != 0:
-                return False, "python_verification_failed"
+            return False, "python_verification_failed"
+        try:
+            completed = self._run(
+                [python, "-m", "pytest", "-q", "--import-mode=importlib", "tests", *root_tests],
+                cwd=self.workspace,
+                env=env,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False, "python_tool_unavailable"
+        if completed.returncode != 0:
+            return False, "python_verification_failed"
         return True, "python_green"
 
     def _run_mobile(self) -> tuple[bool | None, str]:
@@ -209,6 +229,12 @@ class ObraSignalVerificationAgent:
             return self._wait(task, observed, "local_workspace_head_mismatch", "head_mismatch")
 
         evidence_codes: list[str] = []
+        if task == TASK_COMPILE:
+            ok, code = self._run_compile()
+            evidence_codes.append(code)
+            if not ok:
+                return self._error(task, observed, "COMPILE_VERIFICATION_FAILED", code)
+
         if task in {TASK_PYTHON, TASK_QUALITY}:
             ok, code = self._run_python()
             evidence_codes.append(code)
