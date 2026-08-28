@@ -44,6 +44,8 @@ class ExecutionResult:
     resume_at: str = ""
     last_verified: str | None = None
     last_green: str | None = None
+    execution_branch: str | None = None
+    execution_head: str | None = None
     error: dict[str, Any] | None = None
 
 
