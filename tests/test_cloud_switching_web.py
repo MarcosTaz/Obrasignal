@@ -64,6 +64,24 @@ def valid_payload():
                 "receipt_evidence_id": "partner-receipt",
             },
         ],
+        "options": [
+            {
+                "option_id": "renew",
+                "option_type": "renew",
+                "destination": "vmware",
+                "currency": "EUR",
+                "annual_run_cost": "300000",
+            },
+            {
+                "option_id": "aws",
+                "option_type": "switch",
+                "destination": "aws",
+                "currency": "EUR",
+                "annual_run_cost": "180000",
+                "one_time_switching_cost": "100000",
+                "received_incentives": "30000",
+            },
+        ],
     }
 
 
@@ -73,7 +91,7 @@ def test_analyze_requires_authenticated_tenant_resolver(tmp_path):
     assert response.status_code == 401
 
 
-def test_assisted_web_flow_builds_saves_and_returns_decision(tmp_path):
+def test_assisted_web_flow_builds_saves_returns_decision_and_options(tmp_path):
     client = make_app(tmp_path).test_client()
     response = client.post(
         "/cloud-switching/api/analyze",
@@ -85,6 +103,8 @@ def test_assisted_web_flow_builds_saves_and_returns_decision(tmp_path):
     assert body["decision_package"]["company_id"] == "tenant-a"
     assert body["decision_package"]["decision"] == "switch"
     assert body["decision_package"]["captured_incentives"] == "30000"
+    assert body["option_comparison"]["economic_winner_id"] == "aws"
+    assert body["option_comparison"]["customer_cash_winner_id"] == "aws"
 
     loaded = client.get(
         "/cloud-switching/api/packages/case-1",
@@ -120,3 +140,16 @@ def test_web_flow_fails_closed_on_incentive_ledger_mismatch(tmp_path):
     )
     assert response.status_code == 422
     assert "does not reconcile" in response.get_json()["error"]
+
+
+def test_web_flow_requires_real_alternative_comparison(tmp_path):
+    client = make_app(tmp_path).test_client()
+    payload = valid_payload()
+    payload["options"] = payload["options"][:1]
+    response = client.post(
+        "/cloud-switching/api/analyze",
+        json=payload,
+        headers={"X-Test-Tenant": "tenant-a"},
+    )
+    assert response.status_code == 422
+    assert "at least two" in response.get_json()["error"]
