@@ -36,6 +36,19 @@ def baseline_payload():
             "partner_incentive_approved": "10000",
             "partner_incentive_received": "5000",
         },
+        "forecast": {
+            "case_id": "case-1",
+            "source_platform": "vmware",
+            "destination_platform": "aws",
+            "workload_class": "vm",
+            "migration_strategy": "rehost",
+            "migration_cost": "100000",
+            "duration_days": "180",
+            "annual_run_cost": "180000",
+            "downtime_minutes": "30",
+            "incentive_total": "40000",
+            "methodology_version": "v0.1",
+        },
         "incentives": [
             {"incentive_id": "provider", "program": "provider", "status": "partially_received", "approved_amount": "30000", "received_amount": "25000", "approval_evidence_id": "a", "receipt_evidence_id": "r"},
             {"incentive_id": "partner", "program": "partner", "status": "partially_received", "approved_amount": "10000", "received_amount": "5000", "approval_evidence_id": "pa", "receipt_evidence_id": "pr"},
@@ -65,7 +78,7 @@ def reconciliation_payload(case_id="case-1"):
             "duration_days": field(180, 240),
             "annual_run_cost": field(180000, 200000),
             "downtime_minutes": field(30, 90),
-            "provider_incentive": field(30000, 25000),
+            "provider_incentive": field(40000, 30000),
         },
     }
 
@@ -87,6 +100,7 @@ def test_reconcile_updates_same_persisted_delivery(tmp_path):
     assert body["delivery_version"] == 2
     assert body["delivery_content_hash"] != initial_hash
     assert body["outcome"]["reconciliation"]["migration_cost_variance"] == "20000"
+    assert body["outcome"]["reconciliation"]["provider_incentive_variance"] == "-10000"
     assert body["outcome"]["reconciliation"]["verified_for_benchmark"] is True
 
     returned = client.get("/cloud-switching/api/packages/case-1", headers=headers).get_json()
@@ -104,7 +118,37 @@ def test_reconcile_refuses_wrong_case_identity(tmp_path):
         headers=headers,
     )
     assert response.status_code == 422
-    assert "does not match" in response.get_json()["error"]
+    assert "frozen forecast" in response.get_json()["error"]
+
+
+def test_reconcile_refuses_rewritten_forecast_value(tmp_path):
+    client = app_and_client(tmp_path)
+    headers = {"X-Test-Tenant": "tenant-a"}
+    assert client.post("/cloud-switching/api/analyze", json=baseline_payload(), headers=headers).status_code == 201
+    payload = reconciliation_payload()
+    payload["outcome"]["migration_cost"]["forecast"] = "50000"
+    response = client.post(
+        "/cloud-switching/api/packages/case-1/reconcile",
+        json=payload,
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "does not match frozen forecast" in response.get_json()["error"]
+
+
+def test_reconcile_refuses_rewritten_destination(tmp_path):
+    client = app_and_client(tmp_path)
+    headers = {"X-Test-Tenant": "tenant-a"}
+    assert client.post("/cloud-switching/api/analyze", json=baseline_payload(), headers=headers).status_code == 201
+    payload = reconciliation_payload()
+    payload["outcome"]["destination_platform"] = "azure"
+    response = client.post(
+        "/cloud-switching/api/packages/case-1/reconcile",
+        json=payload,
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "destination_platform" in response.get_json()["error"]
 
 
 def test_other_tenant_cannot_reconcile_foreign_delivery(tmp_path):
