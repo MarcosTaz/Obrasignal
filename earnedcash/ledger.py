@@ -93,8 +93,10 @@ def reconcile_ledger(records: tuple[LedgerRecord, ...]) -> LedgerResult:
     for record in records:
         if not record.record_id:
             raise ValueError("record_id is required")
-        if record.amount < ZERO:
-            raise ValueError(f"negative amount: {record.record_id}")
+        if not all((record.tenant_id, record.customer_id, record.project_id, record.currency)):
+            raise ValueError(f"scope fields are required: {record.record_id}")
+        if not record.amount.is_finite() or record.amount < ZERO:
+            raise ValueError(f"invalid amount: {record.record_id}")
         if record.record_id in by_id:
             anomalies.append(
                 LedgerAnomaly(
@@ -178,13 +180,44 @@ def reconcile_ledger(records: tuple[LedgerRecord, ...]) -> LedgerResult:
             )
             invalid.add(record.record_id)
 
+    invoices = [r for r in records if r.kind == LedgerKind.INVOICE]
+
+    # The result object is tenant-scoped. Independent records from more than one
+    # tenant must never be aggregated into a shared commercial result.
+    tenant_ids = {r.tenant_id for r in records}
+    if len(tenant_ids) > 1 and not any(a.severity == Severity.P0 for a in anomalies):
+        anomalies.append(
+            LedgerAnomaly(
+                code="MULTI_TENANT_DATASET",
+                severity=Severity.P0,
+                record_id="*",
+                related_record_id=None,
+                detail="one reconciliation result cannot aggregate multiple tenants",
+            )
+        )
+        invalid.update(r.record_id for r in invoices)
+
+    # Decimal totals across currencies are economically meaningless. Until an
+    # explicit FX model exists, mixed-currency datasets fail closed.
+    currencies = {r.currency for r in records}
+    if len(currencies) > 1:
+        anomalies.append(
+            LedgerAnomaly(
+                code="MULTI_CURRENCY_DATASET",
+                severity=Severity.P1,
+                record_id="*",
+                related_record_id=None,
+                detail="mixed currencies require separate reconciliation",
+            )
+        )
+        invalid.update(r.record_id for r in invoices)
+
     positions: list[InvoicePosition] = []
     verified_cash_total = ZERO
     due_unpaid_total = ZERO
     not_yet_due_total = ZERO
     unknown_total = ZERO
 
-    invoices = [r for r in records if r.kind == LedgerKind.INVOICE]
     for invoice in invoices:
         if invoice.record_id in invalid:
             unknown_total += invoice.amount
@@ -244,8 +277,8 @@ def reconcile_ledger(records: tuple[LedgerRecord, ...]) -> LedgerResult:
             unknown_total += invoice.amount
             continue
 
-        # Use all observed payments to avoid overclaiming recovery; only verified
-        # payments may contribute to VERIFIED_CASH.
+        # All observed payments reduce open balance conservatively so we never
+        # overclaim recovery; only verified payments may become VERIFIED_CASH.
         open_balance = max(
             ZERO, invoice.amount - conservative_all_payments - credits - deductions
         )
