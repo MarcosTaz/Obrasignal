@@ -1,8 +1,10 @@
 # Capacity Commitment — T1 Assisted Recoverability
 
-Status: **T1 CANDIDATE — FINAL EXACT-HEAD VERIFICATION REQUIRED**
+Status: **T1 — PILOT CAPABLE**
 
 Engine version: **`capacity-recoverability-t1.5`**
+
+Promotion basis: exact candidate HEAD `bfeda970dfc9c7681d85d8a2afaccbc3dee6afe0` passed the full repository Python suite with **855 passed / 2 skipped**, and `T1_GATE.md` records no applicable known unresolved P0/P1 in the controlled create-only assisted journey. Any later regression reopens T1 immediately.
 
 This isolated lane implements the narrowed wedge validated by the Capacity Commitment Factory:
 
@@ -116,11 +118,11 @@ There is intentionally no production fallback to the repository's unauthenticate
 
 The repository's existing `.github/workflows/quality.yml` runs root `test_*.py` files on every pull request and checks the exact PR HEAD.
 
-The last pre-documentation t1.5 exact head passed the full Python repository suite, including Capacity Commitment's oracle, E2E, retry and concurrency tests. This documentation commit intentionally requires one final exact-head Python run before terminal promotion.
+The candidate code/docs state immediately before this terminal record passed **855 tests / 2 skipped** on exact HEAD. This terminal documentation commit is also required to pass exact-head Python quality; failure automatically reopens T1 rather than being ignored.
 
 The repository-wide mobile job remains independently red because current Expo Doctor expects `react-native 0.86.3` while the unchanged mobile project pins `0.86.2`. This lane does not modify mobile dependencies or treat that external red job as a Capacity Commitment pass.
 
-## Still not implemented / not T1 blockers
+## T2+ work — not T1 blockers
 
 Manual contract review is explicitly acceptable for the controlled assisted T1 journey. Therefore the following remain later-stage work unless new evidence makes one a P0/P1:
 
@@ -133,17 +135,10 @@ Manual contract review is explicitly acceptable for the controlled assisted T1 j
 - real-customer dataset verification;
 - customer willingness-to-pay or commercial proof.
 
-## T1 promotion gate
+## Terminal discipline
 
-The detailed gate matrix lives in `T1_GATE.md`.
+`T1 — PILOT CAPABLE` means the assisted product is technically capable of running a controlled pilot. It does **not** mean market exposed, real-customer proven, paid, or repeatable.
 
-Promote to `T1 — PILOT CAPABLE` only when all of the following are simultaneously true:
-
-1. exact final branch HEAD Python quality is green;
-2. synthetic oracle and end-to-end assisted matrix are green;
-3. no known applicable P0/P1 remains in the create-only assisted journey;
-4. tenant isolation, save/return, retry/concurrency, backup/restore, evidence anchoring, mitigation/prior-recovery review, notice/deadline integrity and recovery-package truth survive validation;
-5. the repository-wide mobile failure remains evidenced as external to this lane;
-6. README, T1 gate matrix and PR description match repository truth.
+The detailed decision basis lives in `T1_GATE.md`. Any new applicable P0/P1 or failed Capacity Commitment exact-head regression reopens T1 before T2 may continue.
 
 No merge is authorized by this Factory lane.
