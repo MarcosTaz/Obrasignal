@@ -10,6 +10,9 @@ from factory_cloud.process_adapter import ProcessAdapterConfig
 ROOT = Path(__file__).resolve().parent
 RUNTIME = ROOT / "runtime"
 SYSTEMD = RUNTIME / "systemd"
+CANONICAL_MAIN = "66d43f6fd51cf9cea08016dad335aaa04b711a24"
+DEVELOPMENT_HEAD = "ea9f31b224ff7758bc28532acd3c5d4731971afa"
+DEVELOPMENT_BRANCH = "integration/source-health-compensation-on-current-spine-20260828"
 
 
 class RuntimeProvisioningTests(unittest.TestCase):
@@ -29,7 +32,7 @@ class RuntimeProvisioningTests(unittest.TestCase):
         for forbidden in ("token", "password", "secret", "customer", "billing"):
             self.assertNotIn(forbidden, encoded)
 
-    def test_registry_seeds_an_executable_obrasignal_baton_but_not_a_k3_mutation_adapter(self):
+    def test_registry_separates_canonical_main_from_verified_development_execution_source(self):
         registry = json.loads((ROOT / "apps.json").read_text(encoding="utf-8"))
         apps = {item["app_id"]: item for item in registry["applications"]}
         obrasignal = apps["obrasignal"]
@@ -38,10 +41,21 @@ class RuntimeProvisioningTests(unittest.TestCase):
         self.assertEqual(obrasignal["baton"]["active"], TASK_COMPILE)
         self.assertTrue(set(obrasignal["execution_adapter"]["allowlisted_tasks"]).issubset(ALLOWED_TASKS))
         self.assertFalse(obrasignal["execution_adapter"]["repository_mutation_capability"])
-        self.assertEqual(obrasignal["source_truth"]["canonical_branch"], "main")
-        self.assertTrue(obrasignal["source_truth"]["verified"])
+
+        canonical = obrasignal["source_truth"]
+        execution = obrasignal["execution_source"]
+        self.assertEqual(canonical["canonical_branch"], "main")
+        self.assertEqual(canonical["canonical_head"], CANONICAL_MAIN)
+        self.assertTrue(canonical["verified"])
+        self.assertEqual(execution["repository"], canonical["repository"])
+        self.assertEqual(execution["branch"], DEVELOPMENT_BRANCH)
+        self.assertEqual(execution["head"], DEVELOPMENT_HEAD)
+        self.assertTrue(execution["verified"])
+        self.assertNotEqual(execution["head"], canonical["canonical_head"])
+        self.assertIn("NONCANONICAL", execution["classification"])
 
         self.assertNotIn("execution_adapter", k3)
+        self.assertNotIn("execution_source", k3)
         self.assertFalse(k3["source_truth"]["verified_source"])
         self.assertEqual(k3["activation"]["mode"], "read_only_until_source_resolved")
 
@@ -55,12 +69,16 @@ class RuntimeProvisioningTests(unittest.TestCase):
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
 
-    def test_workspace_preparer_is_fail_closed_and_never_hard_resets(self):
+    def test_workspace_preparer_targets_execution_source_and_never_hard_resets(self):
         text = (SYSTEMD / "prepare-obrasignal-workspace.sh").read_text(encoding="utf-8")
         self.assertIn('status --porcelain', text)
+        self.assertIn('execution_source', text)
+        self.assertIn('fetch origin "${EXECUTION_BRANCH}"', text)
         self.assertIn('checkout --detach "${EXPECTED_HEAD}"', text)
         self.assertIn('factory_cloud/apps.json', text)
         self.assertIn('canonical source truth is not verified', text)
+        self.assertIn('execution source is not verified', text)
+        self.assertIn('registered execution head', text)
         self.assertNotIn("reset --hard", text)
         self.assertNotIn("git clean", text)
         self.assertNotIn("k3-fatality", text.lower())
