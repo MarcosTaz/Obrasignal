@@ -46,7 +46,18 @@
           "verify:execution:mobile",
           "verify:execution:quality"
         ],
+        "capabilities": [
+          "READ_REPOSITORY",
+          "RUN_TESTS",
+          "UPDATE_BATON"
+        ],
         "repository_mutation_capability": false
+      },
+      "task_capabilities": {
+        "verify:execution:compile": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
+        "verify:execution:python": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
+        "verify:execution:mobile": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
+        "verify:execution:quality": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"]
       },
       "development_evidence": {
         "last_green_candidate": "#677@ea9f31b224ff7758bc28532acd3c5d4731971afa",
