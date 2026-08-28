@@ -1,0 +1,260 @@
+from __future__ import annotations
+
+"""Concrete, non-mutating ObraSignal execution adapter for Factory Cloud.
+
+The agent accepts one Factory Cloud ExecutionRequest JSON object on stdin and emits
+one metadata-only ExecutionResult JSON object on stdout. It deliberately supports
+only a small verification allowlist. Task text is never interpolated into shell
+commands and subprocess output is never copied into the result contract.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Callable, Sequence
+
+APP_ID = "obrasignal"
+MODE = "repository_safe_execution"
+SOURCE = "MarcosTaz/Obrasignal"
+TASK_PYTHON = "verify:canonical:python"
+TASK_MOBILE = "verify:canonical:mobile"
+TASK_QUALITY = "verify:canonical:quality"
+ALLOWED_TASKS = frozenset({TASK_PYTHON, TASK_MOBILE, TASK_QUALITY})
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+COMMAND_TIMEOUT_SECONDS = 1200
+
+
+class ObraSignalAgentError(ValueError):
+    pass
+
+
+def _text(value: Any, field: str, *, required: bool = True) -> str:
+    if value is None:
+        value = ""
+    if not isinstance(value, str):
+        raise ObraSignalAgentError(f"{field} must be a string")
+    value = value.strip()
+    if required and not value:
+        raise ObraSignalAgentError(f"{field} is required")
+    return value
+
+
+def _request(payload: Any) -> dict[str, str]:
+    if not isinstance(payload, dict):
+        raise ObraSignalAgentError("request must be an object")
+    app_id = _text(payload.get("app_id"), "app_id")
+    mode = _text(payload.get("mode"), "mode")
+    task = _text(payload.get("task"), "task")
+    source = _text(payload.get("source"), "source")
+    canonical_head = _text(payload.get("canonical_head"), "canonical_head")
+    resume_at = _text(payload.get("resume_at"), "resume_at", required=False) or task
+    if app_id != APP_ID:
+        raise ObraSignalAgentError("wrong app_id")
+    if mode != MODE:
+        raise ObraSignalAgentError("wrong execution mode")
+    if source != SOURCE:
+        raise ObraSignalAgentError("wrong repository source")
+    if not SHA_RE.fullmatch(canonical_head):
+        raise ObraSignalAgentError("canonical_head must be a lowercase 40-character git SHA")
+    return {
+        "app_id": app_id,
+        "mode": mode,
+        "task": task,
+        "source": source,
+        "canonical_head": canonical_head,
+        "resume_at": resume_at,
+    }
+
+
+class ObraSignalVerificationAgent:
+    def __init__(
+        self,
+        workspace: Path | None = None,
+        runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+        environ: dict[str, str] | None = None,
+    ) -> None:
+        self.workspace = (workspace or Path.cwd()).resolve()
+        self.runner = runner
+        self.environ = dict(os.environ if environ is None else environ)
+
+    def _run(
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        timeout: int = COMMAND_TIMEOUT_SECONDS,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        return self.runner(
+            list(argv),
+            cwd=cwd or self.workspace,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+            env=env,
+        )
+
+    def _head(self) -> str | None:
+        try:
+            completed = self._run(("git", "rev-parse", "HEAD"), timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if completed.returncode != 0:
+            return None
+        value = (completed.stdout or "").strip()
+        return value if SHA_RE.fullmatch(value) else None
+
+    @staticmethod
+    def _wait(task: str, head: str | None, blocker: str, code: str) -> dict[str, Any]:
+        return {
+            "status": "WAIT",
+            "evidence": {
+                "verified_head": head or "UNVERIFIED",
+                "test_state": "NOT_RUN",
+                "task_state": code,
+                "evidence_codes": [code],
+            },
+            "next_active": task,
+            "blockers": [blocker],
+            "resume_at": task,
+        }
+
+    @staticmethod
+    def _error(task: str, head: str, error_type: str, code: str) -> dict[str, Any]:
+        return {
+            "status": "ERROR",
+            "evidence": {
+                "verified_head": head,
+                "test_state": "FAILURE",
+                "task_state": code,
+                "evidence_codes": [code],
+            },
+            "next_active": task,
+            "blockers": ["obrasignal_verification_failed"],
+            "resume_at": task,
+            "error": {"type": error_type},
+            "last_verified": head,
+        }
+
+    def _python_commands(self) -> list[tuple[list[str], Path, dict[str, str]]]:
+        python = self.environ.get("FACTORY_CLOUD_OBRASIGNAL_PYTHON", sys.executable)
+        root_modules = sorted(path.name for path in self.workspace.glob("*.py") if path.is_file())
+        root_tests = sorted(path.name for path in self.workspace.glob("test_*.py") if path.is_file())
+        env = dict(self.environ)
+        prior = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(self.workspace) + (os.pathsep + prior if prior else "")
+        commands: list[tuple[list[str], Path, dict[str, str]]] = []
+        if root_modules:
+            commands.append(([python, "-m", "py_compile", *root_modules], self.workspace, env))
+        commands.append(([
+            python, "-m", "pytest", "-q", "--import-mode=importlib", "tests", *root_tests
+        ], self.workspace, env))
+        return commands
+
+    def _run_python(self) -> tuple[bool, str]:
+        for argv, cwd, env in self._python_commands():
+            try:
+                completed = self._run(argv, cwd=cwd, env=env)
+            except (OSError, subprocess.SubprocessError):
+                return False, "python_tool_unavailable"
+            if completed.returncode != 0:
+                return False, "python_verification_failed"
+        return True, "python_green"
+
+    def _run_mobile(self) -> tuple[bool | None, str]:
+        mobile = self.workspace / "mobile"
+        if not mobile.is_dir():
+            return None, "mobile_workspace_unavailable"
+        if not (mobile / "node_modules").is_dir():
+            return None, "mobile_dependencies_unavailable"
+        commands = (
+            ("npx", "--no-install", "expo-doctor"),
+            ("npm", "run", "smoke:detail"),
+            ("npm", "run", "smoke:web"),
+        )
+        for argv in commands:
+            try:
+                completed = self._run(argv, cwd=mobile, env=dict(self.environ))
+            except (OSError, subprocess.SubprocessError):
+                return False, "mobile_tool_unavailable"
+            if completed.returncode != 0:
+                return False, "mobile_verification_failed"
+        return True, "mobile_green"
+
+    def execute(self, payload: Any) -> dict[str, Any]:
+        try:
+            request = _request(payload)
+        except ObraSignalAgentError:
+            return {
+                "status": "ERROR",
+                "evidence": {"test_state": "NOT_RUN", "task_state": "invalid_request", "evidence_codes": ["invalid_request"]},
+                "blockers": ["obrasignal_agent_invalid_request"],
+                "error": {"type": "INVALID_REQUEST"},
+            }
+
+        task = request["task"]
+        expected = request["canonical_head"]
+        if task not in ALLOWED_TASKS:
+            return self._wait(task, None, "obrasignal_agent_task_not_allowlisted", "task_not_allowlisted")
+        if not self.workspace.is_dir():
+            return self._wait(task, None, "obrasignal_workspace_unavailable", "workspace_unavailable")
+        observed = self._head()
+        if observed is None:
+            return self._wait(task, None, "local_workspace_head_unverifiable", "head_unverifiable")
+        if observed != expected:
+            return self._wait(task, observed, "local_workspace_head_mismatch", "head_mismatch")
+
+        evidence_codes: list[str] = []
+        if task in {TASK_PYTHON, TASK_QUALITY}:
+            ok, code = self._run_python()
+            evidence_codes.append(code)
+            if not ok:
+                return self._error(task, observed, "PYTHON_VERIFICATION_FAILED", code)
+
+        if task in {TASK_MOBILE, TASK_QUALITY}:
+            ok, code = self._run_mobile()
+            evidence_codes.append(code)
+            if ok is None:
+                result = self._wait(task, observed, "mobile_dependencies_required_on_app_workspace", code)
+                result["evidence"]["evidence_codes"] = evidence_codes
+                if "python_green" in evidence_codes:
+                    result["evidence"]["test_state"] = "PARTIAL_SUCCESS"
+                result["last_verified"] = observed
+                return result
+            if not ok:
+                result = self._error(task, observed, "MOBILE_VERIFICATION_FAILED", code)
+                result["evidence"]["evidence_codes"] = evidence_codes
+                return result
+
+        return {
+            "status": "DONE",
+            "evidence": {
+                "commit_sha": observed,
+                "verified_head": observed,
+                "test_state": "SUCCESS",
+                "task_state": "verification_complete",
+                "evidence_codes": evidence_codes,
+            },
+            "blockers": [],
+            "last_verified": observed,
+            "last_green": observed,
+        }
+
+
+def main() -> int:
+    try:
+        payload = json.loads(sys.stdin.read())
+    except json.JSONDecodeError:
+        payload = None
+    result = ObraSignalVerificationAgent().execute(payload)
+    sys.stdout.write(json.dumps(result, ensure_ascii=False))
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
