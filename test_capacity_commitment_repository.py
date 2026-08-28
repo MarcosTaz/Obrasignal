@@ -18,6 +18,7 @@ def make_state(tenant_id: str, case_id: str, *, actual_units=Decimal("80000")) -
         evidence_refs=("contract:1",),
         contract_id="lta-2026-01",
         forecast_units=Decimal("110000"),
+        deadline="2026-09-30",
     )
 
 
