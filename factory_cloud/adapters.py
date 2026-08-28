@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from factory_cloud.capabilities import Capability
+
 
 @dataclass(frozen=True)
 class ExecutionRequest:
@@ -14,6 +16,7 @@ class ExecutionRequest:
     resume_at: str
     execution_branch: str | None = None
     execution_head: str | None = None
+    required_capabilities: tuple[str, ...] = ()
 
     @property
     def target_head(self) -> str | None:
@@ -24,6 +27,10 @@ class ExecutionRequest:
         canonical keeps old jobs/configs fail-safe and backward compatible.
         """
         return self.execution_head or self.canonical_head
+
+    @property
+    def required_capability_set(self) -> frozenset[Capability]:
+        return frozenset(Capability(value) for value in self.required_capabilities)
 
 
 @dataclass(frozen=True)
@@ -62,6 +69,7 @@ class RepositorySafeAdapter:
                 "canonical_head": request.canonical_head,
                 "execution_head": request.execution_head,
                 "execution_branch": request.execution_branch,
+                "required_capabilities": list(request.required_capabilities),
             },
             next_active=request.task,
             blockers=("repository_tooling_adapter_required",),
@@ -79,6 +87,7 @@ class ReadOnlySourceAdapter:
                 "dispatch_boundary": "canonical_source_unresolved",
                 "mode": request.mode,
                 "source": request.source,
+                "required_capabilities": list(request.required_capabilities),
             },
             next_active=request.task,
             blockers=("canonical_source_truth_required_before_repository_mutation",),
