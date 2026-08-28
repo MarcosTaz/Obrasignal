@@ -165,16 +165,19 @@ def commit_staged_source_syncs(conn):
         conn.commit()
     except Exception as exc:
         conn.rollback()
-        compensation_error = None
+        compensation_errors = []
         for item in pending:
             try:
                 record_source_ingestion_failure(conn, item.source, error=exc)
             except Exception as health_exc:
-                compensation_error = health_exc
-                break
-        if compensation_error is not None:
+                compensation_errors.append((item.source, health_exc))
+                continue
+        if compensation_errors:
+            failed_sources = ",".join(source for source, _ in compensation_errors)
+            first_error = compensation_errors[0][1]
             raise RuntimeError(
-                f"{exc}; source health compensation failed: {type(compensation_error).__name__}"
+                f"{exc}; source health compensation failed for {failed_sources}: "
+                f"{type(first_error).__name__}"
             ) from exc
         raise
     finally:
