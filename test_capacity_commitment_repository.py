@@ -8,13 +8,13 @@ from factories.capacity_commitment.state import AssistedCaseState
 from factories.capacity_commitment.synthetic_cases import case
 
 
-def make_state(tenant_id: str, case_id: str) -> AssistedCaseState:
+def make_state(tenant_id: str, case_id: str, *, actual_units=Decimal("80000")) -> AssistedCaseState:
     return AssistedCaseState(
         tenant_id=tenant_id,
         company_id=f"company-{tenant_id}",
         customer_id="oem-1",
         program_id="program-1",
-        recovery_case=case(case_id),
+        recovery_case=case(case_id, actual_units=actual_units),
         evidence_refs=("contract:1",),
         contract_id="lta-2026-01",
         forecast_units=Decimal("110000"),
@@ -50,6 +50,31 @@ def test_repository_same_case_id_isolated_per_tenant(tmp_path):
     assert repo.load(tenant_id="tenant-b", case_id="same-case").tenant_id == "tenant-b"
 
 
+def test_repository_duplicate_same_tenant_fails_without_overwrite(tmp_path):
+    repo = CapacityRepository(str(tmp_path / "capacity.db"))
+    original = make_state("tenant-a", "same-case", actual_units=Decimal("80000"))
+    changed = make_state("tenant-a", "same-case", actual_units=Decimal("0"))
+    repo.save(original)
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        repo.save(changed)
+
+    assert repo.load(tenant_id="tenant-a", case_id="same-case") == original
+
+
+def test_repository_engine_version_drift_requires_explicit_reassessment(tmp_path):
+    db_path = tmp_path / "capacity.db"
+    repo = CapacityRepository(str(db_path))
+    repo.save(make_state("tenant-a", "versioned-case"))
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE capacity_commitment_cases SET engine_version='legacy-engine' WHERE case_id='versioned-case'"
+        )
+
+    with pytest.raises(RuntimeError, match="explicit reassessment"):
+        repo.load(tenant_id="tenant-a", case_id="versioned-case")
+
+
 def test_repository_backup_restore_roundtrip(tmp_path):
     live_path = tmp_path / "live.db"
     backup_path = tmp_path / "backup.db"
@@ -82,6 +107,24 @@ def test_repository_rejects_corrupted_backup_before_live_mutation(tmp_path):
         )
 
     with pytest.raises(ValueError):
+        repo.restore_from(str(backup_path))
+
+    assert repo.load(tenant_id="tenant-a", case_id="case-original") == original
+
+
+def test_repository_rejects_version_drift_backup_before_live_mutation(tmp_path):
+    live_path = tmp_path / "live.db"
+    backup_path = tmp_path / "old-engine-backup.db"
+    repo = CapacityRepository(str(live_path))
+    original = make_state("tenant-a", "case-original")
+    repo.save(original)
+
+    old = CapacityRepository(str(backup_path))
+    old.save(make_state("tenant-a", "old-case"))
+    with sqlite3.connect(backup_path) as conn:
+        conn.execute("UPDATE capacity_commitment_cases SET engine_version='legacy-engine'")
+
+    with pytest.raises(ValueError, match="engine reassessment"):
         repo.restore_from(str(backup_path))
 
     assert repo.load(tenant_id="tenant-a", case_id="case-original") == original
