@@ -296,16 +296,35 @@ class RepositoryMutationAgent:
                 raise RepositoryMutationError("write_symlink_rejected")
         return candidate
 
-    def _rollback(self, expected_head: str, branch: str, snapshots: Mapping[Path, bytes | None]) -> None:
-        for path, old in snapshots.items():
-            if old is None:
-                if path.exists() and path.is_file():
-                    path.unlink()
-            else:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(old)
-        self._git("checkout", "--detach", expected_head)
-        self._git("branch", "-D", branch)
+    def _remove_untracked(self) -> bool:
+        result = self._git("ls-files", "--others", "--exclude-standard", "-z")
+        if result.returncode != 0:
+            return False
+        for relative in (result.stdout or "").split("\0"):
+            if not relative:
+                continue
+            try:
+                path = self._safe_path(relative)
+            except RepositoryMutationError:
+                return False
+            if path.is_symlink() or path.is_file():
+                path.unlink(missing_ok=True)
+                parent = path.parent
+                while parent != self.workspace:
+                    try:
+                        parent.rmdir()
+                    except OSError:
+                        break
+                    parent = parent.parent
+        return True
+
+    def _rollback(self, expected_head: str, branch: str) -> bool:
+        restored = self._git("restore", "--source", expected_head, "--staged", "--worktree", "--", ".")
+        untracked_removed = self._remove_untracked()
+        detached = self._git("checkout", "--detach", expected_head)
+        deleted = self._git("branch", "-D", branch)
+        clean = self._git("status", "--porcelain", "--untracked-files=all")
+        return all(result.returncode == 0 for result in (restored, detached, deleted, clean)) and untracked_removed and not (clean.stdout or "").strip()
 
     @staticmethod
     def _blocked(task: str, code: str) -> dict[str, Any]:
@@ -322,6 +341,11 @@ class RepositoryMutationAgent:
             "evidence": {"test_state": test_state, "task_state": code.upper(), "evidence_codes": [code]},
             "next_active": task, "blockers": [code], "resume_at": task, "error": {"type": code.upper()},
         }
+
+    def _rollback_error(self, task: str, expected_head: str, branch: str, code: str, *, test_state: str = "FAILURE") -> dict[str, Any]:
+        if not self._rollback(expected_head, branch):
+            return self._error(task, "rollback_failed")
+        return self._error(task, code, test_state=test_state)
 
     def execute(self, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
@@ -358,12 +382,10 @@ class RepositoryMutationAgent:
         if self._git("checkout", "-b", task.work_branch, expected_head).returncode != 0:
             return self._error(task_id, "branch_creation_failed", test_state="NOT_RUN")
 
-        snapshots: dict[Path, bytes | None] = {}
         write_paths: list[str] = []
         try:
             for relative, content in task.writes:
                 target = self._safe_path(relative)
-                snapshots[target] = target.read_bytes() if target.exists() else None
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(content, encoding="utf-8")
                 write_paths.append(relative)
@@ -371,31 +393,27 @@ class RepositoryMutationAgent:
             for test_id in task.test_ids:
                 result = self._run(self.config.test_commands[test_id])
                 if result.returncode != 0:
-                    self._rollback(expected_head, task.work_branch, snapshots)
-                    return self._error(task_id, "test_failed")
+                    return self._rollback_error(task_id, expected_head, task.work_branch, "test_failed")
 
             changed = self._git("diff", "--name-only", expected_head, "--", *write_paths)
             untracked = self._git("ls-files", "--others", "--exclude-standard")
             if changed.returncode != 0 or untracked.returncode != 0:
-                self._rollback(expected_head, task.work_branch, snapshots)
-                return self._error(task_id, "repository_diff_unverifiable")
+                return self._rollback_error(task_id, expected_head, task.work_branch, "repository_diff_unverifiable")
             observed_paths = {line.strip() for line in (changed.stdout or "").splitlines() if line.strip()}
             observed_paths.update(line.strip() for line in (untracked.stdout or "").splitlines() if line.strip())
             if not observed_paths or not observed_paths.issubset(set(write_paths)):
-                self._rollback(expected_head, task.work_branch, snapshots)
-                return self._error(task_id, "unexpected_repository_side_effect")
+                return self._rollback_error(task_id, expected_head, task.work_branch, "unexpected_repository_side_effect")
             if self._git("add", "--", *write_paths).returncode != 0:
-                self._rollback(expected_head, task.work_branch, snapshots)
-                return self._error(task_id, "git_stage_failed")
+                return self._rollback_error(task_id, expected_head, task.work_branch, "git_stage_failed")
             if self._git("diff", "--cached", "--quiet").returncode == 0:
-                self._rollback(expected_head, task.work_branch, snapshots)
+                if not self._rollback(expected_head, task.work_branch):
+                    return self._error(task_id, "rollback_failed")
                 return self._blocked(task_id, "no_repository_change")
             if self._git("commit", "-m", task.commit_message).returncode != 0:
-                self._rollback(expected_head, task.work_branch, snapshots)
-                return self._error(task_id, "git_commit_failed")
+                return self._rollback_error(task_id, expected_head, task.work_branch, "git_commit_failed")
             commit_sha = self._head()
             if not commit_sha:
-                return self._error(task_id, "commit_head_unverifiable")
+                return self._rollback_error(task_id, expected_head, task.work_branch, "commit_head_unverifiable")
 
             evidence = {
                 "commit_sha": commit_sha,
@@ -407,7 +425,7 @@ class RepositoryMutationAgent:
             }
             if task.publish:
                 if self._git("push", self.config.push_remote or "origin", f"HEAD:refs/heads/{task.work_branch}", timeout=180).returncode != 0:
-                    return self._error(task_id, "repository_push_failed")
+                    return self._rollback_error(task_id, expected_head, task.work_branch, "repository_push_failed")
                 token = self.environ.get(self.config.github_token_env or "", "")
                 try:
                     pr_number, _ = GitHubPullRequestClient(self.config.repository, token, self.config.github_api_base, self.opener).upsert(
@@ -417,6 +435,8 @@ class RepositoryMutationAgent:
                         body=task.pr_body or "",
                     )
                 except GitHubPublishError as exc:
+                    # The remote branch may already exist. Never fabricate DONE. Keep
+                    # the local tested commit for auditable recovery and return ERROR.
                     return self._error(task_id, exc.code)
                 evidence["pr_number"] = pr_number
                 evidence["evidence_codes"].append("pull_request_upserted")
@@ -432,10 +452,10 @@ class RepositoryMutationAgent:
             }
         except (OSError, RepositoryMutationError, subprocess.SubprocessError):
             try:
-                self._rollback(expected_head, task.work_branch, snapshots)
+                rolled_back = self._rollback(expected_head, task.work_branch)
             except Exception:
-                pass
-            return self._error(task_id, "repository_mutation_exception")
+                rolled_back = False
+            return self._error(task_id, "repository_mutation_exception" if rolled_back else "rollback_failed")
 
 
 def main() -> int:
