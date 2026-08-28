@@ -1,0 +1,187 @@
+from decimal import Decimal
+
+from .engine import (
+    CommitmentState,
+    CostRecoveryMode,
+    ExposureType,
+    RecoveryCase,
+    RecoverabilityState,
+)
+
+
+D = Decimal
+
+
+# Ground truth is frozen manually. The production evaluator never computes these
+# expected values for itself.
+def case(case_id: str, **overrides) -> RecoveryCase:
+    values = dict(
+        case_id=case_id,
+        currency="EUR",
+        committed_units=D("100000"),
+        actual_units=D("80000"),
+        dedicated_cost=D("500000"),
+        amortization_basis_units=D("100000"),
+        mitigation=D("0"),
+        prior_payment=D("0"),
+        commitment_state=CommitmentState.FIRM,
+        explicit_recovery_right=True,
+        evidence_supported=True,
+        notice_valid=True,
+        asset_dedicated=True,
+        already_fully_amortized=False,
+        already_paid=False,
+        exposure_type=ExposureType.DEDICATED_CAPEX,
+        cost_recovery_mode=CostRecoveryMode.UNIT_AMORTIZED,
+        customer_matches=True,
+        program_matches=True,
+        period_matches=True,
+        currency_matches=True,
+        unit_matches=True,
+        actuals_complete=True,
+        actuals_deduplicated=True,
+        cancelled_orders_excluded=True,
+        amortization_verified=True,
+        asset_dedication_verified=True,
+        mitigation_reviewed=True,
+        prior_recovery_reviewed=True,
+        notice_window_verified=True,
+        contract_matches=True,
+        contract_current=True,
+        amendment_reviewed=True,
+        amendment_matches=True,
+        duplicate_claim=False,
+    )
+    values.update(overrides)
+    return RecoveryCase(**values)
+
+
+def expected(state, exposure, net, recoverable):
+    return {
+        "state": state,
+        "economic_exposure": D(str(exposure)),
+        "net_exposure": D(str(net)),
+        "recoverable": D(str(recoverable)),
+    }
+
+
+CASES = [
+    (case("full-volume-delivered", actual_units=D("100000")), expected(RecoverabilityState.ZERO_EXPOSURE, 0, 0, 0)),
+    (case("minor-shortfall", actual_units=D("95000")), expected(RecoverabilityState.RECOVERABLE, 25000, 25000, 25000)),
+    (case("major-shortfall", actual_units=D("50000")), expected(RecoverabilityState.RECOVERABLE, 250000, 250000, 250000)),
+    (case("program-delay", actual_units=D("0")), expected(RecoverabilityState.RECOVERABLE, 500000, 500000, 500000)),
+    (case("program-cancellation", actual_units=D("0")), expected(RecoverabilityState.RECOVERABLE, 500000, 500000, 500000)),
+    (case("partial-cancellation", actual_units=D("70000")), expected(RecoverabilityState.RECOVERABLE, 150000, 150000, 150000)),
+    (case("no-contractual-right", explicit_recovery_right=False), expected(RecoverabilityState.NON_RECOVERABLE, 100000, 100000, 0)),
+    (case("strong-contractual-right"), expected(RecoverabilityState.RECOVERABLE, 100000, 100000, 100000)),
+    (case("ambiguous-commitment", commitment_state=CommitmentState.AMBIGUOUS), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("forecast-only-no-firm-commitment", commitment_state=CommitmentState.FORECAST_ONLY), expected(RecoverabilityState.NON_RECOVERABLE, 100000, 100000, 0)),
+    (case("firm-window"), expected(RecoverabilityState.RECOVERABLE, 100000, 100000, 100000)),
+    (case("flex-window-effective-minimum", commitment_state=CommitmentState.FLEX_WINDOW), expected(RecoverabilityState.RECOVERABLE, 100000, 100000, 100000)),
+    (case("dedicated-capex", exposure_type=ExposureType.DEDICATED_CAPEX), expected(RecoverabilityState.RECOVERABLE, 100000, 100000, 100000)),
+    (case("shared-capex", exposure_type=ExposureType.DEDICATED_CAPEX, asset_dedicated=False), expected(RecoverabilityState.NON_RECOVERABLE, 100000, 100000, 0)),
+    (case("tooling-fully-amortized", exposure_type=ExposureType.TOOLING, already_fully_amortized=True), expected(RecoverabilityState.ZERO_EXPOSURE, 0, 0, 0)),
+    (
+        case(
+            "tooling-partially-amortized",
+            exposure_type=ExposureType.TOOLING,
+            committed_units=D("50000"),
+            actual_units=D("30000"),
+            dedicated_cost=D("300000"),
+            amortization_basis_units=D("50000"),
+        ),
+        expected(RecoverabilityState.RECOVERABLE, 120000, 120000, 120000),
+    ),
+    (
+        case(
+            "nre-already-paid",
+            exposure_type=ExposureType.NRE,
+            cost_recovery_mode=CostRecoveryMode.DIRECT_UNRECOVERED,
+            dedicated_cost=D("100000"),
+            amortization_basis_units=D("0"),
+            already_paid=True,
+        ),
+        expected(RecoverabilityState.ZERO_EXPOSURE, 0, 0, 0),
+    ),
+    (
+        case(
+            "unused-labor-capacity",
+            exposure_type=ExposureType.LABOR,
+            cost_recovery_mode=CostRecoveryMode.DIRECT_UNRECOVERED,
+            dedicated_cost=D("200000"),
+            amortization_basis_units=D("0"),
+        ),
+        expected(RecoverabilityState.RECOVERABLE, 200000, 200000, 200000),
+    ),
+    (
+        case(
+            "material-reused",
+            exposure_type=ExposureType.MATERIAL,
+            cost_recovery_mode=CostRecoveryMode.DIRECT_UNRECOVERED,
+            dedicated_cost=D("120000"),
+            amortization_basis_units=D("0"),
+            mitigation=D("120000"),
+        ),
+        expected(RecoverabilityState.ZERO_EXPOSURE, 120000, 0, 0),
+    ),
+    (
+        case(
+            "material-scrapped",
+            exposure_type=ExposureType.MATERIAL,
+            cost_recovery_mode=CostRecoveryMode.DIRECT_UNRECOVERED,
+            dedicated_cost=D("120000"),
+            amortization_basis_units=D("0"),
+        ),
+        expected(RecoverabilityState.RECOVERABLE, 120000, 120000, 120000),
+    ),
+    (case("mitigation-partial", mitigation=D("30000")), expected(RecoverabilityState.RECOVERABLE, 100000, 70000, 70000)),
+    (case("prior-customer-credit", prior_payment=D("40000")), expected(RecoverabilityState.RECOVERABLE, 100000, 60000, 60000)),
+    (case("duplicate-claim", duplicate_claim=True), expected(RecoverabilityState.NON_RECOVERABLE, 100000, 100000, 0)),
+    (case("wrong-customer", customer_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("wrong-program", program_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("wrong-period", period_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("wrong-currency", currency_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("wrong-unit", unit_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("missing-call-off", actuals_complete=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("late-call-off-not-reconciled", actuals_complete=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("duplicate-volume", actuals_deduplicated=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("cancelled-order-in-actuals", cancelled_orders_excluded=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("wrong-amortization-basis", amortization_verified=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("amortization-verification-unknown", amortization_verified=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("asset-dedication-not-verified", asset_dedication_verified=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("asset-dedication-verification-unknown", asset_dedication_verified=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("mitigation-not-reviewed", mitigation_reviewed=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("mitigation-review-unknown", mitigation_reviewed=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("prior-recovery-not-reviewed", prior_recovery_reviewed=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("prior-recovery-review-unknown", prior_recovery_reviewed=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("notice-window-not-verified", notice_window_verified=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("notice-window-verification-unknown", notice_window_verified=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("wrong-contract", contract_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("contract-match-unknown", contract_matches=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("superseded-contract", contract_current=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("customer-amendment-unreconciled", amendment_reviewed=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("wrong-amendment", amendment_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("amendment-match-unknown", amendment_matches=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("expired-claim-right", notice_valid=False), expected(RecoverabilityState.EXPIRED, 100000, 100000, 0)),
+    (case("zero-recovery-right-unknown", explicit_recovery_right=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("missing-evidence", evidence_supported=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("notice-unknown", notice_valid=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("customer-match-unknown", customer_matches=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("program-match-unknown", program_matches=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("period-match-unknown", period_matches=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("currency-match-unknown", currency_matches=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("unit-match-unknown", unit_matches=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("actuals-completeness-unknown", actuals_complete=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("actuals-deduplication-unknown", actuals_deduplicated=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("cancelled-order-reconciliation-unknown", cancelled_orders_excluded=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("contract-current-unknown", contract_current=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("amendment-review-unknown", amendment_reviewed=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (
+        case("prior-payment-exhausts-exposure", prior_payment=D("100000")),
+        expected(RecoverabilityState.ZERO_EXPOSURE, 100000, 0, 0),
+    ),
+    (
+        case("mitigation-exceeds-exposure", mitigation=D("125000")),
+        expected(RecoverabilityState.ZERO_EXPOSURE, 100000, 0, 0),
+    ),
+]
