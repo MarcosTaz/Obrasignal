@@ -15,7 +15,11 @@ import threading
 
 from opportunity_lifecycle import persist_lifecycle_observations
 from signal_store import ensure_signal_records, persist_signal_records, signal_type_of
-from source_health import record_source_ingestion_failure, set_source_cursor
+from source_health import (
+    record_source_ingestion_failure,
+    record_source_projection_failure,
+    set_source_cursor,
+)
 from source_metadata import persist_source_metadata
 
 
@@ -252,7 +256,9 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
     If that post-commit reconciliation itself fails, canonical source truth remains
     committed but the exact pre-commit source cursors are restored. This preserves
     retryability: a later source fetch cannot skip truth that the customer-facing
-    compatibility projection has not successfully reconciled yet.
+    compatibility projection has not successfully reconciled yet. Public Source
+    Health is also degraded for every staged source so source-side success cannot
+    masquerade as end-to-end customer truth.
 
     Fetch health may already have been committed before this transaction begins.
     When canonical persistence fails, compensate that observation after rollback
@@ -355,6 +361,17 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
             _restore_cursor_snapshots(conn, previous_cursors)
         except Exception as restore_exc:
             cursor_restore_error = restore_exc
+
+        health_errors = []
+        for item in pending:
+            try:
+                record_source_projection_failure(
+                    conn, item.source, error=projection_exc
+                )
+            except Exception as health_exc:
+                health_errors.append((item.source, health_exc))
+                continue
+
         detail = (
             "source transaction committed but legacy projection reconciliation failed: "
             f"{type(projection_exc).__name__}: {projection_exc}"
@@ -363,6 +380,12 @@ def commit_staged_source_syncs(conn, *, accepted_tender_identities=None):
             detail += (
                 "; source cursor restoration failed: "
                 f"{type(cursor_restore_error).__name__}"
+            )
+        if health_errors:
+            failed_sources = ",".join(source for source, _ in health_errors)
+            detail += (
+                "; source projection-health compensation failed for "
+                f"{failed_sources}: {type(health_errors[0][1]).__name__}"
             )
         raise RuntimeError(detail) from projection_exc
     finally:
