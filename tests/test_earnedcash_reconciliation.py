@@ -176,3 +176,44 @@ def test_tenant_identity_preserved_in_cases():
         )
     )
     assert result.cases[0].tenant_id == "tenant-X"
+
+
+def test_paid_value_without_payment_evidence_is_not_verified_cash():
+    result = reconcile_project(make(paid_value=Decimal("100000")))
+    assert result.verified_paid == Decimal("0")
+    assert result.unknown is True
+
+
+def test_paid_value_with_matching_payment_evidence_is_verified_cash():
+    result = reconcile_project(
+        make(
+            paid_value=Decimal("100000"),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="bank-1",
+                    kind=EvidenceKind.PAYMENT,
+                    amount=Decimal("100000"),
+                    verified=True,
+                ),
+            ),
+        )
+    )
+    assert result.verified_paid == Decimal("100000")
+
+
+def test_payment_evidence_amount_mismatch_fails_closed_for_verified_cash():
+    result = reconcile_project(
+        make(
+            paid_value=Decimal("100000"),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="bank-1",
+                    kind=EvidenceKind.PAYMENT,
+                    amount=Decimal("99000"),
+                    verified=True,
+                ),
+            ),
+        )
+    )
+    assert result.verified_paid == Decimal("0")
+    assert result.unknown is True
