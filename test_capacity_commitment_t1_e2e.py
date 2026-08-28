@@ -32,7 +32,13 @@ def request_payload(case_id: str, **case_overrides) -> dict:
     [
         ("pilot-positive", {}, "RECOVERABLE", "100000"),
         ("pilot-forecast-only", {"commitment_state": "FORECAST_ONLY"}, "NON_RECOVERABLE", "0"),
+        ("pilot-wrong-customer", {"customer_matches": False}, "UNKNOWN", "0"),
+        ("pilot-wrong-contract", {"contract_matches": False}, "UNKNOWN", "0"),
+        ("pilot-wrong-amendment", {"amendment_matches": False}, "UNKNOWN", "0"),
         ("pilot-wrong-amortization", {"amortization_verified": False}, "UNKNOWN", "0"),
+        ("pilot-unverified-dedication", {"asset_dedication_verified": False}, "UNKNOWN", "0"),
+        ("pilot-mitigation-unreviewed", {"mitigation_reviewed": False}, "UNKNOWN", "0"),
+        ("pilot-prior-recovery-unreviewed", {"prior_recovery_reviewed": False}, "UNKNOWN", "0"),
         ("pilot-unverified-notice-window", {"notice_window_verified": False}, "UNKNOWN", "0"),
         ("pilot-expired", {"notice_valid": False}, "EXPIRED", "0"),
         ("pilot-zero-exposure", {"actual_units": Decimal("100000")}, "ZERO_EXPOSURE", "0"),
@@ -40,9 +46,9 @@ def request_payload(case_id: str, **case_overrides) -> dict:
     ],
 )
 def test_assisted_api_end_to_end_matrix(tmp_path, case_id, overrides, expected_state, expected_claimable):
-    # Serialized enum overrides are applied after constructing a valid typed case.
-    commitment_override = overrides.pop("commitment_state", None)
-    payload = request_payload(case_id, **overrides)
+    values = dict(overrides)
+    commitment_override = values.pop("commitment_state", None)
+    payload = request_payload(case_id, **values)
     if commitment_override is not None:
         payload["recovery_case"]["commitment_state"] = commitment_override
 
@@ -77,6 +83,44 @@ def test_assisted_api_end_to_end_matrix(tmp_path, case_id, overrides, expected_s
     assert cross_tenant.status_code == 404
 
 
+def test_forecast_revision_cannot_change_firm_commitment_entitlement(tmp_path):
+    repository = CapacityRepository(str(tmp_path / "capacity.db"))
+    app = create_app(repository, lambda req: req.headers.get("X-Test-Tenant"))
+    app.config.update(TESTING=True)
+    client = app.test_client()
+
+    low = request_payload("forecast-low")
+    low["forecast_units"] = "1000"
+    high = request_payload("forecast-high")
+    high["forecast_units"] = "999999"
+
+    low_response = client.post("/api/capacity/cases", headers=HEADERS, json=low)
+    high_response = client.post("/api/capacity/cases", headers=HEADERS, json=high)
+    assert low_response.status_code == high_response.status_code == 201
+    low_body = low_response.get_json()
+    high_body = high_response.get_json()
+    assert low_body["case"]["committed_units"] == high_body["case"]["committed_units"] == "100000"
+    assert low_body["result"]["claimable_amount"] == high_body["result"]["claimable_amount"] == "100000"
+    assert low_body["case"]["forecast_units"] == "1000"
+    assert high_body["case"]["forecast_units"] == "999999"
+
+
+def test_forecast_only_remains_zero_claimable_even_with_extreme_forecast(tmp_path):
+    repository = CapacityRepository(str(tmp_path / "capacity.db"))
+    app = create_app(repository, lambda req: req.headers.get("X-Test-Tenant"))
+    app.config.update(TESTING=True)
+    payload = request_payload("forecast-context-only")
+    payload["forecast_units"] = "999999999"
+    payload["recovery_case"]["commitment_state"] = "FORECAST_ONLY"
+
+    response = app.test_client().post("/api/capacity/cases", headers=HEADERS, json=payload)
+    assert response.status_code == 201
+    body = response.get_json()
+    assert body["result"]["economic_exposure"] == "100000"
+    assert body["result"]["claimable_amount"] == "0"
+    assert body["result"]["recoverability_state"] == "NON_RECOVERABLE"
+
+
 def test_verified_notice_window_without_deadline_fails_before_persistence(tmp_path):
     repository = CapacityRepository(str(tmp_path / "capacity.db"))
     app = create_app(repository, lambda req: req.headers.get("X-Test-Tenant"))
@@ -90,7 +134,7 @@ def test_verified_notice_window_without_deadline_fails_before_persistence(tmp_pa
     assert repository.list_case_ids(tenant_id="tenant-a") == []
 
 
-def test_operator_console_exposes_notice_window_verification(tmp_path):
+def test_operator_console_exposes_all_material_review_gates(tmp_path):
     repository = CapacityRepository(str(tmp_path / "capacity.db"))
     app = create_app(repository, lambda req: req.headers.get("X-Test-Tenant"))
     app.config.update(TESTING=True)
@@ -98,5 +142,14 @@ def test_operator_console_exposes_notice_window_verification(tmp_path):
     response = app.test_client().get("/", headers={"X-Test-Tenant": "tenant-a"})
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "Notice window verified?" in html
-    assert "Absolute notice deadline" in html
+    for label in (
+        "Customer matches evidence?",
+        "Contract matches evidence?",
+        "Applicable amendment matches?",
+        "Asset dedication verified?",
+        "Mitigation reviewed?",
+        "Prior recovery/payment reviewed?",
+        "Notice window verified?",
+        "Absolute notice deadline",
+    ):
+        assert label in html
