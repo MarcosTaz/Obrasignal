@@ -39,6 +39,21 @@ def _validate_contract_anchor(contract_id: Optional[str], nomination_id: Optiona
         raise ValueError("contract_id or nomination_id is required")
 
 
+def _validate_reference_list(name: str, values) -> None:
+    if not isinstance(values, (tuple, list)) or not all(isinstance(item, str) for item in values):
+        raise ValueError(f"{name} must contain strings")
+    normalized = [item.strip() for item in values]
+    if any(not item for item in normalized):
+        raise ValueError(f"{name} cannot contain blank references")
+    if len(set(normalized)) != len(normalized):
+        raise ValueError(f"{name} cannot contain duplicate references")
+
+
+def _validate_evidence_consistency(recovery_case: RecoveryCase, evidence_refs) -> None:
+    if recovery_case.evidence_supported and not evidence_refs:
+        raise ValueError("evidence_supported requires at least one persisted evidence reference")
+
+
 def recovery_case_to_payload(recovery_case: RecoveryCase) -> dict:
     raw = asdict(recovery_case)
     for key in (
@@ -107,10 +122,9 @@ def dump_state(state: AssistedCaseState) -> str:
     _validate_contract_anchor(state.contract_id, state.nomination_id)
     if state.forecast_units is not None and state.forecast_units < Decimal("0"):
         raise ValueError("forecast_units must be non-negative")
-    if not all(isinstance(item, str) for item in state.evidence_refs):
-        raise ValueError("evidence_refs must contain strings")
-    if not all(isinstance(item, str) for item in state.missing_evidence):
-        raise ValueError("missing_evidence must contain strings")
+    _validate_reference_list("evidence_refs", state.evidence_refs)
+    _validate_reference_list("missing_evidence", state.missing_evidence)
+    _validate_evidence_consistency(state.recovery_case, state.evidence_refs)
 
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -160,22 +174,23 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
 
     evidence_refs = payload.get("evidence_refs", [])
     missing_evidence = payload.get("missing_evidence", [])
-    if not isinstance(evidence_refs, list) or not all(isinstance(item, str) for item in evidence_refs):
-        raise ValueError("evidence_refs must be a string list")
-    if not isinstance(missing_evidence, list) or not all(isinstance(item, str) for item in missing_evidence):
-        raise ValueError("missing_evidence must be a string list")
+    _validate_reference_list("evidence_refs", evidence_refs)
+    _validate_reference_list("missing_evidence", missing_evidence)
 
     forecast_raw = payload.get("forecast_units")
     forecast_units = Decimal(str(forecast_raw)) if forecast_raw is not None else None
     if forecast_units is not None and forecast_units < Decimal("0"):
         raise ValueError("forecast_units must be non-negative")
 
+    recovery_case = recovery_case_from_payload(payload["recovery_case"])
+    _validate_evidence_consistency(recovery_case, evidence_refs)
+
     return AssistedCaseState(
         tenant_id=tenant_id,
         company_id=payload["company_id"],
         customer_id=payload["customer_id"],
         program_id=payload["program_id"],
-        recovery_case=recovery_case_from_payload(payload["recovery_case"]),
+        recovery_case=recovery_case,
         evidence_refs=tuple(evidence_refs),
         missing_evidence=tuple(missing_evidence),
         deadline=payload.get("deadline"),
