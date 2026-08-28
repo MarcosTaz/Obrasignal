@@ -1,5 +1,7 @@
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from threading import Barrier
 
 import pytest
 
@@ -61,6 +63,33 @@ def test_repository_duplicate_same_tenant_fails_without_overwrite(tmp_path):
         repo.save(changed)
 
     assert repo.load(tenant_id="tenant-a", case_id="same-case") == original
+
+
+def test_repository_concurrent_duplicate_create_has_one_winner_and_no_overwrite(tmp_path):
+    db_path = str(tmp_path / "capacity.db")
+    CapacityRepository(db_path)  # create schema before racing writers
+    barrier = Barrier(2)
+    candidates = [
+        make_state("tenant-a", "concurrent-case", actual_units=Decimal("80000")),
+        make_state("tenant-a", "concurrent-case", actual_units=Decimal("0")),
+    ]
+
+    def attempt(state):
+        repo = CapacityRepository(db_path)
+        barrier.wait()
+        try:
+            repo.save(state)
+            return "saved", state.recovery_case.actual_units
+        except FileExistsError:
+            return "conflict", state.recovery_case.actual_units
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(attempt, candidates))
+
+    assert sorted(status for status, _ in outcomes) == ["conflict", "saved"]
+    restored = CapacityRepository(db_path).load(tenant_id="tenant-a", case_id="concurrent-case")
+    winning_actual = next(actual for status, actual in outcomes if status == "saved")
+    assert restored.recovery_case.actual_units == winning_actual
 
 
 def test_repository_engine_version_drift_requires_explicit_reassessment(tmp_path):
