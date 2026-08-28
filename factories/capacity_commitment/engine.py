@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.4"
+ENGINE_VERSION = "capacity-recoverability-t1.5"
 
 
 class CommitmentState(str, Enum):
@@ -59,6 +59,7 @@ class RecoveryCase:
     already_paid: bool = False
     exposure_type: ExposureType = ExposureType.DEDICATED_CAPEX
     cost_recovery_mode: CostRecoveryMode = CostRecoveryMode.UNIT_AMORTIZED
+    customer_matches: Optional[bool] = None
     program_matches: Optional[bool] = None
     period_matches: Optional[bool] = None
     currency_matches: Optional[bool] = None
@@ -67,9 +68,14 @@ class RecoveryCase:
     actuals_deduplicated: Optional[bool] = None
     cancelled_orders_excluded: Optional[bool] = None
     amortization_verified: Optional[bool] = None
+    asset_dedication_verified: Optional[bool] = None
+    mitigation_reviewed: Optional[bool] = None
+    prior_recovery_reviewed: Optional[bool] = None
     notice_window_verified: Optional[bool] = None
+    contract_matches: Optional[bool] = None
     contract_current: Optional[bool] = None
     amendment_reviewed: Optional[bool] = None
+    amendment_matches: Optional[bool] = None
     duplicate_claim: bool = False
 
 
@@ -135,6 +141,7 @@ def _validate(case: RecoveryCase) -> None:
     optional_bools = {
         "explicit_recovery_right": case.explicit_recovery_right,
         "notice_valid": case.notice_valid,
+        "customer_matches": case.customer_matches,
         "program_matches": case.program_matches,
         "period_matches": case.period_matches,
         "currency_matches": case.currency_matches,
@@ -143,9 +150,14 @@ def _validate(case: RecoveryCase) -> None:
         "actuals_deduplicated": case.actuals_deduplicated,
         "cancelled_orders_excluded": case.cancelled_orders_excluded,
         "amortization_verified": case.amortization_verified,
+        "asset_dedication_verified": case.asset_dedication_verified,
+        "mitigation_reviewed": case.mitigation_reviewed,
+        "prior_recovery_reviewed": case.prior_recovery_reviewed,
         "notice_window_verified": case.notice_window_verified,
+        "contract_matches": case.contract_matches,
         "contract_current": case.contract_current,
         "amendment_reviewed": case.amendment_reviewed,
+        "amendment_matches": case.amendment_matches,
     }
     for name, value in optional_bools.items():
         if value is not None and type(value) is not bool:
@@ -181,6 +193,7 @@ def _economic_exposure(case: RecoveryCase) -> tuple[Decimal, Decimal, Decimal]:
 
 def _integrity_gate(case: RecoveryCase) -> Optional[tuple[RecoverabilityState, str]]:
     checks = (
+        (case.customer_matches, "customer_match_unknown", "wrong_customer"),
         (case.program_matches, "program_match_unknown", "wrong_program"),
         (case.period_matches, "period_match_unknown", "wrong_period"),
         (case.currency_matches, "currency_match_unknown", "wrong_currency"),
@@ -197,13 +210,21 @@ def _integrity_gate(case: RecoveryCase) -> Optional[tuple[RecoverabilityState, s
             "amortization_verification_unknown",
             "amortization_basis_not_verified",
         ),
+        (case.mitigation_reviewed, "mitigation_review_unknown", "mitigation_not_reviewed"),
+        (
+            case.prior_recovery_reviewed,
+            "prior_recovery_review_unknown",
+            "prior_recovery_not_reviewed",
+        ),
         (
             case.notice_window_verified,
             "notice_window_verification_unknown",
             "notice_window_not_verified",
         ),
+        (case.contract_matches, "contract_match_unknown", "wrong_contract"),
         (case.contract_current, "contract_current_unknown", "superseded_contract"),
         (case.amendment_reviewed, "amendment_review_unknown", "customer_amendment_not_reconciled"),
+        (case.amendment_matches, "amendment_match_unknown", "wrong_amendment"),
     )
     for value, unknown_reason, false_reason in checks:
         if value is None:
@@ -242,41 +263,51 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
         if integrity is not None:
             state, reason = integrity
             reasons.append(reason)
-        elif not case.asset_dedicated and case.exposure_type in {
-            ExposureType.DEDICATED_CAPEX,
-            ExposureType.TOOLING,
-        }:
-            state = RecoverabilityState.NON_RECOVERABLE
-            reasons.append("asset_not_proven_dedicated")
-        elif case.commitment_state is CommitmentState.FORECAST_ONLY:
-            state = RecoverabilityState.NON_RECOVERABLE
-            reasons.append("forecast_is_not_firm_commitment")
-        elif case.commitment_state is CommitmentState.NONE:
-            state = RecoverabilityState.NON_RECOVERABLE
-            reasons.append("no_customer_commitment")
-        elif case.commitment_state is CommitmentState.AMBIGUOUS:
-            state = RecoverabilityState.UNKNOWN
-            reasons.append("commitment_ambiguous")
-        elif case.explicit_recovery_right is False:
-            state = RecoverabilityState.NON_RECOVERABLE
-            reasons.append("recovery_right_not_supported")
-        elif case.explicit_recovery_right is None:
-            state = RecoverabilityState.UNKNOWN
-            reasons.append("recovery_right_unknown")
-        elif not case.evidence_supported:
-            state = RecoverabilityState.UNKNOWN
-            reasons.append("evidence_incomplete")
-        elif case.notice_valid is False:
-            state = RecoverabilityState.EXPIRED
-            reasons.append("notice_or_deadline_expired")
-        elif case.notice_valid is None:
-            state = RecoverabilityState.UNKNOWN
-            reasons.append("notice_validity_unknown")
+        elif case.exposure_type in {ExposureType.DEDICATED_CAPEX, ExposureType.TOOLING}:
+            if case.asset_dedication_verified is None:
+                state = RecoverabilityState.UNKNOWN
+                reasons.append("asset_dedication_verification_unknown")
+            elif case.asset_dedication_verified is False:
+                state = RecoverabilityState.UNKNOWN
+                reasons.append("asset_dedication_not_verified")
+            elif not case.asset_dedicated:
+                state = RecoverabilityState.NON_RECOVERABLE
+                reasons.append("asset_not_proven_dedicated")
+            else:
+                state = None
         else:
-            state = RecoverabilityState.RECOVERABLE
-            recoverable = net_exposure
-            claimable = net_exposure
-            reasons.append("commitment_right_evidence_integrity_and_notice_supported")
+            state = None
+
+        if state is None:
+            if case.commitment_state is CommitmentState.FORECAST_ONLY:
+                state = RecoverabilityState.NON_RECOVERABLE
+                reasons.append("forecast_is_not_firm_commitment")
+            elif case.commitment_state is CommitmentState.NONE:
+                state = RecoverabilityState.NON_RECOVERABLE
+                reasons.append("no_customer_commitment")
+            elif case.commitment_state is CommitmentState.AMBIGUOUS:
+                state = RecoverabilityState.UNKNOWN
+                reasons.append("commitment_ambiguous")
+            elif case.explicit_recovery_right is False:
+                state = RecoverabilityState.NON_RECOVERABLE
+                reasons.append("recovery_right_not_supported")
+            elif case.explicit_recovery_right is None:
+                state = RecoverabilityState.UNKNOWN
+                reasons.append("recovery_right_unknown")
+            elif not case.evidence_supported:
+                state = RecoverabilityState.UNKNOWN
+                reasons.append("evidence_incomplete")
+            elif case.notice_valid is False:
+                state = RecoverabilityState.EXPIRED
+                reasons.append("notice_or_deadline_expired")
+            elif case.notice_valid is None:
+                state = RecoverabilityState.UNKNOWN
+                reasons.append("notice_validity_unknown")
+            else:
+                state = RecoverabilityState.RECOVERABLE
+                recoverable = net_exposure
+                claimable = net_exposure
+                reasons.append("commitment_right_evidence_integrity_and_notice_supported")
 
     return RecoveryResult(
         engine_version=ENGINE_VERSION,
