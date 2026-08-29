@@ -35,6 +35,9 @@ def operator_rows_and_due_evidence(company):
     rows = []
     due_evidence = {}
     for record in company.records:
+        # A PAYMENT is an observed ledger fact here, not verified cash. Exact
+        # cash verification happens only through CashEvidence after recovery.
+        verified = False if record.kind == LedgerKind.PAYMENT else record.verified
         rows.append(
             {
                 "record_id": record.record_id,
@@ -44,7 +47,7 @@ def operator_rows_and_due_evidence(company):
                 "kind": record.kind.value,
                 "amount": str(record.amount),
                 "relates_to": record.relates_to,
-                "verified": record.verified,
+                "verified": verified,
             }
         )
         if record.kind == LedgerKind.INVOICE and record.due is not None:
@@ -56,7 +59,7 @@ def operator_rows_and_due_evidence(company):
     return rows, due_evidence
 
 
-def test_five_diversified_companies_match_oracle_through_assisted_operator():
+def test_five_diversified_companies_match_exposure_oracle_through_assisted_operator():
     companies = diversified_companies()[:5]
     assert len(companies) == 5
 
@@ -78,7 +81,11 @@ def test_five_diversified_companies_match_oracle_through_assisted_operator():
             due_evidence_by_record=due_evidence,
         )
 
-        assert Decimal(result["verified_cash"]) == company.oracle_verified_cash, company.name
+        # Product-path cash remains zero until exact-scope CashEvidence is recorded.
+        assert Decimal(result["verified_cash"]) == Decimal("0"), company.name
+        assert store.verified_cash_total(
+            tenant_id=tenant_id, project_id=first.project_id
+        ) == Decimal("0"), company.name
         assert Decimal(result["due_unpaid"]) == company.oracle_due_unpaid, company.name
         assert Decimal(result["not_yet_due"]) == company.oracle_not_yet_due, company.name
         assert Decimal(result["unknown_value"]) == company.oracle_unknown, company.name
@@ -108,5 +115,6 @@ def test_unknown_due_date_company_stays_unknown_without_due_evidence():
         due_evidence_by_record=due_evidence,
     )
     assert result["due_truth"]["titan1-inv"]["state"] == "UNKNOWN"
+    assert Decimal(result["verified_cash"]) == Decimal("0")
     assert Decimal(result["unknown_value"]) == Decimal("120000")
     assert result["recovery_queue"] == []
