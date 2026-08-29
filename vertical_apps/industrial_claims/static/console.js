@@ -20,6 +20,17 @@ function render(target, response, body) {
   node.append(heading, detail);
 }
 
+async function loadDetail(id) {
+  const findingId = String(id || "").trim();
+  if (!findingId) {
+    const node = document.getElementById("detail-result");
+    node.className = "result error";
+    node.textContent = "Select a finding before loading its dossier.";
+    return null;
+  }
+  return send(`/findings/${encodeURIComponent(findingId)}`, {method: "GET"}, "detail-result");
+}
+
 function renderQueue(body) {
   const list = document.getElementById("queue-list");
   list.replaceChildren();
@@ -37,7 +48,11 @@ function renderQueue(body) {
     const provenance = document.createElement("small");
     provenance.textContent = `Created by ${String(finding.creator_actor || "UNKNOWN")} — ${String(finding.created_at || "UNKNOWN")}`;
     item.append(title, amount, identifier, provenance);
-    item.addEventListener("click", () => setFinding(String(finding.finding_id || ""), finding.currency_unit));
+    item.addEventListener("click", async () => {
+      const id = String(finding.finding_id || "");
+      setFinding(id, finding.currency_unit);
+      await loadDetail(id);
+    });
     list.append(item);
   });
   if (!findings.length) {
@@ -90,7 +105,10 @@ document.getElementById("analyze-form").addEventListener("submit", async (event)
   if (!payload.notice_due) delete payload.notice_due;
   payload.missing_evidence = (payload.missing_evidence || "").split(",").map((value) => value.trim()).filter(Boolean);
   const result = await send("/analyze", jsonRequest(payload), "analyze-result");
-  if (result && result.response.ok) setFinding(result.body.finding_id, result.body.currency);
+  if (result && result.response.ok) {
+    setFinding(result.body.finding_id, result.body.currency);
+    await loadDetail(result.body.finding_id);
+  }
 });
 
 document.getElementById("review-form").addEventListener("submit", async (event) => {
@@ -98,14 +116,20 @@ document.getElementById("review-form").addEventListener("submit", async (event) 
   const approved = event.submitter.dataset.approved === "true";
   const id = document.getElementById("review_finding_id").value;
   const result = await send(`/findings/${encodeURIComponent(id)}/review`, jsonRequest({approved, reason: document.getElementById("review_reason").value}), "review-result");
-  if (result && result.response.ok) await loadQueue();
+  if (result && result.response.ok) {
+    await loadDetail(id);
+    await loadQueue();
+  }
 });
 
 document.getElementById("action-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const id = document.getElementById("action_finding_id").value;
   const result = await send(`/findings/${encodeURIComponent(id)}/action`, {method: "POST"}, "action-result");
-  if (result && result.response.ok) await loadQueue();
+  if (result && result.response.ok) {
+    await loadDetail(id);
+    await loadQueue();
+  }
 });
 
 document.getElementById("resolve-form").addEventListener("submit", async (event) => {
@@ -122,6 +146,7 @@ document.getElementById("resolve-form").addEventListener("submit", async (event)
   const result = await send(`/findings/${encodeURIComponent(id)}/resolve`, jsonRequest(payload), "resolve-result");
   if (result && result.response.ok) {
     document.getElementById("final_cumulative").checked = false;
+    await loadDetail(id);
     await loadQueue();
   }
 });
