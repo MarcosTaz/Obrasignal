@@ -15,6 +15,9 @@ def test_signal_is_enabled_but_future_engines_are_not_silently_promoted():
     assert capability("SHADOW").state == "RESEARCH"
     assert capability("ACTION").state == "RESEARCH"
     assert capability("MOBILIZE").state == "RESEARCH"
+    assert capability("CONTRACT_EXPIRY").state == "RESEARCH"
+    assert capability("CONTRACT_EXPIRY").feature_flag == "contract_expiry_signals_v0"
+    assert capability("CONTRACT_EXPIRY").dependencies == ("SIGNAL",)
 
 
 def test_risky_or_experimental_capabilities_have_kill_switchable_flags():
