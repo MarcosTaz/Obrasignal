@@ -92,6 +92,40 @@ def _persist_dispatch_intents(conn, rows):
     return len(rows)
 
 
+def _clear_unconsumed_dispatch_intents(conn, rows):
+    """Remove intents that the owner recheck rejected before any provider attempt.
+
+    The owner submit path always replaces ``DISPATCH_STARTED`` when it actually
+    attempts a provider request, including transport failures and ticket errors.
+    Therefore a marker that still survives after the owner function returns
+    normally proves that the pair was re-selected out before the provider
+    boundary (for example because canonical opportunity authority went stale).
+    Such a row is not ambiguous and must not survive as a false dispatch record.
+    A process crash still bypasses this cleanup and preserves the original
+    fail-closed ambiguity contract.
+    """
+    removed = 0
+    for row in rows:
+        cursor = conn.execute(
+            """DELETE FROM push_deliveries
+               WHERE event_id=? AND push_device_id=?
+                 AND submitted_at IS NULL
+                 AND failed_at IS NULL
+                 AND last_error=?
+                 AND attempt_count=?""",
+            (
+                row["event_id"],
+                row["push_device_id"],
+                DISPATCH_STARTED,
+                int(row["attempt_count"]),
+            ),
+        )
+        removed += cursor.rowcount
+    if removed:
+        conn.commit()
+    return removed
+
+
 def submit_pending_pushes(conn, account_id, limit=100, post=None):
     """Submit with durable intent before any external provider side effect."""
     account_id = str(account_id)
@@ -107,8 +141,16 @@ def submit_pending_pushes(conn, account_id, limit=100, post=None):
     # write clears the intent marker. If execution dies before that write, the
     # marker survives for fail-closed reconciliation on restart.
     if post is None:
-        return _ORIGINAL_SUBMIT(conn, account_id, limit=limit)
-    return _ORIGINAL_SUBMIT(conn, account_id, limit=limit, post=post)
+        submitted = _ORIGINAL_SUBMIT(conn, account_id, limit=limit)
+    else:
+        submitted = _ORIGINAL_SUBMIT(conn, account_id, limit=limit, post=post)
+
+    # If the owner recheck dropped any pair before a provider attempt, its
+    # dispatch marker remains untouched. Remove only those exact untouched
+    # markers after normal owner return; provider-attempt rows have already
+    # changed state and crash-surviving markers never reach this cleanup.
+    _clear_unconsumed_dispatch_intents(conn, rows)
+    return submitted
 
 
 def install():
