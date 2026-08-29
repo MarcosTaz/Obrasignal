@@ -18,6 +18,7 @@ def test_backup_restore_preserves_claim_and_verified_outcome(tmp_path):
         cost_evidence_ref="invoice-1",
         gross_cost="50000",
         prior_payment="10000",
+        notice_deadline_not_applicable=True,
     )
     service.review(tenant_id="alpha", finding_id=result.finding.finding_id, reviewer="reviewer", approved=True, reason="supported")
     service.action(tenant_id="alpha", finding_id=result.finding.finding_id)
