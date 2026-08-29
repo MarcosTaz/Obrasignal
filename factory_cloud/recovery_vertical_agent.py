@@ -25,8 +25,10 @@ INDUSTRIAL_TESTS = COMMON_TESTS + (
     "tests/test_industrial_claims_recovery_cap.py",
     "tests/test_industrial_claims_replay_integrity.py",
     "tests/test_industrial_claims_atomic_persistence.py",
+    "tests/test_industrial_claims_case_metadata_atomicity.py",
     "tests/test_industrial_claims_outcome_atomicity.py",
     "tests/test_industrial_claims_document_privacy.py",
+    "tests/test_industrial_claims_input_bounds.py",
     "tests/test_industrial_claims_synthetic_oracle.py",
     "tests/test_industrial_claims_package.py",
     "tests/test_industrial_claims_pilot_contract.py",
@@ -34,6 +36,7 @@ INDUSTRIAL_TESTS = COMMON_TESTS + (
     "tests/test_industrial_claims_web.py",
     "tests/test_industrial_claims_console.py",
     "tests/test_industrial_claims_queue.py",
+    "tests/test_industrial_claims_finding_detail.py",
 )
 APP_TESTS = {
     "aviation-lease-entitlement-recovery": COMMON_TESTS,
