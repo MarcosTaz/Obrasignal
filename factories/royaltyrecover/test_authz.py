@@ -31,6 +31,13 @@ class AuthorizationTests(unittest.TestCase):
                 {"key_id": "bad", "organization_id": "ORG-1", "secret": "s", "role": "OWNER"}
             ]})
 
+    def test_duplicate_secret_fails_closed_even_across_tenants(self):
+        with self.assertRaises(ValueError):
+            CredentialRegistry.from_config({"keys": [
+                {"key_id": "one", "organization_id": "ORG-1", "secret": "same", "role": "ANALYST"},
+                {"key_id": "two", "organization_id": "ORG-2", "secret": "same", "role": "ADMIN"},
+            ]})
+
 
 if __name__ == "__main__":
     unittest.main()
