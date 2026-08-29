@@ -1,4 +1,4 @@
-from factory_cloud.pilot_safe_matrix import assess, portfolio_matrix, required_evidence
+from factory_cloud.pilot_safe_matrix import assess, assess_manifest, portfolio_matrix, required_evidence
 
 
 def test_missing_evidence_blocks_pilot_safe():
@@ -22,10 +22,30 @@ def test_forbidden_real_customer_token_never_helps_certification():
     assert result["forbidden_evidence_seen"] == ["real_customer"]
 
 
-def test_portfolio_matrix_covers_every_registered_factory_and_defaults_fail_closed():
+def test_contractcredit_manifest_preserves_known_gaps():
+    result = assess_manifest("factory_cloud/pilot_safe_evidence/contractcredit.json")
+    assert result["classification"] == "NOT_PILOT_SAFE"
+    assert result["gates"]["PS2"] == "BLOCKED"
+    assert "web_complete" in result["missing_evidence"]
+    assert "support_continuity" in result["missing_evidence"]
+    assert "shadow_validation" in result["missing_evidence"]
+
+
+def test_aviation_manifest_preserves_known_gaps():
+    result = assess_manifest("factory_cloud/pilot_safe_evidence/aviation-lease-entitlement-recovery.json")
+    assert result["classification"] == "NOT_PILOT_SAFE"
+    assert result["gates"]["PS3"] == "PASS"
+    assert result["gates"]["PS4"] == "BLOCKED"
+    assert "adversarial" in result["missing_evidence"]
+
+
+def test_portfolio_matrix_covers_every_registered_factory_and_fails_closed():
     matrix = portfolio_matrix()
-    ids = {row["factory_id"] for row in matrix}
-    assert "factory-cloud" in ids
-    assert "obrasignal" in ids
-    assert "contractcredit" in ids
+    by_id = {row["factory_id"]: row for row in matrix}
+    assert "factory-cloud" in by_id
+    assert "obrasignal" in by_id
+    assert "contractcredit" in by_id
+    assert "aviation-lease-entitlement-recovery" in by_id
     assert all(row["classification"] == "NOT_PILOT_SAFE" for row in matrix)
+    assert by_id["contractcredit"]["gates"]["PS3"] == "PASS"
+    assert by_id["contractcredit"]["gates"]["PS2"] == "BLOCKED"
