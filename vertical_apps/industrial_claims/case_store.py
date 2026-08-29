@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,7 @@ MAX_FINDING_ID_CHARS = 2_048
 MAX_TENANT_CHARS = 64
 MAX_MISSING_EVIDENCE_ITEMS = 100
 MAX_MISSING_EVIDENCE_CHARS = 128
+_TENANT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
 
 @dataclass(frozen=True)
@@ -73,6 +75,13 @@ class IndustrialClaimsCaseStore:
         return text
 
     @classmethod
+    def _tenant(cls, value: object) -> str:
+        tenant = cls._required(value, label="tenant_id", max_chars=MAX_TENANT_CHARS)
+        if not _TENANT_RE.fullmatch(tenant):
+            raise AssuranceStoreError("industrial case tenant_id is invalid")
+        return tenant
+
+    @classmethod
     def _validate(cls, item: IndustrialCaseMetadata) -> IndustrialCaseMetadata:
         missing = tuple(str(value).strip() for value in item.missing_evidence if str(value).strip())
         if len(missing) > MAX_MISSING_EVIDENCE_ITEMS or any(len(value) > MAX_MISSING_EVIDENCE_CHARS for value in missing):
@@ -82,7 +91,7 @@ class IndustrialClaimsCaseStore:
             raise AssuranceStoreError("industrial case notice truth state is invalid")
         return IndustrialCaseMetadata(
             finding_id=cls._required(item.finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS),
-            tenant_id=cls._required(item.tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS),
+            tenant_id=cls._tenant(item.tenant_id),
             claim_family=cls._required(item.claim_family, label="claim_family", max_chars=128),
             customer_ref=cls._required(item.customer_ref, label="customer_ref", max_chars=MAX_REFERENCE_CHARS),
             program_ref=cls._required(item.program_ref, label="program_ref", max_chars=MAX_REFERENCE_CHARS),
@@ -125,7 +134,7 @@ class IndustrialClaimsCaseStore:
             self._put(conn, item)
 
     def get(self, *, tenant_id: str, finding_id: str) -> IndustrialCaseMetadata:
-        tenant = self._required(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
+        tenant = self._tenant(tenant_id)
         finding = self._required(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM industrial_claim_cases WHERE tenant_id=? AND finding_id=?", (tenant, finding)).fetchone()
@@ -146,7 +155,7 @@ class IndustrialClaimsCaseStore:
         ))
 
     def count(self, tenant_id: str) -> int:
-        tenant = self._required(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
+        tenant = self._tenant(tenant_id)
         with self._connect() as conn:
             row = conn.execute("SELECT COUNT(*) AS n FROM industrial_claim_cases WHERE tenant_id=?", (tenant,)).fetchone()
         return int(row["n"])
