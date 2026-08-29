@@ -11,8 +11,8 @@ Truth rule: a researched target or unsent draft is **not CONTACTED**. A sent mes
 | Fehst Componentes | Portugal | Automotive plastics / tooling / assembly | VW program/tool/assembly-line responsibility + capacity expansion | tooling / dedicated line / program-volume basis — UNKNOWN | fehst.comp@fehstgroup.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | DGC list check pending |
 | Teknia | Spain | Automotive components | demand volatility / H1 2026 sales decline + OEM exposure | program-specific capex/tooling / nomination — UNKNOWN | info@tekniagroup.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | LSSI lawful-basis route unresolved |
 | COINDU | Portugal | Automotive interiors / seat covers | OEM program exposure + recent investment; weaker public current trigger | program/tooling/capacity — UNKNOWN | info@coindu.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | DGC list check pending |
-| CT Automotive Group plc | United Kingdom | Automotive interiors / tooling | 77% of 2025 revenue concentrated in top 3 customers; $13.5m tooling revenue; 2024/25 production-volume pressure / end-of-production programs | bespoke tooling + serial-production program commitment / customer acceptance — UNKNOWN | sales@ct-automotive.net | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04ad907dae4739` |
-| Autins Group plc | United Kingdom | Automotive NVH / acoustic & thermal components | UK revenue -20.3% in H1 FY26 due major-customer demand interruption; tooling for new programs | major-customer program volumes / tooling / component awards — UNKNOWN | sales@autins.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04ad9158ab6f1b` |
+| CT Automotive Group plc | United Kingdom | Automotive interiors / tooling | 77% of 2025 revenue concentrated in top 3 customers; $13.5m tooling revenue; 2024/25 production-volume pressure / end-of-production programs | bespoke tooling + serial-production program commitment / customer acceptance — UNKNOWN | sales@ct-automotive.net | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Initial message `1a04ad907dae4739`; subject accidentally retained internal HOLD label; transparent correction sent `1a04b1d3c9e08987` |
+| Autins Group plc | United Kingdom | Automotive NVH / acoustic & thermal components | UK revenue -20.3% in H1 FY26 due major-customer demand interruption; tooling for new programs | major-customer program volumes / tooling / component awards — UNKNOWN | sales@autins.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Initial message `1a04ad9158ab6f1b`; subject accidentally retained internal HOLD label; transparent correction sent `1a04b1d5308bfbf0` |
 | Castings plc | United Kingdom | Commercial-vehicle foundry / machining | >70% heavy-truck revenue; demand around 10% below OEM-normalised level; FY26 capex £20.5m | program volume / dedicated foundry-machining capacity / tooling — UNKNOWN | sales@castings.plc.uk | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04adae56e38c0b` |
 | Trifast plc | United Kingdom | Engineered fastenings to automotive OEM/Tier suppliers | FY26 revenue -7.3% CER; company reported weaker volumes particularly in automotive | program/customer volume / engineering-manufacturing commitment — UNKNOWN | corporate.enquiries@trifast.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04adb25afe9d0b` |
 | Strip Tinning Holdings plc | United Kingdom | Automotive glazing / EV electrical connectors | high-volume Tier-1/OEM supply with customer/application-specific automation and production-line investment; no public shortfall asserted | customer programme volume / dedicated automated line / tooling-NRE basis — UNKNOWN | sales@striptinning.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04b1bd28e1da3b`; capacity-fit qualification, not a claimed shortfall |
@@ -33,10 +33,23 @@ Owner authorization is granted, but unsolicited commercial email remains **HOLD 
 
 First market test is live. Generic corporate mailboxes are used; sender identity and opt-out language are included. No personal email route is used in the live cohort.
 
+## Outbound hygiene incident
+
+The first CT Automotive and Autins messages were transmitted after owner authorization but their subjects still contained the internal drafting prefix `[HOLD — OWNER APPROVAL]`. Their bodies were intended external copy and did not claim an unauthorized result; the defect was the subject label.
+
+The defect was detected by re-reading the exact sent Gmail messages. It was repaired transparently with short correction emails using clean subjects:
+
+- CT Automotive correction: `1a04b1d3c9e08987`.
+- Autins correction: `1a04b1d5308bfbf0`.
+
+This incident may reduce conversion and therefore remains part of experiment truth. It does not change the number of unique companies contacted: CT and Autins are still one target each.
+
+Control change: before any future external send created from a HOLD draft, re-read the exact stored draft/message metadata and reject any subject containing internal control tokens such as `HOLD`, `OWNER APPROVAL`, `DGC`, `COMPLIANCE` or similar labels.
+
 ## Send state
 
-- CT Automotive — SENT → `1a04ad907dae4739`.
-- Autins — SENT → `1a04ad9158ab6f1b`.
+- CT Automotive — SENT initial → `1a04ad907dae4739`; correction → `1a04b1d3c9e08987`.
+- Autins — SENT initial → `1a04ad9158ab6f1b`; correction → `1a04b1d5308bfbf0`.
 - Castings — SENT → `1a04adae56e38c0b`.
 - Trifast — SENT → `1a04adb25afe9d0b`.
 - Strip Tinning — SENT → `1a04b1bd28e1da3b`.
@@ -50,8 +63,9 @@ First market test is live. Generic corporate mailboxes are used; sender identity
 
 - TARGETS_RESEARCHED = 10
 - PUBLIC_SIGNAL_QUALIFIED = 10
-- CONTACTED = 5
-- DELIVERED = 0 confirmed / 5 pending
+- UNIQUE_COMPANIES_CONTACTED = 5
+- OUTBOUND_TRANSMISSIONS = 7 commercial + 1 DGC regulatory inquiry
+- DELIVERED = 0 confirmed / 5 company targets pending
 - REPLIED = 0
 - QUALIFIED_BY_BUYER = 0
 - CASE_EXISTS = 0 confirmed
