@@ -5,40 +5,45 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 22,
-  "last_factory_id": "obrasignal-data-truth",
-  "last_run_at": "2026-08-29T18:38:32Z",
+  "cursor": 24,
+  "last_factory_id": "obrasignal-customer-journey",
+  "last_run_at": "2026-08-29T19:09:00Z",
   "last_material_change": {
     "kind": "FACTORY_ADVANCED_AND_FLEET_ROTATED",
-    "factory_id": "obrasignal-data-truth",
-    "summary": "After reconstructing the registry/state, the fleet rotated through unresolved business factories fail-closed, then reconstructed ObraSignal Data Runner and Data Truth. Data Runner had no exact matching branch/BATON source and remains UNKNOWN. Data Truth materially advanced: PR #758 exact HEAD 5c507d0bc5ad62fae61c37892511e763eb68a0f1 has ObraSignal Quality run 33260025552 SUCCESS, so SOURCE_HEALTH_FUTURE_OBSERVATION_TEMPORAL_AUTHORITY is now PASSING_AFTER_PROVEN / NOT CANONICAL. The PR body was updated with exact verification and preserved unresolved #750/#753 semantic-scope defects. Fleet cursor advanced to OS SIDE FACTORY — RECOVERY SUCCESSOR.",
+    "factory_id": "obrasignal-customer-journey",
+    "summary": "Factory Cloud resumed from the exact fleet baton. OS SIDE FACTORY / RECOVERY SUCCESSOR had no exact repository/BATON identity recoverable from indexed source and was preserved UNKNOWN rather than inferred. Customer Journey was then reconstructed from current repository truth: integration PR #723 remains a GREEN non-canonical journey candidate and Auth owner PR #775 now provides a complete password-recovery candidate for P1 issue #761. Exact owner HEAD b7f963a60e127712a439e8c9f0e059461349e1f8 has ObraSignal Quality run 33262656887 SUCCESS. The password-recovery dead end is therefore OWNER_CANDIDATE_GREEN but not integrated/canonical and real provider/email/native deep-link acceptance remains external. Fleet cursor advanced to ObraSignal Global Market Entry.",
     "evidence": {
       "registry": {"factory_count": 33, "sha": "d21da89e2af0cef4f8b638e3b785fc69570c2a3d"},
-      "obrasignal_data_runner": {"state": "UNKNOWN", "reason": "No exact branch matching data-runner or canonical BATON was recoverable in this run."},
-      "obrasignal_data_truth": {
-        "state": "ACTIVE",
-        "pr": 758,
-        "head": "5c507d0bc5ad62fae61c37892511e763eb68a0f1",
-        "ci": "ObraSignal Quality 33260025552 SUCCESS",
-        "classification": "SOURCE_HEALTH_FUTURE_OBSERVATION_TEMPORAL_AUTHORITY / PASSING_AFTER_PROVEN / NOT CANONICAL",
-        "unresolved": ["#750 FILTERED_DATASET_GLOBAL_COVERAGE_AUTHORITY", "#753 REQUESTED_SOURCE_SCOPE_AUTHORITY_AMBIGUOUS"],
-        "next": "Probe monotonic/replay authority between last_attempt, last_success and last_failed while preserving fail-closed semantics for causally regressive observations."
+      "os_side_factory": {
+        "state": "UNKNOWN",
+        "reason": "No exact indexed repository source or canonical BATON identity for OS SIDE FACTORY / RECOVERY SUCCESSOR was recoverable; no similarly named branch was adopted without identity proof."
       },
-      "unresolved_business_rotation": {
-        "k3_fatality": "UNKNOWN",
-        "warrantyguard": "UNKNOWN",
-        "paper_laminate_works": "UNKNOWN",
-        "documentary_billing": "UNKNOWN",
-        "recoverable_money": "UNKNOWN; royaltyrecover/company-web-app intentionally not attributed without identity proof",
-        "private_freight_orchestration": "UNKNOWN",
-        "autonomous_revenue_recovery": "UNKNOWN"
+      "customer_journey": {
+        "state": "ACTIVE",
+        "integration_pr": 723,
+        "integration_head": "79c54833d5f5e927f352165eda6784c39c3f6ca1",
+        "integration_classification": "GREEN / DRAFT / NOT CANONICAL / DO NOT MERGE",
+        "auth_gap_issue": 761,
+        "auth_owner_pr": 775,
+        "auth_owner_head": "b7f963a60e127712a439e8c9f0e059461349e1f8",
+        "auth_owner_ci": "ObraSignal Quality 33262656887 SUCCESS",
+        "classification": "PASSWORD_RECOVERY_OWNER_CANDIDATE_GREEN_NOT_INTEGRATED",
+        "unresolved": [
+          "compose Auth owner candidate #775 into Customer Journey integration line and rerun exact-head Quality/Mobile/Supply-Chain",
+          "#762 shared-company multi-user membership NOT_MODELED",
+          "#764 Web in-product purchase completion gap",
+          "real provider email delivery/native deep-link/device acceptance remains external"
+        ]
       }
     },
-    "active": "OS SIDE FACTORY — RECOVERY SUCCESSOR: reconstruct exact current repository/BATON/PR truth and execute the highest-value repository-safe milestone.",
-    "next": "Continue registry rotation through Customer Journey, Global Market Entry, GTM, Customer Decision, Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger.",
+    "active": "ObraSignal Global Market Entry: reconstruct exact current repository/BATON/PR truth and execute the highest-value repository-safe milestone.",
+    "next": "Continue registry rotation through Global Market Entry, GTM, Customer Decision, Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger; revisit UNKNOWN lanes only when source identity becomes provable.",
     "wait": [
+      "Customer Journey #761 requires composition of GREEN Auth owner #775 into integration candidate before journey gate can close",
+      "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
+      "Customer Journey #764 Web purchase completion remains unresolved",
       "Data Truth #750/#753 owner repairs remain unresolved",
-      "K3/WarrantyGuard/Paper-Laminate/Documentary Billing/Recoverable Money/Private Freight/Autonomous Revenue canonical identity sources remain UNKNOWN",
+      "OS SIDE FACTORY and multiple business Factory canonical identities remain UNKNOWN",
       "Aviation real permissioned evidence and human/commercial proof",
       "Capacity external T3 commercial proof",
       "LongLead and MachineRelease canonical sources UNKNOWN",
