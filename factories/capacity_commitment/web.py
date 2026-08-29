@@ -9,6 +9,7 @@ from typing import Callable, Optional
 from flask import Flask, g, jsonify, request
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from .case_browser import render_case_browser
 from .delivery_report import render_delivery_report
 from .operator_ui import OPERATOR_HTML
 from .repository import CapacityRepository
@@ -202,7 +203,17 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
 
     @app.route("/", methods=["GET"])
     def operator_console():
-        return OPERATOR_HTML, 200, {"Content-Type": "text/html; charset=utf-8"}
+        console = OPERATOR_HTML.replace(
+            '<form id="case-form">',
+            '<p><a href="/cases">Open existing tenant cases</a></p><form id="case-form">',
+            1,
+        )
+        return console, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+    @app.route("/cases", methods=["GET"])
+    def case_browser():
+        case_ids = repository.list_case_ids(tenant_id=g.capacity_tenant_id)
+        return render_case_browser(case_ids), 200, {"Content-Type": "text/html; charset=utf-8"}
 
     @app.route("/api/capacity/cases", methods=["GET"])
     def list_cases():
