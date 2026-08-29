@@ -1,1 +1,29 @@
-{"schema_version":1,"cases":[]}
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "contractcredit-aws-lambda-2023",
+      "kind": "public_reconstruction",
+      "sources": [
+        "https://aws.amazon.com/lambda/sla/",
+        "https://aws.amazon.com/message/061323/"
+      ],
+      "evidence_sha256": "4a8e956fd38ed70a6cf2cf2b56fbe7915b733add9379f1ee4b263e928ddce9b0",
+      "known": ["AWS Lambda", "us-east-1", "2023-06-13 public disruption"],
+      "unknown": ["account_request_error_intervals", "monthly_uptime_percentage", "eligible_monthly_charges", "sla_exclusions", "claim_submission_compliance"],
+      "expected": {"breach_state": "NOT_ESTABLISHED", "entitlement_state": "UNKNOWN", "recovery_state": "NOT_ESTABLISHED"}
+    },
+    {
+      "id": "aviation-maintenance-reserve-public",
+      "kind": "public_reconstruction",
+      "sources": [
+        "https://www.sec.gov/Archives/edgar/data/1846084/000119312526265739/jetmf-20251231.htm",
+        "https://www.sec.gov/Archives/edgar/data/1362988/000162828026047751/ayr-20260531.htm"
+      ],
+      "evidence_sha256": "d665fbf9efdf7fb474c54b63c4f23fe7b983577cdeb1b2483d695550e134bcea",
+      "known": ["maintenance reserve reimbursement mechanism exists in public filings"],
+      "unknown": ["specific_lease_clause", "aircraft_event", "reserve_balance_by_event", "qualifying_invoice_amount", "prior_reimbursements", "notice_compliance"],
+      "expected": {"entitlement_state": "UNKNOWN", "recovery_state": "NOT_ESTABLISHED"}
+    }
+  ]
+}
