@@ -16,6 +16,7 @@ def _base(service):
         claim_family="TOOLING",
         commercial_basis_ref="basis-privacy",
         cost_evidence_ref="cost-privacy",
+        currency="EUR",
         commercial_basis_content="signed commercial basis",
         event_evidence_content="documented commercial event",
         cost_evidence_content="documented cost evidence",
@@ -42,6 +43,7 @@ def test_raw_document_content_is_hashed_but_not_persisted(tmp_path):
     result = service.analyze(**payload)
 
     assert result.finding.state == "READY_FOR_REVIEW"
+    assert result.calculation.output_unit == "EUR"
     assert {item.metadata["verification_state"] for item in result.evidence} == {"CONTENT_HASHED"}
     assert {item.metadata["raw_content_persisted"] for item in result.evidence} == {"false"}
 
