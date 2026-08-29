@@ -233,6 +233,8 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
         try:
             tenant_id, actor_id = identity("operator")
             payload = json_object()
+            if payload.get("final_cumulative") is not True:
+                raise ValueError("final_cumulative must be true because resolve closes the finding")
             evidence_content = payload.get("evidence_content")
             if not isinstance(evidence_content, str) or not evidence_content.strip():
                 raise ValueError("documentary outcome evidence content is required as text")
@@ -246,7 +248,10 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
                 evidence_content=evidence_content,
                 actor_id=actor_id,
             )
-            return jsonify(outcome.__dict__), 201
+            body = dict(outcome.__dict__)
+            body["final_cumulative"] = True
+            body["finding_closed_by_outcome"] = True
+            return jsonify(body), 201
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
