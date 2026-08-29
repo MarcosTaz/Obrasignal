@@ -10,7 +10,7 @@ def test_web_rejects_decimal_outside_engine_arithmetic_range_without_500(tmp_pat
     app.config.update(TESTING=False, PROPAGATE_EXCEPTIONS=False)
 
     recovery = recovery_case_to_payload(case("decimal-out-of-range"))
-    recovery["dedicated_cost"] = "1e1000000"
+    recovery["dedicated_cost"] = "1e1000002"
     payload = {
         "company_id": "supplier-1",
         "customer_id": "oem-1",
