@@ -15,8 +15,8 @@ The control-plane process and each app worker may be restarted. State is recover
 ## Example foreground processes
 
 ```bash
-python -m factory_cloud.worker Ω --state /var/lib/factory-cloud/state.sqlite3
-python -m factory_cloud.app_worker Ω \
+python -m factory_cloud.worker D --state /var/lib/factory-cloud/state.sqlite3
+python -m factory_cloud.app_worker D \
   --app-id obrasignal \
   --state /var/lib/factory-cloud/state.sqlite3 \
   --adapter-config /etc/factory-cloud/apps/obrasignal.json
@@ -41,19 +41,19 @@ The agent does **not** install mobile dependencies, modify source files, create 
 
 The built-in non-secret runtime config is `factory_cloud/runtime/obrasignal-adapter.json`. It points the app worker at `/srv/factory-cloud/apps/obrasignal` and the control-plane copy of the concrete agent. The host installer can copy that config into the private per-app config group and prepare the development checkout at the exact verified canonical SHA recorded in `apps.json`.
 
-The registry now seeds ObraSignal with `verify:canonical:compile` as the first executable BATON item, followed by deeper Python/mobile verification. Once those allowlisted tasks are exhausted, source-mutating/code-authoring work remains an explicit WAIT boundary until a separately verified repository-safe coding adapter exists.
+The registry now seeds ObraSignal with `verify:execution:compile` as the first executable BATON item, followed by deeper Python/mobile verification. Once those allowlisted tasks are exhausted, source-mutating/code-authoring work remains an explicit WAIT boundary until a separately verified repository-safe coding adapter exists.
 
 ## App process contract
 
 The external app executable receives one `ExecutionRequest` JSON object on stdin and returns one metadata-only JSON object on stdout. Supported terminal statuses are `DONE`, `WAIT`, `BLOCKED` and `ERROR`. Raw stdout/stderr is discarded. Persisted evidence is restricted to a narrow allowlist (`commit_sha`, `verified_head`, `test_state`, `task_state`, `evidence_codes`) plus Factory Cloud-generated adapter/head metadata.
 
-The app worker performs an independent `git rev-parse HEAD` check in the configured workspace and requires exact equality with the request's canonical head before the external process can run. This is in addition to the control plane's live GitHub branch-head verification before queue dispatch. The ObraSignal agent repeats that HEAD comparison before its allowlisted verification commands.
+The app worker performs an independent `git rev-parse HEAD` check in the configured workspace and requires exact equality with the request's execution-source head before the external process can run. This is in addition to the control plane's live GitHub branch-head verification before queue dispatch. The ObraSignal agent repeats that HEAD comparison before its allowlisted verification commands.
 
 Adapter JSON files must not contain credentials, customer data, billing authority, deployment authority or production secrets. App-specific credentials belong only to the isolated worker process environment.
 
 ## Source truth
 
-For registered GitHub applications, the control-plane runtime performs a read-only branch-head check before queue dispatch. If live verification is unavailable, source truth is incomplete, or the observed head differs from the registered canonical head, dispatch fails closed to WAIT. An optional `FACTORY_CLOUD_GITHUB_TOKEN` may be supplied by the process environment for GitHub API access; it is never persisted by Factory Cloud.
+For registered GitHub applications, the control-plane runtime performs a read-only branch-head check before queue dispatch. If live verification is unavailable, source truth is incomplete, or the observed head differs from the registered execution-source head, dispatch fails closed to WAIT. An optional `FACTORY_CLOUD_GITHUB_TOKEN` may be supplied by the process environment for GitHub API access; it is never persisted by Factory Cloud.
 
 K3 Fatality remains `read_only_until_source_resolved`. Runtime existence is not repository authority. No K3 repository mutation may be dispatched until canonical source truth is established, and process-adapter configuration rejects non-`repository_safe_execution` modes.
 
