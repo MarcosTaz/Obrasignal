@@ -32,7 +32,7 @@ STARTUP_CONTRACTS: dict[str, TableContract] = {
     "sync_runs": TableContract("sync runtime / app", frozenset({"id","started_at","finished_at","found","new_items"})),
     "accounts": TableContract("account_registry + evaluation_policy", frozenset({"account_id","status","plan","created_at","subscription_status","evaluation_status","evaluation_extension_days"}), tenant_column="account_id"),
     "company_profiles": TableContract("company_profile", frozenset({"account_id","profile_json","updated_at"}), tenant_column="account_id"),
-    "opportunity_decisions": TableContract("decision_log", frozenset({"id","account_id","source","external_id","decision","features_json","rule_version","decided_at"}), tenant_column="account_id"),
+    "opportunity_decisions": TableContract("decision_log", frozenset({"id","account_id","source","external_id","decision","features_json","rule_version","profile_fingerprint","opportunity_fingerprint","decided_at"}), tenant_column="account_id"),
     "opportunity_events": TableContract("notification_events", frozenset({"id","account_id","event_key","event_type","created_at","delivered_at"}), tenant_column="account_id", unique_keys=(("event_key",),)),
     "opportunity_workflow": TableContract(
         "opportunity_workflow",
@@ -156,7 +156,7 @@ JSON_COLUMNS: tuple[tuple[str, str], ...] = (
 REGISTERED_ADDITIVE_MIGRATIONS: dict[str, tuple[str, ...]] = {
     "tenders": ("published_at","match_reason","priority_label","priority_class","market"),
     "accounts": ("trial_ends_at","entitlement_expires_at","store","product_id","original_transaction_id","subscription_status","billing_synced_at","evaluation_type","evaluation_status","evaluation_activated_at","evaluation_ends_at","evaluation_extension_days","evaluation_value_status","evaluation_activation_reason","evaluation_extension_reason"),
-    "opportunity_decisions": ("account_id",),
+    "opportunity_decisions": ("account_id","profile_fingerprint","opportunity_fingerprint"),
     "opportunity_events": ("account_id",),
     "opportunity_workflow": ("priority", "saved_at"),
     "push_devices": ("revoked_at",),
