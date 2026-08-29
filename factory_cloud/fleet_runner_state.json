@@ -5,52 +5,57 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 13,
-  "last_factory_id": "machine-release-safety",
-  "last_run_at": "2026-08-29T17:46:00Z",
+  "cursor": 20,
+  "last_factory_id": "autonomous-revenue-recovery",
+  "last_run_at": "2026-08-29T18:37:04Z",
   "last_material_change": {
-    "kind": "FLEET_ADVANCED",
-    "factory_id": "machine-release-safety",
-    "summary": "Aviation Lease Entitlement Recovery advanced materially: stale #778 Python RED was proven unrelated to aviation intake, a minimal current-base successor #786 was created, and exact HEAD 5e34250396fd15701298e533643370459d1efff2 completed Python SUCCESS + Mobile SUCCESS. The Aviation fleet BATON now records PASSING_AFTER_PROVEN semantics and the next synthetic end-to-end review/outcome fixture. Capacity Commitment was reconstructed from its canonical FACTORY_STATE and exact live head b11732e4477699005356deb01d08c36f32eb7139 is Python SUCCESS; T3 commercial proof remains ACTIVE with genuine external blockers only. LongLead and MachineRelease Safety remain UNKNOWN because no matching branch or indexed canonical repository source was recoverable in this run; neither UNKNOWN state was fabricated into progress. Fleet cursor advanced to K3 Fatality.",
+    "kind": "FLEET_RECONSTRUCTED_AND_ROTATED",
+    "factory_id": "autonomous-revenue-recovery",
+    "summary": "Reconstructed the registry and persistent fleet state first, then rotated through K3 Fatality, WarrantyGuard, Paper-Laminate Works, Documentary Billing, Recoverable Money Business Discovery, Private Freight Orchestration and Autonomous Revenue Recovery. No exact canonical branch/BATON/source was recoverable for those registry identities in this run. K3 had no matching branch, PR or indexed code source; WarrantyGuard, Paper-Laminate and Documentary Billing likewise had no matching indexed canonical source. A nearby royaltyrecover/company-web-app branch exists at cd57186adfbd51734ebb4b7a6d54b72ebdbffcf3, but it was deliberately not attributed to Recoverable Money Business Discovery because the registry identity/history mapping is unproven. Private Freight and Autonomous Revenue Recovery had no matching branches. UNKNOWN was preserved instead of fabricating history or progress. Fleet cursor advanced to ObraSignal Data Runner.",
     "evidence": {
-      "aviation_lease_entitlement_recovery": {
-        "state": "ACTIVE",
-        "app_branch": "apps/aviation-lease-entitlement-recovery",
-        "app_head": "0d1759832a06b3177b67b35a4c53ee0c69db459e",
-        "predecessor_pr": 778,
-        "predecessor_head": "088eaa3cd79cba1a62c7d905bd6d9cf831de21a5",
-        "predecessor_ci": "12 failed / 847 passed / 2 skipped; job logs isolate failures to unrelated Factory Cloud inventory/orchestrator drift",
-        "successor_pr": 786,
-        "successor_head": "5e34250396fd15701298e533643370459d1efff2",
-        "successor_ci": "ObraSignal Quality 33266289206: Python SUCCESS + Mobile SUCCESS",
-        "classification": "PASSING_AFTER_PROVEN / NOT CANONICAL",
-        "fleet_baton_path": "factory-snapshots/aviation-lease-entitlement-recovery/BATON.md",
-        "next": "Stack a repository-safe synthetic permission-explicit end-to-end review/outcome fixture from #786 and obtain exact-head CI without asserting entitlement or recovery."
+      "registry": {
+        "factory_count": 33,
+        "sha": "d21da89e2af0cef4f8b638e3b785fc69570c2a3d"
       },
-      "capacity_commitment": {
-        "state": "ACTIVE",
-        "source_branch": "factory/capacity-commitment-t2-market",
-        "source_head": "b11732e4477699005356deb01d08c36f32eb7139",
-        "source_baton": "factories/capacity_commitment/FACTORY_STATE.md",
-        "draft_pr": 729,
-        "python_ci": "SUCCESS on exact head; run 33266240158",
-        "mobile_ci": "FAILURE / existing unrelated Expo dependency drift per source BATON",
-        "business_state": "T2 MARKET EXPOSED achieved; T3 COMMERCIAL PROOF active/not achieved",
-        "fleet_baton_path": "factory-snapshots/capacity-commitment/BATON.md",
-        "next": "Act only on new real buyer/compliance evidence; otherwise preserve T3 ACTIVE and rotate."
-      },
-      "longlead": {
+      "k3_fatality": {
         "state": "UNKNOWN",
-        "reason": "Registry entry exists, but no branch matching longlead/lead and no indexed canonical source was discoverable in this run."
+        "reason": "No branch matching k3, no PR matching K3 Fatality / Probability Intelligence, and no indexed repository file matching K3 Fatality was recoverable."
       },
-      "machine_release_safety": {
+      "warrantyguard": {
         "state": "UNKNOWN",
-        "reason": "Registry entry exists, but no branch/file indexed under MachineRelease or matching machine-release repository lane was recoverable in this run."
+        "reason": "No branch or indexed repository file matching WarrantyGuard was recoverable."
+      },
+      "paper_laminate_works": {
+        "state": "UNKNOWN",
+        "reason": "No indexed repository file matching Paper-Laminate Works was recoverable in the current repository search surface."
+      },
+      "documentary_billing": {
+        "state": "UNKNOWN",
+        "reason": "No indexed repository file matching Documentary Billing was recoverable in the current repository search surface."
+      },
+      "recoverable_money": {
+        "state": "UNKNOWN",
+        "reason": "No exact Recoverable Money Business Discovery source was recoverable. The branch royaltyrecover/company-web-app exists at cd57186adfbd51734ebb4b7a6d54b72ebdbffcf3 but identity continuity to this registry entry is UNKNOWN, so it was not adopted as canonical evidence."
+      },
+      "private_freight_orchestration": {
+        "state": "UNKNOWN",
+        "reason": "No branch matching freight was recoverable."
+      },
+      "autonomous_revenue_recovery": {
+        "state": "UNKNOWN",
+        "reason": "No branch matching revenue was recoverable for this registry identity."
       }
     },
-    "active": "K3 Fatality / Probability Intelligence: reconstruct exact current repository/BATON truth from available sources and execute the highest-value safe milestone without relying on missing chat history.",
-    "next": "Continue registry rotation after K3 Fatality; revisit LongLead and MachineRelease Safety only when a canonical repository/public/connected source becomes recoverable.",
+    "active": "ObraSignal Data Runner: reconstruct exact current branch/BATON/PR/evidence truth and execute the highest-value repository-safe milestone without relying on missing chat history.",
+    "next": "Continue registry rotation through the remaining ObraSignal lanes, EU Switching Evidence Pack and ComplianceLedger. Revisit UNKNOWN business Factories only when canonical identity evidence becomes recoverable; never infer identity continuity from a similarly named branch.",
     "wait": [
+      "K3 Fatality canonical repository/BATON source currently UNKNOWN",
+      "WarrantyGuard canonical repository/BATON source currently UNKNOWN",
+      "Paper-Laminate Works canonical repository/BATON source currently UNKNOWN",
+      "Documentary Billing canonical repository/BATON source currently UNKNOWN",
+      "Recoverable Money Business Discovery identity mapping to any repository branch currently UNKNOWN",
+      "Private Freight Orchestration canonical repository/BATON source currently UNKNOWN",
+      "Autonomous Revenue Recovery canonical repository/BATON source currently UNKNOWN",
       "Aviation real permissioned lease/event evidence, human pilot outcome, WTP and deployment authority",
       "Capacity buyer reply/delivery, qualified permissioned case data, WTP/acceptance/payment and unresolved compliance responses",
       "LongLead canonical repository/BATON source currently UNKNOWN",
