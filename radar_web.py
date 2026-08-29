@@ -34,6 +34,27 @@ def _render_layers(layers: list[dict] | None) -> str:
     return "".join(items)
 
 
+def _render_empty_state(minscore: int) -> str:
+    if minscore > 0:
+        return (
+            '<div class="os-card">'
+            '<div class="os-kicker">FILTRO ATUAL</div>'
+            '<h2 style="margin:8px 0 6px;">Nenhuma oportunidade neste filtro.</h2>'
+            '<div class="os-muted">Isto não significa que exista valor escondido. '
+            'Altera o filtro apenas se os critérios comerciais da empresa também justificarem essa revisão.</div>'
+            '</div>'
+        )
+    return (
+        '<div class="os-card">'
+        '<div class="os-kicker">RESULTADO VÁLIDO · ZERO-VALUE</div>'
+        '<h2 style="margin:8px 0 6px;">Nada material encontrado neste momento.</h2>'
+        '<div class="os-muted">A ObraSignal não encontrou uma oportunidade atualmente acionável que passe os critérios disponíveis. '
+        'Não baixamos critérios nem fabricamos uma oportunidade para criar uma falsa sensação de valor. '
+        'Próximo passo seguro: manter o perfil correto e voltar quando os dados de mercado mudarem.</div>'
+        '</div>'
+    )
+
+
 def render_radar_page(items: list[dict], minscore: int = 0) -> str:
     cards = []
     for item in items:
@@ -63,7 +84,7 @@ def render_radar_page(items: list[dict], minscore: int = 0) -> str:
             f'</article>'
         )
 
-    body = "".join(cards) or '<div class="os-card">Nenhuma oportunidade encontrada.</div>'
+    body = "".join(cards) or _render_empty_state(minscore)
     return f'''<!doctype html>
 <html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ObraSignal · Radar</title><style>{visual_css()}</style></head>

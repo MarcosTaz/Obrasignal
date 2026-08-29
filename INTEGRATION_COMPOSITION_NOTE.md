@@ -8,4 +8,4 @@ Exact semantic inputs:
 - E2E fixture #335: `8a0870f667ff465f1588e6868030fe0984a175ec`
 - Customer Journey #701: `5b40013527ff7af109d189a68ce1bedaac759a42`
 
-Composition rule: use Persistence tree as storage/startup authority; overlay Supply Chain dependency/build-owned files; overlay #335 fixture-owned files; overlay #701 customer-journey-owned files. `cors_app.py` must preserve #238 `run_serialized_schema_init` and #335 `install_e2e_fixture_api(APP)` in one file.
+Composition rule: Persistence owns serialized startup; #335 owns test-only fixture install/store; #482 owns dependency/build graph; #701 owns journey semantics and regressions. `cors_app.py` is the only manual overlap and preserves both #238 serialization and #335 fixture registration.

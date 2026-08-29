@@ -29,6 +29,8 @@ export default function OpportunityExplanation({ item }) {
   const explanation = item?.explanation;
   const factors = explanation?.factors || [];
   const negativeFactors = explanation?.negative_factors || [];
+  const workflowStatus = item?.workflow?.status;
+  const terminalWorkflowReported = workflowStatus === 'WON' || workflowStatus === 'LOST';
   const fallbackFactors = [
     { key: 'profile', label: 'Perfil comercial', score: item?.profile_score, reason: 'Compatibilidade com o perfil da empresa' },
     { key: 'lot', label: 'Adequação do lote', score: item?.lot_score, reason: 'Compatibilidade do lote' },
@@ -39,6 +41,12 @@ export default function OpportunityExplanation({ item }) {
   const visibleFactors = factors.length ? factors : fallbackFactors;
 
   return <>
+    {terminalWorkflowReported ? <View style={styles.outcomeTruth}>
+      <Text style={styles.outcomeTruthTitle}>ESTADO REPORTADO · NÃO VERIFICADO</Text>
+      <Text style={styles.outcomeTruthText}>
+        {workflowStatus === 'WON' ? 'Ganho' : 'Perdido'} é um estado registado pela equipa. Não prova adjudicação, resultado económico, pagamento ou outro outcome verificado pela ObraSignal.
+      </Text>
+    </View> : null}
     {visibleFactors.length || blockers.length || negativeFactors.length ? <View style={styles.card}>
       <Text style={styles.heading}>Porque esta oportunidade</Text>
       {visibleFactors.map((factor) => <Factor key={factor.key} title={factor.label} text={factor.reason} score={factor.score} tone={toneForFactor(factor.key)} />)}
@@ -52,4 +60,5 @@ export default function OpportunityExplanation({ item }) {
 const styles = StyleSheet.create({
   card:{marginTop:14,padding:14,borderRadius:14,borderWidth:1,borderColor:COLORS.line,backgroundColor:COLORS.panel},
   heading:{color:COLORS.text,fontSize:16,fontWeight:'900',marginBottom:5},row:{flexDirection:'row',alignItems:'flex-start',marginTop:10},icon:{width:28,height:28,borderRadius:9,alignItems:'center',justifyContent:'center',marginRight:10},dot:{width:8,height:8,borderRadius:4},body:{flex:1},factorHeader:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:8},title:{color:COLORS.text,fontSize:12,fontWeight:'800'},factorScore:{fontSize:11,fontWeight:'900'},text:{color:COLORS.muted,fontSize:12,lineHeight:17,marginTop:2},risk:{marginTop:14,borderRadius:10,borderWidth:1,borderColor:'#5A4526',backgroundColor:'#241D10',padding:10},riskTitle:{color:COLORS.amber,fontSize:10,fontWeight:'900',textTransform:'uppercase',letterSpacing:.6},riskText:{color:COLORS.text,fontSize:12,lineHeight:18,marginTop:4},
+  outcomeTruth:{marginTop:14,padding:12,borderRadius:12,borderWidth:1,borderColor:'#5A4526',backgroundColor:'#241D10'},outcomeTruthTitle:{color:COLORS.amber,fontSize:10,fontWeight:'900',letterSpacing:.6},outcomeTruthText:{color:COLORS.text,fontSize:12,lineHeight:18,marginTop:5},
 });
