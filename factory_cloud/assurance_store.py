@@ -16,11 +16,7 @@ class AssuranceStoreError(RuntimeError):
 
 
 class AssuranceStore:
-    """Durable app-neutral assurance persistence with tenant-scoped reads.
-
-    The store is deliberately local/application-owned. It does not grant cross-app
-    database authority; each consumer supplies its own database path.
-    """
+    """Durable app-neutral assurance persistence with tenant-scoped reads."""
 
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -82,23 +78,20 @@ class AssuranceStore:
         return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
     def put_evidence(self, item: EvidenceEnvelope) -> None:
+        values = (item.evidence_id, item.tenant_id, item.source_type, item.source_ref, item.received_at, item.content_hash, self._json(item.metadata))
         with self._connect() as conn:
             existing = conn.execute("SELECT * FROM evidence WHERE evidence_id=?", (item.evidence_id,)).fetchone()
-            values = (item.evidence_id, item.tenant_id, item.source_type, item.source_ref, item.received_at, item.content_hash, self._json(item.metadata))
             if existing:
-                current = tuple(existing[key] for key in ("evidence_id","tenant_id","source_type","source_ref","received_at","content_hash","metadata_json"))
-                if current != values:
+                current_semantic = tuple(existing[key] for key in ("evidence_id","tenant_id","source_type","source_ref","content_hash","metadata_json"))
+                new_semantic = (item.evidence_id, item.tenant_id, item.source_type, item.source_ref, item.content_hash, self._json(item.metadata))
+                if current_semantic != new_semantic:
                     raise AssuranceStoreError("immutable evidence id collision")
                 return
             conn.execute("INSERT INTO evidence VALUES(?,?,?,?,?,?,?)", values)
 
     def put_calculation(self, item: CalculationRecord) -> None:
         inputs = [input_item.__dict__ for input_item in item.inputs]
-        values = (
-            item.calculation_id, item.tenant_id, item.formula_id, item.formula_version,
-            self._json(inputs), item.output_value, item.output_unit,
-            self._json(item.evidence_ids), item.reproducibility_hash,
-        )
+        values = (item.calculation_id, item.tenant_id, item.formula_id, item.formula_version, self._json(inputs), item.output_value, item.output_unit, self._json(item.evidence_ids), item.reproducibility_hash)
         with self._connect() as conn:
             existing = conn.execute("SELECT * FROM calculations WHERE calculation_id=?", (item.calculation_id,)).fetchone()
             if existing:
@@ -120,10 +113,7 @@ class AssuranceStore:
             conn.execute("INSERT INTO deadlines VALUES(?,?,?,?,?)", values)
 
     def put_finding(self, item: FindingRecord) -> None:
-        values = (
-            item.finding_id, item.tenant_id, item.finding_type, item.state,
-            self._json(item.evidence_ids), self._json(item.calculation_ids), item.reviewer, item.decision_reason,
-        )
+        values = (item.finding_id, item.tenant_id, item.finding_type, item.state, self._json(item.evidence_ids), self._json(item.calculation_ids), item.reviewer, item.decision_reason)
         with self._connect() as conn:
             existing = conn.execute("SELECT tenant_id FROM findings WHERE finding_id=?", (item.finding_id,)).fetchone()
             if existing and existing["tenant_id"] != item.tenant_id:
@@ -134,8 +124,7 @@ class AssuranceStore:
                    finding_type=excluded.finding_type, state=excluded.state,
                    evidence_ids_json=excluded.evidence_ids_json,
                    calculation_ids_json=excluded.calculation_ids_json,
-                   reviewer=excluded.reviewer, decision_reason=excluded.decision_reason""",
-                values,
+                   reviewer=excluded.reviewer, decision_reason=excluded.decision_reason""", values,
             )
 
     def append_audit(self, event: AuditEvent) -> None:
@@ -143,8 +132,9 @@ class AssuranceStore:
         with self._connect() as conn:
             existing = conn.execute("SELECT * FROM audit_events WHERE event_id=?", (event.event_id,)).fetchone()
             if existing:
-                current = tuple(existing[key] for key in ("event_id","tenant_id","actor_id","event_type","occurred_at","subject_ref","evidence_refs_json","payload_hash"))
-                if current != values:
+                current_semantic = tuple(existing[key] for key in ("event_id","tenant_id","actor_id","event_type","subject_ref","evidence_refs_json","payload_hash"))
+                new_semantic = (event.event_id, event.tenant_id, event.actor_id, event.event_type, event.subject_ref, self._json(event.evidence_refs), event.payload_hash)
+                if current_semantic != new_semantic:
                     raise AssuranceStoreError("immutable audit event id collision")
                 return
             conn.execute("INSERT INTO audit_events VALUES(?,?,?,?,?,?,?,?)", values)
