@@ -14,6 +14,7 @@ from factory_cloud.assurance_ops import AssuranceOperationError
 from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.recovery_index import RecoveryIndexError
 from factory_cloud.shared_platform import SharedPlatformError
+from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 API_ERRORS = (
@@ -26,6 +27,10 @@ API_ERRORS = (
     RecoveryIndexError,
     SharedPlatformError,
 )
+
+REVIEWER_QUEUE_STATES = {"READY_FOR_REVIEW"}
+OPERATOR_QUEUE_STATES = {"APPROVED", "ACTIONED"}
+ADMIN_QUEUE_STATES = REVIEWER_QUEUE_STATES | OPERATOR_QUEUE_STATES
 
 
 class IndustrialClaimsAuthenticationError(Exception):
@@ -46,9 +51,12 @@ def create_app(
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 3_500_000
     service = IndustrialClaimsService(database)
+    read_model = IndustrialClaimsReadModel(database)
     resolve_identity = identity_resolver or configured_identity
 
-    def identity(required_role: str) -> tuple[str, str]:
+    def identity_any(*required_roles: str) -> tuple[str, str, frozenset[str]]:
+        if not required_roles:
+            raise RuntimeError("at least one role is required")
         try:
             verified = resolve_identity()
         except JwksUnavailableError:
@@ -71,8 +79,10 @@ def create_app(
                 role_values.add(raw.strip().lower())
             elif isinstance(raw, (list, tuple, set)):
                 role_values.update(str(item).strip().lower() for item in raw if str(item).strip())
-        if required_role not in role_values and "admin" not in role_values:
-            raise IndustrialClaimsAuthorizationError(f"verified {required_role} role required")
+        required = {role.strip().lower() for role in required_roles if role.strip()}
+        if "admin" not in role_values and not role_values.intersection(required):
+            requested = "/".join(sorted(required))
+            raise IndustrialClaimsAuthorizationError(f"verified {requested} role required")
 
         requested_tenant = request.headers.get("X-Tenant-ID", "").strip()
         requested_actor = request.headers.get("X-Actor-ID", "").strip()
@@ -86,6 +96,10 @@ def create_app(
                 "requested actor does not match verified identity",
                 code="identity_scope_mismatch",
             )
+        return tenant_id, actor_id, frozenset(role_values)
+
+    def identity(required_role: str) -> tuple[str, str]:
+        tenant_id, actor_id, _roles = identity_any(required_role)
         return tenant_id, actor_id
 
     @app.after_request
@@ -120,6 +134,41 @@ def create_app(
     @app.get("/health")
     def health():
         return jsonify({"status": "ok", "vertical": "industrial-claims", "mode": "assisted"})
+
+    @app.get("/findings")
+    def list_findings():
+        try:
+            tenant_id, _actor_id, roles = identity_any("reviewer", "operator")
+            if "admin" in roles:
+                permitted_states = set(ADMIN_QUEUE_STATES)
+            else:
+                permitted_states: set[str] = set()
+                if "reviewer" in roles:
+                    permitted_states.update(REVIEWER_QUEUE_STATES)
+                if "operator" in roles:
+                    permitted_states.update(OPERATOR_QUEUE_STATES)
+
+            raw_states = request.args.getlist("state")
+            if not raw_states and request.args.get("states"):
+                raw_states = [item for item in request.args.get("states", "").split(",") if item.strip()]
+            requested_states = {item.strip().upper() for item in raw_states if item.strip()}
+            if requested_states and not requested_states.issubset(permitted_states):
+                raise IndustrialClaimsAuthorizationError("requested queue state is not permitted for verified role")
+            states = tuple(sorted(requested_states or permitted_states))
+
+            limit_raw = request.args.get("limit", "100")
+            try:
+                limit = int(limit_raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("limit must be an integer") from exc
+            items = read_model.list_findings(tenant_id=tenant_id, states=states, limit=limit)
+            return jsonify({
+                "queue_scope": list(states),
+                "count": len(items),
+                "findings": [item.as_dict() for item in items],
+            })
+        except API_ERRORS as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @app.post("/analyze")
     def analyze():
