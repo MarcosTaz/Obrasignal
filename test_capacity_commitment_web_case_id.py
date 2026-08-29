@@ -22,7 +22,7 @@ def _payload(case_id):
         "recovery_case": recovery_case_to_payload(case(case_id)),
         "evidence_refs": ["contract:1"],
         "missing_evidence": [],
-        "deadline": "2026-12-31",
+        "deadline": "2099-12-31",
     }
 
 
