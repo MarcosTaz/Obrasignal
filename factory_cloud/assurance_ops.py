@@ -129,11 +129,18 @@ class AssuranceOperations:
             conn.commit()
         return "ACTIONED"
 
-    def resolve(self, *, tenant_id: str, finding_id: str, outcome_id: str, recovered_amount: str, currency: str, evidence_ref: str, actor_id: str | None = None) -> OutcomeRecord:
-        if not outcome_id.strip() or not currency.strip() or not evidence_ref.strip():
-            raise AssuranceOperationError("outcome identity, currency and evidence ref are required")
-        if actor_id is not None and not actor_id.strip():
-            raise AssuranceOperationError("resolution actor is required when supplied")
+    def _resolve(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        tenant_id: str,
+        finding_id: str,
+        outcome_id: str,
+        recovered_amount: str,
+        currency: str,
+        evidence_ref: str,
+        actor_id: str | None,
+    ) -> OutcomeRecord:
         try:
             amount = Decimal(recovered_amount)
         except InvalidOperation as exc:
@@ -144,40 +151,80 @@ class AssuranceOperations:
             raise AssuranceOperationError("recovered amount cannot be negative")
         state = "RECOVERED" if amount > 0 else "CLOSED_NO_RECOVERY"
         recorded_at = utc_now()
-        record = OutcomeRecord(outcome_id, tenant_id, finding_id, state, str(amount), currency, evidence_ref, recorded_at)
+        row = self._finding(conn, tenant_id, finding_id)
+        existing = conn.execute("SELECT * FROM recovery_outcomes WHERE outcome_id=?", (outcome_id,)).fetchone()
+        if existing is not None:
+            comparable = (existing["tenant_id"], existing["finding_id"], existing["state"], existing["recovered_amount"], existing["currency"], existing["evidence_ref"])
+            expected = (tenant_id, finding_id, state, str(amount), currency, evidence_ref)
+            if comparable != expected:
+                raise AssuranceOperationError("immutable outcome id collision")
+            return OutcomeRecord(outcome_id, tenant_id, finding_id, existing["state"], existing["recovered_amount"], existing["currency"], existing["evidence_ref"], existing["recorded_at"])
+        if row["state"] != "ACTIONED":
+            raise AssuranceOperationError("only actioned findings may be resolved")
+        conn.execute(
+            "INSERT INTO recovery_outcomes VALUES(?,?,?,?,?,?,?,?)",
+            (outcome_id, tenant_id, finding_id, state, str(amount), currency, evidence_ref, recorded_at),
+        )
+        conn.execute("UPDATE findings SET state=? WHERE tenant_id=? AND finding_id=?", (state, tenant_id, finding_id))
+        if actor_id is not None:
+            audit = AuditEvent.create(
+                event_id=f"{tenant_id}:{outcome_id}:resolve",
+                context=TenantContext(tenant_id=tenant_id, actor_id=actor_id, roles=("operator",)),
+                event_type="finding_resolved",
+                subject_ref=finding_id,
+                evidence_refs=tuple(sorted(set(self._evidence_ids(row) + (evidence_ref,)))),
+                payload={
+                    "state": state,
+                    "outcome_id": outcome_id,
+                    "recovered_amount": str(amount),
+                    "currency": currency,
+                    "evidence_ref": evidence_ref,
+                },
+            )
+            self.store._append_audit(conn, audit)
+        return OutcomeRecord(outcome_id, tenant_id, finding_id, state, str(amount), currency, evidence_ref, recorded_at)
+
+    def resolve(
+        self,
+        *,
+        tenant_id: str,
+        finding_id: str,
+        outcome_id: str,
+        recovered_amount: str,
+        currency: str,
+        evidence_ref: str,
+        actor_id: str | None = None,
+        connection: sqlite3.Connection | None = None,
+    ) -> OutcomeRecord:
+        if not outcome_id.strip() or not currency.strip() or not evidence_ref.strip():
+            raise AssuranceOperationError("outcome identity, currency and evidence ref are required")
+        if actor_id is not None and not actor_id.strip():
+            raise AssuranceOperationError("resolution actor is required when supplied")
+        if connection is not None:
+            return self._resolve(
+                connection,
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                outcome_id=outcome_id,
+                recovered_amount=recovered_amount,
+                currency=currency,
+                evidence_ref=evidence_ref,
+                actor_id=actor_id,
+            )
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            row = self._finding(conn, tenant_id, finding_id)
-            existing = conn.execute("SELECT * FROM recovery_outcomes WHERE outcome_id=?", (outcome_id,)).fetchone()
-            if existing is not None:
-                comparable = (existing["tenant_id"], existing["finding_id"], existing["state"], existing["recovered_amount"], existing["currency"], existing["evidence_ref"])
-                expected = (tenant_id, finding_id, state, str(amount), currency, evidence_ref)
-                if comparable != expected:
-                    raise AssuranceOperationError("immutable outcome id collision")
-                conn.rollback()
-                return OutcomeRecord(outcome_id, tenant_id, finding_id, existing["state"], existing["recovered_amount"], existing["currency"], existing["evidence_ref"], existing["recorded_at"])
-            if row["state"] != "ACTIONED":
-                raise AssuranceOperationError("only actioned findings may be resolved")
-            conn.execute("INSERT INTO recovery_outcomes VALUES(?,?,?,?,?,?,?,?)", (outcome_id, tenant_id, finding_id, state, str(amount), currency, evidence_ref, recorded_at))
-            conn.execute("UPDATE findings SET state=? WHERE tenant_id=? AND finding_id=?", (state, tenant_id, finding_id))
-            if actor_id is not None:
-                audit = AuditEvent.create(
-                    event_id=f"{tenant_id}:{outcome_id}:resolve",
-                    context=TenantContext(tenant_id=tenant_id, actor_id=actor_id, roles=("operator",)),
-                    event_type="finding_resolved",
-                    subject_ref=finding_id,
-                    evidence_refs=self._evidence_ids(row),
-                    payload={
-                        "state": state,
-                        "outcome_id": outcome_id,
-                        "recovered_amount": str(amount),
-                        "currency": currency,
-                        "evidence_ref": evidence_ref,
-                    },
-                )
-                self.store._append_audit(conn, audit)
+            record = self._resolve(
+                conn,
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                outcome_id=outcome_id,
+                recovered_amount=recovered_amount,
+                currency=currency,
+                evidence_ref=evidence_ref,
+                actor_id=actor_id,
+            )
             conn.commit()
-        return record
+            return record
 
     def record_fee(self, *, tenant_id: str, outcome_id: str, fee_id: str, fee_rate: str) -> FeeLineage:
         with self._connect() as conn:
