@@ -18,7 +18,7 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert 'id="evidence_content"' in html
     assert "Four-eyes review" in html
     assert "unknown notice deadline" in html.lower()
-    assert "not a legal conclusion" in html.lower()
+    assert "neither state is a legal conclusion" in html.lower()
     assert "established recoverability" in html.lower()
     assert "currency is explicit and immutable" in html.lower()
     assert "requires hashed documentary evidence" in html.lower()
