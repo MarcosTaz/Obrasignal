@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 7
+    assert pilot["schema_version"] == 8
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -30,6 +30,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
 
     bounds = pilot["input_bounds"]
     assert bounds == {
+        "tenant_id_max_chars": 64,
         "case_and_outcome_reference_max_chars": 512,
         "finding_id_max_chars": 2048,
         "actor_id_max_chars": 256,
@@ -37,13 +38,29 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "missing_evidence_max_items": 100,
         "missing_evidence_key_max_chars": 128,
         "finding_queue_max_items": 100,
+        "amount_text_max_chars": 128,
+        "amount_significant_digits_max": 50,
+        "amount_integer_digits_max": 36,
+        "amount_decimal_places_max": 18,
+        "amount_absolute_exponent_max": 36,
     }
+
+    dossier = pilot["dossier_lineage"]
+    assert dossier["case_metadata_atomic_with_case"] is True
+    assert dossier["entitlement_evidence_must_match_finding"] is True
+    assert dossier["calculation_evidence_must_be_within_finding"] is True
+    assert dossier["deadline_evidence_must_be_within_finding"] is True
+    assert dossier["recovery_fingerprint_event_must_match_case"] is True
+    assert dossier["creation_audit_must_be_unique"] is True
+    assert dossier["outcome_evidence_type_must_match"] is True
+    assert dossier["corrupt_or_ambiguous_lineage_fails_closed"] is True
 
     economic = pilot["economic_lineage"]
     assert economic["currency_required_for_review_ready"] is True
     assert economic["currency_normalized_uppercase"] is True
     assert economic["recovery_currency_must_match_reviewed_currency"] is True
     assert economic["currency_conversion_implemented"] is False
+    assert economic["numeric_capacity_is_system_safety_not_business_entitlement_cap"] is True
 
     identity = pilot["identity_authorization"]
     assert identity["source"] == "verified_provider_identity"
@@ -62,11 +79,14 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "recovery_currency_mismatch",
         "missing_outcome_documentary_evidence",
         "outcome_evidence_collision",
+        "oversized_tenant_identifier",
         "oversized_case_or_outcome_reference",
         "oversized_finding_identifier",
         "oversized_actor_identifier",
         "oversized_review_reason",
         "oversized_missing_evidence_collection",
+        "numeric_input_capacity_exceeded",
+        "dossier_lineage_mismatch",
         "non_finite_economic_input",
         "recovery_exceeds_reviewed_net_potential",
         "duplicate_success_fee",
@@ -91,7 +111,9 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "documentary_content_gate_green",
         "notice_truth_language_green",
         "currency_lineage_green",
+        "numeric_capacity_green",
         "outcome_evidence_lineage_green",
+        "dossier_lineage_green",
         "bounded_input_surface_green",
         "role_authorization_green",
         "four_eyes_green",
