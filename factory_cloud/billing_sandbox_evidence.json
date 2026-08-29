@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-08-29",
+  "provider": "stripe",
+  "account_label": "K3 Fatality",
+  "stripe_account_id": "acct_1U8skPABxblxoGAb",
+  "environment": "test",
+  "livemode": false,
+  "synthetic_invoice": {
+    "id": "in_1U9nSmABxblxoGAbsd1a4MeJ",
+    "factory_id": "warrantyguard",
+    "engagement_id": "WG-SYNTH-001",
+    "currency": "eur",
+    "amount": 6000000,
+    "status": "void",
+    "amount_paid": 0,
+    "synthetic": true
+  },
+  "payment_intent": {
+    "id": "pi_3U9nT3ABxblxoGAb0LpQSfIQ",
+    "currency": "eur",
+    "amount": 6000000,
+    "status": "canceled",
+    "amount_received": 0,
+    "cancellation_reason": "void_invoice",
+    "latest_charge_present": false,
+    "livemode": false
+  },
+  "proven": [
+    "provider_test_mode",
+    "synthetic_invoice_or_checkout",
+    "live_authority_false"
+  ],
+  "not_proven": [
+    "test_settlement",
+    "reconciliation"
+  ],
+  "certification_effect": "billing_sandbox remains UNKNOWN until a genuine provider TEST settlement is observed and reconciled; voiding or marking paid out of band must not substitute for settlement evidence",
+  "production_authority": false
+}
