@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
+import sqlite3
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from factory_cloud.assurance_kernel import (
@@ -14,7 +16,7 @@ from factory_cloud.assurance_kernel import (
     FindingRecord,
     assert_same_tenant,
 )
-from factory_cloud.assurance_ops import AssuranceOperations
+from factory_cloud.assurance_ops import AssuranceOperationError, AssuranceOperations
 from factory_cloud.assurance_store import AssuranceStore
 from factory_cloud.recovery_index import RecoveryIndex
 from factory_cloud.recovery_primitives import EntitlementBasis, RecoveryFingerprint
@@ -68,6 +70,40 @@ class IndustrialClaimsService:
     @staticmethod
     def _id(tenant_id: str, local: str) -> str:
         return f"{tenant_id}:{local}"
+
+    def _reviewed_net_potential(self, *, tenant_id: str, finding_id: str) -> Decimal:
+        """Return the immutable net-potential calculation linked to a finding.
+
+        A payment larger than this reviewed amount requires a new/amended finding
+        and review rather than silently rewriting verified incremental recovery.
+        """
+        with sqlite3.connect(self.store.path) as conn:
+            conn.row_factory = sqlite3.Row
+            finding = conn.execute(
+                "SELECT calculation_ids_json FROM findings WHERE tenant_id=? AND finding_id=?",
+                (tenant_id, finding_id),
+            ).fetchone()
+            if finding is None:
+                raise AssuranceOperationError("tenant-scoped finding not found")
+            try:
+                calculation_ids = json.loads(finding["calculation_ids_json"])
+            except (TypeError, ValueError) as exc:
+                raise AssuranceOperationError("finding calculation lineage is invalid") from exc
+            if not isinstance(calculation_ids, list) or len(calculation_ids) != 1:
+                raise AssuranceOperationError("industrial finding requires exactly one reviewed calculation")
+            calculation = conn.execute(
+                "SELECT formula_id,output_value FROM calculations WHERE tenant_id=? AND calculation_id=?",
+                (tenant_id, str(calculation_ids[0])),
+            ).fetchone()
+            if calculation is None or calculation["formula_id"] != "industrial_net_potential_claim":
+                raise AssuranceOperationError("reviewed industrial net-potential calculation not found")
+        try:
+            maximum = Decimal(str(calculation["output_value"]))
+        except InvalidOperation as exc:
+            raise AssuranceOperationError("reviewed net potential is not a valid decimal") from exc
+        if maximum < 0:
+            raise AssuranceOperationError("reviewed net potential cannot be negative")
+        return maximum
 
     def analyze(
         self,
@@ -240,6 +276,13 @@ class IndustrialClaimsService:
         return self.ops.action(tenant_id=tenant_id, finding_id=finding_id)
 
     def resolve(self, *, tenant_id: str, finding_id: str, outcome_id: str, recovered_amount: str, currency: str, evidence_ref: str):
+        try:
+            amount = Decimal(recovered_amount)
+        except InvalidOperation as exc:
+            raise AssuranceOperationError("recovered amount must be decimal") from exc
+        maximum = self._reviewed_net_potential(tenant_id=tenant_id, finding_id=finding_id)
+        if amount > maximum:
+            raise AssuranceOperationError("recovered amount exceeds reviewed net potential; amend and re-review the finding")
         return self.ops.resolve(
             tenant_id=tenant_id,
             finding_id=finding_id,
