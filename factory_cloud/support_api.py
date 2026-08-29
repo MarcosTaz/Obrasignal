@@ -6,6 +6,8 @@ from flask import Flask, jsonify, request
 
 from factory_cloud.support_continuity import SupportContinuityError, SupportIncident, SupportLedger
 
+SUPPORT_OPERATOR_ROLES = frozenset({"on_call", "support_operator", "support_manager"})
+
 
 def _public_incident(incident: SupportIncident) -> dict:
     return {
@@ -26,11 +28,12 @@ def register_support_api(
     ledger: SupportLedger,
     identity: Callable[[], tuple[str, str]],
 ) -> None:
-    """Register an operator-only support boundary using trusted upstream headers.
+    """Register a tenant-scoped operator-only support boundary.
 
-    X-Support-Role is expected to be stripped/set by the trusted upstream boundary,
-    just like tenant/actor identity. Raw summaries and communication references are
-    accepted only to hash them in the durable ledger and are never returned.
+    Tenant, actor, route and X-Support-Role are cryptographically bound by the
+    trusted upstream verifier before this layer runs. This layer independently
+    allowlists operator roles so a valid signed identity without support authority
+    remains denied. Raw customer wording is only hashed by the durable ledger.
     """
 
     def support_context() -> tuple[str, str, str]:
@@ -38,6 +41,8 @@ def register_support_api(
         role = request.headers.get("X-Support-Role", "").strip()
         if not role:
             raise SupportContinuityError("trusted upstream support role header is required")
+        if role not in SUPPORT_OPERATOR_ROLES:
+            raise SupportContinuityError("trusted upstream role is not authorized for support operations")
         return tenant_id, actor_id, role
 
     @app.post("/support/incidents")
@@ -62,7 +67,9 @@ def register_support_api(
             tenant_id, _actor_id, _role = support_context()
             return jsonify(_public_incident(ledger.get(tenant_id=tenant_id, incident_id=incident_id)))
         except SupportContinuityError as exc:
-            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 404
+            message = str(exc)
+            status = 404 if message == "support incident not found" else 422
+            return jsonify({"error": type(exc).__name__, "message": message}), status
 
     @app.post("/support/incidents/<incident_id>/transition")
     def support_transition(incident_id: str):
