@@ -14,6 +14,7 @@ SUPPORTED_RULE_BASES = {
     "TIERED_NET_SALES",
     "SUBLICENSE_SHARE",
 }
+REVIEW_STATES = {"UNREVIEWED", "REVIEWED", "REJECTED"}
 
 
 def _id(prefix: str) -> str:
@@ -25,6 +26,13 @@ def _required(value: str, field: str) -> str:
     if not text:
         raise ValueError(f"{field} is required")
     return text
+
+
+def _review_state(value: str) -> str:
+    state = _required(value, "review_status").upper()
+    if state not in REVIEW_STATES:
+        raise ValueError("unsupported review status")
+    return state
 
 
 def _decimal_text(value: Optional[Decimal]) -> Optional[str]:
@@ -55,7 +63,7 @@ class ContractStore:
         self.repo.get_agreement_version(org_id, agreement_version_id)
         clause_ref = _required(clause_ref, "clause_ref")
         clause_type = _required(clause_type, "clause_type")
-        review_status = _required(review_status, "review_status").upper()
+        review_status = _review_state(review_status)
         if evidence_id is not None:
             self.repo.get_evidence(org_id, evidence_id)
         excerpt = text_excerpt.strip() if isinstance(text_excerpt, str) and text_excerpt.strip() else None
@@ -93,6 +101,19 @@ class ContractStore:
             raise NotFoundError("clause not found in organization scope")
         return dict(row)
 
+    def set_clause_review_status(self, org_id: str, clause_id: str, review_status: str, actor_id: str, rationale: str) -> dict[str, Any]:
+        clause = self.get_clause(org_id, clause_id)
+        status = _review_state(review_status)
+        rationale = _required(rationale, "rationale")
+        if status == "UNREVIEWED":
+            raise ValueError("review transition cannot reset clause to UNREVIEWED")
+        self.conn.execute("UPDATE clauses SET review_status=? WHERE id=?", (status, clause_id))
+        self.repo._audit(org_id, actor_id, "REVIEW", "Clause", clause_id, {
+            "previous_status": clause["review_status"], "review_status": status, "rationale": rationale,
+        })
+        self.conn.commit()
+        return self.get_clause(org_id, clause_id)
+
     def add_royalty_rule(
         self,
         org_id: str,
@@ -121,7 +142,7 @@ class ContractStore:
         currency = _required(currency, "currency").upper()
         if len(currency) != 3 or not currency.isalpha():
             raise ValueError("currency must be a three-letter code")
-        review_status = _required(review_status, "review_status").upper()
+        review_status = _review_state(review_status)
         if effective_from and effective_to and effective_to < effective_from:
             raise ValueError("effective_to must not precede effective_from")
         rate_text = _decimal_text(rate)
@@ -171,6 +192,22 @@ class ContractStore:
         if not row:
             raise NotFoundError("royalty rule not found in organization scope")
         return dict(row)
+
+    def set_rule_review_status(self, org_id: str, rule_id: str, review_status: str, actor_id: str, rationale: str) -> dict[str, Any]:
+        rule = self.get_royalty_rule(org_id, rule_id)
+        status = _review_state(review_status)
+        rationale = _required(rationale, "rationale")
+        if status == "UNREVIEWED":
+            raise ValueError("review transition cannot reset rule to UNREVIEWED")
+        clause = self.get_clause(org_id, rule["clause_id"])
+        if status == "REVIEWED" and clause["review_status"] != "REVIEWED":
+            raise ValueError("royalty rule cannot be reviewed until its source clause is reviewed")
+        self.conn.execute("UPDATE royalty_rules SET review_status=? WHERE id=?", (status, rule_id))
+        self.repo._audit(org_id, actor_id, "REVIEW", "RoyaltyRule", rule_id, {
+            "previous_status": rule["review_status"], "review_status": status, "rationale": rationale,
+        })
+        self.conn.commit()
+        return self.get_royalty_rule(org_id, rule_id)
 
     def list_rules_for_agreement_version(self, org_id: str, agreement_version_id: str) -> list[dict[str, Any]]:
         self.repo.get_agreement_version(org_id, agreement_version_id)
