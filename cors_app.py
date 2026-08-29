@@ -13,6 +13,11 @@ if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
 install_e2e_fixture_api(APP)
 
+# Customer Value #542 owns the truth boundary where profile persistence may
+# succeed while synchronous Radar recalculation still requires recovery.
+from onboarding_recovery import install as install_onboarding_recovery
+install_onboarding_recovery()
+
 
 def _origin():
     value = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
