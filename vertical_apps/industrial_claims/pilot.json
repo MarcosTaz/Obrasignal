@@ -1,5 +1,5 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
@@ -10,7 +10,7 @@
     "claim_currency",
     "gross_cost",
     "mitigation_and_prior_recovery",
-    "notice_deadline_or_verified_none"
+    "notice_deadline_or_declared_none_for_review"
   ],
   "evidence_policy": {
     "reference_only_is_review_ready": false,
@@ -19,6 +19,13 @@
     "individual_document_content_limit_bytes": 1000000,
     "recovered_or_closed_outcome_requires_document_content": true,
     "outcome_document_and_state_persist_atomically": true
+  },
+  "notice_truth_policy": {
+    "unknown_fails_closed": true,
+    "analyst_date_state": "DECLARED_DATE_FOR_REVIEW",
+    "analyst_no_deadline_state": "DECLARED_NONE_FOR_REVIEW",
+    "independent_review_required": true,
+    "software_pre_review_verification_claimed": false
   },
   "input_bounds": {
     "case_and_outcome_reference_max_chars": 512,
@@ -59,6 +66,7 @@
     "reference_only_documentary_evidence",
     "partial_entitlement_basis",
     "unknown_notice_deadline",
+    "pre_review_notice_verification_overclaim",
     "missing_claim_currency",
     "invalid_claim_currency",
     "recovery_currency_mismatch",
@@ -105,6 +113,7 @@
     "synthetic_ground_truth_green",
     "all_claim_families_structurally_supported",
     "documentary_content_gate_green",
+    "notice_truth_language_green",
     "currency_lineage_green",
     "outcome_evidence_lineage_green",
     "bounded_input_surface_green",
