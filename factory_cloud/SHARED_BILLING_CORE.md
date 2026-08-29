@@ -21,6 +21,8 @@ Provider object IDs are deliberately **not** committed to this public repository
 
 A Stripe TEST catalog has been materialized externally for the current 26 B2B billing owners. Each B2B product has no fixed price. This is intentional: a pilot fee, fixed engagement or success fee is generated from an approved engagement/fee event, not invented from a static catalog price.
 
+`stripe_catalog.py` makes this future-proof. It derives B2B billing owners from the central Factory registry, searches provider products by `factory_id`, reuses the unique active match, fails closed on duplicates, and stays read-only unless `allow_create=True` is explicitly supplied. Live catalog creation is also blocked until the production activation gates are declared ready. Provider object IDs are not emitted into the common plan or committed to Git.
+
 K3 has a separate TEST supporter product with a customer-selected EUR amount. It is not recurring and grants no paid entitlement.
 
 ## B2B collection
@@ -62,6 +64,21 @@ Subscription/supporter payments may use:
 
 `PAID` and `RECONCILED` require a durable bank/provider evidence reference. UI action alone can never mark a payment paid.
 
+## Shared billing service
+
+`billing_service.py` composes policy, ledger and Stripe provider so individual Factories do not implement their own payment state machines. It supports:
+
+- explicit fixed/pilot fees or calculated success fees;
+- invoice approval before provider creation;
+- Stripe invoice creation/finalization with provider refs written to the ledger;
+- customer delivery only through the explicit delivery gate;
+- verified `invoice.paid` webhook ingestion;
+- exact provider-invoice matching before `PAID`;
+- idempotent webhook redelivery;
+- direct-bank `PAID` only with durable bank evidence;
+- reconciliation only after `PAID`;
+- K3 `checkout.session.completed` support revenue only when the session is actually `paid`, in EUR, while preserving `grants_entitlement=false`.
+
 ## Stripe provider adapter
 
 `stripe_billing_provider.py` provides a production-capable but fail-closed Invoicing adapter. It:
@@ -73,7 +90,8 @@ Subscription/supporter payments may use:
 - finalizes invoices without automatically sending them;
 - requires `FACTORY_STRIPE_CUSTOMER_DELIVERY_ENABLED=true` before an invoice can be sent to a customer;
 - verifies Stripe webhook HMAC signatures and timestamp tolerance;
-- accepts only `invoice.paid` with complete Factory identity as payment evidence.
+- accepts only `invoice.paid` with complete Factory identity as B2B payment evidence;
+- blocks **every live Stripe write** unless legal-entity, fiscal-invoice and payout-bank readiness are all explicitly declared.
 
 Required runtime variables when the Stripe provider is activated:
 
@@ -82,7 +100,30 @@ Required runtime variables when the Stripe provider is activated:
 - `FACTORY_STRIPE_LIVEMODE`
 - `FACTORY_STRIPE_CUSTOMER_DELIVERY_ENABLED`
 
+Additional live-write gates:
+
+- `FACTORY_PRODUCTION_LEGAL_ENTITY_VERIFIED`
+- `FACTORY_PRODUCTION_FISCAL_INVOICE_READY`
+- `FACTORY_PRODUCTION_PAYOUT_BANK_VERIFIED`
+
+These flags only unlock the code path. They are **not independent evidence** that KYC, taxation or bank payout actually work. The Finance Control Plane continues to report live provider operation, bank payout and fiscal compliance as unverified until real external evidence exists.
+
 No secret is committed to Git.
+
+## Finance Control Plane
+
+`finance_control_plane.py` exposes portfolio billing topology and runtime readiness without exposing secrets or a full IBAN. It reports:
+
+- all 42 registered Factories and their billing owner;
+- the 29 distinct billing owners;
+- provider and collection rails;
+- Stripe runtime configuration as booleans only;
+- TEST/LIVE requested mode;
+- the three production gate declarations;
+- whether direct bank transfer is configured and only a masked IBAN;
+- optional ledger totals split between customer recovery and platform revenue.
+
+It deliberately does not convert configuration declarations into claims that production settlement, fiscal compliance or payout have been verified.
 
 ## Bank destination
 
@@ -99,14 +140,17 @@ Do not put an owner or company IBAN in Git history, application source, tests, s
 
 External Stripe TEST execution has proven the provider-side shape without live money:
 
-1. the K3 voluntary supporter product and test payment link were created with no subscription/entitlement;
-2. the 26 current B2B billing owners were materialized as separate dynamic-price TEST products identified by `factory_id` metadata;
+1. the K3 voluntary supporter product and TEST payment link were created with no subscription/entitlement;
+2. the 26 current B2B billing owners were materialized as separate dynamic-price TEST products identified by `factory_id` metadata, and later provider search confirmed the dynamic catalog shape;
 3. a reserved-domain synthetic customer was created;
 4. a WarrantyGuard synthetic case represented EUR 400,000 customer recovery and a 15% platform fee of EUR 60,000;
 5. a EUR 60,000 Stripe invoice was created from that fee, finalized to `open`, and retained the Factory/engagement metadata;
-6. no real customer email was used, no live payment occurred, and no bank/payout mutation occurred.
+6. after the invoice-shape proof it was explicitly **voided**, with `amount_paid=0`, so the TEST dashboard does not retain false paid revenue or synthetic open receivables;
+7. no real customer email was used, no live payment occurred, and no bank/payout mutation occurred.
 
 One deliberate failing-before was observed: `send_invoice` creation rejected a synthetic customer without email. The test was corrected with a reserved `example.com` address; no real message was transmitted. This is preserved as evidence that Stripe/customer-data prerequisites fail closed rather than being silently bypassed.
+
+The code-level payment convergence path is additionally tested with signed synthetic Stripe webhook events. That proves the state-machine and signature/idempotency logic; it is **not** equivalent to a provider-generated TEST settlement or a real bank payout.
 
 ## K3 decision gate
 
@@ -114,7 +158,7 @@ K3 starts with voluntary supporter contributions, free core access and no subscr
 
 ## Production gates still external
 
-This branch is not permission to move money. Before live commercial activation, the owner/runtime must still establish and verify:
+This branch is not permission to move money. Before live commercial activation, the owner/runtime must still establish and independently verify:
 
 - the correct production legal entity/merchant account;
 - Stripe production KYC/merchant activation;
@@ -123,6 +167,7 @@ This branch is not permission to move money. Before live commercial activation, 
 - customer-facing invoice branding/identity;
 - Portugal/EU fiscal invoice and VAT/e-invoicing requirements for the operating entity;
 - the direct-transfer IBAN secret only if that rail is used;
-- explicit production customer-delivery enablement.
+- explicit production customer-delivery enablement;
+- at least one controlled provider-generated live/test settlement rehearsal appropriate to the release stage.
 
 Until those gates are satisfied, TEST evidence is engineering proof only, not evidence of live revenue collection or bank settlement.
