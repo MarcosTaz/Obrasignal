@@ -1,16 +1,22 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
   "required_inputs": [
-    "commercial_basis",
-    "customer_program_event",
-    "cost_evidence",
+    "commercial_basis_reference_and_document_content",
+    "customer_program_event_reference_and_document_content",
+    "cost_evidence_reference_and_document_content",
     "gross_cost",
     "mitigation_and_prior_recovery",
     "notice_deadline_or_verified_none"
   ],
+  "evidence_policy": {
+    "reference_only_is_review_ready": false,
+    "document_content_hashed": true,
+    "raw_document_content_persisted_by_service": false,
+    "individual_document_content_limit_bytes": 1000000
+  },
   "identity_authorization": {
     "source": "verified_provider_identity",
     "raw_identity_headers_authoritative": false,
@@ -20,20 +26,24 @@
       "action": "operator",
       "resolve": "operator"
     },
-    "admin_override": true
+    "admin_override": true,
+    "four_eyes_review_required": true,
+    "admin_may_self_review": false
   },
   "outputs": [
-    "evidence_envelope",
+    "evidence_envelope_with_verification_state",
     "entitlement_basis",
     "reproducible_net_potential_calculation",
     "notice_deadline_truth_state",
     "missing_evidence",
     "reviewable_finding",
+    "actor_audit_lineage",
     "outcome_record"
   ],
   "fail_closed": [
     "cost_without_commercial_basis",
     "missing_event_evidence",
+    "reference_only_documentary_evidence",
     "partial_entitlement_basis",
     "unknown_notice_deadline",
     "negative_economic_input",
@@ -46,9 +56,17 @@
     "unverified_identity",
     "tenant_identity_mismatch",
     "missing_required_role",
+    "self_review",
     "unsupported_review_transition",
     "partial_case_persistence"
   ],
+  "operator_console": {
+    "status": "REPOSITORY_IMPLEMENTED",
+    "external_runtime_exposure": false,
+    "content_security_policy_required": true,
+    "html_injection_renderer_forbidden": true,
+    "cache_case_responses": false
+  },
   "pricing": {
     "status": "HYPOTHESIS",
     "currency": "EUR",
@@ -61,10 +79,15 @@
     "canonical_source_green",
     "synthetic_ground_truth_green",
     "all_claim_families_structurally_supported",
+    "documentary_content_gate_green",
     "tenant_isolation_green",
     "role_authorization_green",
+    "four_eyes_green",
+    "operation_audit_green",
     "atomic_persistence_green",
     "backup_restart_green",
+    "operator_console_green",
+    "browser_security_green",
     "no_known_p0_p1",
     "runtime_provisioned",
     "provider_role_mapping_verified",
