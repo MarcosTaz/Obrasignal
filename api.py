@@ -406,7 +406,7 @@ def opportunities():
     ).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
-    contract = _source_contract(c, source or None)
+    contract = _source_contract(c)
     empty_context = empty_result_context(contract, len(items))
     c.close()
     return jsonify({"items": items, "count": len(items), "market": market, "source_coverage": contract["summary"], "source_health_contract_version": contract["contract_version"], "empty_result": empty_context, "generated_at": _iso_now(), "account_id": identity.account_id})
