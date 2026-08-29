@@ -33,6 +33,7 @@ def test_independent_synthetic_ground_truth_cases(tmp_path):
             claim_family=case["claim_family"],
             commercial_basis_ref=f"basis-{case['id']}",
             cost_evidence_ref=f"cost-{case['id']}",
+            currency="EUR",
             commercial_basis_content=f"synthetic signed commercial basis for {case['id']}",
             event_evidence_content=f"synthetic documented event for {case['id']}",
             cost_evidence_content=f"synthetic cost ledger for {case['id']}",
@@ -52,6 +53,7 @@ def test_independent_synthetic_ground_truth_cases(tmp_path):
 
         result = service.analyze(**kwargs)
         assert result.calculation.output_value == case["expected_net_potential"], case["id"]
+        assert result.calculation.output_unit == "EUR", case["id"]
         assert result.finding.state == case["expected_state"], case["id"]
         assert result.notice_deadline_state == "VERIFIED_NONE", case["id"]
         assert {item.metadata["verification_state"] for item in result.evidence} == {"CONTENT_HASHED"}
