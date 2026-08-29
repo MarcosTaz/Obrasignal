@@ -9,6 +9,7 @@ COMMON_TESTS = (
     "tests/test_factory_cloud_assurance_store.py",
     "tests/test_factory_cloud_vertical_runtime.py",
     "tests/test_factory_cloud_assurance_ops.py",
+    "tests/test_factory_cloud_operation_audit.py",
     "tests/test_factory_cloud_recovery_primitives.py",
     "tests/test_factory_cloud_recovery_index.py",
     "tests/test_factory_cloud_fee_lineage.py",
