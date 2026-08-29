@@ -194,6 +194,7 @@ def build_recovery_package(
         "asset_dedicated": case.asset_dedicated,
         "evidence_supported": case.evidence_supported,
         "notice_valid": case.notice_valid,
+        "duplicate_claim_reviewed": case.duplicate_claim_reviewed,
         "duplicate_claim": case.duplicate_claim,
     }
     recoverability = {
@@ -218,6 +219,7 @@ def build_recovery_package(
         "mitigation_reviewed": case.mitigation_reviewed,
         "prior_recovery_reviewed": case.prior_recovery_reviewed,
         "notice_window_verified": case.notice_window_verified,
+        "duplicate_claim_reviewed": case.duplicate_claim_reviewed,
         "engine_reasons": result.reasons,
         "human_review_required_before_external_submission": positive_position,
     }
