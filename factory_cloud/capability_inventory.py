@@ -38,14 +38,29 @@ def load_capability_inventory(path: Path = INVENTORY_PATH) -> dict[str, Any]:
             raise CapabilityInventoryError(f"invalid promotion state: {capability_id}")
         if not str(capability.get("source_app") or "").strip():
             raise CapabilityInventoryError(f"source_app required: {capability_id}")
-        if not isinstance(capability.get("evidence_paths"), list):
+        evidence_paths = capability.get("evidence_paths")
+        if not isinstance(evidence_paths, list):
             raise CapabilityInventoryError(f"evidence_paths must be a list: {capability_id}")
         if not str(capability.get("next_proof") or "").strip():
             raise CapabilityInventoryError(f"next_proof required: {capability_id}")
-        if state in {"SHARED_VERIFIED", "SHARED_CORE"} and not capability.get("evidence_paths"):
-            raise CapabilityInventoryError(
-                f"verified/shared core capability requires evidence paths: {capability_id}"
-            )
+
+        consumers = capability.get("verified_consumers", [])
+        if not isinstance(consumers, list) or any(not isinstance(item, str) or not item.strip() for item in consumers):
+            raise CapabilityInventoryError(f"verified_consumers must be a list of ids: {capability_id}")
+        if len(set(consumers)) != len(consumers):
+            raise CapabilityInventoryError(f"verified_consumers must be unique: {capability_id}")
+
+        if state in {"SHARED_VERIFIED", "SHARED_CORE"}:
+            if not evidence_paths:
+                raise CapabilityInventoryError(
+                    f"verified/shared core capability requires evidence paths: {capability_id}"
+                )
+            if len(consumers) < 2:
+                raise CapabilityInventoryError(
+                    f"verified/shared core capability requires at least two consumers: {capability_id}"
+                )
+        if state == "SHARED_CORE" and not str(capability.get("owner") or "").strip():
+            raise CapabilityInventoryError(f"shared core capability requires owner: {capability_id}")
     return data
 
 
