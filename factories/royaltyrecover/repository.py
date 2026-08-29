@@ -45,6 +45,11 @@ def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def canonical_input_hash(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return sha256_bytes(encoded)
+
+
 class RoyaltyRepository:
     def __init__(self, connection: sqlite3.Connection):
         self.conn = connection
@@ -198,6 +203,61 @@ class RoyaltyRepository:
         result = dict(row)
         result["metadata"] = json.loads(result.pop("metadata_json") or "{}")
         return result
+
+    def create_calculation_run(self, org_id: str, agreement_id: str, agreement_version_id: str, period_start: str, period_end: str, engine_version: str, input_payload: dict[str, Any], actor_id: str) -> dict[str, Any]:
+        self.get_agreement(org_id, agreement_id)
+        version = self.get_agreement_version(org_id, agreement_version_id)
+        if version["agreement_id"] != agreement_id:
+            raise ScopeError("agreement version does not belong to the supplied agreement")
+        period_start = _required_text(period_start, "period_start")
+        period_end = _required_text(period_end, "period_end")
+        engine_version = _required_text(engine_version, "engine_version")
+        if period_end < period_start:
+            raise ValueError("period_end must not precede period_start")
+        input_hash = canonical_input_hash(input_payload)
+        run_id = _id("calc")
+        self.conn.execute(
+            """INSERT INTO calculation_runs(id, agreement_id, agreement_version_id, period_start, period_end, engine_version, input_hash, created_at)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (run_id, agreement_id, agreement_version_id, period_start, period_end, engine_version, input_hash, _now()),
+        )
+        self._audit(org_id, actor_id, "CREATE", "CalculationRun", run_id, {"agreement_version_id": agreement_version_id, "input_hash": input_hash, "engine_version": engine_version})
+        self.conn.commit()
+        return self.get_calculation_run(org_id, run_id)
+
+    def get_calculation_run(self, org_id: str, run_id: str) -> dict[str, Any]:
+        row = self.conn.execute(
+            """SELECT r.* FROM calculation_runs r
+               JOIN agreements a ON a.id=r.agreement_id
+               JOIN licensors l ON l.id=a.licensor_id
+               JOIN licensees e ON e.id=a.licensee_id
+               WHERE r.id=? AND l.organization_id=? AND e.organization_id=?""",
+            (run_id, org_id, org_id),
+        ).fetchone()
+        if not row:
+            raise NotFoundError("calculation run not found in organization scope")
+        return dict(row)
+
+    def calculation_run_freshness(self, org_id: str, run_id: str, operative_agreement_version_id: str, current_engine_version: str, current_input_payload: dict[str, Any]) -> dict[str, Any]:
+        run = self.get_calculation_run(org_id, run_id)
+        operative = self.get_agreement_version(org_id, operative_agreement_version_id)
+        if operative["agreement_id"] != run["agreement_id"]:
+            raise ScopeError("operative agreement version belongs to a different agreement")
+        current_hash = canonical_input_hash(current_input_payload)
+        reasons = []
+        if run["agreement_version_id"] != operative_agreement_version_id:
+            reasons.append("AGREEMENT_VERSION_CHANGED")
+        if run["engine_version"] != current_engine_version:
+            reasons.append("ENGINE_VERSION_CHANGED")
+        if run["input_hash"] != current_hash:
+            reasons.append("INPUT_DATA_CHANGED")
+        return {
+            "run_id": run_id,
+            "status": "STALE" if reasons else "CURRENT",
+            "reasons": reasons,
+            "stored_input_hash": run["input_hash"],
+            "current_input_hash": current_hash,
+        }
 
     def list_audit_events(self, org_id: str) -> list[dict[str, Any]]:
         self._require_org(org_id)
