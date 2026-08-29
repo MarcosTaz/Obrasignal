@@ -204,7 +204,7 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
             payload = request.get_json(force=True) or {}
             evidence_content = payload.get("evidence_content")
             if not isinstance(evidence_content, str) or not evidence_content.strip():
-                raise ValueError("verified outcome evidence content is required as text")
+                raise ValueError("documentary outcome evidence content is required as text")
             outcome = service.resolve(
                 tenant_id=tenant_id,
                 finding_id=finding_id,
