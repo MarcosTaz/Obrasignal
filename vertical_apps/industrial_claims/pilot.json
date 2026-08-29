@@ -1,5 +1,5 @@
 {
-  "schema_version": 9,
+  "schema_version": 10,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
@@ -28,6 +28,15 @@
     "review_approval_is_legal_conclusion": false,
     "recoverability_established_before_external_evidence": false,
     "rule_ref": "documented-commercial-basis-v3-pre-review"
+  },
+  "review_workflow_policy": {
+    "approval_scope": "INTERNAL_WORKFLOW_APPROVAL",
+    "approval_is_legal_conclusion": false,
+    "approval_establishes_recoverability": false,
+    "approval_authorizes_customer_contact": false,
+    "approval_authorizes_external_claim_submission": false,
+    "independent_reviewer_required": true,
+    "decision_reason_required": true
   },
   "notice_truth_policy": {
     "unknown_fails_closed": true,
@@ -66,6 +75,15 @@
     "outcome_evidence_type_must_match": true,
     "corrupt_or_ambiguous_lineage_fails_closed": true
   },
+  "backup_restore_policy": {
+    "sqlite_integrity_check_required": true,
+    "case_metadata_preserved": true,
+    "recovery_index_preserved": true,
+    "finding_and_audit_lineage_preserved": true,
+    "outcome_and_outcome_evidence_preserved": true,
+    "tenant_isolation_preserved": true,
+    "raw_document_content_absent_after_restore": true
+  },
   "economic_lineage": {
     "currency_required_for_review_ready": true,
     "currency_normalized_uppercase": true,
@@ -97,6 +115,7 @@
     "reference_only_documentary_evidence",
     "unresolved_entitlement_basis",
     "pre_review_entitlement_supported_overclaim",
+    "review_scope_overclaim",
     "unknown_notice_deadline",
     "pre_review_notice_verification_overclaim",
     "missing_claim_currency",
@@ -114,6 +133,7 @@
     "oversized_missing_evidence_collection",
     "numeric_input_capacity_exceeded",
     "dossier_lineage_mismatch",
+    "incomplete_backup_restore",
     "negative_economic_input",
     "non_finite_economic_input",
     "mitigation_exceeds_gross_cost",
@@ -151,6 +171,7 @@
     "all_claim_families_structurally_supported",
     "documentary_content_gate_green",
     "pre_review_entitlement_truth_green",
+    "review_truth_green",
     "notice_truth_language_green",
     "currency_lineage_green",
     "numeric_capacity_green",
@@ -164,7 +185,7 @@
     "operation_audit_green",
     "atomic_persistence_green",
     "case_metadata_atomicity_green",
-    "backup_restart_green",
+    "full_dossier_backup_restore_green",
     "tenant_scoped_role_queue_green",
     "operator_console_green",
     "browser_security_green",
