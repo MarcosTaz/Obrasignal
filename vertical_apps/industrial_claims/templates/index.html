@@ -67,12 +67,15 @@
           <div class="actions"><button id="refresh-queue" type="button" class="secondary">Refresh my queue</button></div>
           <div id="queue-result" class="result" aria-live="polite">Queue not loaded.</div>
           <div id="queue-list" class="queue-list" aria-label="Tenant-scoped finding workflow queue"></div>
+          <h3>Selected dossier</h3>
+          <p class="sub">Select a queue item before deciding. The dossier exposes evidence hashes and source references, calculation lineage, notice timing risk, review history and documented outcomes; raw document content is not returned.</p>
+          <div id="detail-result" class="result" aria-live="polite">No dossier selected.</div>
         </section>
 
         <section class="panel">
           <span class="badge warn">Human-controlled workflow</span>
           <h2>Finding lifecycle</h2>
-          <p class="sub">Roles are verified server-side. A role mismatch fails closed. Review approval is scoped only to the internal workflow.</p>
+          <p class="sub">Roles are verified server-side. A role mismatch fails closed. Review approval is scoped only to the internal workflow. Inspect the selected dossier before review.</p>
           <div class="workflow">
             <form id="review-form" class="step">
               <h3>1. Independent review</h3><p>Reviewer role. The creator cannot self-approve. Approval moves the documented candidate into internal workflow only; it does not establish a legal entitlement, establish recoverability, authorize customer contact, or authorize external claim submission.</p>
