@@ -5,36 +5,35 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 3,
-  "last_factory_id": "industrial-claims",
-  "last_run_at": "2026-08-29T19:30:00Z",
+  "cursor": 4,
+  "last_factory_id": "scopeledger",
+  "last_run_at": "2026-08-29T19:32:52Z",
   "last_material_change": {
-    "kind": "OBRASIGNAL_GAP_CLOSED_AND_FLEET_ROTATED",
-    "factory_id": "industrial-claims",
-    "summary": "ObraSignal Customer Journey #761 password recovery was composed from GREEN owner PR #775 into the live integration branch without merging or touching main. Four bounded mobile files now preserve recovery as distinct provider authority, deny recovery tokens application/backend authority, expose reset request and password update, require sign-out, and require a fresh ordinary sign-in. Concurrent observed-value work temporarily introduced six Python regressions, but the same live integration line repaired its fixtures/current-decision authority and exact HEAD 0fbe3a5421df46a9208826d4450f9036100bdb93 is now fully GREEN: ObraSignal Quality 33270978483 SUCCESS and Supply Chain Resolution 33270978459 SUCCESS. #761 is closed only in the non-canonical integration candidate; real email/deep-link/device acceptance remains external. Fleet rotated to Industrial Claims.",
+    "kind": "INDUSTRIAL_CLAIMS_VERIFIED_AND_SCOPELEDGER_SOURCE_RECOVERED",
+    "factory_id": "scopeledger",
+    "summary": "Industrial Claims PR #785 remains OPEN/DRAFT at exact HEAD 449e3e846d1ad7096b7cf6790ecc119299a35023 with both python and mobile checks SUCCESS; no merge was performed. Fleet then recovered ScopeLedger source identity via branch recovery/scopeledger-source-20260829 at BATON HEAD 79450c800397c7cce873d6efbd6f7401df142625. That BATON records independently verified application recovery HEAD 05a41621806c9bf1ce142263782772b133cee053 with workflow 33224493149 / recovered-source-integrity SUCCESS, while explicitly preserving production lineage as unproven. ScopeLedger therefore remains recovery-candidate GREEN only, not production-verified. Fleet rotated onward rather than stopping on the external lineage boundary.",
     "evidence": {
-      "customer_journey": {
-        "pr": 723,
-        "branch": "integration/customer-journey-current-20260828",
-        "head": "0fbe3a5421df46a9208826d4450f9036100bdb93",
-        "quality": "ObraSignal Quality 33270978483 SUCCESS",
-        "supply_chain": "ObraSignal Supply Chain Resolution 33270978459 SUCCESS",
-        "password_recovery_owner_pr": 775,
-        "password_recovery_owner_head": "b7f963a60e127712a439e8c9f0e059461349e1f8",
-        "classification": "PASSWORD_RECOVERY_INTEGRATED_GREEN_NOT_CANONICAL",
-        "remaining": ["#762 shared-company multi-user membership NOT_MODELED", "#764 Web in-product purchase completion", "real provider email/native deep-link/device acceptance"]
-      },
       "industrial_claims": {
         "pr": 785,
         "branch": "apps/industrial-claims",
         "head": "449e3e846d1ad7096b7cf6790ecc119299a35023",
-        "quality": "ObraSignal Quality 33270696084 SUCCESS",
-        "classification": "GREEN_DRAFT_ACTIVE"
+        "python": "SUCCESS",
+        "mobile": "SUCCESS",
+        "classification": "GREEN_DRAFT_ACTIVE_NO_MERGE"
+      },
+      "scopeledger": {
+        "branch": "recovery/scopeledger-source-20260829",
+        "baton_head": "79450c800397c7cce873d6efbd6f7401df142625",
+        "verified_recovery_head": "05a41621806c9bf1ce142263782772b133cee053",
+        "workflow": "33224493149 SUCCESS",
+        "job": "recovered-source-integrity SUCCESS",
+        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN"
       }
     },
-    "active": "Industrial Claims: inspect exact current app/web/service/test truth for the highest-value pilot/readiness or integrity gap and execute a bounded safe repair; preserve zero-false-recovery and tenant isolation.",
-    "next": "After Industrial Claims work is verified and persisted, rotate to ScopeLedger; continue registry order while prioritizing any newly discovered RED gate over lower-value work.",
+    "active": "ChangeLedger: identify exact canonical/source lane from repository truth, verify its current HEAD/gates, and execute the highest-value bounded safe integrity/readiness work if a trustworthy lane is recoverable.",
+    "next": "If ChangeLedger source identity remains ambiguous after repository recovery attempts, record the ambiguity and rotate immediately to Recovery Radar; continue registry order while prioritizing any newly discovered RED gate.",
     "wait": [
+      "ScopeLedger production/Railway source lineage remains unproven and requires an authorized live source fingerprint before production claims or mutation",
       "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
       "Customer Journey #764 Web purchase completion remains unresolved",
       "Customer Journey real provider email/deep-link/device recovery acceptance remains external",
@@ -46,7 +45,13 @@
       "merge/adoption decisions"
     ]
   },
-  "blocked": [],
+  "blocked": [
+    {
+      "factory_id": "scopeledger",
+      "blocker": "Production lineage cannot be proved from the recovered GitHub branch alone; no production mutation is authorized from an unverified recovery source.",
+      "global_stop": false
+    }
+  ],
   "rules": {
     "technical_window_is_not_stop": true,
     "other_owner_is_not_stop": true,
