@@ -5,44 +5,71 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 27,
-  "last_factory_id": "obrasignal-customer-decision",
-  "last_run_at": "2026-08-29T20:49:00Z",
+  "cursor": 0,
+  "last_factory_id": "complianceledger",
+  "last_run_at": "2026-08-29T21:39:38Z",
   "last_material_change": {
-    "kind": "CUSTOMER_DECISION_SHARED_COMPANY_ACTOR_TENANT_HANDOFF_ADDED",
-    "factory_id": "obrasignal-customer-decision",
-    "summary": "Recovered codex/customer-decision-intelligence-v1 at b3c211d76707fce363bdba4c8970bda0cae25754 with the existing customer-decision-golden-handoff.v1 adversarial matrix. Added docs/CUSTOMER_DECISION_FACTORY_BATON.md and docs/CUSTOMER_DECISION_SHARED_COMPANY_HANDOFF_v0.1.json. The new fixture consumes Customer Journey #821 only as CANDIDATE_NOT_CANONICAL and preserves business tenant account_id separately from actor_subject. Seven cases now specify same-company read handoff, actor-preserving new decisions, revoked-membership fail-closed behavior, cross-company negative behavior, role-denial not becoming DECLINE/NO_BID, historical decision preservation across membership changes, and audit existence not becoming review telemetry. The JSON fixture was fetched successfully after commit and remains repository-only/noncanonical.",
+    "kind": "STRATEGY_ANALYTICS_EVIDENCE_CONTRACTS_AND_FINAL_LANE_RECONSTRUCTION",
+    "factory_id": "obrasignal-data-analytics",
+    "summary": "Recovered Product Strategy PR #521 on strategy/contractor-decision-superiority-v1 at 88c326be65b222781a11473b18bcfb5462cc2981 with exact-head Quality SUCCESS, then added a persistent Product Strategy BATON and synthetic evidence matrix separating repository capability, synthetic proof, external proof and canonical status. New strategy head 131073cbb095c9a87fd66a1d3b466d3b254d3175 is NOT_FULLY_VERIFIED because no CI run was yet associated. Recovered Data Analytics on analytics/measurement-truth-registry at 37b52f855b88a08e796375f717f3eff2187ed4ad with two exact-head Quality SUCCESS runs and added a persistent BATON plus a cross-factory synthetic measurement fixture that keeps missing replies/outcomes/reviews UNKNOWN and forbids absence-as-zero/rejection. New analytics head 303fce7fc69284ef2b7a7fd5d117addd1e53f110 is NOT_FULLY_VERIFIED pending exact-head CI. Reconstructed Release Safety at 672e535f0b04f27d967ae3c174bd871fc0a56893 with Quality SUCCESS; Support Ops at 3aacd6cf08bca752e3023bdef61855f99fb07771 with Quality and CodeQL SUCCESS; EU Switching Evidence Pack at f9ffcf82f2eebbfdeb400de76f562cb185ec5adf with Cloud Switching Quality and ObraSignal Quality SUCCESS. ComplianceLedger still has no exact branch/source identity and remains UNKNOWN. Cursor wrapped to Factory Cloud for the next rotation.",
     "evidence": {
-      "customer_decision": {
-        "branch": "codex/customer-decision-intelligence-v1",
-        "reconstructed_head": "b3c211d76707fce363bdba4c8970bda0cae25754",
-        "baton_commit": "3e1530ff54af76592f320473eeca446b6590a585",
-        "current_head": "15b8bdd2e4e981a88ce3b70e2c4b7507b5c23d5f",
-        "added": ["docs/CUSTOMER_DECISION_FACTORY_BATON.md", "docs/CUSTOMER_DECISION_SHARED_COMPANY_HANDOFF_v0.1.json"],
-        "dependency": "Customer Journey #821 CANDIDATE_NOT_CANONICAL",
-        "classification": "REPOSITORY_ONLY_HANDOFF_ADVANCED_NOT_CANONICAL"
+      "product_strategy": {
+        "pr": 521,
+        "branch": "strategy/contractor-decision-superiority-v1",
+        "reconstructed_head": "88c326be65b222781a11473b18bcfb5462cc2981",
+        "quality_run": 32994388711,
+        "quality": "SUCCESS",
+        "baton_commit": "46b71f4896a807df6cf0b96467b91b80145c9db8",
+        "current_head": "131073cbb095c9a87fd66a1d3b466d3b254d3175",
+        "added": ["docs/PRODUCT_STRATEGY_FACTORY_BATON.md", "docs/PRODUCT_STRATEGY_EVIDENCE_MATRIX_v0.1.json"],
+        "classification": "REPOSITORY_ONLY_ADVANCED_NOT_FULLY_VERIFIED_NOT_CANONICAL"
       },
-      "gtm": {
-        "branch": "gtm/cohort1-evidence-correction-20260829",
-        "current_head": "6854270be0938e6e65077ae9452bf17268e1ae28",
-        "classification": "ASSISTED_VALIDATION_PACKET_READY_REPOSITORY_ONLY",
-        "commercial_proof": "UNKNOWN_NOT_PROVEN"
+      "data_analytics": {
+        "branch": "analytics/measurement-truth-registry",
+        "reconstructed_head": "37b52f855b88a08e796375f717f3eff2187ed4ad",
+        "quality_runs": [32891212362, 32890049116],
+        "quality": "SUCCESS",
+        "baton_commit": "98d20ca857735097913a4d5db1e6521a8aba546a",
+        "current_head": "303fce7fc69284ef2b7a7fd5d117addd1e53f110",
+        "added": ["docs/DATA_ANALYTICS_FACTORY_BATON.md", "docs/DATA_ANALYTICS_CROSS_FACTORY_MEASUREMENT_v0.1.json"],
+        "classification": "REPOSITORY_ONLY_ADVANCED_NOT_FULLY_VERIFIED_NOT_CANONICAL"
       },
-      "customer_journey_821": {
-        "head": "b9c637071b9f29fc7b84d6b017e7234cf5d6240b",
-        "workflow_run": 33272280807,
-        "python": "SUCCESS",
-        "mobile": "SUCCESS",
-        "classification": "GREEN_DRAFT_NOT_CANONICAL"
+      "release_safety": {
+        "branch": "release-safety/exact-web-production-proof",
+        "head": "672e535f0b04f27d967ae3c174bd871fc0a56893",
+        "quality_run": 32900014033,
+        "quality": "SUCCESS",
+        "classification": "RECONSTRUCTED_GREEN_NOT_CANONICAL"
+      },
+      "support_ops": {
+        "branch": "support/incident-operations-v1",
+        "head": "3aacd6cf08bca752e3023bdef61855f99fb07771",
+        "quality_run": 32892620792,
+        "codeql_run": 32892620579,
+        "quality": "SUCCESS",
+        "codeql": "SUCCESS",
+        "classification": "RECONSTRUCTED_GREEN_NOT_CANONICAL"
+      },
+      "eu_switching_evidence_pack": {
+        "branch": "cloud-switching/evidence-pack-rn-compat-repair-20260829",
+        "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
+        "cloud_switching_quality_run": 33271664101,
+        "obrasignal_quality_run": 33271664096,
+        "classification": "RECONSTRUCTED_GREEN_NOT_CANONICAL"
+      },
+      "complianceledger": {
+        "classification": "UNKNOWN_SOURCE_IDENTITY",
+        "branch_search": "no compliance branch found"
       }
     },
-    "active": "Product Strategy, Capability & Roadmap Factory: reconstruct exact source identity and advance the highest-value reversible repository milestone. If source identity remains UNKNOWN, move immediately to Data Analytics.",
-    "next": "Continue Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger. Preserve GTM and Customer Decision BATONs for later continuation.",
+    "active": "Factory Cloud / Control Tower: resume at cursor 0, verify fleet-runner adoption/drift, then rotate through all 33 registered Factories without treating UNKNOWN/WAIT as global stop.",
+    "next": "Classify CI on Product Strategy head 131073cbb095c9a87fd66a1d3b466d3b254d3175 and Data Analytics head 303fce7fc69284ef2b7a7fd5d117addd1e53f110 when available; continue Release Safety and Support Ops with exact BATON persistence; re-attempt ComplianceLedger identity discovery using repository files/PRs/issues; then continue full fleet rotation.",
     "wait": [
+      "Product Strategy new head has no exact-head CI evidence yet",
+      "Data Analytics new head has no exact-head CI evidence yet",
       "Customer Journey #762 still lacks complete endpoint role enforcement and persisted actor audit attribution",
       "Customer Decision shared-company fixture depends on noncanonical #821",
       "GTM real replies/WTP/payment require external evidence",
-      "Product Strategy exact source identity not yet reconstructed",
       "ComplianceLedger exact source identity remains UNKNOWN",
       "ScopeLedger production lineage remains unproven",
       "Aviation source topology remains unbounded against main",
