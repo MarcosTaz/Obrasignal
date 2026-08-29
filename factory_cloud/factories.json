@@ -4,7 +4,7 @@
   "default_signal": "X",
   "progress_semantics": "estimated readiness of the current Factory phase; not lifetime business completion",
   "factories": [
-    {"id":"factory-cloud","name":"Factory Cloud / Control Tower","signal":"Ω","target":"factory-cloud/app-development-control-plane","group":"control","progress_seed":68},
+    {"id":"factory-cloud","name":"Factory Cloud / Control Tower","signal":"D","target":"factory-cloud/app-development-control-plane","group":"control","progress_seed":68},
     {"id":"obrasignal","name":"ObraSignal","target":"ObraSignal","group":"obrasignal","progress_seed":72},
     {"id":"industrial-claims","name":"Industrial Supplier Claims & Margin Recovery","target":"Industrial Claims","group":"business","progress_seed":64},
     {"id":"scopeledger","name":"ScopeLedger","target":"ScopeLedger","group":"business","progress_seed":66},
