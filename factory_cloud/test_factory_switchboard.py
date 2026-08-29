@@ -18,9 +18,9 @@ class FactorySwitchboardTests(unittest.TestCase):
         self.assertIn("NOT A STOP CONDITION", packet["payload"])
         self.assertIn("TRUE EXTERNAL BLOCKER", packet["payload"])
 
-    def test_factory_cloud_keeps_omega_switch(self) -> None:
+    def test_factory_cloud_uses_d_switch(self) -> None:
         packet = start_packet("factory-cloud", load_switchboard())
-        self.assertEqual(packet["signal"], "Ω")
+        self.assertEqual(packet["signal"], "D")
 
     def test_unknown_factory_fails_closed(self) -> None:
         with self.assertRaises(Exception):
