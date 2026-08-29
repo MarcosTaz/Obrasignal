@@ -17,10 +17,16 @@ class AssuranceHealth:
     audit_events: int
 
     def public_dict(self) -> dict:
+        """Minimal readiness surface safe for unauthenticated infrastructure probes."""
         return {
             "status": self.status,
             "integrity": self.integrity,
             "schema_version": self.schema_version,
+        }
+
+    def operational_dict(self) -> dict:
+        """Aggregate operational metrics for trusted internal/operator surfaces only."""
+        return self.public_dict() | {
             "open_findings": self.open_findings,
             "pending_notifications": self.pending_notifications,
             "audit_events": self.audit_events,
@@ -28,7 +34,7 @@ class AssuranceHealth:
 
 
 def assurance_health(path: str | Path) -> AssuranceHealth:
-    """Return aggregate, non-customer-identifying operational health only."""
+    """Evaluate local assurance-store health without returning customer identifiers."""
     db = Path(path)
     if not db.is_file():
         return AssuranceHealth("unavailable", "missing", None, 0, 0, 0)
