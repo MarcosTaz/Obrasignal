@@ -35,7 +35,7 @@ ALLOWED_CLAIM_FAMILIES = {
     "MITIGATION_COST",
     "OTHER_DOCUMENTED_PROGRAM_EXPOSURE",
 }
-NOTICE_DEADLINE_EVIDENCE = "notice_deadline_or_verified_none"
+NOTICE_DEADLINE_EVIDENCE = "notice_deadline_or_declared_none_for_review"
 COMMERCIAL_BASIS_DOCUMENT = "commercial_basis_document"
 EVENT_DOCUMENT = "event_document"
 COST_DOCUMENT = "cost_document"
@@ -278,7 +278,7 @@ class IndustrialClaimsService:
         if not isinstance(notice_deadline_not_applicable, bool):
             raise AssuranceKernelError("notice_deadline_not_applicable must be boolean")
         if notice_due is not None and notice_deadline_not_applicable:
-            raise AssuranceKernelError("notice due date and verified no-deadline state are mutually exclusive")
+            raise AssuranceKernelError("notice due date and declared no-deadline state are mutually exclusive")
 
         effective_missing = self._bounded_missing_evidence(missing_evidence)
         currency_code = self._claim_currency(currency)
@@ -286,9 +286,9 @@ class IndustrialClaimsService:
             currency_code = "UNKNOWN"
             effective_missing.add(CLAIM_CURRENCY_EVIDENCE)
         if notice_due is not None:
-            notice_deadline_state = "VERIFIED_DATE"
+            notice_deadline_state = "DECLARED_DATE_FOR_REVIEW"
         elif notice_deadline_not_applicable:
-            notice_deadline_state = "VERIFIED_NONE"
+            notice_deadline_state = "DECLARED_NONE_FOR_REVIEW"
         else:
             notice_deadline_state = "UNKNOWN"
             effective_missing.add(NOTICE_DEADLINE_EVIDENCE)
