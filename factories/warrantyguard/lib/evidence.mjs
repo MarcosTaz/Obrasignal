@@ -1,4 +1,4 @@
-import {sha256,requiredText} from './utils.mjs';
+import {sha256,parseIsoTimestamp,requiredText} from './utils.mjs';
 export function makeEvidence({id,tenantId,debitId,type='ROOT_CAUSE',content='synthetic evidence',claims=['ROOT_CAUSE'],reviewedBy='synthetic-reviewer',reviewedAt='2026-08-29T00:00:00Z',contradictory=false}){
   return {id,tenantId,debitId,type,content,contentHash:sha256(content),claims,reviewedBy,reviewedAt,contradictory};
 }
@@ -9,7 +9,8 @@ export function verifyEvidenceBundle(items,debit){
   if(!relevant.length)return {ok:false,reason:'EVIDENCE_NOT_LINKED'};
   for(const e of relevant){
     if(e.tenantId!==debit.tenantId)return {ok:false,reason:'TENANT_MISMATCH'};
-    try{requiredText(e.id,'evidenceId');requiredText(e.reviewedBy,'reviewedBy');requiredText(e.reviewedAt,'reviewedAt');}catch(err){return {ok:false,reason:err.message};}
+    try{requiredText(e.id,'evidenceId');requiredText(e.reviewedBy,'reviewedBy');parseIsoTimestamp(e.reviewedAt);}catch(err){return {ok:false,reason:err.message};}
+    if(!Array.isArray(e.claims)||e.claims.some(c=>typeof c!=='string'||!c.trim()))return {ok:false,reason:'EVIDENCE_CLAIMS_INVALID'};
     if(sha256(e.content||'')!==e.contentHash)return {ok:false,reason:'EVIDENCE_HASH_MISMATCH'};
     if(e.contradictory)return {ok:false,reason:'CONTRADICTORY_EVIDENCE'};
   }
