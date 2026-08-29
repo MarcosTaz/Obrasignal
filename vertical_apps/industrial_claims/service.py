@@ -42,6 +42,12 @@ COST_DOCUMENT = "cost_document"
 CLAIM_CURRENCY_EVIDENCE = "claim_currency"
 OUTCOME_EVIDENCE_DOCUMENT = "verified_outcome_evidence_document"
 MAX_EVIDENCE_BYTES = 1_000_000
+MAX_REFERENCE_CHARS = 512
+MAX_FINDING_ID_CHARS = 2_048
+MAX_ACTOR_CHARS = 256
+MAX_REASON_CHARS = 4_000
+MAX_MISSING_EVIDENCE_ITEMS = 100
+MAX_MISSING_EVIDENCE_CHARS = 128
 
 
 @dataclass(frozen=True)
@@ -80,6 +86,43 @@ class IndustrialClaimsService:
     @staticmethod
     def _id(tenant_id: str, local: str) -> str:
         return f"{tenant_id}:{local}"
+
+    @staticmethod
+    def _bounded_text(value: object, *, label: str, max_chars: int) -> str:
+        text = str(value or "").strip()
+        if not text:
+            raise AssuranceKernelError(f"{label} is required")
+        if len(text) > max_chars:
+            raise AssuranceKernelError(f"{label} exceeds {max_chars} characters")
+        return text
+
+    @staticmethod
+    def _bounded_operation_text(value: object, *, label: str, max_chars: int) -> str:
+        text = str(value or "").strip()
+        if not text:
+            raise AssuranceOperationError(f"{label} is required")
+        if len(text) > max_chars:
+            raise AssuranceOperationError(f"{label} exceeds {max_chars} characters")
+        return text
+
+    @classmethod
+    def _bounded_missing_evidence(cls, value: tuple[str, ...]) -> set[str]:
+        if isinstance(value, (str, bytes, bytearray)):
+            raise AssuranceKernelError("missing_evidence must be a collection of evidence keys")
+        items = tuple(value)
+        if len(items) > MAX_MISSING_EVIDENCE_ITEMS:
+            raise AssuranceKernelError(f"missing_evidence exceeds {MAX_MISSING_EVIDENCE_ITEMS} items")
+        normalized: set[str] = set()
+        for item in items:
+            text = str(item).strip()
+            if not text:
+                continue
+            if len(text) > MAX_MISSING_EVIDENCE_CHARS:
+                raise AssuranceKernelError(
+                    f"missing evidence key exceeds {MAX_MISSING_EVIDENCE_CHARS} characters"
+                )
+            normalized.add(text)
+        return normalized
 
     @staticmethod
     def _evidence_payload(
@@ -221,20 +264,23 @@ class IndustrialClaimsService:
         notice_deadline_not_applicable: bool = False,
         missing_evidence: tuple[str, ...] = (),
     ) -> IndustrialClaimResult:
-        context = TenantContext(tenant_id=tenant_id, actor_id=actor_id, roles=("analyst",))
+        actor = self._bounded_text(actor_id, label="actor_id", max_chars=MAX_ACTOR_CHARS)
+        customer = self._bounded_text(customer_ref, label="customer_ref", max_chars=MAX_REFERENCE_CHARS)
+        program = self._bounded_text(program_ref, label="program_ref", max_chars=MAX_REFERENCE_CHARS)
+        event_key = self._bounded_text(event_ref, label="event_ref", max_chars=MAX_REFERENCE_CHARS)
+        basis_ref = self._bounded_text(commercial_basis_ref, label="commercial_basis_ref", max_chars=MAX_REFERENCE_CHARS)
+        cost_ref = self._bounded_text(cost_evidence_ref, label="cost_evidence_ref", max_chars=MAX_REFERENCE_CHARS)
+        context = TenantContext(tenant_id=tenant_id, actor_id=actor, roles=("analyst",))
         context.require_role("analyst")
         family = claim_family.strip().upper()
         if family not in ALLOWED_CLAIM_FAMILIES:
             raise AssuranceKernelError("unsupported industrial claim family")
-        refs = (customer_ref, program_ref, event_ref, commercial_basis_ref, cost_evidence_ref)
-        if any(not str(value).strip() for value in refs):
-            raise AssuranceKernelError("customer, program, event, commercial basis and cost evidence are required")
         if not isinstance(notice_deadline_not_applicable, bool):
             raise AssuranceKernelError("notice_deadline_not_applicable must be boolean")
         if notice_due is not None and notice_deadline_not_applicable:
             raise AssuranceKernelError("notice due date and verified no-deadline state are mutually exclusive")
 
-        effective_missing = {str(item).strip() for item in missing_evidence if str(item).strip()}
+        effective_missing = self._bounded_missing_evidence(missing_evidence)
         currency_code = self._claim_currency(currency)
         if not currency_code:
             currency_code = "UNKNOWN"
@@ -247,9 +293,9 @@ class IndustrialClaimsService:
             notice_deadline_state = "UNKNOWN"
             effective_missing.add(NOTICE_DEADLINE_EVIDENCE)
 
-        basis_content, basis_metadata = self._evidence_payload(commercial_basis_content, source_ref=commercial_basis_ref, missing_key=COMMERCIAL_BASIS_DOCUMENT, missing=effective_missing)
-        event_content, event_metadata = self._evidence_payload(event_evidence_content, source_ref=event_ref, missing_key=EVENT_DOCUMENT, missing=effective_missing)
-        cost_content, cost_metadata = self._evidence_payload(cost_evidence_content, source_ref=cost_evidence_ref, missing_key=COST_DOCUMENT, missing=effective_missing)
+        basis_content, basis_metadata = self._evidence_payload(commercial_basis_content, source_ref=basis_ref, missing_key=COMMERCIAL_BASIS_DOCUMENT, missing=effective_missing)
+        event_content, event_metadata = self._evidence_payload(event_evidence_content, source_ref=event_key, missing_key=EVENT_DOCUMENT, missing=effective_missing)
+        cost_content, cost_metadata = self._evidence_payload(cost_evidence_content, source_ref=cost_ref, missing_key=COST_DOCUMENT, missing=effective_missing)
 
         try:
             amounts = {
@@ -267,41 +313,41 @@ class IndustrialClaimsService:
         if net_potential < 0:
             raise AssuranceKernelError("mitigation/recovery cannot exceed gross cost without review")
 
-        basis = EvidenceEnvelope.create(evidence_id=self._id(tenant_id, f"{commercial_basis_ref}:commercial-basis"), tenant_id=tenant_id, source_type="commercial_basis", source_ref=commercial_basis_ref, content=basis_content, metadata=basis_metadata)
-        event = EvidenceEnvelope.create(evidence_id=self._id(tenant_id, f"{event_ref}:event"), tenant_id=tenant_id, source_type="industrial_commercial_event", source_ref=event_ref, content=event_content, metadata=event_metadata)
-        cost = EvidenceEnvelope.create(evidence_id=self._id(tenant_id, f"{cost_evidence_ref}:cost"), tenant_id=tenant_id, source_type="cost_evidence", source_ref=cost_evidence_ref, content=cost_content, metadata=cost_metadata)
+        basis = EvidenceEnvelope.create(evidence_id=self._id(tenant_id, f"{basis_ref}:commercial-basis"), tenant_id=tenant_id, source_type="commercial_basis", source_ref=basis_ref, content=basis_content, metadata=basis_metadata)
+        event = EvidenceEnvelope.create(evidence_id=self._id(tenant_id, f"{event_key}:event"), tenant_id=tenant_id, source_type="industrial_commercial_event", source_ref=event_key, content=event_content, metadata=event_metadata)
+        cost = EvidenceEnvelope.create(evidence_id=self._id(tenant_id, f"{cost_ref}:cost"), tenant_id=tenant_id, source_type="cost_evidence", source_ref=cost_ref, content=cost_content, metadata=cost_metadata)
         evidence = (basis, event, cost)
 
         entitlement = EntitlementBasis.create(
-            entitlement_id=self._id(tenant_id, f"{event_ref}:{family}:basis"), tenant_id=tenant_id, domain=self.vertical,
+            entitlement_id=self._id(tenant_id, f"{event_key}:{family}:basis"), tenant_id=tenant_id, domain=self.vertical,
             source_evidence_ids=tuple(item.evidence_id for item in evidence), rule_ref="documented-commercial-basis-v2",
             confidence="SUPPORTED" if not effective_missing else "PARTIAL",
         )
-        fingerprint = RecoveryFingerprint.create(tenant_id=tenant_id, vertical=self.vertical, contract_ref=f"{customer_ref}:{program_ref}:{commercial_basis_ref}", event_ref=event_ref, remedy_type=family.lower())
+        fingerprint = RecoveryFingerprint.create(tenant_id=tenant_id, vertical=self.vertical, contract_ref=f"{customer}:{program}:{basis_ref}", event_ref=event_key, remedy_type=family.lower())
         calculation = CalculationRecord.create(
-            calculation_id=self._id(tenant_id, f"{event_ref}:{family}:net-potential"), tenant_id=tenant_id,
+            calculation_id=self._id(tenant_id, f"{event_key}:{family}:net-potential"), tenant_id=tenant_id,
             formula_id="industrial_net_potential_claim", formula_version="1",
             inputs=tuple(CalculationInput(name=name, value=str(value), unit=currency_code, evidence_ids=(cost.evidence_id, basis.evidence_id)) for name, value in amounts.items()),
             output_value=net_potential, output_unit=currency_code,
         )
-        deadline = DeadlineWindow.create(deadline_id=self._id(tenant_id, f"{event_ref}:{family}:notice"), tenant_id=tenant_id, due_date=notice_due or date.max, basis_evidence_ids=(basis.evidence_id, event.evidence_id))
+        deadline = DeadlineWindow.create(deadline_id=self._id(tenant_id, f"{event_key}:{family}:notice"), tenant_id=tenant_id, due_date=notice_due or date.max, basis_evidence_ids=(basis.evidence_id, event.evidence_id))
         state = "READY_FOR_REVIEW" if entitlement.actionable and net_potential > 0 else "UNRESOLVED_EVIDENCE"
-        finding = FindingRecord.create(finding_id=self._id(tenant_id, f"{event_ref}:{family}:finding"), tenant_id=tenant_id, finding_type="industrial_recovery_candidate", evidence_ids=tuple(item.evidence_id for item in evidence), calculation_ids=(calculation.calculation_id,), state=state)
+        finding = FindingRecord.create(finding_id=self._id(tenant_id, f"{event_key}:{family}:finding"), tenant_id=tenant_id, finding_type="industrial_recovery_candidate", evidence_ids=tuple(item.evidence_id for item in evidence), calculation_ids=(calculation.calculation_id,), state=state)
         assert_same_tenant(*evidence, calculation, deadline, finding)
         assert_tenant_context(context, *evidence, calculation, deadline, finding)
         audit = AuditEvent.create(
-            event_id=self._id(tenant_id, f"{event_ref}:{family}:audit"), context=context, event_type="industrial_finding_created",
+            event_id=self._id(tenant_id, f"{event_key}:{family}:audit"), context=context, event_type="industrial_finding_created",
             subject_ref=finding.finding_id, evidence_refs=finding.evidence_ids,
             payload={"claim_family": family, "calculation_hash": calculation.reproducibility_hash, "entitlement_basis_hash": entitlement.basis_hash, "recovery_fingerprint": fingerprint.fingerprint, "currency": currency_code, "notice_deadline_state": notice_deadline_state, "evidence_states": {item.source_type: item.metadata.get("verification_state") for item in evidence}, "missing_evidence": sorted(effective_missing)},
         )
-        notification = NotificationEvent.create(event_id=self._id(tenant_id, f"{event_ref}:{family}:notification"), tenant_id=tenant_id, event_type="finding_ready" if state == "READY_FOR_REVIEW" else "finding_unresolved", subject_ref=finding.finding_id, payload={"vertical": self.vertical, "claim_family": family, "state": state, "currency": currency_code, "notice_deadline_state": notice_deadline_state})
+        notification = NotificationEvent.create(event_id=self._id(tenant_id, f"{event_key}:{family}:notification"), tenant_id=tenant_id, event_type="finding_ready" if state == "READY_FOR_REVIEW" else "finding_unresolved", subject_ref=finding.finding_id, payload={"vertical": self.vertical, "claim_family": family, "state": state, "currency": currency_code, "notice_deadline_state": notice_deadline_state})
         case_metadata = IndustrialCaseMetadata(
             finding_id=finding.finding_id,
             tenant_id=tenant_id,
             claim_family=family,
-            customer_ref=customer_ref,
-            program_ref=program_ref,
-            event_ref=event_ref,
+            customer_ref=customer,
+            program_ref=program,
+            event_ref=event_key,
             entitlement_id=entitlement.entitlement_id,
             deadline_id=deadline.deadline_id,
             recovery_fingerprint=fingerprint.fingerprint,
@@ -319,13 +365,18 @@ class IndustrialClaimsService:
         return IndustrialClaimResult(tenant_id=tenant_id, claim_family=family, evidence=evidence, entitlement=entitlement, fingerprint=fingerprint, calculation=calculation, deadline=deadline, notice_deadline_state=notice_deadline_state, finding=finding, audit=audit, notification=notification, missing_evidence=tuple(sorted(effective_missing)), is_new_recovery=is_new)
 
     def review(self, *, tenant_id: str, finding_id: str, reviewer: str, approved: bool, reason: str) -> str:
-        creator = self._creator_actor(tenant_id=tenant_id, finding_id=finding_id)
-        if creator == reviewer:
+        finding_key = self._bounded_operation_text(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
+        reviewer_id = self._bounded_operation_text(reviewer, label="reviewer", max_chars=MAX_ACTOR_CHARS)
+        decision_reason = self._bounded_operation_text(reason, label="review reason", max_chars=MAX_REASON_CHARS)
+        creator = self._creator_actor(tenant_id=tenant_id, finding_id=finding_key)
+        if creator == reviewer_id:
             raise AssuranceOperationError("reviewer must be independent from finding creator")
-        return self.ops.review(tenant_id=tenant_id, finding_id=finding_id, reviewer=reviewer, approved=approved, reason=reason)
+        return self.ops.review(tenant_id=tenant_id, finding_id=finding_key, reviewer=reviewer_id, approved=approved, reason=decision_reason)
 
     def action(self, *, tenant_id: str, finding_id: str, actor_id: str) -> str:
-        return self.ops.action(tenant_id=tenant_id, finding_id=finding_id, actor_id=actor_id)
+        finding_key = self._bounded_operation_text(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
+        actor = self._bounded_operation_text(actor_id, label="action actor", max_chars=MAX_ACTOR_CHARS)
+        return self.ops.action(tenant_id=tenant_id, finding_id=finding_key, actor_id=actor)
 
     def resolve(
         self,
@@ -339,6 +390,10 @@ class IndustrialClaimsService:
         evidence_content: bytes | bytearray | memoryview | str | None = None,
         actor_id: str,
     ):
+        finding_key = self._bounded_operation_text(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
+        outcome_key = self._bounded_operation_text(outcome_id, label="outcome_id", max_chars=MAX_REFERENCE_CHARS)
+        evidence_reference = self._bounded_operation_text(evidence_ref, label="outcome evidence ref", max_chars=MAX_REFERENCE_CHARS)
+        actor = self._bounded_operation_text(actor_id, label="resolution actor", max_chars=MAX_ACTOR_CHARS)
         try:
             amount = Decimal(recovered_amount)
         except (InvalidOperation, ValueError, TypeError) as exc:
@@ -348,22 +403,22 @@ class IndustrialClaimsService:
         recovery_currency = str(currency or "").strip().upper()
         if len(recovery_currency) != 3 or not recovery_currency.isalpha() or not recovery_currency.isascii():
             raise AssuranceOperationError("recovery currency must be a three-letter ASCII code")
-        maximum, reviewed_currency = self._reviewed_net_potential(tenant_id=tenant_id, finding_id=finding_id)
+        maximum, reviewed_currency = self._reviewed_net_potential(tenant_id=tenant_id, finding_id=finding_key)
         if recovery_currency != reviewed_currency:
             raise AssuranceOperationError("recovery currency does not match reviewed claim currency")
         if amount > maximum:
             raise AssuranceOperationError("recovered amount exceeds reviewed net potential; amend and re-review the finding")
         outcome_missing: set[str] = set()
-        outcome_content, outcome_metadata = self._evidence_payload(evidence_content, source_ref=evidence_ref, missing_key=OUTCOME_EVIDENCE_DOCUMENT, missing=outcome_missing)
+        outcome_content, outcome_metadata = self._evidence_payload(evidence_content, source_ref=evidence_reference, missing_key=OUTCOME_EVIDENCE_DOCUMENT, missing=outcome_missing)
         if outcome_missing:
             raise AssuranceOperationError("verified outcome evidence content is required")
         outcome_evidence = EvidenceEnvelope.create(
-            evidence_id=self._id(tenant_id, f"{outcome_id}:outcome-evidence"), tenant_id=tenant_id,
-            source_type="recovery_outcome_evidence", source_ref=evidence_ref, content=outcome_content, metadata=outcome_metadata,
+            evidence_id=self._id(tenant_id, f"{outcome_key}:outcome-evidence"), tenant_id=tenant_id,
+            source_type="recovery_outcome_evidence", source_ref=evidence_reference, content=outcome_content, metadata=outcome_metadata,
         )
         with self.store.transaction() as conn:
             self.store._put_evidence(conn, outcome_evidence)
             return self.ops.resolve(
-                tenant_id=tenant_id, finding_id=finding_id, outcome_id=outcome_id, recovered_amount=recovered_amount,
-                currency=recovery_currency, evidence_ref=outcome_evidence.evidence_id, actor_id=actor_id, connection=conn,
+                tenant_id=tenant_id, finding_id=finding_key, outcome_id=outcome_key, recovered_amount=recovered_amount,
+                currency=recovery_currency, evidence_ref=outcome_evidence.evidence_id, actor_id=actor, connection=conn,
             )
