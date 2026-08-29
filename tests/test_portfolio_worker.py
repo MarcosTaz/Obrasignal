@@ -48,6 +48,15 @@ def test_remote_http_endpoint_is_rejected_but_localhost_is_allowed():
     assert configured_endpoint({"FACTORY_CLOUD_PORTFOLIO_WORKER_ENDPOINT": "http://127.0.0.1:8788/execute"})
 
 
+def test_remote_https_endpoint_requires_one_host_level_token():
+    worker = PortfolioFactoryWorker(
+        environ={"FACTORY_CLOUD_PORTFOLIO_WORKER_ENDPOINT": "https://worker.example.test/v1/execute"}
+    )
+    result = worker.execute(request())
+    assert result["status"] == "BLOCKED"
+    assert result["error"]["type"] == "REMOTE_WORKER_TOKEN_REQUIRED"
+
+
 def test_relative_worker_path_is_rejected():
     worker = PortfolioFactoryWorker(environ={"FACTORY_CLOUD_PORTFOLIO_WORKER": "./worker"})
     result = worker.execute(request())
@@ -60,6 +69,7 @@ def test_executable_and_endpoint_together_are_rejected_as_ambiguous():
         environ={
             "FACTORY_CLOUD_PORTFOLIO_WORKER": "/opt/factory-cloud/portfolio-worker",
             "FACTORY_CLOUD_PORTFOLIO_WORKER_ENDPOINT": "https://worker.example.test/v1/execute",
+            "FACTORY_CLOUD_PORTFOLIO_WORKER_TOKEN": "shared-token",
         }
     )
     result = worker.execute(request())
@@ -116,3 +126,36 @@ def test_factory_identity_and_baton_are_sent_to_one_shared_endpoint():
     assert kwargs["json"]["baton"]["resume_at"] == "validate"
     assert kwargs["headers"]["authorization"] == "Bearer secret-token"
     assert kwargs["allow_redirects"] is False
+
+
+def test_worker_result_cannot_spoof_factory_or_route_identity():
+    def runner(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout=json.dumps({"status": "DONE", "factory_id": "other", "route": "factory://other"}),
+            stderr="",
+        )
+
+    result = PortfolioFactoryWorker(
+        environ={"FACTORY_CLOUD_PORTFOLIO_WORKER": "/opt/factory-cloud/portfolio-worker"},
+        runner=runner,
+    ).execute(request())
+
+    assert result["status"] == "ERROR"
+    assert result["error"]["type"] == "INVALID_WORKER_RESULT"
+    assert result["factory_id"] == "scopeledger"
+    assert result["route"] == "factory://portfolio/scopeledger"
+
+
+def test_worker_result_status_is_fail_closed():
+    def runner(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 0, stdout=json.dumps({"status": "RUNNING"}), stderr="")
+
+    result = PortfolioFactoryWorker(
+        environ={"FACTORY_CLOUD_PORTFOLIO_WORKER": "/opt/factory-cloud/portfolio-worker"},
+        runner=runner,
+    ).execute(request())
+
+    assert result["status"] == "ERROR"
+    assert result["error"]["type"] == "INVALID_WORKER_RESULT"
