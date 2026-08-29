@@ -22,7 +22,7 @@ def test_duplicate_analysis_does_not_downgrade_recovered_finding(tmp_path):
     assert replay.finding.state == "RECOVERED"
     assert replay.finding.reviewer == "commercial-reviewer"
     assert replay.finding.decision_reason == "reviewed evidence and amount"
-    assert replay.notice_deadline_state == "VERIFIED_NONE"
+    assert replay.notice_deadline_state == "DECLARED_NONE_FOR_REVIEW"
     assert replay.calculation.output_unit == "EUR"
     assert service.ops.get_state(tenant_id="alpha", finding_id=first.finding.finding_id) == "RECOVERED"
     assert len(service.ops.outcomes(tenant_id="alpha")) == 1
