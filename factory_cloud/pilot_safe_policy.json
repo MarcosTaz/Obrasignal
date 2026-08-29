@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "purpose": "Pre-customer product certification. No real customer, proprietary customer data, live billing, production deploy or market-validation authority is granted by this policy.",
   "terminal": "PILOT_SAFE",
   "gates": [
@@ -14,8 +14,34 @@
     {"id":"PS8","name":"real_world_shadow_validation","required_evidence":["shadow_validation"]},
     {"id":"PS9","name":"pilot_safe","required_evidence":["source_registered","exact_source_head","assisted_api","delivery_economics_defined","onboarding_exit_criteria"]}
   ],
+  "evidence_contracts": {
+    "web_complete": {
+      "required_proofs": ["evidence_backed_default_path","adjudication_ui","error_state_ui","responsive_contract","accessibility_contract","browser_runtime"]
+    },
+    "adversarial": {
+      "required_proofs": ["signed_identity","method_path_binding","tenant_isolation","role_authorization","cross_tenant_rejection","malformed_input_fail_closed"]
+    },
+    "backup_restore": {
+      "required_proofs": ["integrity_check","schema_check","content_hash","restore_recovery"]
+    },
+    "observability": {
+      "required_proofs": ["readiness_fail_closed","no_customer_identifiers","minimal_public_surface"]
+    },
+    "support_continuity": {
+      "required_proofs": ["severity_model","durable_restart","tenant_scope","role_authorization","customer_update_before_resolution","closure_evidence"]
+    },
+    "synthetic_company_e2e": {
+      "required_proofs": ["evidence_intake","adjudication","review","action","outcome","cross_tenant_rejection","backup_restore","support_lifecycle"]
+    },
+    "billing_sandbox": {
+      "required_proofs": ["provider_test_mode","synthetic_invoice_or_checkout","test_settlement","reconciliation","live_authority_false"]
+    },
+    "shadow_validation": {
+      "required_proofs": ["traceable_public_case","immutable_evidence_identity","unknown_preservation","zero_unproven_recovery"]
+    }
+  },
   "forbidden_as_pre_customer_proof":["real_customer","real_proprietary_customer_data","live_payment","live_success_fee","customer_incident_as_qa","production_failure_as_test"],
-  "promotion_rule":"Every PS0-PS9 gate must be independently evidenced and current. Missing, stale, symbolic or inherited evidence is UNKNOWN and blocks PILOT_SAFE.",
+  "promotion_rule":"Every PS0-PS9 gate must be independently evidenced and current. Missing, stale, symbolic or inherited evidence is UNKNOWN and blocks PILOT_SAFE. Critical evidence tokens with evidence_contracts cannot PASS unless every required subproof is explicitly recorded.",
   "post_pilot_states":["CONTROLLED_REAL_PILOT","PILOT_VALIDATED","COMMERCIAL_READY","MARKET_VALIDATED","REPEATABLE","SCALE_READY"],
   "scheduling_priority":["safety_or_regression","pilot_safe_blocker","shared_capability_unblocking_multiple_factories","web_or_end_to_end_completeness","support_observability_backup","evidence_or_calculation_integrity","synthetic_company_and_shadow_proof","commercial_exposure_after_pilot_safe","scale_only_polish"]
 }
