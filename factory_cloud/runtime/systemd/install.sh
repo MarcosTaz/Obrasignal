@@ -10,6 +10,7 @@ CONFIG_DIR="${CONFIG_DIR:-/etc/factory-cloud}"
 APPS="${APPS:-obrasignal}"
 PREPARE_WORKSPACES="${PREPARE_WORKSPACES:-1}"
 QUEUE_DIR="${QUEUE_DIR:-${STATE_DIR}/queues}"
+LEGACY_STATE="${STATE_DIR}/state.sqlite3"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "install.sh must run as root on the isolated Factory Cloud host" >&2
@@ -18,6 +19,35 @@ fi
 
 getent group factory-cloud >/dev/null || groupadd --system factory-cloud
 id -u factory-cloud-control >/dev/null 2>&1 || useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin --gid factory-cloud factory-cloud-control
+
+# Do not strand or replay an unfinished job while moving IPC from the legacy
+# shared worker_jobs table to physically separate per-app queue databases.
+if [[ -f "${LEGACY_STATE}" ]]; then
+  python3 - "${LEGACY_STATE}" <<'PY'
+import sqlite3
+import sys
+
+path = sys.argv[1]
+conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+try:
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_jobs'"
+    ).fetchone()
+    if not exists:
+        raise SystemExit(0)
+    unfinished = conn.execute(
+        "SELECT COUNT(*) FROM worker_jobs WHERE consumed_at IS NULL"
+    ).fetchone()[0]
+    if unfinished:
+        print(
+            f"legacy shared queue contains {unfinished} unconsumed job(s); drain/classify them before queue isolation migration",
+            file=sys.stderr,
+        )
+        raise SystemExit(5)
+finally:
+    conn.close()
+PY
+fi
 
 # Global control state is not an app-worker IPC mechanism. Keep its directory
 # traversable for the per-app queue path, but do not expose directory listings.
