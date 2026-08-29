@@ -71,7 +71,7 @@
     <div>
       <div class="eyebrow">Historical Closeout Cash Audit</div>
       <h1>EarnedCash</h1>
-      <p>Reconcile earned value to documentary cash truth. Unsupported money stays unknown.</p>
+      <p>Reconcile raw project records without letting the browser declare evidence, due-state or cash truth.</p>
     </div>
     <div class="truth" id="health">Loading truth policy…</div>
   </header>
@@ -85,27 +85,30 @@
 
   <section class="grid two">
     <div class="card">
-      <h2>Ledger input</h2>
-      <label for="records">Evidence-scoped records</label>
+      <h2>Raw ledger input</h2>
+      <label for="records">Customer-supplied records</label>
       <textarea id="records" spellcheck="false" aria-describedby="input-help">[
-  {"record_id":"app-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"APPLICATION","amount":"100000","verified":true},
-  {"record_id":"cert-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"CERTIFICATE","amount":"100000","relates_to":"app-1","verified":true},
-  {"record_id":"inv-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"INVOICE","amount":"100000","relates_to":"cert-1","verified":true,"due":true},
-  {"record_id":"pay-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"PAYMENT","amount":"60000","relates_to":"inv-1","verified":true}
+  {"record_id":"app-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"APPLICATION","amount":"100000"},
+  {"record_id":"cert-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"CERTIFICATE","amount":"100000","relates_to":"app-1"},
+  {"record_id":"inv-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"INVOICE","amount":"100000","relates_to":"cert-1"},
+  {"record_id":"pay-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"PAYMENT","amount":"60000","relates_to":"inv-1"}
 ]</textarea>
-      <p id="input-help">The browser cannot set a tenant. Tenant identity comes from the authenticated server context.</p>
+      <p id="input-help">Tenant, evidence verification and due-state are server/operator-controlled. Raw browser input cannot create an evidence-supported recovery case by itself.</p>
       <div class="actions">
-        <button id="run" type="button">Run reconciliation</button>
+        <button id="run" type="button">Classify raw input</button>
         <button id="reset" class="secondary" type="button">Reset output</button>
         <span id="status" role="status"></span>
       </div>
-      <div class="note">This screen does not collect debt or verify bank evidence. It classifies documentary ledger truth and proposes a review queue.</div>
+      <div class="note">Expected raw-input behavior is conservative: unsupported values remain UNKNOWN. Evidence review and due-date determination happen in the assisted operator workflow, not in this browser form.</div>
     </div>
 
     <div class="card">
       <h2>Truth guardrails</h2>
       <p><strong>Never collapsed:</strong></p>
       <p><code>earned ≠ certified ≠ invoiced ≠ due ≠ paid</code></p>
+      <br>
+      <p><strong>Client cannot assert:</strong></p>
+      <p><code>tenant_id</code>, <code>verified</code> or <code>due</code>.</p>
       <br>
       <p><strong>Fail closed on:</strong></p>
       <p>cross-tenant references, mixed currencies, missing lineage, unknown due dates, unsupported evidence and overmatched invoices.</p>
@@ -116,7 +119,7 @@
 
   <section class="card">
     <h2>Recovery review queue</h2>
-    <div id="queueEmpty" class="empty">Run a reconciliation to produce an evidence-supported queue.</div>
+    <div id="queueEmpty" class="empty">Raw browser input cannot self-create an evidence-supported recovery queue.</div>
     <div style="overflow:auto">
       <table id="queueTable" hidden>
         <thead><tr><th>Case</th><th>Category</th><th>Amount</th><th>Evidence</th><th>Action</th></tr></thead>
@@ -206,7 +209,7 @@
     try { records = JSON.parse(document.getElementById('records').value); }
     catch { status.textContent = 'Invalid JSON.'; status.className = 'error'; return; }
     button.disabled = true;
-    status.textContent = 'Reconciling…';
+    status.textContent = 'Classifying…';
     status.className = '';
     try {
       const response = await fetch('./reconcile-ledger', {
