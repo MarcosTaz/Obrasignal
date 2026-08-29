@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "purpose": "candidate reusable capability inventory; classification only, no cross-app authority",
   "promotion_states": ["VERTICAL_ONLY","CANDIDATE_SHARED","SHARED_CONTRACT_PROPOSED","SHARED_VERIFIED","SHARED_CORE"],
   "capabilities": [
@@ -9,15 +9,17 @@
       "state": "CANDIDATE_SHARED",
       "source_app": "obrasignal",
       "evidence_paths": ["auth_context.py", "auth_context_jwt.py", "tests/test_auth_context.py", "tests/test_jwt_auth.py"],
+      "verified_consumers": [],
       "next_proof": "extract app-neutral auth/session contract and verify against a second consumer"
     },
     {
       "id": "tenant_role_isolation",
       "layer": "shared-platform",
-      "state": "SHARED_CONTRACT_PROPOSED",
+      "state": "SHARED_VERIFIED",
       "source_app": "factory-cloud",
-      "evidence_paths": ["factory_cloud/shared_platform.py", "tests/test_factory_cloud_shared_platform.py", "tests/test_account_scoped_decisioning.py", "tests/test_decision_tenant_isolation.py"],
-      "next_proof": "consume TenantContext from two source-registered apps before SHARED_VERIFIED"
+      "evidence_paths": ["factory_cloud/shared_platform.py", "factory_cloud/vertical_consumers.py", "tests/test_factory_cloud_shared_platform.py", "tests/test_factory_cloud_vertical_consumers.py"],
+      "verified_consumers": ["aviation-lease-entitlement-recovery", "contractcredit"],
+      "next_proof": "promote to SHARED_CORE only after ownership/versioning and a persistent application consumer are defined"
     },
     {
       "id": "billing_interfaces",
@@ -25,23 +27,26 @@
       "state": "CANDIDATE_SHARED",
       "source_app": "obrasignal",
       "evidence_paths": ["BILLING_SETUP.md", "tests/test_billing.py", "mobile/components/BillingGate.js", "mobile/src/billing.js"],
+      "verified_consumers": [],
       "next_proof": "separate generic entitlement gate contract from ObraSignal plans/providers"
     },
     {
       "id": "audit_decision_lineage",
       "layer": "shared-platform",
-      "state": "SHARED_CONTRACT_PROPOSED",
+      "state": "SHARED_VERIFIED",
       "source_app": "factory-cloud",
-      "evidence_paths": ["factory_cloud/shared_platform.py", "tests/test_factory_cloud_shared_platform.py", "decision_log.py", "tests/test_decision_log.py"],
-      "next_proof": "consume provider-neutral AuditEvent from two source-registered apps before SHARED_VERIFIED"
+      "evidence_paths": ["factory_cloud/shared_platform.py", "factory_cloud/vertical_consumers.py", "tests/test_factory_cloud_shared_platform.py", "tests/test_factory_cloud_vertical_consumers.py"],
+      "verified_consumers": ["aviation-lease-entitlement-recovery", "contractcredit"],
+      "next_proof": "add persistent audit storage adapter and compatibility/version rules before SHARED_CORE"
     },
     {
       "id": "notifications",
       "layer": "shared-platform",
-      "state": "SHARED_CONTRACT_PROPOSED",
+      "state": "SHARED_VERIFIED",
       "source_app": "factory-cloud",
-      "evidence_paths": ["factory_cloud/shared_platform.py", "tests/test_factory_cloud_shared_platform.py", "notification_events.py", "mobile/src/notifications.js"],
-      "next_proof": "attach a persistent provider adapter in two source-registered apps while preserving idempotency and tenant boundaries"
+      "evidence_paths": ["factory_cloud/shared_platform.py", "factory_cloud/vertical_consumers.py", "tests/test_factory_cloud_shared_platform.py", "tests/test_factory_cloud_vertical_consumers.py"],
+      "verified_consumers": ["aviation-lease-entitlement-recovery", "contractcredit"],
+      "next_proof": "attach persistent provider-neutral outbox storage before SHARED_CORE"
     },
     {
       "id": "release_deployment_contracts",
@@ -49,6 +54,7 @@
       "state": "CANDIDATE_SHARED",
       "source_app": "obrasignal",
       "evidence_paths": [".github/workflows/quality.yml", ".github/workflows/production-smoke.yml", "RELEASE_RC1_CHECKLIST.md", "docs/PRODUCTION_E2E.md"],
+      "verified_consumers": [],
       "next_proof": "derive minimum reusable CI/release gate contract without copying ObraSignal-specific jobs"
     },
     {
@@ -57,6 +63,7 @@
       "state": "SHARED_CONTRACT_PROPOSED",
       "source_app": "factory-cloud",
       "evidence_paths": ["factory_cloud/state_store.py", "factory_cloud/orchestrator.py", "factory_cloud/work_queue.py", "factory_cloud/test_done_resume_at.py"],
+      "verified_consumers": [],
       "next_proof": "verify state/recovery contract with a second isolated app-worker adapter before SHARED_VERIFIED"
     },
     {
@@ -65,47 +72,53 @@
       "state": "SHARED_CONTRACT_PROPOSED",
       "source_app": "factory-cloud",
       "evidence_paths": ["factory_cloud/verification.py", "factory_cloud/test_verification.py", "factory_cloud/test_execution_source_state.py"],
+      "verified_consumers": [],
       "next_proof": "verify provider-neutral source identity/version contract beyond the ObraSignal GitHub path"
     },
     {
       "id": "document_ingestion_contract",
       "layer": "assurance-kernel",
-      "state": "SHARED_CONTRACT_PROPOSED",
+      "state": "SHARED_VERIFIED",
       "source_app": "factory-cloud",
-      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "consume EvidenceEnvelope from two source-registered recovery verticals before SHARED_VERIFIED"
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "factory_cloud/vertical_consumers.py", "tests/test_factory_cloud_assurance_kernel.py", "tests/test_factory_cloud_vertical_consumers.py"],
+      "verified_consumers": ["aviation-lease-entitlement-recovery", "contractcredit"],
+      "next_proof": "add durable evidence storage/provider contract before SHARED_CORE"
     },
     {
       "id": "evidence_lineage",
       "layer": "assurance-kernel",
-      "state": "SHARED_CONTRACT_PROPOSED",
+      "state": "SHARED_VERIFIED",
       "source_app": "factory-cloud",
-      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "prove evidence-to-calculation-to-finding lineage in two source-registered vertical schemas"
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "factory_cloud/vertical_consumers.py", "tests/test_factory_cloud_assurance_kernel.py", "tests/test_factory_cloud_vertical_consumers.py"],
+      "verified_consumers": ["aviation-lease-entitlement-recovery", "contractcredit"],
+      "next_proof": "persist lineage graph and compatibility/version contract before SHARED_CORE"
     },
     {
       "id": "deterministic_calculation_contract",
       "layer": "assurance-kernel",
-      "state": "SHARED_CONTRACT_PROPOSED",
+      "state": "SHARED_VERIFIED",
       "source_app": "factory-cloud",
-      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "run formula/version/reproducibility contract in two source-registered recovery verticals before SHARED_VERIFIED"
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "factory_cloud/vertical_consumers.py", "tests/test_factory_cloud_assurance_kernel.py", "tests/test_factory_cloud_vertical_consumers.py"],
+      "verified_consumers": ["aviation-lease-entitlement-recovery", "contractcredit"],
+      "next_proof": "add formula registry/version migration contract before SHARED_CORE"
     },
     {
       "id": "deadline_notice_window",
       "layer": "assurance-kernel",
-      "state": "SHARED_CONTRACT_PROPOSED",
+      "state": "SHARED_VERIFIED",
       "source_app": "factory-cloud",
-      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "prove date semantics and source-basis evidence across two source-registered verticals before SHARED_VERIFIED"
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "factory_cloud/vertical_consumers.py", "tests/test_factory_cloud_assurance_kernel.py", "tests/test_factory_cloud_vertical_consumers.py"],
+      "verified_consumers": ["aviation-lease-entitlement-recovery", "contractcredit"],
+      "next_proof": "add timezone/calendar policy versioning before SHARED_CORE"
     },
     {
       "id": "finding_review_workflow",
       "layer": "assurance-kernel",
-      "state": "SHARED_CONTRACT_PROPOSED",
+      "state": "SHARED_VERIFIED",
       "source_app": "factory-cloud",
-      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "prove fail-closed review and outcome states across two source-registered vertical adapters before SHARED_VERIFIED"
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "factory_cloud/vertical_consumers.py", "tests/test_factory_cloud_assurance_kernel.py", "tests/test_factory_cloud_vertical_consumers.py"],
+      "verified_consumers": ["aviation-lease-entitlement-recovery", "contractcredit"],
+      "next_proof": "add durable review/outcome state transition store before SHARED_CORE"
     }
   ]
 }
