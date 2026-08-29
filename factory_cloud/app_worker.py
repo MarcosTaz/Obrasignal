@@ -11,7 +11,6 @@ from typing import Any, Callable
 
 from factory_cloud.adapters import AdapterRegistry, ExecutionRequest, ExecutionResult
 from factory_cloud.control_plane import ACTIVATION_CODE
-from factory_cloud.orchestrator import DEFAULT_STATE_PATH
 from factory_cloud.process_adapter import ProcessAdapterConfig, ProcessAdapterConfigError, ProcessAgentAdapter
 from factory_cloud.work_queue import DurableWorkQueue, QueueStore
 
@@ -128,8 +127,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Isolated Factory Cloud application worker")
     parser.add_argument("code", help="activation code; must be Ω")
     parser.add_argument("--app-id", required=True)
-    parser.add_argument("--queue", type=Path, default=None, help="physically isolated queue SQLite for this app")
-    parser.add_argument("--state", type=Path, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--queue", type=Path, required=True, help="physically isolated queue SQLite for this app")
     parser.add_argument("--adapter-config", type=Path, default=None, help="external app-owned process adapter JSON; must not contain secrets")
     parser.add_argument("--poll-seconds", type=float, default=5.0)
     parser.add_argument("--job-lease-seconds", type=float, default=60.0)
@@ -141,8 +139,7 @@ def main() -> int:
         adapters = _runtime_adapters(args.app_id, args.adapter_config)
     except ProcessAdapterConfigError as exc:
         parser.error(str(exc))
-    queue_path = args.queue or args.state or (DEFAULT_STATE_PATH.parent / "queues" / args.app_id / "queue.sqlite3")
-    queue = DurableWorkQueue(QueueStore(queue_path), app_id_scope=args.app_id)
+    queue = DurableWorkQueue(QueueStore(args.queue), app_id_scope=args.app_id)
     host = AppWorkerHost(
         args.app_id,
         queue,
