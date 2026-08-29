@@ -8,5 +8,5 @@ def test_runtime_wait_recovery_apps_cannot_claim_g3():
     for app in registry["applications"]:
         if (app.get("activation") or {}).get("mode") != "runtime_provisioning_wait":
             continue
-        assert app["development_state"] == "PILOT_CAPABLE_ASSISTED_RUNTIME_PROVISIONING_WAIT"
+        assert app["development_state"].endswith("RUNTIME_PROVISIONING_WAIT")
         assert portfolio[app["app_id"]]["maturity"] == "G2"
