@@ -210,6 +210,10 @@ def _source_contract(conn, source=None):
     return source_health_contract(conn, sources=requested)
 
 
+def _invalid_query(parameter):
+    return jsonify({"error": "invalid_query_parameter", "parameter": parameter}), 400
+
+
 @bp.route("/sources", methods=["GET"])
 def sources():
     identity = request.obrasignal_identity
@@ -239,7 +243,9 @@ def profile():
     if request.method == "GET":
         current = load_profile(identity.account_id)
         return jsonify({"profile": current, "account_id": identity.account_id, "authenticated": identity.authenticated, "generated_at": _iso_now()})
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "json_object_required"}), 400
     current = load_profile(identity.account_id)
     merged = dict(current)
     merged.update({k: payload[k] for k in _PROFILE_FIELDS if k in payload})
@@ -257,7 +263,10 @@ def profile():
 @bp.route("/alerts", methods=["GET"])
 def alerts():
     identity = request.obrasignal_identity
-    limit = max(1, min(50, int(request.args.get("limit", 20) or 20)))
+    try:
+        limit = max(1, min(50, int(request.args.get("limit", 20) or 20)))
+    except (TypeError, ValueError):
+        return _invalid_query("limit")
     unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
     c = _db()
     ensure_lifecycle_table(c)
@@ -348,14 +357,20 @@ def workflow_stats():
 @bp.route("/opportunities", methods=["GET"])
 def opportunities():
     identity = request.obrasignal_identity
-    limit = max(1, min(100, int(request.args.get("limit", 20) or 20)))
+    try:
+        limit = max(1, min(100, int(request.args.get("limit", 20) or 20)))
+    except (TypeError, ValueError):
+        return _invalid_query("limit")
     market = (request.args.get("market") or "PT").upper()
     country = (request.args.get("country") or "").upper().strip()
     q = (request.args.get("q") or "").strip().lower()
     source = (request.args.get("source") or "").strip().upper()
     open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
-    minscore = request.args.get("minscore")
-    minscore = int(minscore) if minscore not in (None, "") else None
+    raw_minscore = request.args.get("minscore")
+    try:
+        minscore = int(raw_minscore) if raw_minscore not in (None, "") else None
+    except (TypeError, ValueError):
+        return _invalid_query("minscore")
     c = _db()
     ensure_lifecycle_table(c)
     profile_fp = current_profile_fingerprint(c, identity.account_id)
@@ -438,7 +453,9 @@ def opportunity_detail(opportunity_id):
 @bp.route("/opportunities/<int:opportunity_id>/workflow", methods=["GET", "POST"])
 def opportunity_workflow(opportunity_id):
     identity = request.obrasignal_identity
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True) if request.method == "POST" else None
+    if request.method == "POST" and not isinstance(payload, dict):
+        return jsonify({"error": "json_object_required"}), 400
     c = _db()
     try:
         ensure_lifecycle_table(c)
