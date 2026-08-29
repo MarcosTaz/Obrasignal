@@ -12,12 +12,16 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert 'id="claim_currency"' in html
     assert 'id="refresh-queue"' in html
     assert 'id="queue-list"' in html
+    assert 'id="detail-result"' in html
     assert 'id="review-form"' in html
     assert 'id="action-form"' in html
     assert 'id="resolve-form"' in html
     assert 'id="evidence_content"' in html
     assert 'id="final_cumulative"' in html
     assert "Four-eyes review" in html
+    assert "selected dossier" in html.lower()
+    assert "inspect the selected dossier before review" in html.lower()
+    assert "raw document content is not returned" in html.lower()
     assert "unknown notice deadline" in html.lower()
     assert "neither state is a legal conclusion" in html.lower()
     assert "established recoverability" in html.lower()
@@ -47,7 +51,7 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert "<script>" not in html.lower()
 
 
-def test_console_has_strict_browser_headers_and_no_html_injection_renderer(tmp_path):
+def test_console_has_strict_browser_headers_and_safe_dossier_renderer(tmp_path):
     client = create_app(tmp_path / "console.sqlite3").test_client()
     response = client.get("/")
     csp = response.headers["Content-Security-Policy"]
@@ -67,6 +71,10 @@ def test_console_has_strict_browser_headers_and_no_html_injection_renderer(tmp_p
     assert 'send("/findings"' in javascript
     assert "createElement(\"button\")" in javascript
     assert "finding.currency_unit" in javascript
+    assert "async function loadDetail(id)" in javascript
+    assert 'send(`/findings/${encodeURIComponent(findingId)}`' in javascript
+    assert "await loadDetail(id)" in javascript
+    assert "await loadDetail(result.body.finding_id)" in javascript
     assert 'document.getElementById("evidence_content").value' in javascript
     assert 'document.getElementById("final_cumulative").checked' in javascript
     assert "No workflow findings for this verified role and tenant." in javascript
