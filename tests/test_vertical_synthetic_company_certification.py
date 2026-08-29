@@ -1,30 +1,43 @@
 from factory_cloud.assurance_backup import create_backup, restore_backup
 from factory_cloud.assurance_store import AssuranceStore
-from factory_cloud.support_continuity import SupportLedger
 from vertical_apps.aviation_recovery.web import create_app as create_aviation_app
 from vertical_apps.contractcredit.web import create_app as create_contractcredit_app
 
 
-def _headers(tenant, actor="synthetic-analyst"):
-    return {"X-Tenant-ID": tenant, "X-Actor-ID": actor}
+def _headers(tenant, actor="synthetic-analyst", *, support=False):
+    headers = {"X-Tenant-ID": tenant, "X-Actor-ID": actor}
+    if support:
+        headers["X-Support-Role"] = "on_call"
+    return headers
 
 
 def _evidence(ref, digit):
     return {"source_ref": ref, "sha256": digit * 64, "provenance": "synthetic_company_fixture", "authorized": True}
 
 
-def _exercise_support(path, tenant):
-    ledger = SupportLedger(path)
-    incident = ledger.open(
-        tenant_id=tenant, incident_id="synthetic-support-1", severity="P1",
-        owner_role="on_call", summary="synthetic continuity incident",
+def _exercise_support(client, tenant):
+    headers = _headers(tenant, "synthetic-support", support=True)
+    opened = client.post("/support/incidents", headers=headers, json={
+        "incident_id": "synthetic-support-1", "severity": "P1", "summary": "synthetic continuity incident",
+    })
+    assert opened.status_code == 201
+    for target in ("ACKNOWLEDGED", "INVESTIGATING", "MITIGATED"):
+        transitioned = client.post(
+            "/support/incidents/synthetic-support-1/transition", headers=headers, json={"target": target}
+        )
+        assert transitioned.status_code == 200
+        assert transitioned.get_json()["state"] == target
+    updated = client.post(
+        "/support/incidents/synthetic-support-1/customer-update", headers=headers,
+        json={"communication_evidence_ref": "synthetic-update"},
     )
-    assert ledger.transition(tenant_id=tenant, incident_id=incident.incident_id, target="ACKNOWLEDGED").state == "ACKNOWLEDGED"
-    assert ledger.transition(tenant_id=tenant, incident_id=incident.incident_id, target="INVESTIGATING").state == "INVESTIGATING"
-    assert ledger.transition(tenant_id=tenant, incident_id=incident.incident_id, target="MITIGATED").state == "MITIGATED"
-    restarted = SupportLedger(path)
-    restarted.record_customer_update(tenant_id=tenant, incident_id=incident.incident_id, communication_evidence_ref="synthetic-update")
-    assert restarted.transition(tenant_id=tenant, incident_id=incident.incident_id, target="RESOLVED", evidence_ref="synthetic-closure").state == "RESOLVED"
+    assert updated.status_code == 200
+    resolved = client.post(
+        "/support/incidents/synthetic-support-1/transition", headers=headers,
+        json={"target": "RESOLVED", "evidence_ref": "synthetic-closure"},
+    )
+    assert resolved.status_code == 200
+    assert resolved.get_json()["state"] == "RESOLVED"
 
 
 def _backup_and_prove(database, tmp_path, tenant):
@@ -74,7 +87,7 @@ def test_contractcredit_synthetic_company_a_runs_product_and_operations_end_to_e
     assert client.get("/ready").get_json()["open_findings"] == 0
 
     _backup_and_prove(database, tmp_path, tenant)
-    _exercise_support(tmp_path / "contractcredit-support.sqlite3", tenant)
+    _exercise_support(client, tenant)
 
 
 def test_aviation_synthetic_company_b_runs_product_and_operations_end_to_end(tmp_path):
@@ -105,4 +118,4 @@ def test_aviation_synthetic_company_b_runs_product_and_operations_end_to_end(tmp
     assert resolved.get_json()["state"] == "RECOVERED"
 
     _backup_and_prove(database, tmp_path, tenant)
-    _exercise_support(tmp_path / "aviation-support.sqlite3", tenant)
+    _exercise_support(client, tenant)
