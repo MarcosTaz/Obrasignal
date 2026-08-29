@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "purpose": "Pre-customer product certification. No real customer, proprietary customer data, live billing, production deploy or market-validation authority is granted by this policy.",
+  "terminal": "PILOT_SAFE",
+  "gates": [
+    {"id":"PS0","name":"thesis_and_scope_frozen","required_evidence":["wedge_defined","buyer_defined","economic_or_entitlement_basis_defined","non_claims_defined"]},
+    {"id":"PS1","name":"end_to_end_product_complete","required_evidence":["end_to_end_product"]},
+    {"id":"PS2","name":"web_interface_complete","required_evidence":["web_complete"]},
+    {"id":"PS3","name":"economic_and_evidence_integrity","required_evidence":["deterministic_calculation","evidence_lineage"]},
+    {"id":"PS4","name":"security_and_adversarial","required_evidence":["tenant_isolation","adversarial"]},
+    {"id":"PS5","name":"operational_continuity","required_evidence":["durable_recovery","backup_restore","observability"]},
+    {"id":"PS6","name":"support_continuity","required_evidence":["support_continuity"]},
+    {"id":"PS7","name":"synthetic_company_certification","required_evidence":["synthetic_company_e2e","billing_sandbox"]},
+    {"id":"PS8","name":"real_world_shadow_validation","required_evidence":["shadow_validation"]},
+    {"id":"PS9","name":"pilot_safe","required_evidence":["source_registered","exact_source_head","assisted_api","delivery_economics_defined","onboarding_exit_criteria"]}
+  ],
+  "forbidden_as_pre_customer_proof":["real_customer","real_proprietary_customer_data","live_payment","live_success_fee","customer_incident_as_qa","production_failure_as_test"],
+  "promotion_rule":"Every PS0-PS9 gate must be independently evidenced and current. Missing, stale, symbolic or inherited evidence is UNKNOWN and blocks PILOT_SAFE.",
+  "post_pilot_states":["CONTROLLED_REAL_PILOT","PILOT_VALIDATED","COMMERCIAL_READY","MARKET_VALIDATED","REPEATABLE","SCALE_READY"],
+  "scheduling_priority":["safety_or_regression","pilot_safe_blocker","shared_capability_unblocking_multiple_factories","web_or_end_to_end_completeness","support_observability_backup","evidence_or_calculation_integrity","synthetic_company_and_shadow_proof","commercial_exposure_after_pilot_safe","scale_only_polish"]
+}
