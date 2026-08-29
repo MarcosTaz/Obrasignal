@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -10,7 +11,7 @@ from factories.capacity_commitment.state import AssistedCaseState
 from factories.capacity_commitment.synthetic_cases import case
 
 
-def _state(recovery_case, *, missing_evidence=()):
+def _state(recovery_case, *, missing_evidence=(), deadline="2026-12-31"):
     return AssistedCaseState(
         tenant_id="tenant-a",
         company_id="supplier-a",
@@ -22,13 +23,13 @@ def _state(recovery_case, *, missing_evidence=()):
         recovery_case=recovery_case,
         evidence_refs=("contract:LTA-2026-01#12", "actuals:2026Q2"),
         missing_evidence=missing_evidence,
-        deadline="2026-12-31",
+        deadline=deadline,
     )
 
 
 def test_delivery_report_renders_positive_result_without_upgrading_recovery_or_payment():
     state = _state(case("report-positive", actual_units=Decimal("50000")))
-    processed = process_state(state)
+    processed = process_state(state, as_of_date=date(2026, 8, 29))
 
     report = render_delivery_report(state, processed.recovery_package)
 
@@ -37,9 +38,26 @@ def test_delivery_report_renders_positive_result_without_upgrading_recovery_or_p
     assert "Claimable amount: **EUR 250000" in report
     assert "Verified recovery: **NO**" in report
     assert "Payment received: **NO**" in report
+    assert "Assessment date: `2026-08-29`" in report
     assert "contract:LTA-2026-01#12" in report
     assert "2026-12-31" in report
     assert "authorized human action" in report
+
+
+def test_delivery_report_expires_verified_deadline_without_presenting_claimable_amount():
+    state = _state(
+        case("report-date-expired", notice_valid=True, notice_window_verified=True),
+        deadline="2026-08-28",
+    )
+    processed = process_state(state, as_of_date=date(2026, 8, 29))
+
+    report = render_delivery_report(state, processed.recovery_package)
+
+    assert "Recoverability state: **EXPIRED**" in report
+    assert "Claimable amount: **EUR 0**" in report
+    assert "Notice/deadline valid as assessed: `NO`" in report
+    assert "Deadline elapsed by assessment date: `YES`" in report
+    assert "record_expiry_and_preserve_audit_trail" in report
 
 
 def test_delivery_report_keeps_unknown_zero_claimable_and_surfaces_missing_evidence():
@@ -81,6 +99,15 @@ def test_delivery_report_rejects_mutated_package_truth():
     state = _state(case("report-mutated"))
     package = process_state(state).recovery_package
     package.executive_summary["payment_received"] = True
+
+    with pytest.raises(ValueError, match="package does not match current state"):
+        render_delivery_report(state, package)
+
+
+def test_delivery_report_rejects_mutated_assessment_date_truth():
+    state = _state(case("report-assessment-date"))
+    package = process_state(state, as_of_date=date(2026, 8, 29)).recovery_package
+    object.__setattr__(package, "assessment_date", "2026-08-30")
 
     with pytest.raises(ValueError, match="package does not match current state"):
         render_delivery_report(state, package)
