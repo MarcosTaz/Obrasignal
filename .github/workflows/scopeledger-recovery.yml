@@ -1,5 +1,6 @@
 name: ScopeLedger Recovery Gate
 
+# Recovery archive is complete before this gate executes.
 on:
   push:
     branches:
