@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 from pathlib import Path
 
 from factory_cloud.trusted_upstream_identity import TrustedUpstreamVerifier, signed_test_headers
@@ -48,7 +49,7 @@ def test_contractcredit_public_shadow_preserves_unknown_when_public_incident_can
     assert body["pilot_state"] == "EVIDENCE_OR_ECONOMICS_UNRESOLVED"
     for key, value in case["expected"].items():
         assert body[key] == value
-    assert body["potential_value"] == "0.00"
+    assert Decimal(body["potential_value"]) == 0
 
 
 def test_aviation_public_shadow_preserves_unknown_without_specific_lease_and_event_evidence(tmp_path):
@@ -76,4 +77,4 @@ def test_aviation_public_shadow_preserves_unknown_without_specific_lease_and_eve
     assert body["pilot_state"] == "EVIDENCE_OR_ECONOMICS_UNRESOLVED"
     for key, value in case["expected"].items():
         assert body[key] == value
-    assert body["potential_value"] == "0"
+    assert Decimal(body["potential_value"]) == 0
