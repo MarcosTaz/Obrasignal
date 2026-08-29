@@ -3,6 +3,7 @@ import fs from 'node:fs';
 const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
 const billingGate = fs.readFileSync(new URL('./components/BillingGate.js', import.meta.url), 'utf8');
+const billing = fs.readFileSync(new URL('./src/billing.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
@@ -32,6 +33,12 @@ const crossFileChecks = [
   ['storage rechecks scope after asynchronous read', /return activeAccountScope === scope \? value : fallback/, storage],
   ['expired billing gate still exposes sign-out/account-switch action', /A avaliação terminou[\s\S]*onPress=\{signOut\}[\s\S]*Terminar sessão ou trocar de conta/, billingGate],
   ['expired billing sign-out uses canonical Supabase auth', /const signOut = async \(\) => \{[\s\S]*supabase\.auth\.signOut\(\)/, billingGate],
+  ['web billing remains the same pro entitlement owner', /BILLING_ENTITLEMENT = 'pro'[\s\S]*BILLING_PRODUCT = 'obrasignal_pro_monthly'/, billing],
+  ['web purchase link is runtime configured not hard coded', /EXPO_PUBLIC_REVENUECAT_WEB_PURCHASE_URL/, billing],
+  ['web purchase requires identified app user id in URL path', /new URL\(`\$\{base\}\/\$\{encodeURIComponent\(userId\)\}`\)/, billing],
+  ['web purchase opens only through validated HTTPS URL', /parsed\.protocol !== 'https:'[\s\S]*Linking\.canOpenURL\(url\)[\s\S]*Linking\.openURL\(url\)/, billing],
+  ['web paywall uses authenticated Supabase subject', /openWebPurchase\(session\.user\.id, session\.user\.email \|\| null\)/, billingGate],
+  ['web checkout does not locally grant entitlement', /The hosted checkout is authoritative[\s\S]*new app load\/refresh reads server truth/, billingGate],
 ];
 
 const failures = [
