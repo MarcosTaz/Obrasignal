@@ -11,11 +11,9 @@ from factory_cloud.assurance_observability import assurance_health
 from factory_cloud.assurance_ops import AssuranceOperationError
 from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.shared_contracts import SharedContractError
-from vertical_apps.aviation_recovery.intake import (
-    AviationPilotIntakeError,
-    AviationPilotIntakeService,
-    EvidenceInput,
-)
+from factory_cloud.support_api import register_support_api
+from factory_cloud.support_continuity import SupportLedger
+from vertical_apps.aviation_recovery.intake import AviationPilotIntakeError, AviationPilotIntakeService, EvidenceInput
 from vertical_apps.aviation_recovery.service import AviationRecoveryService
 
 API_ERRORS = (
@@ -26,8 +24,10 @@ API_ERRORS = (
 
 def create_app(database: str | Path) -> Flask:
     app = Flask(__name__)
-    service = AviationRecoveryService(database)
-    shadow_service = AviationPilotIntakeService(database)
+    database_path = Path(database)
+    service = AviationRecoveryService(database_path)
+    shadow_service = AviationPilotIntakeService(database_path)
+    support_ledger = SupportLedger(database_path.with_name(database_path.name + ".support.sqlite3"))
 
     def identity() -> tuple[str, str]:
         tenant_id = request.headers.get("X-Tenant-ID", "").strip()
@@ -35,6 +35,8 @@ def create_app(database: str | Path) -> Flask:
         if not tenant_id or not actor_id:
             raise SharedContractError("trusted upstream tenant and actor identity headers are required")
         return tenant_id, actor_id
+
+    register_support_api(app, ledger=support_ledger, identity=identity)
 
     @app.get("/")
     def workspace():
@@ -66,12 +68,9 @@ def create_app(database: str | Path) -> Flask:
             tenant_id, actor_id = identity()
             payload = request.get_json(force=True) or {}
             result = service.analyze(
-                tenant_id=tenant_id,
-                actor_id=actor_id,
-                contract_ref=str(payload["contract_ref"]),
-                event_ref=str(payload["event_ref"]),
-                eligible_cost=str(payload["eligible_cost"]),
-                reimbursed_amount=str(payload["reimbursed_amount"]),
+                tenant_id=tenant_id, actor_id=actor_id,
+                contract_ref=str(payload["contract_ref"]), event_ref=str(payload["event_ref"]),
+                eligible_cost=str(payload["eligible_cost"]), reimbursed_amount=str(payload["reimbursed_amount"]),
                 notice_due=date.fromisoformat(str(payload["notice_due"])),
             )
             return jsonify(result), 201
@@ -86,8 +85,7 @@ def create_app(database: str | Path) -> Flask:
             contract = payload["lease_contract"]
             event = payload["maintenance_event"]
             result = shadow_service.analyze(
-                tenant_id=tenant_id,
-                actor_id=actor_id,
+                tenant_id=tenant_id, actor_id=actor_id,
                 lease_contract=EvidenceInput.create(
                     source_ref=contract["source_ref"], sha256=contract["sha256"],
                     provenance=contract["provenance"], authorized=contract["authorized"],
@@ -96,8 +94,7 @@ def create_app(database: str | Path) -> Flask:
                     source_ref=event["source_ref"], sha256=event["sha256"],
                     provenance=event["provenance"], authorized=event["authorized"],
                 ),
-                eligible_cost=str(payload["eligible_cost"]),
-                reimbursed_amount=str(payload["reimbursed_amount"]),
+                eligible_cost=str(payload["eligible_cost"]), reimbursed_amount=str(payload["reimbursed_amount"]),
                 notice_due=date.fromisoformat(str(payload["notice_due"])),
             )
             return jsonify(result), 201
@@ -113,11 +110,8 @@ def create_app(database: str | Path) -> Flask:
             if not isinstance(approved, bool):
                 raise ValueError("approved must be boolean")
             state = service.review(
-                tenant_id=tenant_id,
-                finding_id=finding_id,
-                reviewer=actor_id,
-                approved=approved,
-                reason=str(payload["reason"]),
+                tenant_id=tenant_id, finding_id=finding_id, reviewer=actor_id,
+                approved=approved, reason=str(payload["reason"]),
             )
             return jsonify({"finding_id": finding_id, "state": state})
         except API_ERRORS as exc:
@@ -138,12 +132,9 @@ def create_app(database: str | Path) -> Flask:
             tenant_id, _ = identity()
             payload = request.get_json(force=True) or {}
             outcome = service.resolve(
-                tenant_id=tenant_id,
-                finding_id=finding_id,
-                outcome_id=str(payload["outcome_id"]),
-                recovered_amount=str(payload["recovered_amount"]),
-                currency=str(payload["currency"]),
-                evidence_ref=str(payload["evidence_ref"]),
+                tenant_id=tenant_id, finding_id=finding_id,
+                outcome_id=str(payload["outcome_id"]), recovered_amount=str(payload["recovered_amount"]),
+                currency=str(payload["currency"]), evidence_ref=str(payload["evidence_ref"]),
             )
             return jsonify(outcome.__dict__), 201
         except API_ERRORS as exc:
