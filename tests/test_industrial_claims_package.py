@@ -1,7 +1,7 @@
 from datetime import date
 
 from vertical_apps.industrial_claims.package import build_claim_package
-from vertical_apps.industrial_claims.service import IndustrialClaimsService
+from vertical_apps.industrial_claims.service import NOTICE_DEADLINE_EVIDENCE, IndustrialClaimsService
 
 
 def test_claim_package_is_evidence_indexed_and_never_overclaims(tmp_path):
@@ -20,8 +20,10 @@ def test_claim_package_is_evidence_indexed_and_never_overclaims(tmp_path):
         notice_due=date(2026, 9, 30),
     )
     package = build_claim_package(result, customer_ref="oem-1", program_ref="program-1", event_ref="cancel-1")
+    assert package["schema_version"] == 2
     assert package["net_potential"] == "40000"
     assert package["economic_truth_state"] == "EVIDENCE_SUPPORTED"
+    assert package["notice"] == {"truth_state": "VERIFIED_DATE", "due_date": "2026-09-30"}
     assert package["customer_action_authorized"] is False
     assert package["legal_conclusion"] is None
     assert len(package["evidence_index"]) == 3
@@ -44,4 +46,5 @@ def test_missing_evidence_package_stays_potential_entitlement(tmp_path):
     )
     package = build_claim_package(result, customer_ref="oem-1", program_ref="program-1", event_ref="reduction-1")
     assert package["economic_truth_state"] == "POTENTIAL_ENTITLEMENT"
-    assert package["missing_evidence"] == ["ownership", "release_history"]
+    assert package["notice"] == {"truth_state": "UNKNOWN", "due_date": None}
+    assert package["missing_evidence"] == [NOTICE_DEADLINE_EVIDENCE, "ownership", "release_history"]
