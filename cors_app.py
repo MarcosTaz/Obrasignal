@@ -7,6 +7,7 @@ from flask import jsonify, request
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
+import notification_privacy_lifecycle as _notification_privacy_lifecycle
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
@@ -85,6 +86,11 @@ import app as _app
 from app import db, init_db, start_background_worker
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
+from notification_dispatch_guard import install as install_notification_dispatch_guard
+from notification_event_recovery import (
+    initialize_existing_account_baselines,
+    install as install_notification_event_recovery,
+)
 from latvia_runtime import install as install_latvia_runtime
 from uk_runtime import install as install_uk_runtime
 from ecuador_runtime import install as install_ecuador_runtime
@@ -103,10 +109,16 @@ init_db()
 _lifecycle_conn = db()
 try:
     ensure_lifecycle_table(_lifecycle_conn)
+    initialize_existing_account_baselines(
+        _lifecycle_conn,
+        _preload.list_active_accounts(_lifecycle_conn),
+    )
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
 install_lifecycle_read_model(_preload)
+install_notification_dispatch_guard()
+install_notification_event_recovery(_preload)
 install_latvia_runtime()
 install_uk_runtime()
 install_ecuador_runtime()
