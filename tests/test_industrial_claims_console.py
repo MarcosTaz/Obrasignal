@@ -10,12 +10,15 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert "CausLedger" in html
     assert "Industrial Claims operator console" in html
     assert 'id="analyze-form"' in html
+    assert 'id="refresh-queue"' in html
+    assert 'id="queue-list"' in html
     assert 'id="review-form"' in html
     assert 'id="action-form"' in html
     assert 'id="resolve-form"' in html
     assert "Four-eyes review" in html
     assert "unknown notice deadline" in html.lower()
-    assert "not a legal conclusion or guaranteed recovery" in html.lower()
+    assert "not a legal conclusion" in html.lower()
+    assert "established recoverability" in html.lower()
     assert "http://" not in html
     assert "https://" not in html
     assert "<style" not in html.lower()
@@ -40,6 +43,8 @@ def test_console_has_strict_browser_headers_and_no_html_injection_renderer(tmp_p
     assert "innerHTML" not in javascript
     assert "textContent" in javascript
     assert "replaceChildren" in javascript
+    assert 'send("/findings"' in javascript
+    assert "createElement(\"button\")" in javascript
 
 
 def test_console_shell_contains_no_tenant_or_case_data(tmp_path):
