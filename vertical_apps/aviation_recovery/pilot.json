@@ -1,8 +1,14 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "vertical": "aviation-lease-entitlement-recovery",
   "mode": "assisted",
   "wedge": "lessee-side maintenance-reserve recoverability assurance",
+  "buyer": {
+    "primary": "airline or aircraft lessee finance/technical owner accountable for lease recoveries",
+    "operational_users": ["lease management", "technical asset management", "maintenance finance"],
+    "economic_owner": "finance leadership or fleet/lease economics owner",
+    "excluded": ["lessor-side portfolio management", "aircraft maintenance execution", "automatic legal entitlement determination"]
+  },
   "required_inputs": ["lease_contract", "maintenance_event_evidence", "eligible_cost", "reimbursed_amount", "notice_due"],
   "outputs": ["evidence_envelope", "reproducible_calculation", "deadline_state", "reviewable_finding", "outcome_record"],
   "fail_closed": ["missing_contract_basis", "missing_evidence", "cross_tenant_composition", "invalid_economic_input", "unsupported_review_transition"],
