@@ -8,7 +8,7 @@ saved and emits high-match events for the same account.
 from __future__ import annotations
 
 from app import APP, db
-from decision_log import current_profile_fingerprint
+from decision_log import current_profile_fingerprint, latest_current_decision
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import ensure_lifecycle_table
 from opportunity_match_pipeline import RULE_VERSION
@@ -46,6 +46,17 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
     created = 0
     for row in rows:
         item = dict(row)
+        # SQL already gates score/rule/profile. The canonical opportunity
+        # revision is content-addressed in Python; require the reusable full
+        # current-authority contract before this decision can create work.
+        if latest_current_decision(
+            conn,
+            item.get("source"),
+            item.get("external_id"),
+            account_id=account_id,
+            expected_rule_version=RULE_VERSION,
+        ) is None:
+            continue
         event_key = f"{account_id}:{item.get('source','')}:{item.get('external_id','')}"
         cur = conn.execute(
             """INSERT OR IGNORE INTO opportunity_events
