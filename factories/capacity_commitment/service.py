@@ -48,6 +48,22 @@ def save_and_process(repository: CapacityRepository, state: AssistedCaseState) -
     return processed
 
 
+def _validate_revision_identity(parent: AssistedCaseState, child: AssistedCaseState) -> None:
+    """A revision may change evidence/economics, never the bounded case identity."""
+
+    identity = {
+        "company_id": (parent.company_id, child.company_id),
+        "customer_id": (parent.customer_id, child.customer_id),
+        "program_id": (parent.program_id, child.program_id),
+        "currency": (parent.recovery_case.currency, child.recovery_case.currency),
+    }
+    mismatches = [name for name, (before, after) in identity.items() if before != after]
+    if mismatches:
+        raise ValueError(
+            "revision identity mismatch: " + ", ".join(sorted(mismatches))
+        )
+
+
 def save_revision_and_process(
     repository: CapacityRepository,
     state: AssistedCaseState,
@@ -56,6 +72,8 @@ def save_revision_and_process(
 ) -> ProcessedCase:
     """Validate a changed source state, then persist it as an immutable revision."""
 
+    parent = repository.load(tenant_id=state.tenant_id, case_id=parent_case_id)
+    _validate_revision_identity(parent, state)
     processed = process_state(state)
     repository.create_revision(state, parent_case_id=parent_case_id)
     return processed
