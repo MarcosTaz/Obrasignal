@@ -1,0 +1,4 @@
+validation-only exact-head trigger v13
+source-head=c0f488f05b351bad2b251b732c419c0d0512a30f
+scope=repair stale test expectations after source-bound evidence promotion
+no-merge no-deploy no-production no-real-customer no-live-billing
