@@ -5,6 +5,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request
 
+from factory_cloud.assisted_web_ui import render_assisted_workspace
 from factory_cloud.assurance_kernel import AssuranceKernelError
 from factory_cloud.assurance_ops import AssuranceOperationError
 from factory_cloud.assurance_store import AssuranceStoreError
@@ -24,6 +25,20 @@ def create_app(database: str | Path) -> Flask:
         if not tenant_id or not actor_id:
             raise SharedContractError("trusted upstream tenant and actor identity headers are required")
         return tenant_id, actor_id
+
+    @app.get("/")
+    def workspace():
+        return render_assisted_workspace(
+            title="ContractCredit — Assisted Recovery Workspace",
+            vertical="contractcredit",
+            analysis_fields=(
+                ("contract_ref", "Contract reference", "text"),
+                ("incident_ref", "Incident evidence reference", "text"),
+                ("monthly_fee", "Monthly fee", "text"),
+                ("credit_rate", "Contractual credit rate", "text"),
+                ("notice_due", "Notice due", "date"),
+            ),
+        )
 
     @app.get("/health")
     def health():
