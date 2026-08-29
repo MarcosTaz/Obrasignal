@@ -25,6 +25,7 @@ _STATE_PAYLOAD_FIELDS = {
     "missing_evidence",
     "deadline",
 }
+_PERSISTED_RECOVERY_CASE_FIELDS = set(RecoveryCase.__dataclass_fields__)
 
 
 @dataclass(frozen=True)
@@ -300,7 +301,10 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
         if not forecast_units.is_finite() or forecast_units < Decimal("0"):
             raise ValueError("forecast_units must be a finite non-negative value")
 
-    recovery_case = recovery_case_from_payload(payload["recovery_case"])
+    recovery_raw = payload["recovery_case"]
+    if not isinstance(recovery_raw, dict) or set(recovery_raw) != _PERSISTED_RECOVERY_CASE_FIELDS:
+        raise ValueError("persisted recovery_case fields do not match current schema")
+    recovery_case = recovery_case_from_payload(recovery_raw)
     _validate_evidence_consistency(recovery_case, evidence_refs)
     _validate_deadline(payload["deadline"], recovery_case)
 
