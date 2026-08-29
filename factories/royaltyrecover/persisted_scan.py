@@ -10,7 +10,7 @@ from repository import RoyaltyRepository
 from royalty_engine import ENGINE_VERSION, FindingState, PeriodInput, RoyaltyRule, calculate
 
 
-REVIEWED_RULE_STATUSES = {"REVIEWED", "HUMAN_REVIEWED", "APPROVED"}
+REVIEWED_RULE_STATUSES = {"REVIEWED"}
 
 
 @dataclass(frozen=True)
