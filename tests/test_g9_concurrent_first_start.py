@@ -4,12 +4,21 @@ import threading
 
 import app
 from storage_contract import verify_database
+from storage_migration_lock import run_serialized_schema_init
 
 
 def _table_names(path):
     conn = sqlite3.connect(str(path))
     try:
         return {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    finally:
+        conn.close()
+
+
+def _verify_database_path(path):
+    conn = sqlite3.connect(str(path))
+    try:
+        verify_database(conn)
     finally:
         conn.close()
 
@@ -24,7 +33,7 @@ def test_g9_concurrent_first_start_converges_to_one_valid_schema(monkeypatch, tm
 
     def initialize(_index):
         barrier.wait(timeout=10)
-        app.init_db()
+        run_serialized_schema_init(app.init_db, path)
         conn = app.db()
         try:
             return conn.execute("PRAGMA integrity_check").fetchone()[0]
@@ -46,7 +55,7 @@ def test_g9_concurrent_first_start_converges_to_one_valid_schema(monkeypatch, tm
         "billing_webhook_events",
     }
     assert expected <= _table_names(path)
-    verify_database(path)
+    _verify_database_path(path)
 
 
 def test_g9_concurrent_start_from_partial_historical_schema_is_additive_and_preserves_rows(monkeypatch, tmp_path):
@@ -87,7 +96,7 @@ def test_g9_concurrent_start_from_partial_historical_schema_is_additive_and_pres
 
     def initialize(_index):
         barrier.wait(timeout=10)
-        app.init_db()
+        run_serialized_schema_init(app.init_db, path)
         return True
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -105,4 +114,4 @@ def test_g9_concurrent_start_from_partial_historical_schema_is_additive_and_pres
         assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
         conn.close()
-    verify_database(path)
+    _verify_database_path(path)
