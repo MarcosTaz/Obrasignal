@@ -8,6 +8,7 @@ class FactoryCloudControlPlaneTests(unittest.TestCase):
     def test_registry_loads_and_is_application_only(self):
         registry = load_registry()
         self.assertEqual(registry["registry_scope"], "application_development_only")
+        self.assertEqual(registry["activation_code"], "D")
         self.assertTrue(all(app["kind"] == "application" for app in registry["applications"]))
 
     def test_queue_is_priority_ordered(self):
@@ -15,13 +16,15 @@ class FactoryCloudControlPlaneTests(unittest.TestCase):
         self.assertGreaterEqual(len(queue), 1)
         self.assertEqual(queue, sorted(queue, key=lambda item: (-item.priority, item.app_id)))
 
-    def test_activation_requires_omega(self):
+    def test_activation_requires_d(self):
         registry = load_registry()
-        with self.assertRaises(RegistryError):
-            activation_plan("A", registry)
+        for wrong_code in ("A", "X", "Ω"):
+            with self.assertRaises(RegistryError):
+                activation_plan(wrong_code, registry)
+        self.assertEqual(activation_plan("D", registry)["activation_code"], "D")
 
     def test_plan_preserves_safety_boundaries_and_surfaces_capabilities(self):
-        plan = activation_plan("Ω", load_registry())
+        plan = activation_plan("D", load_registry())
         self.assertFalse(plan["safety"]["automatic_merge"])
         self.assertFalse(plan["safety"]["automatic_deploy"])
         self.assertFalse(plan["safety"]["production_mutation"])
