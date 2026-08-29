@@ -13,9 +13,12 @@ from factory_cloud.control_tower_api import handle_request
 from factory_cloud.global_runtime import build_global_dispatcher
 
 MAX_BODY_BYTES=64*1024
+LOCAL_BIND_HOSTS={"127.0.0.1","localhost","::1"}
+
+class ControlTowerConfigurationError(RuntimeError): pass
 
 class ControlTowerHTTPHandler(BaseHTTPRequestHandler):
-    dispatcher=None; auth_token:str|None=None; allowed_origin:str|None=None; server_version='FactoryControlTower/0.2'
+    dispatcher=None; auth_token:str|None=None; allowed_origin:str|None=None; server_version='FactoryControlTower/0.3'
     def log_message(self,format:str,*args:Any)->None:return
     def _origin_allowed(self)->bool:
         origin=str(self.headers.get('origin') or '').strip()
@@ -61,14 +64,22 @@ class ControlTowerHTTPHandler(BaseHTTPRequestHandler):
         if not valid:self._send(400,{'error':'invalid_json_body'});return
         status,payload=handle_request(self.dispatcher,method='POST',path=self._path(),body=body);self._send(status,payload)
 
+def _validate_bind_security(host:str, token:str|None)->None:
+    normalized=str(host or '').strip().lower()
+    if normalized not in LOCAL_BIND_HOSTS and not token:
+        raise ControlTowerConfigurationError('non-local Control Tower bind requires FACTORY_CONTROL_TOKEN')
+
 def make_server(host:str,port:int,*,environ:dict[str,str]|None=None,runtime_dir:Path|None=None)->ThreadingHTTPServer:
-    env=dict(os.environ if environ is None else environ);dispatcher=build_global_dispatcher(environ=env,runtime_dir=runtime_dir);token=str(env.get('FACTORY_CONTROL_TOKEN') or '').strip() or None;origin=str(env.get('FACTORY_CONTROL_ALLOWED_ORIGIN') or '').strip() or None
+    env=dict(os.environ if environ is None else environ);token=str(env.get('FACTORY_CONTROL_TOKEN') or '').strip() or None;origin=str(env.get('FACTORY_CONTROL_ALLOWED_ORIGIN') or '').strip() or None
+    _validate_bind_security(host,token)
+    dispatcher=build_global_dispatcher(environ=env,runtime_dir=runtime_dir)
     handler=type('BoundControlTowerHTTPHandler',(ControlTowerHTTPHandler,),{'dispatcher':dispatcher,'auth_token':token,'allowed_origin':origin});return ThreadingHTTPServer((host,port),handler)
 
 def main()->int:
     parser=argparse.ArgumentParser(description='Persistent Global Factory Control Tower service');parser.add_argument('--host',default=os.environ.get('FACTORY_CONTROL_HOST','127.0.0.1'));parser.add_argument('--port',type=int,default=int(os.environ.get('FACTORY_CONTROL_PORT','8787')));parser.add_argument('--runtime-dir',type=Path,default=None);args=parser.parse_args()
     if args.port<1 or args.port>65535:parser.error('port must be between 1 and 65535')
-    server=make_server(args.host,args.port,runtime_dir=args.runtime_dir)
+    try: server=make_server(args.host,args.port,runtime_dir=args.runtime_dir)
+    except ControlTowerConfigurationError as exc: parser.error(str(exc))
     try:server.serve_forever(poll_interval=.25)
     except KeyboardInterrupt:pass
     finally:server.server_close()
