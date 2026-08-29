@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090506">
+<title>Founder Control Tower</title>
+<style>
+:root{color-scheme:dark;--bg:#070405;--panel:#13090c;--line:#43232c;--text:#f4ecee;--muted:#9a8087;--hot:#e5576d;--gold:#c8aa76;--ok:#78b88e;--wait:#d1ae70;--err:#e37986}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -20%,#35121a 0,transparent 38rem),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{width:min(1120px,calc(100% - 28px));margin:auto;padding:20px 0 48px}.hero,.panel{border:1px solid var(--line);background:linear-gradient(145deg,#1b0c10,#0e0709 72%);border-radius:18px;box-shadow:0 18px 60px rgba(0,0,0,.28)}.hero{padding:22px}.eyebrow{color:#b86776;font-size:10px;font-weight:900;letter-spacing:.19em;text-transform:uppercase}h1{margin:6px 0 4px;font:700 clamp(32px,5vw,52px)/1 Georgia,serif}.desc{max-width:760px;color:var(--muted);font-size:12px;line-height:1.55}.controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:17px}.btn{border:1px solid #572b36;background:#1d0d12;color:var(--text);padding:10px 13px;border-radius:10px;font-size:11px;font-weight:900;cursor:pointer}.btn.primary{background:linear-gradient(180deg,#772338,#48131f);border-color:#934054}.btn:disabled{opacity:.45;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}.stat{border:1px solid #352027;background:#0d0709;border-radius:11px;padding:10px;text-align:center;color:var(--muted);font-size:8px;text-transform:uppercase;letter-spacing:.08em}.stat b{display:block;color:var(--text);font-size:19px;margin-top:2px}.panel{margin-top:14px;padding:16px}.panel h2{margin:0 0 11px;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:#c7aeb4}.truth{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:10px}.truth code{color:var(--gold);background:#0a0507;border:1px solid #302026;border-radius:7px;padding:5px 7px}.error{color:var(--err);margin-top:9px;font-size:11px}.items{display:grid;gap:7px;margin-top:11px}.item{display:grid;grid-template-columns:minmax(150px,1.2fr) 100px minmax(150px,2fr);align-items:center;gap:9px;border:1px solid #2e1b21;background:#0b0608;border-radius:10px;padding:9px}.name{font-size:11px;font-weight:850;overflow-wrap:anywhere}.state{font-size:9px;font-weight:950;letter-spacing:.06em}.state.DONE{color:var(--ok)}.state.RUNNING,.state.QUEUED{color:#8bacd1}.state.WAIT,.state.BLOCKED{color:var(--wait)}.state.ERROR{color:var(--err)}.detail{color:#7e676e;font-size:9px;overflow-wrap:anywhere}.baton{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.baton-card{border:1px solid #302027;background:#0b0608;border-radius:10px;padding:10px}.baton-card span{display:block;color:#755f65;font-size:8px;text-transform:uppercase}.baton-card b{display:block;margin-top:4px;font-size:11px;color:#d9c7cb}.foot{margin-top:15px;text-align:center;color:#69555b;font-size:9px}@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.item{grid-template-columns:1fr auto}.detail{grid-column:1/-1}.baton{grid-template-columns:1fr}.btn{flex:1 1 45%}}@media(max-width:440px){.shell{width:calc(100% - 18px)}.hero{padding:16px}.btn{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<main class="shell">
+<section class="hero">
+<div class="eyebrow">Factory Cloud · Founder Operating System</div>
+<h1>Global Control Tower</h1>
+<p class="desc">Uma ordem despacha as Factories elegíveis através de rotas internas derivadas do registry. Não são necessários URLs de chats por Factory. WAIT ou BLOCKED numa Factory não implica sucesso nem execução nas restantes.</p>
+<div class="controls">
+<button class="btn primary" data-scope="all">⚡ LIGAR TODAS</button>
+<button class="btn" data-scope="obrasignal">⚡ OBRASIGNAL + SUBS</button>
+<button class="btn" data-scope="obrasignal-subs">▶ SUBS OBRASIGNAL</button>
+<button class="btn" data-scope="business">€ NEGÓCIOS</button>
+<button class="btn" data-scope="development">⌘ DESENVOLVIMENTO</button>
+</div>
+</section>
+<section class="grid">
+<div class="stat">Selecionadas<b id="selected">0</b></div>
+<div class="stat">Running / Queued<b id="running">0</b></div>
+<div class="stat">Done<b id="done">0</b></div>
+<div class="stat">Wait / Blocked<b id="wait">0</b></div>
+<div class="stat">Error<b id="errors">0</b></div>
+</section>
+<section class="panel">
+<h2>Execution truth</h2>
+<div class="truth"><span>API:</span><code id="apiLabel">same-origin /v1</code><span>Batch:</span><code id="batchId">nenhum</code><span>Estado:</span><code id="batchState">IDLE</code></div>
+<div class="error" id="error"></div>
+<div class="items" id="items"><div class="detail">Ainda não foi enviada uma ordem nesta sessão.</div></div>
+</section>
+<section class="panel">
+<h2>Global BATON</h2>
+<div class="baton">
+<div class="baton-card"><span>ACTIVE</span><b id="active">Escolher scope e despachar</b></div>
+<div class="baton-card"><span>NEXT</span><b id="next">Ler resultados e continuar rotas elegíveis</b></div>
+<div class="baton-card"><span>WAIT</span><b id="waitBaton">Runtime ausente mantém Factory em WAIT, sem falso RUNNING</b></div>
+</div>
+</section>
+<div class="foot">D = Factory Cloud / orquestração global · estados apresentados vêm da API, não de cópia de prompts.</div>
+</main>
+<script type="module">
+const API=(new URLSearchParams(location.search).get('api')||'').replace(/\/$/,'');
+const $=id=>document.getElementById(id);
+const buttons=[...document.querySelectorAll('[data-scope]')];
+let pollTimer=null;
+$('apiLabel').textContent=API||'same-origin /v1';
+function counts(items){const c={running:0,done:0,wait:0,errors:0};for(const x of items){if(['RUNNING','QUEUED'].includes(x.state))c.running++;else if(x.state==='DONE')c.done++;else if(['WAIT','BLOCKED'].includes(x.state))c.wait++;else if(x.state==='ERROR')c.errors++;}return c;}
+function render(batch){const items=batch.items||[];const c=counts(items);$('selected').textContent=items.length;$('running').textContent=c.running;$('done').textContent=c.done;$('wait').textContent=c.wait;$('errors').textContent=c.errors;$('batchId').textContent=batch.batch_id||'—';$('batchState').textContent=batch.state||'UNKNOWN';$('active').textContent=`Batch ${batch.state||'UNKNOWN'} · ${items.length} Factories`;$('next').textContent=c.running?'Aguardar resultados verificáveis do batch':c.wait?'Continuar Factories não bloqueadas / resolver runtimes':'Selecionar próxima prioridade material';$('items').innerHTML=items.length?items.map(x=>`<div class="item"><div class="name">${escapeHtml(x.factory_id)}</div><div class="state ${escapeHtml(x.state)}">${escapeHtml(x.state)}</div><div class="detail">${escapeHtml(x.blocker||x.route||'sem detalhe')}</div></div>`).join(''):'<div class="detail">Batch sem itens.</div>';}
+function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+async function jsonFetch(path,options){const r=await fetch(API+path,options);let p={};try{p=await r.json()}catch{}if(!r.ok)throw new Error(p.error||`HTTP ${r.status}`);return p;}
+async function poll(id){clearTimeout(pollTimer);try{const batch=await jsonFetch(`/v1/batches/${encodeURIComponent(id)}`);render(batch);if(['QUEUED','RUNNING','PARTIAL'].includes(batch.state))pollTimer=setTimeout(()=>poll(id),1500);}catch(e){$('error').textContent=`Leitura do batch falhou: ${e.message}`;}}
+async function dispatch(scope){buttons.forEach(b=>b.disabled=true);$('error').textContent='';$('batchState').textContent='DISPATCHING';try{const batch=await jsonFetch('/v1/dispatch',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({scope})});render(batch);poll(batch.batch_id);}catch(e){$('batchState').textContent='ERROR';$('error').textContent=`Dispatch rejeitado: ${e.message}`;}finally{buttons.forEach(b=>b.disabled=false);}}
+buttons.forEach(b=>b.addEventListener('click',()=>dispatch(b.dataset.scope)));
+</script>
+</body>
+</html>
