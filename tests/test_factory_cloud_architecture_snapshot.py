@@ -18,4 +18,4 @@ def test_architecture_snapshot_is_non_authoritative_and_complete():
     assert promotions["aviation-lease-entitlement-recovery"]["state"] == "APP_REGISTERED"
     assert promotions["contractcredit"]["state"] == "APP_REGISTERED"
     assert promotions["industrial-claims"]["state"] == "APP_REGISTERED"
-    assert promotions["industrial-claims"]["blocker"] is None
+    assert promotions["industrial-claims"]["blocker"] == ""
