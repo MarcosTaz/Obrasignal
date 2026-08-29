@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import json
 import os
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -40,6 +41,23 @@ def _bool_or_none(value):
     if isinstance(value, bool):
         return value
     raise ValueError("expected boolean or null")
+
+
+def _load_api_keys() -> dict[str, str]:
+    raw = os.getenv("ROYALTYRECOVER_API_KEYS_JSON", "").strip()
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        str(org_id).strip(): str(secret)
+        for org_id, secret in payload.items()
+        if str(org_id).strip() and isinstance(secret, str) and secret
+    }
 
 
 def _rule(payload):
@@ -86,9 +104,9 @@ def _period(payload):
     )
 
 
-def create_app(api_key: str | None = None) -> Flask:
+def create_app(api_keys: dict[str, str] | None = None) -> Flask:
     app = Flask(__name__)
-    configured_key = api_key if api_key is not None else os.getenv("ROYALTYRECOVER_API_KEY")
+    configured_keys = dict(api_keys) if api_keys is not None else _load_api_keys()
 
     @app.after_request
     def security_headers(response):
@@ -106,11 +124,17 @@ def create_app(api_key: str | None = None) -> Flask:
     def authenticate():
         if request.path == "/health":
             return None
-        if not configured_key:
+        if not configured_keys:
             return jsonify({"error": "service_not_configured"}), 503
         supplied = request.headers.get("X-RoyaltyRecover-API-Key", "")
-        if not hmac.compare_digest(supplied, configured_key):
+        authenticated_org = None
+        for org_id, expected in configured_keys.items():
+            if hmac.compare_digest(supplied, expected):
+                authenticated_org = org_id
+                break
+        if authenticated_org is None:
             return jsonify({"error": "authentication_required"}), 401
+        request.royaltyrecover_org_id = authenticated_org
         return None
 
     @app.post("/api/v1/recoverability/scan")
@@ -125,6 +149,8 @@ def create_app(api_key: str | None = None) -> Flask:
             agreement_id = str(payload.get("agreement_id") or "").strip()
             if not all((organization_id, case_id, licensee_id, agreement_id)):
                 raise ValueError("organization_id, case_id, licensee_id and agreement_id are required")
+            if organization_id != request.royaltyrecover_org_id:
+                return jsonify({"error": "organization_scope_mismatch"}), 403
             case = RecoverabilityCase(
                 case_id=case_id,
                 licensee_id=licensee_id,
