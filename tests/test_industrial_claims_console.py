@@ -16,6 +16,7 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert 'id="action-form"' in html
     assert 'id="resolve-form"' in html
     assert 'id="evidence_content"' in html
+    assert 'id="final_cumulative"' in html
     assert "Four-eyes review" in html
     assert "unknown notice deadline" in html.lower()
     assert "neither state is a legal conclusion" in html.lower()
@@ -31,6 +32,10 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert "does not establish a legal entitlement" in html.lower()
     assert "authorize customer contact" in html.lower()
     assert "authorize external claim submission" in html.lower()
+    assert "final cumulative documented outcome" in html.lower()
+    assert "not an installment" in html.lower()
+    assert "expired declared date" in html.lower()
+    assert "not proof of non-recoverability" in html.lower()
     assert "actionable findings" not in html.lower()
     assert 'maxlength="512"' in html
     assert 'maxlength="2048"' in html
@@ -63,6 +68,9 @@ def test_console_has_strict_browser_headers_and_no_html_injection_renderer(tmp_p
     assert "createElement(\"button\")" in javascript
     assert "finding.currency_unit" in javascript
     assert 'document.getElementById("evidence_content").value' in javascript
+    assert 'document.getElementById("final_cumulative").checked' in javascript
+    assert "No workflow findings for this verified role and tenant." in javascript
+    assert "No actionable findings" not in javascript
 
 
 def test_console_shell_contains_no_tenant_or_case_data(tmp_path):
