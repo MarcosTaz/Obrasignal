@@ -73,8 +73,6 @@ def create_app(
         if required_role not in role_values and "admin" not in role_values:
             raise IndustrialClaimsAuthorizationError(f"verified {required_role} role required")
 
-        # X-* identity headers are compatibility assertions only. They are never
-        # authoritative: the verified provider identity is the tenant boundary.
         requested_tenant = request.headers.get("X-Tenant-ID", "").strip()
         requested_actor = request.headers.get("X-Actor-ID", "").strip()
         if requested_tenant and requested_tenant != tenant_id:
@@ -171,15 +169,18 @@ def create_app(
     @app.post("/findings/<finding_id>/action")
     def action_finding(finding_id: str):
         try:
-            tenant_id, _ = identity("operator")
-            return jsonify({"finding_id": finding_id, "state": service.action(tenant_id=tenant_id, finding_id=finding_id)})
+            tenant_id, actor_id = identity("operator")
+            return jsonify({
+                "finding_id": finding_id,
+                "state": service.action(tenant_id=tenant_id, finding_id=finding_id, actor_id=actor_id),
+            })
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @app.post("/findings/<finding_id>/resolve")
     def resolve_finding(finding_id: str):
         try:
-            tenant_id, _ = identity("operator")
+            tenant_id, actor_id = identity("operator")
             payload = request.get_json(force=True) or {}
             outcome = service.resolve(
                 tenant_id=tenant_id,
@@ -188,6 +189,7 @@ def create_app(
                 recovered_amount=str(payload["recovered_amount"]),
                 currency=str(payload["currency"]),
                 evidence_ref=str(payload["evidence_ref"]),
+                actor_id=actor_id,
             )
             return jsonify(outcome.__dict__), 201
         except API_ERRORS as exc:
