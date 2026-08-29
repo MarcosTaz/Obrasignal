@@ -13,6 +13,7 @@ from .state import AssistedCaseState, dump_state, load_state
 
 _SCHEMA_COLUMNS = {"tenant_id", "case_id", "snapshot", "engine_version", "updated_at"}
 _PRIMARY_KEY = ("tenant_id", "case_id")
+_TABLE_NAME = "capacity_commitment_cases"
 
 
 class CapacityRepository:
@@ -45,7 +46,7 @@ class CapacityRepository:
 
     @staticmethod
     def _schema_error(conn: sqlite3.Connection) -> str | None:
-        rows = conn.execute("PRAGMA table_info(capacity_commitment_cases)").fetchall()
+        rows = conn.execute(f"PRAGMA table_info({_TABLE_NAME})").fetchall()
         if not rows:
             return "capacity schema is missing"
         names = {row["name"] for row in rows}
@@ -65,6 +66,27 @@ class CapacityRepository:
                 return "capacity schema columns must use TEXT storage"
             if row["notnull"] != 1:
                 return "capacity schema columns must be NOT NULL"
+
+        triggers = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name=?",
+            (_TABLE_NAME,),
+        ).fetchall()
+        if triggers:
+            return "capacity schema contains unexpected trigger"
+
+        custom_indexes = conn.execute(
+            """
+            SELECT name FROM sqlite_master
+            WHERE type='index' AND tbl_name=? AND sql IS NOT NULL
+            """,
+            (_TABLE_NAME,),
+        ).fetchall()
+        if custom_indexes:
+            return "capacity schema contains unexpected index"
+
+        foreign_keys = conn.execute(f"PRAGMA foreign_key_list({_TABLE_NAME})").fetchall()
+        if foreign_keys:
+            return "capacity schema contains unexpected foreign key"
         return None
 
     def _connect(self) -> sqlite3.Connection:
@@ -181,7 +203,7 @@ class CapacityRepository:
 
         The source database schema is never copied over the live database. This
         prevents a backup from weakening create-only primary-key guarantees,
-        importing triggers, or silently introducing newer unknown columns.
+        importing triggers/indexes, or silently introducing newer unknown schema.
         """
 
         if not source_path or not Path(source_path).is_file():
