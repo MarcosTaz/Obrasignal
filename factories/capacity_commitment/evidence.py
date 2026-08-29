@@ -5,7 +5,7 @@ import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Context, Decimal, InvalidOperation, localcontext
 from enum import Enum
 from pathlib import Path
 from typing import Iterable, Mapping
@@ -13,6 +13,7 @@ from typing import Iterable, Mapping
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
+_NORMALIZATION_CONTEXT = Context(prec=60, Emin=-999999, Emax=999999)
 
 
 class EvidenceKind(str, Enum):
@@ -144,7 +145,6 @@ def _normalize_fact_value(fact_type: FactType, value: str) -> str:
             raise ValueError(f"{fact_type.value} must be an exact decimal string") from exc
         if not parsed.is_finite() or parsed < 0:
             raise ValueError(f"{fact_type.value} must be finite and non-negative")
-        # Canonical fixed notation avoids exponent/string-equivalence ambiguity.
         return format(parsed, "f")
     if fact_type in _BOOLEAN_FACTS:
         if value not in {"true", "false", "unknown"}:
@@ -169,8 +169,6 @@ def validate_source(source: EvidenceSource) -> EvidenceSource:
         raise ValueError("kind must be an EvidenceKind")
     display_name = _required_text(source.display_name, "display_name", max_len=300)
     external_ref = _required_text(source.external_ref, "external_ref", max_len=500)
-    # Signed/raw URLs often contain credentials. Persist an opaque data-room or
-    # connector reference instead, never a secret-bearing query string.
     if "?" in external_ref or "#" in external_ref:
         raise ValueError("external_ref must not contain query or fragment secrets")
     if not isinstance(source.sha256, str) or not _SHA256_RE.fullmatch(source.sha256):
@@ -343,7 +341,6 @@ class EvidenceRepository:
 
     def save_fact(self, fact: ExtractedFact) -> bool:
         fact = validate_fact(fact)
-        # Source lookup is tenant-scoped, preventing cross-tenant fact attachment.
         self.load_source(tenant_id=fact.tenant_id, evidence_id=fact.evidence_id)
         if fact.review_state is not ReviewState.UNREVIEWED:
             raise ValueError("new extracted facts must start UNREVIEWED")
@@ -479,7 +476,8 @@ def normalize_confirmed_facts(facts: Iterable[ExtractedFact]) -> NormalizedEvide
 
     actual_units = None
     if actual_by_scope and not any(item.startswith("duplicate confirmed ACTUAL_UNITS") for item in conflicts):
-        actual_units = sum((value for value, _source in actual_by_scope.values()), Decimal("0"))
+        with localcontext(_NORMALIZATION_CONTEXT):
+            actual_units = sum((value for value, _source in actual_by_scope.values()), Decimal("0"))
 
     return NormalizedEvidence(
         singleton_values=dict(sorted(singleton_values.items())),
