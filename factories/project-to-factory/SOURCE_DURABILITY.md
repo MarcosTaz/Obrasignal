@@ -12,7 +12,7 @@ The complete validated v0.12.0 source is the versioned conversation artifact:
 
 ZIP SHA-256:
 
-`813ebfea2e3becd882e8f961ce60a650040c57a6dbff0b3f750e146a12077020`
+`882a8435eff231c3dfda461ce9dec5bc5ced380f405f19f9ddbe0b7ffa5414b1`
 
 The source tree inside the ZIP is `project-to-factory-vertical-slice/`.
 
@@ -22,7 +22,7 @@ The connected GitHub write surface accepts UTF-8 file content but does not accep
 
 Version: `0.12.0`
 
-Validated after the final 2026-08-29 ICP/contact-package audit:
+Validated after the final 2026-08-29 ICP/contact/adjacent-buyer evidence audit:
 
 - `npm run check` — PASS
 - schema suite — 10 valid/expected fixtures + 6 adversarial cases PASS
@@ -52,6 +52,8 @@ Real transaction truth at this checkpoint:
 - verified revenue: EUR 0
 
 Priority-A public demand signal remains Prosertã. A current public general contact route is prepared as `PUBLIC_CONTACT_ROUTE_ONLY`; no outreach was sent. Its internal procurement method, supplier captivity, switching willingness and WTP remain UNKNOWN.
+
+A second general-contractor exact-panel public-demand control was found in adjacent geography: Construções Silvano Santos — Unipessoal, Lda, with an explicit 2025 sandwich-panel roofing contract and ongoing 2026 construction-contract activity. Its purchasing method is also UNKNOWN and it does not establish Central Portugal cell liquidity.
 
 ## Resume rule
 
