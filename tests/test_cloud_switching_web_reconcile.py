@@ -18,6 +18,22 @@ def app_and_client(tmp_path):
 def baseline_payload():
     return {
         "package_id": "case-1",
+        "estate": {
+            "as_of": "2026-08-29T00:00:00Z",
+            "stale_after_days": 30,
+            "assets": [
+                {
+                    "asset_id": "vm-1",
+                    "asset_type": "vm",
+                    "cpu_cores": 8,
+                    "memory_gib": 32,
+                    "storage_gib": 500,
+                    "last_seen_at": "2026-08-28T23:00:00Z",
+                    "certainty": "known",
+                    "source_id": "vcenter-export-1",
+                }
+            ],
+        },
         "baseline": [{"name": "current", "annual_value": "240000", "certainty": "known", "source_id": "billing"}],
         "migration_case": {
             "case_id": "case-1",
@@ -105,6 +121,7 @@ def test_reconcile_updates_same_persisted_delivery(tmp_path):
 
     returned = client.get("/cloud-switching/api/packages/case-1", headers=headers).get_json()
     assert returned["delivery_content_hash"] == body["delivery_content_hash"]
+    assert returned["delivery"]["estate"]["decision_ready"] is True
     assert returned["delivery"]["outcome"] == body["outcome"]
 
 
