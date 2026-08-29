@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Iterable
 
 from factory_cloud.pilot_safe_evidence import load_evidence_manifest, passing_tokens
+from factory_cloud.portfolio import load_portfolio
 
 POLICY_PATH = Path(__file__).with_name("pilot_safe_policy.json")
-REGISTRY_PATH = Path(__file__).with_name("factories.json")
 EVIDENCE_DIR = Path(__file__).with_name("pilot_safe_evidence")
 
 
@@ -57,16 +57,20 @@ def evidence_manifest_path(factory_id: str) -> Path:
 
 
 def portfolio_matrix(evidence_by_factory: dict[str, Iterable[str]] | None = None) -> list[dict]:
+    """Assess every portfolio entry, including unregistered/transitional Factories."""
     evidence_by_factory = evidence_by_factory or {}
-    registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    portfolio = load_portfolio()
     rows = []
-    for factory in registry["factories"]:
+    for factory in portfolio["portfolio"]:
         factory_id = factory["id"]
         manifest_path = evidence_manifest_path(factory_id)
         if factory_id in evidence_by_factory:
-            rows.append(assess(factory_id, evidence_by_factory[factory_id]))
+            row = assess(factory_id, evidence_by_factory[factory_id])
         elif manifest_path.exists():
-            rows.append(assess_manifest(manifest_path))
+            row = assess_manifest(manifest_path)
         else:
-            rows.append(assess(factory_id, ()))
+            row = assess(factory_id, ())
+        row["source_status"] = factory["source_status"]
+        row["maturity"] = factory["maturity"]
+        rows.append(row)
     return rows
