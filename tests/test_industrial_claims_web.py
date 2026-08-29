@@ -18,12 +18,12 @@ def _payload():
     }
 
 
-def _identity(tenant_id: str, actor_id: str):
+def _identity(tenant_id: str, actor_id: str, *roles: str):
     return lambda: RequestIdentity(
         account_id=tenant_id,
         authenticated=True,
         subject=actor_id,
-        claims={"sub": actor_id},
+        claims={"sub": actor_id, "roles": list(roles)},
     )
 
 
@@ -38,10 +38,21 @@ def test_analyze_rejects_unverified_raw_identity_headers(tmp_path):
     assert response.get_json() == {"error": "authentication_required"}
 
 
+def test_verified_identity_without_required_role_is_forbidden(tmp_path):
+    client = create_app(
+        tmp_path / "industrial.sqlite3",
+        identity_resolver=_identity("alpha", "viewer", "viewer"),
+    ).test_client()
+
+    response = client.post("/analyze", json=_payload())
+    assert response.status_code == 403
+    assert response.get_json() == {"error": "authorization_denied"}
+
+
 def test_verified_identity_cannot_spoof_tenant_or_actor(tmp_path):
     client = create_app(
         tmp_path / "industrial.sqlite3",
-        identity_resolver=_identity("alpha", "analyst"),
+        identity_resolver=_identity("alpha", "analyst", "analyst"),
     ).test_client()
 
     wrong_tenant = client.post(
@@ -64,7 +75,7 @@ def test_verified_identity_cannot_spoof_tenant_or_actor(tmp_path):
 def test_unknown_notice_deadline_fails_closed_in_api(tmp_path):
     client = create_app(
         tmp_path / "unknown-notice.sqlite3",
-        identity_resolver=_identity("alpha", "analyst"),
+        identity_resolver=_identity("alpha", "analyst", "analyst"),
     ).test_client()
     payload = _payload()
     payload.pop("notice_due")
@@ -80,7 +91,7 @@ def test_unknown_notice_deadline_fails_closed_in_api(tmp_path):
 def test_verified_no_notice_deadline_can_be_review_ready(tmp_path):
     client = create_app(
         tmp_path / "verified-no-notice.sqlite3",
-        identity_resolver=_identity("alpha", "analyst"),
+        identity_resolver=_identity("alpha", "analyst", "analyst"),
     ).test_client()
     payload = _payload()
     payload.pop("notice_due")
@@ -94,10 +105,11 @@ def test_verified_no_notice_deadline_can_be_review_ready(tmp_path):
     assert NOTICE_DEADLINE_EVIDENCE not in body["missing_evidence"]
 
 
-def test_assisted_api_runs_full_review_action_resolution(tmp_path):
+def test_assisted_api_runs_role_separated_review_action_resolution(tmp_path):
     database = tmp_path / "industrial.sqlite3"
-    analyst = create_app(database, identity_resolver=_identity("alpha", "analyst")).test_client()
-    reviewer = create_app(database, identity_resolver=_identity("alpha", "reviewer")).test_client()
+    analyst = create_app(database, identity_resolver=_identity("alpha", "analyst-1", "analyst")).test_client()
+    reviewer = create_app(database, identity_resolver=_identity("alpha", "reviewer-1", "reviewer")).test_client()
+    operator = create_app(database, identity_resolver=_identity("alpha", "operator-1", "operator")).test_client()
 
     analyzed = analyst.post("/analyze", json=_payload())
     assert analyzed.status_code == 201
@@ -107,6 +119,13 @@ def test_assisted_api_runs_full_review_action_resolution(tmp_path):
     assert body["notice_deadline_state"] == "VERIFIED_DATE"
     finding_id = body["finding_id"]
 
+    analyst_review = analyst.post(
+        f"/findings/{finding_id}/review",
+        json={"approved": True, "reason": "analyst must not self-approve"},
+    )
+    assert analyst_review.status_code == 403
+    assert analyst_review.get_json() == {"error": "authorization_denied"}
+
     reviewed = reviewer.post(
         f"/findings/{finding_id}/review",
         json={"approved": True, "reason": "commercial basis and amount reviewed"},
@@ -114,11 +133,15 @@ def test_assisted_api_runs_full_review_action_resolution(tmp_path):
     assert reviewed.status_code == 200
     assert reviewed.get_json()["state"] == "APPROVED"
 
-    actioned = analyst.post(f"/findings/{finding_id}/action")
+    analyst_action = analyst.post(f"/findings/{finding_id}/action")
+    assert analyst_action.status_code == 403
+    assert analyst_action.get_json() == {"error": "authorization_denied"}
+
+    actioned = operator.post(f"/findings/{finding_id}/action")
     assert actioned.status_code == 200
     assert actioned.get_json()["state"] == "ACTIONED"
 
-    resolved = analyst.post(
+    resolved = operator.post(
         f"/findings/{finding_id}/resolve",
         json={"outcome_id": "alpha:payment-1", "recovered_amount": "7000", "currency": "EUR", "evidence_ref": "bank-1"},
     )
@@ -126,10 +149,25 @@ def test_assisted_api_runs_full_review_action_resolution(tmp_path):
     assert resolved.get_json()["state"] == "RECOVERED"
 
 
+def test_admin_role_can_execute_all_web_roles(tmp_path):
+    database = tmp_path / "admin.sqlite3"
+    admin = create_app(database, identity_resolver=_identity("alpha", "admin-1", "admin")).test_client()
+
+    analyzed = admin.post("/analyze", json=_payload())
+    assert analyzed.status_code == 201
+    finding_id = analyzed.get_json()["finding_id"]
+    reviewed = admin.post(
+        f"/findings/{finding_id}/review",
+        json={"approved": True, "reason": "admin override"},
+    )
+    assert reviewed.status_code == 200
+    assert admin.post(f"/findings/{finding_id}/action").status_code == 200
+
+
 def test_missing_evidence_fails_closed_in_api(tmp_path):
     client = create_app(
         tmp_path / "industrial.sqlite3",
-        identity_resolver=_identity("alpha", "analyst"),
+        identity_resolver=_identity("alpha", "analyst", "analyst"),
     ).test_client()
     payload = _payload()
     payload["missing_evidence"] = ["customer_authorization"]
