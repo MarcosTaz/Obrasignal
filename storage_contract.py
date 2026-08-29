@@ -54,6 +54,13 @@ RUNTIME_CONTRACTS: dict[str, TableContract] = {
 # canonical verify_database()/contract_fingerprint() path unless explicitly
 # requested, so registration cannot silently promote a prebuild capability.
 PREBUILD_CONTRACTS: dict[str, TableContract] = {
+    "account_memberships": TableContract(
+        "Account/Auth / account_membership",
+        frozenset({"subject", "account_id", "role", "active", "updated_at"}),
+        tenant_column="account_id",
+        unique_keys=(("subject",),),
+        required_indexes=("idx_account_memberships_account_active",),
+    ),
     "company_state_snapshots": TableContract(
         "Company State / company_state_store",
         frozenset({
