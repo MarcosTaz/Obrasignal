@@ -28,10 +28,13 @@ class OutcomeStoreTests(unittest.TestCase):
     def tearDown(self):
         self.repo.close()
 
-    def test_recovered_amount_starts_unverified_then_requires_explicit_verification(self):
-        outcome = self.outcomes.record_outcome(
+    def settled(self):
+        return self.outcomes.record_outcome(
             "ORG-A", self.finding["id"], "SETTLED", "reviewer", evidence_id=self.outcome_evidence["id"]
         )
+
+    def test_recovered_amount_starts_unverified_then_requires_explicit_verification(self):
+        outcome = self.settled()
         payment = self.outcomes.record_payment(
             "ORG-A", self.agreement["id"], "2026-08-29", "EUR", "1000", self.payment_evidence["id"], "reviewer", "BANK-1"
         )
@@ -46,8 +49,22 @@ class OutcomeStoreTests(unittest.TestCase):
         self.assertEqual(summary["verified_recovery_total"], "1000")
         self.assertEqual(summary["currency"], "EUR")
 
+    def test_recovery_bearing_outcome_requires_external_evidence(self):
+        with self.assertRaises(ValueError):
+            self.outcomes.record_outcome("ORG-A", self.finding["id"], "SETTLED", "reviewer")
+
+    def test_unreviewed_candidate_cannot_be_given_recovery_bearing_outcome(self):
+        raw = self.findings.create_finding(
+            "ORG-A", self.agreement["id"], "RAW", FindingState.RECOVERY_CANDIDATE,
+            "SUPPORTED_DETERMINISTIC_ARITHMETIC", "analyst", amount=Decimal("10"), currency="EUR"
+        )
+        with self.assertRaises(ValueError):
+            self.outcomes.record_outcome(
+                "ORG-A", raw["id"], "ADJUSTMENT_CONFIRMED", "reviewer", evidence_id=self.outcome_evidence["id"]
+            )
+
     def test_amount_cannot_exceed_evidenced_payment(self):
-        outcome = self.outcomes.record_outcome("ORG-A", self.finding["id"], "SETTLED", "reviewer")
+        outcome = self.settled()
         payment = self.outcomes.record_payment("ORG-A", self.agreement["id"], "2026-08-29", "EUR", "1000", self.payment_evidence["id"], "reviewer")
         with self.assertRaises(ValueError):
             self.outcomes.record_recovered_amount_candidate(
@@ -63,7 +80,7 @@ class OutcomeStoreTests(unittest.TestCase):
             )
 
     def test_cross_tenant_payment_and_outcome_reads_fail_closed(self):
-        outcome = self.outcomes.record_outcome("ORG-A", self.finding["id"], "SETTLED", "reviewer")
+        outcome = self.settled()
         payment = self.outcomes.record_payment("ORG-A", self.agreement["id"], "2026-08-29", "EUR", "1000", self.payment_evidence["id"], "reviewer")
         with self.assertRaises(NotFoundError):
             self.outcomes.get_outcome("ORG-B", outcome["id"])
@@ -71,7 +88,7 @@ class OutcomeStoreTests(unittest.TestCase):
             self.outcomes.get_payment("ORG-B", payment["id"])
 
     def test_mixed_currency_verified_total_is_suppressed(self):
-        outcome = self.outcomes.record_outcome("ORG-A", self.finding["id"], "SETTLED", "reviewer")
+        outcome = self.settled()
         for currency, amount, ref in (("EUR", "100", "E"), ("USD", "200", "U")):
             evidence = self.repo.add_evidence("ORG-A", "PAYMENT", ref.encode(), "reviewer")
             payment = self.outcomes.record_payment("ORG-A", self.agreement["id"], "2026-08-29", currency, amount, evidence["id"], "reviewer", ref)
