@@ -5,10 +5,11 @@ import json
 import os
 from pathlib import Path
 from typing import Mapping
+from urllib.parse import urlsplit
 
 from factory_cloud.global_app_executor import FactoryCloudRouteExecutor
 from factory_cloud.global_dispatcher import GlobalDispatcher
-from factory_cloud.portfolio_worker import PortfolioFactoryWorker, PortfolioWorkerError, configured_endpoint, configured_executor
+from factory_cloud.portfolio_worker import LOCAL_HOSTS, PortfolioFactoryWorker, PortfolioWorkerError, configured_endpoint, configured_executor
 
 DEFAULT_RUNTIME_DIR=Path('.factory_cloud')
 
@@ -28,10 +29,11 @@ def runtime_readiness(environ:Mapping[str,str]|None=None)->dict[str,object]:
     if executable is not None and endpoint is not None:
         return {'ready':False,'portfolio_runtime':'AMBIGUOUS','blockers':['portfolio_worker_configuration_ambiguous']}
     if endpoint is not None:
+        host=urlsplit(endpoint).hostname
         token=bool(str(env.get('FACTORY_CLOUD_PORTFOLIO_WORKER_TOKEN') or '').strip())
-        if not token:
+        if host not in LOCAL_HOSTS and not token:
             return {'ready':False,'portfolio_runtime':'ENDPOINT_BLOCKED','blockers':['portfolio_worker_token_required']}
-        return {'ready':True,'portfolio_runtime':'HTTPS_ENDPOINT_CONFIGURED','blockers':[]}
+        return {'ready':True,'portfolio_runtime':'ENDPOINT_CONFIGURED','blockers':[]}
     if executable is not None:
         return {'ready':True,'portfolio_runtime':'EXECUTABLE_CONFIGURED','blockers':[]}
     return {'ready':False,'portfolio_runtime':'NOT_PROVISIONED','blockers':['portfolio_factory_worker_not_provisioned']}
