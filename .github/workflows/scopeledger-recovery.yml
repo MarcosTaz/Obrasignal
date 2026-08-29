@@ -1,0 +1,54 @@
+name: ScopeLedger Recovery Gate
+
+on:
+  push:
+    branches:
+      - recovery/scopeledger-source-20260829
+    paths:
+      - 'scopeledger-recovery/**'
+      - '.github/workflows/scopeledger-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovered-source-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch source
+        uses: actions/checkout@v4
+
+      - name: Reconstruct recovered source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat scopeledger-recovery/source.min.zip.b64.part-00 \
+              scopeledger-recovery/source.min.zip.b64.part-01 \
+              scopeledger-recovery/source.min.zip.b64.part-02 \
+            | base64 --decode > /tmp/scopeledger-source.min.zip
+          echo '2cde248ee3fc11fdd5c9c3a97d4f67a0b6d5fd1d22d042d0e9b0f38c51c7100f  /tmp/scopeledger-source.min.zip' | sha256sum --check
+          unzip -q -o /tmp/scopeledger-source.min.zip -d .
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scopeledger-recovery/requirements.txt
+
+      - name: Install recovered runtime dependencies
+        run: python -m pip install -r scopeledger-recovery/requirements.txt
+
+      - name: Compile recovered Python source
+        run: |
+          python -m py_compile scopeledger-recovery/app/main.py scopeledger-recovery/app/core.py
+
+      - name: Check browser JavaScript syntax
+        run: node --check scopeledger-recovery/app/static/app.js
+
+      - name: Run autonomous P0 integrity and concurrency gate
+        env:
+          PYTHONPATH: scopeledger-recovery
+        run: python -m pytest -q scopeledger-recovery/tests/test_integrity.py
