@@ -40,13 +40,14 @@ Truth rule: a researched target or unsent draft is **not CONTACTED**. Gmail `SEN
 - PAID = 0
 - REJECTED = 0
 
-## Latest monitoring truth — 2026-08-29 Europe/Lisbon
+## Latest monitoring truth — 2026-08-29 19:59+01:00 Europe/Lisbon class
 
-Latest direct Gmail re-check after the T3 technical build:
+Fresh direct Gmail re-check during the final technical hardening cycle:
 
 - no inbound reply found from CT Automotive, Autins, Castings, Trifast or Strip Tinning;
-- no bounce found for the live cohort;
-- DGC Article 13-B thread still contains only our sent inquiry `1a04ad94d7f104c5` and no DGC response;
+- no bounce/DSN found for the live cohort;
+- no inbound DGC Article 13-B response found;
+- no delivery/read state can be upgraded from the absence of a bounce;
 - state remains `NO_REPLY_YET`, not rejection or weak-demand proof.
 
 ## First-cohort follow-ups
@@ -66,7 +67,7 @@ Audit result:
 - no invented entitlement/recovery/payment claim;
 - explicit stop route for “no / not relevant”.
 
-Initial outreach landed over the weekend. The follow-up was therefore deliberately moved out of Monday morning and is scheduled for **2026-09-02 10:00 Europe/Lisbon**, conditional on continued silence, no bounce, no reply and no suppression.
+Initial outreach landed over the weekend. The follow-up is scheduled for **2026-09-02 10:00 Europe/Lisbon**, conditional on continued silence, no bounce, no reply and no suppression.
 
 ## Cohort 2 continuation
 
@@ -78,7 +79,7 @@ Conditional send is scheduled for **2026-09-04 10:00 Europe/Lisbon** only if a s
 
 The first CT Automotive and Autins messages accidentally retained `[HOLD — OWNER APPROVAL]` in the subject. The defect was detected by reading the exact sent messages and repaired transparently with clean-subject corrections. It remains part of experiment truth and may affect conversion.
 
-Controls now active:
+Controls active:
 
 - exact draft/thread re-read before send;
 - internal control-token scrub;
@@ -106,7 +107,7 @@ Teknia remains **HOLD — LSSI LAWFUL BASIS**. Owner authorization does not crea
 
 ## T3 operational readiness
 
-Repository-safe assisted-pilot preparation has materially advanced beyond the original T2 state. See `T3_READINESS.md` for the full gate matrix.
+Repository-safe assisted-pilot preparation has materially advanced beyond the original T2 state. See `T3_READINESS.md` for the full current gate matrix.
 
 READY now includes:
 
@@ -117,24 +118,30 @@ READY now includes:
 - bounded paid-pilot scope template;
 - real-case delivery runbook;
 - unit-economics guardrails;
+- fail-closed t1.12 engine with deterministic exact Decimal context;
+- dynamic verified-deadline expiry and auditable assessment date;
+- explicit duplicate-claim review before positive recoverability;
+- correct-zero integrity gates;
+- exact API decimal/material-field boundary;
+- exact schema-v2 snapshot structure;
+- canonical backup/restore and samefile protection;
+- self-validating recovery package;
 - buyer-ready Markdown findings report;
 - authenticated tenant-scoped report endpoint;
 - authenticated existing-case browser;
 - restart-stable report generation;
 - report/source Markdown-injection hardening;
-- unsafe web case-ID rejection before persistence;
+- one case-ID addressability policy across web/persistence/restore;
 - suppression-aware reply/follow-up automation.
 
 These are operational capabilities, **not** commercial proof.
 
 ## Payment rail truth
 
-The only Stripe account currently visible to this execution is named **K3 Fatality** in test/live mode. It belongs to another Factory and is explicitly prohibited for Capacity Commitment.
+Capacity-specific payment rail remains unavailable/unverified. A payment context belonging to another Factory must never be used for Capacity Commitment.
 
 - CAPACITY_STRIPE_ACCOUNT = NOT_CONNECTED / UNKNOWN
-- STRIPE_PRODUCT = NOT_CREATED
-- STRIPE_PRICE = NOT_CREATED
-- STRIPE_PAYMENT_LINK = NOT_CREATED
+- CAPACITY_PRODUCT/PRICE/PAYMENT_LINK = NOT_CREATED
 - PAYMENT_RECEIVED = NO
 
 This does not block buyer qualification, proprietary-data handoff, procurement onboarding, PO or signed commercial commitment. If a correct rail becomes immediately necessary, classify `PAYMENT_RAIL_BLOCKED`; never route Capacity funds through another Factory account.
@@ -164,6 +171,6 @@ ACTIVE:
 
 WAIT / external evidence:
 
-- actual buyer response/case/data/WTP;
+- actual buyer response/delivery/bounce/opt-out/case/data/WTP;
 - DGC list/access response;
 - correct Capacity payment account/rail if and when payment becomes due.
