@@ -22,6 +22,7 @@ def _analyze(service: IndustrialClaimsService, tenant_id: str, event_ref: str, a
         claim_family="WIP",
         commercial_basis_ref=f"basis-{event_ref}",
         cost_evidence_ref=f"cost-{event_ref}",
+        currency="EUR",
         gross_cost="10000",
         prior_payment="1000",
         notice_deadline_not_applicable=True,
@@ -52,7 +53,7 @@ def test_read_model_is_bounded_tenant_scoped_and_exposes_no_raw_document_content
     assert item.finding_id == alpha.finding.finding_id
     assert item.state == "READY_FOR_REVIEW"
     assert item.net_potential == "9000"
-    assert item.currency_unit == "currency"
+    assert item.currency_unit == "EUR"
     assert item.creator_actor == "analyst"
     assert item.reviewer is None
     serialized = str(item.as_dict())
@@ -80,6 +81,7 @@ def test_reviewer_and_operator_receive_only_actionable_role_scoped_states(tmp_pa
     assert reviewer_body["queue_scope"] == ["READY_FOR_REVIEW"]
     assert reviewer_body["count"] == 1
     assert reviewer_body["findings"][0]["finding_id"] == finding_id
+    assert reviewer_body["findings"][0]["currency_unit"] == "EUR"
 
     assert operator.get("/findings").get_json()["count"] == 0
 
@@ -95,6 +97,7 @@ def test_reviewer_and_operator_receive_only_actionable_role_scoped_states(tmp_pa
     assert operator_body["queue_scope"] == ["ACTIONED", "APPROVED"]
     assert operator_body["count"] == 1
     assert operator_body["findings"][0]["state"] == "APPROVED"
+    assert operator_body["findings"][0]["currency_unit"] == "EUR"
 
     reviewer_after = reviewer.get("/findings")
     assert reviewer_after.get_json()["count"] == 0
