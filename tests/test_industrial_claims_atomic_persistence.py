@@ -13,6 +13,7 @@ def _case(service):
         claim_family="TOOLING",
         commercial_basis_ref="po-atomic",
         cost_evidence_ref="ledger-atomic",
+        currency="EUR",
         commercial_basis_content="signed tooling terms for atomic case",
         event_evidence_content="documented cancellation event for atomic case",
         cost_evidence_content="cost ledger for atomic case",
@@ -44,6 +45,7 @@ def test_case_failure_rolls_back_index_and_case_rows(tmp_path, monkeypatch):
 
     assert result.is_new_recovery is True
     assert result.finding.state == "READY_FOR_REVIEW"
+    assert result.calculation.output_unit == "EUR"
     assert service.index.count_entitlements("alpha") == 1
     assert service.index.count_fingerprints("alpha") == 1
     assert service.store.count("evidence", "alpha") == 3
