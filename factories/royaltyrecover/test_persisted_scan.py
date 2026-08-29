@@ -27,12 +27,22 @@ class PersistedScanTests(unittest.TestCase):
     def reviewed_rule(self, clause_status="REVIEWED", rule_status="REVIEWED"):
         clause = self.contracts.add_clause(
             "ORG-A", self.version["id"], "4.2", "ROYALTY_RATE", "tester",
-            text_excerpt="Five percent of Net Sales.", evidence_id=self.contract_evidence["id"], review_status=clause_status,
+            text_excerpt="Five percent of Net Sales.", evidence_id=self.contract_evidence["id"],
         )
+        if clause_status == "REVIEWED":
+            clause = self.contracts.set_clause_review_status("ORG-A", clause["id"], "REVIEWED", "reviewer", "checked agreement")
+        elif clause_status != "UNREVIEWED":
+            raise ValueError("unsupported fixture clause status")
         rule = self.contracts.add_royalty_rule(
             "ORG-A", self.version["id"], clause["id"], "PERCENTAGE_NET_SALES", "EUR", "tester",
-            rate=Decimal("0.05"), review_status=rule_status,
+            rate=Decimal("0.05"),
         )
+        if rule_status == "REVIEWED":
+            if clause_status != "REVIEWED":
+                raise ValueError("fixture cannot review rule before clause")
+            rule = self.contracts.set_rule_review_status("ORG-A", rule["id"], "REVIEWED", "reviewer", "checked rule")
+        elif rule_status != "UNREVIEWED":
+            raise ValueError("unsupported fixture rule status")
         return clause, rule
 
     def period(self, gross="120000", reported="4500", paid="4500", source_complete=True):
@@ -68,12 +78,11 @@ class PersistedScanTests(unittest.TestCase):
         self.assertFalse(result.claim_ready)
 
     def test_unreviewed_clause_blocks_money_calculation(self):
-        _, rule = self.reviewed_rule(clause_status="UNREVIEWED")
+        _, rule = self.reviewed_rule(clause_status="UNREVIEWED", rule_status="UNREVIEWED")
         with self.assertRaises(ValueError):
             run_persisted_scan(
                 self.repo, "ORG-A", self.agreement["id"], self.version["id"], rule["id"],
-                "2026-01-01", "2026-03-31", self.period(),
-                [self.statement_evidence["id"]], "tester",
+                "2026-01-01", "2026-03-31", self.period(), [self.statement_evidence["id"]], "tester",
             )
 
     def test_unreviewed_rule_blocks_money_calculation(self):
@@ -81,8 +90,7 @@ class PersistedScanTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_persisted_scan(
                 self.repo, "ORG-A", self.agreement["id"], self.version["id"], rule["id"],
-                "2026-01-01", "2026-03-31", self.period(),
-                [self.statement_evidence["id"]], "tester",
+                "2026-01-01", "2026-03-31", self.period(), [self.statement_evidence["id"]], "tester",
             )
 
     def test_cross_tenant_evidence_is_rejected(self):
@@ -91,8 +99,7 @@ class PersistedScanTests(unittest.TestCase):
         with self.assertRaises(NotFoundError):
             run_persisted_scan(
                 self.repo, "ORG-A", self.agreement["id"], self.version["id"], rule["id"],
-                "2026-01-01", "2026-03-31", self.period(),
-                [foreign["id"]], "tester",
+                "2026-01-01", "2026-03-31", self.period(), [foreign["id"]], "tester",
             )
 
     def test_evidence_is_required_even_when_arithmetic_inputs_are_supplied(self):
@@ -107,13 +114,11 @@ class PersistedScanTests(unittest.TestCase):
         _, rule = self.reviewed_rule()
         result = run_persisted_scan(
             self.repo, "ORG-A", self.agreement["id"], self.version["id"], rule["id"],
-            "2026-01-01", "2026-03-31", self.period(),
-            [self.statement_evidence["id"]], "tester",
+            "2026-01-01", "2026-03-31", self.period(), [self.statement_evidence["id"]], "tester",
         )
         original_hash = result.calculation_run["input_hash"]
         status = self.repo.calculation_run_freshness(
-            "ORG-A", result.calculation_run["id"], self.version["id"], "0.2.0",
-            {"different": "payload"},
+            "ORG-A", result.calculation_run["id"], self.version["id"], "0.2.0", {"different": "payload"},
         )
         self.assertEqual(status["status"], "STALE")
         self.assertNotEqual(status["current_input_hash"], original_hash)
