@@ -17,5 +17,5 @@ def test_architecture_snapshot_is_non_authoritative_and_complete():
     promotions = {item["factory_id"]: item for item in snapshot["app_promotion_queue"]}
     assert promotions["aviation-lease-entitlement-recovery"]["state"] == "APP_REGISTERED"
     assert promotions["contractcredit"]["state"] == "APP_REGISTERED"
-    assert promotions["industrial-claims"]["state"] == "PROMOTION_BLOCKED"
-    assert promotions["industrial-claims"]["blocker"] == "canonical_application_source_truth_required"
+    assert promotions["industrial-claims"]["state"] == "APP_REGISTERED"
+    assert promotions["industrial-claims"]["blocker"] is None
