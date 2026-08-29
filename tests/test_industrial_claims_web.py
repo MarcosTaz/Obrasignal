@@ -1,3 +1,4 @@
+from auth_context import RequestIdentity
 from vertical_apps.industrial_claims.web import create_app
 
 
@@ -16,37 +17,74 @@ def _payload():
     }
 
 
-def test_analyze_requires_trusted_upstream_identity(tmp_path):
+def _identity(tenant_id: str, actor_id: str):
+    return lambda: RequestIdentity(
+        account_id=tenant_id,
+        authenticated=True,
+        subject=actor_id,
+        claims={"sub": actor_id},
+    )
+
+
+def test_analyze_rejects_unverified_raw_identity_headers(tmp_path):
     client = create_app(tmp_path / "industrial.sqlite3").test_client()
-    response = client.post("/analyze", json=_payload())
-    assert response.status_code == 422
+    response = client.post(
+        "/analyze",
+        headers={"X-Tenant-ID": "alpha", "X-Actor-ID": "analyst"},
+        json=_payload(),
+    )
+    assert response.status_code == 401
+    assert response.get_json() == {"error": "authentication_required"}
+
+
+def test_verified_identity_cannot_spoof_tenant_or_actor(tmp_path):
+    client = create_app(
+        tmp_path / "industrial.sqlite3",
+        identity_resolver=_identity("alpha", "analyst"),
+    ).test_client()
+
+    wrong_tenant = client.post(
+        "/analyze",
+        headers={"X-Tenant-ID": "beta", "X-Actor-ID": "analyst"},
+        json=_payload(),
+    )
+    assert wrong_tenant.status_code == 403
+    assert wrong_tenant.get_json() == {"error": "identity_scope_mismatch"}
+
+    wrong_actor = client.post(
+        "/analyze",
+        headers={"X-Tenant-ID": "alpha", "X-Actor-ID": "forged-reviewer"},
+        json=_payload(),
+    )
+    assert wrong_actor.status_code == 403
+    assert wrong_actor.get_json() == {"error": "identity_scope_mismatch"}
 
 
 def test_assisted_api_runs_full_review_action_resolution(tmp_path):
-    client = create_app(tmp_path / "industrial.sqlite3").test_client()
-    headers = {"X-Tenant-ID": "alpha", "X-Actor-ID": "analyst"}
-    analyzed = client.post("/analyze", headers=headers, json=_payload())
+    database = tmp_path / "industrial.sqlite3"
+    analyst = create_app(database, identity_resolver=_identity("alpha", "analyst")).test_client()
+    reviewer = create_app(database, identity_resolver=_identity("alpha", "reviewer")).test_client()
+
+    analyzed = analyst.post("/analyze", json=_payload())
     assert analyzed.status_code == 201
     body = analyzed.get_json()
     assert body["net_potential"] == "8500"
     assert body["state"] == "READY_FOR_REVIEW"
     finding_id = body["finding_id"]
 
-    reviewed = client.post(
+    reviewed = reviewer.post(
         f"/findings/{finding_id}/review",
-        headers={"X-Tenant-ID": "alpha", "X-Actor-ID": "reviewer"},
         json={"approved": True, "reason": "commercial basis and amount reviewed"},
     )
     assert reviewed.status_code == 200
     assert reviewed.get_json()["state"] == "APPROVED"
 
-    actioned = client.post(f"/findings/{finding_id}/action", headers=headers)
+    actioned = analyst.post(f"/findings/{finding_id}/action")
     assert actioned.status_code == 200
     assert actioned.get_json()["state"] == "ACTIONED"
 
-    resolved = client.post(
+    resolved = analyst.post(
         f"/findings/{finding_id}/resolve",
-        headers=headers,
         json={"outcome_id": "alpha:payment-1", "recovered_amount": "7000", "currency": "EUR", "evidence_ref": "bank-1"},
     )
     assert resolved.status_code == 201
@@ -54,10 +92,12 @@ def test_assisted_api_runs_full_review_action_resolution(tmp_path):
 
 
 def test_missing_evidence_fails_closed_in_api(tmp_path):
-    client = create_app(tmp_path / "industrial.sqlite3").test_client()
-    headers = {"X-Tenant-ID": "alpha", "X-Actor-ID": "analyst"}
+    client = create_app(
+        tmp_path / "industrial.sqlite3",
+        identity_resolver=_identity("alpha", "analyst"),
+    ).test_client()
     payload = _payload()
     payload["missing_evidence"] = ["customer_authorization"]
-    analyzed = client.post("/analyze", headers=headers, json=payload)
+    analyzed = client.post("/analyze", json=payload)
     assert analyzed.status_code == 201
     assert analyzed.get_json()["state"] == "UNRESOLVED_EVIDENCE"
