@@ -90,15 +90,16 @@
             </form>
 
             <form id="resolve-form" class="step">
-              <h3>3. Record documented outcome</h3>
-              <p>Operator role. A settlement/closure document is hashed atomically with the outcome; amount and currency stay bound to the reviewed candidate.</p>
+              <h3>3. Record final cumulative documented outcome</h3>
+              <p>Operator role. This operation closes the finding. Enter the final cumulative recovery/closure amount, not an installment. A settlement/closure document is hashed atomically with the outcome; amount and currency stay bound to the reviewed candidate.</p>
               <div class="field"><label for="resolve_finding_id">Finding ID</label><input id="resolve_finding_id" required maxlength="2048" autocomplete="off"></div>
               <div class="field"><label for="outcome_id">Outcome ID</label><input id="outcome_id" required maxlength="512" autocomplete="off"></div>
-              <div class="field"><label for="recovered_amount">Recovered amount</label><input id="recovered_amount" inputmode="decimal" required></div>
+              <div class="field"><label for="recovered_amount">Final cumulative recovered amount</label><input id="recovered_amount" inputmode="decimal" required></div>
               <div class="field"><label for="currency">Currency</label><input id="currency" required minlength="3" maxlength="3" autocomplete="off"></div>
               <div class="field"><label for="evidence_ref">Settlement / closure evidence reference</label><input id="evidence_ref" required maxlength="512" autocomplete="off"></div>
               <div class="field"><label for="evidence_content">Settlement / closure document content</label><textarea id="evidence_content" required placeholder="Paste extracted payment, credit-note, settlement, closure, or equivalent evidence. Raw content is hashed and not persisted by this service."></textarea></div>
-              <div class="actions"><button type="submit">Record outcome</button></div>
+              <div class="field check"><input id="final_cumulative" name="final_cumulative" type="checkbox" required><label for="final_cumulative">I confirm this is the final cumulative outcome for this finding; this is not an installment entry.</label></div>
+              <div class="actions"><button type="submit">Record final outcome</button></div>
               <div id="resolve-result" class="result" aria-live="polite">No outcome recorded.</div>
             </form>
           </div>
@@ -106,7 +107,7 @@
 
         <section class="panel">
           <h2>Truth rules</h2>
-          <p class="note">A reference without documentary content is REFERENCE_ONLY and cannot become review-ready. Currency is explicit and immutable across reviewed economics and recovery recording. A recovered/closed outcome requires hashed documentary evidence. Notice deadline values are declared for human review rather than independently verified by the software. An unknown notice deadline is evidence missing, not an infinite deadline. <code>READY_FOR_REVIEW</code> means documented candidate ready for human review. <code>APPROVED</code> means approved for internal workflow only. Neither state is a legal conclusion, established recoverability, customer-contact authorization, external claim authority, or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
+          <p class="note">A reference without documentary content is REFERENCE_ONLY and cannot become review-ready. Currency is explicit and immutable across reviewed economics and recovery recording. A recovered/closed outcome requires hashed documentary evidence and is a final cumulative outcome that closes the finding, not an installment stream. Notice deadline values are declared for human review rather than independently verified by the software. An unknown notice deadline is evidence missing, not an infinite deadline; an expired declared date is an urgency signal requiring human review of waiver/exception possibilities, not proof of non-recoverability. <code>READY_FOR_REVIEW</code> means documented candidate ready for human review. <code>APPROVED</code> means approved for internal workflow only. Neither state is a legal conclusion, established recoverability, customer-contact authorization, external claim authority, or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
         </section>
       </aside>
     </div>
