@@ -126,22 +126,30 @@ def registry(head: str):
 
 
 class LocalVerifiedQueueAdapter:
-    """Independent read-only source check before durable queue dispatch."""
+    """Independent read-only source check before creating a durable queue job."""
     def __init__(self, repo: Path, delegate):
         self.repo = repo
         self.delegate = delegate
 
     def execute(self, request):
-        observed = git(self.repo, "rev-parse", "HEAD").stdout.strip()
-        if request.source != "local/canary-a" or observed != request.target_head:
-            return ExecutionResult(
-                status="WAIT",
-                evidence={"source_verification": "MISMATCH", "observed_head": observed},
-                next_active=request.task,
-                blockers=("source_mismatch",),
-                resume_at=request.task,
-                last_verified=utc_now(),
-            )
+        existing = next(
+            (
+                job for job in self.delegate.queue.jobs(request.app_id)
+                if job["task"] == request.task and job["consumed_at"] is None
+            ),
+            None,
+        )
+        if existing is None:
+            observed = git(self.repo, "rev-parse", "HEAD").stdout.strip()
+            if request.source != "local/canary-a" or observed != request.target_head:
+                return ExecutionResult(
+                    status="WAIT",
+                    evidence={"source_verification": "MISMATCH", "observed_head": observed},
+                    next_active=request.task,
+                    blockers=("source_mismatch",),
+                    resume_at=request.task,
+                    last_verified=utc_now(),
+                )
         result = self.delegate.execute(request)
         return ExecutionResult(
             status=result.status,
