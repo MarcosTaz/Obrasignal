@@ -20,8 +20,10 @@ def build_claim_package(
     present for independent human review; it does not establish entitlement or
     recoverability. Raw document content is not embedded.
     """
+    currency = result.calculation.output_unit
+    verified_currency = currency if currency and currency != "UNKNOWN" else None
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "vertical": "industrial-claims",
         "tenant_id": result.tenant_id,
         "customer_ref": customer_ref,
@@ -30,10 +32,12 @@ def build_claim_package(
         "claim_family": result.claim_family,
         "economic_truth_state": "DOCUMENTED_CANDIDATE_FOR_REVIEW" if result.finding.state == "READY_FOR_REVIEW" else "POTENTIAL_ENTITLEMENT",
         "net_potential": result.calculation.output_value,
+        "currency": verified_currency,
         "calculation": {
             "formula_id": result.calculation.formula_id,
             "formula_version": result.calculation.formula_version,
             "reproducibility_hash": result.calculation.reproducibility_hash,
+            "output_unit": result.calculation.output_unit,
             "inputs": [asdict(item) for item in result.calculation.inputs],
         },
         "entitlement": {
