@@ -1,5 +1,5 @@
 {
-  "schema_version": 9,
+  "schema_version": 10,
   "activation_code": "D",
   "registry_scope": "application_development_only",
   "rules": {"include_only_kind":"application","exclude_research_factories":true,"unknown_source_is_not_absent":true,"no_automatic_merge":true,"no_automatic_deploy":true,"no_production_mutation":true,"independent_trust_boundaries":true,"no_shared_production_authority":true,"metadata_only_persistence":true},
@@ -39,7 +39,17 @@
       "baton":{"active":"runtime:provision","next":["verify:service","verify:shared-contracts"],"wait":["runtime workspace provisioning: /srv/factory-cloud/apps/contractcredit and supervised worker","production deploy","real customer data until authorized"]},
       "portfolio_priority":{"safety_severity":0,"pilot_blocker":95,"commercial_leverage":88,"shared_leverage":90,"evidence_integrity":95},
       "activation":{"enabled":false,"mode":"runtime_provisioning_wait","priority":91}
+    },
+    {
+      "app_id":"industrial-claims","name":"CausLedger / Industrial Claims","kind":"application","mission":"Deliver evidence-first supplier-side industrial commercial recovery analysis, claim packaging and verified recovery truth without inventing entitlement, double counting exposure or crossing customer authority boundaries.","development_state":"ASSISTED_RUNTIME_PROVISIONING_WAIT",
+      "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/industrial-claims","canonical_head":"c05684e5ac99f5e4ca3b3a22dab6300523e6c244","verified":true,"application_path":"vertical_apps/industrial_claims"},
+      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/industrial-claims","head":"c05684e5ac99f5e4ca3b3a22dab6300523e6c244","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH_GREEN","evidence":"ObraSignal Quality #3597 / run 33266310132"},
+      "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/industrial-claims-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
+      "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
+      "baton":{"active":"runtime:provision","next":["verify:service","verify:shared-contracts","verify authenticated upstream tenant boundary before any external runtime exposure"],"wait":["runtime workspace provisioning: /srv/factory-cloud/apps/industrial-claims and supervised worker","external runtime exposure until authenticated upstream tenant boundary is verified","pricing remains HYPOTHESIS until real market evidence","production deploy","real customer data until authorized"]},
+      "portfolio_priority":{"safety_severity":0,"pilot_blocker":98,"commercial_leverage":92,"shared_leverage":80,"evidence_integrity":98},
+      "activation":{"enabled":false,"mode":"runtime_provisioning_wait","priority":94}
     }
   ],
-  "explicitly_not_registered":{"reason":"Research/business Factories are not applications and must not be mixed into the application-development cloud until promoted to a real app with canonical source/runtime truth.","examples":["Industrial Supplier Claims & Margin Recovery","ChangeLedger","Recovery Radar","Sourcing Recovery & Supplier Margin Control","Product Market Access / Legal Product Checker","EU Cloud Switching / Migration Capital Network","Recoverable Money Business Discovery"]}
+  "explicitly_not_registered":{"reason":"Research/business Factories are not applications and must not be mixed into the application-development cloud until promoted to a real app with canonical source/runtime truth.","examples":["ChangeLedger","Recovery Radar","Sourcing Recovery & Supplier Margin Control","Product Market Access / Legal Product Checker","EU Cloud Switching / Migration Capital Network","Recoverable Money Business Discovery"]}
 }
