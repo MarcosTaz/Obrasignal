@@ -11,19 +11,25 @@ from typing import Any, Callable
 
 from factory_cloud.adapters import AdapterRegistry, ExecutionRequest, ExecutionResult
 from factory_cloud.control_plane import ACTIVATION_CODE
-from factory_cloud.orchestrator import DEFAULT_STATE_PATH
 from factory_cloud.process_adapter import ProcessAdapterConfig, ProcessAdapterConfigError, ProcessAgentAdapter
-from factory_cloud.state_store import StateStore
-from factory_cloud.work_queue import DurableWorkQueue
+from factory_cloud.work_queue import DurableWorkQueue, QueueStore
 
 
 class AppWorkerHost:
-    """Persistent worker restricted to exactly one app_id."""
+    """Persistent worker restricted to exactly one app_id.
+
+    App credentials/tooling belong to the injected adapter/environment, never to
+    Factory Cloud metadata. Runtime queues are additionally expected to be
+    physically scoped to this app_id.
+    """
+
     def __init__(self, app_id: str, queue: DurableWorkQueue, adapters: AdapterRegistry | None = None, worker_id: str | None = None, poll_seconds: float = 5.0, job_lease_seconds: float = 60.0, sleeper: Callable[[float], None] = time.sleep):
         if not app_id:
             raise ValueError("app_id is required")
         if poll_seconds < 0 or job_lease_seconds <= 0:
             raise ValueError("valid poll and job lease are required")
+        if queue.app_id_scope is not None and queue.app_id_scope != app_id:
+            raise ValueError("worker queue scope must match app_id")
         self.app_id = app_id
         self.queue = queue
         self.adapters = adapters or AdapterRegistry()
@@ -95,7 +101,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Isolated Factory Cloud application worker")
     parser.add_argument("code", help="activation code; must be D")
     parser.add_argument("--app-id", required=True)
-    parser.add_argument("--state", type=Path, default=DEFAULT_STATE_PATH)
+    parser.add_argument("--queue", type=Path, required=True, help="physically isolated queue SQLite for this app")
     parser.add_argument("--adapter-config", type=Path, default=None, help="external app-owned process adapter JSON; must not contain secrets")
     parser.add_argument("--poll-seconds", type=float, default=5.0)
     parser.add_argument("--job-lease-seconds", type=float, default=60.0)
@@ -107,7 +113,7 @@ def main() -> int:
         adapters = _runtime_adapters(args.app_id, args.adapter_config)
     except ProcessAdapterConfigError as exc:
         parser.error(str(exc))
-    queue = DurableWorkQueue(StateStore(args.state))
+    queue = DurableWorkQueue(QueueStore(args.queue), app_id_scope=args.app_id)
     host = AppWorkerHost(args.app_id, queue, adapters=adapters, poll_seconds=args.poll_seconds, job_lease_seconds=args.job_lease_seconds)
     result = host.run_forever(args.max_cycles)
     if result is not None:
