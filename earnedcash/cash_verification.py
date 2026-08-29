@@ -52,6 +52,13 @@ def verify_cash_evidence(
         return CashVerificationResult(
             CashVerificationState.UNKNOWN, ZERO, None, "INVALID_EVIDENCE_AMOUNT"
         )
+    if evidence.kind != CashEvidenceKind.BANK_RECEIPT:
+        return CashVerificationResult(
+            CashVerificationState.MISMATCH,
+            ZERO,
+            evidence.evidence_ref or None,
+            "NON_CASH_EVIDENCE_KIND",
+        )
     if not evidence.independently_verified:
         return CashVerificationResult(
             CashVerificationState.UNKNOWN, ZERO, evidence.evidence_ref,
