@@ -144,6 +144,36 @@ class AssuranceOperations:
                 )
             except RecoveryPrimitiveError as exc:
                 raise AssuranceOperationError(str(exc)) from exc
+
+            existing_for_outcome = conn.execute(
+                "SELECT * FROM recovery_fees WHERE tenant_id=? AND outcome_id=? ORDER BY recorded_at,fee_id LIMIT 1",
+                (tenant_id, outcome_id),
+            ).fetchone()
+            if existing_for_outcome is not None:
+                comparable = (
+                    existing_for_outcome["fee_id"],
+                    existing_for_outcome["tenant_id"],
+                    existing_for_outcome["outcome_id"],
+                    existing_for_outcome["recovered_amount"],
+                    existing_for_outcome["fee_rate"],
+                    existing_for_outcome["fee_amount"],
+                    existing_for_outcome["currency"],
+                    existing_for_outcome["lineage_hash"],
+                )
+                expected = (
+                    fee.fee_id,
+                    fee.tenant_id,
+                    fee.outcome_id,
+                    fee.recovered_amount,
+                    fee.fee_rate,
+                    fee.fee_amount,
+                    fee.currency,
+                    fee.lineage_hash,
+                )
+                if comparable == expected:
+                    return fee
+                raise AssuranceOperationError("success fee already recorded for recovered outcome")
+
             existing = conn.execute("SELECT * FROM recovery_fees WHERE fee_id=?", (fee_id,)).fetchone()
             if existing:
                 comparable = (existing["tenant_id"], existing["outcome_id"], existing["recovered_amount"], existing["fee_rate"], existing["fee_amount"], existing["currency"], existing["lineage_hash"])
