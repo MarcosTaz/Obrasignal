@@ -53,7 +53,11 @@ def select_next_factory(switchboard: dict[str, Any], state: dict[str, Any]) -> t
         factory = factories[index]
         if str(factory.get("id")) not in blocked:
             return factory, index
-    raise FleetRunnerError("all registered factories are blocked")
+
+    # A blocker is not a global stop. If every registered Factory is currently
+    # marked blocked, retry from the rotating cursor instead of terminating the
+    # fleet. The dispatch itself still makes no execution/success claim.
+    return factories[start], start
 
 
 def build_dispatch(
