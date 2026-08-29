@@ -3,12 +3,13 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 6
+    assert pilot["schema_version"] == 7
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
     assert pilot["commercial_success"]["status"] == "UNPROVEN"
     assert "claim_currency" in pilot["required_inputs"]
+    assert "notice_deadline_or_declared_none_for_review" in pilot["required_inputs"]
 
     evidence = pilot["evidence_policy"]
     assert evidence["reference_only_is_review_ready"] is False
@@ -17,6 +18,15 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert evidence["individual_document_content_limit_bytes"] == 1_000_000
     assert evidence["recovered_or_closed_outcome_requires_document_content"] is True
     assert evidence["outcome_document_and_state_persist_atomically"] is True
+
+    notice = pilot["notice_truth_policy"]
+    assert notice == {
+        "unknown_fails_closed": True,
+        "analyst_date_state": "DECLARED_DATE_FOR_REVIEW",
+        "analyst_no_deadline_state": "DECLARED_NONE_FOR_REVIEW",
+        "independent_review_required": True,
+        "software_pre_review_verification_claimed": False,
+    }
 
     bounds = pilot["input_bounds"]
     assert bounds == {
@@ -46,6 +56,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "cost_without_commercial_basis",
         "reference_only_documentary_evidence",
         "unknown_notice_deadline",
+        "pre_review_notice_verification_overclaim",
         "missing_claim_currency",
         "invalid_claim_currency",
         "recovery_currency_mismatch",
@@ -78,6 +89,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     required_exit = {
         "canonical_source_green",
         "documentary_content_gate_green",
+        "notice_truth_language_green",
         "currency_lineage_green",
         "outcome_evidence_lineage_green",
         "bounded_input_surface_green",
