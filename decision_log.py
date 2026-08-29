@@ -13,11 +13,30 @@ SCHEMA = '''CREATE TABLE IF NOT EXISTS opportunity_decisions (
     features_json TEXT NOT NULL,
     rule_version TEXT NOT NULL,
     profile_fingerprint TEXT,
+    opportunity_fingerprint TEXT,
     decided_at TEXT NOT NULL
 )'''
 
 RULE_VERSION = 'commercial-v1'
 _NO_PERSISTED_PROFILE = 'profile:none'
+_NO_CANONICAL_OPPORTUNITY = 'opportunity:none'
+_DECISION_RELEVANT_OPPORTUNITY_FIELDS = (
+    'source',
+    'signal_type',
+    'external_id',
+    'title',
+    'description',
+    'buyer',
+    'country',
+    'cpv',
+    'value',
+    'value_numeric',
+    'currency',
+    'deadline',
+    'procedure_type',
+    'notice_type',
+    'locations',
+)
 
 
 def _ensure_account_column(conn):
@@ -30,9 +49,14 @@ def _ensure_account_column(conn):
 def _ensure_profile_fingerprint_column(conn):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_decisions)").fetchall()}
     if "profile_fingerprint" not in cols:
-        # Historical rows are intentionally left NULL. A decision that was not
-        # bound to the profile that produced it is not current-authority proof.
         conn.execute("ALTER TABLE opportunity_decisions ADD COLUMN profile_fingerprint TEXT")
+        conn.commit()
+
+
+def _ensure_opportunity_fingerprint_column(conn):
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_decisions)").fetchall()}
+    if "opportunity_fingerprint" not in cols:
+        conn.execute("ALTER TABLE opportunity_decisions ADD COLUMN opportunity_fingerprint TEXT")
         conn.commit()
 
 
@@ -42,6 +66,7 @@ def ensure_decision_table(conn):
         conn.execute(SCHEMA)
     _ensure_account_column(conn)
     _ensure_profile_fingerprint_column(conn)
+    _ensure_opportunity_fingerprint_column(conn)
     conn.commit()
 
 
@@ -54,12 +79,7 @@ def profile_fingerprint(profile):
 
 
 def current_profile_fingerprint(conn, account_id='default'):
-    """Return the authoritative persisted profile fingerprint for one tenant.
-
-    An account with no persisted profile has one explicit sentinel revision. If
-    a persisted profile is malformed, freshness cannot be proven and returns
-    None rather than silently treating fallback/default state as authoritative.
-    """
+    """Return the authoritative persisted profile fingerprint for one tenant."""
     account = str(account_id or 'default')
     table = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_profiles'"
@@ -80,19 +100,66 @@ def current_profile_fingerprint(conn, account_id='default'):
     return profile_fingerprint(payload)
 
 
-def record_decision(conn, source, external_id, decision, reason, score=None, features=None, rule_version=RULE_VERSION, decided_at=None, account_id='default', profile_revision_fingerprint=None):
+def opportunity_fingerprint(record):
+    """Hash only canonical opportunity fields that can affect decisioning."""
+    if not isinstance(record, dict):
+        return None
+    snapshot = {field: record.get(field) for field in _DECISION_RELEVANT_OPPORTUNITY_FIELDS}
+    canonical = json.dumps(
+        snapshot,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(',', ':'),
+        default=str,
+    )
+    return 'sha256:' + hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+
+def current_opportunity_fingerprint(conn, source, external_id):
+    """Return the current canonical decision-relevant opportunity revision.
+
+    No canonical signal snapshot is a deterministic legacy sentinel. A malformed
+    canonical snapshot is different: currentness cannot be proved and fails closed.
+    """
+    table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='signal_records'"
+    ).fetchone()
+    if table is None:
+        return _NO_CANONICAL_OPPORTUNITY
+    row = conn.execute(
+        """SELECT normalized_json FROM signal_records
+           WHERE source=? AND signal_type='TENDER' AND external_id=?""",
+        (str(source or '').strip(), str(external_id or '').strip()),
+    ).fetchone()
+    if row is None:
+        return _NO_CANONICAL_OPPORTUNITY
+    raw = row['normalized_json'] if hasattr(row, 'keys') else row[0]
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return opportunity_fingerprint(payload)
+
+
+def record_decision(conn, source, external_id, decision, reason, score=None, features=None, rule_version=RULE_VERSION, decided_at=None, account_id='default', profile_revision_fingerprint=None, opportunity_revision_fingerprint=None):
     ensure_decision_table(conn)
     ts = decided_at or datetime.now(timezone.utc).isoformat()
     account = str(account_id or 'default')
     bound_profile = profile_revision_fingerprint
     if bound_profile is None:
         bound_profile = current_profile_fingerprint(conn, account)
+    bound_opportunity = opportunity_revision_fingerprint
+    if bound_opportunity is None:
+        bound_opportunity = current_opportunity_fingerprint(conn, source, external_id)
     conn.execute(
         '''INSERT INTO opportunity_decisions
-           (account_id, source, external_id, decision, reason, score, features_json, rule_version, profile_fingerprint, decided_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+           (account_id, source, external_id, decision, reason, score, features_json, rule_version, profile_fingerprint, opportunity_fingerprint, decided_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         (account, source, external_id, decision, reason, score,
-         json.dumps(features or {}, ensure_ascii=False, sort_keys=True), rule_version, bound_profile, ts),
+         json.dumps(features or {}, ensure_ascii=False, sort_keys=True), rule_version,
+         bound_profile, bound_opportunity, ts),
     )
     conn.commit()
 
@@ -112,8 +179,30 @@ def latest_decision(conn, source, external_id, account_id='default'):
     return item
 
 
+def decision_opportunity_is_current(conn, decision):
+    """Prove only the canonical opportunity-revision edge for a decision."""
+    if not decision:
+        return False
+    current_opportunity = current_opportunity_fingerprint(
+        conn,
+        decision.get('source'),
+        decision.get('external_id'),
+    )
+    if current_opportunity is None:
+        return False
+    return decision.get('opportunity_fingerprint') == current_opportunity
+
+
+def latest_opportunity_current_decision(conn, source, external_id, account_id='default'):
+    """Return latest tenant decision only while opportunity revision is current."""
+    decision = latest_decision(conn, source, external_id, account_id=account_id)
+    if not decision_opportunity_is_current(conn, decision):
+        return None
+    return decision
+
+
 def decision_is_current(conn, decision, *, account_id='default', expected_rule_version):
-    """Prove whether the latest stored decision still has current authority."""
+    """Prove rule, tenant, profile and canonical opportunity currentness."""
     if not decision:
         return False
     account = str(account_id or 'default')
@@ -122,17 +211,13 @@ def decision_is_current(conn, decision, *, account_id='default', expected_rule_v
     if decision.get('rule_version') != expected_rule_version:
         return False
     current_profile = current_profile_fingerprint(conn, account)
-    if current_profile is None:
+    if current_profile is None or decision.get('profile_fingerprint') != current_profile:
         return False
-    return decision.get('profile_fingerprint') == current_profile
+    return decision_opportunity_is_current(conn, decision)
 
 
 def latest_current_decision(conn, source, external_id, *, account_id='default', expected_rule_version):
-    """Return the latest decision only when every owned freshness gate is current.
-
-    Never search backwards for an older matching row: a stale latest decision
-    must degrade to unknown rather than resurrect historical authority.
-    """
+    """Return the latest decision only when every current-authority gate passes."""
     decision = latest_decision(conn, source, external_id, account_id=account_id)
     if not decision_is_current(
         conn,
@@ -161,4 +246,3 @@ def funnel_counts(conn, account_id='default'):
         (str(account_id or 'default'), str(account_id or 'default')),
     ).fetchall()
     return {row['decision']: row['count'] for row in rows}
-    ensure_decision_table(conn)
