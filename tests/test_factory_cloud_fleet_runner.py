@@ -1,8 +1,6 @@
 from datetime import datetime, timezone
 
-import pytest
-
-from factory_cloud.fleet_runner import FleetRunnerError, build_dispatch, select_next_factory
+from factory_cloud.fleet_runner import build_dispatch, select_next_factory
 
 
 def _switchboard():
@@ -46,9 +44,13 @@ def test_select_next_factory_skips_blocked_and_wraps():
     assert index == 1
 
 
-def test_select_next_factory_fails_closed_when_all_are_blocked():
-    with pytest.raises(FleetRunnerError, match="all registered factories are blocked"):
-        select_next_factory(_switchboard(), _state(blocked=["alpha", "factory-cloud", "gamma"]))
+def test_select_next_factory_retries_from_cursor_when_all_are_blocked():
+    factory, index = select_next_factory(
+        _switchboard(),
+        _state(cursor=2, blocked=["alpha", "factory-cloud", "gamma"]),
+    )
+    assert factory["id"] == "gamma"
+    assert index == 2
 
 
 def test_build_dispatch_advances_cursor_without_claiming_execution():
