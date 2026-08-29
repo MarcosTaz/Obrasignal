@@ -104,9 +104,10 @@ from netherlands_runtime import install as install_netherlands_runtime
 from germany_runtime import install as install_germany_runtime
 from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
+from storage_migration_lock import run_serialized_schema_init
 import preload as _preload
 
-init_db()
+run_serialized_schema_init(init_db, _app.DB)
 _lifecycle_conn = db()
 try:
     ensure_lifecycle_table(_lifecycle_conn)
