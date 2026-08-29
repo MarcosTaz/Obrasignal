@@ -11,7 +11,7 @@ import uruguay_arce as _uruguay_arce
 import south_africa_etenders as _south_africa_etenders
 from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
-from source_health import get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
+from source_health import get_source_cursor, record_source_result, source_health_snapshot
 from source_registry import production_gate_reasons
 from canada_buys_runtime import install_canadabuys_runtime
 from us_sam_runtime import install_us_sam_runtime
@@ -177,6 +177,8 @@ def _fetch_ted_resilient():
         token = data.get('iterationNextToken') or data.get('nextToken') or data.get('nextIterationToken')
         if not token or not batch:
             break
+    if token:
+        raise RuntimeError("TED pagination incomplete: page budget exhausted with unresolved continuation token")
     return rows
 
 
@@ -189,9 +191,13 @@ def _fetch_ted_with_health(*args, **kwargs):
             raise RuntimeError("TED returned an unexpected empty result set")
         duration_ms = int((time.perf_counter() - started) * 1000)
         watermark = _max_ted_publication_date(rows)
+        normalized = []
+        for row in rows:
+            record = _app.normalize_ted(row)
+            if record.get("external_id"):
+                normalized.append(record)
+        stage_source_sync("TED", normalized, watermark)
         conn = _app.db()
-        if watermark:
-            set_source_cursor(conn, "TED", watermark)
         record_source_result(conn, "TED", success=True, duration_ms=duration_ms, found=len(rows))
         record_stage(conn, "TED", "fetch", started_at, duration_ms, len(rows))
         conn.close()
