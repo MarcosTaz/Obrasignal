@@ -5,19 +5,42 @@ import json
 from typing import Iterable
 
 
-def render_assisted_workspace(*, title: str, vertical: str, analysis_fields: Iterable[tuple[str, str, str]]) -> str:
-    """Render a dependency-free assisted workspace over the existing JSON API.
+def render_assisted_workspace(
+    *,
+    title: str,
+    vertical: str,
+    analysis_fields: Iterable[tuple[str, str, str]],
+    analysis_endpoint: str = "/shadow/analyze",
+    requires_breach: bool = False,
+) -> str:
+    """Render a dependency-free evidence-backed assisted workspace.
 
-    Tenant/actor identity is intentionally absent from the page: trusted upstream
-    infrastructure remains the only identity authority. The page never grants
-    production or customer-data authority and is suitable for synthetic/shadow use.
+    Tenant/actor identity is absent from the browser and supplied only by trusted
+    upstream infrastructure. The normal UI path targets the evidence-backed shadow
+    intake and requires explicit adjudication before approval/action. Synthetic
+    arithmetic endpoints may still exist for harness tests but are not exposed here.
     """
     fields = list(analysis_fields)
-    inputs = "\n".join(
-        f'<label>{html.escape(label)}<input name="{html.escape(name)}" type="{html.escape(input_type)}" required></label>'
-        for name, label, input_type in fields
-    )
-    names_json = json.dumps([name for name, _, _ in fields])
+
+    def field_html(name: str, label: str, input_type: str) -> str:
+        escaped_name = html.escape(name)
+        escaped_label = html.escape(label)
+        if input_type == "checkbox":
+            return (
+                f'<label class="check"><input name="{escaped_name}" type="checkbox" required>'
+                f'<span>{escaped_label}</span></label>'
+            )
+        attrs = ""
+        if name.endswith("sha256"):
+            attrs = ' minlength="64" maxlength="64" pattern="[0-9a-fA-F]{64}" spellcheck="false"'
+        return f'<label>{escaped_label}<input name="{escaped_name}" type="{html.escape(input_type)}" required{attrs}></label>'
+
+    inputs = "\n".join(field_html(*field) for field in fields)
+    fields_json = json.dumps([{"name": name, "type": input_type} for name, _, input_type in fields])
+    endpoint_json = json.dumps(analysis_endpoint)
+    breach_control = """
+    if requires_breach:
+        breach_control = '<label class="check"><input name="breach_established" type="checkbox"><span>Contractual breach established by reviewed evidence</span></label>'
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -25,85 +48,113 @@ def render_assisted_workspace(*, title: str, vertical: str, analysis_fields: Ite
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)}</title>
 <style>
-body{{font-family:system-ui,sans-serif;max-width:760px;margin:2rem auto;padding:0 1rem;line-height:1.45}}
-form,section{{display:grid;gap:.75rem;margin:1.25rem 0;padding:1rem;border:1px solid #bbb;border-radius:.5rem}}
-label{{display:grid;gap:.25rem}}input,textarea,button{{font:inherit;padding:.6rem}}button{{cursor:pointer}}
-[hidden]{{display:none}} pre{{white-space:pre-wrap;overflow-wrap:anywhere}}
+:root{{color-scheme:light dark}}body{{font-family:system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;line-height:1.45}}
+form,section{{display:grid;gap:.8rem;margin:1.25rem 0;padding:1rem;border:1px solid #8888;border-radius:.65rem}}
+label{{display:grid;gap:.3rem}}label.check{{display:flex;align-items:flex-start;gap:.6rem}}label.check input{{margin-top:.25rem}}
+input,textarea,button{{font:inherit;padding:.65rem}}button{{cursor:pointer;min-height:44px}}button[hidden],[hidden]{{display:none!important}}
+pre{{white-space:pre-wrap;overflow-wrap:anywhere}}.warning{{border-left:4px solid currentColor;padding-left:.8rem}}
+@media (max-width:560px){{body{{margin:1rem auto}}form,section{{padding:.8rem}}}}
 </style>
 </head>
 <body>
 <header>
 <h1>{html.escape(title)}</h1>
 <p><strong>Mode:</strong> assisted, pre-customer certification.</p>
-<p>Identity is supplied only by trusted upstream infrastructure. This interface does not allow tenant or actor override.</p>
-<p><strong>Safety:</strong> synthetic/shadow evidence only until PILOT_SAFE.</p>
+<p>Identity is supplied only by trusted upstream infrastructure. This interface does not allow tenant, actor, role or signature override.</p>
+<p class="warning"><strong>Safety:</strong> evidence-backed synthetic/public-shadow inputs only until PILOT_SAFE. A candidate cannot be approved or actioned while entitlement/breach remains unresolved.</p>
 </header>
 <main>
 <form id="analysis-form">
-<h2>Analyze</h2>
+<h2>1. Evidence-backed analysis</h2>
 {inputs}
-<button type="submit">Analyze evidence</button>
+<button type="submit">Analyze evidence packet</button>
 </form>
 <section aria-live="polite" aria-atomic="true">
 <h2>Status</h2>
 <p id="status">Ready.</p>
 <pre id="result"></pre>
 </section>
+<form id="adjudication-form" hidden>
+<h2>2. Human adjudication</h2>
+<label class="check"><input name="entitlement_established" type="checkbox"><span>Entitlement established by reviewed evidence</span></label>
+{breach_control}
+<label>Decision evidence reference<input name="evidence_ref" required></label>
+<label>Decision reason<textarea name="reason" required></textarea></label>
+<button type="submit">Record adjudication</button>
+</form>
 <form id="review-form" hidden>
-<h2>Human review</h2>
-<label>Reason<textarea name="reason" required></textarea></label>
-<button type="submit" name="approved" value="true">Approve finding</button>
+<h2>3. Finding review</h2>
+<label>Review reason<textarea name="reason" required></textarea></label>
+<button id="approve-button" type="submit" name="approved" value="true">Approve finding</button>
 <button type="submit" name="approved" value="false">Reject finding</button>
 </form>
 <form id="action-form" hidden>
-<h2>Action</h2>
-<button type="submit">Mark approved finding as actioned</button>
+<h2>4. Action</h2>
+<button type="submit">Mark adjudicated finding as actioned</button>
 </form>
 <form id="resolve-form" hidden>
-<h2>Resolve outcome</h2>
+<h2>5. Resolve outcome</h2>
 <label>Outcome ID<input name="outcome_id" required></label>
 <label>Recovered amount<input name="recovered_amount" inputmode="decimal" required></label>
 <label>Currency<input name="currency" value="EUR" maxlength="3" required></label>
-<label>Evidence reference<input name="evidence_ref" required></label>
+<label>Outcome evidence reference<input name="evidence_ref" required></label>
 <button type="submit">Record outcome</button>
 </form>
 </main>
 <script>
-const fieldNames={names_json};
+const fieldSpecs={fields_json};
+const analysisEndpoint={endpoint_json};
+const requiresBreach={str(requires_breach).lower()};
 let findingId=null;
 const statusEl=document.getElementById('status');
 const resultEl=document.getElementById('result');
+const adjudicationForm=document.getElementById('adjudication-form');
 const reviewForm=document.getElementById('review-form');
+const approveButton=document.getElementById('approve-button');
 const actionForm=document.getElementById('action-form');
 const resolveForm=document.getElementById('resolve-form');
-async function api(path, options){{
+function setNested(target,path,value){{
+  const parts=path.split('.'); let cursor=target;
+  for(let i=0;i<parts.length-1;i++){{cursor[parts[i]] ??={{}};cursor=cursor[parts[i]];}}
+  cursor[parts.at(-1)]=value;
+}}
+async function api(path,options){{
   statusEl.textContent='Working…';
   try{{
-    const response=await fetch(path, options);
-    const data=await response.json();
+    const response=await fetch(path,options);
+    let data={{}};
+    try{{data=await response.json();}}catch(_jsonError){{throw new Error(`Invalid server response (${{response.status}})`);}}
     resultEl.textContent=JSON.stringify(data,null,2);
-    if(!response.ok) throw new Error(data.message || `Request failed (${{response.status}})`);
-    statusEl.textContent='Completed.';
-    return data;
-  }}catch(error){{
-    statusEl.textContent=`Error: ${{error.message}}`;
-    throw error;
-  }}
+    if(!response.ok)throw new Error(data.message||`Request failed (${{response.status}})`);
+    statusEl.textContent='Completed.';return data;
+  }}catch(error){{statusEl.textContent=`Error: ${{error.message}}`;throw error;}}
 }}
 document.getElementById('analysis-form').addEventListener('submit',async event=>{{
-  event.preventDefault();
-  const form=new FormData(event.currentTarget); const payload={{}};
-  for(const name of fieldNames) payload[name]=form.get(name);
-  try{{const data=await api('/analyze',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});findingId=data.finding_id;reviewForm.hidden=false;}}catch(_e){{}}
+  event.preventDefault(); const form=new FormData(event.currentTarget); const payload={{}};
+  for(const spec of fieldSpecs){{setNested(payload,spec.name,spec.type==='checkbox'?form.has(spec.name):form.get(spec.name));}}
+  try{{
+    const data=await api(analysisEndpoint,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});
+    findingId=data.finding_id; adjudicationForm.hidden=false; reviewForm.hidden=true; actionForm.hidden=true; resolveForm.hidden=true;
+    statusEl.textContent='Candidate created. Human adjudication is required before approval.';
+  }}catch(_e){{}}
+}});
+adjudicationForm.addEventListener('submit',async event=>{{
+  event.preventDefault();if(!findingId)return;const form=new FormData(event.currentTarget);
+  const payload={{entitlement_established:form.has('entitlement_established'),evidence_ref:form.get('evidence_ref'),reason:form.get('reason')}};
+  if(requiresBreach)payload.breach_established=form.has('breach_established');
+  try{{
+    const data=await api(`/findings/${{encodeURIComponent(findingId)}}/adjudicate`,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});
+    reviewForm.hidden=false;approveButton.hidden=!data.actionable;
+    statusEl.textContent=data.actionable?'Adjudication is actionable. Review may proceed.':'Adjudication is not actionable. Approval remains blocked; rejection is available.';
+  }}catch(_e){{}}
 }});
 reviewForm.addEventListener('submit',async event=>{{
-  event.preventDefault(); if(!findingId)return;
-  const submitter=event.submitter; const form=new FormData(event.currentTarget);
+  event.preventDefault();if(!findingId)return;const submitter=event.submitter;const form=new FormData(event.currentTarget);
   try{{const data=await api(`/findings/${{encodeURIComponent(findingId)}}/review`,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{approved:submitter.value==='true',reason:form.get('reason')}})}});if(data.state==='APPROVED')actionForm.hidden=false;}}catch(_e){{}}
 }});
 actionForm.addEventListener('submit',async event=>{{event.preventDefault();if(!findingId)return;try{{const data=await api(`/findings/${{encodeURIComponent(findingId)}}/action`,{{method:'POST'}});if(data.state==='ACTIONED')resolveForm.hidden=false;}}catch(_e){{}}}});
 resolveForm.addEventListener('submit',async event=>{{event.preventDefault();if(!findingId)return;const form=new FormData(event.currentTarget);const payload={{outcome_id:form.get('outcome_id'),recovered_amount:form.get('recovered_amount'),currency:form.get('currency'),evidence_ref:form.get('evidence_ref')}};try{{await api(`/findings/${{encodeURIComponent(findingId)}}/resolve`,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});}}catch(_e){{}}}});
 </script>
-<footer><small>{html.escape(vertical)} · assisted workspace · no production authority</small></footer>
+<footer><small>{html.escape(vertical)} · evidence-backed assisted workspace · no production authority</small></footer>
 </body>
 </html>"""
