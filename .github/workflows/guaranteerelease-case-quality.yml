@@ -1,0 +1,43 @@
+name: GuaranteeRelease Case Quality
+
+on:
+  push:
+    branches:
+      - factory/guaranteerelease
+    paths:
+      - 'ventures/guaranteerelease/**'
+      - '.github/workflows/guaranteerelease-case-quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  case-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ventures/guaranteerelease
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check engine_v4.mjs
+          node --check document_ingest_v1.mjs
+          node --check document_extract_v1.mjs
+          node --check case_assessment_v1.mjs
+          node --check dossier_v2.mjs
+          node --check document_pipeline_v2.mjs
+          node --check case_cli_v2.mjs
+          node --check case_server_v2.mjs
+      - name: Engine outcome integrity
+        run: node engine_v4.test.mjs
+      - name: Independent document corpus
+        run: node synthetic_document_corpus_v2.test.mjs
+      - name: CLI case flow
+        run: node case_cli_v2.test.mjs
+      - name: Persistent case verified outcome flow
+        run: node case_server_v2_outcomes.test.mjs
