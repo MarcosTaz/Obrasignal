@@ -2,10 +2,11 @@
 
 const findingFields = ["review_finding_id", "action_finding_id", "resolve_finding_id"];
 
-function setFinding(id) {
+function setFinding(id, currency) {
   findingFields.forEach((key) => {
     document.getElementById(key).value = id || "";
   });
+  if (currency) document.getElementById("currency").value = String(currency).toUpperCase();
 }
 
 function render(target, response, body) {
@@ -42,7 +43,7 @@ function renderQueue(body) {
     provenance.textContent = `Created by ${String(finding.creator_actor || "UNKNOWN")} — ${String(finding.created_at || "UNKNOWN")}`;
 
     item.append(title, amount, identifier, provenance);
-    item.addEventListener("click", () => setFinding(String(finding.finding_id || "")));
+    item.addEventListener("click", () => setFinding(String(finding.finding_id || ""), finding.currency_unit));
     list.append(item);
   });
 
@@ -104,6 +105,7 @@ document.getElementById("analyze-form").addEventListener("submit", async (event)
   ["avoided_cost", "resale_reuse", "third_party_recovery", "prior_payment", "other_mitigation"].forEach((key) => {
     payload[key] = payload[key] || "0";
   });
+  payload.currency = String(payload.currency || "").trim().toUpperCase();
   payload.notice_deadline_not_applicable = document.getElementById("notice_deadline_not_applicable").checked;
   if (!payload.notice_due) delete payload.notice_due;
   payload.missing_evidence = (payload.missing_evidence || "")
@@ -112,7 +114,7 @@ document.getElementById("analyze-form").addEventListener("submit", async (event)
     .filter(Boolean);
 
   const result = await send("/analyze", jsonRequest(payload), "analyze-result");
-  if (result && result.response.ok) setFinding(result.body.finding_id);
+  if (result && result.response.ok) setFinding(result.body.finding_id, result.body.currency);
 });
 
 document.getElementById("review-form").addEventListener("submit", async (event) => {
@@ -140,7 +142,7 @@ document.getElementById("resolve-form").addEventListener("submit", async (event)
   const payload = {
     outcome_id: document.getElementById("outcome_id").value,
     recovered_amount: document.getElementById("recovered_amount").value,
-    currency: document.getElementById("currency").value,
+    currency: document.getElementById("currency").value.trim().toUpperCase(),
     evidence_ref: document.getElementById("evidence_ref").value,
   };
   const result = await send(`/findings/${encodeURIComponent(id)}/resolve`, jsonRequest(payload), "resolve-result");
