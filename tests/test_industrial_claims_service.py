@@ -3,7 +3,11 @@ from datetime import date
 import pytest
 
 from factory_cloud.assurance_kernel import AssuranceKernelError
-from vertical_apps.industrial_claims.service import ALLOWED_CLAIM_FAMILIES, IndustrialClaimsService
+from vertical_apps.industrial_claims.service import (
+    ALLOWED_CLAIM_FAMILIES,
+    NOTICE_DEADLINE_EVIDENCE,
+    IndustrialClaimsService,
+)
 
 
 def _base():
@@ -38,6 +42,7 @@ def test_all_required_claim_families_share_net_potential_contract(tmp_path):
         assert result.calculation.output_value == "79000"
         assert result.finding.state == "READY_FOR_REVIEW"
         assert result.entitlement.actionable is True
+        assert result.notice_deadline_state == "VERIFIED_DATE"
         assert result.is_new_recovery is True
 
 
@@ -59,6 +64,48 @@ def test_cost_never_becomes_money_owed_when_evidence_is_missing(tmp_path):
             reviewer="reviewer",
             approved=True,
             reason="unsupported",
+        )
+
+
+def test_unknown_notice_deadline_fails_closed_until_date_or_verified_none(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "unknown-deadline.sqlite3")
+    base = _base()
+    base.pop("notice_due")
+    result = service.analyze(**base, claim_family="TOOLING", gross_cost="50000")
+
+    assert result.notice_deadline_state == "UNKNOWN"
+    assert NOTICE_DEADLINE_EVIDENCE in result.missing_evidence
+    assert result.entitlement.confidence == "PARTIAL"
+    assert result.finding.state == "UNRESOLVED_EVIDENCE"
+    with pytest.raises(Exception):
+        service.review(
+            tenant_id="alpha",
+            finding_id=result.finding.finding_id,
+            reviewer="reviewer",
+            approved=True,
+            reason="deadline unknown",
+        )
+
+    verified_none_service = IndustrialClaimsService(tmp_path / "verified-none.sqlite3")
+    verified_none = verified_none_service.analyze(
+        **base,
+        claim_family="TOOLING",
+        gross_cost="50000",
+        notice_deadline_not_applicable=True,
+    )
+    assert verified_none.notice_deadline_state == "VERIFIED_NONE"
+    assert NOTICE_DEADLINE_EVIDENCE not in verified_none.missing_evidence
+    assert verified_none.finding.state == "READY_FOR_REVIEW"
+
+
+def test_notice_date_and_verified_none_are_mutually_exclusive(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "conflicting-deadline.sqlite3")
+    with pytest.raises(AssuranceKernelError, match="mutually exclusive"):
+        service.analyze(
+            **_base(),
+            claim_family="WIP",
+            gross_cost="100",
+            notice_deadline_not_applicable=True,
         )
 
 
