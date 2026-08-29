@@ -15,7 +15,7 @@ from factory_cloud.capabilities import (
 )
 
 REGISTRY_PATH = Path(__file__).with_name("apps.json")
-ACTIVATION_CODE = "Ω"
+ACTIVATION_CODE = "D"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -103,7 +103,7 @@ def _validate_capability_contract(app: dict[str, Any], mode: str) -> None:
 
 def validate_registry(registry: dict[str, Any]) -> None:
     if registry.get("activation_code") != ACTIVATION_CODE:
-        raise RegistryError("activation_code must be Ω")
+        raise RegistryError("activation_code must be D")
     if registry.get("registry_scope") != "application_development_only":
         raise RegistryError("registry scope must remain application_development_only")
 
@@ -167,7 +167,7 @@ def build_queue(registry: dict[str, Any]) -> list[AppWorkItem]:
 
 def activation_plan(code: str, registry: dict[str, Any]) -> dict[str, Any]:
     if code != ACTIVATION_CODE:
-        raise RegistryError("Factory Cloud activation requires Ω")
+        raise RegistryError("Factory Cloud activation requires D")
     queue = build_queue(registry)
     app_by_id = {app["app_id"]: app for app in registry.get("applications", [])}
     return {
@@ -176,7 +176,7 @@ def activation_plan(code: str, registry: dict[str, Any]) -> dict[str, Any]:
         "execution_contract": {
             "transition": "ACTIVE -> EXECUTE -> VERIFY -> DONE -> NEXT -> EXECUTE",
             "blocked_app": "freeze baton and continue with next eligible app",
-            "turn_boundary": "freeze exact baton; next Ω resumes from RESUME_AT",
+            "turn_boundary": "freeze exact baton; next execution slice resumes from RESUME_AT",
             "status_is_not_execution": True,
         },
         "safety": {
@@ -205,7 +205,7 @@ def activation_plan(code: str, registry: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Fail-closed Factory Cloud application control plane")
-    parser.add_argument("code", help="activation code; must be Ω")
+    parser.add_argument("code", help="activation code; must be D")
     parser.add_argument("--registry", type=Path, default=REGISTRY_PATH)
     args = parser.parse_args()
     try:
