@@ -36,7 +36,7 @@ def test_claim_package_is_evidence_indexed_and_never_overclaims(tmp_path):
     assert package["calculation"]["output_unit"] == "EUR"
     assert package["economic_truth_state"] == "DOCUMENTED_CANDIDATE_FOR_REVIEW"
     assert package["entitlement"]["recoverability_established"] is False
-    assert package["notice"] == {"truth_state": "VERIFIED_DATE", "due_date": "2026-09-30"}
+    assert package["notice"] == {"truth_state": "DECLARED_DATE_FOR_REVIEW", "due_date": "2026-09-30"}
     assert package["customer_action_authorized"] is False
     assert package["legal_conclusion"] is None
     assert len(package["evidence_index"]) == 3
