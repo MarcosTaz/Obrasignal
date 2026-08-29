@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .recovery_package import RecoveryPackage
+from .engine import evaluate_recoverability
+from .recovery_package import RecoveryPackage, build_recovery_package
 from .state import AssistedCaseState
 
 
@@ -46,6 +47,16 @@ def render_delivery_report(state: AssistedCaseState, package: RecoveryPackage) -
 
     if package.case_id != state.recovery_case.case_id:
         raise ValueError("package does not belong to state")
+
+    expected_package = build_recovery_package(
+        state.recovery_case,
+        evaluate_recoverability(state.recovery_case),
+        evidence_refs=state.evidence_refs,
+        missing_evidence=state.missing_evidence,
+        deadline=state.deadline,
+    )
+    if package != expected_package:
+        raise ValueError("package does not match current state")
 
     summary = package.executive_summary
     baseline = package.commitment_baseline
