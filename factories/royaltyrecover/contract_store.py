@@ -14,7 +14,7 @@ SUPPORTED_RULE_BASES = {
     "TIERED_NET_SALES",
     "SUBLICENSE_SHARE",
 }
-REVIEW_STATES = {"UNREVIEWED", "REVIEWED", "HUMAN_REVIEWED", "APPROVED", "REJECTED"}
+REVIEW_STATES = {"UNREVIEWED", "REVIEWED", "REJECTED"}
 
 
 def _id(prefix: str) -> str:
@@ -64,6 +64,8 @@ class ContractStore:
         clause_ref = _required(clause_ref, "clause_ref")
         clause_type = _required(clause_type, "clause_type")
         review_status = _review_state(review_status)
+        if review_status != "UNREVIEWED":
+            raise ValueError("clauses must be created UNREVIEWED and reviewed through an explicit transition")
         if evidence_id is not None:
             self.repo.get_evidence(org_id, evidence_id)
         excerpt = text_excerpt.strip() if isinstance(text_excerpt, str) and text_excerpt.strip() else None
@@ -105,8 +107,8 @@ class ContractStore:
         clause = self.get_clause(org_id, clause_id)
         status = _review_state(review_status)
         rationale = _required(rationale, "rationale")
-        if status in {"UNREVIEWED", "HUMAN_REVIEWED", "APPROVED"}:
-            raise ValueError("review transition must use REVIEWED or REJECTED")
+        if status == "UNREVIEWED":
+            raise ValueError("review transition cannot reset clause to UNREVIEWED")
         self.conn.execute("UPDATE clauses SET review_status=? WHERE id=?", (status, clause_id))
         self.repo._audit(org_id, actor_id, "REVIEW", "Clause", clause_id, {
             "previous_status": clause["review_status"], "review_status": status, "rationale": rationale,
@@ -143,6 +145,8 @@ class ContractStore:
         if len(currency) != 3 or not currency.isalpha():
             raise ValueError("currency must be a three-letter code")
         review_status = _review_state(review_status)
+        if review_status != "UNREVIEWED":
+            raise ValueError("royalty rules must be created UNREVIEWED and reviewed through an explicit transition")
         if effective_from and effective_to and effective_to < effective_from:
             raise ValueError("effective_to must not precede effective_from")
         rate_text = _decimal_text(rate)
@@ -197,8 +201,8 @@ class ContractStore:
         rule = self.get_royalty_rule(org_id, rule_id)
         status = _review_state(review_status)
         rationale = _required(rationale, "rationale")
-        if status in {"UNREVIEWED", "HUMAN_REVIEWED", "APPROVED"}:
-            raise ValueError("review transition must use REVIEWED or REJECTED")
+        if status == "UNREVIEWED":
+            raise ValueError("review transition cannot reset rule to UNREVIEWED")
         clause = self.get_clause(org_id, rule["clause_id"])
         if status == "REVIEWED" and clause["review_status"] != "REVIEWED":
             raise ValueError("royalty rule cannot be reviewed until its source clause is reviewed")
