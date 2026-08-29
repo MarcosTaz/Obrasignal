@@ -9,6 +9,8 @@ from flask import Flask, jsonify, request
 
 from authz import CredentialRegistry, role_allows
 from contract_store import ContractStore
+from finding_store import FindingStore
+from persisted_scan import run_persisted_scan
 from repository import ConflictError, NotFoundError, RoyaltyRepository, ScopeError
 from royalty_engine import PeriodInput, RoyaltyRule, RoyaltyTier
 from service_pipeline import RecoverabilityCase, pack_to_dict, run_case
@@ -119,11 +121,24 @@ def _period(payload):
     )
 
 
+def _scan_result_json(result):
+    return {
+        "calculation_run": result.calculation_run,
+        "calculation_state": result.calculation_state.value,
+        "expected_royalty": None if result.expected_royalty is None else format(result.expected_royalty, "f"),
+        "recoverable_candidate": None if result.recoverable_candidate is None else format(result.recoverable_candidate, "f"),
+        "finding": result.finding,
+        "claim_ready": False,
+        "disclaimer": "Analytical output only. A finding is not a legal claim or formal audit conclusion.",
+    }
+
+
 def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Flask:
     app = Flask(__name__)
     registry = CredentialRegistry.from_config(api_keys if api_keys is not None else _load_api_key_config())
     repo = repository or RoyaltyRepository.file(os.getenv("ROYALTYRECOVER_DB_PATH", "royaltyrecover.db"))
     contracts = ContractStore(repo)
+    findings = FindingStore(repo)
 
     @app.after_request
     def security_headers(response):
@@ -169,8 +184,11 @@ def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Fl
     def actor_id() -> str:
         return request.royaltyrecover_actor_id
 
+    def role() -> str:
+        return request.royaltyrecover_role
+
     def require_role(required_role: str):
-        if not role_allows(request.royaltyrecover_role, required_role):
+        if not role_allows(role(), required_role):
             return jsonify({"error": "insufficient_role", "required_role": required_role}), 403
         return None
 
@@ -206,12 +224,8 @@ def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Fl
         try:
             payload = _json_payload()
             item = repo.create_agreement(
-                org_id(),
-                str(payload.get("licensor_id") or ""),
-                str(payload.get("licensee_id") or ""),
-                str(payload.get("title") or ""),
-                actor_id(),
-                governing_law=payload.get("governing_law"),
+                org_id(), str(payload.get("licensor_id") or ""), str(payload.get("licensee_id") or ""),
+                str(payload.get("title") or ""), actor_id(), governing_law=payload.get("governing_law"),
             )
         except ValueError as exc:
             return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
@@ -228,9 +242,7 @@ def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Fl
             content = _text_content(payload)
             item = repo.add_agreement_version(
                 org_id(), agreement_id, str(payload.get("version_label") or ""), content, actor_id(),
-                effective_from=payload.get("effective_from"),
-                effective_to=payload.get("effective_to"),
-                source_uri=payload.get("source_uri"),
+                effective_from=payload.get("effective_from"), effective_to=payload.get("effective_to"), source_uri=payload.get("source_uri"),
             )
         except ValueError as exc:
             return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
@@ -274,9 +286,7 @@ def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Fl
             return denied
         try:
             payload = _json_payload()
-            item = contracts.set_clause_review_status(
-                org_id(), clause_id, str(payload.get("review_status") or ""), actor_id(), str(payload.get("rationale") or "")
-            )
+            item = contracts.set_clause_review_status(org_id(), clause_id, str(payload.get("review_status") or ""), actor_id(), str(payload.get("rationale") or ""))
         except ValueError as exc:
             return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
         return jsonify({"clause": item}), 200
@@ -286,11 +296,9 @@ def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Fl
         try:
             payload = _json_payload()
             item = contracts.add_royalty_rule(
-                org_id(), version_id, str(payload.get("clause_id") or ""), str(payload.get("basis") or ""),
-                str(payload.get("currency") or ""), actor_id(),
-                rate=_decimal(payload.get("rate")), per_unit=_decimal(payload.get("per_unit")),
-                minimum_guarantee=_decimal(payload.get("minimum_guarantee")), cap=_decimal(payload.get("cap")),
-                floor=_decimal(payload.get("floor")), effective_from=payload.get("effective_from"),
+                org_id(), version_id, str(payload.get("clause_id") or ""), str(payload.get("basis") or ""), str(payload.get("currency") or ""), actor_id(),
+                rate=_decimal(payload.get("rate")), per_unit=_decimal(payload.get("per_unit")), minimum_guarantee=_decimal(payload.get("minimum_guarantee")),
+                cap=_decimal(payload.get("cap")), floor=_decimal(payload.get("floor")), effective_from=payload.get("effective_from"),
                 effective_to=payload.get("effective_to"), review_status="UNREVIEWED",
             )
         except ValueError as exc:
@@ -304,12 +312,48 @@ def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Fl
             return denied
         try:
             payload = _json_payload()
-            item = contracts.set_rule_review_status(
-                org_id(), rule_id, str(payload.get("review_status") or ""), actor_id(), str(payload.get("rationale") or "")
-            )
+            item = contracts.set_rule_review_status(org_id(), rule_id, str(payload.get("review_status") or ""), actor_id(), str(payload.get("rationale") or ""))
         except ValueError as exc:
             return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
         return jsonify({"royalty_rule": item}), 200
+
+    @app.post("/api/v1/persisted-scans")
+    def persisted_scan():
+        try:
+            payload = _json_payload()
+            evidence_ids = payload.get("evidence_ids")
+            if not isinstance(evidence_ids, list) or not all(isinstance(item, str) and item for item in evidence_ids):
+                raise ValueError("evidence_ids must be a non-empty string array")
+            result = run_persisted_scan(
+                repo, org_id(), str(payload.get("agreement_id") or ""), str(payload.get("agreement_version_id") or ""),
+                str(payload.get("rule_id") or ""), str(payload.get("period_start") or ""), str(payload.get("period_end") or ""),
+                _period(payload.get("period_input") or {}), evidence_ids, actor_id(),
+            )
+        except (TypeError, ValueError) as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify(_scan_result_json(result)), 201
+
+    @app.get("/api/v1/recoverability-register")
+    def recoverability_register():
+        return jsonify({"items": findings.recoverability_register(org_id()), "claim_ready_count": 0})
+
+    @app.get("/api/v1/recoverability-register/summary")
+    def recoverability_register_summary():
+        return jsonify(findings.register_summary(org_id()))
+
+    @app.post("/api/v1/findings/<finding_id>/review")
+    def review_finding(finding_id):
+        denied = require_role("REVIEWER")
+        if denied:
+            return denied
+        try:
+            payload = _json_payload()
+            item = findings.add_review(
+                org_id(), finding_id, actor_id(), role(), str(payload.get("decision") or ""), str(payload.get("rationale") or "")
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"review": item}), 201
 
     @app.get("/api/v1/audit-events")
     def audit_events():
@@ -330,16 +374,10 @@ def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Fl
             if organization_id != org_id():
                 return jsonify({"error": "organization_scope_mismatch"}), 403
             case = RecoverabilityCase(
-                case_id=case_id,
-                licensee_id=licensee_id,
-                agreement_id=agreement_id,
-                annual_reported_royalty=_decimal(payload.get("annual_reported_royalty")),
-                audit_deadline=_date(payload.get("audit_deadline")),
-                audit_right_supported=_bool_or_none(payload.get("audit_right_supported")),
-                contract_version_complete=bool(payload.get("contract_version_complete", False)),
-                auditor_requirement=payload.get("auditor_requirement"),
-                rule=_rule(payload.get("rule") or {}),
-                period_input=_period(payload.get("period_input") or {}),
+                case_id=case_id, licensee_id=licensee_id, agreement_id=agreement_id,
+                annual_reported_royalty=_decimal(payload.get("annual_reported_royalty")), audit_deadline=_date(payload.get("audit_deadline")),
+                audit_right_supported=_bool_or_none(payload.get("audit_right_supported")), contract_version_complete=bool(payload.get("contract_version_complete", False)),
+                auditor_requirement=payload.get("auditor_requirement"), rule=_rule(payload.get("rule") or {}), period_input=_period(payload.get("period_input") or {}),
             )
             today = _date(payload.get("as_of_date")) or date.today()
         except (TypeError, ValueError) as exc:
