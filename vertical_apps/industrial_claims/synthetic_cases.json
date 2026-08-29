@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "truth_owner": "independent_test_fixture",
   "cases": [
     {
@@ -71,6 +71,19 @@
       "missing_evidence": [],
       "expected_net_potential": "0",
       "expected_state": "UNRESOLVED_EVIDENCE"
+    },
+    {
+      "id": "redteam-over-mitigation",
+      "company": "REDTEAM INDUSTRIAL",
+      "claim_family": "OTHER_DOCUMENTED_PROGRAM_EXPOSURE",
+      "gross_cost": "10000",
+      "avoided_cost": "0",
+      "resale_reuse": "0",
+      "third_party_recovery": "0",
+      "prior_payment": "10001",
+      "other_mitigation": "0",
+      "missing_evidence": [],
+      "expected_error": "mitigation/recovery cannot exceed gross cost without review"
     }
   ]
 }
