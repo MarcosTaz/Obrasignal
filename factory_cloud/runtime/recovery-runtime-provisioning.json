@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "purpose": "host provisioning contract only; does not itself mutate or deploy production",
   "supervision_required": true,
   "applications": [
@@ -21,6 +21,16 @@
       "workspace": "/srv/factory-cloud/apps/contractcredit",
       "agent": "/opt/factory-cloud/current/factory_cloud/recovery_vertical_agent.py",
       "adapter_config": "factory_cloud/runtime/contractcredit-adapter.json",
+      "activation_after": ["workspace_exists", "exact_head_matches", "agent_exists", "verification_tests_pass", "supervised_worker_confirmed"]
+    },
+    {
+      "app_id": "industrial-claims",
+      "repository": "MarcosTaz/Obrasignal",
+      "branch": "apps/industrial-claims",
+      "head": "c05684e5ac99f5e4ca3b3a22dab6300523e6c244",
+      "workspace": "/srv/factory-cloud/apps/industrial-claims",
+      "agent": "/opt/factory-cloud/current/factory_cloud/recovery_vertical_agent.py",
+      "adapter_config": "factory_cloud/runtime/industrial-claims-adapter.json",
       "activation_after": ["workspace_exists", "exact_head_matches", "agent_exists", "verification_tests_pass", "supervised_worker_confirmed"]
     }
   ]
