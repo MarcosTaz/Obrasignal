@@ -11,7 +11,7 @@ from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.shared_contracts import SharedContractError
 from vertical_apps.aviation_recovery.service import AviationRecoveryService
 
-EXPECTED_ERRORS = (ValueError, AssuranceKernelError, AssuranceOperationError, AssuranceStoreError, SharedContractError)
+API_ERRORS = (KeyError, ValueError, AssuranceKernelError, AssuranceOperationError, AssuranceStoreError, SharedContractError)
 
 
 def create_app(database: str | Path) -> Flask:
@@ -44,7 +44,7 @@ def create_app(database: str | Path) -> Flask:
                 notice_due=date.fromisoformat(str(payload["notice_due"])),
             )
             return jsonify(result), 201
-        except (KeyError, *EXPECTED_ERRORS) as exc:
+        except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @app.post("/findings/<finding_id>/review")
@@ -52,15 +52,18 @@ def create_app(database: str | Path) -> Flask:
         try:
             tenant_id, actor_id = identity()
             payload = request.get_json(force=True) or {}
+            approved = payload["approved"]
+            if not isinstance(approved, bool):
+                raise ValueError("approved must be boolean")
             state = service.review(
                 tenant_id=tenant_id,
                 finding_id=finding_id,
                 reviewer=actor_id,
-                approved=bool(payload["approved"]),
+                approved=approved,
                 reason=str(payload["reason"]),
             )
             return jsonify({"finding_id": finding_id, "state": state})
-        except (KeyError, *EXPECTED_ERRORS) as exc:
+        except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @app.post("/findings/<finding_id>/action")
@@ -69,7 +72,7 @@ def create_app(database: str | Path) -> Flask:
             tenant_id, _ = identity()
             state = service.action(tenant_id=tenant_id, finding_id=finding_id)
             return jsonify({"finding_id": finding_id, "state": state})
-        except EXPECTED_ERRORS as exc:
+        except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @app.post("/findings/<finding_id>/resolve")
@@ -86,7 +89,7 @@ def create_app(database: str | Path) -> Flask:
                 evidence_ref=str(payload["evidence_ref"]),
             )
             return jsonify(outcome.__dict__), 201
-        except (KeyError, *EXPECTED_ERRORS) as exc:
+        except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     return app
