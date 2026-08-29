@@ -24,23 +24,22 @@ def test_forbidden_real_customer_token_never_helps_certification():
     assert result["forbidden_evidence_seen"] == ["real_customer"]
 
 
-def test_contractcredit_manifest_preserves_known_gaps():
+def _assert_recovery_candidate_is_blocked_only_by_billing(result):
+    assert result["classification"] == "NOT_PILOT_SAFE"
+    assert result["exact_source_bound"] is True
+    assert result["gates"]["PS7"] == "BLOCKED"
+    assert {gate for gate, state in result["gates"].items() if state == "BLOCKED"} == {"PS7"}
+    assert result["missing_evidence"] == ["billing_sandbox"]
+
+
+def test_contractcredit_manifest_promotes_proven_gates_but_not_unsettled_billing():
     result = assess_manifest("factory_cloud/pilot_safe_evidence/contractcredit.json")
-    assert result["classification"] == "NOT_PILOT_SAFE"
-    assert result["gates"]["PS2"] == "BLOCKED"
-    assert "web_complete" in result["missing_evidence"]
-    assert "support_continuity" in result["missing_evidence"]
-    assert "shadow_validation" in result["missing_evidence"]
-    assert result["exact_source_bound"] is True
+    _assert_recovery_candidate_is_blocked_only_by_billing(result)
 
 
-def test_aviation_manifest_preserves_known_gaps():
+def test_aviation_manifest_promotes_proven_gates_but_not_unsettled_billing():
     result = assess_manifest("factory_cloud/pilot_safe_evidence/aviation-lease-entitlement-recovery.json")
-    assert result["classification"] == "NOT_PILOT_SAFE"
-    assert result["gates"]["PS3"] == "PASS"
-    assert result["gates"]["PS4"] == "BLOCKED"
-    assert "adversarial" in result["missing_evidence"]
-    assert result["exact_source_bound"] is True
+    _assert_recovery_candidate_is_blocked_only_by_billing(result)
 
 
 def test_stale_manifest_exact_source_cannot_earn_ps9(tmp_path):
@@ -111,6 +110,7 @@ def test_portfolio_matrix_covers_registered_and_transitional_factories_fail_clos
         assert factory_id in by_id
     assert all(row["classification"] == "NOT_PILOT_SAFE" for row in matrix)
     assert by_id["contractcredit"]["gates"]["PS3"] == "PASS"
-    assert by_id["contractcredit"]["gates"]["PS2"] == "BLOCKED"
+    assert by_id["contractcredit"]["gates"]["PS7"] == "BLOCKED"
+    assert by_id["contractcredit"]["missing_evidence"] == ["billing_sandbox"]
     assert by_id["dealrecover"]["source_status"] == "unregistered"
     assert "source_registered" in by_id["dealrecover"]["missing_evidence"]
