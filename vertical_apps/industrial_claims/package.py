@@ -16,9 +16,9 @@ def build_claim_package(
     """Build a review package without upgrading economic/legal truth state.
 
     The amount is deliberately labelled net_potential, never "owed" or
-    "claimable". Human review and customer authority remain external gates.
-    Raw document content is not embedded; provenance is represented by source
-    references, immutable content hashes and verification state.
+    "claimable". READY_FOR_REVIEW means documentary inputs are structurally
+    present for independent human review; it does not establish entitlement or
+    recoverability. Raw document content is not embedded.
     """
     return {
         "schema_version": 3,
@@ -28,7 +28,7 @@ def build_claim_package(
         "program_ref": program_ref,
         "event_ref": event_ref,
         "claim_family": result.claim_family,
-        "economic_truth_state": "EVIDENCE_SUPPORTED" if result.finding.state == "READY_FOR_REVIEW" else "POTENTIAL_ENTITLEMENT",
+        "economic_truth_state": "DOCUMENTED_CANDIDATE_FOR_REVIEW" if result.finding.state == "READY_FOR_REVIEW" else "POTENTIAL_ENTITLEMENT",
         "net_potential": result.calculation.output_value,
         "calculation": {
             "formula_id": result.calculation.formula_id,
@@ -40,6 +40,7 @@ def build_claim_package(
             "rule_ref": result.entitlement.rule_ref,
             "confidence": result.entitlement.confidence,
             "basis_hash": result.entitlement.basis_hash,
+            "recoverability_established": False,
         },
         "notice": {
             "truth_state": result.notice_deadline_state,
