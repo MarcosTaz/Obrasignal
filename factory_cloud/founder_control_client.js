@@ -9,6 +9,8 @@ export class FounderControlClient {
     if (!response.ok) throw new Error(payload.error || `Control Tower HTTP ${response.status}`);
     return payload;
   }
+  routes() { return this._json('/v1/routes'); }
+  readiness() { return this._json('/ready'); }
   dispatch(scope = 'all') {
     return this._json('/v1/dispatch', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({scope})});
   }
