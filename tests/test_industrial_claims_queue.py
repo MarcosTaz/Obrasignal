@@ -1,4 +1,9 @@
+import sqlite3
+
+import pytest
+
 from auth_context import RequestIdentity
+from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 from vertical_apps.industrial_claims.web import create_app
@@ -62,7 +67,30 @@ def test_read_model_is_bounded_tenant_scoped_and_exposes_no_raw_document_content
     assert "inventory ledger" not in serialized
 
 
-def test_reviewer_and_operator_receive_only_actionable_role_scoped_states(tmp_path):
+def test_queue_fails_closed_when_creation_audit_lineage_is_ambiguous(tmp_path):
+    database = tmp_path / "queue-ambiguous-audit.sqlite3"
+    service = IndustrialClaimsService(database)
+    result = _analyze(service, "alpha", "ambiguous-audit")
+
+    with sqlite3.connect(database) as conn:
+        original = conn.execute(
+            "SELECT * FROM audit_events WHERE tenant_id=? AND subject_ref=? AND event_type='industrial_finding_created'",
+            ("alpha", result.finding.finding_id),
+        ).fetchone()
+        assert original is not None
+        conn.execute(
+            """INSERT INTO audit_events(event_id,tenant_id,actor_id,event_type,occurred_at,subject_ref,evidence_refs_json,payload_hash)
+               SELECT event_id || ':duplicate',tenant_id,actor_id,event_type,occurred_at,subject_ref,evidence_refs_json,payload_hash
+               FROM audit_events WHERE tenant_id=? AND subject_ref=? AND event_type='industrial_finding_created'""",
+            ("alpha", result.finding.finding_id),
+        )
+
+    read_model = IndustrialClaimsReadModel(database)
+    with pytest.raises(AssuranceStoreError, match="creation audit lineage is ambiguous"):
+        read_model.list_findings(tenant_id="alpha", states=("READY_FOR_REVIEW",), limit=10)
+
+
+def test_reviewer_and_operator_receive_only_role_scoped_workflow_states(tmp_path):
     database = tmp_path / "queue-api.sqlite3"
     service = IndustrialClaimsService(database)
     result = _analyze(service, "alpha", "cancel-queue", actor_id="analyst-1")
@@ -87,7 +115,7 @@ def test_reviewer_and_operator_receive_only_actionable_role_scoped_states(tmp_pa
 
     reviewed = reviewer.post(
         f"/findings/{finding_id}/review",
-        json={"approved": True, "reason": "documentary evidence and net potential reviewed"},
+        json={"approved": True, "reason": "documentary evidence and net potential reviewed for internal workflow"},
     )
     assert reviewed.status_code == 200
 
