@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,11 +18,26 @@ MAX_BODY_BYTES = 64 * 1024
 
 class ControlTowerHTTPHandler(BaseHTTPRequestHandler):
     dispatcher = None
-    server_version = "FactoryControlTower/0.1"
+    auth_token: str | None = None
+    allowed_origin: str | None = None
+    server_version = "FactoryControlTower/0.2"
 
     def log_message(self, format: str, *args: Any) -> None:
         # Avoid accidentally persisting request bodies or credentials in generic logs.
         return
+
+    def _origin_allowed(self) -> bool:
+        origin = str(self.headers.get("origin") or "").strip()
+        if not origin:
+            return True
+        return bool(self.allowed_origin and hmac.compare_digest(origin, self.allowed_origin))
+
+    def _authorized(self) -> bool:
+        if not self.auth_token:
+            return True
+        supplied = str(self.headers.get("authorization") or "")
+        expected = f"Bearer {self.auth_token}"
+        return hmac.compare_digest(supplied, expected)
 
     def _send(self, status: int, payload: dict[str, Any]) -> None:
         data = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -29,12 +45,26 @@ class ControlTowerHTTPHandler(BaseHTTPRequestHandler):
         self.send_header("content-type", "application/json; charset=utf-8")
         self.send_header("cache-control", "no-store")
         self.send_header("x-content-type-options", "nosniff")
+        self.send_header("x-frame-options", "DENY")
+        if self.allowed_origin and self._origin_allowed():
+            self.send_header("access-control-allow-origin", self.allowed_origin)
+            self.send_header("vary", "Origin")
         self.send_header("content-length", str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        if self.command != "HEAD":
+            self.wfile.write(data)
 
     def _path(self) -> str:
         return urlsplit(self.path).path
+
+    def _guard_api(self) -> bool:
+        if not self._origin_allowed():
+            self._send(403, {"error": "origin_not_allowed"})
+            return False
+        if not self._authorized():
+            self._send(401, {"error": "unauthorized"})
+            return False
+        return True
 
     def _json_body(self) -> tuple[bool, dict[str, Any] | None]:
         raw_length = self.headers.get("content-length")
@@ -57,18 +87,32 @@ class ControlTowerHTTPHandler(BaseHTTPRequestHandler):
             return False, None
         return True, payload
 
+    def do_OPTIONS(self) -> None:
+        if not self._origin_allowed():
+            self._send(403, {"error": "origin_not_allowed"})
+            return
+        self.send_response(204)
+        if self.allowed_origin:
+            self.send_header("access-control-allow-origin", self.allowed_origin)
+            self.send_header("vary", "Origin")
+        self.send_header("access-control-allow-methods", "GET,POST,OPTIONS")
+        self.send_header("access-control-allow-headers", "authorization,content-type")
+        self.send_header("access-control-max-age", "600")
+        self.send_header("cache-control", "no-store")
+        self.end_headers()
+
     def do_GET(self) -> None:
         if self._path() == "/health":
             self._send(200, {"ok": True, "service": "global-control-tower"})
             return
-        status, payload = handle_request(
-            self.dispatcher,
-            method="GET",
-            path=self._path(),
-        )
+        if not self._guard_api():
+            return
+        status, payload = handle_request(self.dispatcher, method="GET", path=self._path())
         self._send(status, payload)
 
     def do_POST(self) -> None:
+        if not self._guard_api():
+            return
         valid, body = self._json_body()
         if not valid:
             self._send(400, {"error": "invalid_json_body"})
@@ -89,8 +133,15 @@ def make_server(
     environ: dict[str, str] | None = None,
     runtime_dir: Path | None = None,
 ) -> ThreadingHTTPServer:
-    dispatcher = build_global_dispatcher(environ=environ, runtime_dir=runtime_dir)
-    handler = type("BoundControlTowerHTTPHandler", (ControlTowerHTTPHandler,), {"dispatcher": dispatcher})
+    env = dict(os.environ if environ is None else environ)
+    dispatcher = build_global_dispatcher(environ=env, runtime_dir=runtime_dir)
+    token = str(env.get("FACTORY_CONTROL_TOKEN") or "").strip() or None
+    origin = str(env.get("FACTORY_CONTROL_ALLOWED_ORIGIN") or "").strip() or None
+    handler = type(
+        "BoundControlTowerHTTPHandler",
+        (ControlTowerHTTPHandler,),
+        {"dispatcher": dispatcher, "auth_token": token, "allowed_origin": origin},
+    )
     return ThreadingHTTPServer((host, port), handler)
 
 
