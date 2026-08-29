@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
@@ -16,7 +16,9 @@
     "reference_only_is_review_ready": false,
     "document_content_hashed": true,
     "raw_document_content_persisted_by_service": false,
-    "individual_document_content_limit_bytes": 1000000
+    "individual_document_content_limit_bytes": 1000000,
+    "recovered_or_closed_outcome_requires_document_content": true,
+    "outcome_document_and_state_persist_atomically": true
   },
   "economic_lineage": {
     "currency_required_for_review_ready": true,
@@ -27,12 +29,7 @@
   "identity_authorization": {
     "source": "verified_provider_identity",
     "raw_identity_headers_authoritative": false,
-    "roles": {
-      "analyze": "analyst",
-      "review": "reviewer",
-      "action": "operator",
-      "resolve": "operator"
-    },
+    "roles": {"analyze": "analyst", "review": "reviewer", "action": "operator", "resolve": "operator"},
     "admin_override": true,
     "four_eyes_review_required": true,
     "admin_may_self_review": false
@@ -45,7 +42,7 @@
     "missing_evidence",
     "reviewable_finding",
     "actor_audit_lineage",
-    "outcome_record"
+    "outcome_record_with_hashed_evidence_lineage"
   ],
   "fail_closed": [
     "cost_without_commercial_basis",
@@ -56,6 +53,8 @@
     "missing_claim_currency",
     "invalid_claim_currency",
     "recovery_currency_mismatch",
+    "missing_outcome_documentary_evidence",
+    "outcome_evidence_collision",
     "negative_economic_input",
     "non_finite_economic_input",
     "mitigation_exceeds_gross_cost",
@@ -92,6 +91,7 @@
     "all_claim_families_structurally_supported",
     "documentary_content_gate_green",
     "currency_lineage_green",
+    "outcome_evidence_lineage_green",
     "tenant_isolation_green",
     "role_authorization_green",
     "four_eyes_green",
@@ -108,10 +108,7 @@
   ],
   "commercial_success": {
     "status": "UNPROVEN",
-    "requires": [
-      "real_incremental_recovery_gt_zero",
-      "real_customer_revenue_gt_zero"
-    ]
+    "requires": ["real_incremental_recovery_gt_zero", "real_customer_revenue_gt_zero"]
   },
   "production_authority": false
 }
