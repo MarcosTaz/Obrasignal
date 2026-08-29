@@ -47,9 +47,14 @@ def test_evidence_backed_candidate_never_promotes_arithmetic_to_entitlement_or_r
     assert result["contract_evidence_sha256"] == "a" * 64
     assert result["maintenance_evidence_sha256"] == "b" * 64
 
-    persisted = service.service.store.load_finding("airline-a", result["finding_id"])
-    assert "sha256:" + "a" * 64 in persisted.evidence_ids[0]
-    assert "sha256:" + "b" * 64 in persisted.evidence_ids[1]
+    with service.service.store._connect() as conn:
+        rows = conn.execute(
+            "SELECT source_ref FROM evidence WHERE tenant_id=? ORDER BY source_type",
+            ("airline-a",),
+        ).fetchall()
+    refs = {row["source_ref"] for row in rows}
+    assert f"lease.pdf@sha256:{'a' * 64}" in refs
+    assert f"shop-visit.pdf@sha256:{'b' * 64}" in refs
 
 
 def test_zero_unreimbursed_balance_stays_unresolved_even_with_verified_documents(tmp_path):
