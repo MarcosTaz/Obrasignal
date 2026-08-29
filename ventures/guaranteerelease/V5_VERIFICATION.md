@@ -5,12 +5,14 @@ Date: 2026-08-29
 ## Canonical-candidate test state
 
 - `engine_v3.test.mjs`: **PASS 23/23**
-- `server_v5.test.mjs`: **PASS 41/41**
+- `server_v5.test.mjs`: **PASS 38/38**
 - `synthetic_replay_v5.test.mjs`: **PASS 41/41**
 - v5 browser DOM/runtime E2E: **PASS 31/31 (transport-bridged)**
 - Node syntax: **PASS**
 - HTML parse: **PASS**
 - inline JavaScript syntax: **PASS**
+
+An expanded local API hardening run also passed 41/41 while developing v5; the committed canonical API suite is the 38/38 file above, so the scoreboard uses 38/38.
 
 ## Material v5 safety improvements
 
