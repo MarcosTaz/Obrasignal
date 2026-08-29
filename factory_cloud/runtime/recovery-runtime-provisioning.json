@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "purpose": "host provisioning contract only; does not itself mutate or deploy production",
   "supervision_required": true,
   "applications": [
@@ -7,7 +7,7 @@
       "app_id": "aviation-lease-entitlement-recovery",
       "repository": "MarcosTaz/Obrasignal",
       "branch": "apps/aviation-lease-entitlement-recovery",
-      "head": "e8470dbc209c7ec5eaeef7e088573d6adf7cf510",
+      "head": "0d1759832a06b3177b67b35a4c53ee0c69db459e",
       "workspace": "/srv/factory-cloud/apps/aviation-lease-entitlement-recovery",
       "agent": "/opt/factory-cloud/current/factory_cloud/recovery_vertical_agent.py",
       "adapter_config": "factory_cloud/runtime/aviation-recovery-adapter.json",
@@ -17,7 +17,7 @@
       "app_id": "contractcredit",
       "repository": "MarcosTaz/Obrasignal",
       "branch": "apps/contractcredit",
-      "head": "e8470dbc209c7ec5eaeef7e088573d6adf7cf510",
+      "head": "0d1759832a06b3177b67b35a4c53ee0c69db459e",
       "workspace": "/srv/factory-cloud/apps/contractcredit",
       "agent": "/opt/factory-cloud/current/factory_cloud/recovery_vertical_agent.py",
       "adapter_config": "factory_cloud/runtime/contractcredit-adapter.json",
