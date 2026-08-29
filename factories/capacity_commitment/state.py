@@ -11,6 +11,20 @@ from .engine import CommitmentState, CostRecoveryMode, ExposureType, RecoveryCas
 
 
 SCHEMA_VERSION = 2
+_STATE_PAYLOAD_FIELDS = {
+    "schema_version",
+    "tenant_id",
+    "company_id",
+    "customer_id",
+    "program_id",
+    "contract_id",
+    "nomination_id",
+    "forecast_units",
+    "recovery_case",
+    "evidence_refs",
+    "missing_evidence",
+    "deadline",
+}
 
 
 @dataclass(frozen=True)
@@ -250,32 +264,34 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
     except json.JSONDecodeError as exc:
         raise ValueError("state is not valid JSON") from exc
 
-    if set(envelope) != {"checksum", "payload"}:
+    if not isinstance(envelope, dict) or set(envelope) != {"checksum", "payload"}:
         raise ValueError("state envelope is invalid")
     payload = envelope["payload"]
     if not isinstance(payload, dict):
         raise ValueError("state payload is invalid")
-    if payload.get("schema_version") != SCHEMA_VERSION:
+    if set(payload) != _STATE_PAYLOAD_FIELDS:
+        raise ValueError("state payload fields do not match schema version 2")
+    if payload["schema_version"] != SCHEMA_VERSION:
         raise ValueError("unsupported state schema version")
 
     expected_checksum = hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
     if envelope["checksum"] != expected_checksum:
         raise ValueError("state checksum mismatch")
 
-    tenant_id = payload.get("tenant_id")
+    tenant_id = payload["tenant_id"]
     if tenant_id != expected_tenant_id:
         raise PermissionError("tenant mismatch")
 
     for key in ("company_id", "customer_id", "program_id"):
-        _validate_identifier(key, payload.get(key, ""))
-    _validate_contract_anchor(payload.get("contract_id"), payload.get("nomination_id"))
+        _validate_identifier(key, payload[key])
+    _validate_contract_anchor(payload["contract_id"], payload["nomination_id"])
 
-    evidence_refs = payload.get("evidence_refs", [])
-    missing_evidence = payload.get("missing_evidence", [])
+    evidence_refs = payload["evidence_refs"]
+    missing_evidence = payload["missing_evidence"]
     _validate_reference_list("evidence_refs", evidence_refs)
     _validate_reference_list("missing_evidence", missing_evidence)
 
-    forecast_raw = payload.get("forecast_units")
+    forecast_raw = payload["forecast_units"]
     if forecast_raw is None:
         forecast_units = None
     else:
@@ -285,7 +301,7 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
 
     recovery_case = recovery_case_from_payload(payload["recovery_case"])
     _validate_evidence_consistency(recovery_case, evidence_refs)
-    _validate_deadline(payload.get("deadline"), recovery_case)
+    _validate_deadline(payload["deadline"], recovery_case)
 
     return AssistedCaseState(
         tenant_id=tenant_id,
@@ -295,8 +311,8 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
         recovery_case=recovery_case,
         evidence_refs=tuple(evidence_refs),
         missing_evidence=tuple(missing_evidence),
-        deadline=payload.get("deadline"),
-        contract_id=payload.get("contract_id"),
-        nomination_id=payload.get("nomination_id"),
+        deadline=payload["deadline"],
+        contract_id=payload["contract_id"],
+        nomination_id=payload["nomination_id"],
         forecast_units=forecast_units,
     )
