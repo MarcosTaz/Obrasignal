@@ -13,6 +13,7 @@ COMMON_TESTS = (
     "tests/test_vertical_end_to_end_outcomes.py",
     "tests/test_vertical_release_contracts.py",
     "tests/test_vertical_pilot_contracts.py",
+    "tests/test_vertical_web_apis.py",
 )
 APP_TESTS = {
     "aviation-lease-entitlement-recovery": COMMON_TESTS,
