@@ -59,3 +59,31 @@ def test_process_state_expires_verified_notice_window_after_absolute_deadline():
     assert processed.result.claimable_amount == Decimal("0")
     assert processed.recovery_package.deadline == "2026-08-28"
     assert processed.recovery_package.assessment_date == "2026-08-29"
+    assert processed.recovery_package.audit_trail["deadline_expired_by_date"] is True
+    assert processed.recovery_package.contractual_basis["notice_valid"] is False
+
+
+def test_process_state_does_not_infer_expiry_from_unverified_notice_window():
+    state = _state(
+        case("service-unverified-old-date", notice_valid=True, notice_window_verified=False),
+        deadline="2026-08-28",
+    )
+
+    processed = process_state(state, as_of_date=date(2026, 8, 29))
+
+    assert processed.result.recoverability_state.value == "UNKNOWN"
+    assert processed.result.claimable_amount == Decimal("0")
+    assert processed.recovery_package.audit_trail["deadline_expired_by_date"] is False
+    assert processed.recovery_package.contractual_basis["notice_valid"] is True
+
+
+def test_process_state_keeps_verified_deadline_valid_through_deadline_date():
+    state = _state(
+        case("service-deadline-day", notice_valid=True, notice_window_verified=True),
+        deadline="2026-08-29",
+    )
+
+    processed = process_state(state, as_of_date=date(2026, 8, 29))
+
+    assert processed.result.recoverability_state.value == "RECOVERABLE"
+    assert processed.recovery_package.audit_trail["deadline_expired_by_date"] is False
