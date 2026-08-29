@@ -87,10 +87,12 @@ class RuntimeProvisioningTests(unittest.TestCase):
         text = (SYSTEMD / "install.sh").read_text(encoding="utf-8")
         self.assertIn('APPS="${APPS:-obrasignal}"', text)
         self.assertIn('QUEUE_DIR="${QUEUE_DIR:-${STATE_DIR}/queues}"', text)
+        self.assertIn('usermod -a -G "${user}" factory-cloud-control', text)
         self.assertIn('install -d -o factory-cloud-control -g "${user}" -m 2770 "${QUEUE_DIR}/${app}"', text)
         self.assertIn('install -o root -g "${user}" -m 0640', text)
         self.assertIn('prepare-obrasignal-workspace.sh', text)
         self.assertNotIn('--groups factory-cloud', text)
+        self.assertNotIn('usermod -a -G factory-cloud "${user}"', text)
         self.assertIn('still belongs to legacy shared group factory-cloud', text)
         self.assertNotIn('APPS="${APPS:-obrasignal k3-fatality}"', text)
 
