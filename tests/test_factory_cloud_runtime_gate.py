@@ -6,7 +6,7 @@ from factory_cloud.runtime_gate import RuntimeGateError, assess_runtime_gate
 
 def test_registered_recovery_apps_remain_ineligible_on_unprovisioned_ci_host():
     apps = {item["app_id"]: item for item in load_registry()["applications"]}
-    for app_id in ("aviation-lease-entitlement-recovery", "contractcredit"):
+    for app_id in ("aviation-lease-entitlement-recovery", "contractcredit", "industrial-claims"):
         decision = assess_runtime_gate(apps[app_id])
         assert decision.eligible is False
         assert decision.reason == "runtime_not_provisioned_or_exact_head_unverified"
