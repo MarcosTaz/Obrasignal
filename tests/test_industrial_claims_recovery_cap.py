@@ -46,6 +46,24 @@ def test_recovery_cannot_exceed_reviewed_net_potential(tmp_path):
     assert service.ops.outcomes(tenant_id="alpha") == ()
 
 
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
+def test_non_finite_recovery_amounts_fail_closed(tmp_path, value):
+    service, finding_id = _actioned_finding(tmp_path)
+
+    with pytest.raises(AssuranceOperationError, match="finite decimal"):
+        service.resolve(
+            tenant_id="alpha",
+            finding_id=finding_id,
+            outcome_id=f"alpha:payment-{value}",
+            recovered_amount=value,
+            currency="EUR",
+            evidence_ref="bank-invalid",
+        )
+
+    assert service.ops.get_state(tenant_id="alpha", finding_id=finding_id) == "ACTIONED"
+    assert service.ops.outcomes(tenant_id="alpha") == ()
+
+
 def test_recovery_at_reviewed_net_potential_is_allowed(tmp_path):
     service, finding_id = _actioned_finding(tmp_path)
 
