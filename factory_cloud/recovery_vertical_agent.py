@@ -4,19 +4,19 @@ import json
 import subprocess
 import sys
 
+COMMON_TESTS = (
+    "tests/test_factory_cloud_vertical_consumers.py",
+    "tests/test_factory_cloud_assurance_store.py",
+    "tests/test_factory_cloud_vertical_runtime.py",
+    "tests/test_factory_cloud_assurance_ops.py",
+    "tests/test_vertical_application_services.py",
+    "tests/test_vertical_end_to_end_outcomes.py",
+    "tests/test_vertical_release_contracts.py",
+    "tests/test_vertical_pilot_contracts.py",
+)
 APP_TESTS = {
-    "aviation-lease-entitlement-recovery": (
-        "tests/test_factory_cloud_vertical_consumers.py",
-        "tests/test_factory_cloud_assurance_store.py",
-        "tests/test_factory_cloud_vertical_runtime.py",
-        "tests/test_vertical_application_services.py",
-    ),
-    "contractcredit": (
-        "tests/test_factory_cloud_vertical_consumers.py",
-        "tests/test_factory_cloud_assurance_store.py",
-        "tests/test_factory_cloud_vertical_runtime.py",
-        "tests/test_vertical_application_services.py",
-    ),
+    "aviation-lease-entitlement-recovery": COMMON_TESTS,
+    "contractcredit": COMMON_TESTS,
 }
 ALLOWED_TASKS = {"verify:service", "verify:shared-contracts"}
 
