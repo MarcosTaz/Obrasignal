@@ -361,6 +361,12 @@ def opportunities():
         limit = max(1, min(100, int(request.args.get("limit", 20) or 20)))
     except (TypeError, ValueError):
         return _invalid_query("limit")
+    try:
+        offset = int(request.args.get("offset", 0) or 0)
+    except (TypeError, ValueError):
+        return _invalid_query("offset")
+    if offset < 0 or offset > 100000:
+        return _invalid_query("offset")
     market = (request.args.get("market") or "PT").upper()
     country = (request.args.get("country") or "").upper().strip()
     q = (request.args.get("q") or "").strip().lower()
@@ -393,7 +399,7 @@ def opportunities():
     if minscore is not None and minscore > 0:
         where.append("d.score>=?")
         params.append(minscore)
-    rows = c.execute(
+    raw_rows = c.execute(
         f"""SELECT t.*, {actionable_predicate('lc', 't')} AS is_actionable,
                    lc.lifecycle_status, lc.lifecycle_reason,
                    lc.source_updated_at AS lifecycle_source_updated_at,
@@ -409,15 +415,23 @@ def opportunities():
                      d.score DESC,
                      COALESCE(t.publication_date,t.first_seen) DESC,
                      t.source ASC, t.external_id ASC, t.id ASC
-            LIMIT ?""",
-        (identity.account_id, identity.account_id, RULE_VERSION, profile_fp, *params, limit),
+            LIMIT ? OFFSET ?""",
+        (identity.account_id, identity.account_id, RULE_VERSION, profile_fp, *params, limit + 1, offset),
     ).fetchall()
+    has_more = len(raw_rows) > limit
+    rows = raw_rows[:limit]
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
     contract = _source_contract(c, source or None)
     empty_context = empty_result_context(contract, len(items))
     c.close()
-    return jsonify({"items": items, "count": len(items), "market": market, "source_coverage": contract["summary"], "source_health_contract_version": contract["contract_version"], "empty_result": empty_context, "generated_at": _iso_now(), "account_id": identity.account_id})
+    page = {
+        "limit": limit,
+        "offset": offset,
+        "has_more": has_more,
+        "next_offset": offset + limit if has_more else None,
+    }
+    return jsonify({"items": items, "count": len(items), "page": page, "market": market, "source_coverage": contract["summary"], "source_health_contract_version": contract["contract_version"], "empty_result": empty_context, "generated_at": _iso_now(), "account_id": identity.account_id})
 
 
 @bp.route("/opportunities/<int:opportunity_id>", methods=["GET"])
