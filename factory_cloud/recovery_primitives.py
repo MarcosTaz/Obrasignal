@@ -88,6 +88,8 @@ class FeeLineage:
             rate = Decimal(fee_rate)
         except InvalidOperation as exc:
             raise RecoveryPrimitiveError("fee inputs must be decimal") from exc
+        if not recovered.is_finite() or not rate.is_finite():
+            raise RecoveryPrimitiveError("fee inputs must be finite decimals")
         if recovered < 0 or rate < 0 or rate > 1:
             raise RecoveryPrimitiveError("invalid recovered amount or fee rate")
         fee = recovered * rate
