@@ -62,31 +62,31 @@
       <aside>
         <section class="panel">
           <span class="badge warn">Tenant-safe work queue</span>
-          <h2>Actionable findings</h2>
-          <p class="sub">Reviewer identities receive review-ready findings. Operator identities receive approved/actioned findings. Other tenant data is never returned.</p>
+          <h2>Workflow findings</h2>
+          <p class="sub">Reviewer identities receive documented candidates ready for review. Operator identities receive internally approved/actioned findings. Queue inclusion never means legal entitlement or recoverability is established.</p>
           <div class="actions"><button id="refresh-queue" type="button" class="secondary">Refresh my queue</button></div>
           <div id="queue-result" class="result" aria-live="polite">Queue not loaded.</div>
-          <div id="queue-list" class="queue-list" aria-label="Actionable finding queue"></div>
+          <div id="queue-list" class="queue-list" aria-label="Tenant-scoped finding workflow queue"></div>
         </section>
 
         <section class="panel">
           <span class="badge warn">Human-controlled workflow</span>
           <h2>Finding lifecycle</h2>
-          <p class="sub">Roles are verified server-side. A role mismatch fails closed.</p>
+          <p class="sub">Roles are verified server-side. A role mismatch fails closed. Review approval is scoped only to the internal workflow.</p>
           <div class="workflow">
             <form id="review-form" class="step">
-              <h3>1. Independent review</h3><p>Reviewer role. The creator cannot self-approve.</p>
+              <h3>1. Independent review</h3><p>Reviewer role. The creator cannot self-approve. Approval moves the documented candidate into internal workflow only; it does not establish a legal entitlement, establish recoverability, authorize customer contact, or authorize external claim submission.</p>
               <div class="field"><label for="review_finding_id">Finding ID</label><input id="review_finding_id" required maxlength="2048" autocomplete="off"></div>
               <div class="field"><label for="review_reason">Decision reason</label><textarea id="review_reason" required maxlength="4000"></textarea></div>
-              <div class="actions"><button type="submit" data-approved="true">Approve</button><button type="submit" class="danger" data-approved="false">Reject</button></div>
+              <div class="actions"><button type="submit" data-approved="true">Approve for internal workflow</button><button type="submit" class="danger" data-approved="false">Reject candidate</button></div>
               <div id="review-result" class="result" aria-live="polite">Awaiting review.</div>
             </form>
 
             <form id="action-form" class="step">
-              <h3>2. Action approved finding</h3><p>Operator role. This changes internal workflow state only.</p>
+              <h3>2. Advance internally approved finding</h3><p>Operator role. This changes internal workflow state only and performs no customer contact or external claim submission.</p>
               <div class="field"><label for="action_finding_id">Finding ID</label><input id="action_finding_id" required maxlength="2048" autocomplete="off"></div>
-              <div class="actions"><button type="submit">Mark actioned</button></div>
-              <div id="action-result" class="result" aria-live="polite">Awaiting approved finding.</div>
+              <div class="actions"><button type="submit">Mark internally actioned</button></div>
+              <div id="action-result" class="result" aria-live="polite">Awaiting internally approved finding.</div>
             </form>
 
             <form id="resolve-form" class="step">
@@ -106,7 +106,7 @@
 
         <section class="panel">
           <h2>Truth rules</h2>
-          <p class="note">A reference without documentary content is REFERENCE_ONLY and cannot become review-ready. Currency is explicit and immutable across reviewed economics and recovery recording. A recovered/closed outcome requires hashed documentary evidence. Notice deadline values are declared for human review rather than independently verified by the software. An unknown notice deadline is evidence missing, not an infinite deadline. <code>READY_FOR_REVIEW</code> means documented candidate ready for human review; it is not a legal conclusion, established recoverability, or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
+          <p class="note">A reference without documentary content is REFERENCE_ONLY and cannot become review-ready. Currency is explicit and immutable across reviewed economics and recovery recording. A recovered/closed outcome requires hashed documentary evidence. Notice deadline values are declared for human review rather than independently verified by the software. An unknown notice deadline is evidence missing, not an infinite deadline. <code>READY_FOR_REVIEW</code> means documented candidate ready for human review. <code>APPROVED</code> means approved for internal workflow only. Neither state is a legal conclusion, established recoverability, customer-contact authorization, external claim authority, or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
         </section>
       </aside>
     </div>
