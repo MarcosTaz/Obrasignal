@@ -11,6 +11,8 @@ from factory_cloud.assurance_observability import assurance_health
 from factory_cloud.assurance_ops import AssuranceOperationError
 from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.shared_contracts import SharedContractError
+from factory_cloud.support_api import register_support_api
+from factory_cloud.support_continuity import SupportLedger
 from vertical_apps.contractcredit.intake import (
     ContractCreditPilotIntakeError,
     ContractCreditPilotIntakeService,
@@ -26,8 +28,10 @@ API_ERRORS = (
 
 def create_app(database: str | Path) -> Flask:
     app = Flask(__name__)
-    service = ContractCreditService(database)
-    shadow_service = ContractCreditPilotIntakeService(database)
+    database_path = Path(database)
+    service = ContractCreditService(database_path)
+    shadow_service = ContractCreditPilotIntakeService(database_path)
+    support_ledger = SupportLedger(database_path.with_name(database_path.name + ".support.sqlite3"))
 
     def identity() -> tuple[str, str]:
         tenant_id = request.headers.get("X-Tenant-ID", "").strip()
@@ -35,6 +39,8 @@ def create_app(database: str | Path) -> Flask:
         if not tenant_id or not actor_id:
             raise SharedContractError("trusted upstream tenant and actor identity headers are required")
         return tenant_id, actor_id
+
+    register_support_api(app, ledger=support_ledger, identity=identity)
 
     @app.get("/")
     def workspace():
