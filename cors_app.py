@@ -6,7 +6,7 @@ from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
 from account_privacy import bp as ACCOUNT_PRIVACY_BP
-from auth_context import configured_identity, InvalidTokenError
+from auth_context import configured_identity, customer_role_allows, InvalidTokenError
 from auth_context_jwt import authentication_health
 import notification_privacy_lifecycle as _notification_privacy_lifecycle
 import opportunity_watchlist_api as _opportunity_watchlist_api
@@ -64,12 +64,39 @@ def _global_api_preflight():
 
 
 @APP.before_request
+def _authorize_customer_mutation():
+    """Enforce signed company roles before any customer-facing mutation runs.
+
+    RevenueCat webhook authentication is a separate provider-owned boundary and is
+    deliberately excluded from user-role authorization. All ordinary customer
+    POST/PATCH/DELETE requests require owner/editor; account deletion is owner-only.
+    Development mode resolves to owner so deterministic local/synthetic tests keep
+    their historical behavior.
+    """
+    if not request.path.startswith("/api/v1/") or request.method not in {"POST", "PATCH", "DELETE"}:
+        return None
+    if request.path == "/api/v1/billing/webhook":
+        return None
+    try:
+        identity = configured_identity()
+    except (RuntimeError, InvalidTokenError):
+        response = jsonify({"error": "authentication_required"})
+        return _cors(response), 401
+    owner_only = request.path == "/api/v1/account/deletion"
+    if not customer_role_allows(identity.role, request.method, owner_only=owner_only):
+        response = jsonify({"error": "authorization_denied"})
+        return _cors(response), 403
+    request.obrasignal_identity = identity
+    return None
+
+
+@APP.before_request
 def _protect_radar_api():
     is_detail = request.path.startswith("/api/v1/opportunities/") and not request.path.endswith("/workflow")
     if request.path != "/api/v1/radar" and not is_detail:
         return None
     try:
-        identity = configured_identity()
+        identity = getattr(request, "obrasignal_identity", None) or configured_identity()
     except (RuntimeError, InvalidTokenError):
         response = jsonify({"error": "authentication_required"})
         return _cors(response), 401
