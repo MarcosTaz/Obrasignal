@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import asdict
 from decimal import Decimal, InvalidOperation
 from enum import Enum
@@ -11,6 +10,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from .case_browser import render_case_browser
 from .delivery_report import render_delivery_report
+from .identifiers import CASE_ID_ADDRESSABILITY_ERROR, is_addressable_case_id
 from .operator_ui import OPERATOR_HTML
 from .repository import CapacityRepository
 from .service import load_and_process, save_and_process
@@ -19,7 +19,6 @@ from .state import AssistedCaseState, recovery_case_from_payload
 
 TenantResolver = Callable[[object], Optional[str]]
 MAX_REQUEST_BYTES = 1_000_000
-WEB_CASE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 
 
 _TOP_LEVEL_FIELDS = {
@@ -83,12 +82,8 @@ def _optional_decimal(payload: dict, key: str) -> Optional[Decimal]:
 
 def _addressable_recovery_case(raw: dict):
     recovery_case = recovery_case_from_payload(raw)
-    if not isinstance(recovery_case.case_id, str) or not WEB_CASE_ID_PATTERN.fullmatch(
-        recovery_case.case_id
-    ):
-        raise ValueError(
-            "case_id must be URL-addressable: 1-200 letters, digits, dot, underscore, colon, or hyphen"
-        )
+    if not is_addressable_case_id(recovery_case.case_id):
+        raise ValueError(CASE_ID_ADDRESSABILITY_ERROR)
     return recovery_case
 
 
