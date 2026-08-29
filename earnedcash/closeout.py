@@ -47,6 +47,8 @@ class RetentionReview:
     release_condition_evidence_ref: str | None = None
     defect_status_evidence_ref: str | None = None
     closeout_evidence_ref: str | None = None
+    overlap_reviewed: bool = False
+    overlapping_case_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,8 @@ class FinalAccountReview:
     due_evidence: DueDateEvidence = DueDateEvidence(None, None, False)
     agreement_evidence_ref: str | None = None
     invoice_evidence_ref: str | None = None
+    overlap_reviewed: bool = False
+    overlapping_case_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -87,7 +91,6 @@ def review_retention_case(
     defects_ref = _ref(review.defect_status_evidence_ref)
     closeout_ref = _ref(review.closeout_evidence_ref)
 
-    # A stated clean defect/closeout state is not trusted without its own evidence.
     defects_state = review.valid_defects_open if defects_ref else None
     closeout_state = review.closeout_complete if closeout_ref else None
     result = evaluate_retention(
@@ -101,8 +104,6 @@ def review_retention_case(
             valid_defects_open=defects_state,
             closeout_complete=closeout_state,
             release_condition_evidence_verified=release_ref is not None,
-            # Released value is conservatively netted from the balance, but is not
-            # promoted to verified cash here. Cash uses the exact-scope verifier.
             payment_evidence_verified=False,
         )
     )
@@ -173,8 +174,6 @@ def review_final_account_case(
             disputed_value=review.disputed_value,
             agreement_evidence_verified=agreement_ref is not None,
             invoice_evidence_verified=invoice_ref is not None,
-            # Existing paid amounts reduce exposure conservatively, but this
-            # closeout review never calls them verified cash.
             payment_evidence_verified=False,
             payment_due=due_truth.due,
         )
