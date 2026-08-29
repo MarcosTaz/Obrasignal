@@ -24,7 +24,7 @@ class PersistedScanTests(unittest.TestCase):
     def tearDown(self):
         self.repo.close()
 
-    def reviewed_rule(self, clause_status="HUMAN_REVIEWED", rule_status="HUMAN_REVIEWED"):
+    def reviewed_rule(self, clause_status="REVIEWED", rule_status="REVIEWED"):
         clause = self.contracts.add_clause(
             "ORG-A", self.version["id"], "4.2", "ROYALTY_RATE", "tester",
             text_excerpt="Five percent of Net Sales.", evidence_id=self.contract_evidence["id"], review_status=clause_status,
