@@ -1,0 +1,17 @@
+import http from 'node:http';import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';
+import {analyzeCsv} from './lib/pipeline.mjs';import {analyzeDebit,createDisputePackage,summarize} from './lib/engine.mjs';import {buildPortfolio} from './fixtures/portfolio.mjs';
+const ROOT=path.dirname(fileURLToPath(import.meta.url));const PORT=Number(process.env.PORT||4173);const MAX_BODY=2_000_000;
+const headers={'content-type':'application/json; charset=utf-8','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','cache-control':'no-store','content-security-policy':"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"};
+function json(res,status,obj){res.writeHead(status,headers);res.end(JSON.stringify(obj));}
+function staticFile(res,file,type='text/html; charset=utf-8'){const p=path.join(ROOT,file);if(!fs.existsSync(p)){json(res,404,{error:'NOT_FOUND'});return;}res.writeHead(200,{...headers,'content-type':type});res.end(fs.readFileSync(p));}
+async function body(req){let s='';for await(const c of req){s+=c;if(Buffer.byteLength(s)>MAX_BODY)throw new Error('PAYLOAD_TOO_LARGE');}return s?JSON.parse(s):{};}
+const server=http.createServer(async(req,res)=>{try{
+ if(req.method==='GET'&&req.url==='/api/health')return json(res,200,{ok:true,version:'0.8.4',runtime:'zero-dependency-node',persistence:false});
+ if(req.method==='GET'&&req.url==='/api/demo'){const p=buildPortfolio(),groups=new Map();for(const x of p){const a=analyzeDebit(x.debit,{contracts:x.contracts,evidence:x.evidence,requireContext:true});const pack=createDisputePackage(x.debit,a,{contract:x.contracts[0],evidence:x.evidence});const g=groups.get(x.company)??{company:{name:x.company,archetype:'synthetic'},results:[],summary:null,packages:[]};g.results.push({debit:x.debit,analysis:a,unresolvedReasons:a.unresolvedReasons});if(pack)g.packages.push(pack);groups.set(x.company,g);}for(const g of groups.values())g.summary=summarize(g.results.map(r=>r.analysis));const companies=[...groups.values()];return json(res,200,{synthetic:true,groups:companies,companies});}
+ if(req.method==='POST'&&req.url==='/api/analyze'){const b=await body(req),ht=req.headers['x-tenant-id'];if(!ht||ht!==b.tenantId)return json(res,403,{error:'TENANT_MISMATCH'});const r=analyzeCsv({tenantId:b.tenantId,csv:b.csv,contracts:[],evidence:[],requireContext:true});return json(res,200,r);}
+ if(req.method==='POST'&&req.url==='/api/analyze-context'){const expected=process.env.DEBITPROOF_OPERATOR_TOKEN;if(!expected)return json(res,503,{error:'OPERATOR_TOKEN_NOT_CONFIGURED'});if(req.headers['x-operator-token']!==expected)return json(res,401,{error:'OPERATOR_UNAUTHORIZED'});const b=await body(req),ht=req.headers['x-tenant-id'];if(!ht||ht!==b.tenantId)return json(res,403,{error:'TENANT_MISMATCH'});const r=analyzeCsv({tenantId:b.tenantId,csv:b.csv,contracts:b.contracts,evidence:b.evidence,requireContext:true});return json(res,200,r);}
+ if(req.method==='GET'&&(req.url==='/'||req.url==='/index.html'))return staticFile(res,'index.html');
+ if(req.method==='GET'&&(req.url==='/market'||req.url==='/market.html'))return staticFile(res,'market.html');
+ return json(res,404,{error:'NOT_FOUND'});
+ }catch(e){const code=e.message==='PAYLOAD_TOO_LARGE'?413:400;return json(res,code,{error:e.message||'BAD_REQUEST'});}});
+server.listen(PORT,'127.0.0.1',()=>console.log(`DebitProof local server http://127.0.0.1:${PORT}`));
