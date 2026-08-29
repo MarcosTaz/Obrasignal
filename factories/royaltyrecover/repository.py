@@ -10,6 +10,7 @@ from typing import Any, Optional
 
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+SQLITE_BUSY_TIMEOUT_MS = 5000
 
 
 class ScopeError(PermissionError):
@@ -55,24 +56,42 @@ class RoyaltyRepository:
         self.conn = connection
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
+        self.conn.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
 
     @classmethod
     def memory(cls) -> "RoyaltyRepository":
-        conn = sqlite3.connect(":memory:")
+        conn = sqlite3.connect(":memory:", timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
         repo = cls(conn)
         repo.initialize()
         return repo
 
     @classmethod
     def file(cls, path: str) -> "RoyaltyRepository":
-        conn = sqlite3.connect(path)
+        database_path = Path(path)
+        if database_path.parent != Path("."):
+            database_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(database_path), timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
         repo = cls(conn)
+        repo.conn.execute("PRAGMA journal_mode = WAL")
+        repo.conn.execute("PRAGMA synchronous = FULL")
         repo.initialize()
         return repo
 
     def initialize(self) -> None:
         self.conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
         self.conn.commit()
+
+    def integrity_status(self) -> dict[str, Any]:
+        integrity = self.conn.execute("PRAGMA integrity_check").fetchone()[0]
+        foreign_key_violations = list(self.conn.execute("PRAGMA foreign_key_check"))
+        journal_mode = self.conn.execute("PRAGMA journal_mode").fetchone()[0]
+        return {
+            "integrity": integrity,
+            "foreign_key_violation_count": len(foreign_key_violations),
+            "journal_mode": journal_mode,
+            "busy_timeout_ms": self.conn.execute("PRAGMA busy_timeout").fetchone()[0],
+            "ready": integrity == "ok" and not foreign_key_violations,
+        }
 
     def close(self) -> None:
         self.conn.close()
