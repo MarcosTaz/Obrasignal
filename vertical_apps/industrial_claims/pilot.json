@@ -1,5 +1,5 @@
 {
-  "schema_version": 8,
+  "schema_version": 9,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
@@ -19,6 +19,15 @@
     "individual_document_content_limit_bytes": 1000000,
     "recovered_or_closed_outcome_requires_document_content": true,
     "outcome_document_and_state_persist_atomically": true
+  },
+  "pre_review_entitlement_policy": {
+    "documentary_complete_confidence": "PARTIAL",
+    "missing_evidence_confidence": "UNRESOLVED",
+    "generic_actionable_before_human_review": false,
+    "ready_for_review_is_documentary_workflow_state": true,
+    "review_approval_is_legal_conclusion": false,
+    "recoverability_established_before_external_evidence": false,
+    "rule_ref": "documented-commercial-basis-v3-pre-review"
   },
   "notice_truth_policy": {
     "unknown_fails_closed": true,
@@ -41,6 +50,11 @@
     "amount_integer_digits_max": 36,
     "amount_decimal_places_max": 18,
     "amount_absolute_exponent_max": 36
+  },
+  "identity_collision_policy": {
+    "tenant_matches_provider_account_contract": true,
+    "contract_reference_is_structured_not_delimiter_concatenated": true,
+    "shared_store_outcome_id_is_tenant_scoped": true
   },
   "dossier_lineage": {
     "case_metadata_atomic_with_case": true,
@@ -69,7 +83,7 @@
   },
   "outputs": [
     "evidence_envelope_with_verification_state",
-    "entitlement_basis",
+    "pre_review_entitlement_basis",
     "reproducible_net_potential_calculation_with_currency",
     "notice_deadline_truth_state",
     "missing_evidence",
@@ -81,7 +95,8 @@
     "cost_without_commercial_basis",
     "missing_event_evidence",
     "reference_only_documentary_evidence",
-    "partial_entitlement_basis",
+    "unresolved_entitlement_basis",
+    "pre_review_entitlement_supported_overclaim",
     "unknown_notice_deadline",
     "pre_review_notice_verification_overclaim",
     "missing_claim_currency",
@@ -89,6 +104,8 @@
     "recovery_currency_mismatch",
     "missing_outcome_documentary_evidence",
     "outcome_evidence_collision",
+    "cross_tenant_outcome_id_collision",
+    "ambiguous_contract_reference",
     "oversized_tenant_identifier",
     "oversized_case_or_outcome_reference",
     "oversized_finding_identifier",
@@ -133,9 +150,11 @@
     "synthetic_ground_truth_green",
     "all_claim_families_structurally_supported",
     "documentary_content_gate_green",
+    "pre_review_entitlement_truth_green",
     "notice_truth_language_green",
     "currency_lineage_green",
     "numeric_capacity_green",
+    "identity_collision_resistance_green",
     "outcome_evidence_lineage_green",
     "dossier_lineage_green",
     "bounded_input_surface_green",
