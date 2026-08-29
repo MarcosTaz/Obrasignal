@@ -85,6 +85,7 @@ def _global_api_cors(response):
 # before allowing the ingestion worker to run.
 import app as _app
 from app import db, init_db, start_background_worker
+from storage_migration_lock import run_serialized_schema_init
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
 from notification_dispatch_guard import install as install_notification_dispatch_guard
@@ -106,7 +107,7 @@ from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 import preload as _preload
 
-init_db()
+run_serialized_schema_init(init_db, _app.DB)
 _lifecycle_conn = db()
 try:
     ensure_lifecycle_table(_lifecycle_conn)
