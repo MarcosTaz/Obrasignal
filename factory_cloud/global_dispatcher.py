@@ -4,7 +4,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable
 
-from factory_cloud.factory_switchboard import load_switchboard
+from factory_cloud.factory_switchboard import canonical_factory_id, load_switchboard
 from factory_cloud.global_control_tower import all_routes, select_routes
 from factory_cloud.global_state_store import GlobalStateStore
 from factory_cloud.portfolio_worker import PortfolioExecutionRequest, PortfolioFactoryWorker
@@ -37,10 +37,10 @@ class GlobalDispatcher:
         p=PortfolioExecutionRequest(factory_id=route.factory_id,route=route.route,signal=route.signal,mission=request["baton"]["mission"],baton=request["baton"])
         return self._normalize_result(self.portfolio_worker.execute(p),route.factory_id,route.route)
     def dispatch(self,scope:str="all")->dict[str,Any]:
-        registry=load_switchboard(); factories={str(item["id"]):item for item in registry.get("factories",[])}; routes=select_routes(all_routes(registry),scope); batch_id=self.store.create_batch(scope,[asdict(route) for route in routes])
+        registry=load_switchboard();factories={str(item['id']):item for item in registry.get('factories',[])};canonical=canonical_factory_id(scope,registry) if scope in (registry.get('aliases') or {}) else scope;routes=select_routes(all_routes(registry),canonical,registry.get('aliases') or {});batch_id=self.store.create_batch(scope,[asdict(route) for route in routes])
         for route in routes:
-            factory=factories[route.factory_id]; self.store.update_item(batch_id,route.factory_id,"RUNNING")
-            try: result=self._execute(route,factory)
-            except Exception as exc: result={"status":"ERROR","factory_id":route.factory_id,"route":route.route,"blockers":["global_dispatch_executor_exception"],"error":{"type":type(exc).__name__},"resume_at":self._baton(factory)["resume_at"]}
-            status=result["status"]; blockers=result.get("blockers") or []; blocker=str(blockers[0]) if blockers else None; self.store.update_item(batch_id,route.factory_id,status,blocker=blocker,result=result)
-        return self.store.batch(batch_id)
+            factory=factories[route.factory_id];self.store.update_item(batch_id,route.factory_id,'RUNNING')
+            try:result=self._execute(route,factory)
+            except Exception as exc:result={'status':'ERROR','factory_id':route.factory_id,'route':route.route,'blockers':['global_dispatch_executor_exception'],'error':{'type':type(exc).__name__},'resume_at':self._baton(factory)['resume_at']}
+            status=result['status'];blockers=result.get('blockers') or [];blocker=str(blockers[0]) if blockers else None;self.store.update_item(batch_id,route.factory_id,status,blocker=blocker,result=result)
+        batch=self.store.batch(batch_id);batch['requested_scope']=scope;batch['canonical_scope']=canonical;return batch
