@@ -30,7 +30,7 @@ def test_duplicate_analysis_does_not_downgrade_recovered_finding(tmp_path):
         approved=True,
         reason="reviewed evidence and amount",
     )
-    service.action(tenant_id="alpha", finding_id=first.finding.finding_id)
+    service.action(tenant_id="alpha", finding_id=first.finding.finding_id, actor_id="operator")
     service.resolve(
         tenant_id="alpha",
         finding_id=first.finding.finding_id,
@@ -38,6 +38,7 @@ def test_duplicate_analysis_does_not_downgrade_recovered_finding(tmp_path):
         recovered_amount="70000",
         currency="EUR",
         evidence_ref="bank-1",
+        actor_id="operator",
     )
 
     replay = _analyze(service)
