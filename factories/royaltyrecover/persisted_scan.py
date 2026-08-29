@@ -10,7 +10,7 @@ from repository import RoyaltyRepository
 from royalty_engine import ENGINE_VERSION, FindingState, PeriodInput, RoyaltyRule, calculate
 
 
-REVIEWED_RULE_STATUSES = {"HUMAN_REVIEWED", "APPROVED"}
+REVIEWED_RULE_STATUSES = {"REVIEWED", "HUMAN_REVIEWED", "APPROVED"}
 
 
 @dataclass(frozen=True)
@@ -80,9 +80,9 @@ def run_persisted_scan(
     clause = contract_store.get_clause(org_id, stored_rule["clause_id"])
 
     if str(clause["review_status"]).upper() not in REVIEWED_RULE_STATUSES:
-        raise ValueError("source clause must be human-reviewed before deterministic money calculation")
+        raise ValueError("source clause must be reviewed before deterministic calculation")
     if str(stored_rule["review_status"]).upper() not in REVIEWED_RULE_STATUSES:
-        raise ValueError("royalty rule must be human-reviewed before deterministic money calculation")
+        raise ValueError("royalty rule must be reviewed before deterministic calculation")
 
     evidence = []
     for evidence_id in tuple(dict.fromkeys(evidence_ids)):
