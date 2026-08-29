@@ -11,7 +11,8 @@
     "no_production_mutation": true,
     "independent_trust_boundaries": true,
     "no_shared_production_authority": true,
-    "metadata_only_persistence": true
+    "metadata_only_persistence": true,
+    "real_customer_requires_pilot_safe": true
   },
   "applications": [
     {
@@ -30,7 +31,8 @@
         "verify:execution:quality":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]
       },
       "development_evidence": {"last_green_candidate":"#677@ea9f31b224ff7758bc28532acd3c5d4731971afa","classification":"NONCANONICAL_CURRENT_SPINE_GREEN","scope":"temporal authority + source atomicity + best-effort source-health compensation + direct Persistence owner + current Mobile compatibility"},
-      "baton": {"active":"verify:execution:compile","next":["verify:execution:python","verify:execution:mobile","Continue source-to-canonical causal, normalization and historical provenance probes from GREEN current spine #677 while preserving UNKNOWN where authority is absent"],"wait":["repository mutation/code-authoring tasks require a separately verified repository-safe coding adapter","canonical adoption","merge","deploy","production/provider/secrets/config/source activation"]},
+      "baton": {"active":"verify:execution:compile","next":["verify:execution:python","verify:execution:mobile","Close PILOT_SAFE web/support/observability/backup/synthetic-company/shadow-validation gaps before any real-customer progression","Continue source-to-canonical causal, normalization and historical provenance probes from GREEN current spine #677 while preserving UNKNOWN where authority is absent"],"wait":["real customer or proprietary customer data until PILOT_SAFE","repository mutation/code-authoring tasks require a separately verified repository-safe coding adapter","canonical adoption","merge","deploy","production/provider/secrets/config/source activation"]},
+      "portfolio_priority":{"safety_severity":0,"pilot_safe_blocker":100,"commercial_leverage":70,"shared_leverage":95,"evidence_integrity":95},
       "activation": {"enabled":true,"mode":"repository_safe_execution","priority":100}
     },
     {
@@ -40,7 +42,8 @@
       "mission":"Advance K3 Fatality only through source-safe work until canonical repository truth is resolved, then continue application development without crossing production authority boundaries.",
       "development_state":"ACTIVE_RUNTIME_SOURCE_UNRESOLVED",
       "source_truth":{"provider":"vercel","project":"k3-fatality","canonical_repository":null,"verified_runtime":true,"verified_source":false},
-      "baton":{"active":"Resolve canonical source truth before repository mutations","next":["Probability-model validation","calibration/backtest evidence","commercial MVP progression"],"wait":["repository writes until source truth is resolved","production mutation"]},
+      "baton":{"active":"Resolve canonical source truth before repository mutations","next":["Probability-model validation","calibration/backtest evidence","commercial MVP progression"],"wait":["real customer or proprietary customer data until PILOT_SAFE","repository writes until source truth is resolved","production mutation"]},
+      "portfolio_priority":{"safety_severity":0,"pilot_safe_blocker":90,"commercial_leverage":20,"shared_leverage":20,"evidence_integrity":95},
       "activation":{"enabled":true,"mode":"read_only_until_source_resolved","priority":80}
     },
     {
@@ -53,8 +56,8 @@
       "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/aviation-lease-entitlement-recovery","head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/aviation-recovery-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
-      "baton":{"active":"verify:service","next":["verify:shared-contracts"],"wait":["production deploy","customer data","repository mutation beyond verification-only adapter"]},
-      "portfolio_priority":{"safety_severity":0,"pilot_blocker":90,"commercial_leverage":85,"shared_leverage":90,"evidence_integrity":95},
+      "baton":{"active":"verify:service","next":["verify:shared-contracts","Close PILOT_SAFE web/support/observability/backup/synthetic-company/shadow-validation gaps"],"wait":["real customer or proprietary customer data until PILOT_SAFE","production deploy","repository mutation beyond verification-only adapter"]},
+      "portfolio_priority":{"safety_severity":0,"pilot_safe_blocker":100,"pilot_blocker":90,"commercial_leverage":20,"shared_leverage":95,"evidence_integrity":95},
       "activation":{"enabled":true,"mode":"repository_safe_execution","priority":90}
     },
     {
@@ -67,8 +70,8 @@
       "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/contractcredit","head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/contractcredit-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
-      "baton":{"active":"verify:service","next":["verify:shared-contracts"],"wait":["production deploy","customer data","repository mutation beyond verification-only adapter"]},
-      "portfolio_priority":{"safety_severity":0,"pilot_blocker":90,"commercial_leverage":88,"shared_leverage":90,"evidence_integrity":95},
+      "baton":{"active":"verify:service","next":["verify:shared-contracts","Close PILOT_SAFE web/support/observability/backup/synthetic-company/shadow-validation gaps"],"wait":["real customer or proprietary customer data until PILOT_SAFE","production deploy","repository mutation beyond verification-only adapter"]},
+      "portfolio_priority":{"safety_severity":0,"pilot_safe_blocker":100,"pilot_blocker":90,"commercial_leverage":20,"shared_leverage":95,"evidence_integrity":95},
       "activation":{"enabled":true,"mode":"repository_safe_execution","priority":91}
     }
   ],
