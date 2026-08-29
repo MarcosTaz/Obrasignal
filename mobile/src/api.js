@@ -65,7 +65,6 @@ async function request(path, options={}) {
   throw lastError||new Error(`API ${path}: não foi possível concluir o pedido.`);
 }
 
-
 // One health probe is shared by every caller. It has a deliberately separate
 // cold-start budget, while normal business requests keep their 20 s budget.
 // A completed probe is cleared so only an in-flight warm-up is shared. A later
@@ -105,8 +104,25 @@ function actionableProfileValidationError(error){
   error.responseBody={...error.responseBody,error:message};
   return error;
 }
+function validateProfileNumbersBeforeSerialization(profile){
+  const data=profile||{};
+  for(const field of ['min_value','max_value']){
+    const value=data[field];
+    if(value!=null&&!Number.isFinite(value)){
+      const error=new Error('Revê o intervalo de valor dos contratos. Usa apenas números válidos.');
+      error.code='INVALID_PROFILE_NUMBER';
+      throw error;
+    }
+  }
+  if(data.min_value!=null&&data.max_value!=null&&data.min_value>data.max_value){
+    const error=new Error('O valor mínimo não pode ser superior ao valor máximo.');
+    error.code='INVALID_PROFILE_RANGE';
+    throw error;
+  }
+}
 
 async function saveProfileForEditor(profile){
+  validateProfileNumbersBeforeSerialization(profile);
   try{
     const state=await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT});
     if(state?.profile_saved===true&&state?.radar_state==='RECOVERY_REQUIRED'){
