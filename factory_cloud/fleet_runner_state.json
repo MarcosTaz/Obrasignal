@@ -5,30 +5,31 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 8,
-  "last_factory_id": "product-market-access",
-  "last_run_at": "2026-08-29T19:37:30Z",
+  "cursor": 9,
+  "last_factory_id": "eu-cloud-switching",
+  "last_run_at": "2026-08-29T19:38:00Z",
   "last_material_change": {
-    "kind": "SOURCE_IDENTITY_NOT_PROVEN_ROTATED",
-    "factory_id": "product-market-access",
-    "summary": "Product Market Access / Legal Product Checker exact branch-prefix recovery under market-access/* and legal-product/* returned no repository refs. No trustworthy canonical/source lane was inferred by name similarity. The Factory remains UNKNOWN_SOURCE_IDENTITY and fleet rotation advances to EU Cloud Switching rather than stopping.",
+    "kind": "EU_CLOUD_SWITCHING_EXACT_HEAD_VERIFIED_GREEN_DRAFT_ROTATED",
+    "factory_id": "eu-cloud-switching",
+    "summary": "EU Cloud Switching exact lane cloud-switching/t2-consent-trigger-dedup-20260829 was recovered at HEAD f27fd53b64b33cf2af49f28008e7d7e5473edd90. PR #802 remains OPEN/DRAFT with explicit DO NOT MERGE / NOT CANONICAL / NO OUTREACH boundaries. Three observed checks on the exact HEAD completed SUCCESS (mobile plus two python jobs). The lane hardens benchmark consent, deduplicates public acquisition triggers, and preserves fail-closed WTP evidence states without introducing prospects, customer data, payment, deployment or commercial proof. Fleet rotates to Aviation; no merge or external sending performed.",
     "evidence": {
-      "product_market_access": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY",
-        "market_access_matching_refs": 0,
-        "legal_product_matching_refs": 0,
-        "source_adopted": false
+      "eu_cloud_switching": {
+        "pr": 802,
+        "branch": "cloud-switching/t2-consent-trigger-dedup-20260829",
+        "head": "f27fd53b64b33cf2af49f28008e7d7e5473edd90",
+        "checks": ["mobile SUCCESS", "python SUCCESS", "python SUCCESS"],
+        "classification": "GREEN_DRAFT_NOT_CANONICAL_NO_OUTREACH"
       },
       "factory_cloud_hardening": {
         "verified_commit": "1958c16d979658057bb37e491eaf4a811edbd19f",
         "python": "SUCCESS",
-        "mobile": "SUCCESS",
-        "change": "all-blocked fleet retries rotating cursor instead of global-stop error"
+        "mobile": "SUCCESS"
       }
     },
-    "active": "EU Cloud Switching / Migration Capital Network: verify exact current branch/PR/head and execute the highest-value safe integrity/readiness action without outreach or production mutation.",
-    "next": "Aviation Lease Entitlement Recovery, then Capacity Commitment; continue beyond any Factory-specific blocker.",
+    "active": "Aviation Lease Entitlement Recovery: verify pilot-safe candidate exact source and gates; do not promote to GREEN where exact-head check evidence is absent.",
+    "next": "Capacity Commitment, then LongLead; continue beyond missing CI/source identity without global stop.",
     "wait": [
+      "EU Switching real WTP/customer/payment/deployment evidence remains external",
       "Product Market Access canonical/source identity remains UNKNOWN",
       "Sourcing Recovery canonical/source identity remains UNKNOWN",
       "Recovery Radar canonical/source identity remains UNKNOWN",
@@ -36,7 +37,6 @@
       "ScopeLedger production/Railway source lineage remains unproven",
       "Aviation candidate verification remains incomplete where checks are absent",
       "ComplianceLedger canonical source identity remains UNKNOWN",
-      "EU Switching real WTP/customer/payment/deployment evidence remains external",
       "production/deploy/secrets/provider/config/customer-data/source activation",
       "merge/adoption decisions"
     ]
