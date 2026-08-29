@@ -17,3 +17,6 @@ def test_operator_console_exposes_report_link_only_as_post_success_wiring(tmp_pa
     assert "reportLink.style.display='none'" in text
     assert "reportLink.style.display='inline-block'" in text
     assert 'pattern="[A-Za-z0-9][A-Za-z0-9._:-]{0,199}"' in text
+    assert 'name="duplicate_claim_reviewed"' in text
+    assert "duplicate_claim_reviewed:tri(d.get('duplicate_claim_reviewed'))" in text
+    assert 'name="duplicate_claim_reviewed"><option value="unknown">Unknown</option>' in text
