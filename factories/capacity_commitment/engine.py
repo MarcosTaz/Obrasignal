@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_EVEN, localcontext
 from enum import Enum
 from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.7"
+ENGINE_VERSION = "capacity-recoverability-t1.8"
+ENGINE_DECIMAL_PRECISION = 60
 
 
 class CommitmentState(str, Enum):
@@ -334,9 +335,14 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
 
     _validate(case)
 
-    shortfall_units = max(case.committed_units - case.actual_units, ZERO)
-    unit_amortization, recovered_via_actual_units, economic_exposure = _economic_exposure(case)
-    net_exposure = max(economic_exposure - case.mitigation - case.prior_payment, ZERO)
+    with localcontext() as decimal_context:
+        # Never inherit Decimal precision/rounding from another module, request,
+        # test or worker. Engine version therefore binds deterministic arithmetic.
+        decimal_context.prec = ENGINE_DECIMAL_PRECISION
+        decimal_context.rounding = ROUND_HALF_EVEN
+        shortfall_units = max(case.committed_units - case.actual_units, ZERO)
+        unit_amortization, recovered_via_actual_units, economic_exposure = _economic_exposure(case)
+        net_exposure = max(economic_exposure - case.mitigation - case.prior_payment, ZERO)
 
     reasons = []
     state: RecoverabilityState
