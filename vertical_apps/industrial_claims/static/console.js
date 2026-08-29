@@ -23,6 +23,37 @@ function render(target, response, body) {
   node.append(heading, detail);
 }
 
+function renderQueue(body) {
+  const list = document.getElementById("queue-list");
+  list.replaceChildren();
+  const findings = Array.isArray(body.findings) ? body.findings : [];
+  findings.forEach((finding) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "queue-item";
+
+    const title = document.createElement("strong");
+    title.textContent = String(finding.state || "UNKNOWN");
+    const amount = document.createElement("span");
+    amount.textContent = `Net potential: ${String(finding.net_potential || "UNKNOWN")} ${String(finding.currency_unit || "")}`.trim();
+    const identifier = document.createElement("code");
+    identifier.textContent = String(finding.finding_id || "");
+    const provenance = document.createElement("small");
+    provenance.textContent = `Created by ${String(finding.creator_actor || "UNKNOWN")} — ${String(finding.created_at || "UNKNOWN")}`;
+
+    item.append(title, amount, identifier, provenance);
+    item.addEventListener("click", () => setFinding(String(finding.finding_id || "")));
+    list.append(item);
+  });
+
+  if (!findings.length) {
+    const empty = document.createElement("p");
+    empty.className = "note";
+    empty.textContent = "No actionable findings for this verified role and tenant.";
+    list.append(empty);
+  }
+}
+
 async function send(path, options, target) {
   try {
     const response = await fetch(path, options);
@@ -40,6 +71,15 @@ async function send(path, options, target) {
   }
 }
 
+async function loadQueue() {
+  const result = await send("/findings", {method: "GET"}, "queue-result");
+  if (result && result.response.ok) {
+    renderQueue(result.body);
+  } else {
+    document.getElementById("queue-list").replaceChildren();
+  }
+}
+
 function jsonRequest(payload) {
   return {
     method: "POST",
@@ -47,6 +87,8 @@ function jsonRequest(payload) {
     body: JSON.stringify(payload),
   };
 }
+
+document.getElementById("refresh-queue").addEventListener("click", loadQueue);
 
 document.getElementById("notice_due").addEventListener("change", (event) => {
   if (event.target.value) document.getElementById("notice_deadline_not_applicable").checked = false;
@@ -77,17 +119,19 @@ document.getElementById("review-form").addEventListener("submit", async (event) 
   event.preventDefault();
   const approved = event.submitter.dataset.approved === "true";
   const id = document.getElementById("review_finding_id").value;
-  await send(
+  const result = await send(
     `/findings/${encodeURIComponent(id)}/review`,
     jsonRequest({approved, reason: document.getElementById("review_reason").value}),
     "review-result",
   );
+  if (result && result.response.ok) await loadQueue();
 });
 
 document.getElementById("action-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const id = document.getElementById("action_finding_id").value;
-  await send(`/findings/${encodeURIComponent(id)}/action`, {method: "POST"}, "action-result");
+  const result = await send(`/findings/${encodeURIComponent(id)}/action`, {method: "POST"}, "action-result");
+  if (result && result.response.ok) await loadQueue();
 });
 
 document.getElementById("resolve-form").addEventListener("submit", async (event) => {
@@ -99,5 +143,6 @@ document.getElementById("resolve-form").addEventListener("submit", async (event)
     currency: document.getElementById("currency").value,
     evidence_ref: document.getElementById("evidence_ref").value,
   };
-  await send(`/findings/${encodeURIComponent(id)}/resolve`, jsonRequest(payload), "resolve-result");
+  const result = await send(`/findings/${encodeURIComponent(id)}/resolve`, jsonRequest(payload), "resolve-result");
+  if (result && result.response.ok) await loadQueue();
 });
