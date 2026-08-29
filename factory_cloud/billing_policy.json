@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "scope": "shared_billing_core",
   "currency_default": "EUR",
   "bank_destination_env": "FACTORY_BILLING_IBAN",
@@ -8,6 +8,9 @@
   "stripe_webhook_secret_env": "FACTORY_STRIPE_WEBHOOK_SECRET",
   "stripe_livemode_env": "FACTORY_STRIPE_LIVEMODE",
   "stripe_customer_delivery_env": "FACTORY_STRIPE_CUSTOMER_DELIVERY_ENABLED",
+  "production_legal_entity_verified_env": "FACTORY_PRODUCTION_LEGAL_ENTITY_VERIFIED",
+  "production_fiscal_invoice_ready_env": "FACTORY_PRODUCTION_FISCAL_INVOICE_READY",
+  "production_payout_bank_verified_env": "FACTORY_PRODUCTION_PAYOUT_BANK_VERIFIED",
   "provider_catalog_strategy": "metadata_factory_id_lookup",
   "provider_ids_embedded_in_repository": false,
   "defaults_by_group": {
