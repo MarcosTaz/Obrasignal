@@ -97,6 +97,29 @@ def test_declared_no_notice_deadline_can_be_review_ready_without_claiming_verifi
     assert NOTICE_DEADLINE_EVIDENCE not in body["missing_evidence"]
 
 
+def test_non_object_json_bodies_fail_closed_without_internal_server_error(tmp_path):
+    database = tmp_path / "non-object-json.sqlite3"
+    analyst = create_app(database, identity_resolver=_identity("alpha", "analyst", "analyst")).test_client()
+    reviewer = create_app(database, identity_resolver=_identity("alpha", "reviewer", "reviewer")).test_client()
+    operator = create_app(database, identity_resolver=_identity("alpha", "operator", "operator")).test_client()
+
+    analyze = analyst.post("/analyze", json=[])
+    assert analyze.status_code == 422
+    assert analyze.get_json()["message"] == "JSON body must be an object"
+
+    created = analyst.post("/analyze", json=_payload())
+    assert created.status_code == 201
+    finding_id = created.get_json()["finding_id"]
+
+    review = reviewer.post(f"/findings/{finding_id}/review", json=[True])
+    assert review.status_code == 422
+    assert review.get_json()["message"] == "JSON body must be an object"
+
+    resolve = operator.post(f"/findings/{finding_id}/resolve", json="not-an-object")
+    assert resolve.status_code == 422
+    assert resolve.get_json()["message"] == "JSON body must be an object"
+
+
 def test_assisted_api_runs_role_separated_review_action_resolution(tmp_path):
     database = tmp_path / "industrial.sqlite3"
     analyst = create_app(database, identity_resolver=_identity("alpha", "analyst-1", "analyst")).test_client()
@@ -112,14 +135,36 @@ def test_assisted_api_runs_role_separated_review_action_resolution(tmp_path):
     assert body["notice_deadline_state"] == "DECLARED_DATE_FOR_REVIEW"
     finding_id = body["finding_id"]
 
+    detail = analyst.get(f"/findings/{finding_id}")
+    assert detail.status_code == 200
+    assert detail.get_json()["review_contract"] == {
+        "approval_scope": "INTERNAL_WORKFLOW_APPROVAL",
+        "approval_establishes_recoverability": False,
+        "approval_is_legal_conclusion": False,
+        "approval_authorizes_customer_contact": False,
+        "approval_authorizes_external_claim_submission": False,
+    }
+
     analyst_review = analyst.post(f"/findings/{finding_id}/review", json={"approved": True, "reason": "analyst must not self-approve"})
     assert analyst_review.status_code == 403
-    reviewed = reviewer.post(f"/findings/{finding_id}/review", json={"approved": True, "reason": "commercial basis and amount reviewed"})
+    reviewed = reviewer.post(f"/findings/{finding_id}/review", json={"approved": True, "reason": "commercial basis and amount reviewed for internal workflow"})
     assert reviewed.status_code == 200
+    reviewed_body = reviewed.get_json()
+    assert reviewed_body["state"] == "APPROVED"
+    assert reviewed_body["review_scope"] == "INTERNAL_WORKFLOW_APPROVAL"
+    assert reviewed_body["recoverability_established"] is False
+    assert reviewed_body["legal_conclusion"] is None
+    assert reviewed_body["customer_contact_authorized"] is False
+    assert reviewed_body["external_claim_submission_authorized"] is False
+
     assert analyst.post(f"/findings/{finding_id}/action").status_code == 403
     actioned = operator.post(f"/findings/{finding_id}/action")
     assert actioned.status_code == 200
-    assert actioned.get_json()["state"] == "ACTIONED"
+    actioned_body = actioned.get_json()
+    assert actioned_body["state"] == "ACTIONED"
+    assert actioned_body["internal_workflow_only"] is True
+    assert actioned_body["customer_contact_performed"] is False
+    assert actioned_body["external_claim_submitted"] is False
 
     missing_proof = operator.post(f"/findings/{finding_id}/resolve", json={"outcome_id": "alpha:no-proof", "recovered_amount": "7000", "currency": "EUR", "evidence_ref": "bank-ref-only"})
     assert missing_proof.status_code == 422
