@@ -6,6 +6,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
 from jwt import InvalidTokenError
+from werkzeug.exceptions import BadRequest, RequestEntityTooLarge
 
 from auth_context import RequestIdentity, configured_identity
 from auth_context_jwt import JwksUnavailableError
@@ -118,6 +119,14 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     def authentication_provider_unavailable(_exc):
         return jsonify({"error": "authentication_service_unavailable"}), 503
 
+    @app.errorhandler(BadRequest)
+    def invalid_json(_exc):
+        return jsonify({"error": "invalid_json", "message": "request body must contain valid JSON"}), 400
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def request_too_large(_exc):
+        return jsonify({"error": "request_too_large", "message": "request body exceeds assisted intake limit"}), 413
+
     @app.get("/")
     def console():
         return render_template("index.html")
@@ -145,8 +154,9 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
             if requested_states and not requested_states.issubset(permitted_states):
                 raise IndustrialClaimsAuthorizationError("requested queue state is not permitted for verified role")
             states = tuple(sorted(requested_states or permitted_states))
+            raw_limit = request.args.get("limit", "100")
             try:
-                limit = int(request.args.get("limit", "100"))
+                limit = int(raw_limit)
             except (TypeError, ValueError) as exc:
                 raise ValueError("limit must be an integer") from exc
             items = read_model.list_findings(tenant_id=tenant_id, states=states, limit=limit)
