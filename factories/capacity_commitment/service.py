@@ -48,6 +48,19 @@ def save_and_process(repository: CapacityRepository, state: AssistedCaseState) -
     return processed
 
 
+def save_revision_and_process(
+    repository: CapacityRepository,
+    state: AssistedCaseState,
+    *,
+    parent_case_id: str,
+) -> ProcessedCase:
+    """Validate a changed source state, then persist it as an immutable revision."""
+
+    processed = process_state(state)
+    repository.create_revision(state, parent_case_id=parent_case_id)
+    return processed
+
+
 def load_and_process(
     repository: CapacityRepository,
     *,
