@@ -12,6 +12,9 @@ on:
       - '.github/workflows/*.yml'
   workflow_dispatch:
 
+# Default authority stays read-only. The single owner job below receives
+# contents:write only so it can materialize the exact reproduced lock onto the
+# dedicated supply-chain candidate branch; main is never an allowed target.
 permissions:
   contents: read
 
@@ -87,14 +90,14 @@ jobs:
           assert first == second, f'REPRODUCIBILITY_DEFECT: {first} != {second}'
           PY
 
-      - name: Commit reproducible npm lock to integration lab branch
-        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'integration/customer-journey-current-20260828' }}
+      - name: Commit reproducible npm lock to supply-chain owner branch
+        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'supply-chain/lock-integrity-v1-20260825' }}
         working-directory: .
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$GITHUB_HEAD_REF" = 'integration/customer-journey-current-20260828'
+          test "$GITHUB_HEAD_REF" = 'supply-chain/lock-integrity-v1-20260825'
           test "$GITHUB_BASE_REF" = 'main'
           cp /tmp/package-lock.json mobile/package-lock.json
           if git ls-files --error-unmatch mobile/package-lock.json >/dev/null 2>&1 && git diff --quiet -- mobile/package-lock.json; then
@@ -105,7 +108,7 @@ jobs:
           import base64, json, os, subprocess
           path='mobile/package-lock.json'
           body={
-              'message':'lab: materialize reproduced npm lock',
+              'message':'supply-chain: commit reproducible npm lock candidate',
               'content':base64.b64encode(open(path,'rb').read()).decode('ascii'),
               'branch':os.environ['GITHUB_HEAD_REF'],
           }
@@ -114,7 +117,8 @@ jobs:
               body['sha']=subprocess.check_output(['git','rev-parse',f'HEAD:{path}'], text=True).strip()
           json.dump(body, open('/tmp/lock-put.json','w',encoding='utf-8'), separators=(',',':'))
           PY
-          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/mobile/package-lock.json" --input /tmp/lock-put.json >/tmp/lock-commit.json
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/mobile/package-lock.json" \
+            --input /tmp/lock-put.json >/tmp/lock-commit.json
           python - <<'PY'
           import json
           data=json.load(open('/tmp/lock-commit.json', encoding='utf-8'))
