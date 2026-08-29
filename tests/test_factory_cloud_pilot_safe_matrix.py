@@ -39,13 +39,24 @@ def test_aviation_manifest_preserves_known_gaps():
     assert "adversarial" in result["missing_evidence"]
 
 
-def test_portfolio_matrix_covers_every_registered_factory_and_fails_closed():
+def test_portfolio_matrix_covers_registered_and_transitional_factories_fail_closed():
     matrix = portfolio_matrix()
     by_id = {row["factory_id"]: row for row in matrix}
-    assert "factory-cloud" in by_id
-    assert "obrasignal" in by_id
-    assert "contractcredit" in by_id
-    assert "aviation-lease-entitlement-recovery" in by_id
+    for factory_id in (
+        "factory-cloud",
+        "obrasignal",
+        "contractcredit",
+        "aviation-lease-entitlement-recovery",
+        "guaranteerelease",
+        "debtrecover",
+        "royaltyrecover",
+        "govmargin",
+        "gridrecover",
+        "dealrecover",
+    ):
+        assert factory_id in by_id
     assert all(row["classification"] == "NOT_PILOT_SAFE" for row in matrix)
     assert by_id["contractcredit"]["gates"]["PS3"] == "PASS"
     assert by_id["contractcredit"]["gates"]["PS2"] == "BLOCKED"
+    assert by_id["dealrecover"]["source_status"] == "unregistered"
+    assert "source_registered" in by_id["dealrecover"]["missing_evidence"]
