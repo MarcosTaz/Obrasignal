@@ -20,6 +20,19 @@ def _payload():
     }
 
 
+def _outcome_payload(**overrides):
+    payload = {
+        "outcome_id": "payment-1",
+        "recovered_amount": "7000",
+        "currency": "EUR",
+        "evidence_ref": "bank-1",
+        "evidence_content": "bank statement documents 7000 EUR receipt",
+        "final_cumulative": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _identity(tenant_id: str, actor_id: str, *roles: str):
     return lambda: RequestIdentity(account_id=tenant_id, authenticated=True, subject=actor_id, claims={"sub": actor_id, "roles": list(roles)})
 
@@ -120,6 +133,38 @@ def test_non_object_json_bodies_fail_closed_without_internal_server_error(tmp_pa
     assert resolve.get_json()["message"] == "JSON body must be an object"
 
 
+def test_resolution_requires_explicit_final_cumulative_confirmation_before_persistence(tmp_path):
+    database = tmp_path / "final-cumulative.sqlite3"
+    analyst = create_app(database, identity_resolver=_identity("alpha", "analyst", "analyst")).test_client()
+    reviewer = create_app(database, identity_resolver=_identity("alpha", "reviewer", "reviewer")).test_client()
+    operator = create_app(database, identity_resolver=_identity("alpha", "operator", "operator")).test_client()
+
+    created = analyst.post("/analyze", json=_payload())
+    finding_id = created.get_json()["finding_id"]
+    assert reviewer.post(f"/findings/{finding_id}/review", json={"approved": True, "reason": "internal workflow review"}).status_code == 200
+    assert operator.post(f"/findings/{finding_id}/action").status_code == 200
+
+    no_confirmation = _outcome_payload()
+    no_confirmation.pop("final_cumulative")
+    denied = operator.post(f"/findings/{finding_id}/resolve", json=no_confirmation)
+    assert denied.status_code == 422
+    assert "final_cumulative must be true" in denied.get_json()["message"]
+
+    false_confirmation = operator.post(
+        f"/findings/{finding_id}/resolve",
+        json=_outcome_payload(final_cumulative=False),
+    )
+    assert false_confirmation.status_code == 422
+    assert "final_cumulative must be true" in false_confirmation.get_json()["message"]
+
+    accepted = operator.post(f"/findings/{finding_id}/resolve", json=_outcome_payload())
+    assert accepted.status_code == 201
+    body = accepted.get_json()
+    assert body["final_cumulative"] is True
+    assert body["finding_closed_by_outcome"] is True
+    assert body["state"] == "RECOVERED"
+
+
 def test_assisted_api_runs_role_separated_review_action_resolution(tmp_path):
     database = tmp_path / "industrial.sqlite3"
     analyst = create_app(database, identity_resolver=_identity("alpha", "analyst-1", "analyst")).test_client()
@@ -166,19 +211,28 @@ def test_assisted_api_runs_role_separated_review_action_resolution(tmp_path):
     assert actioned_body["customer_contact_performed"] is False
     assert actioned_body["external_claim_submitted"] is False
 
-    missing_proof = operator.post(f"/findings/{finding_id}/resolve", json={"outcome_id": "alpha:no-proof", "recovered_amount": "7000", "currency": "EUR", "evidence_ref": "bank-ref-only"})
+    missing_proof = operator.post(
+        f"/findings/{finding_id}/resolve",
+        json=_outcome_payload(outcome_id="no-proof", evidence_ref="bank-ref-only", evidence_content=""),
+    )
     assert missing_proof.status_code == 422
     assert "evidence content" in missing_proof.get_json()["message"]
 
-    wrong_currency = operator.post(f"/findings/{finding_id}/resolve", json={"outcome_id": "alpha:payment-usd", "recovered_amount": "7000", "currency": "USD", "evidence_ref": "bank-usd", "evidence_content": "USD settlement proof"})
+    wrong_currency = operator.post(
+        f"/findings/{finding_id}/resolve",
+        json=_outcome_payload(outcome_id="payment-usd", currency="USD", evidence_ref="bank-usd", evidence_content="USD settlement proof"),
+    )
     assert wrong_currency.status_code == 422
     assert "currency" in wrong_currency.get_json()["message"]
 
-    resolved = operator.post(f"/findings/{finding_id}/resolve", json={"outcome_id": "alpha:payment-1", "recovered_amount": "7000", "currency": "eur", "evidence_ref": "bank-1", "evidence_content": "bank statement proves 7000 EUR receipt"})
+    resolved = operator.post(f"/findings/{finding_id}/resolve", json=_outcome_payload(currency="eur"))
     assert resolved.status_code == 201
-    assert resolved.get_json()["state"] == "RECOVERED"
-    assert resolved.get_json()["currency"] == "EUR"
-    assert resolved.get_json()["evidence_ref"].endswith(":outcome-evidence")
+    resolved_body = resolved.get_json()
+    assert resolved_body["state"] == "RECOVERED"
+    assert resolved_body["currency"] == "EUR"
+    assert resolved_body["evidence_ref"].endswith(":outcome-evidence")
+    assert resolved_body["final_cumulative"] is True
+    assert resolved_body["finding_closed_by_outcome"] is True
 
 
 def test_admin_role_spans_functions_but_not_four_eyes(tmp_path):
