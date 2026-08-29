@@ -18,7 +18,7 @@
     <section class="guardrails" aria-label="Safety guardrails">
       <div class="guardrail"><strong>No automatic claim</strong><span>Cost alone never becomes money owed.</span></div>
       <div class="guardrail"><strong>Four-eyes review</strong><span>The finding creator cannot approve the same finding.</span></div>
-      <div class="guardrail"><strong>Verified recovery only</strong><span>Recorded recovery cannot exceed reviewed net potential or change currency.</span></div>
+      <div class="guardrail"><strong>Verified recovery only</strong><span>Recovery needs hashed settlement evidence and cannot exceed reviewed value or change currency.</span></div>
     </section>
 
     <div class="grid">
@@ -34,15 +34,7 @@
               <div class="field"><label for="event_ref">Event reference</label><input id="event_ref" name="event_ref" required autocomplete="off"></div>
               <div class="field"><label for="claim_family">Claim family</label><select id="claim_family" name="claim_family" required>
                 <option value="">Select…</option>
-                <option>EXCESS_OBSOLETE_RAW_MATERIAL</option>
-                <option>WIP</option>
-                <option>FINISHED_GOODS</option>
-                <option>TOOLING</option>
-                <option>NRE</option>
-                <option>DEDICATED_INVESTMENT</option>
-                <option>SUPPLIER_COMMITMENT</option>
-                <option>MITIGATION_COST</option>
-                <option>OTHER_DOCUMENTED_PROGRAM_EXPOSURE</option>
+                <option>EXCESS_OBSOLETE_RAW_MATERIAL</option><option>WIP</option><option>FINISHED_GOODS</option><option>TOOLING</option><option>NRE</option><option>DEDICATED_INVESTMENT</option><option>SUPPLIER_COMMITMENT</option><option>MITIGATION_COST</option><option>OTHER_DOCUMENTED_PROGRAM_EXPOSURE</option>
               </select></div>
               <div class="field"><label for="commercial_basis_ref">Commercial basis evidence reference</label><input id="commercial_basis_ref" name="commercial_basis_ref" required autocomplete="off"></div>
               <div class="field"><label for="cost_evidence_ref">Cost evidence reference</label><input id="cost_evidence_ref" name="cost_evidence_ref" required autocomplete="off"></div>
@@ -82,8 +74,7 @@
           <p class="sub">Roles are verified server-side. A role mismatch fails closed.</p>
           <div class="workflow">
             <form id="review-form" class="step">
-              <h3>1. Independent review</h3>
-              <p>Reviewer role. The creator cannot self-approve.</p>
+              <h3>1. Independent review</h3><p>Reviewer role. The creator cannot self-approve.</p>
               <div class="field"><label for="review_finding_id">Finding ID</label><input id="review_finding_id" required autocomplete="off"></div>
               <div class="field"><label for="review_reason">Decision reason</label><textarea id="review_reason" required></textarea></div>
               <div class="actions"><button type="submit" data-approved="true">Approve</button><button type="submit" class="danger" data-approved="false">Reject</button></div>
@@ -91,8 +82,7 @@
             </form>
 
             <form id="action-form" class="step">
-              <h3>2. Action approved finding</h3>
-              <p>Operator role. This changes internal workflow state only.</p>
+              <h3>2. Action approved finding</h3><p>Operator role. This changes internal workflow state only.</p>
               <div class="field"><label for="action_finding_id">Finding ID</label><input id="action_finding_id" required autocomplete="off"></div>
               <div class="actions"><button type="submit">Mark actioned</button></div>
               <div id="action-result" class="result" aria-live="polite">Awaiting approved finding.</div>
@@ -100,12 +90,13 @@
 
             <form id="resolve-form" class="step">
               <h3>3. Record verified outcome</h3>
-              <p>Operator role. Evidence reference is mandatory; amount and currency are capped by the reviewed candidate.</p>
+              <p>Operator role. A settlement/closure document is hashed atomically with the outcome; amount and currency stay bound to the reviewed candidate.</p>
               <div class="field"><label for="resolve_finding_id">Finding ID</label><input id="resolve_finding_id" required autocomplete="off"></div>
               <div class="field"><label for="outcome_id">Outcome ID</label><input id="outcome_id" required autocomplete="off"></div>
               <div class="field"><label for="recovered_amount">Recovered amount</label><input id="recovered_amount" inputmode="decimal" required></div>
               <div class="field"><label for="currency">Currency</label><input id="currency" required minlength="3" maxlength="3" autocomplete="off"></div>
-              <div class="field"><label for="evidence_ref">Settlement / bank evidence reference</label><input id="evidence_ref" required autocomplete="off"></div>
+              <div class="field"><label for="evidence_ref">Settlement / closure evidence reference</label><input id="evidence_ref" required autocomplete="off"></div>
+              <div class="field"><label for="evidence_content">Settlement / closure document content</label><textarea id="evidence_content" required placeholder="Paste extracted payment, credit-note, settlement, closure, or equivalent verification evidence. Raw content is hashed and not persisted by this service."></textarea></div>
               <div class="actions"><button type="submit">Record outcome</button></div>
               <div id="resolve-result" class="result" aria-live="polite">No outcome recorded.</div>
             </form>
@@ -114,7 +105,7 @@
 
         <section class="panel">
           <h2>Truth rules</h2>
-          <p class="note">A reference without documentary content is REFERENCE_ONLY and cannot become review-ready. Currency is explicit and immutable across reviewed economics and recovery recording. An unknown notice deadline is evidence missing, not an infinite deadline. <code>READY_FOR_REVIEW</code> means documented candidate ready for human review; it is not a legal conclusion, established recoverability, or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
+          <p class="note">A reference without documentary content is REFERENCE_ONLY and cannot become review-ready. Currency is explicit and immutable across reviewed economics and recovery recording. A recovered/closed outcome requires hashed documentary evidence. An unknown notice deadline is evidence missing, not an infinite deadline. <code>READY_FOR_REVIEW</code> means documented candidate ready for human review; it is not a legal conclusion, established recoverability, or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
         </section>
       </aside>
     </div>
