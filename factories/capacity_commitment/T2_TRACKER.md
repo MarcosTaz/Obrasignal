@@ -16,6 +16,8 @@ Truth rule: a researched target or unsent draft is **not CONTACTED**. A sent mes
 | Castings plc | United Kingdom | Commercial-vehicle foundry / machining | >70% heavy-truck revenue; demand around 10% below OEM-normalised level; FY26 capex £20.5m | program volume / dedicated foundry-machining capacity / tooling — UNKNOWN | sales@castings.plc.uk | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04adae56e38c0b` |
 | Trifast plc | United Kingdom | Engineered fastenings to automotive OEM/Tier suppliers | FY26 revenue -7.3% CER; company reported weaker volumes particularly in automotive | program/customer volume / engineering-manufacturing commitment — UNKNOWN | corporate.enquiries@trifast.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04adb25afe9d0b` |
 | Strip Tinning Holdings plc | United Kingdom | Automotive glazing / EV electrical connectors | high-volume Tier-1/OEM supply with customer/application-specific automation and production-line investment; no public shortfall asserted | customer programme volume / dedicated automated line / tooling-NRE basis — UNKNOWN | sales@striptinning.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04b1bd28e1da3b`; capacity-fit qualification, not a claimed shortfall |
+| EVTEC Automotive | United Kingdom | Tier-1 assembled automotive products | FY25 group revenue ~£140m; FY26 forecast £130m–£140m; order book >£700m; single-source OEM assembly exposure | awarded/nominated programme volume / dedicated assembly capacity / tooling-NRE — UNKNOWN | info@evtec-automotive.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | Cohort 2 draft `r7472168433398201828`; PREPARED_NOT_CONTACTED; no public shortfall asserted |
+| AC Plastics Ltd | United Kingdom | Automotive injection moulding / tooling | Jan-2026: 18 new injection mould tools for a major automotive programme; tooling cost ~£700k; production launch planned May/June 2026 | programme tooling / volume-linked amortization / dedicated moulding capacity — UNKNOWN | info@acplasticsltd.co.uk | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | Cohort 2 draft `r6225744210043132525`; PREPARED_NOT_CONTACTED; no shortfall or entitlement asserted |
 
 ## Channel/compliance state
 
@@ -32,6 +34,8 @@ Owner authorization is granted, but unsolicited commercial email remains **HOLD 
 ### United Kingdom
 
 First market test is live. Generic corporate mailboxes are used; sender identity and opt-out language are included. No personal email route is used in the live cohort.
+
+Cohort 2 is intentionally **PREPARED_NOT_CONTACTED** while the initial UK cohort is still inside its first business-response window. Saturday silence is not interpreted as rejection or weak demand.
 
 ## Outbound hygiene incident
 
@@ -53,16 +57,31 @@ Control change: before any future external send created from a HOLD draft, re-re
 - Castings — SENT → `1a04adae56e38c0b`.
 - Trifast — SENT → `1a04adb25afe9d0b`.
 - Strip Tinning — SENT → `1a04b1bd28e1da3b`.
+- EVTEC Automotive — draft `r7472168433398201828` — UNSENT / COHORT 2.
+- AC Plastics — draft `r6225744210043132525` — UNSENT / COHORT 2.
 - Sodecia — draft `r9030987917445416142` — UNSENT / HOLD DGC.
 - Fehst — draft `r3228309606481883657` — UNSENT / HOLD DGC.
 - COINDU — draft `r-2357619079086902254` — UNSENT / HOLD DGC.
 - Teknia — draft `r1319900680223442801` — UNSENT / HOLD Spain LSSI.
 - DGC legal-list inquiry — SENT → `1a04ad94d7f104c5`.
 
+## Follow-up state
+
+Five clean, threaded first-cohort follow-ups are prepared but **UNSENT**:
+
+- CT Automotive — `r7499258762669998010`.
+- Autins — `r-8693565801222009862`.
+- Castings — `r-8862220876514914778`.
+- Trifast — `r-270028345496521485`.
+- Strip Tinning — `r-3929895759824443129`.
+
+Do not send these during the weekend or before the initial business-response window has elapsed. Before any send, re-check reply/bounce/opt-out state and re-read exact draft metadata.
+
 ## Funnel scoreboard
 
-- TARGETS_RESEARCHED = 10
-- PUBLIC_SIGNAL_QUALIFIED = 10
+- TARGETS_RESEARCHED = 12
+- PUBLIC_SIGNAL_QUALIFIED = 12
+- COHORT_2_PREPARED_NOT_CONTACTED = 2
 - UNIQUE_COMPANIES_CONTACTED = 5
 - OUTBOUND_TRANSMISSIONS = 7 commercial + 1 DGC regulatory inquiry
 - DELIVERED = 0 confirmed / 5 company targets pending
@@ -92,12 +111,12 @@ Meaningful evidence required includes a paid audit/pilot, signed recovery engage
 
 **BUYER RESPONSE / QUALIFICATION / COSTLY COMMITMENT.**
 
-Current monitoring snapshot (2026-08-29 Europe/Lisbon): no reply or bounce detected from the live UK cohort and no DGC response yet. This remains `NO_REPLY_YET`, not delivery proof or rejection.
+Current monitoring snapshot (2026-08-29 Europe/Lisbon, Saturday afternoon): no reply or bounce detected from the five live UK companies and no DGC response yet. This remains `NO_REPLY_YET`, not delivery proof, rejection or negative demand evidence.
 
 ACTIVE:
 - monitor bounces/replies and DGC response;
 - qualify any buyer reply without promoting interest into WTP;
 - convert fit into one bounded paid-pilot proposal using the T3 conversion kit;
 - preserve rejection reasons;
-- do not send premature follow-ups within the initial response window;
+- keep the five first-cohort follow-ups and two Cohort-2 drafts unsent until an appropriate business-response window;
 - keep Portuguese/Spanish routes fail-closed until lawful basis is actually established.
