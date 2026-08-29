@@ -21,13 +21,20 @@ class StaleResumeDoneAdapter:
         )
 
 
+def _obrasignal_only_registry():
+    registry = load_registry()
+    isolated = dict(registry)
+    isolated["applications"] = [app for app in registry["applications"] if app["app_id"] == "obrasignal"]
+    return isolated
+
+
 class DoneResumeAtTests(unittest.TestCase):
     def test_done_cannot_leave_resume_at_on_completed_task(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = StateStore(Path(tmp) / "cloud.sqlite3")
             adapter = StaleResumeDoneAdapter()
             cloud = PersistentFactoryOrchestrator(
-                load_registry(),
+                _obrasignal_only_registry(),
                 store,
                 AdapterRegistry({"obrasignal": adapter}),
             )
