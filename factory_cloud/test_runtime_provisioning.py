@@ -83,21 +83,31 @@ class RuntimeProvisioningTests(unittest.TestCase):
         self.assertNotIn("git clean", text)
         self.assertNotIn("k3-fatality", text.lower())
 
-    def test_installer_defaults_to_obrasignal_only_and_uses_private_app_config_group(self):
+    def test_installer_defaults_to_obrasignal_only_and_provisions_private_queue_group(self):
         text = (SYSTEMD / "install.sh").read_text(encoding="utf-8")
         self.assertIn('APPS="${APPS:-obrasignal}"', text)
+        self.assertIn('QUEUE_DIR="${QUEUE_DIR:-${STATE_DIR}/queues}"', text)
+        self.assertIn('install -d -o factory-cloud-control -g "${user}" -m 2770 "${QUEUE_DIR}/${app}"', text)
         self.assertIn('install -o root -g "${user}" -m 0640', text)
         self.assertIn('prepare-obrasignal-workspace.sh', text)
         self.assertNotIn('APPS="${APPS:-obrasignal k3-fatality}"', text)
 
-    def test_systemd_worker_still_keeps_per_app_identity_and_adapter_config(self):
+    def test_systemd_worker_has_private_queue_and_shared_state_is_inaccessible(self):
         text = (SYSTEMD / "factory-cloud-app@.service").read_text(encoding="utf-8")
         self.assertIn("User=factory-cloud-%i", text)
         self.assertIn("Group=factory-cloud-%i", text)
-        self.assertIn("SupplementaryGroups=factory-cloud", text)
+        self.assertNotIn("SupplementaryGroups=factory-cloud", text)
         self.assertIn("UMask=0007", text)
+        self.assertIn("--queue /var/lib/factory-cloud/queues/%i/queue.sqlite3", text)
         self.assertIn("--adapter-config /etc/factory-cloud/apps/%i.json", text)
+        self.assertIn("ReadWritePaths=/var/lib/factory-cloud/queues/%i", text)
+        self.assertIn("InaccessiblePaths=-/var/lib/factory-cloud/state.sqlite3", text)
         self.assertIn("NoNewPrivileges=true", text)
+
+    def test_control_service_uses_queue_directory_not_shared_state_as_job_transport(self):
+        text = (SYSTEMD / "factory-cloud-control.service").read_text(encoding="utf-8")
+        self.assertIn("--state /var/lib/factory-cloud/state.sqlite3", text)
+        self.assertIn("--queue-dir /var/lib/factory-cloud/queues", text)
 
 
 if __name__ == "__main__":
