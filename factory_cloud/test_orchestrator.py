@@ -37,11 +37,24 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def _registry_for(self, *app_ids):
+        selected = set(app_ids)
+        registry = dict(self.registry)
+        registry["applications"] = [
+            app for app in self.registry["applications"] if app["app_id"] in selected
+        ]
+        return registry
+
     def test_registry_recovers_each_application_into_durable_state(self):
         store = StateStore(self.state_path)
         PersistentFactoryOrchestrator(self.registry, store)
         states = {item["app_id"]: item for item in store.list_apps()}
-        self.assertEqual(set(states), {"obrasignal", "k3-fatality"})
+        expected_ids = {
+            app["app_id"]
+            for app in self.registry["applications"]
+            if (app.get("activation") or {}).get("enabled") is True
+        }
+        self.assertEqual(set(states), expected_ids)
         required = {
             "app_id", "mission", "repo_source", "canonical_head", "runtime", "state",
             "active", "next", "wait", "blockers", "last_verified", "last_green",
@@ -57,7 +70,8 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
             ExecutionResult(status="WAIT", evidence={"boundary": "owner"}, blockers=("owner_boundary",)),
         ])
         store = StateStore(self.state_path)
-        cloud = PersistentFactoryOrchestrator(self.registry, store, AdapterRegistry({"obrasignal": adapter}))
+        registry = self._registry_for("obrasignal")
+        cloud = PersistentFactoryOrchestrator(registry, store, AdapterRegistry({"obrasignal": adapter}))
         result = cloud.run_cycle(max_dispatches=2)
         self.assertEqual([d["status"] for d in result["dispatches"]], ["DONE", "WAIT"])
         self.assertEqual(len(adapter.requests), 2)
@@ -68,8 +82,9 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
     def test_blocked_app_yields_to_next_eligible_app(self):
         obra = ScriptedAdapter([ExecutionResult(status="WAIT", blockers=("human_authorization",), resume_at="safe resume")])
         k3 = ScriptedAdapter([ExecutionResult(status="WAIT", blockers=("source_unresolved",), resume_at="resolve source")])
+        registry = self._registry_for("obrasignal", "k3-fatality")
         cloud = PersistentFactoryOrchestrator(
-            self.registry, StateStore(self.state_path), AdapterRegistry({"obrasignal": obra, "k3-fatality": k3})
+            registry, StateStore(self.state_path), AdapterRegistry({"obrasignal": obra, "k3-fatality": k3})
         )
         result = cloud.run_cycle(max_dispatches=5)
         self.assertEqual([d["app_id"] for d in result["dispatches"]], ["obrasignal", "k3-fatality"])
@@ -106,7 +121,8 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
 
     def test_adapter_exception_is_fail_closed_and_message_is_not_persisted(self):
         store = StateStore(self.state_path)
-        cloud = PersistentFactoryOrchestrator(self.registry, store, AdapterRegistry({"obrasignal": ExplodingAdapter()}))
+        registry = self._registry_for("obrasignal")
+        cloud = PersistentFactoryOrchestrator(registry, store, AdapterRegistry({"obrasignal": ExplodingAdapter()}))
         result = cloud.run_cycle(max_dispatches=1)
         self.assertEqual(result["dispatches"][0]["status"], "ERROR")
         state = store.get_app("obrasignal")
@@ -120,9 +136,11 @@ class FactoryCloudPersistentOrchestratorTests(unittest.TestCase):
         self.assertNotIn(SENSITIVE_SENTINEL, persisted)
 
     def test_k3_default_adapter_never_claims_repository_mutation_authority(self):
-        cloud = PersistentFactoryOrchestrator(self.registry, StateStore(self.state_path))
-        result = cloud.run_cycle(max_dispatches=2)
-        k3 = next(item for item in result["dispatches"] if item["app_id"] == "k3-fatality")
+        registry = self._registry_for("k3-fatality")
+        cloud = PersistentFactoryOrchestrator(registry, StateStore(self.state_path))
+        result = cloud.run_cycle(max_dispatches=1)
+        k3 = result["dispatches"][0]
+        self.assertEqual(k3["app_id"], "k3-fatality")
         self.assertEqual(k3["status"], "WAIT")
         self.assertEqual(k3["evidence"]["dispatch_boundary"], "canonical_source_unresolved")
 
