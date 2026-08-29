@@ -145,6 +145,14 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
+    @app.get("/findings/<path:finding_id>")
+    def finding_detail(finding_id: str):
+        try:
+            tenant_id, _actor_id, _roles = identity_any("analyst", "reviewer", "operator")
+            return jsonify(read_model.get_finding(tenant_id=tenant_id, finding_id=finding_id))
+        except API_ERRORS as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
     @app.post("/analyze")
     def analyze():
         try:
@@ -168,7 +176,7 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
-    @app.post("/findings/<finding_id>/review")
+    @app.post("/findings/<path:finding_id>/review")
     def review_finding(finding_id: str):
         try:
             tenant_id, actor_id = identity("reviewer")
@@ -181,7 +189,7 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
-    @app.post("/findings/<finding_id>/action")
+    @app.post("/findings/<path:finding_id>/action")
     def action_finding(finding_id: str):
         try:
             tenant_id, actor_id = identity("operator")
@@ -189,7 +197,7 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
-    @app.post("/findings/<finding_id>/resolve")
+    @app.post("/findings/<path:finding_id>/resolve")
     def resolve_finding(finding_id: str):
         try:
             tenant_id, actor_id = identity("operator")
