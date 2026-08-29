@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "activation_code": "D",
   "registry_scope": "application_development_only",
   "rules": {
@@ -49,8 +49,8 @@
       "kind":"application",
       "mission":"Deliver evidence-first lessee-side maintenance-reserve recoverability analysis using the shared assurance kernel, without inventing entitlement or mutating production.",
       "development_state":"ACTIVE_SOURCE_REGISTERED_VERIFICATION_ONLY",
-      "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/aviation-lease-entitlement-recovery","canonical_head":"2630470fdc03bbb447305da9a277ae1730d681df","verified":true,"application_path":"vertical_apps/aviation_recovery"},
-      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/aviation-lease-entitlement-recovery","head":"2630470fdc03bbb447305da9a277ae1730d681df","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
+      "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/aviation-lease-entitlement-recovery","canonical_head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"application_path":"vertical_apps/aviation_recovery"},
+      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/aviation-lease-entitlement-recovery","head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/aviation-recovery-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
       "baton":{"active":"verify:service","next":["verify:shared-contracts"],"wait":["production deploy","customer data","repository mutation beyond verification-only adapter"]},
@@ -63,8 +63,8 @@
       "kind":"application",
       "mission":"Deliver evidence-first enterprise service-credit reconciliation using the shared assurance kernel, without inventing SLA breach or contractual remedy.",
       "development_state":"ACTIVE_SOURCE_REGISTERED_VERIFICATION_ONLY",
-      "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/contractcredit","canonical_head":"2630470fdc03bbb447305da9a277ae1730d681df","verified":true,"application_path":"vertical_apps/contractcredit"},
-      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/contractcredit","head":"2630470fdc03bbb447305da9a277ae1730d681df","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
+      "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/contractcredit","canonical_head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"application_path":"vertical_apps/contractcredit"},
+      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/contractcredit","head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/contractcredit-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
       "baton":{"active":"verify:service","next":["verify:shared-contracts"],"wait":["production deploy","customer data","repository mutation beyond verification-only adapter"]},
