@@ -8,6 +8,7 @@ from typing import Callable, Optional
 from flask import Flask, g, jsonify, request
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from .delivery_report import render_delivery_report
 from .operator_ui import OPERATOR_HTML
 from .repository import CapacityRepository
 from .service import load_and_process, save_and_process
@@ -120,6 +121,10 @@ def _processed_payload(processed) -> dict:
         },
         "result": asdict(processed.result),
         "recovery_package": asdict(processed.recovery_package),
+        "delivery_report_markdown": render_delivery_report(
+            state,
+            processed.recovery_package,
+        ),
     }
 
 
@@ -210,5 +215,18 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
             case_id=case_id,
         )
         return jsonify(_json_safe(_processed_payload(processed)))
+
+    @app.route("/api/capacity/cases/<case_id>/report", methods=["GET"])
+    def get_case_report(case_id: str):
+        processed = load_and_process(
+            repository,
+            tenant_id=g.capacity_tenant_id,
+            case_id=case_id,
+        )
+        report = render_delivery_report(
+            processed.state,
+            processed.recovery_package,
+        )
+        return report, 200, {"Content-Type": "text/markdown; charset=utf-8"}
 
     return app
