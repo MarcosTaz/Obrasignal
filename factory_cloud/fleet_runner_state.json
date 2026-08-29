@@ -5,50 +5,52 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 4,
-  "last_factory_id": "scopeledger",
+  "cursor": 7,
+  "last_factory_id": "sourcing-recovery",
   "last_run_at": "2026-08-29T15:41:10Z",
   "last_material_change": {
     "kind": "FLEET_ADVANCED",
-    "factory_id": "scopeledger",
-    "summary": "Factory Cloud persistent fleet rotation remains exact-head GREEN in draft PR #765; Industrial Claims received T2 baton + fail-closed synthetic pilot admissibility evidence; ObraSignal GTM gained real negative ICP evidence from RODTEC; ScopeLedger exact current head now has repeated simulation-and-recovery CI success, so repository safety is GREEN while production runtime truth remains unverified.",
+    "factory_id": "sourcing-recovery",
+    "summary": "ChangeLedger exact BATON reconstructed at e93efa9358d94e0f4e093e8a70358627c4a7cd83: canonical artifact evidence records 75/75 PASS plus synthetic delivery dry-run PASS, but ACTIVE is OUTBOUND_COMPLIANCE_BLOCKED by physical-address/DGC/explicit-outbound owner gates. Recovery Radar and Sourcing Recovery have registry entries but no recoverable branch/BATON/source record found in MarcosTaz/Obrasignal in this slice; both are UNKNOWN rather than inferred. Cursor advanced to Product Market Access so these gaps do not become a fleet stop.",
     "evidence": {
-      "factory_cloud_pr": 765,
-      "factory_cloud_head": "b6e25348b9c11c11ed7f88aa39fb82ba33d34b9e",
-      "factory_cloud_quality_run": "33260748440 SUCCESS",
-      "factory_cloud_checks": {"python":"success","mobile":"success"},
-      "industrial_claims_branch": "factory/industrial-claims-causledger-v0.23.0",
-      "industrial_claims_baton_commit": "b1bd806380328077779c2115632e2cc001f82c1e",
-      "industrial_claims_fixture_commit": "81e044ae85139eed28d8c2dfeb7a4208f1e9a7ca",
-      "obrasignal_gtm": {
-        "prospect": "RODTEC",
-        "message_id": "1a043c333ab3779d",
-        "received_at": "2026-08-27T16:07:27+01:00",
-        "classification": "REPLY_OBJECTION_NOT_CURRENTLY_APPLICABLE",
-        "truth": "RODTEC said it does not seek works or opportunities through portals and believes ObraSignal does not apply to them. Treat as real negative ICP/channel evidence, not silence."
+      "changeledger": {
+        "repository": "MarcosTaz/Obrasignal",
+        "branch": "factory/changeledger-cumulative-delay-snapshot-20260828",
+        "head": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
+        "baton_path": "factory-snapshots/changeledger/BATON.md",
+        "test_state": "75/75 PASS via canonical npm test; synthetic delivery dry-run PASS",
+        "active": "OUTBOUND_COMPLIANCE_BLOCKED",
+        "next": "No external action until address/DGC gates pass and owner explicitly authorizes outbound; then exactly one compliant ProSystems corporate-mailbox message.",
+        "wait": [
+          "valid physical postal address selected by owner or authorized service",
+          "owner authorization to send DGC clarification request",
+          "authoritative DGC response/current-list consultation",
+          "explicit owner authorization for commercial outbound"
+        ]
       },
-      "scopeledger": {
-        "repository": "MarcosTaz/contract-os",
-        "branch": "scopeledger-railway",
-        "head": "1631dba08ad4d849bec05287f3a230df3f65643f",
-        "head_message": "Add secure invitation lifecycle simulations",
-        "ci": {
-          "simulation-and-recovery_run_33259142173": "success",
-          "simulation-and-recovery_run_33224533585": "success"
-        },
-        "repository_state": "EXACT_HEAD_GREEN",
-        "production_state": "UNKNOWN_NOT_VERIFIED_IN_THIS_SLICE"
+      "recovery_radar": {
+        "state": "UNKNOWN",
+        "repository_search": "No Recovery Radar branch or repository file match recovered in MarcosTaz/Obrasignal in this slice",
+        "rule": "Do not fabricate prior BATON/history"
+      },
+      "sourcing_recovery": {
+        "state": "UNKNOWN",
+        "repository_search": "No sourcing-named branch recovered in MarcosTaz/Obrasignal in this slice",
+        "rule": "Do not fabricate prior BATON/history"
       }
     },
-    "active": "ChangeLedger: reconstruct exact current source/BATON and execute the highest-value repository-safe proof or repair; do not infer readiness from ScopeLedger.",
-    "next": "When ChangeLedger yields or blocks, continue registry rotation. Reopen ScopeLedger production verification when the public endpoint is reachable and compare runtime revision to 1631dba08ad4d849bec05287f3a230df3f65643f.",
+    "active": "Product Market Access / Legal Product Checker: reconstruct exact current source/BATON and execute the highest-value repository-safe or research-safe proof that does not depend on unknown history.",
+    "next": "Continue registry rotation after Product Market Access; revisit UNKNOWN Recovery Radar and Sourcing Recovery when canonical repository/state evidence becomes discoverable.",
     "wait": [
-      "merge/adoption of PR #765",
+      "ChangeLedger compliance/address/DGC/explicit outbound gates",
+      "Recovery Radar canonical source/BATON currently UNKNOWN",
+      "Sourcing Recovery canonical source/BATON currently UNKNOWN",
+      "merge/adoption of Factory Cloud PR #765",
       "Industrial Claims real outreach without explicit authorization",
-      "Industrial Claims canonical source re-verification requires access to the referenced canonical source workspace",
       "ScopeLedger production endpoint/runtime revision verification",
       "production/deploy/secrets/provider/config/customer-data/source activation"
-    ]
+    ],
+    "clock_note": "Automation runtime timestamp observed for this slice was earlier than the already-persisted last_run_at by less than one minute; last_run_at was preserved rather than regressed."
   },
   "blocked": [],
   "rules": {
