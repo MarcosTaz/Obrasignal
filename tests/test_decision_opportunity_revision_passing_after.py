@@ -1,6 +1,9 @@
 import json
 import sqlite3
 
+import account_onboarding
+import app
+from company_profile import save_profile
 from decision_dashboard import get_presented_decision
 from decision_log import latest_current_decision, record_decision
 from opportunity_match_pipeline import RULE_VERSION
@@ -119,3 +122,50 @@ def test_malformed_canonical_snapshot_fails_currentness_closed():
         conn, SOURCE, EXTERNAL_ID, account_id=ACCOUNT, expected_rule_version=RULE_VERSION
     ) is None
     conn.close()
+
+
+def test_stale_opportunity_revision_cannot_emit_bootstrap_event(monkeypatch, tmp_path):
+    db_path = tmp_path / "revision-bootstrap.db"
+    monkeypatch.setenv("OBRASIGNAL_DB", str(db_path))
+    monkeypatch.setattr(app, "DB", str(db_path))
+    app.init_db()
+    save_profile(
+        {
+            "name": "Revision company",
+            "activity": "construction",
+            "coverage_mode": "portugal",
+            "countries": ["PRT"],
+            "cpv_prefixes": ["452"],
+            "services": ["construction"],
+            "capability_tags": ["construction"],
+            "min_value": 1000,
+            "max_value": 1000000,
+        },
+        account_id=ACCOUNT,
+    )
+    conn = app.db()
+    try:
+        persist_signal_records(conn, [_signal(deadline="2099-10-01")])
+        conn.execute(
+            """INSERT INTO tenders(
+                source,external_id,title,description,buyer,country,cpv,value,deadline,
+                publication_date,url,score,first_seen,last_seen
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))""",
+            (
+                SOURCE, EXTERNAL_ID, "Original scope", "Synthetic scope",
+                "Synthetic buyer", "PRT", "45200000", "100000 EUR", "2099-10-01",
+                "2026-08-01", "https://example.invalid/revision", 90,
+            ),
+        )
+        _record(conn)
+        persist_signal_records(
+            conn,
+            [_signal(title="Materially revised scope", deadline="2099-09-01", updated="2026-08-10T00:00:00+00:00")],
+        )
+        assert account_onboarding._emit_bootstrap_events(conn, ACCOUNT) == 0
+        assert conn.execute(
+            "SELECT COUNT(*) FROM opportunity_events WHERE account_id=? AND source=?",
+            (ACCOUNT, SOURCE),
+        ).fetchone()[0] == 0
+    finally:
+        conn.close()
