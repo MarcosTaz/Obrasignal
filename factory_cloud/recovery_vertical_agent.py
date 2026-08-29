@@ -13,15 +13,29 @@ COMMON_TESTS = (
     "tests/test_factory_cloud_recovery_index.py",
     "tests/test_factory_cloud_fee_lineage.py",
     "tests/test_factory_cloud_pilot_readiness.py",
+    "tests/test_factory_cloud_assurance_backup.py",
     "tests/test_vertical_application_services.py",
     "tests/test_vertical_end_to_end_outcomes.py",
     "tests/test_vertical_release_contracts.py",
     "tests/test_vertical_pilot_contracts.py",
     "tests/test_vertical_web_apis.py",
 )
+INDUSTRIAL_TESTS = (
+    "tests/test_industrial_claims_service.py",
+    "tests/test_industrial_claims_web.py",
+    "tests/test_industrial_claims_package.py",
+    "tests/test_industrial_claims_synthetic_oracle.py",
+    "tests/test_industrial_claims_backup_restore.py",
+    "tests/test_industrial_claims_pilot_contract.py",
+    "tests/test_factory_cloud_assurance_backup.py",
+    "tests/test_factory_cloud_recovery_primitives.py",
+    "tests/test_factory_cloud_recovery_index.py",
+    "tests/test_factory_cloud_assurance_store.py",
+)
 APP_TESTS = {
     "aviation-lease-entitlement-recovery": COMMON_TESTS,
     "contractcredit": COMMON_TESTS,
+    "industrial-claims": INDUSTRIAL_TESTS,
 }
 ALLOWED_TASKS = {"verify:service", "verify:shared-contracts"}
 
