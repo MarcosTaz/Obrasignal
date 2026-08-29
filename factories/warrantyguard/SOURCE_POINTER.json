@@ -1,0 +1,24 @@
+{
+  "factory": "WarrantyGuard",
+  "version": "0.8.4",
+  "branch": "factory/warrantyguard-debitproof-v084",
+  "runtime": "Node.js >=20 / zero external npm dependencies",
+  "artifact": "warrantyguard-prototype-v0.8.4.tar.gz",
+  "sha256": "333c35bc1cf1bbb2af1fc272ad477d3784ad4d2f762b9bed7b461077fc77368f",
+  "library_path": "/WarrantyGuard/warrantyguard-prototype-v0.8.4.tar.gz",
+  "verification": {
+    "tests": "52/52 PASS",
+    "redteam_debits": 10000,
+    "redteam_recovery": 1000,
+    "oracle": "18/18 PASS",
+    "clean_extraction_retest": "PASS"
+  },
+  "commercial_truth": {
+    "terminal": "T2 — MARKET EXPOSED",
+    "next_terminal": "T3 — COMMERCIAL PROOF",
+    "real_customers": 0,
+    "paid_pilots": 0,
+    "verified_recovery_eur": 0,
+    "revenue_received_eur": 0
+  }
+}
