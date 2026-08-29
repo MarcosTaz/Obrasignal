@@ -19,6 +19,8 @@ ALLOWED_FINDING_STATES = {
     "RECOVERED",
     "CLOSED_NO_RECOVERY",
 }
+MAX_TENANT_CHARS = 128
+MAX_FINDING_ID_CHARS = 2_048
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,15 @@ class IndustrialClaimsReadModel:
         return conn
 
     @staticmethod
+    def _bounded_key(value: object, *, label: str, max_chars: int) -> str:
+        text = str(value or "").strip()
+        if not text:
+            raise AssuranceStoreError(f"{label} is required")
+        if len(text) > max_chars:
+            raise AssuranceStoreError(f"{label} exceeds {max_chars} characters")
+        return text
+
+    @staticmethod
     def _json_list(value: str, *, error: str) -> tuple[str, ...]:
         try:
             parsed = json.loads(value)
@@ -65,9 +76,7 @@ class IndustrialClaimsReadModel:
         states: tuple[str, ...],
         limit: int = 100,
     ) -> tuple[FindingQueueItem, ...]:
-        tenant = tenant_id.strip()
-        if not tenant:
-            raise AssuranceStoreError("tenant_id is required")
+        tenant = self._bounded_key(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
         if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 100:
             raise AssuranceStoreError("finding queue limit must be an integer from 1 to 100")
         normalized_states = tuple(dict.fromkeys(str(state).strip().upper() for state in states if str(state).strip()))
@@ -114,10 +123,8 @@ class IndustrialClaimsReadModel:
         return tuple(items)
 
     def get_finding(self, *, tenant_id: str, finding_id: str) -> dict[str, Any]:
-        tenant = tenant_id.strip()
-        finding_key = finding_id.strip()
-        if not tenant or not finding_key:
-            raise AssuranceStoreError("tenant_id and finding_id are required")
+        tenant = self._bounded_key(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
+        finding_key = self._bounded_key(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
         metadata = self.case_store.get(tenant_id=tenant, finding_id=finding_key)
 
         with self._connect() as conn:
