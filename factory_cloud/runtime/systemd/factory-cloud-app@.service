@@ -8,7 +8,6 @@ Requires=factory-cloud-control.service
 Type=simple
 User=factory-cloud-%i
 Group=factory-cloud-%i
-SupplementaryGroups=factory-cloud-queue-%i
 WorkingDirectory=/opt/factory-cloud/current
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=-/etc/factory-cloud/apps/%i.env
