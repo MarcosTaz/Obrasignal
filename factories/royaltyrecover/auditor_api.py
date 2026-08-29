@@ -11,7 +11,10 @@ def create_auditor_blueprint(repository: RoyaltyRepository) -> Blueprint:
 
     @bp.get("/api/v1/findings/<finding_id>/formal-audit-packet")
     def formal_audit_packet(finding_id):
-        packet = build_formal_audit_packet(repository, request.royaltyrecover_org_id, finding_id)
+        try:
+            packet = build_formal_audit_packet(repository, request.royaltyrecover_org_id, finding_id)
+        except ValueError as exc:
+            return jsonify({"error": "audit_packet_not_ready", "detail": str(exc)}), 400
         return jsonify(packet_to_dict(packet))
 
     return bp
