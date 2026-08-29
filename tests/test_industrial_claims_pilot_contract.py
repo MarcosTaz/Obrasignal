@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 9
+    assert pilot["schema_version"] == 10
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -28,6 +28,17 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "review_approval_is_legal_conclusion": False,
         "recoverability_established_before_external_evidence": False,
         "rule_ref": "documented-commercial-basis-v3-pre-review",
+    }
+
+    review = pilot["review_workflow_policy"]
+    assert review == {
+        "approval_scope": "INTERNAL_WORKFLOW_APPROVAL",
+        "approval_is_legal_conclusion": False,
+        "approval_establishes_recoverability": False,
+        "approval_authorizes_customer_contact": False,
+        "approval_authorizes_external_claim_submission": False,
+        "independent_reviewer_required": True,
+        "decision_reason_required": True,
     }
 
     notice = pilot["notice_truth_policy"]
@@ -73,6 +84,17 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert dossier["outcome_evidence_type_must_match"] is True
     assert dossier["corrupt_or_ambiguous_lineage_fails_closed"] is True
 
+    backup = pilot["backup_restore_policy"]
+    assert backup == {
+        "sqlite_integrity_check_required": True,
+        "case_metadata_preserved": True,
+        "recovery_index_preserved": True,
+        "finding_and_audit_lineage_preserved": True,
+        "outcome_and_outcome_evidence_preserved": True,
+        "tenant_isolation_preserved": True,
+        "raw_document_content_absent_after_restore": True,
+    }
+
     economic = pilot["economic_lineage"]
     assert economic["currency_required_for_review_ready"] is True
     assert economic["currency_normalized_uppercase"] is True
@@ -92,6 +114,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "reference_only_documentary_evidence",
         "unresolved_entitlement_basis",
         "pre_review_entitlement_supported_overclaim",
+        "review_scope_overclaim",
         "unknown_notice_deadline",
         "pre_review_notice_verification_overclaim",
         "missing_claim_currency",
@@ -109,6 +132,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "oversized_missing_evidence_collection",
         "numeric_input_capacity_exceeded",
         "dossier_lineage_mismatch",
+        "incomplete_backup_restore",
         "non_finite_economic_input",
         "recovery_exceeds_reviewed_net_potential",
         "duplicate_success_fee",
@@ -132,6 +156,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "canonical_source_green",
         "documentary_content_gate_green",
         "pre_review_entitlement_truth_green",
+        "review_truth_green",
         "notice_truth_language_green",
         "currency_lineage_green",
         "numeric_capacity_green",
@@ -144,6 +169,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "operation_audit_green",
         "atomic_persistence_green",
         "case_metadata_atomicity_green",
+        "full_dossier_backup_restore_green",
         "tenant_scoped_role_queue_green",
         "operator_console_green",
         "browser_security_green",
