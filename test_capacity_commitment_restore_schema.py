@@ -23,6 +23,21 @@ def _state(case_id: str) -> AssistedCaseState:
     )
 
 
+def _create_canonical_table(conn):
+    conn.execute(
+        """
+        CREATE TABLE capacity_commitment_cases (
+            tenant_id TEXT NOT NULL,
+            case_id TEXT NOT NULL,
+            snapshot TEXT NOT NULL,
+            engine_version TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (tenant_id, case_id)
+        )
+        """
+    )
+
+
 def test_restore_rejects_required_columns_without_canonical_primary_key(tmp_path):
     live_path = tmp_path / "live.db"
     weak_path = tmp_path / "weak-schema.db"
@@ -104,5 +119,75 @@ def test_restore_rejects_unknown_columns_instead_of_silently_importing_newer_sch
 
     with pytest.raises(ValueError, match="schema"):
         repo.restore_from(str(future_path))
+
+    assert repo.load(tenant_id="tenant-a", case_id="original") == original
+
+
+def test_repository_rejects_live_trigger_that_can_change_create_only_semantics(tmp_path):
+    db_path = tmp_path / "triggered.db"
+    with sqlite3.connect(db_path) as conn:
+        _create_canonical_table(conn)
+        conn.execute(
+            """
+            CREATE TRIGGER capacity_ignore_insert
+            BEFORE INSERT ON capacity_commitment_cases
+            BEGIN
+                SELECT RAISE(IGNORE);
+            END
+            """
+        )
+
+    with pytest.raises(RuntimeError, match="trigger"):
+        CapacityRepository(str(db_path))
+
+
+def test_repository_rejects_live_custom_index_that_changes_identity_constraints(tmp_path):
+    db_path = tmp_path / "indexed.db"
+    with sqlite3.connect(db_path) as conn:
+        _create_canonical_table(conn)
+        conn.execute(
+            "CREATE UNIQUE INDEX one_case_per_tenant ON capacity_commitment_cases (tenant_id)"
+        )
+
+    with pytest.raises(RuntimeError, match="index"):
+        CapacityRepository(str(db_path))
+
+
+def test_restore_rejects_source_trigger_even_though_rows_are_copied_not_schema(tmp_path):
+    live_path = tmp_path / "live.db"
+    source_path = tmp_path / "triggered-source.db"
+    repo = CapacityRepository(str(live_path))
+    original = _state("original")
+    repo.save(original)
+
+    candidate = _state("candidate")
+    with sqlite3.connect(source_path) as conn:
+        _create_canonical_table(conn)
+        conn.execute(
+            """
+            INSERT INTO capacity_commitment_cases
+                (tenant_id, case_id, snapshot, engine_version, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                candidate.tenant_id,
+                candidate.recovery_case.case_id,
+                dump_state(candidate),
+                ENGINE_VERSION,
+                "2026-08-29T00:00:00+00:00",
+            ),
+        )
+        conn.execute(
+            """
+            CREATE TRIGGER capacity_ignore_insert
+            BEFORE INSERT ON capacity_commitment_cases
+            BEGIN
+                SELECT RAISE(IGNORE);
+            END
+            """
+        )
+
+    with pytest.raises(ValueError, match="trigger"):
+        repo.restore_from(str(source_path))
 
     assert repo.load(tenant_id="tenant-a", case_id="original") == original
