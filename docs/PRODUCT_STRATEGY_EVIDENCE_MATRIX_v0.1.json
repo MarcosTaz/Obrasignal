@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "classification": "SYNTHETIC_REPOSITORY_ONLY_NOT_CANONICAL",
+  "rules": {
+    "missing_external_evidence": "UNKNOWN",
+    "synthetic_proof_is_not_customer_proof": true,
+    "repository_capability_is_not_market_validation": true,
+    "no_numeric_claim_without_owned_evidence": true
+  },
+  "dimensions": [
+    {
+      "dimension": "decision_quality",
+      "repository_capability": "PARTIAL",
+      "synthetic_proof": "AVAILABLE_FOR_RULE_AND_NEGATIVE_CASE_TESTING",
+      "external_proof": "UNKNOWN",
+      "canonical_status": "NOT_ESTABLISHED"
+    },
+    {
+      "dimension": "lead_time_advantage",
+      "repository_capability": "ARCHITECTURALLY_ENABLED",
+      "synthetic_proof": "CAN_MODEL_TIMESTAMP_CHAIN",
+      "external_proof": "UNKNOWN",
+      "canonical_status": "MARKET_PROOF_PENDING"
+    },
+    {
+      "dimension": "buyer_intelligence",
+      "repository_capability": "NOT_CANONICAL_GRAPH",
+      "synthetic_proof": "FIXTURE_ONLY",
+      "external_proof": "UNKNOWN",
+      "canonical_status": "NOT_ESTABLISHED"
+    },
+    {
+      "dimension": "competitor_intelligence",
+      "repository_capability": "NOT_CANONICAL_GRAPH",
+      "synthetic_proof": "FIXTURE_ONLY",
+      "external_proof": "UNKNOWN",
+      "canonical_status": "NOT_ESTABLISHED"
+    },
+    {
+      "dimension": "economic_pursuit",
+      "repository_capability": "EARLY_RULE_FOUNDATION",
+      "synthetic_proof": "CAN_TEST_UNKNOWN_AND_CONSTRAINT_HANDLING",
+      "external_proof": "UNKNOWN",
+      "canonical_status": "NOT_EXPECTED_RETURN_MODEL"
+    },
+    {
+      "dimension": "execution_readiness",
+      "repository_capability": "STRATEGICALLY_DESIGNED",
+      "synthetic_proof": "CAN_TEST_BLOCKER_ROUTING_ONLY",
+      "external_proof": "UNKNOWN",
+      "canonical_status": "MATURITY_GATED"
+    },
+    {
+      "dimension": "market_depth",
+      "repository_capability": "COUNTRY_SPECIFIC",
+      "synthetic_proof": "CAN_TEST_EVIDENCE_GATING",
+      "external_proof": "UNKNOWN",
+      "canonical_status": "MUST_BE_PROVEN_PER_MARKET"
+    },
+    {
+      "dimension": "distribution",
+      "repository_capability": "OUTSIDE_CORE_CODE",
+      "synthetic_proof": "NOT_A_SUBSTITUTE_FOR_EXTERNAL_EVIDENCE",
+      "external_proof": "UNKNOWN",
+      "canonical_status": "UNPROVEN"
+    }
+  ]
+}
