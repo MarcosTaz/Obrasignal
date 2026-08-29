@@ -8,8 +8,11 @@ import {
   configureBilling,
   getCurrentOffering,
   hasProEntitlement,
+  openWebPurchase,
   purchasePro,
   restoreBilling,
+  WEB_BILLING_SUPPORTED,
+  webPurchaseConfigured,
 } from '../src/billing';
 
 const COLORS = { bg: '#070C18', panel: '#10182B', line: '#253553', text: '#F3F6FF', muted: '#9BA8C0', blue: '#5E8BFF', green: '#6FE39A', red: '#FF8998' };
@@ -32,7 +35,7 @@ export default function BillingGate({ children }) {
       const entitlement = activeEntitlement(info);
       setBilling({
         configured: result.configured,
-        pro: hasProEntitlement(info),
+        pro: Boolean(server?.entitled) || hasProEntitlement(info),
         plan: server?.plan || (hasProEntitlement(info) ? 'pro' : 'evaluation'),
         expiresAt: server?.expires_at || entitlement?.expirationDate || server?.trial_ends_at || null,
         managementUrl: info?.managementURL || null,
@@ -48,6 +51,7 @@ export default function BillingGate({ children }) {
 
   const openPaywall = async () => {
     setError(''); setModal(true);
+    if (WEB_BILLING_SUPPORTED) return;
     if (!billing.configured || !BILLING_SUPPORTED) return;
     try { setOffering(await getCurrentOffering()); } catch (e) { setError(e?.message || 'Não foi possível carregar o plano.'); }
   };
@@ -62,6 +66,20 @@ export default function BillingGate({ children }) {
     } catch (e) {
       if (!e?.userCancelled) setError(e?.message || 'A compra não foi concluída.');
     } finally { setBusy(false); }
+  };
+
+  const buyWeb = async () => {
+    setBusy(true); setError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) throw new Error('authentication_required');
+      await openWebPurchase(session.user.id, session.user.email || null);
+      // The hosted checkout is authoritative. Entitlement is never granted here;
+      // after RevenueCat/provider convergence, a new app load/refresh reads server truth.
+    } catch (e) {
+      setError(e?.message || 'Não foi possível abrir a compra Web.');
+      setBusy(false);
+    }
   };
 
   const restore = async () => {
@@ -80,10 +98,13 @@ export default function BillingGate({ children }) {
     } finally { setBusy(false); }
   };
 
-  const packagePrice = offering?.availablePackages?.find(p => p?.product?.identifier === 'obrasignal_pro_monthly')?.product?.priceString
-    || offering?.availablePackages?.[0]?.product?.priceString
-    || 'Preço apresentado pelo Google Play/App Store';
+  const packagePrice = WEB_BILLING_SUPPORTED
+    ? 'Preço apresentado no checkout RevenueCat'
+    : offering?.availablePackages?.find(p => p?.product?.identifier === 'obrasignal_pro_monthly')?.product?.priceString
+      || offering?.availablePackages?.[0]?.product?.priceString
+      || 'Preço apresentado pelo Google Play/App Store';
   const expired = billing.plan === 'expired';
+  const webConfigured = WEB_BILLING_SUPPORTED && webPurchaseConfigured();
 
   return <View style={{ flex: 1 }}>
     {expired ? <View style={styles.blocked}><Text style={styles.blockedTitle}>A avaliação terminou</Text><Text style={styles.blockedText}>Para continuar a receber oportunidades personalizadas, ativa o ObraSignal Pro.</Text><Pressable disabled={busy} style={styles.primary} onPress={openPaywall}><Text style={styles.primaryText}>Ver subscrição</Text></Pressable><Pressable disabled={busy} onPress={signOut} style={styles.secondary}><Text style={styles.secondaryText}>Terminar sessão ou trocar de conta</Text></Pressable>{error ? <Text style={styles.error}>{error}</Text> : null}</View> : <>{billing.plan === 'evaluation' && billing.evaluation ? <View style={styles.evalCard}>
@@ -98,9 +119,11 @@ export default function BillingGate({ children }) {
         <Text style={styles.eyebrow}>OBRASIGNAL PRO</Text>
         <Text style={styles.title}>O radar completo continua a trabalhar por ti.</Text>
         <Text style={styles.body}>A subscrição desbloqueia o acesso contínuo ao radar personalizado, scoring por empresa, alertas e workflow comercial.</Text>
-        <View style={styles.priceBox}><Text style={styles.price}>{packagePrice}</Text><Text style={styles.priceNote}>Subscrição recorrente · cobrança pela {Platform.OS === 'android' ? 'Google Play' : 'App Store'}</Text></View>
-        <Text style={styles.terms}>A subscrição renova automaticamente até ser cancelada. O preço, período e condições apresentados pelo sistema de compra da loja aplicam-se à compra. Podes gerir ou cancelar a subscrição na loja.</Text>
-        {BILLING_SUPPORTED && billing.configured ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Subscrever</Text>}</Pressable> : <Text style={styles.setup}>{BILLING_SUPPORTED ? 'Billing ainda não está configurado neste build. Define a chave pública RevenueCat antes do teste real.' : 'A subscrição é activada através da Google Play/App Store na aplicação nativa. A versão Web permite consultar o estado do plano, mas não processa compras.'}</Text>}
+        <View style={styles.priceBox}><Text style={styles.price}>{packagePrice}</Text><Text style={styles.priceNote}>{WEB_BILLING_SUPPORTED ? 'Subscrição recorrente · checkout Web associado à tua conta ObraSignal' : `Subscrição recorrente · cobrança pela ${Platform.OS === 'android' ? 'Google Play' : 'App Store'}`}</Text></View>
+        <Text style={styles.terms}>A subscrição renova automaticamente até ser cancelada. O preço, período e condições apresentados pelo sistema de compra aplicam-se à compra.</Text>
+        {BILLING_SUPPORTED && billing.configured ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Subscrever</Text>}</Pressable> : null}
+        {webConfigured ? <Pressable disabled={busy} style={styles.primary} onPress={buyWeb}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continuar para checkout Web</Text>}</Pressable> : null}
+        {!((BILLING_SUPPORTED && billing.configured) || webConfigured) ? <Text style={styles.setup}>{WEB_BILLING_SUPPORTED ? 'A compra Web ainda não está configurada neste ambiente. É necessário definir o Web Purchase Link RevenueCat de produção/sandbox apropriado.' : BILLING_SUPPORTED ? 'Billing ainda não está configurado neste build. Define a chave pública RevenueCat antes do teste real.' : 'A subscrição não está disponível neste ambiente.'}</Text> : null}
         {BILLING_SUPPORTED ? <Pressable disabled={busy} onPress={restore} style={styles.secondary}><Text style={styles.secondaryText}>Restaurar compra</Text></Pressable> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Pressable disabled={busy} onPress={() => setModal(false)} style={styles.close}><Text style={styles.secondaryText}>Fechar</Text></Pressable>
