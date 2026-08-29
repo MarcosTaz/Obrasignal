@@ -45,9 +45,14 @@ def test_service_credit_candidate_keeps_breach_entitlement_and_recovery_unproven
     assert result["recovery_state"] == "NOT_ESTABLISHED"
     assert result["customer_permission_verified"] is True
 
-    persisted = service.service.store.load_finding("enterprise-a", result["finding_id"])
-    assert "sha256:" + "a" * 64 in persisted.evidence_ids[0]
-    assert "sha256:" + "b" * 64 in persisted.evidence_ids[1]
+    with service.service.store._connect() as conn:
+        rows = conn.execute(
+            "SELECT source_ref FROM evidence WHERE tenant_id=? ORDER BY source_type",
+            ("enterprise-a",),
+        ).fetchall()
+    refs = {row["source_ref"] for row in rows}
+    assert f"msa.pdf@sha256:{'a' * 64}" in refs
+    assert f"sev1.pdf@sha256:{'b' * 64}" in refs
 
 
 def test_zero_credit_candidate_remains_unresolved(tmp_path):
