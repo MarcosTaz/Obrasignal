@@ -384,14 +384,6 @@ class IndustrialClaimsService:
         evidence = (basis, event, cost)
 
         documentary_complete = not effective_missing
-        entitlement = EntitlementBasis.create(
-            entitlement_id=self._id(tenant, f"{event_key}:{family}:basis"),
-            tenant_id=tenant,
-            domain=self.vertical,
-            source_evidence_ids=tuple(item.evidence_id for item in evidence),
-            rule_ref="documented-commercial-basis-v3-pre-review",
-            confidence="PARTIAL" if documentary_complete else "UNRESOLVED",
-        )
         fingerprint = RecoveryFingerprint.create(
             tenant_id=tenant,
             vertical=self.vertical,
@@ -399,23 +391,44 @@ class IndustrialClaimsService:
             event_ref=event_key,
             remedy_type=family.lower(),
         )
+        case_token = fingerprint.fingerprint
+        entitlement = EntitlementBasis.create(
+            entitlement_id=self._id(tenant, f"case:{case_token}:basis"),
+            tenant_id=tenant,
+            domain=self.vertical,
+            source_evidence_ids=tuple(item.evidence_id for item in evidence),
+            rule_ref="documented-commercial-basis-v3-pre-review",
+            confidence="PARTIAL" if documentary_complete else "UNRESOLVED",
+        )
         calculation = CalculationRecord.create(
-            calculation_id=self._id(tenant, f"{event_key}:{family}:net-potential"), tenant_id=tenant,
+            calculation_id=self._id(tenant, f"case:{case_token}:net-potential"), tenant_id=tenant,
             formula_id="industrial_net_potential_claim", formula_version="1",
             inputs=tuple(CalculationInput(name=name, value=str(value), unit=currency_code, evidence_ids=(cost.evidence_id, basis.evidence_id)) for name, value in amounts.items()),
             output_value=net_potential, output_unit=currency_code,
         )
-        deadline = DeadlineWindow.create(deadline_id=self._id(tenant, f"{event_key}:{family}:notice"), tenant_id=tenant, due_date=notice_due or date.max, basis_evidence_ids=(basis.evidence_id, event.evidence_id))
+        deadline = DeadlineWindow.create(
+            deadline_id=self._id(tenant, f"case:{case_token}:notice"), tenant_id=tenant,
+            due_date=notice_due or date.max, basis_evidence_ids=(basis.evidence_id, event.evidence_id),
+        )
         state = "READY_FOR_REVIEW" if documentary_complete and net_potential > 0 else "UNRESOLVED_EVIDENCE"
-        finding = FindingRecord.create(finding_id=self._id(tenant, f"{event_key}:{family}:finding"), tenant_id=tenant, finding_type="industrial_recovery_candidate", evidence_ids=tuple(item.evidence_id for item in evidence), calculation_ids=(calculation.calculation_id,), state=state)
+        finding = FindingRecord.create(
+            finding_id=self._id(tenant, f"case:{case_token}:finding"), tenant_id=tenant,
+            finding_type="industrial_recovery_candidate", evidence_ids=tuple(item.evidence_id for item in evidence),
+            calculation_ids=(calculation.calculation_id,), state=state,
+        )
         assert_same_tenant(*evidence, calculation, deadline, finding)
         assert_tenant_context(context, *evidence, calculation, deadline, finding)
         audit = AuditEvent.create(
-            event_id=self._id(tenant, f"{event_key}:{family}:audit"), context=context, event_type="industrial_finding_created",
+            event_id=self._id(tenant, f"case:{case_token}:audit"), context=context, event_type="industrial_finding_created",
             subject_ref=finding.finding_id, evidence_refs=finding.evidence_ids,
             payload={"claim_family": family, "documentary_complete": documentary_complete, "calculation_hash": calculation.reproducibility_hash, "entitlement_basis_hash": entitlement.basis_hash, "recovery_fingerprint": fingerprint.fingerprint, "currency": currency_code, "notice_deadline_state": notice_deadline_state, "evidence_states": {item.source_type: item.metadata.get("verification_state") for item in evidence}, "missing_evidence": sorted(effective_missing)},
         )
-        notification = NotificationEvent.create(event_id=self._id(tenant, f"{event_key}:{family}:notification"), tenant_id=tenant, event_type="finding_ready" if state == "READY_FOR_REVIEW" else "finding_unresolved", subject_ref=finding.finding_id, payload={"vertical": self.vertical, "claim_family": family, "state": state, "currency": currency_code, "notice_deadline_state": notice_deadline_state})
+        notification = NotificationEvent.create(
+            event_id=self._id(tenant, f"case:{case_token}:notification"), tenant_id=tenant,
+            event_type="finding_ready" if state == "READY_FOR_REVIEW" else "finding_unresolved",
+            subject_ref=finding.finding_id,
+            payload={"vertical": self.vertical, "claim_family": family, "state": state, "currency": currency_code, "notice_deadline_state": notice_deadline_state},
+        )
         case_metadata = IndustrialCaseMetadata(
             finding_id=finding.finding_id,
             tenant_id=tenant,
