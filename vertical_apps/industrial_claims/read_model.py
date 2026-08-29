@@ -20,7 +20,7 @@ ALLOWED_FINDING_STATES = {
     "CLOSED_NO_RECOVERY",
 }
 EXPECTED_CASE_EVIDENCE_TYPES = {"commercial_basis", "industrial_commercial_event", "cost_evidence"}
-MAX_TENANT_CHARS = 128
+MAX_TENANT_CHARS = 64
 MAX_FINDING_ID_CHARS = 2_048
 
 
@@ -74,13 +74,7 @@ class IndustrialClaimsReadModel:
     def _same_members(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
         return len(left) == len(right) and set(left) == set(right)
 
-    def list_findings(
-        self,
-        *,
-        tenant_id: str,
-        states: tuple[str, ...],
-        limit: int = 100,
-    ) -> tuple[FindingQueueItem, ...]:
+    def list_findings(self, *, tenant_id: str, states: tuple[str, ...], limit: int = 100) -> tuple[FindingQueueItem, ...]:
         tenant = self._bounded_key(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
         if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 100:
             raise AssuranceStoreError("finding queue limit must be an integer from 1 to 100")
