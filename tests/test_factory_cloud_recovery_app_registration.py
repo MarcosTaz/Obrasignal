@@ -3,7 +3,7 @@ from pathlib import Path
 from factory_cloud.control_plane import load_registry
 from factory_cloud.process_adapter import ProcessAdapterConfig
 
-EXPECTED_HEAD = "5b26801d5d54f224f1da36bb66ba8d26f1f8208c"
+EXPECTED_HEAD = "e8470dbc209c7ec5eaeef7e088573d6adf7cf510"
 
 
 def test_recovery_apps_are_source_registered_and_verification_only():
