@@ -392,7 +392,7 @@ def opportunities():
             WHERE {' AND '.join(where)}
             ORDER BY CASE WHEN d.score IS NULL THEN 1 ELSE 0 END,
                      d.score DESC,
-                     COALESCE(t.publication_date,t.first_seen) DESC,
+                     COALESCE(CASE WHEN julianday(t.publication_date) IS NOT NULL THEN t.publication_date END,t.first_seen) DESC,
                      t.source ASC, t.external_id ASC, t.id ASC
             LIMIT ?""",
         (identity.account_id, identity.account_id, RULE_VERSION, profile_fp, *params, limit),
