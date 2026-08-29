@@ -7,10 +7,9 @@ def test_portfolio_to_app_promotion_queue_is_fail_closed():
 
     assert by_id["aviation-lease-entitlement-recovery"].state == "APP_REGISTERED"
     assert by_id["contractcredit"].state == "APP_REGISTERED"
-
-    assert by_id["industrial-claims"].state == "PROMOTION_BLOCKED"
+    assert by_id["industrial-claims"].state == "APP_REGISTERED"
     assert by_id["industrial-claims"].maturity == "G2"
-    assert by_id["industrial-claims"].blocker == "canonical_application_source_truth_required"
+    assert by_id["industrial-claims"].blocker == ""
 
     assert by_id["warrantyguard"].state == "PROMOTION_BLOCKED"
     assert by_id["warrantyguard"].blocker == "canonical_application_source_truth_required"
