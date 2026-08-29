@@ -87,18 +87,28 @@ class IndustrialClaimsReadModel:
         placeholders = ",".join("?" for _ in normalized_states)
         with self._connect() as conn:
             rows = conn.execute(
-                f"""SELECT f.*, a.actor_id AS creator_actor, a.occurred_at AS created_at
+                f"""SELECT f.*,
+                       (SELECT a.actor_id FROM audit_events a
+                         WHERE a.tenant_id=f.tenant_id AND a.subject_ref=f.finding_id
+                           AND a.event_type='industrial_finding_created'
+                         ORDER BY a.occurred_at,a.event_id LIMIT 1) AS creator_actor,
+                       (SELECT a.occurred_at FROM audit_events a
+                         WHERE a.tenant_id=f.tenant_id AND a.subject_ref=f.finding_id
+                           AND a.event_type='industrial_finding_created'
+                         ORDER BY a.occurred_at,a.event_id LIMIT 1) AS created_at,
+                       (SELECT COUNT(*) FROM audit_events a
+                         WHERE a.tenant_id=f.tenant_id AND a.subject_ref=f.finding_id
+                           AND a.event_type='industrial_finding_created') AS creation_audit_count
                     FROM findings f
-                    JOIN audit_events a
-                      ON a.tenant_id=f.tenant_id AND a.subject_ref=f.finding_id
-                     AND a.event_type='industrial_finding_created'
                     WHERE f.tenant_id=? AND f.finding_type='industrial_recovery_candidate'
                       AND f.state IN ({placeholders})
-                    ORDER BY a.occurred_at DESC, f.finding_id DESC LIMIT ?""",
+                    ORDER BY created_at DESC, f.finding_id DESC LIMIT ?""",
                 (tenant, *normalized_states, limit),
             ).fetchall()
             items: list[FindingQueueItem] = []
             for row in rows:
+                if int(row["creation_audit_count"]) != 1:
+                    raise AssuranceStoreError("industrial finding queue creation audit lineage is ambiguous")
                 calculation_ids = self._json_list(row["calculation_ids_json"], error="finding queue calculation lineage is invalid")
                 if len(calculation_ids) != 1:
                     raise AssuranceStoreError("industrial finding queue requires exactly one calculation")
