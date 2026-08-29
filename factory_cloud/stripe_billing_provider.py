@@ -79,7 +79,18 @@ class StripeProviderConfig:
     webhook_secret: str
     livemode: bool
     customer_delivery_enabled: bool = False
+    production_legal_entity_verified: bool = False
+    production_fiscal_invoice_ready: bool = False
+    production_payout_bank_verified: bool = False
     api_base: str = "https://api.stripe.com/v1"
+
+    @property
+    def production_activation_ready(self) -> bool:
+        return bool(
+            self.production_legal_entity_verified
+            and self.production_fiscal_invoice_ready
+            and self.production_payout_bank_verified
+        )
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "StripeProviderConfig":
@@ -97,6 +108,15 @@ class StripeProviderConfig:
             customer_delivery_enabled=_parse_bool(
                 environ.get("FACTORY_STRIPE_CUSTOMER_DELIVERY_ENABLED"), default=False
             ),
+            production_legal_entity_verified=_parse_bool(
+                environ.get("FACTORY_PRODUCTION_LEGAL_ENTITY_VERIFIED"), default=False
+            ),
+            production_fiscal_invoice_ready=_parse_bool(
+                environ.get("FACTORY_PRODUCTION_FISCAL_INVOICE_READY"), default=False
+            ),
+            production_payout_bank_verified=_parse_bool(
+                environ.get("FACTORY_PRODUCTION_PAYOUT_BANK_VERIFIED"), default=False
+            ),
         )
 
 
@@ -105,12 +125,20 @@ class StripeBillingProvider:
 
     It never handles raw card/bank credentials. Invoice creation and finalization are
     separated from customer delivery; sending an invoice requires an explicit runtime
-    delivery gate. Idempotency keys are deterministic per engagement operation.
+    delivery gate. Any live-mode write additionally requires legal-entity, fiscal-invoice
+    and payout-bank readiness gates. Idempotency keys are deterministic per engagement.
     """
 
     def __init__(self, config: StripeProviderConfig, *, transport: Transport | None = None) -> None:
         self.config = config
         self.transport = transport or self._urlopen_transport
+
+    def require_write_ready(self, operation: str) -> None:
+        if self.config.livemode and not self.config.production_activation_ready:
+            raise BillingConfigurationError(
+                f"live Stripe write blocked for {operation}: legal entity, fiscal invoice, "
+                "and payout bank must all be explicitly verified"
+            )
 
     def _urlopen_transport(
         self,
@@ -177,6 +205,7 @@ class StripeBillingProvider:
         email: str,
         factory_id: str,
     ) -> dict[str, Any]:
+        self.require_write_ready("create_customer")
         if not str(email).strip():
             raise BillingStateError("B2B invoice customer email is required")
         return self._request(
@@ -204,6 +233,7 @@ class StripeBillingProvider:
         description: str,
         days_until_due: int = 15,
     ) -> dict[str, Any]:
+        self.require_write_ready("create_b2b_invoice")
         amount = eur_minor_units(fee_amount)
         if amount <= 0:
             raise BillingStateError("B2B invoice fee must be greater than zero")
@@ -255,6 +285,7 @@ class StripeBillingProvider:
         return finalized
 
     def send_invoice(self, invoice_ref: str, *, factory_id: str, engagement_id: str) -> dict[str, Any]:
+        self.require_write_ready("send_invoice")
         if not self.config.customer_delivery_enabled:
             raise BillingConfigurationError(
                 "customer invoice delivery is disabled; set FACTORY_STRIPE_CUSTOMER_DELIVERY_ENABLED only after approval"
