@@ -83,7 +83,9 @@ def _optional_decimal(payload: dict, key: str) -> Optional[Decimal]:
 
 def _addressable_recovery_case(raw: dict):
     recovery_case = recovery_case_from_payload(raw)
-    if not WEB_CASE_ID_PATTERN.fullmatch(recovery_case.case_id):
+    if not isinstance(recovery_case.case_id, str) or not WEB_CASE_ID_PATTERN.fullmatch(
+        recovery_case.case_id
+    ):
         raise ValueError(
             "case_id must be URL-addressable: 1-200 letters, digits, dot, underscore, colon, or hyphen"
         )
