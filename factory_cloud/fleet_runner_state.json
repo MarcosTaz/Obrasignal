@@ -5,31 +5,27 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 5,
-  "last_factory_id": "changeledger",
-  "last_run_at": "2026-08-29T19:35:00Z",
+  "cursor": 6,
+  "last_factory_id": "recovery-radar",
+  "last_run_at": "2026-08-29T19:36:00Z",
   "last_material_change": {
-    "kind": "SOURCE_IDENTITY_AMBIGUOUS_ROTATED_WITHOUT_INFERENCE",
-    "factory_id": "changeledger",
-    "summary": "ChangeLedger exact-name PR and repository code searches returned no recoverable canonical/source identity. Repository branch-prefix recovery found a distinct change-impact family with multiple current and historical branches, but no evidence binds that ObraSignal Change Impact owner family to the separate ChangeLedger business Factory. Factory Cloud therefore refuses to adopt those branches by name similarity. ChangeLedger is classified UNKNOWN_SOURCE_IDENTITY and moved to WAIT without blocking unrelated safe work. Fleet rotates immediately to Recovery Radar.",
+    "kind": "SOURCE_IDENTITY_NOT_PROVEN_ROTATED",
+    "factory_id": "recovery-radar",
+    "summary": "Recovery Radar exact business-Factory source identity could not be recovered from repository truth. Search results containing Radar resolve to ObraSignal customer/product Radar and integration repair work, not an explicitly bound Recovery Radar business repository/BATON. No branch under the recovery/* prefix exists for Recovery Radar; only the separately proven ScopeLedger recovery branch is present. Factory Cloud therefore preserves Recovery Radar as UNKNOWN_SOURCE_IDENTITY rather than conflating it with ObraSignal Radar. Fleet rotates to Sourcing Recovery & Supplier Margin Control.",
     "evidence": {
-      "changeledger": {
+      "recovery_radar": {
         "classification": "UNKNOWN_SOURCE_IDENTITY",
-        "exact_pr_search": "NO_RESULTS",
-        "exact_code_search": "NO_RESULTS",
-        "similar_branch_family": "change-impact/*",
-        "similar_branch_adopted": false,
-        "reason": "No explicit source/BATON link proves ChangeLedger == ObraSignal change-impact owner family."
-      },
-      "industrial_claims": {
-        "head": "ea8d428fb7b4236d8d1c336d28213dfaf5bb2a9a",
-        "quality": "ObraSignal Quality 33271161119 SUCCESS"
+        "exact_business_source": "NOT_RECOVERED",
+        "recovery_prefix_refs": ["recovery/scopeledger-source-20260829"],
+        "obrasignal_radar_candidates_adopted": false,
+        "reason": "ObraSignal Radar integration/repair PRs do not prove identity with the separate Recovery Radar Factory."
       }
     },
-    "active": "Recovery Radar: recover exact source/BATON/branch identity from repository truth; if no trustworthy source exists, persist UNKNOWN and rotate to Sourcing Recovery without delay.",
-    "next": "Sourcing Recovery & Supplier Margin Control, then Product Market Access, preserving exact-source and no-false-progress rules.",
+    "active": "Sourcing Recovery & Supplier Margin Control: recover exact source/BATON identity and current gates; execute bounded safe work only if the lane is provably identified.",
+    "next": "Product Market Access / Legal Product Checker, then EU Cloud Switching; UNKNOWN source identity is WAIT, not a fleet stop.",
     "wait": [
-      "ChangeLedger canonical/source identity remains UNKNOWN; similar change-impact branches are not authority",
+      "Recovery Radar canonical/source identity remains UNKNOWN",
+      "ChangeLedger canonical/source identity remains UNKNOWN",
       "ScopeLedger production/Railway source lineage remains unproven",
       "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
       "Customer Journey #764 Web purchase completion remains unresolved",
@@ -44,7 +40,8 @@
   },
   "blocked": [
     {"factory_id":"scopeledger","blocker":"Production lineage cannot be proved from the recovered GitHub branch alone; no production mutation is authorized from an unverified recovery source.","global_stop":false},
-    {"factory_id":"changeledger","blocker":"No exact source/BATON identity recovered; similarly named change-impact branches cannot be adopted without proof.","global_stop":false}
+    {"factory_id":"changeledger","blocker":"No exact source/BATON identity recovered; similarly named change-impact branches cannot be adopted without proof.","global_stop":false},
+    {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered; ObraSignal Radar branches are not substituted for the business Factory.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
