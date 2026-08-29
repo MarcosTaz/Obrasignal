@@ -38,6 +38,7 @@ NOTICE_DEADLINE_EVIDENCE = "notice_deadline_or_verified_none"
 COMMERCIAL_BASIS_DOCUMENT = "commercial_basis_document"
 EVENT_DOCUMENT = "event_document"
 COST_DOCUMENT = "cost_document"
+CLAIM_CURRENCY_EVIDENCE = "claim_currency"
 MAX_EVIDENCE_BYTES = 1_000_000
 
 
@@ -105,6 +106,15 @@ class IndustrialClaimsService:
             raise AssuranceKernelError("individual evidence content exceeds assisted intake limit")
         return content, {"verification_state": "CONTENT_HASHED", "raw_content_persisted": "false"}
 
+    @staticmethod
+    def _claim_currency(value: str) -> str:
+        code = str(value or "").strip().upper()
+        if not code:
+            return ""
+        if len(code) != 3 or not code.isalpha() or not code.isascii():
+            raise AssuranceKernelError("claim currency must be a three-letter ASCII code")
+        return code
+
     def _existing_finding(self, *, tenant_id: str, finding_id: str) -> FindingRecord:
         with sqlite3.connect(self.store.path) as conn:
             conn.row_factory = sqlite3.Row
@@ -169,7 +179,7 @@ class IndustrialClaimsService:
             raise AssuranceStoreError("duplicate finding lineage does not match persisted case")
         return existing
 
-    def _reviewed_net_potential(self, *, tenant_id: str, finding_id: str) -> Decimal:
+    def _reviewed_net_potential(self, *, tenant_id: str, finding_id: str) -> tuple[Decimal, str]:
         with sqlite3.connect(self.store.path) as conn:
             conn.row_factory = sqlite3.Row
             finding = conn.execute(
@@ -185,7 +195,7 @@ class IndustrialClaimsService:
             if not isinstance(calculation_ids, list) or len(calculation_ids) != 1:
                 raise AssuranceOperationError("industrial finding requires exactly one reviewed calculation")
             calculation = conn.execute(
-                "SELECT formula_id,output_value FROM calculations WHERE tenant_id=? AND calculation_id=?",
+                "SELECT formula_id,output_value,output_unit FROM calculations WHERE tenant_id=? AND calculation_id=?",
                 (tenant_id, str(calculation_ids[0])),
             ).fetchone()
             if calculation is None or calculation["formula_id"] != "industrial_net_potential_claim":
@@ -198,7 +208,10 @@ class IndustrialClaimsService:
             raise AssuranceOperationError("reviewed net potential must be finite")
         if maximum < 0:
             raise AssuranceOperationError("reviewed net potential cannot be negative")
-        return maximum
+        reviewed_currency = str(calculation["output_unit"] or "").strip().upper()
+        if len(reviewed_currency) != 3 or not reviewed_currency.isalpha() or not reviewed_currency.isascii():
+            raise AssuranceOperationError("reviewed claim currency is not verified")
+        return maximum, reviewed_currency
 
     def analyze(
         self,
@@ -212,6 +225,7 @@ class IndustrialClaimsService:
         commercial_basis_ref: str,
         cost_evidence_ref: str,
         gross_cost: str,
+        currency: str = "",
         commercial_basis_content: bytes | bytearray | memoryview | str | None = None,
         event_evidence_content: bytes | bytearray | memoryview | str | None = None,
         cost_evidence_content: bytes | bytearray | memoryview | str | None = None,
@@ -238,6 +252,10 @@ class IndustrialClaimsService:
             raise AssuranceKernelError("notice due date and verified no-deadline state are mutually exclusive")
 
         effective_missing = {str(item).strip() for item in missing_evidence if str(item).strip()}
+        currency_code = self._claim_currency(currency)
+        if not currency_code:
+            currency_code = "UNKNOWN"
+            effective_missing.add(CLAIM_CURRENCY_EVIDENCE)
         if notice_due is not None:
             notice_deadline_state = "VERIFIED_DATE"
         elif notice_deadline_not_applicable:
@@ -336,13 +354,13 @@ class IndustrialClaimsService:
                 CalculationInput(
                     name=name,
                     value=str(value),
-                    unit="currency",
+                    unit=currency_code,
                     evidence_ids=(cost.evidence_id, basis.evidence_id),
                 )
                 for name, value in amounts.items()
             ),
             output_value=net_potential,
-            output_unit="currency",
+            output_unit=currency_code,
         )
         deadline = DeadlineWindow.create(
             deadline_id=self._id(tenant_id, f"{event_ref}:{family}:notice"),
@@ -373,6 +391,7 @@ class IndustrialClaimsService:
                 "calculation_hash": calculation.reproducibility_hash,
                 "entitlement_basis_hash": entitlement.basis_hash,
                 "recovery_fingerprint": fingerprint.fingerprint,
+                "currency": currency_code,
                 "notice_deadline_state": notice_deadline_state,
                 "evidence_states": {item.source_type: item.metadata.get("verification_state") for item in evidence},
                 "missing_evidence": sorted(effective_missing),
@@ -387,6 +406,7 @@ class IndustrialClaimsService:
                 "vertical": self.vertical,
                 "claim_family": family,
                 "state": state,
+                "currency": currency_code,
                 "notice_deadline_state": notice_deadline_state,
             },
         )
@@ -444,7 +464,12 @@ class IndustrialClaimsService:
             raise AssuranceOperationError("recovered amount must be decimal") from exc
         if not amount.is_finite():
             raise AssuranceOperationError("recovered amount must be a finite decimal")
-        maximum = self._reviewed_net_potential(tenant_id=tenant_id, finding_id=finding_id)
+        recovery_currency = str(currency or "").strip().upper()
+        if len(recovery_currency) != 3 or not recovery_currency.isalpha() or not recovery_currency.isascii():
+            raise AssuranceOperationError("recovery currency must be a three-letter ASCII code")
+        maximum, reviewed_currency = self._reviewed_net_potential(tenant_id=tenant_id, finding_id=finding_id)
+        if recovery_currency != reviewed_currency:
+            raise AssuranceOperationError("recovery currency does not match reviewed claim currency")
         if amount > maximum:
             raise AssuranceOperationError("recovered amount exceeds reviewed net potential; amend and re-review the finding")
         return self.ops.resolve(
@@ -452,7 +477,7 @@ class IndustrialClaimsService:
             finding_id=finding_id,
             outcome_id=outcome_id,
             recovered_amount=recovered_amount,
-            currency=currency,
+            currency=recovery_currency,
             evidence_ref=evidence_ref,
             actor_id=actor_id,
         )
