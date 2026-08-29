@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "purpose": "portfolio maturity and shared-capability planning metadata; no source, production, merge, billing or customer-data authority",
   "layers": [
     {"id":"control","name":"Factory Cloud / Control Tower"},
@@ -55,9 +55,9 @@
     {"id":"obrasignal-support-ops","layer":"specialists","family":"obrasignal","source_status":"registered","maturity":"UNASSESSED"},
     {"id":"eu-switching-evidence-pack","layer":"specialists","family":"migration-economics","source_status":"registered","maturity":"G2"},
     {"id":"complianceledger","layer":"specialists","family":"compliance-assurance","source_status":"registered","maturity":"G1"},
-    {"id":"guaranteerelease","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"},
+    {"id":"guaranteerelease","layer":"verticals","family":"recovery-assurance","source_status":"registered_read_only","maturity":"G1"},
     {"id":"debtrecover","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"},
-    {"id":"royaltyrecover","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"},
+    {"id":"royaltyrecover","layer":"verticals","family":"recovery-assurance","source_status":"registered_read_only","maturity":"G1"},
     {"id":"govmargin","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"},
     {"id":"gridrecover","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"},
     {"id":"dealrecover","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"}
@@ -67,7 +67,9 @@
     "Maturity entries are provisional planning classifications, not claims of business completion.",
     "UNASSESSED is used when canonical switchboard registration exists but current evidence is insufficient to assert a maturity gate.",
     "Unregistered source_status means Factory Cloud must not dispatch repository mutations until canonical source truth is explicitly registered and verified.",
-    "Aviation and ContractCredit have dedicated source branches and persistent assisted application services; repository dispatch remains disabled until an execution adapter is verified.",
+    "registered_read_only means source or runtime truth is known but repository execution remains disabled until its next authority boundary is verified.",
+    "GuaranteeRelease and RoyaltyRecover now have exact verified GitHub application sources but remain read-only until isolated execution adapters are capability-verified.",
+    "Aviation and ContractCredit have dedicated source branches and persistent assisted application services; billing settlement/reconciliation remains the only current PILOT_SAFE gate blocker.",
     "Shared capability candidates do not imply shared databases, secrets, production authority or customer data."
   ]
 }
