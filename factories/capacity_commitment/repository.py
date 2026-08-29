@@ -16,6 +16,15 @@ _PRIMARY_KEY = ("tenant_id", "case_id")
 _TABLE_NAME = "capacity_commitment_cases"
 
 
+def _same_physical_file(first: str, second: str) -> bool:
+    if os.path.abspath(first) == os.path.abspath(second):
+        return True
+    try:
+        return os.path.samefile(first, second)
+    except (FileNotFoundError, OSError):
+        return False
+
+
 class CapacityRepository:
     """Small tenant-scoped SQLite repository for assisted T1 cases.
 
@@ -193,7 +202,7 @@ class CapacityRepository:
             raise ValueError("destination_path is required")
         destination = str(Path(destination_path))
         Path(destination).parent.mkdir(parents=True, exist_ok=True)
-        if os.path.abspath(destination) == os.path.abspath(self.db_path):
+        if _same_physical_file(destination, self.db_path):
             raise ValueError("backup destination must differ from source")
         with self._connect() as source, sqlite3.connect(destination) as dest:
             source.backup(dest)
@@ -208,7 +217,7 @@ class CapacityRepository:
 
         if not source_path or not Path(source_path).is_file():
             raise ValueError("restore source does not exist")
-        if os.path.abspath(source_path) == os.path.abspath(self.db_path):
+        if _same_physical_file(source_path, self.db_path):
             raise ValueError("restore source must differ from destination")
 
         source = sqlite3.connect(source_path)
