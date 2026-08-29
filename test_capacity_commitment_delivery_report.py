@@ -39,6 +39,8 @@ def test_delivery_report_renders_positive_result_without_upgrading_recovery_or_p
     assert "Verified recovery: **NO**" in report
     assert "Payment received: **NO**" in report
     assert "Assessment date: `2026-08-29`" in report
+    assert "Duplicate claim review completed: `YES`" in report
+    assert "Duplicate claim found: `NO`" in report
     assert "contract:LTA-2026-01#12" in report
     assert "2026-12-31" in report
     assert "authorized human action" in report
@@ -113,23 +115,18 @@ def test_delivery_report_rejects_mutated_assessment_date_truth():
         render_delivery_report(state, package)
 
 
-def test_delivery_report_direct_call_rejects_positive_case_without_persisted_evidence_reference():
+def test_package_boundary_rejects_positive_case_without_persisted_evidence_reference_before_report():
     recovery_case = case("report-no-evidence-ref")
-    state = AssistedCaseState(
-        tenant_id="tenant-a",
-        company_id="supplier-a",
-        customer_id="oem-a",
-        program_id="program-a",
-        contract_id="LTA-2026-01",
-        recovery_case=recovery_case,
-        evidence_refs=(),
-        deadline="2026-12-31",
-    )
     result = evaluate_recoverability(recovery_case)
-    package = build_recovery_package(recovery_case, result, evidence_refs=(), deadline="2026-12-31")
 
     with pytest.raises(ValueError, match="evidence_supported requires"):
-        render_delivery_report(state, package)
+        build_recovery_package(
+            recovery_case,
+            result,
+            evidence_refs=(),
+            deadline="2026-12-31",
+            assessment_date="2026-08-29",
+        )
 
 
 def test_delivery_report_normalizes_newlines_in_external_references():
