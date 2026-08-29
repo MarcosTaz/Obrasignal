@@ -24,6 +24,7 @@ class SupportContinuityError(RuntimeError):
 
 @dataclass(frozen=True)
 class SupportIncident:
+    tenant_id: str
     incident_id: str
     severity: str
     state: str
@@ -43,7 +44,7 @@ def _hash(value: str) -> str:
 
 
 class SupportLedger:
-    """Durable, app-local support continuity ledger without raw customer messages."""
+    """Durable, tenant-scoped support continuity ledger without raw messages."""
 
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -52,24 +53,27 @@ class SupportLedger:
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS support_incidents(
-                    incident_id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    incident_id TEXT NOT NULL,
                     severity TEXT NOT NULL,
                     state TEXT NOT NULL,
                     owner_role TEXT NOT NULL,
                     opened_at TEXT NOT NULL,
                     acknowledged_at TEXT,
                     last_customer_update_at TEXT,
-                    closure_evidence_hash TEXT
+                    closure_evidence_hash TEXT,
+                    PRIMARY KEY(tenant_id,incident_id)
                 );
                 CREATE TABLE IF NOT EXISTS support_events(
                     event_seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_id TEXT NOT NULL,
                     incident_id TEXT NOT NULL,
                     event_type TEXT NOT NULL,
                     occurred_at TEXT NOT NULL,
                     evidence_hash TEXT,
-                    FOREIGN KEY(incident_id) REFERENCES support_incidents(incident_id)
+                    FOREIGN KEY(tenant_id,incident_id) REFERENCES support_incidents(tenant_id,incident_id)
                 );
-                CREATE INDEX IF NOT EXISTS idx_support_events_incident ON support_events(incident_id,event_seq);
+                CREATE INDEX IF NOT EXISTS idx_support_events_incident ON support_events(tenant_id,incident_id,event_seq);
                 """
             )
 
@@ -82,44 +86,55 @@ class SupportLedger:
     @staticmethod
     def _incident(row: sqlite3.Row) -> SupportIncident:
         return SupportIncident(
-            incident_id=row["incident_id"], severity=row["severity"], state=row["state"],
-            owner_role=row["owner_role"], opened_at=row["opened_at"],
-            acknowledged_at=row["acknowledged_at"],
-            last_customer_update_at=row["last_customer_update_at"],
+            tenant_id=row["tenant_id"], incident_id=row["incident_id"], severity=row["severity"],
+            state=row["state"], owner_role=row["owner_role"], opened_at=row["opened_at"],
+            acknowledged_at=row["acknowledged_at"], last_customer_update_at=row["last_customer_update_at"],
             closure_evidence_hash=row["closure_evidence_hash"],
         )
 
-    def open(self, *, incident_id: str, severity: str, owner_role: str, summary: str) -> SupportIncident:
-        incident_id = incident_id.strip()
+    @staticmethod
+    def _identity(tenant_id: str, incident_id: str) -> tuple[str, str]:
+        tenant = tenant_id.strip()
+        incident = incident_id.strip()
+        if not tenant or not incident:
+            raise SupportContinuityError("tenant and incident id are required")
+        return tenant, incident
+
+    def open(self, *, tenant_id: str, incident_id: str, severity: str, owner_role: str, summary: str) -> SupportIncident:
+        tenant_id, incident_id = self._identity(tenant_id, incident_id)
         owner_role = owner_role.strip()
         summary = summary.strip()
-        if not incident_id or not owner_role or not summary:
-            raise SupportContinuityError("incident id, owner role and summary are required")
+        if not owner_role or not summary:
+            raise SupportContinuityError("owner role and summary are required")
         if severity not in SEVERITIES:
             raise SupportContinuityError("invalid support severity")
         now = _utc_now()
         with self._connect() as conn:
-            if conn.execute("SELECT 1 FROM support_incidents WHERE incident_id=?", (incident_id,)).fetchone():
-                raise SupportContinuityError("support incident id already exists")
+            if conn.execute("SELECT 1 FROM support_incidents WHERE tenant_id=? AND incident_id=?", (tenant_id, incident_id)).fetchone():
+                raise SupportContinuityError("support incident id already exists for tenant")
             conn.execute(
-                "INSERT INTO support_incidents VALUES(?,?,?,?,?,?,?,?)",
-                (incident_id, severity, "OPEN", owner_role, now, None, None, None),
+                "INSERT INTO support_incidents VALUES(?,?,?,?,?,?,?,?,?)",
+                (tenant_id, incident_id, severity, "OPEN", owner_role, now, None, None, None),
             )
             conn.execute(
-                "INSERT INTO support_events(incident_id,event_type,occurred_at,evidence_hash) VALUES(?,?,?,?)",
-                (incident_id, "OPENED", now, _hash(summary)),
+                "INSERT INTO support_events(tenant_id,incident_id,event_type,occurred_at,evidence_hash) VALUES(?,?,?,?,?)",
+                (tenant_id, incident_id, "OPENED", now, _hash(summary)),
             )
-        return self.get(incident_id)
+        return self.get(tenant_id=tenant_id, incident_id=incident_id)
 
-    def get(self, incident_id: str) -> SupportIncident:
+    def get(self, *, tenant_id: str, incident_id: str) -> SupportIncident:
+        tenant_id, incident_id = self._identity(tenant_id, incident_id)
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM support_incidents WHERE incident_id=?", (incident_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM support_incidents WHERE tenant_id=? AND incident_id=?",
+                (tenant_id, incident_id),
+            ).fetchone()
         if not row:
             raise SupportContinuityError("support incident not found")
         return self._incident(row)
 
-    def transition(self, incident_id: str, target: str, *, evidence_ref: str | None = None) -> SupportIncident:
-        current = self.get(incident_id)
+    def transition(self, *, tenant_id: str, incident_id: str, target: str, evidence_ref: str | None = None) -> SupportIncident:
+        current = self.get(tenant_id=tenant_id, incident_id=incident_id)
         target = target.strip().upper()
         if target not in TRANSITIONS.get(current.state, set()):
             raise SupportContinuityError(f"invalid support transition {current.state}->{target}")
@@ -137,36 +152,39 @@ class SupportLedger:
         evidence_hash = _hash(str(evidence_ref)) if str(evidence_ref or "").strip() else None
         with self._connect() as conn:
             conn.execute(
-                "UPDATE support_incidents SET state=?,acknowledged_at=?,closure_evidence_hash=? WHERE incident_id=?",
-                (target, acknowledged_at, closure_hash, incident_id),
+                "UPDATE support_incidents SET state=?,acknowledged_at=?,closure_evidence_hash=? WHERE tenant_id=? AND incident_id=?",
+                (target, acknowledged_at, closure_hash, current.tenant_id, current.incident_id),
             )
             conn.execute(
-                "INSERT INTO support_events(incident_id,event_type,occurred_at,evidence_hash) VALUES(?,?,?,?)",
-                (incident_id, f"STATE:{target}", now, evidence_hash),
+                "INSERT INTO support_events(tenant_id,incident_id,event_type,occurred_at,evidence_hash) VALUES(?,?,?,?,?)",
+                (current.tenant_id, current.incident_id, f"STATE:{target}", now, evidence_hash),
             )
-        return self.get(incident_id)
+        return self.get(tenant_id=current.tenant_id, incident_id=current.incident_id)
 
-    def record_customer_update(self, incident_id: str, *, communication_evidence_ref: str) -> SupportIncident:
-        self.get(incident_id)
+    def record_customer_update(self, *, tenant_id: str, incident_id: str, communication_evidence_ref: str) -> SupportIncident:
+        current = self.get(tenant_id=tenant_id, incident_id=incident_id)
         ref = communication_evidence_ref.strip()
         if not ref:
             raise SupportContinuityError("communication evidence required")
         now = _utc_now()
         with self._connect() as conn:
             conn.execute(
-                "UPDATE support_incidents SET last_customer_update_at=? WHERE incident_id=?",
-                (now, incident_id),
+                "UPDATE support_incidents SET last_customer_update_at=? WHERE tenant_id=? AND incident_id=?",
+                (now, current.tenant_id, current.incident_id),
             )
             conn.execute(
-                "INSERT INTO support_events(incident_id,event_type,occurred_at,evidence_hash) VALUES(?,?,?,?)",
-                (incident_id, "CUSTOMER_UPDATE_RECORDED", now, _hash(ref)),
+                "INSERT INTO support_events(tenant_id,incident_id,event_type,occurred_at,evidence_hash) VALUES(?,?,?,?,?)",
+                (current.tenant_id, current.incident_id, "CUSTOMER_UPDATE_RECORDED", now, _hash(ref)),
             )
-        return self.get(incident_id)
+        return self.get(tenant_id=current.tenant_id, incident_id=current.incident_id)
 
-    def acknowledgement_target_minutes(self, incident_id: str) -> int:
-        return ACK_TARGET_MINUTES[self.get(incident_id).severity]
+    def acknowledgement_target_minutes(self, *, tenant_id: str, incident_id: str) -> int:
+        return ACK_TARGET_MINUTES[self.get(tenant_id=tenant_id, incident_id=incident_id).severity]
 
-    def event_count(self, incident_id: str) -> int:
-        self.get(incident_id)
+    def event_count(self, *, tenant_id: str, incident_id: str) -> int:
+        current = self.get(tenant_id=tenant_id, incident_id=incident_id)
         with self._connect() as conn:
-            return int(conn.execute("SELECT COUNT(*) FROM support_events WHERE incident_id=?", (incident_id,)).fetchone()[0])
+            return int(conn.execute(
+                "SELECT COUNT(*) FROM support_events WHERE tenant_id=? AND incident_id=?",
+                (current.tenant_id, current.incident_id),
+            ).fetchone()[0])
