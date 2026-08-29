@@ -26,6 +26,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Verify assisted-local Factory
+          node-version: '22'
+      - name: Verify WarrantyGuard completion slice
         run: npm run verify
