@@ -203,6 +203,7 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
         "contract_current",
         "amendment_reviewed",
         "amendment_matches",
+        "duplicate_claim_reviewed",
     )
     for key in required_bool_fields:
         if type(values[key]) is not bool:
