@@ -5,23 +5,27 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 1,
-  "last_factory_id": "factory-cloud",
-  "last_run_at": "2026-08-29T15:35:46Z",
+  "cursor": 3,
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-08-29T15:39:14Z",
   "last_material_change": {
-    "kind": "FACTORY_ADVANCED",
-    "factory_id": "factory-cloud",
-    "summary": "Created draft PR #765 adding persistent D fleet rotation with fail-closed blocker handling and explicit no-execution-claim semantics.",
+    "kind": "FLEET_ADVANCED",
+    "factory_id": "industrial-claims",
+    "summary": "Factory Cloud persistent fleet rotation is exact-head GREEN in draft PR #765; Industrial Claims T2 market-exposure baton and synthetic fail-closed pilot admissibility fixture were added on its existing publication branch.",
     "evidence": {
-      "pr": 765,
-      "head": "b6e25348b9c11c11ed7f88aa39fb82ba33d34b9e",
-      "local_targeted_tests": "4 passed",
-      "github_actions": "not_observed_yet"
+      "factory_cloud_pr": 765,
+      "factory_cloud_head": "b6e25348b9c11c11ed7f88aa39fb82ba33d34b9e",
+      "factory_cloud_quality_run": "33260748440 SUCCESS",
+      "industrial_claims_branch": "factory/industrial-claims-causledger-v0.23.0",
+      "industrial_claims_baton_commit": "b1bd806380328077779c2115632e2cc001f82c1e",
+      "industrial_claims_fixture_commit": "81e044ae85139eed28d8c2dfeb7a4208f1e9a7ca"
     },
-    "active": "Classify exact-head CI for PR #765 without merging.",
-    "next": "Resume at registry cursor 1 (obrasignal); reconstruct its current repository truth and execute the highest-value repository-safe task while PR #765 remains independent.",
+    "active": "Industrial Claims: create synthetic end-to-end assisted-pilot packet from generated placeholder evidence only.",
+    "next": "Resume at registry cursor 3 (scopeledger) while independently checking PR #765 for drift; reconstruct ScopeLedger current truth before any repository mutation.",
     "wait": [
       "merge/adoption of PR #765",
+      "Industrial Claims real outreach without explicit authorization",
+      "Industrial Claims canonical source re-verification requires access to the referenced canonical source workspace",
       "production/deploy/secrets/provider/config/customer-data/source activation"
     ]
   },
