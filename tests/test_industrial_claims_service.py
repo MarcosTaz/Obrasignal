@@ -6,6 +6,7 @@ from factory_cloud.assurance_kernel import AssuranceKernelError
 from factory_cloud.assurance_ops import AssuranceOperationError
 from vertical_apps.industrial_claims.service import (
     ALLOWED_CLAIM_FAMILIES,
+    CLAIM_CURRENCY_EVIDENCE,
     COMMERCIAL_BASIS_DOCUMENT,
     COST_DOCUMENT,
     EVENT_DOCUMENT,
@@ -23,6 +24,7 @@ def _base():
         event_ref="cancel-1",
         commercial_basis_ref="po-1",
         cost_evidence_ref="ledger-1",
+        currency="EUR",
         commercial_basis_content="signed supply agreement clause and purchase order terms",
         event_evidence_content="customer cancellation notice for program-1",
         cost_evidence_content="inventory and cost ledger supporting the stated exposure",
@@ -49,12 +51,30 @@ def test_all_required_claim_families_share_net_potential_contract(tmp_path):
             other_mitigation="1000",
         )
         assert result.calculation.output_value == "79000"
+        assert result.calculation.output_unit == "EUR"
+        assert {item.unit for item in result.calculation.inputs} == {"EUR"}
         assert result.finding.state == "READY_FOR_REVIEW"
         assert result.entitlement.actionable is True
         assert result.entitlement.rule_ref == "documented-commercial-basis-v2"
         assert result.notice_deadline_state == "VERIFIED_DATE"
         assert {item.metadata["verification_state"] for item in result.evidence} == {"CONTENT_HASHED"}
         assert result.is_new_recovery is True
+
+
+def test_missing_claim_currency_stays_unresolved_and_invalid_code_fails_closed(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "currency.sqlite3")
+    base = _base()
+    base.pop("currency")
+    result = service.analyze(**base, claim_family="TOOLING", gross_cost="50000")
+
+    assert result.finding.state == "UNRESOLVED_EVIDENCE"
+    assert result.calculation.output_unit == "UNKNOWN"
+    assert CLAIM_CURRENCY_EVIDENCE in result.missing_evidence
+
+    invalid = _base()
+    invalid["event_ref"] = "invalid-currency"
+    with pytest.raises(AssuranceKernelError, match="three-letter ASCII"):
+        service.analyze(**invalid, claim_family="TOOLING", gross_cost="50000", currency="EURO")
 
 
 def test_reference_only_sources_never_become_review_ready(tmp_path):
@@ -213,3 +233,4 @@ def test_full_assisted_outcome_journey(tmp_path):
     )
     assert outcome.state == "RECOVERED"
     assert outcome.recovered_amount == "60000"
+    assert outcome.currency == "EUR"
