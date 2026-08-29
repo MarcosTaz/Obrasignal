@@ -6,6 +6,7 @@ import pytest
 from account_membership import MembershipAuthorityError, install_membership_schema, resolve_membership
 from auth_context import _provider_membership
 from company_profile import load_profile, save_profile
+from opportunity_workflow import get_workflow, set_workflow
 
 
 def _seed_memberships(path):
@@ -54,8 +55,6 @@ def test_user_a_write_is_visible_to_user_b_but_not_user_c_after_return(monkeypat
     )
     assert saved["account_id"] == "company-a"
 
-    # Simulate a later request/session: resolve B again from server authority,
-    # then load durable company state rather than retaining an in-memory object.
     returned_b = resolve_membership(str(database), "user-b")
     seen_by_b = load_profile(returned_b.account_id)
     seen_by_c = load_profile(account_c)
@@ -65,6 +64,43 @@ def test_user_a_write_is_visible_to_user_b_but_not_user_c_after_return(monkeypat
     assert seen_by_b["activity"] == "estruturas metálicas"
     assert seen_by_c["account_id"] == "company-b"
     assert seen_by_c["name"] != "Shared Company A"
+
+
+def test_same_company_workflow_handoff_is_shared_cross_company_isolated(tmp_path):
+    database = tmp_path / "shared-workflow.db"
+    _seed_memberships(database)
+    a = resolve_membership(str(database), "user-a")
+    b = resolve_membership(str(database), "user-b")
+    c = resolve_membership(str(database), "user-c")
+
+    conn = sqlite3.connect(database)
+    conn.row_factory = sqlite3.Row
+    try:
+        written = set_workflow(conn, a.account_id, "TED", "2026/S-shared", "REVIEWING", "A iniciou revisão")
+        seen_by_b = get_workflow(conn, b.account_id, "TED", "2026/S-shared")
+        seen_by_c = get_workflow(conn, c.account_id, "TED", "2026/S-shared")
+    finally:
+        conn.close()
+
+    assert written["status"] == "REVIEWING"
+    assert seen_by_b["status"] == "REVIEWING"
+    assert seen_by_b["note"] == "A iniciou revisão"
+    assert seen_by_c["status"] == "NEW"
+    assert seen_by_c["note"] is None
+
+
+def test_roles_have_explicit_different_write_permissions(tmp_path):
+    database = tmp_path / "roles.db"
+    _seed_memberships(database)
+    admin = resolve_membership(str(database), "user-a")
+    member = resolve_membership(str(database), "user-b")
+
+    assert admin.allows("profile:write") is True
+    assert member.allows("profile:write") is False
+    assert admin.allows("workflow:write") is True
+    assert member.allows("workflow:write") is True
+    assert admin.allows("membership:manage") is True
+    assert member.allows("membership:manage") is False
 
 
 def test_revocation_blocks_return_before_company_state_can_be_resolved(monkeypatch, tmp_path):
