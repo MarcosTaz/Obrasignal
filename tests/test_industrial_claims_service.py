@@ -17,14 +17,8 @@ from vertical_apps.industrial_claims.service import (
 
 def _base():
     return dict(
-        tenant_id="alpha",
-        actor_id="analyst",
-        customer_ref="oem-1",
-        program_ref="program-1",
-        event_ref="cancel-1",
-        commercial_basis_ref="po-1",
-        cost_evidence_ref="ledger-1",
-        currency="EUR",
+        tenant_id="alpha", actor_id="analyst", customer_ref="oem-1", program_ref="program-1", event_ref="cancel-1",
+        commercial_basis_ref="po-1", cost_evidence_ref="ledger-1", currency="EUR",
         commercial_basis_content="signed supply agreement clause and purchase order terms",
         event_evidence_content="customer cancellation notice for program-1",
         cost_evidence_content="inventory and cost ledger supporting the stated exposure",
@@ -45,8 +39,9 @@ def test_all_required_claim_families_share_net_potential_contract(tmp_path):
         assert result.calculation.output_unit == "EUR"
         assert {item.unit for item in result.calculation.inputs} == {"EUR"}
         assert result.finding.state == "READY_FOR_REVIEW"
-        assert result.entitlement.actionable is True
-        assert result.entitlement.rule_ref == "documented-commercial-basis-v2"
+        assert result.entitlement.confidence == "PARTIAL"
+        assert result.entitlement.actionable is False
+        assert result.entitlement.rule_ref == "documented-commercial-basis-v3-pre-review"
         assert result.notice_deadline_state == "DECLARED_DATE_FOR_REVIEW"
         assert {item.metadata["verification_state"] for item in result.evidence} == {"CONTENT_HASHED"}
         assert result.is_new_recovery is True
@@ -54,16 +49,14 @@ def test_all_required_claim_families_share_net_potential_contract(tmp_path):
 
 def test_missing_claim_currency_stays_unresolved_and_invalid_code_fails_closed(tmp_path):
     service = IndustrialClaimsService(tmp_path / "currency.sqlite3")
-    base = _base()
-    base.pop("currency")
+    base = _base(); base.pop("currency")
     result = service.analyze(**base, claim_family="TOOLING", gross_cost="50000")
     assert result.finding.state == "UNRESOLVED_EVIDENCE"
+    assert result.entitlement.confidence == "UNRESOLVED"
     assert result.calculation.output_unit == "UNKNOWN"
     assert CLAIM_CURRENCY_EVIDENCE in result.missing_evidence
 
-    invalid = _base()
-    invalid["event_ref"] = "invalid-currency"
-    invalid["currency"] = "EURO"
+    invalid = _base(); invalid["event_ref"] = "invalid-currency"; invalid["currency"] = "EURO"
     with pytest.raises(AssuranceKernelError, match="three-letter ASCII"):
         service.analyze(**invalid, claim_family="TOOLING", gross_cost="50000")
 
@@ -71,12 +64,12 @@ def test_missing_claim_currency_stays_unresolved_and_invalid_code_fails_closed(t
 def test_reference_only_sources_never_become_review_ready(tmp_path):
     service = IndustrialClaimsService(tmp_path / "reference-only.sqlite3")
     base = _base()
-    base.pop("commercial_basis_content")
-    base.pop("event_evidence_content")
-    base.pop("cost_evidence_content")
+    for key in ("commercial_basis_content", "event_evidence_content", "cost_evidence_content"):
+        base.pop(key)
     result = service.analyze(**base, claim_family="TOOLING", gross_cost="50000")
     assert result.finding.state == "UNRESOLVED_EVIDENCE"
-    assert result.entitlement.confidence == "PARTIAL"
+    assert result.entitlement.confidence == "UNRESOLVED"
+    assert result.entitlement.actionable is False
     assert {COMMERCIAL_BASIS_DOCUMENT, EVENT_DOCUMENT, COST_DOCUMENT} <= set(result.missing_evidence)
     assert {item.metadata["verification_state"] for item in result.evidence} == {"REFERENCE_ONLY"}
     with pytest.raises(AssuranceOperationError, match="not ready for review"):
@@ -87,22 +80,22 @@ def test_cost_never_becomes_money_owed_when_evidence_is_missing(tmp_path):
     service = IndustrialClaimsService(tmp_path / "industrial.sqlite3")
     result = service.analyze(**_base(), claim_family="WIP", gross_cost="50000", missing_evidence=("customer_authorization",))
     assert result.calculation.output_value == "50000"
-    assert result.entitlement.confidence == "PARTIAL"
+    assert result.entitlement.confidence == "UNRESOLVED"
+    assert result.entitlement.actionable is False
     assert result.finding.state == "UNRESOLVED_EVIDENCE"
-    with pytest.raises(Exception):
+    with pytest.raises(AssuranceOperationError, match="not ready for review"):
         service.review(tenant_id="alpha", finding_id=result.finding.finding_id, reviewer="reviewer", approved=True, reason="unsupported")
 
 
 def test_unknown_notice_deadline_fails_closed_until_date_or_declared_none(tmp_path):
     service = IndustrialClaimsService(tmp_path / "unknown-deadline.sqlite3")
-    base = _base()
-    base.pop("notice_due")
+    base = _base(); base.pop("notice_due")
     result = service.analyze(**base, claim_family="TOOLING", gross_cost="50000")
     assert result.notice_deadline_state == "UNKNOWN"
     assert NOTICE_DEADLINE_EVIDENCE in result.missing_evidence
-    assert result.entitlement.confidence == "PARTIAL"
+    assert result.entitlement.confidence == "UNRESOLVED"
     assert result.finding.state == "UNRESOLVED_EVIDENCE"
-    with pytest.raises(Exception):
+    with pytest.raises(AssuranceOperationError, match="not ready for review"):
         service.review(tenant_id="alpha", finding_id=result.finding.finding_id, reviewer="reviewer", approved=True, reason="deadline unknown")
 
     declared_none_service = IndustrialClaimsService(tmp_path / "declared-none.sqlite3")
@@ -110,6 +103,8 @@ def test_unknown_notice_deadline_fails_closed_until_date_or_declared_none(tmp_pa
     assert declared_none.notice_deadline_state == "DECLARED_NONE_FOR_REVIEW"
     assert NOTICE_DEADLINE_EVIDENCE not in declared_none.missing_evidence
     assert declared_none.finding.state == "READY_FOR_REVIEW"
+    assert declared_none.entitlement.confidence == "PARTIAL"
+    assert declared_none.entitlement.actionable is False
 
 
 def test_notice_date_and_declared_none_are_mutually_exclusive(tmp_path):
@@ -121,8 +116,7 @@ def test_notice_date_and_declared_none_are_mutually_exclusive(tmp_path):
 def test_duplicate_replay_is_marked_not_new_and_remains_idempotent(tmp_path):
     service = IndustrialClaimsService(tmp_path / "industrial.sqlite3")
     kwargs = dict(**_base(), claim_family="TOOLING", gross_cost="20000", prior_payment="5000")
-    first = service.analyze(**kwargs)
-    second = service.analyze(**kwargs)
+    first = service.analyze(**kwargs); second = service.analyze(**kwargs)
     assert first.is_new_recovery is True
     assert second.is_new_recovery is False
     assert second.calculation.reproducibility_hash == first.calculation.reproducibility_hash
@@ -131,8 +125,7 @@ def test_duplicate_replay_is_marked_not_new_and_remains_idempotent(tmp_path):
 def test_same_refs_are_tenant_isolated(tmp_path):
     service = IndustrialClaimsService(tmp_path / "industrial.sqlite3")
     first = service.analyze(**_base(), claim_family="NRE", gross_cost="1000")
-    other = dict(_base())
-    other["tenant_id"] = "beta"
+    other = dict(_base()); other["tenant_id"] = "beta"
     second = service.analyze(**other, claim_family="NRE", gross_cost="1000")
     assert first.finding.finding_id != second.finding.finding_id
     assert first.fingerprint.fingerprint != second.fingerprint.fingerprint
@@ -166,10 +159,12 @@ def test_creator_cannot_self_review_even_with_direct_service_access(tmp_path):
 def test_full_assisted_outcome_journey(tmp_path):
     service = IndustrialClaimsService(tmp_path / "industrial.sqlite3")
     result = service.analyze(**_base(), claim_family="EXCESS_OBSOLETE_RAW_MATERIAL", gross_cost="100000", resale_reuse="25000")
+    assert result.entitlement.actionable is False
     assert service.review(tenant_id="alpha", finding_id=result.finding.finding_id, reviewer="commercial", approved=True, reason="basis and amount reviewed") == "APPROVED"
     assert service.action(tenant_id="alpha", finding_id=result.finding.finding_id, actor_id="operator") == "ACTIONED"
-    outcome = service.resolve(tenant_id="alpha", finding_id=result.finding.finding_id, outcome_id="alpha:payment-1", recovered_amount="60000", currency="EUR", evidence_ref="bank-receipt-1", evidence_content="bank statement shows verified 60000 EUR receipt", actor_id="operator")
+    outcome = service.resolve(tenant_id="alpha", finding_id=result.finding.finding_id, outcome_id="payment-1", recovered_amount="60000", currency="EUR", evidence_ref="bank-receipt-1", evidence_content="bank statement records 60000 EUR receipt", actor_id="operator")
     assert outcome.state == "RECOVERED"
+    assert outcome.outcome_id == "alpha:payment-1"
     assert outcome.recovered_amount == "60000"
     assert outcome.currency == "EUR"
     assert outcome.evidence_ref.endswith(":outcome-evidence")
