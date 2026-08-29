@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.10"
+ENGINE_VERSION = "capacity-recoverability-t1.11"
 ENGINE_DECIMAL_PRECISION = 60
 ENGINE_DECIMAL_EMAX = 999999
 ENGINE_DECIMAL_EMIN = -999999
@@ -79,6 +79,7 @@ class RecoveryCase:
     contract_current: Optional[bool] = None
     amendment_reviewed: Optional[bool] = None
     amendment_matches: Optional[bool] = None
+    duplicate_claim_reviewed: Optional[bool] = None
     duplicate_claim: bool = False
 
 
@@ -177,6 +178,7 @@ def _validate(case: RecoveryCase) -> None:
         "contract_current": case.contract_current,
         "amendment_reviewed": case.amendment_reviewed,
         "amendment_matches": case.amendment_matches,
+        "duplicate_claim_reviewed": case.duplicate_claim_reviewed,
     }
     for name, value in optional_bools.items():
         if value is not None and type(value) is not bool:
@@ -334,6 +336,11 @@ def _integrity_gate(case: RecoveryCase) -> Optional[tuple[RecoverabilityState, s
                 "customer_amendment_not_reconciled",
             ),
             (case.amendment_matches, "amendment_match_unknown", "wrong_amendment"),
+            (
+                case.duplicate_claim_reviewed,
+                "duplicate_claim_review_unknown",
+                "duplicate_claim_not_reviewed",
+            ),
         )
     )
     if failure is not None:
