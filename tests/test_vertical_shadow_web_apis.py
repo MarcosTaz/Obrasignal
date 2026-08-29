@@ -1,5 +1,15 @@
-def _headers(tenant="shadow-tenant", actor="shadow-analyst"):
-    return {"X-Tenant-ID": tenant, "X-Actor-ID": actor}
+from factory_cloud.trusted_upstream_identity import TrustedUpstreamVerifier, signed_test_headers
+
+SECRET = "s" * 32
+NOW = 1_800_000_000
+VERIFIER = TrustedUpstreamVerifier(SECRET, clock=lambda: NOW)
+
+
+def _headers(tenant="shadow-tenant", actor="shadow-analyst", *, path="/shadow/analyze"):
+    return signed_test_headers(
+        secret=SECRET, tenant_id=tenant, actor_id=actor,
+        method="POST", path=path, timestamp=NOW,
+    )
 
 
 def _evidence(ref, digit):
@@ -14,7 +24,7 @@ def _evidence(ref, digit):
 def test_contractcredit_shadow_endpoint_is_evidence_backed_and_fail_closed(tmp_path):
     from vertical_apps.contractcredit.web import create_app
 
-    client = create_app(tmp_path / "credit.sqlite3").test_client()
+    client = create_app(tmp_path / "credit.sqlite3", identity_resolver=VERIFIER.verify_request).test_client()
     payload = {
         "service_contract": _evidence("public-msa.pdf", "a"),
         "incident_evidence": _evidence("public-incident.pdf", "b"),
@@ -40,7 +50,7 @@ def test_contractcredit_shadow_endpoint_is_evidence_backed_and_fail_closed(tmp_p
 def test_aviation_shadow_endpoint_is_evidence_backed_and_fail_closed(tmp_path):
     from vertical_apps.aviation_recovery.web import create_app
 
-    client = create_app(tmp_path / "aviation.sqlite3").test_client()
+    client = create_app(tmp_path / "aviation.sqlite3", identity_resolver=VERIFIER.verify_request).test_client()
     payload = {
         "lease_contract": _evidence("public-lease.pdf", "c"),
         "maintenance_event": _evidence("public-shop.pdf", "d"),
@@ -62,14 +72,12 @@ def test_aviation_shadow_endpoint_is_evidence_backed_and_fail_closed(tmp_path):
     assert "64-character hexadecimal digest" in rejected.get_json()["message"]
 
 
-def test_shadow_endpoints_require_upstream_identity(tmp_path):
+def test_shadow_endpoints_reject_unsigned_identity(tmp_path):
     from vertical_apps.contractcredit.web import create_app as create_credit
     from vertical_apps.aviation_recovery.web import create_app as create_aviation
 
-    for client in (
-        create_credit(tmp_path / "credit.sqlite3").test_client(),
-        create_aviation(tmp_path / "aviation.sqlite3").test_client(),
-    ):
-        response = client.post("/shadow/analyze", json={})
+    for create_app, filename in ((create_credit, "credit.sqlite3"), (create_aviation, "aviation.sqlite3")):
+        client = create_app(tmp_path / filename, identity_resolver=VERIFIER.verify_request).test_client()
+        response = client.post("/shadow/analyze", headers={"X-Tenant-ID": "shadow", "X-Actor-ID": "analyst"}, json={})
         assert response.status_code == 422
-        assert "identity headers" in response.get_json()["message"]
+        assert "timestamp" in response.get_json()["message"] or "signature" in response.get_json()["message"]
