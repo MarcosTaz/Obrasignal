@@ -1,5 +1,10 @@
 from auth_context import RequestIdentity
-from vertical_apps.industrial_claims.service import NOTICE_DEADLINE_EVIDENCE
+from vertical_apps.industrial_claims.service import (
+    COMMERCIAL_BASIS_DOCUMENT,
+    COST_DOCUMENT,
+    EVENT_DOCUMENT,
+    NOTICE_DEADLINE_EVIDENCE,
+)
 from vertical_apps.industrial_claims.web import create_app
 
 
@@ -11,6 +16,9 @@ def _payload():
         "claim_family": "WIP",
         "commercial_basis_ref": "po-1",
         "cost_evidence_ref": "ledger-1",
+        "commercial_basis_content": "signed supply agreement and purchase order terms",
+        "event_evidence_content": "documented customer cancellation event",
+        "cost_evidence_content": "cost ledger supporting WIP exposure",
         "gross_cost": "10000",
         "avoided_cost": "1000",
         "prior_payment": "500",
@@ -72,6 +80,24 @@ def test_verified_identity_cannot_spoof_tenant_or_actor(tmp_path):
     assert wrong_actor.get_json() == {"error": "identity_scope_mismatch"}
 
 
+def test_reference_only_sources_fail_closed_in_api(tmp_path):
+    client = create_app(
+        tmp_path / "reference-only.sqlite3",
+        identity_resolver=_identity("alpha", "analyst", "analyst"),
+    ).test_client()
+    payload = _payload()
+    payload.pop("commercial_basis_content")
+    payload.pop("event_evidence_content")
+    payload.pop("cost_evidence_content")
+
+    analyzed = client.post("/analyze", json=payload)
+    assert analyzed.status_code == 201
+    body = analyzed.get_json()
+    assert body["state"] == "UNRESOLVED_EVIDENCE"
+    assert set(body["evidence_states"].values()) == {"REFERENCE_ONLY"}
+    assert {COMMERCIAL_BASIS_DOCUMENT, EVENT_DOCUMENT, COST_DOCUMENT} <= set(body["missing_evidence"])
+
+
 def test_unknown_notice_deadline_fails_closed_in_api(tmp_path):
     client = create_app(
         tmp_path / "unknown-notice.sqlite3",
@@ -86,6 +112,7 @@ def test_unknown_notice_deadline_fails_closed_in_api(tmp_path):
     assert body["state"] == "UNRESOLVED_EVIDENCE"
     assert body["notice_deadline_state"] == "UNKNOWN"
     assert NOTICE_DEADLINE_EVIDENCE in body["missing_evidence"]
+    assert set(body["evidence_states"].values()) == {"CONTENT_HASHED"}
 
 
 def test_verified_no_notice_deadline_can_be_review_ready(tmp_path):
@@ -103,6 +130,7 @@ def test_verified_no_notice_deadline_can_be_review_ready(tmp_path):
     assert body["state"] == "READY_FOR_REVIEW"
     assert body["notice_deadline_state"] == "VERIFIED_NONE"
     assert NOTICE_DEADLINE_EVIDENCE not in body["missing_evidence"]
+    assert set(body["evidence_states"].values()) == {"CONTENT_HASHED"}
 
 
 def test_assisted_api_runs_role_separated_review_action_resolution(tmp_path):
@@ -117,6 +145,7 @@ def test_assisted_api_runs_role_separated_review_action_resolution(tmp_path):
     assert body["net_potential"] == "8500"
     assert body["state"] == "READY_FOR_REVIEW"
     assert body["notice_deadline_state"] == "VERIFIED_DATE"
+    assert set(body["evidence_states"].values()) == {"CONTENT_HASHED"}
     finding_id = body["finding_id"]
 
     analyst_review = analyst.post(
