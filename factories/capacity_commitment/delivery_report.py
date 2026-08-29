@@ -4,7 +4,7 @@ from typing import Any
 
 from .engine import evaluate_recoverability
 from .recovery_package import RecoveryPackage, build_recovery_package
-from .state import AssistedCaseState
+from .state import AssistedCaseState, dump_state
 
 
 def _text(value: Any) -> str:
@@ -44,6 +44,11 @@ def render_delivery_report(state: AssistedCaseState, package: RecoveryPackage) -
     truth-preserving RecoveryPackage. It never changes recoverability, invents
     evidence, marks recovery as verified, or marks payment as received.
     """
+
+    # A report is a customer-facing truth surface. Validate the complete assisted
+    # state here as well as in the service layer so direct callers cannot bypass
+    # identity/evidence/deadline consistency gates.
+    dump_state(state)
 
     if package.case_id != state.recovery_case.case_id:
         raise ValueError("package does not belong to state")
