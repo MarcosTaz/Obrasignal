@@ -15,6 +15,7 @@ from source_health import get_source_cursor, record_source_result, set_source_cu
 from source_registry import production_gate_reasons
 from canada_buys_runtime import install_canadabuys_runtime
 from us_sam_runtime import install_us_sam_runtime
+from zambia_zppa_runtime import install_zambia_zppa_runtime
 from source_runtime import commit_staged_source_syncs, discard_staged_source_syncs, stage_source_sync
 from latency_metrics import record_stage, latency_snapshot, latency_summary
 from latency_health import latency_health
@@ -271,6 +272,12 @@ install_canadabuys_runtime(
 )
 
 install_us_sam_runtime(
+    _app,
+    source_enabled=_global_source_enabled,
+    record_blocked=_record_blocked_global_source,
+)
+
+install_zambia_zppa_runtime(
     _app,
     source_enabled=_global_source_enabled,
     record_blocked=_record_blocked_global_source,
