@@ -63,6 +63,29 @@ def test_operator_csv_cannot_import_magic_due_boolean():
     assert result.issues[0].detail == "due"
 
 
+def test_operator_csv_payment_cannot_be_marked_verified_cash():
+    text = OPERATOR_HEADER + (
+        "p1,t1,c1,p1,GBP,payment,40,i1,true\n"
+    )
+    result = parse_operator_verified_ledger_csv(text, expected_tenant_id="t1")
+    assert result.rejected is False
+    assert result.records == ()
+    assert result.issues[0].code == "INVALID_ROW"
+    assert "payment_verified_requires_cash_evidence_boundary" in result.issues[0].detail
+
+
+def test_operator_csv_observed_payment_can_be_unverified_and_conservative():
+    text = OPERATOR_HEADER + (
+        "p1,t1,c1,p1,GBP,payment,40,i1,false\n"
+    )
+    result = parse_operator_verified_ledger_csv(text, expected_tenant_id="t1")
+    assert result.rejected is False
+    assert result.issues == ()
+    assert result.records[0].kind == LedgerKind.PAYMENT
+    assert result.records[0].verified is False
+    assert result.records[0].due is None
+
+
 def test_cross_tenant_csv_rejects_entire_import():
     text = CLIENT_HEADER + (
         "a1,t1,c1,p1,GBP,application,100,\n"
