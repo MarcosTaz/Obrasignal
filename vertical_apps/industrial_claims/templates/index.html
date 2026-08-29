@@ -4,68 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CausLedger — Industrial Claims</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f4f5f2;
-      --panel: #ffffff;
-      --ink: #171a17;
-      --muted: #626961;
-      --line: #dfe3dc;
-      --accent: #173f35;
-      --accent-soft: #e8f1ed;
-      --warning: #7a4b00;
-      --warning-soft: #fff4db;
-      --danger: #8b1e1e;
-      --danger-soft: #fdeaea;
-      --shadow: 0 12px 34px rgba(25, 42, 34, .08);
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
-    header { padding: 32px clamp(20px, 5vw, 72px) 24px; background: linear-gradient(135deg, #122f28, #1d5042); color: white; }
-    .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; opacity: .75; }
-    h1 { margin: 8px 0 10px; font-size: clamp(30px, 4vw, 50px); line-height: 1; }
-    header p { margin: 0; max-width: 760px; color: rgba(255,255,255,.82); }
-    main { width: min(1280px, calc(100% - 32px)); margin: 24px auto 56px; }
-    .guardrails { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
-    .guardrail { border: 1px solid var(--line); background: var(--panel); padding: 14px 16px; border-radius: 14px; box-shadow: var(--shadow); }
-    .guardrail strong { display:block; font-size: 13px; margin-bottom: 4px; }
-    .guardrail span { font-size: 12px; color: var(--muted); }
-    .grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, .85fr); gap: 18px; align-items: start; }
-    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); padding: 22px; }
-    .panel + .panel { margin-top: 18px; }
-    h2 { font-size: 20px; margin: 0 0 6px; }
-    .sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
-    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 13px; }
-    .field { display: flex; flex-direction: column; gap: 6px; }
-    .field.full { grid-column: 1 / -1; }
-    label { font-size: 12px; font-weight: 700; color: #384038; }
-    input, select, textarea { width: 100%; border: 1px solid #cfd5cc; border-radius: 10px; padding: 11px 12px; font: inherit; color: var(--ink); background: #fff; }
-    textarea { min-height: 82px; resize: vertical; }
-    input:focus, select:focus, textarea:focus { outline: 3px solid rgba(23,63,53,.13); border-color: var(--accent); }
-    .check { flex-direction: row; align-items: center; gap: 9px; padding-top: 22px; }
-    .check input { width: 17px; height: 17px; }
-    button { border: 0; border-radius: 10px; padding: 11px 15px; background: var(--accent); color: white; font: inherit; font-weight: 750; cursor: pointer; }
-    button.secondary { background: #ebeee9; color: #273027; }
-    button.danger { background: #5f2525; }
-    button:disabled { opacity: .55; cursor: wait; }
-    .actions { display:flex; gap: 9px; flex-wrap: wrap; margin-top: 16px; }
-    .result { margin-top: 16px; border-radius: 12px; border: 1px solid var(--line); padding: 14px; background: #fafbf9; min-height: 74px; }
-    .result.error { border-color: #e6bbbb; background: var(--danger-soft); color: var(--danger); }
-    .result.warning { border-color: #ead8ac; background: var(--warning-soft); color: var(--warning); }
-    .result pre { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
-    .badge { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding: 5px 9px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 800; }
-    .badge.warn { background: var(--warning-soft); color: var(--warning); }
-    .workflow { display: grid; gap: 14px; }
-    .step { border: 1px solid var(--line); border-radius: 14px; padding: 15px; }
-    .step h3 { margin: 0 0 4px; font-size: 15px; }
-    .step p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
-    .step .field + .field { margin-top: 10px; }
-    .note { font-size: 12px; line-height: 1.5; color: var(--muted); }
-    code { background: #edf0eb; border-radius: 5px; padding: 2px 5px; }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .guardrails { grid-template-columns: 1fr; } }
-    @media (max-width: 620px) { main { width: min(100% - 20px, 1280px); } header { padding-left: 18px; padding-right: 18px; } .form-grid { grid-template-columns: 1fr; } .field.full { grid-column:auto; } .check { padding-top: 0; } .panel { padding: 16px; } }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='console.css') }}">
+  <script src="{{ url_for('static', filename='console.js') }}" defer></script>
 </head>
 <body>
   <header>
@@ -89,15 +29,23 @@
           <p class="sub">Every required reference is evidence lineage, not a narrative substitute.</p>
           <form id="analyze-form">
             <div class="form-grid">
-              <div class="field"><label for="customer_ref">Customer reference</label><input id="customer_ref" name="customer_ref" required></div>
-              <div class="field"><label for="program_ref">Program reference</label><input id="program_ref" name="program_ref" required></div>
-              <div class="field"><label for="event_ref">Event reference</label><input id="event_ref" name="event_ref" required></div>
+              <div class="field"><label for="customer_ref">Customer reference</label><input id="customer_ref" name="customer_ref" required autocomplete="off"></div>
+              <div class="field"><label for="program_ref">Program reference</label><input id="program_ref" name="program_ref" required autocomplete="off"></div>
+              <div class="field"><label for="event_ref">Event reference</label><input id="event_ref" name="event_ref" required autocomplete="off"></div>
               <div class="field"><label for="claim_family">Claim family</label><select id="claim_family" name="claim_family" required>
                 <option value="">Select…</option>
-                <option>EXCESS_OBSOLETE_RAW_MATERIAL</option><option>WIP</option><option>FINISHED_GOODS</option><option>TOOLING</option><option>NRE</option><option>DEDICATED_INVESTMENT</option><option>SUPPLIER_COMMITMENT</option><option>MITIGATION_COST</option><option>OTHER_DOCUMENTED_PROGRAM_EXPOSURE</option>
+                <option>EXCESS_OBSOLETE_RAW_MATERIAL</option>
+                <option>WIP</option>
+                <option>FINISHED_GOODS</option>
+                <option>TOOLING</option>
+                <option>NRE</option>
+                <option>DEDICATED_INVESTMENT</option>
+                <option>SUPPLIER_COMMITMENT</option>
+                <option>MITIGATION_COST</option>
+                <option>OTHER_DOCUMENTED_PROGRAM_EXPOSURE</option>
               </select></div>
-              <div class="field"><label for="commercial_basis_ref">Commercial basis evidence</label><input id="commercial_basis_ref" name="commercial_basis_ref" required></div>
-              <div class="field"><label for="cost_evidence_ref">Cost evidence</label><input id="cost_evidence_ref" name="cost_evidence_ref" required></div>
+              <div class="field"><label for="commercial_basis_ref">Commercial basis evidence</label><input id="commercial_basis_ref" name="commercial_basis_ref" required autocomplete="off"></div>
+              <div class="field"><label for="cost_evidence_ref">Cost evidence</label><input id="cost_evidence_ref" name="cost_evidence_ref" required autocomplete="off"></div>
               <div class="field"><label for="gross_cost">Gross cost</label><input id="gross_cost" name="gross_cost" inputmode="decimal" required value="0"></div>
               <div class="field"><label for="prior_payment">Prior payment</label><input id="prior_payment" name="prior_payment" inputmode="decimal" value="0"></div>
               <div class="field"><label for="avoided_cost">Avoided cost</label><input id="avoided_cost" name="avoided_cost" inputmode="decimal" value="0"></div>
@@ -106,7 +54,7 @@
               <div class="field"><label for="other_mitigation">Other mitigation</label><input id="other_mitigation" name="other_mitigation" inputmode="decimal" value="0"></div>
               <div class="field"><label for="notice_due">Notice due date</label><input id="notice_due" name="notice_due" type="date"></div>
               <div class="field check"><input id="notice_deadline_not_applicable" name="notice_deadline_not_applicable" type="checkbox"><label for="notice_deadline_not_applicable">Verified: no notice deadline applies</label></div>
-              <div class="field full"><label for="missing_evidence">Other missing evidence — comma separated</label><input id="missing_evidence" name="missing_evidence" placeholder="customer_authorization, tooling_ownership"></div>
+              <div class="field full"><label for="missing_evidence">Other missing evidence — comma separated</label><input id="missing_evidence" name="missing_evidence" placeholder="customer_authorization, tooling_ownership" autocomplete="off"></div>
             </div>
             <div class="actions"><button type="submit">Analyze evidence</button></div>
           </form>
@@ -121,27 +69,30 @@
           <p class="sub">Roles are verified server-side. A role mismatch fails closed.</p>
           <div class="workflow">
             <form id="review-form" class="step">
-              <h3>1. Independent review</h3><p>Reviewer role. The creator cannot self-approve.</p>
-              <div class="field"><label for="review_finding_id">Finding ID</label><input id="review_finding_id" required></div>
+              <h3>1. Independent review</h3>
+              <p>Reviewer role. The creator cannot self-approve.</p>
+              <div class="field"><label for="review_finding_id">Finding ID</label><input id="review_finding_id" required autocomplete="off"></div>
               <div class="field"><label for="review_reason">Decision reason</label><textarea id="review_reason" required></textarea></div>
               <div class="actions"><button type="submit" data-approved="true">Approve</button><button type="submit" class="danger" data-approved="false">Reject</button></div>
               <div id="review-result" class="result" aria-live="polite">Awaiting review.</div>
             </form>
 
             <form id="action-form" class="step">
-              <h3>2. Action approved finding</h3><p>Operator role. This changes internal workflow state only.</p>
-              <div class="field"><label for="action_finding_id">Finding ID</label><input id="action_finding_id" required></div>
+              <h3>2. Action approved finding</h3>
+              <p>Operator role. This changes internal workflow state only.</p>
+              <div class="field"><label for="action_finding_id">Finding ID</label><input id="action_finding_id" required autocomplete="off"></div>
               <div class="actions"><button type="submit">Mark actioned</button></div>
               <div id="action-result" class="result" aria-live="polite">Awaiting approved finding.</div>
             </form>
 
             <form id="resolve-form" class="step">
-              <h3>3. Record verified outcome</h3><p>Operator role. Evidence reference is mandatory; amount is capped by reviewed potential.</p>
-              <div class="field"><label for="resolve_finding_id">Finding ID</label><input id="resolve_finding_id" required></div>
-              <div class="field"><label for="outcome_id">Outcome ID</label><input id="outcome_id" required></div>
+              <h3>3. Record verified outcome</h3>
+              <p>Operator role. Evidence reference is mandatory; amount is capped by reviewed potential.</p>
+              <div class="field"><label for="resolve_finding_id">Finding ID</label><input id="resolve_finding_id" required autocomplete="off"></div>
+              <div class="field"><label for="outcome_id">Outcome ID</label><input id="outcome_id" required autocomplete="off"></div>
               <div class="field"><label for="recovered_amount">Recovered amount</label><input id="recovered_amount" inputmode="decimal" required></div>
-              <div class="field"><label for="currency">Currency</label><input id="currency" value="EUR" required></div>
-              <div class="field"><label for="evidence_ref">Settlement / bank evidence reference</label><input id="evidence_ref" required></div>
+              <div class="field"><label for="currency">Currency</label><input id="currency" value="EUR" required autocomplete="off"></div>
+              <div class="field"><label for="evidence_ref">Settlement / bank evidence reference</label><input id="evidence_ref" required autocomplete="off"></div>
               <div class="actions"><button type="submit">Record outcome</button></div>
               <div id="resolve-result" class="result" aria-live="polite">No outcome recorded.</div>
             </form>
@@ -155,73 +106,5 @@
       </aside>
     </div>
   </main>
-
-  <script>
-    const ids = ["review_finding_id", "action_finding_id", "resolve_finding_id"];
-    function setFinding(id) { ids.forEach(key => document.getElementById(key).value = id || ""); }
-    function render(target, response, body) {
-      const node = document.getElementById(target);
-      node.className = "result" + (response.ok ? "" : " error");
-      const summary = response.ok ? `HTTP ${response.status} — ${body.state || "OK"}` : `HTTP ${response.status} — ${body.error || "request_failed"}`;
-      node.innerHTML = `<strong>${summary}</strong><pre>${JSON.stringify(body, null, 2)}</pre>`;
-    }
-    async function send(path, options, target) {
-      try {
-        const response = await fetch(path, options);
-        const body = await response.json();
-        render(target, response, body);
-        return {response, body};
-      } catch (error) {
-        const node = document.getElementById(target);
-        node.className = "result error";
-        node.textContent = `Network or parsing error: ${error.message}`;
-        return null;
-      }
-    }
-
-    document.getElementById("notice_due").addEventListener("change", event => {
-      if (event.target.value) document.getElementById("notice_deadline_not_applicable").checked = false;
-    });
-    document.getElementById("notice_deadline_not_applicable").addEventListener("change", event => {
-      if (event.target.checked) document.getElementById("notice_due").value = "";
-    });
-
-    document.getElementById("analyze-form").addEventListener("submit", async event => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      const payload = Object.fromEntries(new FormData(form).entries());
-      ["avoided_cost","resale_reuse","third_party_recovery","prior_payment","other_mitigation"].forEach(key => payload[key] = payload[key] || "0");
-      payload.notice_deadline_not_applicable = document.getElementById("notice_deadline_not_applicable").checked;
-      if (!payload.notice_due) delete payload.notice_due;
-      payload.missing_evidence = (payload.missing_evidence || "").split(",").map(value => value.trim()).filter(Boolean);
-      const result = await send("/analyze", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)}, "analyze-result");
-      if (result && result.response.ok) setFinding(result.body.finding_id);
-    });
-
-    document.getElementById("review-form").addEventListener("submit", async event => {
-      event.preventDefault();
-      const approved = event.submitter.dataset.approved === "true";
-      const id = document.getElementById("review_finding_id").value;
-      await send(`/findings/${encodeURIComponent(id)}/review`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({approved, reason:document.getElementById("review_reason").value})}, "review-result");
-    });
-
-    document.getElementById("action-form").addEventListener("submit", async event => {
-      event.preventDefault();
-      const id = document.getElementById("action_finding_id").value;
-      await send(`/findings/${encodeURIComponent(id)}/action`, {method:"POST"}, "action-result");
-    });
-
-    document.getElementById("resolve-form").addEventListener("submit", async event => {
-      event.preventDefault();
-      const id = document.getElementById("resolve_finding_id").value;
-      const payload = {
-        outcome_id: document.getElementById("outcome_id").value,
-        recovered_amount: document.getElementById("recovered_amount").value,
-        currency: document.getElementById("currency").value,
-        evidence_ref: document.getElementById("evidence_ref").value
-      };
-      await send(`/findings/${encodeURIComponent(id)}/resolve`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)}, "resolve-result");
-    });
-  </script>
 </body>
 </html>
