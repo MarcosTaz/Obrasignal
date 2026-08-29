@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime, timezone
 
 from .engine import RecoveryCase
 from .state import AssistedCaseState
@@ -25,9 +25,12 @@ def assess_temporal_state(
     that the window has elapsed. Unverified/unknown notice windows remain under
     the engine's existing fail-closed UNKNOWN semantics; this helper never turns
     an uncertain deadline into an expiry fact.
+
+    Runtime assessments use an explicit UTC calendar rather than inheriting the
+    host process timezone. Tests/reviews may pass an explicit logical date.
     """
 
-    assessment_date = as_of_date or date.today()
+    assessment_date = as_of_date or datetime.now(timezone.utc).date()
     if not isinstance(assessment_date, date):
         raise ValueError("as_of_date must be a date")
 
