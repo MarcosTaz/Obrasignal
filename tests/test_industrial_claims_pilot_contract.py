@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 4
+    assert pilot["schema_version"] == 5
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -15,6 +15,8 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert evidence["document_content_hashed"] is True
     assert evidence["raw_document_content_persisted_by_service"] is False
     assert evidence["individual_document_content_limit_bytes"] == 1_000_000
+    assert evidence["recovered_or_closed_outcome_requires_document_content"] is True
+    assert evidence["outcome_document_and_state_persist_atomically"] is True
 
     economic = pilot["economic_lineage"]
     assert economic["currency_required_for_review_ready"] is True
@@ -25,12 +27,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     identity = pilot["identity_authorization"]
     assert identity["source"] == "verified_provider_identity"
     assert identity["raw_identity_headers_authoritative"] is False
-    assert identity["roles"] == {
-        "analyze": "analyst",
-        "review": "reviewer",
-        "action": "operator",
-        "resolve": "operator",
-    }
+    assert identity["roles"] == {"analyze": "analyst", "review": "reviewer", "action": "operator", "resolve": "operator"}
     assert identity["four_eyes_review_required"] is True
     assert identity["admin_may_self_review"] is False
 
@@ -41,6 +38,8 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "missing_claim_currency",
         "invalid_claim_currency",
         "recovery_currency_mismatch",
+        "missing_outcome_documentary_evidence",
+        "outcome_evidence_collision",
         "non_finite_economic_input",
         "recovery_exceeds_reviewed_net_potential",
         "duplicate_success_fee",
@@ -63,6 +62,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "canonical_source_green",
         "documentary_content_gate_green",
         "currency_lineage_green",
+        "outcome_evidence_lineage_green",
         "role_authorization_green",
         "four_eyes_green",
         "operation_audit_green",
