@@ -35,28 +35,40 @@ def test_health_endpoints_are_explicitly_assisted(tmp_path):
     assert credit.get("/health").get_json()["mode"] == "assisted"
 
 
-def test_assisted_web_workspaces_expose_full_action_surface_without_identity_override(tmp_path):
+def test_assisted_web_workspaces_use_evidence_backed_adjudication_path_without_identity_override(tmp_path):
     aviation = _client(create_aviation_app, tmp_path / "aviation.sqlite3")
     credit = _client(create_contractcredit_app, tmp_path / "credit.sqlite3")
-    for client, expected_field in ((aviation, 'name="eligible_cost"'), (credit, 'name="monthly_fee"')):
+    cases = (
+        (aviation, 'name="eligible_cost"', 'name="lease_contract.sha256"', False),
+        (credit, 'name="monthly_fee"', 'name="service_contract.sha256"', True),
+    )
+    for client, expected_field, expected_sha_field, requires_breach in cases:
         response = client.get("/")
         body = response.get_data(as_text=True)
         assert response.status_code == 200
         assert response.content_type.startswith("text/html")
         assert "assisted, pre-customer certification" in body
-        assert "synthetic/shadow evidence only until PILOT_SAFE" in body
+        assert "evidence-backed synthetic/public-shadow inputs only until PILOT_SAFE" in body
         assert expected_field in body
+        assert expected_sha_field in body
+        assert 'pattern="[0-9a-fA-F]{64}"' in body
         assert 'id="analysis-form"' in body
+        assert 'id="adjudication-form"' in body
         assert 'id="review-form"' in body
         assert 'id="action-form"' in body
         assert 'id="resolve-form"' in body
+        assert "const analysisEndpoint=\"/shadow/analyze\"" in body
+        assert "Human adjudication" in body
+        assert "Candidate cannot be approved" in body or "candidate cannot be approved" in body
+        assert ('name="breach_established"' in body) is requires_breach
         assert 'aria-live="polite"' in body
         assert 'name="tenant_id"' not in body
         assert 'name="actor_id"' not in body
+        assert 'name="support_role"' not in body
         assert "X-Upstream-Signature" not in body
 
 
-def test_aviation_web_api_full_flow_and_tenant_isolation(tmp_path):
+def test_aviation_synthetic_harness_api_full_flow_and_tenant_isolation(tmp_path):
     client = _client(create_aviation_app, tmp_path / "aviation.sqlite3")
     response = client.post("/analyze", headers=_headers("airline", path="/analyze"), json={
         "contract_ref": "lease-1", "event_ref": "shop-1",
@@ -85,7 +97,7 @@ def test_aviation_web_api_full_flow_and_tenant_isolation(tmp_path):
     assert outcome.get_json()["state"] == "RECOVERED"
 
 
-def test_contractcredit_web_api_full_flow(tmp_path):
+def test_contractcredit_synthetic_harness_api_full_flow(tmp_path):
     client = _client(create_contractcredit_app, tmp_path / "credit.sqlite3")
     response = client.post("/analyze", headers=_headers("enterprise", path="/analyze"), json={
         "contract_ref": "msa-1", "incident_ref": "sev1-1",
