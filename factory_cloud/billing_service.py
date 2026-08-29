@@ -15,7 +15,10 @@ from factory_cloud.billing_core import (
 )
 from factory_cloud.factory_switchboard import load_switchboard
 from factory_cloud.revenue_ledger import RevenueLedger
-from factory_cloud.stripe_billing_provider import StripeBillingProvider
+from factory_cloud.stripe_billing_provider import (
+    StripeBillingProvider,
+    normalize_fiscal_document_ref,
+)
 
 
 class SharedBillingService:
@@ -36,6 +39,18 @@ class SharedBillingService:
 
     def _route(self, factory_id: str):
         return billing_route_for(factory_id, self.registry, self.policy)
+
+    @staticmethod
+    def _fiscal_evidence_ref(fiscal_document_ref: str | None) -> str | None:
+        normalized = normalize_fiscal_document_ref(fiscal_document_ref)
+        return f"fiscal:{normalized}" if normalized else None
+
+    @staticmethod
+    def _fiscal_document_from_record(record: Mapping[str, Any]) -> str | None:
+        evidence = str(record.get("evidence_ref") or "")
+        if not evidence.startswith("fiscal:"):
+            return None
+        return normalize_fiscal_document_ref(evidence[len("fiscal:") :])
 
     def register_b2b_fee(
         self,
@@ -73,12 +88,30 @@ class SharedBillingService:
         self.ledger.transition(revenue_id, "FEE_EARNED")
         return revenue_id
 
-    def approve_invoice(self, revenue_id: str) -> dict[str, Any]:
+    def approve_invoice(
+        self,
+        revenue_id: str,
+        *,
+        fiscal_document_ref: str | None = None,
+    ) -> dict[str, Any]:
         record = self.ledger.get(revenue_id)
         route = self._route(record["factory_id"])
         if route.mode != "b2b_invoice":
             raise BillingStateError("only B2B fee records can enter invoice approval")
-        return self.ledger.transition(revenue_id, "INVOICE_APPROVED")
+        fiscal_evidence = self._fiscal_evidence_ref(fiscal_document_ref)
+        if (
+            self.stripe_provider is not None
+            and self.stripe_provider.config.livemode
+            and not fiscal_evidence
+        ):
+            raise BillingConfigurationError(
+                "live invoice approval requires a concrete external fiscal document reference"
+            )
+        return self.ledger.transition(
+            revenue_id,
+            "INVOICE_APPROVED",
+            evidence_ref=fiscal_evidence,
+        )
 
     def create_stripe_invoice(
         self,
@@ -106,6 +139,11 @@ class SharedBillingService:
             raise BillingStateError(
                 f"Stripe invoice creation requires INVOICE_APPROVED, got {record['state']}"
             )
+        fiscal_document_ref = self._fiscal_document_from_record(record)
+        if self.stripe_provider.config.livemode and not fiscal_document_ref:
+            raise BillingConfigurationError(
+                "live Stripe collection requires an approved external fiscal document reference"
+            )
         invoice = self.stripe_provider.create_b2b_invoice(
             customer_ref=provider_customer_ref,
             factory_id=record["factory_id"],
@@ -113,6 +151,7 @@ class SharedBillingService:
             fee_amount=record["platform_fee_amount"],
             description=description,
             days_until_due=days_until_due,
+            fiscal_document_ref=fiscal_document_ref,
         )
         invoice_ref = str(invoice.get("id") or "").strip()
         if not invoice_ref:
@@ -124,7 +163,11 @@ class SharedBillingService:
         self.ledger.transition(
             revenue_id,
             "INVOICED",
-            evidence_ref=f"stripe:invoice:{invoice_ref}:finalized",
+            evidence_ref=(
+                f"fiscal:{fiscal_document_ref}"
+                if fiscal_document_ref
+                else f"stripe:invoice:{invoice_ref}:finalized"
+            ),
         )
         self.ledger.transition(revenue_id, "PAYMENT_PENDING")
         return invoice
@@ -141,6 +184,40 @@ class SharedBillingService:
             factory_id=record["factory_id"],
             engagement_id=record["engagement_id"],
         )
+
+    def open_direct_bank_collection(
+        self,
+        revenue_id: str,
+        *,
+        fiscal_document_ref: str,
+    ) -> dict[str, Any]:
+        record = self.ledger.get(revenue_id)
+        route = self._route(record["factory_id"])
+        if "direct_bank_transfer" not in route.collection_rails:
+            raise BillingStateError("direct bank transfer is not authorized for this Factory")
+        fiscal_document_ref = normalize_fiscal_document_ref(fiscal_document_ref)
+        if not fiscal_document_ref:
+            raise BillingStateError(
+                "direct bank collection requires a concrete external fiscal document reference"
+            )
+        if record["state"] == "FEE_EARNED":
+            record = self.approve_invoice(
+                revenue_id,
+                fiscal_document_ref=fiscal_document_ref,
+            )
+        elif record["state"] != "INVOICE_APPROVED":
+            raise BillingStateError(
+                f"direct bank collection requires FEE_EARNED/INVOICE_APPROVED, got {record['state']}"
+            )
+        existing_fiscal = self._fiscal_document_from_record(record)
+        if existing_fiscal and existing_fiscal != fiscal_document_ref:
+            raise BillingStateError("approved fiscal document reference cannot be silently replaced")
+        record = self.ledger.transition(
+            revenue_id,
+            "INVOICED",
+            evidence_ref=f"fiscal:{fiscal_document_ref}",
+        )
+        return self.ledger.transition(revenue_id, "PAYMENT_PENDING")
 
     def record_direct_bank_paid(self, revenue_id: str, *, bank_evidence_ref: str) -> dict[str, Any]:
         record = self.ledger.get(revenue_id)
