@@ -201,6 +201,7 @@ def create_app(
                 commercial_basis_ref=str(payload["commercial_basis_ref"]),
                 cost_evidence_ref=str(payload["cost_evidence_ref"]),
                 gross_cost=str(payload["gross_cost"]),
+                currency=str(payload.get("currency", "")),
                 commercial_basis_content=payload.get("commercial_basis_content"),
                 event_evidence_content=payload.get("event_evidence_content"),
                 cost_evidence_content=payload.get("cost_evidence_content"),
@@ -218,6 +219,7 @@ def create_app(
                 "state": result.finding.state,
                 "claim_family": result.claim_family,
                 "net_potential": result.calculation.output_value,
+                "currency": result.calculation.output_unit,
                 "calculation_hash": result.calculation.reproducibility_hash,
                 "notice_deadline_state": result.notice_deadline_state,
                 "evidence_states": {
