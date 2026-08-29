@@ -5,55 +5,49 @@ FACTORY_ID: aviation-lease-entitlement-recovery
 REPOSITORY: MarcosTaz/Obrasignal
 CANONICAL_APP_BRANCH: apps/aviation-lease-entitlement-recovery
 CANONICAL_APP_HEAD_OBSERVED: 0d1759832a06b3177b67b35a4c53ee0c69db459e
-CANDIDATE_PR: #778
-CANDIDATE_BRANCH: aviation/evidence-backed-pilot-intake-20260829
-CANDIDATE_HEAD: 088eaa3cd79cba1a62c7d905bd6d9cf831de21a5
-CANDIDATE_STATUS: DRAFT / DO NOT MERGE / NOT CANONICAL
+PREDECESSOR_PR: #778
+PREDECESSOR_HEAD: 088eaa3cd79cba1a62c7d905bd6d9cf831de21a5
+VERIFIED_SUCCESSOR_PR: #786
+VERIFIED_SUCCESSOR_BRANCH: aviation/evidence-backed-pilot-intake-refresh-20260829
+VERIFIED_SUCCESSOR_HEAD: 5e34250396fd15701298e533643370459d1efff2
+SUCCESSOR_STATUS: DRAFT / DO NOT MERGE / NOT CANONICAL / EXACT-HEAD GREEN
 
 MISSION
 Advance the assisted lessee-side maintenance-reserve recoverability wedge without turning arithmetic, documentary presence, or candidate review state into entitlement or recovery claims.
 
-CURRENT TRUTH
-- pilot.json is assisted-mode, production_authority=false.
+CURRENT_TRUTH
+- `pilot.json` is assisted-mode with `production_authority=false`.
 - Required pilot inputs include lease contract, maintenance-event evidence, eligible cost, reimbursed amount, and notice due.
-- Pricing remains HYPOTHESIS only: EUR 5k–25k audit fee and 15–25% success fee; no WTP proof is recorded here.
-- PR #778 adds an aviation-specific evidence-backed pilot intake boundary requiring immutable SHA-256 content identity, provenance, explicit evidence-use authorization, tenant identity, and actor identity.
-- Positive unreimbursed arithmetic is classified only as CANDIDATE_READY_FOR_HUMAN_REVIEW; entitlement stays UNKNOWN and recovery stays NOT_ESTABLISHED.
-- Zero unreimbursed balance stays EVIDENCE_OR_ECONOMICS_UNRESOLVED.
+- Pricing remains HYPOTHESIS only: EUR 5k–25k audit fee and 15–25% success fee; WTP is not proven.
+- #786 provides the current-base aviation-specific evidence-backed intake boundary: immutable SHA-256 document identity, explicit provenance, explicit evidence-use authorization, tenant identity and actor identity.
+- Positive unreimbursed arithmetic is only `CANDIDATE_READY_FOR_HUMAN_REVIEW`; entitlement remains `UNKNOWN`, recovery remains `NOT_ESTABLISHED`.
+- Zero unreimbursed balance remains `EVIDENCE_OR_ECONOMICS_UNRESOLVED`.
 - No real airline/lessor/customer evidence was used.
 
 VERIFICATION
-- Candidate exact HEAD 088eaa3cd79cba1a62c7d905bd6d9cf831de21a5 compiled successfully.
-- Mobile CI: SUCCESS.
-- Python full-repository CI: FAILURE, 12 failed / 847 passed / 2 skipped.
-- The 12 failures are not in tests/test_aviation_pilot_intake.py. They are pre-existing/drift-sensitive Factory Cloud inventory/orchestrator expectations (including ContractCredit registration and shared-core state assumptions) on the candidate's older base snapshot.
-- Current canonical app branch HEAD 0d1759832a06b3177b67b35a4c53ee0c69db459e has Python SUCCESS and Mobile SUCCESS, so the candidate CI failure must not be classified as an aviation-intake defect without a refreshed exact-head proof.
-
-EVIDENCE
-- PR #778: evidence-backed assisted pilot intake.
-- CI run 33263213387 on candidate HEAD: python FAILURE / mobile SUCCESS.
-- Current app HEAD check run 33264421114: python SUCCESS / mobile SUCCESS.
+- Old #778 exact HEAD: compile success, mobile SUCCESS, Python full-repository FAILURE with 12 failures / 847 passed / 2 skipped.
+- Job logs prove those 12 failures were Factory Cloud inventory/orchestrator expectation drift; none was `tests/test_aviation_pilot_intake.py`.
+- Current canonical app base `0d1759832a06b3177b67b35a4c53ee0c69db459e`: Python SUCCESS + Mobile SUCCESS.
+- Successor #786 exact HEAD `5e34250396fd15701298e533643370459d1efff2`: ObraSignal Quality run `33266289206`, Python SUCCESS + Mobile SUCCESS.
+- Therefore the evidence-backed aviation intake is PASSING_AFTER_PROVEN on current repository truth, but remains non-canonical until owner adoption/merge.
 
 ACTIVE
-Refresh/replay the evidence-backed aviation intake candidate on top of the current canonical app branch, preserving the exact fail-closed semantics, then obtain exact-head Python + Mobile proof.
+Extend the verified assisted-pilot candidate with one synthetic, permission-explicit end-to-end review/outcome fixture while preserving UNKNOWN entitlement and NOT_ESTABLISHED recovery until authorized human evidence supports a stronger state.
 
 NEXT
-If refreshed exact-head is GREEN, extend the assisted-pilot packet with a synthetic, permission-explicit end-to-end review fixture that proves evidence identity → arithmetic → human review boundary → outcome/no-recovery record without asserting entitlement. If RED only in newly introduced aviation invariants, freeze deterministic failing-before evidence and repair on a separate repository-safe branch.
+1. Prove synthetic evidence identity → arithmetic → human review boundary → outcome/no-recovery recording end to end.
+2. Fail closed on missing authorization/provenance, cross-tenant composition, stale/mismatched evidence identity, or unsupported review transition.
+3. If the new invariant reveals a deterministic aviation-specific defect, freeze failing-before evidence and repair separately.
 
 WAIT
 - Real lease contract and maintenance-event evidence with explicit customer permission.
-- Human pilot review and observed outcome/no-recovery.
+- Human pilot review and observed real outcome/no-recovery.
 - Delivery-cost measurement.
 - Pricing/WTP validation.
 - Merge/adoption/deploy/production authority.
 
 BLOCKERS
-- PR #778 is stale relative to the current app branch and therefore not fully verified at current repository truth.
-- External pilot evidence/WTP remain unavailable and must not be fabricated.
-
-ASSUMPTIONS
-- The repository app branch is the current technical source of truth for this vertical; no stronger canonical BATON was found during reconstruction.
-- Existing PR #778 semantics are candidate evidence only until refreshed exact-head verification.
+External pilot evidence/WTP remain unavailable and must not be fabricated. They do not block repository-safe synthetic verification or other Factories.
 
 EXACT_NEXT_EXECUTABLE_ACTION
-Create a repository-safe successor from current apps/aviation-lease-entitlement-recovery, port only the three #778 aviation-intake changes, run/observe exact-head CI, and classify GREEN vs deterministic aviation-specific RED. No merge, deploy, production data, secrets, provider/config changes, source activation, or external outreach.
+On a repository-safe successor stacked from #786, add a synthetic permission-explicit end-to-end assisted-pilot fixture covering evidence identity, arithmetic, review and outcome/no-recovery persistence; obtain exact-head CI. No merge, deploy, production data, secrets, provider/config changes, source activation, or external outreach.
