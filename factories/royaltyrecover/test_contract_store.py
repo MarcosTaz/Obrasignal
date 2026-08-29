@@ -25,12 +25,25 @@ class ContractStoreTests(unittest.TestCase):
         evidence = self.repo.add_evidence("ORG-A", "AGREEMENT", b"source", "tester")
         clause = self.store.add_clause(
             "ORG-A", self.versions["ORG-A"]["id"], "4.2", "ROYALTY_RATE", "tester",
-            text_excerpt="Five percent of Net Sales.", evidence_id=evidence["id"], review_status="HUMAN_REVIEWED"
+            text_excerpt="Five percent of Net Sales.", evidence_id=evidence["id"]
         )
         self.assertEqual(clause["agreement_version_id"], self.versions["ORG-A"]["id"])
         self.assertEqual(clause["evidence_id"], evidence["id"])
+        self.assertEqual(clause["review_status"], "UNREVIEWED")
         with self.assertRaises(NotFoundError):
             self.store.get_clause("ORG-B", clause["id"])
+
+    def test_creation_cannot_self_assert_reviewed_status(self):
+        with self.assertRaises(ValueError):
+            self.store.add_clause(
+                "ORG-A", self.versions["ORG-A"]["id"], "4.2", "ROYALTY_RATE", "tester", review_status="REVIEWED"
+            )
+        clause = self.store.add_clause("ORG-A", self.versions["ORG-A"]["id"], "4.2", "ROYALTY_RATE", "tester")
+        with self.assertRaises(ValueError):
+            self.store.add_royalty_rule(
+                "ORG-A", self.versions["ORG-A"]["id"], clause["id"], "PERCENTAGE_NET_SALES", "EUR", "tester",
+                rate=Decimal("0.05"), review_status="REVIEWED"
+            )
 
     def test_cross_tenant_evidence_cannot_back_clause(self):
         evidence_b = self.repo.add_evidence("ORG-B", "AGREEMENT", b"other", "tester")
@@ -49,10 +62,11 @@ class ContractStoreTests(unittest.TestCase):
             )
         rule = self.store.add_royalty_rule(
             "ORG-A", self.versions["ORG-A"]["id"], clause["id"],
-            "PERCENTAGE_NET_SALES", "EUR", "tester", rate=Decimal("0.05"), review_status="HUMAN_REVIEWED"
+            "PERCENTAGE_NET_SALES", "EUR", "tester", rate=Decimal("0.05")
         )
         self.assertEqual(rule["rate_decimal"], "0.05")
         self.assertEqual(rule["clause_id"], clause["id"])
+        self.assertEqual(rule["review_status"], "UNREVIEWED")
 
     def test_clause_from_other_version_is_rejected(self):
         clause_b = self.store.add_clause("ORG-B", self.versions["ORG-B"]["id"], "4.2", "ROYALTY_RATE", "tester")
