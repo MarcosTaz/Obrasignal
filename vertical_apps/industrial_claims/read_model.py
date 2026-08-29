@@ -19,6 +19,7 @@ ALLOWED_FINDING_STATES = {
     "RECOVERED",
     "CLOSED_NO_RECOVERY",
 }
+EXPECTED_CASE_EVIDENCE_TYPES = {"commercial_basis", "industrial_commercial_event", "cost_evidence"}
 MAX_TENANT_CHARS = 128
 MAX_FINDING_ID_CHARS = 2_048
 
@@ -39,7 +40,7 @@ class FindingQueueItem:
 
 
 class IndustrialClaimsReadModel:
-    """Tenant-scoped bounded read model with no raw documentary content."""
+    """Tenant-scoped bounded read model with fail-closed dossier lineage."""
 
     def __init__(self, database: str | Path):
         self.path = Path(database)
@@ -68,6 +69,10 @@ class IndustrialClaimsReadModel:
         if not isinstance(parsed, list):
             raise AssuranceStoreError(error)
         return tuple(str(item) for item in parsed)
+
+    @staticmethod
+    def _same_members(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
+        return len(left) == len(right) and set(left) == set(right)
 
     def list_findings(
         self,
@@ -136,19 +141,47 @@ class IndustrialClaimsReadModel:
                 raise AssuranceStoreError("tenant-scoped industrial finding not found")
             calculation_ids = self._json_list(finding["calculation_ids_json"], error="finding calculation lineage is invalid")
             evidence_ids = self._json_list(finding["evidence_ids_json"], error="finding evidence lineage is invalid")
-            if len(calculation_ids) != 1:
-                raise AssuranceStoreError("industrial finding requires exactly one calculation")
+            if len(calculation_ids) != 1 or len(evidence_ids) != 3:
+                raise AssuranceStoreError("industrial finding lineage cardinality is invalid")
+
             calculation = conn.execute("SELECT * FROM calculations WHERE tenant_id=? AND calculation_id=?", (tenant, calculation_ids[0])).fetchone()
             if calculation is None or calculation["formula_id"] != "industrial_net_potential_claim":
                 raise AssuranceStoreError("industrial finding calculation not found")
+            calculation_evidence = self._json_list(calculation["evidence_ids_json"], error="industrial calculation evidence lineage is invalid")
+            if not calculation_evidence or not set(calculation_evidence).issubset(set(evidence_ids)):
+                raise AssuranceStoreError("industrial calculation evidence lineage does not match finding")
+
             deadline = conn.execute("SELECT * FROM deadlines WHERE tenant_id=? AND deadline_id=?", (tenant, metadata.deadline_id)).fetchone()
             if deadline is None:
                 raise AssuranceStoreError("industrial finding deadline lineage not found")
+            deadline_evidence = self._json_list(deadline["basis_evidence_ids_json"], error="industrial deadline evidence lineage is invalid")
+            if not deadline_evidence or not set(deadline_evidence).issubset(set(evidence_ids)):
+                raise AssuranceStoreError("industrial deadline evidence lineage does not match finding")
+
             entitlement = conn.execute("SELECT * FROM entitlement_basis WHERE tenant_id=? AND entitlement_id=?", (tenant, metadata.entitlement_id)).fetchone()
             if entitlement is None:
                 raise AssuranceStoreError("industrial entitlement lineage not found")
+            entitlement_evidence = self._json_list(entitlement["source_evidence_ids_json"], error="industrial entitlement evidence lineage is invalid")
+            if not self._same_members(entitlement_evidence, evidence_ids):
+                raise AssuranceStoreError("industrial entitlement evidence lineage does not match finding")
+
+            fingerprint = conn.execute(
+                "SELECT vertical,event_ref FROM recovery_fingerprints WHERE tenant_id=? AND fingerprint=?",
+                (tenant, metadata.recovery_fingerprint),
+            ).fetchone()
+            if fingerprint is None or fingerprint["vertical"] != "industrial-claims" or fingerprint["event_ref"] != metadata.event_ref:
+                raise AssuranceStoreError("industrial recovery fingerprint lineage does not match case")
+
+            creation_audits = conn.execute(
+                """SELECT actor_id,occurred_at FROM audit_events
+                   WHERE tenant_id=? AND subject_ref=? AND event_type='industrial_finding_created'""",
+                (tenant, finding_key),
+            ).fetchall()
+            if len(creation_audits) != 1 or not str(creation_audits[0]["actor_id"] or "").strip():
+                raise AssuranceStoreError("industrial finding creation audit lineage is invalid")
 
             evidence_index = []
+            source_types: set[str] = set()
             for evidence_id in evidence_ids:
                 row = conn.execute("SELECT * FROM evidence WHERE tenant_id=? AND evidence_id=?", (tenant, evidence_id)).fetchone()
                 if row is None:
@@ -157,22 +190,30 @@ class IndustrialClaimsReadModel:
                     evidence_metadata = json.loads(row["metadata_json"])
                 except (TypeError, ValueError) as exc:
                     raise AssuranceStoreError("evidence metadata is invalid") from exc
+                source_types.add(str(row["source_type"]))
                 evidence_index.append({
                     "evidence_id": str(row["evidence_id"]), "source_type": str(row["source_type"]),
                     "source_ref": str(row["source_ref"]), "content_hash": str(row["content_hash"]),
                     "verification_state": str(evidence_metadata.get("verification_state", "UNKNOWN")),
                     "raw_content_persisted": evidence_metadata.get("raw_content_persisted", "unknown"),
                 })
+            if source_types != EXPECTED_CASE_EVIDENCE_TYPES:
+                raise AssuranceStoreError("industrial finding evidence types do not match case contract")
 
             outcomes = []
             for row in conn.execute("SELECT * FROM recovery_outcomes WHERE tenant_id=? AND finding_id=? ORDER BY recorded_at,outcome_id", (tenant, finding_key)).fetchall():
-                proof = conn.execute("SELECT source_ref,content_hash,metadata_json FROM evidence WHERE tenant_id=? AND evidence_id=?", (tenant, row["evidence_ref"])).fetchone()
-                if proof is None:
+                proof = conn.execute(
+                    "SELECT source_type,source_ref,content_hash,metadata_json FROM evidence WHERE tenant_id=? AND evidence_id=?",
+                    (tenant, row["evidence_ref"]),
+                ).fetchone()
+                if proof is None or proof["source_type"] != "recovery_outcome_evidence":
                     raise AssuranceStoreError("outcome evidence lineage not found")
                 try:
                     proof_metadata = json.loads(proof["metadata_json"])
                 except (TypeError, ValueError) as exc:
                     raise AssuranceStoreError("outcome evidence metadata is invalid") from exc
+                if proof_metadata.get("verification_state") != "CONTENT_HASHED":
+                    raise AssuranceStoreError("outcome evidence verification state is invalid")
                 outcomes.append({
                     "outcome_id": str(row["outcome_id"]), "state": str(row["state"]),
                     "recovered_amount": str(row["recovered_amount"]), "currency": str(row["currency"]),
