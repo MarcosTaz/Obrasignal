@@ -26,7 +26,7 @@ def _actioned_finding(tmp_path):
         approved=True,
         reason="reviewed net exposure",
     )
-    service.action(tenant_id="alpha", finding_id=result.finding.finding_id)
+    service.action(tenant_id="alpha", finding_id=result.finding.finding_id, actor_id="operator")
     return service, result.finding.finding_id
 
 
@@ -41,6 +41,7 @@ def test_recovery_cannot_exceed_reviewed_net_potential(tmp_path):
             recovered_amount="75000.01",
             currency="EUR",
             evidence_ref="bank-over-cap",
+            actor_id="operator",
         )
 
     assert service.ops.get_state(tenant_id="alpha", finding_id=finding_id) == "ACTIONED"
@@ -59,6 +60,7 @@ def test_non_finite_recovery_amounts_fail_closed(tmp_path, value):
             recovered_amount=value,
             currency="EUR",
             evidence_ref="bank-invalid",
+            actor_id="operator",
         )
 
     assert service.ops.get_state(tenant_id="alpha", finding_id=finding_id) == "ACTIONED"
@@ -75,6 +77,7 @@ def test_recovery_at_reviewed_net_potential_is_allowed(tmp_path):
         recovered_amount="75000",
         currency="EUR",
         evidence_ref="bank-at-cap",
+        actor_id="operator",
     )
 
     assert outcome.state == "RECOVERED"
