@@ -4,7 +4,7 @@ from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
-def _analyze(service, *, gross_cost="100000"):
+def _analyze(service, *, gross_cost="100000", currency="EUR"):
     return service.analyze(
         tenant_id="alpha",
         actor_id="analyst",
@@ -14,6 +14,7 @@ def _analyze(service, *, gross_cost="100000"):
         claim_family="TOOLING",
         commercial_basis_ref="po-1",
         cost_evidence_ref="ledger-1",
+        currency=currency,
         commercial_basis_content="signed tooling commercial basis",
         event_evidence_content="documented customer cancellation",
         cost_evidence_content=f"tooling ledger supporting gross cost {gross_cost}",
@@ -51,6 +52,7 @@ def test_duplicate_analysis_does_not_downgrade_recovered_finding(tmp_path):
     assert replay.finding.reviewer == "commercial-reviewer"
     assert replay.finding.decision_reason == "reviewed evidence and amount"
     assert replay.notice_deadline_state == "VERIFIED_NONE"
+    assert replay.calculation.output_unit == "EUR"
     assert service.ops.get_state(tenant_id="alpha", finding_id=first.finding.finding_id) == "RECOVERED"
     assert len(service.ops.outcomes(tenant_id="alpha")) == 1
 
@@ -70,3 +72,13 @@ def test_duplicate_analysis_with_changed_economic_input_fails_closed(tmp_path):
         _analyze(service, gross_cost="110000")
 
     assert service.ops.get_state(tenant_id="alpha", finding_id=first.finding.finding_id) == "APPROVED"
+
+
+def test_duplicate_analysis_cannot_rewrite_currency(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "currency-replay.sqlite3")
+    first = _analyze(service)
+
+    with pytest.raises(AssuranceStoreError, match="immutable calculation id collision"):
+        _analyze(service, currency="USD")
+
+    assert service.ops.get_state(tenant_id="alpha", finding_id=first.finding.finding_id) == "READY_FOR_REVIEW"
