@@ -98,11 +98,7 @@ class IndustrialClaimsService:
 
     @staticmethod
     def _contract_ref(customer_ref: str, program_ref: str, commercial_basis_ref: str) -> str:
-        return json.dumps(
-            [customer_ref, program_ref, commercial_basis_ref],
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
+        return json.dumps([customer_ref, program_ref, commercial_basis_ref], ensure_ascii=False, separators=(",", ":"))
 
     @staticmethod
     def _tenant_id(value: object) -> str:
@@ -387,10 +383,14 @@ class IndustrialClaimsService:
         cost = EvidenceEnvelope.create(evidence_id=self._id(tenant, f"{cost_ref}:cost"), tenant_id=tenant, source_type="cost_evidence", source_ref=cost_ref, content=cost_content, metadata=cost_metadata)
         evidence = (basis, event, cost)
 
+        documentary_complete = not effective_missing
         entitlement = EntitlementBasis.create(
-            entitlement_id=self._id(tenant, f"{event_key}:{family}:basis"), tenant_id=tenant, domain=self.vertical,
-            source_evidence_ids=tuple(item.evidence_id for item in evidence), rule_ref="documented-commercial-basis-v2",
-            confidence="SUPPORTED" if not effective_missing else "PARTIAL",
+            entitlement_id=self._id(tenant, f"{event_key}:{family}:basis"),
+            tenant_id=tenant,
+            domain=self.vertical,
+            source_evidence_ids=tuple(item.evidence_id for item in evidence),
+            rule_ref="documented-commercial-basis-v3-pre-review",
+            confidence="PARTIAL" if documentary_complete else "UNRESOLVED",
         )
         fingerprint = RecoveryFingerprint.create(
             tenant_id=tenant,
@@ -406,14 +406,14 @@ class IndustrialClaimsService:
             output_value=net_potential, output_unit=currency_code,
         )
         deadline = DeadlineWindow.create(deadline_id=self._id(tenant, f"{event_key}:{family}:notice"), tenant_id=tenant, due_date=notice_due or date.max, basis_evidence_ids=(basis.evidence_id, event.evidence_id))
-        state = "READY_FOR_REVIEW" if entitlement.actionable and net_potential > 0 else "UNRESOLVED_EVIDENCE"
+        state = "READY_FOR_REVIEW" if documentary_complete and net_potential > 0 else "UNRESOLVED_EVIDENCE"
         finding = FindingRecord.create(finding_id=self._id(tenant, f"{event_key}:{family}:finding"), tenant_id=tenant, finding_type="industrial_recovery_candidate", evidence_ids=tuple(item.evidence_id for item in evidence), calculation_ids=(calculation.calculation_id,), state=state)
         assert_same_tenant(*evidence, calculation, deadline, finding)
         assert_tenant_context(context, *evidence, calculation, deadline, finding)
         audit = AuditEvent.create(
             event_id=self._id(tenant, f"{event_key}:{family}:audit"), context=context, event_type="industrial_finding_created",
             subject_ref=finding.finding_id, evidence_refs=finding.evidence_ids,
-            payload={"claim_family": family, "calculation_hash": calculation.reproducibility_hash, "entitlement_basis_hash": entitlement.basis_hash, "recovery_fingerprint": fingerprint.fingerprint, "currency": currency_code, "notice_deadline_state": notice_deadline_state, "evidence_states": {item.source_type: item.metadata.get("verification_state") for item in evidence}, "missing_evidence": sorted(effective_missing)},
+            payload={"claim_family": family, "documentary_complete": documentary_complete, "calculation_hash": calculation.reproducibility_hash, "entitlement_basis_hash": entitlement.basis_hash, "recovery_fingerprint": fingerprint.fingerprint, "currency": currency_code, "notice_deadline_state": notice_deadline_state, "evidence_states": {item.source_type: item.metadata.get("verification_state") for item in evidence}, "missing_evidence": sorted(effective_missing)},
         )
         notification = NotificationEvent.create(event_id=self._id(tenant, f"{event_key}:{family}:notification"), tenant_id=tenant, event_type="finding_ready" if state == "READY_FOR_REVIEW" else "finding_unresolved", subject_ref=finding.finding_id, payload={"vertical": self.vertical, "claim_family": family, "state": state, "currency": currency_code, "notice_deadline_state": notice_deadline_state})
         case_metadata = IndustrialCaseMetadata(
