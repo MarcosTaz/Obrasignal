@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "purpose": "candidate reusable capability inventory; classification only, no cross-app authority",
   "promotion_states": ["VERTICAL_ONLY","CANDIDATE_SHARED","SHARED_CONTRACT_PROPOSED","SHARED_VERIFIED","SHARED_CORE"],
   "capabilities": [
@@ -14,10 +14,10 @@
     {
       "id": "tenant_role_isolation",
       "layer": "shared-platform",
-      "state": "CANDIDATE_SHARED",
-      "source_app": "obrasignal",
-      "evidence_paths": ["account_registry.py", "tests/test_account_scoped_decisioning.py", "tests/test_decision_tenant_isolation.py", "tests/test_profile_tenant_isolation.py"],
-      "next_proof": "define tenant context boundary independent of ObraSignal domain objects and adversarially test a second consumer"
+      "state": "SHARED_CONTRACT_PROPOSED",
+      "source_app": "factory-cloud",
+      "evidence_paths": ["factory_cloud/shared_platform.py", "tests/test_factory_cloud_shared_platform.py", "tests/test_account_scoped_decisioning.py", "tests/test_decision_tenant_isolation.py"],
+      "next_proof": "consume TenantContext from two source-registered apps before SHARED_VERIFIED"
     },
     {
       "id": "billing_interfaces",
@@ -30,18 +30,18 @@
     {
       "id": "audit_decision_lineage",
       "layer": "shared-platform",
-      "state": "CANDIDATE_SHARED",
-      "source_app": "obrasignal",
-      "evidence_paths": ["decision_log.py", "decision_presentation.py", "tests/test_decision_log.py", "tests/test_decision_tenant_isolation.py"],
-      "next_proof": "extract append-only provenance contract and test isolation across two vertical schemas"
+      "state": "SHARED_CONTRACT_PROPOSED",
+      "source_app": "factory-cloud",
+      "evidence_paths": ["factory_cloud/shared_platform.py", "tests/test_factory_cloud_shared_platform.py", "decision_log.py", "tests/test_decision_log.py"],
+      "next_proof": "consume provider-neutral AuditEvent from two source-registered apps before SHARED_VERIFIED"
     },
     {
       "id": "notifications",
       "layer": "shared-platform",
-      "state": "CANDIDATE_SHARED",
-      "source_app": "obrasignal",
-      "evidence_paths": ["notification_events.py", "mobile/src/notifications.js"],
-      "next_proof": "define provider-neutral event/outbox contract with idempotency and tenant boundaries"
+      "state": "SHARED_CONTRACT_PROPOSED",
+      "source_app": "factory-cloud",
+      "evidence_paths": ["factory_cloud/shared_platform.py", "tests/test_factory_cloud_shared_platform.py", "notification_events.py", "mobile/src/notifications.js"],
+      "next_proof": "attach a persistent provider adapter in two source-registered apps while preserving idempotency and tenant boundaries"
     },
     {
       "id": "release_deployment_contracts",
@@ -73,7 +73,7 @@
       "state": "SHARED_CONTRACT_PROPOSED",
       "source_app": "factory-cloud",
       "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "consume EvidenceEnvelope from two independent vertical adapters before SHARED_VERIFIED"
+      "next_proof": "consume EvidenceEnvelope from two source-registered recovery verticals before SHARED_VERIFIED"
     },
     {
       "id": "evidence_lineage",
@@ -81,7 +81,7 @@
       "state": "SHARED_CONTRACT_PROPOSED",
       "source_app": "factory-cloud",
       "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "prove evidence-to-calculation-to-finding lineage in two vertical schemas"
+      "next_proof": "prove evidence-to-calculation-to-finding lineage in two source-registered vertical schemas"
     },
     {
       "id": "deterministic_calculation_contract",
@@ -89,7 +89,7 @@
       "state": "SHARED_CONTRACT_PROPOSED",
       "source_app": "factory-cloud",
       "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "run formula/version/reproducibility contract in two recovery verticals before SHARED_VERIFIED"
+      "next_proof": "run formula/version/reproducibility contract in two source-registered recovery verticals before SHARED_VERIFIED"
     },
     {
       "id": "deadline_notice_window",
@@ -97,7 +97,7 @@
       "state": "SHARED_CONTRACT_PROPOSED",
       "source_app": "factory-cloud",
       "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "prove date semantics and source-basis evidence across two verticals before SHARED_VERIFIED"
+      "next_proof": "prove date semantics and source-basis evidence across two source-registered verticals before SHARED_VERIFIED"
     },
     {
       "id": "finding_review_workflow",
@@ -105,7 +105,7 @@
       "state": "SHARED_CONTRACT_PROPOSED",
       "source_app": "factory-cloud",
       "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
-      "next_proof": "prove fail-closed review and outcome states across two vertical adapters before SHARED_VERIFIED"
+      "next_proof": "prove fail-closed review and outcome states across two source-registered vertical adapters before SHARED_VERIFIED"
     }
   ]
 }
