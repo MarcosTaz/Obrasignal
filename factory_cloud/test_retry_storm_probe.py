@@ -21,11 +21,18 @@ class AlwaysWaitAdapter:
         )
 
 
+def _obrasignal_registry():
+    registry = load_registry()
+    isolated = dict(registry)
+    isolated["applications"] = [app for app in registry["applications"] if app["app_id"] == "obrasignal"]
+    return isolated
+
+
 class RetryStormProbeTests(unittest.TestCase):
     def test_terminal_wait_does_not_immediately_create_an_identical_new_job(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = StateStore(Path(tmp) / "cloud.sqlite3")
-            registry = load_registry()
+            registry = _obrasignal_registry()
             queue = DurableWorkQueue(store)
             control = PersistentFactoryOrchestrator(
                 registry,
@@ -33,12 +40,10 @@ class RetryStormProbeTests(unittest.TestCase):
                 adapters=AdapterRegistry({"obrasignal": QueuedAppAdapter(queue)}),
             )
 
-            # First control dispatch creates the app-scoped job.
             first = control.run_cycle(max_dispatches=1)
             self.assertEqual(first["dispatches"][0]["status"], "WAIT")
             self.assertEqual(len(queue.jobs("obrasignal")), 1)
 
-            # App worker returns a durable terminal WAIT for the same ACTIVE task.
             app = AppWorkerHost(
                 "obrasignal",
                 queue,
@@ -49,14 +54,10 @@ class RetryStormProbeTests(unittest.TestCase):
             )
             self.assertEqual(app.run_once()["state"], "WAIT")
 
-            # Next control cycle consumes the terminal WAIT.
             consumed = control.run_cycle(max_dispatches=1)
             self.assertEqual(consumed["dispatches"][0]["status"], "WAIT")
             self.assertEqual(len(queue.jobs("obrasignal")), 1)
 
-            # An immediately following cycle may legitimately yield to another app,
-            # but ObraSignal itself must not be re-queued while its unchanged WAIT
-            # retry gate is closed.
             immediate = control.run_cycle(max_dispatches=1)
             self.assertFalse(any(item["app_id"] == "obrasignal" for item in immediate["dispatches"]))
             self.assertEqual(len(queue.jobs("obrasignal")), 1)
