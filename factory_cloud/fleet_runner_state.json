@@ -5,47 +5,60 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 1,
-  "last_factory_id": "factory-cloud",
+  "cursor": 2,
+  "last_factory_id": "obrasignal",
   "last_run_at": "2026-08-29T22:39:37Z",
   "last_material_change": {
-    "kind": "FACTORY_CLOUD_ADOPTION_CONFIRMED_AND_CI_RECLASSIFICATION",
-    "factory_id": "factory-cloud",
-    "summary": "Reconstructed all 33 registered Factories from the control-plane registry and ACTIVE fleet state. Confirmed the persistent fleet runner is already present on the control-plane branch, so PR #765 is no longer the sole implementation authority. The control-plane runner has a newer non-stop semantic: if every Factory is listed blocked it still rotates from the cursor rather than terminating, while dispatch remains DISPATCH_SELECTED_NO_EXECUTION_CLAIM. Exact control-plane HEAD d2e7dcbd6c7dce1052e9208c431800875bf29e9b completed ObraSignal Quality SUCCESS in run 33276737516. Classified previously pending CI for Product Strategy 131073cbb095c9a87fd66a1d3b466d3b254d3175 and Data Analytics 303fce7fc69284ef2b7a7fd5d117addd1e53f110: Python repository tests are SUCCESS on both, while Mobile fails specifically at npx expo-doctor before detail wiring/bundle steps. This is cross-factory Mobile/Expo drift and does not invalidate the repository-only strategy/analytics evidence contracts, but neither head is globally GREEN.",
+    "kind": "CONTROL_PLANE_ADOPTION_CONFIRMED_OBRASIGNAL_BILLING_FAILING_BEFORE_DISCOVERED",
+    "factory_id": "obrasignal",
+    "summary": "Factory Cloud control-plane runner adoption is now directly proven on exact HEAD d2e7dcbd6c7dce1052e9208c431800875bf29e9b with ObraSignal Quality SUCCESS run 33276737516. The control-plane runner differs materially from draft PR #765 by preserving non-stop rotation even when every Factory is listed blocked, without claiming task execution. Product Strategy head 131073cbb095c9a87fd66a1d3b466d3b254d3175 and Data Analytics head 303fce7fc69284ef2b7a7fd5d117addd1e53f110 have now been exact-head classified: Python SUCCESS, Mobile FAILURE specifically at npx expo-doctor, so their repository evidence contracts remain valid but neither head is globally GREEN. ObraSignal canonical main remains 66d43f6fd51cf9cea08016dad335aaa04b711a24. A new draft failing-before PR #828 on exact GREEN product base 0611198c77ad090e6d931b05afc2c09a29a873ff probes a high-risk billing authority defect: BillingGate must not fall back to client entitlement when server billing authority is unavailable. #828 head a69d553854423ce9cd5e2aa1c031061351849561 is one-test-file-only, DRAFT/NOT CANONICAL, with Quality run 33279176454 currently IN_PROGRESS. Industrial Claims #785 also advanced to head cbfafa8f78bbe971efb1abc0430ae05a1a85e123 with new numeric/dossier pilot-gate tests; Quality run 33279181799 is IN_PROGRESS and is the next cursor lane.",
     "evidence": {
       "factory_cloud": {
-        "control_branch": "factory-cloud/app-development-control-plane",
-        "head": "d2e7dcbd6c7dce1052e9208c431800875bf29e9b",
-        "runner_path": "factory_cloud/fleet_runner.py",
-        "runner_blob": "bd64d4d1ffd38687ba47e8d92cc03945f04610a5",
+        "control_head": "d2e7dcbd6c7dce1052e9208c431800875bf29e9b",
         "quality_run": 33276737516,
         "quality": "SUCCESS",
-        "pr_765": {
-          "state": "OPEN_DRAFT_NOT_CANONICAL",
-          "head": "b6e25348b9c11c11ed7f88aa39fb82ba33d34b9e",
-          "runner_blob": "da54df08069b3594417145498fb063f57f17a193",
-          "classification": "SUPERSEDED_AS_SOLE_AUTHORITY_BY_CONTROL_PLANE_IMPLEMENTATION"
-        },
-        "classification": "CONTROL_PLANE_RUNNER_PRESENT_EXACT_HEAD_GREEN"
+        "runner_blob": "bd64d4d1ffd38687ba47e8d92cc03945f04610a5",
+        "pr_765_head": "b6e25348b9c11c11ed7f88aa39fb82ba33d34b9e",
+        "pr_765_runner_blob": "da54df08069b3594417145498fb063f57f17a193",
+        "classification": "CONTROL_PLANE_IMPLEMENTATION_PRESENT_GREEN_PR765_NOT_SOLE_AUTHORITY"
       },
       "product_strategy": {
         "head": "131073cbb095c9a87fd66a1d3b466d3b254d3175",
         "quality_run": 33276689483,
         "python": "SUCCESS",
         "mobile": "FAILURE_AT_EXPO_DOCTOR",
-        "classification": "REPOSITORY_EVIDENCE_ADVANCED_PYTHON_GREEN_MOBILE_INFRA_DRIFT_NOT_GLOBAL_GREEN_NOT_CANONICAL"
+        "classification": "PYTHON_GREEN_MOBILE_OWNER_DRIFT_NOT_GLOBAL_GREEN_NOT_CANONICAL"
       },
       "data_analytics": {
         "head": "303fce7fc69284ef2b7a7fd5d117addd1e53f110",
         "quality_run": 33276709834,
         "python": "SUCCESS",
         "mobile": "FAILURE_AT_EXPO_DOCTOR",
-        "classification": "REPOSITORY_EVIDENCE_ADVANCED_PYTHON_GREEN_MOBILE_INFRA_DRIFT_NOT_GLOBAL_GREEN_NOT_CANONICAL"
+        "classification": "PYTHON_GREEN_MOBILE_OWNER_DRIFT_NOT_GLOBAL_GREEN_NOT_CANONICAL"
+      },
+      "obrasignal": {
+        "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+        "billing_probe_pr": 828,
+        "billing_probe_base": "0611198c77ad090e6d931b05afc2c09a29a873ff",
+        "billing_probe_head": "a69d553854423ce9cd5e2aa1c031061351849561",
+        "billing_probe_quality_run": 33279176454,
+        "billing_probe_quality": "IN_PROGRESS",
+        "classification": "BILLING_AUTHORITY_FAIL_CLOSED_PROBE_ACTIVE_DRAFT_NOT_CANONICAL"
+      },
+      "industrial_claims_next": {
+        "pr": 785,
+        "branch": "apps/industrial-claims",
+        "head": "cbfafa8f78bbe971efb1abc0430ae05a1a85e123",
+        "quality_run": 33279181799,
+        "quality": "IN_PROGRESS",
+        "classification": "ACTIVE_EXACT_HEAD_VALIDATION_PENDING"
       }
     },
-    "active": "ObraSignal: reconstruct exact current main/repository truth at cursor 1 and execute the highest-value repository-safe milestone without treating Mobile/Expo drift or other owner blockers as a global stop.",
-    "next": "Advance ObraSignal from exact current truth, then rotate to Industrial Claims and onward. Independently route the shared Mobile expo-doctor drift with deterministic exact-head evidence; do not weaken Strategy or Analytics evidence contracts to make CI green.",
+    "active": "Industrial Supplier Claims & Margin Recovery: classify exact-head Quality run 33279181799 on cbfafa8f78bbe971efb1abc0430ae05a1a85e123, preserve fail-closed recovery-cap/dossier truth, then advance the next repository-safe pilot milestone.",
+    "next": "After Industrial Claims, rotate to ScopeLedger and onward. Independently classify #828 when CI completes; if it fails only on the new billing-authority invariant, freeze it as deterministic failing-before and route an owner repair without weakening server authority. Independently route shared Mobile expo-doctor drift.",
     "wait": [
+      "#828 exact-head CI completion/classification",
+      "Industrial Claims #785 exact-head CI completion/classification",
       "Shared Mobile/Expo owner repair for expo-doctor failures on Product Strategy and Data Analytics heads",
       "Customer Journey #762 still lacks complete endpoint role enforcement and persisted actor audit attribution",
       "Customer Decision shared-company fixture depends on noncanonical #821",
