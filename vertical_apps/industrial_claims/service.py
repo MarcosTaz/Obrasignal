@@ -23,6 +23,7 @@ from factory_cloud.recovery_index import RecoveryIndex
 from factory_cloud.recovery_primitives import EntitlementBasis, RecoveryFingerprint
 from factory_cloud.shared_platform import AuditEvent, NotificationEvent, TenantContext, assert_tenant_context
 from vertical_apps.industrial_claims.case_store import IndustrialCaseMetadata, IndustrialClaimsCaseStore
+from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 
 
 ALLOWED_CLAIM_FAMILIES = {
@@ -90,6 +91,7 @@ class IndustrialClaimsService:
         self.store = AssuranceStore(database)
         self.index = RecoveryIndex(database)
         self.case_store = IndustrialClaimsCaseStore(database)
+        self.read_model = IndustrialClaimsReadModel(database)
         self.ops = AssuranceOperations(self.store)
 
     @staticmethod
@@ -257,6 +259,9 @@ class IndustrialClaimsService:
         if row is None or not str(row["actor_id"]).strip():
             raise AssuranceOperationError("finding creation audit not found")
         return str(row["actor_id"])
+
+    def _assert_dossier_integrity(self, *, tenant_id: str, finding_id: str) -> None:
+        self.read_model.get_finding(tenant_id=tenant_id, finding_id=finding_id)
 
     def _validate_replay_without_state_change(
         self,
@@ -457,6 +462,7 @@ class IndustrialClaimsService:
         finding_key = self._bounded_operation_text(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
         reviewer_id = self._bounded_operation_text(reviewer, label="reviewer", max_chars=MAX_ACTOR_CHARS)
         decision_reason = self._bounded_operation_text(reason, label="review reason", max_chars=MAX_REASON_CHARS)
+        self._assert_dossier_integrity(tenant_id=tenant, finding_id=finding_key)
         creator = self._creator_actor(tenant_id=tenant, finding_id=finding_key)
         if creator == reviewer_id:
             raise AssuranceOperationError("reviewer must be independent from finding creator")
@@ -466,6 +472,7 @@ class IndustrialClaimsService:
         tenant = self._operation_tenant_id(tenant_id)
         finding_key = self._bounded_operation_text(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
         actor = self._bounded_operation_text(actor_id, label="action actor", max_chars=MAX_ACTOR_CHARS)
+        self._assert_dossier_integrity(tenant_id=tenant, finding_id=finding_key)
         return self.ops.action(tenant_id=tenant, finding_id=finding_key, actor_id=actor)
 
     def resolve(
@@ -490,6 +497,7 @@ class IndustrialClaimsService:
         recovery_currency = str(currency or "").strip().upper()
         if len(recovery_currency) != 3 or not recovery_currency.isalpha() or not recovery_currency.isascii():
             raise AssuranceOperationError("recovery currency must be a three-letter ASCII code")
+        self._assert_dossier_integrity(tenant_id=tenant, finding_id=finding_key)
         maximum, reviewed_currency = self._reviewed_net_potential(tenant_id=tenant, finding_id=finding_key)
         if recovery_currency != reviewed_currency:
             raise AssuranceOperationError("recovery currency does not match reviewed claim currency")
