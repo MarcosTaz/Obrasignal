@@ -66,6 +66,23 @@ def _validate_execution_source(app: dict[str, Any], mode: str) -> None:
         raise RegistryError(f"execution_source repository must match canonical repository: {app_id}")
 
 
+def _validate_verified_read_only_source(app: dict[str, Any], mode: str) -> None:
+    if mode != "read_only_until_adapter_verified":
+        return
+    app_id = app["app_id"]
+    source = app.get("source_truth") or {}
+    if source.get("provider") != "github":
+        raise RegistryError(f"adapter-wait source must be github-backed: {app_id}")
+    repository = str(source.get("repository") or "").strip()
+    branch = str(source.get("canonical_branch") or "").strip()
+    head = str(source.get("canonical_head") or "").strip()
+    application_path = str(source.get("application_path") or "").strip()
+    if not repository or not branch or not application_path or not _SHA_RE.fullmatch(head):
+        raise RegistryError(f"adapter-wait source must have repository, branch, path and exact SHA: {app_id}")
+    if source.get("verified") is not True:
+        raise RegistryError(f"adapter-wait source must be explicitly verified: {app_id}")
+
+
 def _validate_capability_contract(app: dict[str, Any], mode: str) -> None:
     app_id = app["app_id"]
     adapter = app.get("execution_adapter")
@@ -146,9 +163,10 @@ def validate_registry(registry: dict[str, Any]) -> None:
         if activation.get("enabled") is not True:
             continue
         mode = activation.get("mode")
-        if mode not in {"repository_safe_execution", "read_only_until_source_resolved"}:
+        if mode not in {"repository_safe_execution", "read_only_until_source_resolved", "read_only_until_adapter_verified"}:
             raise RegistryError(f"unsupported activation mode for {app_id}: {mode}")
         _validate_execution_source(app, mode)
+        _validate_verified_read_only_source(app, mode)
         _validate_capability_contract(app, mode)
         _validate_portfolio_priority(app)
 
