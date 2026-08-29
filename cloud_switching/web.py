@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Callable
@@ -12,6 +13,7 @@ from auth_context_jwt import JwksUnavailableError
 
 from .baseline import BaselineCost, Certainty, CurrentStateBaseline
 from .domain import MigrationCase
+from .estate import EstateAsset, EstateCertainty, InfrastructureEstate
 from .forecast import FrozenMigrationForecast
 from .incentives import Incentive, IncentiveStatus
 from .options import OptionType, SwitchingOption, compare_options
@@ -38,6 +40,8 @@ def _json_safe(value):
         return str(value)
     if isinstance(value, Enum):
         return value.value
+    if isinstance(value, datetime):
+        return value.isoformat()
     if isinstance(value, dict):
         return {key: _json_safe(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
@@ -74,6 +78,11 @@ def _migration_case(body: dict) -> MigrationCase:
         "parallel_run_cost",
         "refactoring_cost",
         "risk_contingency_cost",
+        "data_movement_cost",
+        "decommissioning_cost",
+        "backup_dr_transition_cost",
+        "security_transition_cost",
+        "support_transition_cost",
         "provider_credit_approved",
         "provider_credit_received",
         "partner_incentive_approved",
@@ -146,6 +155,49 @@ def _forecast(body: dict, case: MigrationCase) -> FrozenMigrationForecast:
     return forecast
 
 
+def _estate(tenant_id: str, body: dict):
+    item = body.get("estate")
+    if not isinstance(item, dict):
+        raise ValueError("estate object is required")
+    as_of_raw = item.get("as_of")
+    if not isinstance(as_of_raw, str) or not as_of_raw.strip():
+        raise ValueError("estate.as_of is required")
+    try:
+        as_of = datetime.fromisoformat(as_of_raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("estate.as_of must be ISO-8601") from exc
+    assets = []
+    for asset in item.get("assets", []):
+        last_seen_raw = asset.get("last_seen_at")
+        last_seen = None
+        if last_seen_raw is not None:
+            if not isinstance(last_seen_raw, str):
+                raise ValueError("estate asset last_seen_at must be ISO-8601")
+            try:
+                last_seen = datetime.fromisoformat(last_seen_raw.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("estate asset last_seen_at must be ISO-8601") from exc
+        assets.append(
+            EstateAsset(
+                asset_id=str(asset.get("asset_id", "")),
+                asset_type=str(asset.get("asset_type", "")),
+                cpu_cores=asset.get("cpu_cores"),
+                memory_gib=asset.get("memory_gib"),
+                storage_gib=asset.get("storage_gib"),
+                last_seen_at=last_seen,
+                certainty=EstateCertainty(asset.get("certainty", "unknown")),
+                source_id=asset.get("source_id"),
+            )
+        )
+    assessment = InfrastructureEstate(company_id=tenant_id, assets=assets).assess(
+        as_of=as_of,
+        stale_after_days=int(item.get("stale_after_days", 30)),
+    )
+    if not assessment.decision_ready:
+        raise ValueError("estate is not decision-ready")
+    return assessment
+
+
 def _assert_frozen_forecast(record, frozen: dict) -> None:
     identity_pairs = (
         (record.case_id, str(frozen.get("case_id", "")), "case_id"),
@@ -200,6 +252,7 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
         if not package_id:
             return jsonify({"error": "package_id required"}), 400
         try:
+            estate_assessment = _estate(tenant_id, body)
             baseline = _baseline(tenant_id, body)
             case = _migration_case(body)
             incentives = _incentives(body)
@@ -221,6 +274,7 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
                 package=package,
             )
             delivery_payload = {
+                "estate": _json_safe(asdict(estate_assessment)),
                 "decision": _json_safe(asdict(package)),
                 "options": _json_safe(asdict(option_comparison)),
                 "forecast": _json_safe(asdict(forecast)),
@@ -239,6 +293,7 @@ def create_blueprint(*, workspace, resolve_tenant: TenantResolver) -> Blueprint:
             "package_id": package_id,
             "version": stored.version,
             "content_hash": stored.content_hash,
+            "estate_assessment": delivery_payload["estate"],
             "decision_package": delivery_payload["decision"],
             "option_comparison": delivery_payload["options"],
             "frozen_forecast": delivery_payload["forecast"],
