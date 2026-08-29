@@ -33,7 +33,9 @@ class IndustrialClaimsAuthenticationError(Exception):
 
 
 class IndustrialClaimsAuthorizationError(Exception):
-    pass
+    def __init__(self, message: str, *, code: str = "authorization_denied"):
+        super().__init__(message)
+        self.code = code
 
 
 def create_app(
@@ -45,7 +47,7 @@ def create_app(
     service = IndustrialClaimsService(database)
     resolve_identity = identity_resolver or configured_identity
 
-    def identity() -> tuple[str, str]:
+    def identity(required_role: str) -> tuple[str, str]:
         try:
             verified = resolve_identity()
         except JwksUnavailableError:
@@ -60,14 +62,31 @@ def create_app(
         if not tenant_id or not actor_id:
             raise IndustrialClaimsAuthenticationError("verified tenant and actor identity required")
 
+        claims = verified.claims if isinstance(verified.claims, dict) else {}
+        role_values: set[str] = set()
+        for claim_name in ("roles", "role"):
+            raw = claims.get(claim_name)
+            if isinstance(raw, str):
+                role_values.add(raw.strip().lower())
+            elif isinstance(raw, (list, tuple, set)):
+                role_values.update(str(item).strip().lower() for item in raw if str(item).strip())
+        if required_role not in role_values and "admin" not in role_values:
+            raise IndustrialClaimsAuthorizationError(f"verified {required_role} role required")
+
         # X-* identity headers are compatibility assertions only. They are never
         # authoritative: the verified provider identity is the tenant boundary.
         requested_tenant = request.headers.get("X-Tenant-ID", "").strip()
         requested_actor = request.headers.get("X-Actor-ID", "").strip()
         if requested_tenant and requested_tenant != tenant_id:
-            raise IndustrialClaimsAuthorizationError("requested tenant does not match verified identity")
+            raise IndustrialClaimsAuthorizationError(
+                "requested tenant does not match verified identity",
+                code="identity_scope_mismatch",
+            )
         if requested_actor and requested_actor != actor_id:
-            raise IndustrialClaimsAuthorizationError("requested actor does not match verified identity")
+            raise IndustrialClaimsAuthorizationError(
+                "requested actor does not match verified identity",
+                code="identity_scope_mismatch",
+            )
         return tenant_id, actor_id
 
     @app.errorhandler(IndustrialClaimsAuthenticationError)
@@ -75,8 +94,8 @@ def create_app(
         return jsonify({"error": "authentication_required"}), 401
 
     @app.errorhandler(IndustrialClaimsAuthorizationError)
-    def authorization_error(_exc):
-        return jsonify({"error": "identity_scope_mismatch"}), 403
+    def authorization_error(exc):
+        return jsonify({"error": exc.code}), 403
 
     @app.errorhandler(JwksUnavailableError)
     def authentication_provider_unavailable(_exc):
@@ -89,7 +108,7 @@ def create_app(
     @app.post("/analyze")
     def analyze():
         try:
-            tenant_id, actor_id = identity()
+            tenant_id, actor_id = identity("analyst")
             payload = request.get_json(force=True) or {}
             missing = payload.get("missing_evidence") or []
             if not isinstance(missing, list):
@@ -133,7 +152,7 @@ def create_app(
     @app.post("/findings/<finding_id>/review")
     def review_finding(finding_id: str):
         try:
-            tenant_id, actor_id = identity()
+            tenant_id, actor_id = identity("reviewer")
             payload = request.get_json(force=True) or {}
             approved = payload["approved"]
             if not isinstance(approved, bool):
@@ -152,7 +171,7 @@ def create_app(
     @app.post("/findings/<finding_id>/action")
     def action_finding(finding_id: str):
         try:
-            tenant_id, _ = identity()
+            tenant_id, _ = identity("operator")
             return jsonify({"finding_id": finding_id, "state": service.action(tenant_id=tenant_id, finding_id=finding_id)})
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
@@ -160,7 +179,7 @@ def create_app(
     @app.post("/findings/<finding_id>/resolve")
     def resolve_finding(finding_id: str):
         try:
-            tenant_id, _ = identity()
+            tenant_id, _ = identity("operator")
             payload = request.get_json(force=True) or {}
             outcome = service.resolve(
                 tenant_id=tenant_id,
