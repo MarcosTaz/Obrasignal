@@ -29,19 +29,91 @@ def _case(database):
     return service, result
 
 
-def test_detail_fails_closed_when_entitlement_evidence_lineage_is_tampered(tmp_path):
-    database = tmp_path / "entitlement-tamper.sqlite3"
-    service, result = _case(database)
+def _tamper_entitlement(database, result):
     with sqlite3.connect(database) as conn:
         conn.execute(
             "UPDATE entitlement_basis SET source_evidence_ids_json=? WHERE tenant_id=? AND entitlement_id=?",
             (json.dumps([result.evidence[0].evidence_id]), "alpha", result.entitlement.entitlement_id),
         )
 
+
+def test_detail_fails_closed_when_entitlement_evidence_lineage_is_tampered(tmp_path):
+    database = tmp_path / "entitlement-tamper.sqlite3"
+    service, result = _case(database)
+    _tamper_entitlement(database, result)
+
     with pytest.raises(AssuranceStoreError, match="entitlement evidence lineage does not match"):
         IndustrialClaimsReadModel(database).get_finding(tenant_id="alpha", finding_id=result.finding.finding_id)
 
     assert service.store.count("findings", "alpha") == 1
+
+
+def test_review_refuses_corrupt_dossier_before_state_mutation(tmp_path):
+    database = tmp_path / "review-preflight.sqlite3"
+    service, result = _case(database)
+    _tamper_entitlement(database, result)
+
+    with pytest.raises(AssuranceStoreError, match="entitlement evidence lineage does not match"):
+        service.review(
+            tenant_id="alpha",
+            finding_id=result.finding.finding_id,
+            reviewer="reviewer",
+            approved=True,
+            reason="must not review corrupted dossier",
+        )
+
+    assert service.ops.get_state(tenant_id="alpha", finding_id=result.finding.finding_id) == "READY_FOR_REVIEW"
+    assert service.store.count("audit_events", "alpha") == 1
+
+
+def test_action_refuses_corrupt_dossier_before_state_mutation(tmp_path):
+    database = tmp_path / "action-preflight.sqlite3"
+    service, result = _case(database)
+    service.review(
+        tenant_id="alpha",
+        finding_id=result.finding.finding_id,
+        reviewer="reviewer",
+        approved=True,
+        reason="internal workflow review",
+    )
+    _tamper_entitlement(database, result)
+
+    with pytest.raises(AssuranceStoreError, match="entitlement evidence lineage does not match"):
+        service.action(tenant_id="alpha", finding_id=result.finding.finding_id, actor_id="operator")
+
+    assert service.ops.get_state(tenant_id="alpha", finding_id=result.finding.finding_id) == "APPROVED"
+    assert service.store.count("audit_events", "alpha") == 2
+
+
+def test_resolve_refuses_corrupt_dossier_before_outcome_evidence_persistence(tmp_path):
+    database = tmp_path / "resolve-preflight.sqlite3"
+    service, result = _case(database)
+    service.review(
+        tenant_id="alpha",
+        finding_id=result.finding.finding_id,
+        reviewer="reviewer",
+        approved=True,
+        reason="internal workflow review",
+    )
+    service.action(tenant_id="alpha", finding_id=result.finding.finding_id, actor_id="operator")
+    _tamper_entitlement(database, result)
+
+    with pytest.raises(AssuranceStoreError, match="entitlement evidence lineage does not match"):
+        service.resolve(
+            tenant_id="alpha",
+            finding_id=result.finding.finding_id,
+            outcome_id="blocked-settlement",
+            recovered_amount="5000",
+            currency="EUR",
+            evidence_ref="bank-blocked",
+            evidence_content="must never be persisted for corrupt dossier",
+            actor_id="operator",
+        )
+
+    assert service.ops.get_state(tenant_id="alpha", finding_id=result.finding.finding_id) == "ACTIONED"
+    assert service.ops.outcomes(tenant_id="alpha") == ()
+    assert service.store.count("evidence", "alpha") == 3
+    assert service.store.count("audit_events", "alpha") == 3
 
 
 def test_detail_fails_closed_when_recovery_fingerprint_event_is_tampered(tmp_path):
