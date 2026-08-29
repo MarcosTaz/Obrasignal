@@ -7,6 +7,8 @@ export function verifyContract(c,tenantId){
   if(!c.sourceText||sha256(c.sourceText)!==c.sourceHash)return {ok:false,reason:'CONTRACT_SOURCE_HASH_MISMATCH'};
   if(!c.rules||sha256(stableStringify(c.rules))!==c.rulesHash)return {ok:false,reason:'APPROVED_RULES_TAMPERED'};
   for(const k of ['warrantyEligible','costEligible','noFaultFoundSupplierLiable'])if(Object.hasOwn(c.rules||{},k)&&typeof c.rules[k]!=='boolean')return {ok:false,reason:`CONTRACT_RULE_TYPE_${k.toUpperCase()}`};
+  if(Object.hasOwn(c.rules||{},'noticeDeadline')){const r=c.rules.noticeDeadline;if(!r||typeof r!=='object'||Array.isArray(r))return {ok:false,reason:'CONTRACT_RULE_TYPE_NOTICEDEADLINE'};if(typeof r.event!=='string'||!r.event.trim())return {ok:false,reason:'CONTRACT_RULE_NOTICEDEADLINE_EVENT'};if(!Number.isInteger(r.quantity)||r.quantity<0||r.quantity>3650)return {ok:false,reason:'CONTRACT_RULE_NOTICEDEADLINE_QUANTITY'};if(typeof r.unit!=='string'||!r.unit.trim())return {ok:false,reason:'CONTRACT_RULE_NOTICEDEADLINE_UNIT'};if(!['CALENDAR','BUSINESS','UNSPECIFIED_DAY_TYPE'].includes(r.dayType))return {ok:false,reason:'CONTRACT_RULE_NOTICEDEADLINE_DAYTYPE'};}
+  if(Object.hasOwn(c.rules||{},'exclusionTags')){const x=c.rules.exclusionTags;if(!Array.isArray(x)||x.some(v=>typeof v!=='string'||!v.trim()))return {ok:false,reason:'CONTRACT_RULE_TYPE_EXCLUSIONTAGS'};}
   return {ok:true};
 }
 export function selectContract(contracts,debit){
