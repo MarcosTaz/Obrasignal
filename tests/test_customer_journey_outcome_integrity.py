@@ -54,9 +54,12 @@ def test_mobile_detail_qualifies_terminal_workflow_before_it_can_be_read_as_veri
     app = Path("mobile/App.js").read_text(encoding="utf-8")
     explanation = Path("mobile/components/OpportunityExplanation.js").read_text(encoding="utf-8")
 
-    # App.js still lets the user record terminal workflow states; this is allowed
-    # only because the same detail journey renders the canonical truth qualifier.
-    assert "['WON','Ganho']" in app
+    # App.js still lets the user record terminal workflow states, but the labels
+    # themselves now preserve that these are customer-reported rather than verified.
+    assert "['WON','Ganho reportado']" in app
+    assert "['LOST','Perdido reportado']" in app
+    assert "['WON','Ganho']" not in app
+    assert "['LOST','Perdido']" not in app
     assert "<OpportunityExplanation item={current}/>" in app
     assert "ESTADO REPORTADO · NÃO VERIFICADO" in explanation
     assert "Não prova adjudicação, resultado económico, pagamento" in explanation
