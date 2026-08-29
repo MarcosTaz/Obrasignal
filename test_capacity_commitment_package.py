@@ -5,6 +5,10 @@ from factories.capacity_commitment.recovery_package import build_recovery_packag
 from factories.capacity_commitment.synthetic_cases import case
 
 
+EVIDENCE = ("contract:12",)
+DEADLINE = "2099-12-31"
+
+
 def test_recovery_package_preserves_positive_truth_without_fabricating_payment():
     recovery_case = case("package-positive")
     result = evaluate_recoverability(recovery_case)
@@ -12,7 +16,7 @@ def test_recovery_package_preserves_positive_truth_without_fabricating_payment()
         recovery_case,
         result,
         evidence_refs=("contract:12", "forecast:7", "actuals:2026Q2"),
-        deadline="2026-09-30",
+        deadline="2099-09-30",
     )
 
     assert result.recoverability_state == RecoverabilityState.RECOVERABLE
@@ -26,7 +30,7 @@ def test_recovery_package_preserves_positive_truth_without_fabricating_payment()
     assert package.mitigation["mitigation_reviewed"] is True
     assert package.mitigation["prior_recovery_reviewed"] is True
     assert package.contractual_basis["notice_window_verified"] is True
-    assert package.audit_trail["deadline"] == "2026-09-30"
+    assert package.audit_trail["deadline"] == "2099-09-30"
     assert package.audit_trail["engine_version"] == result.engine_version
     assert "obtain_authorized_human_review_before_external_submission" in package.next_actions
 
@@ -37,7 +41,9 @@ def test_recovery_package_unknown_state_never_becomes_positive():
     package = build_recovery_package(
         recovery_case,
         result,
+        evidence_refs=EVIDENCE,
         missing_evidence=("contract_mapping",),
+        deadline=DEADLINE,
     )
 
     assert result.recoverability_state == RecoverabilityState.UNKNOWN
@@ -51,7 +57,12 @@ def test_recovery_package_unknown_state_never_becomes_positive():
 def test_recovery_package_unreviewed_mitigation_is_visible_and_zero_claimable():
     recovery_case = case("package-mitigation-unknown", mitigation_reviewed=False)
     result = evaluate_recoverability(recovery_case)
-    package = build_recovery_package(recovery_case, result)
+    package = build_recovery_package(
+        recovery_case,
+        result,
+        evidence_refs=EVIDENCE,
+        deadline=DEADLINE,
+    )
 
     assert result.recoverability_state == RecoverabilityState.UNKNOWN
     assert package.mitigation["mitigation_reviewed"] is False
@@ -62,7 +73,12 @@ def test_recovery_package_unreviewed_mitigation_is_visible_and_zero_claimable():
 def test_recovery_package_zero_exposure_closes_without_claim_language():
     recovery_case = case("package-zero", actual_units=Decimal("100000"))
     result = evaluate_recoverability(recovery_case)
-    package = build_recovery_package(recovery_case, result)
+    package = build_recovery_package(
+        recovery_case,
+        result,
+        evidence_refs=EVIDENCE,
+        deadline=DEADLINE,
+    )
 
     assert result.recoverability_state == RecoverabilityState.ZERO_EXPOSURE
     assert package.recoverability["recoverable_amount"] == Decimal("0")
