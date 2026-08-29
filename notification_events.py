@@ -12,8 +12,9 @@ from jwt import InvalidTokenError
 from app import APP
 from auth_context import configured_identity
 from auth_context_jwt import JwksUnavailableError
-from decision_log import ensure_decision_table
+from decision_log import ensure_decision_table, latest_current_decision
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+from opportunity_match_pipeline import RULE_VERSION
 
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
@@ -651,6 +652,14 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
     now = _iso_now()
     for row in rows:
         d = dict(row)
+        if latest_current_decision(
+            conn,
+            d.get("source"),
+            d.get("external_id"),
+            account_id=account_id,
+            expected_rule_version=RULE_VERSION,
+        ) is None:
+            continue
         base_key = _key(d)
         event_key = f"{account_id}:{base_key}"
         account_score = d.get("account_score", 0)
