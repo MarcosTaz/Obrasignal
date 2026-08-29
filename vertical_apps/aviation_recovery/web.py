@@ -51,9 +51,16 @@ def create_app(database: str | Path, *, identity_resolver: IdentityResolver | No
         return render_assisted_workspace(
             title="Aviation Lease Recovery — Assisted Workspace",
             vertical="aviation-lease-entitlement-recovery",
+            requires_breach=False,
             analysis_fields=(
-                ("contract_ref", "Lease/contract reference", "text"),
-                ("event_ref", "Maintenance event evidence reference", "text"),
+                ("lease_contract.source_ref", "Lease contract evidence reference", "text"),
+                ("lease_contract.sha256", "Lease contract SHA-256", "text"),
+                ("lease_contract.provenance", "Lease contract provenance", "text"),
+                ("lease_contract.authorized", "Lease evidence use is authorized", "checkbox"),
+                ("maintenance_event.source_ref", "Maintenance event evidence reference", "text"),
+                ("maintenance_event.sha256", "Maintenance event SHA-256", "text"),
+                ("maintenance_event.provenance", "Maintenance event provenance", "text"),
+                ("maintenance_event.authorized", "Maintenance evidence use is authorized", "checkbox"),
                 ("eligible_cost", "Eligible cost", "text"),
                 ("reimbursed_amount", "Already reimbursed amount", "text"),
                 ("notice_due", "Notice due", "date"),
