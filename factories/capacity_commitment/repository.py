@@ -11,6 +11,10 @@ from .identifiers import CASE_ID_ADDRESSABILITY_ERROR, is_addressable_case_id
 from .state import AssistedCaseState, dump_state, load_state
 
 
+_SCHEMA_COLUMNS = {"tenant_id", "case_id", "snapshot", "engine_version", "updated_at"}
+_PRIMARY_KEY = ("tenant_id", "case_id")
+
+
 class CapacityRepository:
     """Small tenant-scoped SQLite repository for assisted T1 cases.
 
@@ -39,6 +43,27 @@ class CapacityRepository:
             raise ValueError(CASE_ID_ADDRESSABILITY_ERROR)
         return case_id
 
+    @staticmethod
+    def _schema_error(conn: sqlite3.Connection) -> str | None:
+        rows = conn.execute("PRAGMA table_info(capacity_commitment_cases)").fetchall()
+        if not rows:
+            return "capacity schema is missing"
+        names = {row["name"] for row in rows}
+        if names != _SCHEMA_COLUMNS:
+            return "capacity schema columns require explicit migration"
+        primary_key = tuple(
+            row["name"] for row in sorted((row for row in rows if row["pk"]), key=lambda row: row["pk"])
+        )
+        if primary_key != _PRIMARY_KEY:
+            return "capacity schema primary key must be (tenant_id, case_id)"
+        for row in rows:
+            if row["name"] in _SCHEMA_COLUMNS:
+                if str(row["type"] or "").upper() != "TEXT":
+                    return "capacity schema columns must use TEXT storage"
+                if row["notnull"] != 1:
+                    return "capacity schema columns must be NOT NULL"
+        return None
+
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
@@ -58,13 +83,9 @@ class CapacityRepository:
                 )
                 """
             )
-            columns = {
-                row["name"]
-                for row in conn.execute("PRAGMA table_info(capacity_commitment_cases)").fetchall()
-            }
-            required = {"tenant_id", "case_id", "snapshot", "engine_version", "updated_at"}
-            if not required.issubset(columns):
-                raise RuntimeError("capacity repository schema requires explicit migration")
+            schema_error = self._schema_error(conn)
+            if schema_error:
+                raise RuntimeError(f"{schema_error}; explicit migration required")
 
     def save(self, state: AssistedCaseState) -> bool:
         """Create validated state, returning True if inserted and False for exact retry."""
@@ -153,7 +174,12 @@ class CapacityRepository:
             source.backup(dest)
 
     def restore_from(self, source_path: str) -> None:
-        """Restore only after fully validating the backup snapshots/version."""
+        """Restore validated rows into the canonical live schema.
+
+        The source database schema is never copied over the live database. This
+        prevents a backup from weakening create-only primary-key guarantees,
+        importing triggers, or silently introducing newer unknown columns.
+        """
 
         if not source_path or not Path(source_path).is_file():
             raise ValueError("restore source does not exist")
@@ -171,16 +197,18 @@ class CapacityRepository:
             ).fetchone()
             if table is None:
                 raise ValueError("restore source lacks capacity schema")
-            columns = {
-                row["name"]
-                for row in source.execute("PRAGMA table_info(capacity_commitment_cases)").fetchall()
-            }
-            required = {"tenant_id", "case_id", "snapshot", "engine_version", "updated_at"}
-            if not required.issubset(columns):
-                raise ValueError("restore source lacks required capacity columns")
+            schema_error = self._schema_error(source)
+            if schema_error:
+                raise ValueError(f"restore source {schema_error}")
+
             rows = source.execute(
-                "SELECT tenant_id, case_id, snapshot, engine_version FROM capacity_commitment_cases"
+                """
+                SELECT tenant_id, case_id, snapshot, engine_version, updated_at
+                FROM capacity_commitment_cases
+                ORDER BY tenant_id, case_id
+                """
             ).fetchall()
+            validated_rows = []
             for row in rows:
                 try:
                     self._validate_case_id(row["case_id"])
@@ -192,8 +220,31 @@ class CapacityRepository:
                 if state.recovery_case.case_id != row["case_id"]:
                     raise ValueError("restore source case identity mismatch")
                 evaluate_recoverability(state.recovery_case)
+                validated_rows.append(
+                    (
+                        row["tenant_id"],
+                        row["case_id"],
+                        row["snapshot"],
+                        row["engine_version"],
+                        row["updated_at"],
+                    )
+                )
 
-            with self._connect() as destination:
-                source.backup(destination)
+            try:
+                with self._connect() as destination:
+                    schema_error = self._schema_error(destination)
+                    if schema_error:
+                        raise RuntimeError(f"{schema_error}; explicit migration required")
+                    destination.execute("DELETE FROM capacity_commitment_cases")
+                    destination.executemany(
+                        """
+                        INSERT INTO capacity_commitment_cases
+                            (tenant_id, case_id, snapshot, engine_version, updated_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        validated_rows,
+                    )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("restore source violates canonical capacity constraints") from exc
         finally:
             source.close()
