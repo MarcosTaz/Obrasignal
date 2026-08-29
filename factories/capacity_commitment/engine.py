@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_EVEN, localcontext
+from decimal import Context, Decimal, ROUND_HALF_EVEN, localcontext
 from enum import Enum
 from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.8"
+ENGINE_VERSION = "capacity-recoverability-t1.9"
 ENGINE_DECIMAL_PRECISION = 60
+ENGINE_DECIMAL_EMAX = 999999
+ENGINE_DECIMAL_EMIN = -999999
 
 
 class CommitmentState(str, Enum):
@@ -98,6 +100,17 @@ class RecoveryResult:
     recoverable_amount: Decimal
     claimable_amount: Decimal
     reasons: Tuple[str, ...]
+
+
+def _engine_decimal_context() -> Context:
+    """Return a fresh arithmetic context so caller/global Decimal state is irrelevant."""
+
+    return Context(
+        prec=ENGINE_DECIMAL_PRECISION,
+        rounding=ROUND_HALF_EVEN,
+        Emin=ENGINE_DECIMAL_EMIN,
+        Emax=ENGINE_DECIMAL_EMAX,
+    )
 
 
 def _validate(case: RecoveryCase) -> None:
@@ -335,11 +348,7 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
 
     _validate(case)
 
-    with localcontext() as decimal_context:
-        # Never inherit Decimal precision/rounding from another module, request,
-        # test or worker. Engine version therefore binds deterministic arithmetic.
-        decimal_context.prec = ENGINE_DECIMAL_PRECISION
-        decimal_context.rounding = ROUND_HALF_EVEN
+    with localcontext(_engine_decimal_context()):
         shortfall_units = max(case.committed_units - case.actual_units, ZERO)
         unit_amortization, recovered_via_actual_units, economic_exposure = _economic_exposure(case)
         net_exposure = max(economic_exposure - case.mitigation - case.prior_payment, ZERO)
