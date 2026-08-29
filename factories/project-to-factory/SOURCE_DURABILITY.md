@@ -1,46 +1,57 @@
-# Project-to-Factory v0.12.0 — source durability checkpoint
+# Project-to-Factory v0.12.1 — source durability checkpoint
 
-STATE: METADATA_ONLY / NO MERGE / NO DEPLOY.
+STATE: METADATA_ONLY / NO PR / NO MERGE / NO DEPLOY.
 
-This isolated branch exists only to make Factory recovery deterministic after a continuity failure in which narrative execution had advanced beyond the last actually persisted source artifact.
+This isolated branch preserves deterministic recovery metadata for the validated Project-to-Factory source checkpoint. It MUST NOT be described as a full source mirror.
 
 ## Canonical restorable source
 
-The complete validated v0.12.0 source is the versioned conversation artifact:
+Complete validated artifact:
 
-`project-to-factory-v0.12.0.zip`
+`project-to-factory-v0.12.1.zip`
 
 ZIP SHA-256:
 
-`882a8435eff231c3dfda461ce9dec5bc5ced380f405f19f9ddbe0b7ffa5414b1`
+`840a20007e1fce5ba84f4b87b90bd2b0791f75103bbbd203dc1e942a8549ba6f`
 
-The source tree inside the ZIP is `project-to-factory-vertical-slice/`.
+Source tree inside the ZIP: `project-to-factory-vertical-slice/`.
 
-The connected GitHub write surface accepts UTF-8 file content but does not accept the local ZIP as a file argument, so this branch MUST NOT be represented as a full source mirror. `manifest.sha256` on this branch inventories the validated artifact. The ZIP remains the canonical complete restorable source for this checkpoint.
+The connected GitHub text-write surface used for this checkpoint does not mirror the binary ZIP. `manifest.sha256` on this branch inventories the complete validated artifact. The versioned ZIP remains the canonical complete restorable source.
 
 ## Version / validation
 
-Version: `0.12.0`
+Version: `0.12.1`
 
-Validated after the final 2026-08-29 ICP/contact/adjacent-buyer evidence audit:
+Validated after the 2026-08-29 public-buyer evidence and fail-closed prospect-contract audit:
 
 - `npm run check` — PASS
-- schema suite — 10 valid/expected fixtures + 6 adversarial cases PASS
+- schema suite — 11 valid/expected fixtures + 8 adversarial cases PASS
+- buyer-prospect schema prevents public discovery from becoming buyer authorization and requires exact-panel evidence for exact-panel public-demand states
 - 10 machine-readable endpoints — GET/HEAD 200 and POST 405 fail-closed
 - `npm run check:browser` — PASS
 - browser-generated evidence package validates against buyer, RFQ-dispatch, normalized-quote, award and order schemas
-- `manifest.sha256` — 58 entries, verification PASS
-- `unzip -t project-to-factory-v0.12.0.zip` — PASS
+- `manifest.sha256` — 61 entries, verification PASS
+- `unzip -t project-to-factory-v0.12.1.zip` — PASS
 
 ## Business truth
 
 BUSINESS_STATE: SIGNAL.
 
-Winning cell under validation: sandwich-panel + accessory packages × repeat professional construction buyers with non-captive procurement × Central Portugal.
+First cell under validation: sandwich-panel + accessory packages × repeat professional construction buyers with non-captive procurement × Central Portugal.
 
-The former installer-first wording was corrected: company type is not qualification. Direct evidence must establish repeat procurement, authority/influence, non-captive supplier choice, alternative-comparison willingness, pain and a plausible payer.
+Public buyer ranking is evidence-weighted, not a sales claim:
 
-Real transaction truth at this checkpoint:
+1. Prosertã — Priority A / FIRST_CELL / exact sandwich-panel demand publicly proven; direct procurement workflow still UNKNOWN.
+2. Manuel Mateus Frazão — Priority B / FIRST_CELL / real 2026 roof-rehabilitation demand, but exact sandwich-panel requirement remains UNPROVEN.
+3. Construções Silvano Santos — Priority B / ADJACENT_GEOGRAPHY / exact sandwich-panel demand publicly proven; procurement method UNKNOWN.
+4. João Matos & Ribeiro — integrated-executor negative control; roof demand exists but metal-fabrication integration raises captive-procurement risk.
+5. Coberfer — integrated-executor negative control; public offer includes sandwich-panel execution, so it is not promoted as evidence of non-captive buying.
+
+`CONTACTABLE != CONTACTED != VALIDATED`.
+
+Public contact routes for Prosertã, Manuel Mateus Frazão and Silvano Santos are prepared for controlled buyer validation, but no external contact has been made.
+
+Real transaction truth:
 
 - directly validated buyers: 0
 - buyer-authorized live projects: 0
@@ -51,14 +62,12 @@ Real transaction truth at this checkpoint:
 - verified GMV: EUR 0
 - verified revenue: EUR 0
 
-Priority-A public demand signal remains Prosertã. A current public general contact route is prepared as `PUBLIC_CONTACT_ROUTE_ONLY`; no outreach was sent. Its internal procurement method, supplier captivity, switching willingness and WTP remain UNKNOWN.
-
-A second general-contractor exact-panel public-demand control was found in adjacent geography: Construções Silvano Santos — Unipessoal, Lda, with an explicit 2025 sandwich-panel roofing contract and ongoing 2026 construction-contract activity. Its purchasing method is also UNKNOWN and it does not establish Central Portugal cell liquidity.
-
 ## Resume rule
 
-On X, recover this metadata plus the versioned ZIP/manifest. Do not reconstruct v0.12.0 from narrative claims if the ZIP is unavailable. Repository/source truth overrides chat history.
+On X, recover this metadata plus the exact versioned ZIP/manifest. Repository/source truth overrides narrative history.
 
-ACTIVE: direct buyer procurement-workflow falsification on Prosertã, owner-gated for external contact.
+ACTIVE: direct buyer procurement-workflow falsification on Prosertã, owner-gated for external communication.
 
-If outbound authorization is absent: continue safe exact-panel buyer evidence and product/evidence hardening. Do not send supplier RFQs without a genuine buyer project plus auditable sourcing authorization.
+NEXT after authorization: validate procurement method, authority/influence, supplier captivity, alternative-comparison willingness, payer/WTP and one genuine upcoming project. Buyer validation comes before any live supplier RFQ.
+
+If outbound authorization is absent: continue safe exact-panel buyer evidence, negative-control research and evidence-chain hardening without sending messages.
