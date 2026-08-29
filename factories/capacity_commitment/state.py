@@ -110,9 +110,16 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
         "actual_units",
         "dedicated_cost",
         "amortization_basis_units",
+        "mitigation",
+        "prior_payment",
         "commitment_state",
         "exposure_type",
         "cost_recovery_mode",
+        "evidence_supported",
+        "asset_dedicated",
+        "already_fully_amortized",
+        "already_paid",
+        "duplicate_claim",
     }
     missing = required - set(raw)
     if missing:
@@ -132,8 +139,6 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
         "mitigation",
         "prior_payment",
     ):
-        if key not in values:
-            values[key] = "0"
         try:
             values[key] = Decimal(str(values[key]))
         except (InvalidOperation, ValueError, TypeError) as exc:
@@ -168,7 +173,7 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
         "amendment_matches",
     )
     for key in required_bool_fields:
-        if key in values and type(values[key]) is not bool:
+        if type(values[key]) is not bool:
             raise ValueError(f"{key} must be boolean")
     for key in optional_bool_fields:
         if key in values and values[key] is not None and type(values[key]) is not bool:
