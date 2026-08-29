@@ -111,6 +111,14 @@ def _parse_ledger_csv(
             if not amount.is_finite() or amount < 0:
                 raise ValueError("amount must be finite and non-negative")
 
+            verified = (
+                _parse_bool(row.get("verified") or "")
+                if operator_verified_truth
+                else False
+            )
+            if operator_verified_truth and kind == LedgerKind.PAYMENT and verified:
+                raise ValueError("payment_verified_requires_cash_evidence_boundary")
+
             record = LedgerRecord(
                 record_id=(row.get("record_id") or "").strip(),
                 tenant_id=tenant_id,
@@ -120,11 +128,7 @@ def _parse_ledger_csv(
                 kind=kind,
                 amount=amount,
                 relates_to=(row.get("relates_to") or "").strip() or None,
-                verified=(
-                    _parse_bool(row.get("verified") or "")
-                    if operator_verified_truth
-                    else False
-                ),
+                verified=verified,
                 due=None,
             )
             if not all(
@@ -157,10 +161,12 @@ def parse_ledger_csv(text: str, *, expected_tenant_id: str) -> ImportResult:
 def parse_operator_verified_ledger_csv(
     text: str, *, expected_tenant_id: str
 ) -> ImportResult:
-    """Parse operator-reviewed evidence flags, but never import due as a boolean.
+    """Parse operator-reviewed documentary flags, never cash/due truth.
 
-    Invoice due-state must be derived later from verified due-date evidence and an
-    explicit `as_of` date through the assisted operator boundary.
+    PAYMENT rows may be observed and conservatively netted, but `verified=true`
+    is forbidden for them; verified cash enters only through the exact-scope
+    CashEvidence boundary. Invoice due-state is derived later from due-date
+    evidence plus explicit `as_of`.
     """
     return _parse_ledger_csv(
         text,
