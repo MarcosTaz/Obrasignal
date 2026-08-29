@@ -17,11 +17,13 @@ from jwt import (
     InvalidTokenError,
 )
 
+from account_membership import MembershipAuthorityError, resolve_membership
 from auth_context_jwt import JwksUnavailableError, production_verifier
 
 
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ALLOWED_AUTH_MODES = {"development", "provider"}
+_ALLOWED_MEMBERSHIP_MODES = {"subject", "database"}
 _DEFAULT_WEB_ORIGIN = "https://marcostaz.github.io"
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ class RequestIdentity:
     authenticated: bool
     subject: str | None = None
     claims: dict | None = None
+    role: str | None = None
 
 
 def _valid_account(account_id: str) -> str:
@@ -51,6 +54,28 @@ def _valid_account(account_id: str) -> str:
     if not _ACCOUNT_RE.fullmatch(account_id):
         raise RuntimeError("Invalid OBRASIGNAL_ACCOUNT_ID")
     return account_id
+
+
+def _provider_membership(identity) -> tuple[str, str | None]:
+    """Resolve the business tenant for a verified provider identity.
+
+    `subject` mode preserves the current single-user model. `database` mode is an
+    explicit owner-candidate path: tenant and role come only from server-side
+    membership storage and missing/revoked membership fails closed.
+    """
+    mode = (os.getenv("OBRASIGNAL_ACCOUNT_MEMBERSHIP_MODE") or "subject").strip().lower()
+    if mode not in _ALLOWED_MEMBERSHIP_MODES:
+        raise RuntimeError("Invalid OBRASIGNAL_ACCOUNT_MEMBERSHIP_MODE")
+    if mode == "subject":
+        return _valid_account(identity.account_id), None
+
+    database_path = (
+        os.getenv("OBRASIGNAL_MEMBERSHIP_DB")
+        or os.getenv("OBRASIGNAL_DB")
+        or ""
+    ).strip()
+    membership = resolve_membership(database_path, identity.subject)
+    return _valid_account(membership.account_id), membership.role
 
 
 def _invalid_token_reason(error: InvalidTokenError) -> str:
@@ -96,12 +121,15 @@ def configured_identity() -> RequestIdentity:
 
     try:
         identity = production_verifier().verify(token.strip())
-        account_id = _valid_account(identity.account_id)
+        account_id, role = _provider_membership(identity)
     except JwksUnavailableError:
         _LOGGER.warning("auth_provider_status=degraded reason=jwks_unavailable")
         raise
     except InvalidTokenError as exc:
         _LOGGER.info("auth_failure reason=%s", _invalid_token_reason(exc))
+        raise
+    except MembershipAuthorityError:
+        _LOGGER.info("auth_failure reason=membership_not_authorized")
         raise
     except RuntimeError:
         _LOGGER.error("auth_provider_status=misconfigured reason=provider_config")
@@ -112,4 +140,5 @@ def configured_identity() -> RequestIdentity:
         authenticated=True,
         subject=identity.subject,
         claims=identity.claims,
+        role=role,
     )
