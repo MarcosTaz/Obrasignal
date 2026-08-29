@@ -6,7 +6,7 @@ import pytest
 from factory_cloud.control_plane import RegistryError, load_registry, validate_registry
 from factory_cloud.process_adapter import ProcessAdapterConfig
 
-EXPECTED_HEAD = "e8470dbc209c7ec5eaeef7e088573d6adf7cf510"
+EXPECTED_HEAD = "0d1759832a06b3177b67b35a4c53ee0c69db459e"
 
 
 def test_recovery_apps_are_source_registered_but_runtime_fail_closed():
@@ -24,6 +24,7 @@ def test_recovery_apps_are_source_registered_but_runtime_fail_closed():
         assert app["source_truth"]["canonical_branch"] == branch
         assert app["source_truth"]["canonical_head"] == EXPECTED_HEAD
         assert app["execution_source"]["head"] == EXPECTED_HEAD
+        assert app["execution_source"]["classification"] == "SOURCE_REGISTERED_APPLICATION_BRANCH_GREEN"
         assert app["execution_adapter"]["repository_mutation_capability"] is False
         assert set(app["execution_adapter"]["allowlisted_tasks"]) == {"verify:service", "verify:shared-contracts"}
         assert any("runtime workspace provisioning" in item for item in app["baton"]["wait"])
