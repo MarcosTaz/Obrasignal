@@ -10,8 +10,8 @@ from typing import Optional, Tuple
 from .engine import CommitmentState, CostRecoveryMode, ExposureType, RecoveryCase
 
 
-SCHEMA_VERSION = 2
-_STATE_PAYLOAD_FIELDS = {
+SCHEMA_VERSION = 3
+_STATE_PAYLOAD_FIELDS_V2 = {
     "schema_version",
     "tenant_id",
     "company_id",
@@ -25,6 +25,7 @@ _STATE_PAYLOAD_FIELDS = {
     "missing_evidence",
     "deadline",
 }
+_STATE_PAYLOAD_FIELDS_V3 = _STATE_PAYLOAD_FIELDS_V2 | {"period_id", "unit"}
 _PERSISTED_RECOVERY_CASE_FIELDS = set(RecoveryCase.__dataclass_fields__)
 
 
@@ -35,6 +36,8 @@ class AssistedCaseState:
     customer_id: str
     program_id: str
     recovery_case: RecoveryCase
+    period_id: Optional[str] = None
+    unit: Optional[str] = None
     evidence_refs: Tuple[str, ...] = ()
     missing_evidence: Tuple[str, ...] = ()
     deadline: Optional[str] = None
@@ -44,13 +47,7 @@ class AssistedCaseState:
 
 
 def exact_decimal_from_input(value, *, field_name: str) -> Decimal:
-    """Parse an exact decimal boundary value without accepting binary floats.
-
-    JSON floating-point values have already lost their original decimal lexical
-    representation before application code sees them. Accepting them would make
-    an evidence value depend on IEEE-754 rounding. Strings and integers retain
-    exact decimal meaning; booleans are explicitly rejected despite being ints.
-    """
+    """Parse an exact decimal boundary value without accepting binary floats."""
 
     if type(value) is int:
         raw = str(value)
@@ -67,6 +64,17 @@ def exact_decimal_from_input(value, *, field_name: str) -> Decimal:
 def _validate_identifier(name: str, value: str) -> None:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} is required")
+    if len(value) > 200:
+        raise ValueError(f"{name} must be at most 200 characters")
+
+
+def _validate_optional_context(name: str, value: Optional[str]) -> None:
+    if value is None:
+        return
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string or null")
+    if value != value.strip():
+        raise ValueError(f"{name} must not contain leading/trailing whitespace")
     if len(value) > 200:
         raise ValueError(f"{name} must be at most 200 characters")
 
@@ -229,6 +237,8 @@ def _canonical_json(payload: dict) -> str:
 def dump_state(state: AssistedCaseState) -> str:
     for name in ("tenant_id", "company_id", "customer_id", "program_id"):
         _validate_identifier(name, getattr(state, name))
+    _validate_optional_context("period_id", state.period_id)
+    _validate_optional_context("unit", state.unit)
     _validate_contract_anchor(state.contract_id, state.nomination_id)
     if state.forecast_units is not None:
         if not isinstance(state.forecast_units, Decimal) or not state.forecast_units.is_finite():
@@ -246,6 +256,8 @@ def dump_state(state: AssistedCaseState) -> str:
         "company_id": state.company_id,
         "customer_id": state.customer_id,
         "program_id": state.program_id,
+        "period_id": state.period_id,
+        "unit": state.unit,
         "contract_id": state.contract_id,
         "nomination_id": state.nomination_id,
         "forecast_units": str(state.forecast_units) if state.forecast_units is not None else None,
@@ -271,10 +283,16 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
     payload = envelope["payload"]
     if not isinstance(payload, dict):
         raise ValueError("state payload is invalid")
-    if set(payload) != _STATE_PAYLOAD_FIELDS:
-        raise ValueError("state payload fields do not match schema version 2")
-    if payload["schema_version"] != SCHEMA_VERSION:
+
+    version = payload.get("schema_version")
+    if version == 2:
+        expected_fields = _STATE_PAYLOAD_FIELDS_V2
+    elif version == 3:
+        expected_fields = _STATE_PAYLOAD_FIELDS_V3
+    else:
         raise ValueError("unsupported state schema version")
+    if set(payload) != expected_fields:
+        raise ValueError(f"state payload fields do not match schema version {version}")
 
     expected_checksum = hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
     if envelope["checksum"] != expected_checksum:
@@ -286,6 +304,10 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
 
     for key in ("company_id", "customer_id", "program_id"):
         _validate_identifier(key, payload[key])
+    period_id = payload.get("period_id") if version >= 3 else None
+    unit = payload.get("unit") if version >= 3 else None
+    _validate_optional_context("period_id", period_id)
+    _validate_optional_context("unit", unit)
     _validate_contract_anchor(payload["contract_id"], payload["nomination_id"])
 
     evidence_refs = payload["evidence_refs"]
@@ -313,6 +335,8 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
         company_id=payload["company_id"],
         customer_id=payload["customer_id"],
         program_id=payload["program_id"],
+        period_id=period_id,
+        unit=unit,
         recovery_case=recovery_case,
         evidence_refs=tuple(evidence_refs),
         missing_evidence=tuple(missing_evidence),
