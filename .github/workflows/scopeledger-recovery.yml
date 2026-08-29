@@ -30,7 +30,9 @@ jobs:
               scopeledger-recovery/source.min.zip.b64.part-02 \
             | base64 --decode > /tmp/scopeledger-source.min.zip
           echo '2cde248ee3fc11fdd5c9c3a97d4f67a0b6d5fd1d22d042d0e9b0f38c51c7100f  /tmp/scopeledger-source.min.zip' | sha256sum --check
-          unzip -q -o /tmp/scopeledger-source.min.zip -d .
+          rm -rf /tmp/scopeledger-recovery-run
+          mkdir -p /tmp/scopeledger-recovery-run
+          unzip -q -o /tmp/scopeledger-source.min.zip -d /tmp/scopeledger-recovery-run
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -40,17 +42,17 @@ jobs:
           cache-dependency-path: scopeledger-recovery/requirements.txt
 
       - name: Install recovered runtime dependencies
-        run: python -m pip install -r scopeledger-recovery/requirements.txt
+        run: python -m pip install -r /tmp/scopeledger-recovery-run/scopeledger-recovery/requirements.txt
 
       - name: Compile recovered Python source
         run: |
-          python -m py_compile scopeledger-recovery/app/main.py scopeledger-recovery/app/core.py
+          python -m py_compile /tmp/scopeledger-recovery-run/scopeledger-recovery/app/main.py /tmp/scopeledger-recovery-run/scopeledger-recovery/app/core.py
 
       - name: Check browser JavaScript syntax
-        run: node --check scopeledger-recovery/app/static/app.js
+        run: node --check /tmp/scopeledger-recovery-run/scopeledger-recovery/app/static/app.js
 
       - name: Run autonomous P0 integrity and concurrency gate
-        working-directory: scopeledger-recovery
+        working-directory: /tmp/scopeledger-recovery-run/scopeledger-recovery
         env:
           PYTHONPATH: .
         run: python -m pytest -q --confcutdir=. tests/test_integrity.py
