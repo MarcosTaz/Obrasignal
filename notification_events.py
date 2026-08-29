@@ -291,6 +291,7 @@ def _pending_push_rows(conn, account_id, limit=100):
     ensure_lifecycle_table(conn)
     return conn.execute(
         f"""SELECT e.id AS event_id, e.tender_id,
+                   t.source AS opportunity_source, t.external_id AS opportunity_external_id,
                    d.id AS push_device_id, d.expo_push_token, d.binding_id,
                    COALESCE(pd.attempt_count,0) AS attempt_count
             FROM opportunity_events e
@@ -383,6 +384,15 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
     """Submit pending account-scoped events to Expo; retries terminate after the owner budget."""
     _finalize_exhausted_pushes(conn, account_id)
     rows = _pending_push_rows(conn, account_id, limit=limit)
+    rows = [
+        row for row in rows
+        if latest_opportunity_current_decision(
+            conn,
+            row["opportunity_source"],
+            row["opportunity_external_id"],
+            account_id=account_id,
+        ) is not None
+    ]
     if not rows:
         return 0
     messages = [
