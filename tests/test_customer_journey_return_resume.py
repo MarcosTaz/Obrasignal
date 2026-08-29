@@ -138,11 +138,41 @@ def test_returning_customer_resumes_durable_state_without_manufacturing_repeat_v
         assert metrics["FIRST_VERIFIED_VALUE_RECORDED"] is False
         assert metrics["TIME_TO_FIRST_VALUE_SECONDS"] is None
         assert metrics["TIME_TO_FIRST_VERIFIED_VALUE_SECONDS"] is None
+        assert metrics["REPEAT_VALUE_RECORDED"] is False
+        assert metrics["TIME_TO_FIRST_REPEAT_VALUE_SECONDS"] is None
+        assert metrics["repeat_value_semantics"] == "REQUIRES_CANONICAL_VERIFIED_VALUE_AND_NEW_VALUE_EVENT"
         assert metrics["measured_value_event_count"] == 0
         assert metrics["estimated_value_event_count"] == 0
         assert event_count_after_return == event_count_before_leave
     finally:
         returned.close()
+
+
+def test_repeated_unchanged_reads_never_become_repeat_value(monkeypatch, tmp_path):
+    from account_registry import get_account
+    from evaluation_policy import evaluation_metrics
+
+    db_path = tmp_path / "repeat-value-negative.db"
+    created, event_count_before = _seed_customer_state(monkeypatch, db_path)
+
+    conn = _conn(db_path)
+    try:
+        account = get_account(conn, ACCOUNT_ID)
+        first_return = evaluation_metrics(conn, account, now=created + timedelta(days=1))
+        second_return = evaluation_metrics(conn, account, now=created + timedelta(days=7))
+        event_count_after = conn.execute(
+            "SELECT COUNT(*) FROM evaluation_events WHERE account_id=?",
+            (ACCOUNT_ID,),
+        ).fetchone()[0]
+
+        for metrics in (first_return, second_return):
+            assert metrics["FIRST_VERIFIED_VALUE_RECORDED"] is False
+            assert metrics["REPEAT_VALUE_RECORDED"] is False
+            assert metrics["TIME_TO_FIRST_REPEAT_VALUE_SECONDS"] is None
+            assert metrics["repeat_value_semantics"] == "REQUIRES_CANONICAL_VERIFIED_VALUE_AND_NEW_VALUE_EVENT"
+        assert event_count_after == event_count_before
+    finally:
+        conn.close()
 
 
 def test_return_read_is_tenant_scoped_and_does_not_leak_previous_work(monkeypatch, tmp_path):
