@@ -1,4 +1,5 @@
 from auth_context import RequestIdentity
+from vertical_apps.industrial_claims.service import NOTICE_DEADLINE_EVIDENCE
 from vertical_apps.industrial_claims.web import create_app
 
 
@@ -60,6 +61,39 @@ def test_verified_identity_cannot_spoof_tenant_or_actor(tmp_path):
     assert wrong_actor.get_json() == {"error": "identity_scope_mismatch"}
 
 
+def test_unknown_notice_deadline_fails_closed_in_api(tmp_path):
+    client = create_app(
+        tmp_path / "unknown-notice.sqlite3",
+        identity_resolver=_identity("alpha", "analyst"),
+    ).test_client()
+    payload = _payload()
+    payload.pop("notice_due")
+
+    analyzed = client.post("/analyze", json=payload)
+    assert analyzed.status_code == 201
+    body = analyzed.get_json()
+    assert body["state"] == "UNRESOLVED_EVIDENCE"
+    assert body["notice_deadline_state"] == "UNKNOWN"
+    assert NOTICE_DEADLINE_EVIDENCE in body["missing_evidence"]
+
+
+def test_verified_no_notice_deadline_can_be_review_ready(tmp_path):
+    client = create_app(
+        tmp_path / "verified-no-notice.sqlite3",
+        identity_resolver=_identity("alpha", "analyst"),
+    ).test_client()
+    payload = _payload()
+    payload.pop("notice_due")
+    payload["notice_deadline_not_applicable"] = True
+
+    analyzed = client.post("/analyze", json=payload)
+    assert analyzed.status_code == 201
+    body = analyzed.get_json()
+    assert body["state"] == "READY_FOR_REVIEW"
+    assert body["notice_deadline_state"] == "VERIFIED_NONE"
+    assert NOTICE_DEADLINE_EVIDENCE not in body["missing_evidence"]
+
+
 def test_assisted_api_runs_full_review_action_resolution(tmp_path):
     database = tmp_path / "industrial.sqlite3"
     analyst = create_app(database, identity_resolver=_identity("alpha", "analyst")).test_client()
@@ -70,6 +104,7 @@ def test_assisted_api_runs_full_review_action_resolution(tmp_path):
     body = analyzed.get_json()
     assert body["net_potential"] == "8500"
     assert body["state"] == "READY_FOR_REVIEW"
+    assert body["notice_deadline_state"] == "VERIFIED_DATE"
     finding_id = body["finding_id"]
 
     reviewed = reviewer.post(
