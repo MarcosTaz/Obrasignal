@@ -60,6 +60,14 @@ def _reconcile_payload(
         except ValueError:
             raise PayloadError(f"record {index} has invalid kind") from None
 
+        verified = (
+            _bool(row.get("verified", False), "verified")
+            if operator_verified_truth
+            else False
+        )
+        if operator_verified_truth and kind == LedgerKind.PAYMENT and verified:
+            raise PayloadError("payment_verified_requires_cash_evidence_boundary")
+
         record = LedgerRecord(
             record_id=str(row.get("record_id") or "").strip(),
             tenant_id=tenant_id,
@@ -69,11 +77,7 @@ def _reconcile_payload(
             kind=kind,
             amount=_decimal(row.get("amount"), "amount"),
             relates_to=str(row.get("relates_to") or "").strip() or None,
-            verified=(
-                _bool(row.get("verified", False), "verified")
-                if operator_verified_truth
-                else False
-            ),
+            verified=verified,
             due=(
                 _due(row.get("due"))
                 if operator_verified_truth
@@ -158,8 +162,10 @@ def reconcile_payload(rows: object, *, tenant_id: str) -> dict:
 def reconcile_operator_verified_payload(rows: object, *, tenant_id: str) -> dict:
     """Reconcile evidence states asserted by the assisted-pilot operator layer.
 
-    This is an internal boundary. It is intentionally not exposed directly by
-    the EarnedCash Flask blueprint.
+    This internal boundary may carry reviewed documentary verification for
+    applications/certificates/invoices, but a PAYMENT can never become verified
+    cash through this boolean. Verified cash must enter through the exact-scope
+    `CashEvidence` boundary in persistence/case transition handling.
     """
     return _reconcile_payload(
         rows,
