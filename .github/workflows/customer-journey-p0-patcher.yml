@@ -1,0 +1,40 @@
+name: Customer Journey P0 Oracle Patcher
+
+on:
+  push:
+    branches:
+      - integration/customer-journey-current-20260828
+
+permissions:
+  contents: write
+
+jobs:
+  patch-p0-oracle:
+    if: github.ref == 'refs/heads/integration/customer-journey-current-20260828'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      - name: Align P0 oracle with current single-write profile seam
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('mobile/p0-regressions.test.mjs')
+          text = path.read_text(encoding='utf-8')
+          old = "  assert.match(api, /saveProfile:async[\\s\\S]*writeWhenReady\\('\\/profile'/);"
+          new = "  assert.match(api, /async function saveProfileForEditor[\\s\\S]*writeWhenReady\\('\\/profile'/);\n  assert.match(api, /saveProfile:saveProfileForEditor/);"
+          if new in text:
+              raise SystemExit(0)
+          if old not in text:
+              raise SystemExit('expected stale P0 seam not found; refusing fuzzy rewrite')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          if git diff --quiet -- mobile/p0-regressions.test.mjs; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add mobile/p0-regressions.test.mjs
+          git commit -m 'test(mobile): align P0 profile write oracle'
+          git push origin HEAD:integration/customer-journey-current-20260828
