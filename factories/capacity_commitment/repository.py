@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List
 
 from .engine import ENGINE_VERSION, evaluate_recoverability
+from .identifiers import CASE_ID_ADDRESSABILITY_ERROR, is_addressable_case_id
 from .state import AssistedCaseState, dump_state, load_state
 
 
@@ -34,8 +35,8 @@ class CapacityRepository:
     def _validate_case_id(case_id) -> str:
         if not isinstance(case_id, str) or not case_id.strip():
             raise ValueError("case_id must be a non-empty string")
-        if len(case_id) > 200:
-            raise ValueError("case_id must be at most 200 characters")
+        if not is_addressable_case_id(case_id):
+            raise ValueError(CASE_ID_ADDRESSABILITY_ERROR)
         return case_id
 
     def _connect(self) -> sqlite3.Connection:
