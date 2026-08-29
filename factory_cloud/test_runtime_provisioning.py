@@ -94,6 +94,15 @@ class RuntimeProvisioningTests(unittest.TestCase):
         self.assertIn('still belongs to legacy shared group factory-cloud', text)
         self.assertNotIn('APPS="${APPS:-obrasignal k3-fatality}"', text)
 
+    def test_installer_refuses_to_abandon_unconsumed_legacy_jobs(self):
+        text = (SYSTEMD / "install.sh").read_text(encoding="utf-8")
+        self.assertIn('mode=ro', text)
+        self.assertIn("name='worker_jobs'", text)
+        self.assertIn('SELECT COUNT(*) FROM worker_jobs WHERE consumed_at IS NULL', text)
+        self.assertIn('drain/classify them before queue isolation migration', text)
+        self.assertNotIn('DELETE FROM worker_jobs', text)
+        self.assertNotIn('UPDATE worker_jobs SET consumed_at', text)
+
     def test_systemd_worker_has_private_queue_and_shared_state_is_inaccessible(self):
         text = (SYSTEMD / "factory-cloud-app@.service").read_text(encoding="utf-8")
         self.assertIn("User=factory-cloud-%i", text)
