@@ -1,0 +1,12 @@
+{
+  "name": "debitproof-warrantyguard",
+  "version": "0.8.4",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=20"},
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "redteam": "node scripts/redteam.mjs",
+    "start": "node server.mjs"
+  }
+}
