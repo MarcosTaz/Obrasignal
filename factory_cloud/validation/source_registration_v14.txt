@@ -1,0 +1,4 @@
+validation-only exact-head trigger v14
+source-head=632ae66e31f2590665e25a4c1d75f2fc3eecb529
+scope=verified-source adapter-wait registration for GuaranteeRelease and RoyaltyRecover
+no-merge no-deploy no-production no-real-customer no-live-billing
