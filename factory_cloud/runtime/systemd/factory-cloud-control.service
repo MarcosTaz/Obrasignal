@@ -10,7 +10,7 @@ Group=factory-cloud
 WorkingDirectory=/opt/factory-cloud/current
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=-/etc/factory-cloud/control.env
-ExecStart=/usr/bin/python3 -m factory_cloud.worker Ω --state /var/lib/factory-cloud/state.sqlite3
+ExecStart=/usr/bin/python3 -m factory_cloud.worker Ω --state /var/lib/factory-cloud/state.sqlite3 --queue-dir /var/lib/factory-cloud/queues
 Restart=always
 RestartSec=5
 UMask=0007
