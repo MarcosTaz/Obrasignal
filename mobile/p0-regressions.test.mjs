@@ -167,7 +167,8 @@ test('READY then sleeping backend starts a new warm-up before recovering the GET
 
 test('writes wait for readiness but execute exactly once', () => {
   assert.match(api, /async function writeWhenReady[\s\S]*await ensureBackendReady\(\);\n\s*return request\(path,\{\.\.\.options,maxAttempts:1\}\)/);
-  assert.match(api, /saveProfile:async[\s\S]*writeWhenReady\('\/profile'/);
+  assert.match(api, /async function saveProfileForEditor[\s\S]*writeWhenReady\('\/profile'/);
+  assert.match(api, /saveProfile:saveProfileForEditor/);
   assert.doesNotMatch(api, /writeWhenReady[\s\S]*for\s*\(/);
 });
 
