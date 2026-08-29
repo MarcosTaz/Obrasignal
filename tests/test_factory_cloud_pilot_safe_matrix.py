@@ -1,3 +1,5 @@
+import json
+
 from factory_cloud.pilot_safe_matrix import assess, assess_manifest, portfolio_matrix, required_evidence
 
 
@@ -29,6 +31,7 @@ def test_contractcredit_manifest_preserves_known_gaps():
     assert "web_complete" in result["missing_evidence"]
     assert "support_continuity" in result["missing_evidence"]
     assert "shadow_validation" in result["missing_evidence"]
+    assert result["exact_source_bound"] is True
 
 
 def test_aviation_manifest_preserves_known_gaps():
@@ -37,6 +40,57 @@ def test_aviation_manifest_preserves_known_gaps():
     assert result["gates"]["PS3"] == "PASS"
     assert result["gates"]["PS4"] == "BLOCKED"
     assert "adversarial" in result["missing_evidence"]
+    assert result["exact_source_bound"] is True
+
+
+def test_stale_manifest_exact_source_cannot_earn_ps9(tmp_path):
+    declared = "a" * 40
+    registered = "b" * 40
+    manifest = tmp_path / "manifest.json"
+    apps = tmp_path / "apps.json"
+    manifest.write_text(json.dumps({
+        "factory_id": "contractcredit",
+        "exact_source_head": declared,
+        "evidence": {
+            "exact_source_head": {"status": "PASS", "refs": ["apps.json"]},
+            "source_registered": {"status": "PASS", "refs": ["apps.json"]},
+        },
+    }), encoding="utf-8")
+    apps.write_text(json.dumps({
+        "applications": [{
+            "app_id": "contractcredit",
+            "execution_source": {"verified": True, "head": registered},
+        }]
+    }), encoding="utf-8")
+    result = assess_manifest(manifest, apps_path=apps)
+    assert result["exact_source_bound"] is False
+    assert result["registered_source_head"] == registered
+    assert "exact_source_head" in result["missing_evidence"]
+    assert result["gates"]["PS9"] == "BLOCKED"
+
+
+def test_verified_execution_head_binds_exact_source_evidence(tmp_path):
+    head = "c" * 40
+    manifest = tmp_path / "manifest.json"
+    apps = tmp_path / "apps.json"
+    manifest.write_text(json.dumps({
+        "factory_id": "contractcredit",
+        "exact_source_head": head,
+        "evidence": {
+            "exact_source_head": {"status": "PASS", "refs": ["apps.json"]},
+            "source_registered": {"status": "PASS", "refs": ["apps.json"]},
+        },
+    }), encoding="utf-8")
+    apps.write_text(json.dumps({
+        "applications": [{
+            "app_id": "contractcredit",
+            "execution_source": {"verified": True, "head": head},
+        }]
+    }), encoding="utf-8")
+    result = assess_manifest(manifest, apps_path=apps)
+    assert result["exact_source_bound"] is True
+    assert result["registered_source_head"] == head
+    assert "exact_source_head" not in result["missing_evidence"]
 
 
 def test_portfolio_matrix_covers_registered_and_transitional_factories_fail_closed():
