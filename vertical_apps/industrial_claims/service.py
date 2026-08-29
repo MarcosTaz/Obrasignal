@@ -17,7 +17,7 @@ from factory_cloud.assurance_kernel import (
     assert_same_tenant,
 )
 from factory_cloud.assurance_ops import AssuranceOperationError, AssuranceOperations
-from factory_cloud.assurance_store import AssuranceStore
+from factory_cloud.assurance_store import AssuranceStore, AssuranceStoreError
 from factory_cloud.recovery_index import RecoveryIndex
 from factory_cloud.recovery_primitives import EntitlementBasis, RecoveryFingerprint
 from factory_cloud.shared_platform import AuditEvent, NotificationEvent, TenantContext, assert_tenant_context
@@ -70,6 +70,57 @@ class IndustrialClaimsService:
     @staticmethod
     def _id(tenant_id: str, local: str) -> str:
         return f"{tenant_id}:{local}"
+
+    def _existing_finding(self, *, tenant_id: str, finding_id: str) -> FindingRecord:
+        with sqlite3.connect(self.store.path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM findings WHERE tenant_id=? AND finding_id=?",
+                (tenant_id, finding_id),
+            ).fetchone()
+        if row is None:
+            raise AssuranceStoreError("registered recovery fingerprint has no persisted finding")
+        try:
+            evidence_ids = tuple(json.loads(row["evidence_ids_json"]))
+            calculation_ids = tuple(json.loads(row["calculation_ids_json"]))
+        except (TypeError, ValueError) as exc:
+            raise AssuranceStoreError("persisted finding lineage is invalid") from exc
+        return FindingRecord(
+            finding_id=row["finding_id"],
+            tenant_id=row["tenant_id"],
+            finding_type=row["finding_type"],
+            state=row["state"],
+            evidence_ids=evidence_ids,
+            calculation_ids=calculation_ids,
+            reviewer=row["reviewer"],
+            decision_reason=row["decision_reason"],
+        )
+
+    def _validate_replay_without_state_change(
+        self,
+        *,
+        evidence: tuple[EvidenceEnvelope, ...],
+        calculation: CalculationRecord,
+        deadline: DeadlineWindow,
+        finding: FindingRecord,
+        audit: AuditEvent,
+        notification: NotificationEvent,
+    ) -> FindingRecord:
+        """Validate an idempotent replay without downgrading reviewed workflow state."""
+        for item in evidence:
+            self.store.put_evidence(item)
+        self.store.put_calculation(calculation)
+        self.store.put_deadline(deadline)
+        self.store.append_audit(audit)
+        self.store.enqueue_notification(notification)
+        existing = self._existing_finding(tenant_id=finding.tenant_id, finding_id=finding.finding_id)
+        if (
+            existing.finding_type != finding.finding_type
+            or existing.evidence_ids != finding.evidence_ids
+            or existing.calculation_ids != finding.calculation_ids
+        ):
+            raise AssuranceStoreError("duplicate finding lineage does not match persisted case")
+        return existing
 
     def _reviewed_net_potential(self, *, tenant_id: str, finding_id: str) -> Decimal:
         """Return the immutable net-potential calculation linked to a finding.
@@ -246,14 +297,24 @@ class IndustrialClaimsService:
         )
 
         is_new = self.index.persist_case_index(entitlement, fingerprint)
-        self.store.persist_case(
-            evidence=evidence,
-            calculation=calculation,
-            deadline=deadline,
-            finding=finding,
-            audit=audit,
-            notification=notification,
-        )
+        if is_new:
+            self.store.persist_case(
+                evidence=evidence,
+                calculation=calculation,
+                deadline=deadline,
+                finding=finding,
+                audit=audit,
+                notification=notification,
+            )
+        else:
+            finding = self._validate_replay_without_state_change(
+                evidence=evidence,
+                calculation=calculation,
+                deadline=deadline,
+                finding=finding,
+                audit=audit,
+                notification=notification,
+            )
         return IndustrialClaimResult(
             tenant_id=tenant_id,
             claim_family=family,
