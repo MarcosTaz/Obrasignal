@@ -17,9 +17,11 @@ def build_claim_package(
 
     The amount is deliberately labelled net_potential, never "owed" or
     "claimable". Human review and customer authority remain external gates.
+    Raw document content is not embedded; provenance is represented by source
+    references, immutable content hashes and verification state.
     """
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "vertical": "industrial-claims",
         "tenant_id": result.tenant_id,
         "customer_ref": customer_ref,
@@ -49,6 +51,8 @@ def build_claim_package(
                 "source_type": item.source_type,
                 "source_ref": item.source_ref,
                 "content_hash": item.content_hash,
+                "verification_state": item.metadata.get("verification_state", "UNKNOWN"),
+                "raw_content_persisted": item.metadata.get("raw_content_persisted", "unknown"),
             }
             for item in result.evidence
         ],
