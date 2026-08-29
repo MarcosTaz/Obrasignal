@@ -5,35 +5,41 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 2,
-  "last_factory_id": "obrasignal",
-  "last_run_at": "2026-08-29T19:27:00Z",
+  "cursor": 3,
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-08-29T19:30:00Z",
   "last_material_change": {
-    "kind": "FACTORY_CLOUD_RECONCILED_AND_NEXT_FACTORY_DISPATCHED",
-    "factory_id": "obrasignal",
-    "summary": "Factory Cloud portfolio #760 was compared directly with the live control-plane branch. The branches diverge from merge-base 3c39c0e221978526bfa685f0d090d98659a80012: portfolio is 153 commits ahead while the live control plane is 29 commits ahead of that merge base. The portfolio delta touches central authority files including apps.json, control_plane.py, factory_switchboard.py and orchestrator.py plus 80+ additional files. Wholesale adoption is therefore not a bounded safe slice and is moved to WAIT for controlled reconciliation rather than overwriting newer control-plane work. The persistent fleet cycle advances past Factory Cloud to ObraSignal, preserving no-auto-merge and no-runtime-overclaim boundaries.",
+    "kind": "OBRASIGNAL_GAP_CLOSED_AND_FLEET_ROTATED",
+    "factory_id": "industrial-claims",
+    "summary": "ObraSignal Customer Journey #761 password recovery was composed from GREEN owner PR #775 into the live integration branch without merging or touching main. Four bounded mobile files now preserve recovery as distinct provider authority, deny recovery tokens application/backend authority, expose reset request and password update, require sign-out, and require a fresh ordinary sign-in. Concurrent observed-value work temporarily introduced six Python regressions, but the same live integration line repaired its fixtures/current-decision authority and exact HEAD 0fbe3a5421df46a9208826d4450f9036100bdb93 is now fully GREEN: ObraSignal Quality 33270978483 SUCCESS and Supply Chain Resolution 33270978459 SUCCESS. #761 is closed only in the non-canonical integration candidate; real email/deep-link/device acceptance remains external. Fleet rotated to Industrial Claims.",
     "evidence": {
-      "factory_cloud": {
-        "portfolio_pr": 760,
-        "portfolio_head": "02fdfc5422acd9b20b4f05ec511ef7f1cba1bf3a",
-        "portfolio_ci": "ObraSignal Quality 33265278871 SUCCESS",
-        "merge_base": "3c39c0e221978526bfa685f0d090d98659a80012",
-        "relationship": "DIVERGED",
-        "portfolio_ahead_by": 153,
-        "live_control_plane_ahead_by": 29,
-        "classification": "GREEN_BUT_CONTROLLED_RECONCILIATION_REQUIRED"
+      "customer_journey": {
+        "pr": 723,
+        "branch": "integration/customer-journey-current-20260828",
+        "head": "0fbe3a5421df46a9208826d4450f9036100bdb93",
+        "quality": "ObraSignal Quality 33270978483 SUCCESS",
+        "supply_chain": "ObraSignal Supply Chain Resolution 33270978459 SUCCESS",
+        "password_recovery_owner_pr": 775,
+        "password_recovery_owner_head": "b7f963a60e127712a439e8c9f0e059461349e1f8",
+        "classification": "PASSWORD_RECOVERY_INTEGRATED_GREEN_NOT_CANONICAL",
+        "remaining": ["#762 shared-company multi-user membership NOT_MODELED", "#764 Web in-product purchase completion", "real provider email/native deep-link/device acceptance"]
       },
-      "obrasignal_dispatch": {
-        "registry_index": 1,
-        "classification": "SELECTED_FOR_NEXT_SAFE_EXECUTION"
+      "industrial_claims": {
+        "pr": 785,
+        "branch": "apps/industrial-claims",
+        "head": "449e3e846d1ad7096b7cf6790ecc119299a35023",
+        "quality": "ObraSignal Quality 33270696084 SUCCESS",
+        "classification": "GREEN_DRAFT_ACTIVE"
       }
     },
-    "active": "ObraSignal: reconstruct the highest-value current RED/incomplete integration from live repository truth and execute a bounded repository-safe repair or integration candidate without mutating main/production.",
-    "next": "After ObraSignal safe work is persisted and verified, continue to Industrial Claims and subsequent registry entries; WAIT lanes do not halt rotation.",
+    "active": "Industrial Claims: inspect exact current app/web/service/test truth for the highest-value pilot/readiness or integrity gap and execute a bounded safe repair; preserve zero-false-recovery and tenant isolation.",
+    "next": "After Industrial Claims work is verified and persisted, rotate to ScopeLedger; continue registry order while prioritizing any newly discovered RED gate over lower-value work.",
     "wait": [
-      "Portfolio #760 full adoption requires controlled reconciliation with 29 newer live-control commits",
-      "Portfolio supervised persistent host provisioning remains external/unverified",
-      "Aviation/ContractCredit G3 requires real supervised runtime evidence",
+      "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
+      "Customer Journey #764 Web purchase completion remains unresolved",
+      "Customer Journey real provider email/deep-link/device recovery acceptance remains external",
+      "Portfolio #760 controlled reconciliation remains separate",
+      "Aviation/ContractCredit supervised runtime provisioning remains external/unverified",
       "ComplianceLedger canonical source identity remains UNKNOWN",
       "EU Switching real WTP/customer/payment/deployment evidence remains external",
       "production/deploy/secrets/provider/config/customer-data/source activation",
