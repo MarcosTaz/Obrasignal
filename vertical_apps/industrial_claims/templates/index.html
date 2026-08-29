@@ -67,6 +67,15 @@
 
       <aside>
         <section class="panel">
+          <span class="badge warn">Tenant-safe work queue</span>
+          <h2>Actionable findings</h2>
+          <p class="sub">Reviewer identities receive review-ready findings. Operator identities receive approved/actioned findings. Other tenant data is never returned.</p>
+          <div class="actions"><button id="refresh-queue" type="button" class="secondary">Refresh my queue</button></div>
+          <div id="queue-result" class="result" aria-live="polite">Queue not loaded.</div>
+          <div id="queue-list" class="queue-list" aria-label="Actionable finding queue"></div>
+        </section>
+
+        <section class="panel">
           <span class="badge warn">Human-controlled workflow</span>
           <h2>Finding lifecycle</h2>
           <p class="sub">Roles are verified server-side. A role mismatch fails closed.</p>
@@ -104,7 +113,7 @@
 
         <section class="panel">
           <h2>Truth rules</h2>
-          <p class="note">A reference without documentary content is REFERENCE_ONLY and cannot become review-ready. An unknown notice deadline is evidence missing, not an infinite deadline. <code>READY_FOR_REVIEW</code> means evidence-supported for human review; it is not a legal conclusion or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
+          <p class="note">A reference without documentary content is REFERENCE_ONLY and cannot become review-ready. An unknown notice deadline is evidence missing, not an infinite deadline. <code>READY_FOR_REVIEW</code> means documented candidate ready for human review; it is not a legal conclusion, established recoverability, or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
         </section>
       </aside>
     </div>
