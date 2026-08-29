@@ -5,26 +5,27 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 12,
-  "last_factory_id": "longlead",
-  "last_run_at": "2026-08-29T17:43:00Z",
+  "cursor": 13,
+  "last_factory_id": "machine-release-safety",
+  "last_run_at": "2026-08-29T17:46:00Z",
   "last_material_change": {
     "kind": "FLEET_ADVANCED",
-    "factory_id": "longlead",
-    "summary": "Aviation Lease Entitlement Recovery was reconstructed from its live app branch and stale draft #778. The old candidate's Python RED was isolated to 12 unrelated Factory Cloud drift-sensitive tests, not the aviation intake tests; current app base 0d1759832a06b3177b67b35a4c53ee0c69db459e is Python+Mobile GREEN. A minimal successor #786 was replayed on that current base with fail-closed evidence identity/provenance/authorization semantics and exact-head CI started. Capacity Commitment was then reconstructed from its canonical FACTORY_STATE on factory/capacity-commitment-t2-market; current head b11732e4477699005356deb01d08c36f32eb7139 is Python GREEN with only the already-classified unrelated mobile Expo drift, while T3 commercial proof remains externally blocked. LongLead has a registry entry but no repository branch or indexed canonical source was discoverable in this run, so its history remains UNKNOWN rather than fabricated. Fleet cursor advanced to MachineRelease Safety.",
+    "factory_id": "machine-release-safety",
+    "summary": "Aviation Lease Entitlement Recovery advanced materially: stale #778 Python RED was proven unrelated to aviation intake, a minimal current-base successor #786 was created, and exact HEAD 5e34250396fd15701298e533643370459d1efff2 completed Python SUCCESS + Mobile SUCCESS. The Aviation fleet BATON now records PASSING_AFTER_PROVEN semantics and the next synthetic end-to-end review/outcome fixture. Capacity Commitment was reconstructed from its canonical FACTORY_STATE and exact live head b11732e4477699005356deb01d08c36f32eb7139 is Python SUCCESS; T3 commercial proof remains ACTIVE with genuine external blockers only. LongLead and MachineRelease Safety remain UNKNOWN because no matching branch or indexed canonical repository source was recoverable in this run; neither UNKNOWN state was fabricated into progress. Fleet cursor advanced to K3 Fatality.",
     "evidence": {
       "aviation_lease_entitlement_recovery": {
         "state": "ACTIVE",
         "app_branch": "apps/aviation-lease-entitlement-recovery",
         "app_head": "0d1759832a06b3177b67b35a4c53ee0c69db459e",
-        "stale_candidate_pr": 778,
-        "stale_candidate_head": "088eaa3cd79cba1a62c7d905bd6d9cf831de21a5",
-        "stale_ci": "12 failed / 847 passed / 2 skipped; failures isolated to Factory Cloud inventory/orchestrator expectations",
+        "predecessor_pr": 778,
+        "predecessor_head": "088eaa3cd79cba1a62c7d905bd6d9cf831de21a5",
+        "predecessor_ci": "12 failed / 847 passed / 2 skipped; job logs isolate failures to unrelated Factory Cloud inventory/orchestrator drift",
         "successor_pr": 786,
         "successor_head": "5e34250396fd15701298e533643370459d1efff2",
-        "successor_ci": "IN_PROGRESS at persistence time",
+        "successor_ci": "ObraSignal Quality 33266289206: Python SUCCESS + Mobile SUCCESS",
+        "classification": "PASSING_AFTER_PROVEN / NOT CANONICAL",
         "fleet_baton_path": "factory-snapshots/aviation-lease-entitlement-recovery/BATON.md",
-        "next": "Classify PR #786 exact-head CI; if GREEN, extend only with a synthetic permission-explicit end-to-end review/outcome fixture; if aviation-specific RED, freeze failing-before and repair separately."
+        "next": "Stack a repository-safe synthetic permission-explicit end-to-end review/outcome fixture from #786 and obtain exact-head CI without asserting entitlement or recovery."
       },
       "capacity_commitment": {
         "state": "ACTIVE",
@@ -36,20 +37,24 @@
         "mobile_ci": "FAILURE / existing unrelated Expo dependency drift per source BATON",
         "business_state": "T2 MARKET EXPOSED achieved; T3 COMMERCIAL PROOF active/not achieved",
         "fleet_baton_path": "factory-snapshots/capacity-commitment/BATON.md",
-        "next": "Act only on new real buyer/compliance evidence; otherwise preserve T3 ACTIVE and rotate rather than manufacture housekeeping."
+        "next": "Act only on new real buyer/compliance evidence; otherwise preserve T3 ACTIVE and rotate."
       },
       "longlead": {
         "state": "UNKNOWN",
-        "reason": "Registry entry exists, but no branch matching longlead/lead and no indexed repository source was discoverable in this run.",
-        "next": "Revisit with repository/public/connected context search; reconstruct minimum safe truth before mutation."
+        "reason": "Registry entry exists, but no branch matching longlead/lead and no indexed canonical source was discoverable in this run."
+      },
+      "machine_release_safety": {
+        "state": "UNKNOWN",
+        "reason": "Registry entry exists, but no branch/file indexed under MachineRelease or matching machine-release repository lane was recoverable in this run."
       }
     },
-    "active": "MachineRelease Safety: reconstruct exact repository/BATON/current milestone truth first, then execute the highest-value reversible repository-safe or research-safe action.",
-    "next": "Continue registry rotation after MachineRelease Safety; do not let Aviation CI, Capacity external T3 blockers, or LongLead UNKNOWN state stop independent factories.",
+    "active": "K3 Fatality / Probability Intelligence: reconstruct exact current repository/BATON truth from available sources and execute the highest-value safe milestone without relying on missing chat history.",
+    "next": "Continue registry rotation after K3 Fatality; revisit LongLead and MachineRelease Safety only when a canonical repository/public/connected source becomes recoverable.",
     "wait": [
       "Aviation real permissioned lease/event evidence, human pilot outcome, WTP and deployment authority",
       "Capacity buyer reply/delivery, qualified permissioned case data, WTP/acceptance/payment and unresolved compliance responses",
       "LongLead canonical repository/BATON source currently UNKNOWN",
+      "MachineRelease Safety canonical repository/BATON source currently UNKNOWN",
       "Product Market Access exact prior canonical application history remains UNKNOWN",
       "EU Cloud Switching external WTP/customer/outreach/payment/deployment evidence",
       "ChangeLedger compliance/address/DGC/explicit outbound gates",
