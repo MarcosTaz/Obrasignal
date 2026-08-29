@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Context, Decimal, ROUND_HALF_EVEN, localcontext
+from decimal import Context, Decimal, DecimalException, ROUND_HALF_EVEN, localcontext
 from enum import Enum
 from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.11"
+ENGINE_VERSION = "capacity-recoverability-t1.12"
 ENGINE_DECIMAL_PRECISION = 60
 ENGINE_DECIMAL_EMAX = 999999
 ENGINE_DECIMAL_EMIN = -999999
@@ -360,10 +360,13 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
 
     _validate(case)
 
-    with localcontext(_engine_decimal_context()):
-        shortfall_units = max(case.committed_units - case.actual_units, ZERO)
-        unit_amortization, recovered_via_actual_units, economic_exposure = _economic_exposure(case)
-        net_exposure = max(economic_exposure - case.mitigation - case.prior_payment, ZERO)
+    try:
+        with localcontext(_engine_decimal_context()):
+            shortfall_units = max(case.committed_units - case.actual_units, ZERO)
+            unit_amortization, recovered_via_actual_units, economic_exposure = _economic_exposure(case)
+            net_exposure = max(economic_exposure - case.mitigation - case.prior_payment, ZERO)
+    except DecimalException as exc:
+        raise ValueError("numeric input exceeds engine arithmetic range") from exc
 
     reasons = []
     state: RecoverabilityState
