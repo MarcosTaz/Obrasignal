@@ -1,5 +1,3 @@
-from datetime import date
-
 import pytest
 
 from factories.capacity_commitment.engine import evaluate_recoverability
@@ -31,6 +29,19 @@ def test_verified_notice_window_requires_canonical_deadline_even_for_direct_pack
             result,
             evidence_refs=("contract:1",),
             assessment_date="2026-08-29",
+        )
+
+
+def test_verified_notice_window_requires_assessment_date_for_direct_package_call():
+    recovery_case = case("package-boundary-no-assessment")
+    result = evaluate_recoverability(recovery_case)
+
+    with pytest.raises(ValueError, match="assessment_date"):
+        build_recovery_package(
+            recovery_case,
+            result,
+            evidence_refs=("contract:1",),
+            deadline="2099-12-31",
         )
 
 
