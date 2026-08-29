@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from auditor_api import create_auditor_blueprint
+from import_api import create_import_blueprint
 from operator_ui import create_operator_blueprint
 from outcome_api import create_outcome_blueprint
 from readiness import create_readiness_blueprint
@@ -17,6 +18,7 @@ def create_full_app(api_keys=None, repository: RoyaltyRepository | None = None):
     app.register_blueprint(create_auditor_blueprint(repo))
     app.register_blueprint(create_outcome_blueprint(repo))
     app.register_blueprint(create_readiness_blueprint(repo))
+    app.register_blueprint(create_import_blueprint(repo))
     return app
 
 
