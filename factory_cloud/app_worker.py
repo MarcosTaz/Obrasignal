@@ -18,22 +18,8 @@ from factory_cloud.work_queue import DurableWorkQueue
 
 
 class AppWorkerHost:
-    """Persistent worker restricted to exactly one app_id.
-
-    App credentials/tooling belong to the injected adapter/environment, never to
-    Factory Cloud metadata. The default adapter remains fail-closed.
-    """
-
-    def __init__(
-        self,
-        app_id: str,
-        queue: DurableWorkQueue,
-        adapters: AdapterRegistry | None = None,
-        worker_id: str | None = None,
-        poll_seconds: float = 5.0,
-        job_lease_seconds: float = 60.0,
-        sleeper: Callable[[float], None] = time.sleep,
-    ):
+    """Persistent worker restricted to exactly one app_id."""
+    def __init__(self, app_id: str, queue: DurableWorkQueue, adapters: AdapterRegistry | None = None, worker_id: str | None = None, poll_seconds: float = 5.0, job_lease_seconds: float = 60.0, sleeper: Callable[[float], None] = time.sleep):
         if not app_id:
             raise ValueError("app_id is required")
         if poll_seconds < 0 or job_lease_seconds <= 0:
@@ -65,13 +51,7 @@ class AppWorkerHost:
             return self.last_result
         request = ExecutionRequest(**job["request"])
         if request.app_id != self.app_id:
-            result = ExecutionResult(
-                status="ERROR",
-                evidence={"job_app_id": request.app_id, "worker_app_id": self.app_id},
-                blockers=("cross_app_worker_job_rejected",),
-                resume_at=request.task,
-                error={"type": "CROSS_APP_JOB"},
-            )
+            result = ExecutionResult(status="ERROR", evidence={"job_app_id": request.app_id, "worker_app_id": self.app_id}, blockers=("cross_app_worker_job_rejected",), resume_at=request.task, error={"type": "CROSS_APP_JOB"})
             self.queue.finish(job["job_id"], self.worker_id, result)
             self.last_result = {"app_id": self.app_id, "state": "ERROR", "job_id": job["job_id"], "result": asdict(result)}
             return self.last_result
@@ -83,20 +63,9 @@ class AppWorkerHost:
                 adapter = self.adapters.for_app(self.app_id, request.mode)
                 result = adapter.execute(request)
             except Exception as exc:
-                result = ExecutionResult(
-                    status="ERROR",
-                    evidence={"exception_type": type(exc).__name__},
-                    blockers=("app_worker_adapter_error",),
-                    resume_at=request.task,
-                    error={"type": type(exc).__name__},
-                )
+                result = ExecutionResult(status="ERROR", evidence={"exception_type": type(exc).__name__}, blockers=("app_worker_adapter_error",), resume_at=request.task, error={"type": type(exc).__name__})
             self.queue.finish(job["job_id"], self.worker_id, result)
-            self.last_result = {
-                "app_id": self.app_id,
-                "state": result.status,
-                "job_id": job["job_id"],
-                "result": asdict(result),
-            }
+            self.last_result = {"app_id": self.app_id, "state": result.status, "job_id": job["job_id"], "result": asdict(result)}
             return self.last_result
         finally:
             heartbeat_stop.set()
@@ -124,7 +93,7 @@ def _runtime_adapters(app_id: str, adapter_config: Path | None) -> AdapterRegist
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Isolated Factory Cloud application worker")
-    parser.add_argument("code", help="activation code; must be Ω")
+    parser.add_argument("code", help="activation code; must be D")
     parser.add_argument("--app-id", required=True)
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE_PATH)
     parser.add_argument("--adapter-config", type=Path, default=None, help="external app-owned process adapter JSON; must not contain secrets")
@@ -133,19 +102,13 @@ def main() -> int:
     parser.add_argument("--max-cycles", type=int, default=None)
     args = parser.parse_args()
     if args.code != ACTIVATION_CODE:
-        parser.error("Factory Cloud activation requires Ω")
+        parser.error("Factory Cloud activation requires D")
     try:
         adapters = _runtime_adapters(args.app_id, args.adapter_config)
     except ProcessAdapterConfigError as exc:
         parser.error(str(exc))
     queue = DurableWorkQueue(StateStore(args.state))
-    host = AppWorkerHost(
-        args.app_id,
-        queue,
-        adapters=adapters,
-        poll_seconds=args.poll_seconds,
-        job_lease_seconds=args.job_lease_seconds,
-    )
+    host = AppWorkerHost(args.app_id, queue, adapters=adapters, poll_seconds=args.poll_seconds, job_lease_seconds=args.job_lease_seconds)
     result = host.run_forever(args.max_cycles)
     if result is not None:
         print(json.dumps(result, indent=2, ensure_ascii=False))
