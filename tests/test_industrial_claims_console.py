@@ -25,6 +25,13 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert "declare for review: no notice deadline applies" in html.lower()
     assert "analyst declarations for independent review" in html.lower()
     assert "verified: no notice deadline applies" not in html.lower()
+    assert "workflow findings" in html.lower()
+    assert "approve for internal workflow" in html.lower()
+    assert "approved for internal workflow only" in html.lower()
+    assert "does not establish a legal entitlement" in html.lower()
+    assert "authorize customer contact" in html.lower()
+    assert "authorize external claim submission" in html.lower()
+    assert "actionable findings" not in html.lower()
     assert 'maxlength="512"' in html
     assert 'maxlength="2048"' in html
     assert 'maxlength="4000"' in html
