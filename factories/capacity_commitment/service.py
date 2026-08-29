@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from .engine import RecoveryResult, evaluate_recoverability
 from .recovery_package import RecoveryPackage, build_recovery_package
 from .repository import CapacityRepository
-from .state import AssistedCaseState
+from .state import AssistedCaseState, dump_state
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,10 @@ class ProcessedCase:
 
 
 def process_state(state: AssistedCaseState) -> ProcessedCase:
+    # The engine validates economic semantics, while the persisted-state envelope
+    # validates identity, contract anchors, evidence references and deadline
+    # consistency. Apply both before producing any reviewable output.
+    dump_state(state)
     result = evaluate_recoverability(state.recovery_case)
     package = build_recovery_package(
         state.recovery_case,
