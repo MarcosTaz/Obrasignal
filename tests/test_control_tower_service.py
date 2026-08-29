@@ -2,7 +2,8 @@ import http.client
 import json
 import threading
 from pathlib import Path
-from factory_cloud.control_tower_service import make_server
+import pytest
+from factory_cloud.control_tower_service import ControlTowerConfigurationError, make_server
 
 def request(port,method,path,body=None,headers=None):
     conn=http.client.HTTPConnection('127.0.0.1',port,timeout=5);encoded=None if body is None else json.dumps(body).encode();h=dict(headers or {})
@@ -26,3 +27,9 @@ def test_token_and_origin_are_fail_closed(tmp_path:Path):
         assert request(port,'POST','/v1/dispatch',{'scope':'all'},{'authorization':'Bearer secret','origin':'https://evil.test'})[0]==403
         status,_,allow=request(port,'POST','/v1/dispatch',{'scope':'all'},{'authorization':'Bearer secret','origin':origin});assert status==202;assert allow==origin;assert allow!='*'
     finally:server.shutdown();thread.join(timeout=5);server.server_close()
+
+def test_non_local_bind_requires_control_token_before_server_starts(tmp_path:Path):
+    with pytest.raises(ControlTowerConfigurationError):
+        make_server('0.0.0.0',0,environ={},runtime_dir=tmp_path)
+    server=make_server('0.0.0.0',0,environ={'FACTORY_CONTROL_TOKEN':'secret'},runtime_dir=tmp_path)
+    server.server_close()
