@@ -10,6 +10,7 @@ from repository import NotFoundError, RoyaltyRepository
 
 OUTCOME_TYPES = {"NO_ADJUSTMENT", "ADJUSTMENT_CONFIRMED", "SETTLED", "CLOSED"}
 RECOVERY_ELIGIBLE_OUTCOMES = {"ADJUSTMENT_CONFIRMED", "SETTLED"}
+RECOVERY_ELIGIBLE_REVIEW_STATES = {"DESK_APPROVED", "FORMAL_AUDIT_ROUTE"}
 
 
 def _id(prefix: str) -> str:
@@ -39,17 +40,7 @@ class OutcomeStore:
         self.conn = repository.conn
         self.findings = FindingStore(repository)
 
-    def record_payment(
-        self,
-        org_id: str,
-        agreement_id: str,
-        payment_date: str,
-        currency: str,
-        amount,
-        evidence_id: str,
-        actor_id: str,
-        payment_reference: Optional[str] = None,
-    ) -> dict[str, Any]:
+    def record_payment(self, org_id: str, agreement_id: str, payment_date: str, currency: str, amount, evidence_id: str, actor_id: str, payment_reference: Optional[str] = None) -> dict[str, Any]:
         self.repo.get_agreement(org_id, agreement_id)
         evidence = self.repo.get_evidence(org_id, evidence_id)
         payment_date = _required(payment_date, "payment_date")
@@ -82,21 +73,16 @@ class OutcomeStore:
             raise NotFoundError("payment not found in organization scope")
         return dict(row)
 
-    def record_outcome(
-        self,
-        org_id: str,
-        finding_id: str,
-        outcome_type: str,
-        actor_id: str,
-        *,
-        evidence_id: Optional[str] = None,
-        notes: Optional[str] = None,
-        resolved_at: Optional[str] = None,
-    ) -> dict[str, Any]:
+    def record_outcome(self, org_id: str, finding_id: str, outcome_type: str, actor_id: str, *, evidence_id: Optional[str] = None, notes: Optional[str] = None, resolved_at: Optional[str] = None) -> dict[str, Any]:
         finding = self.findings.get_finding(org_id, finding_id)
         outcome_type = _required(outcome_type, "outcome_type").upper()
         if outcome_type not in OUTCOME_TYPES:
             raise ValueError("unsupported outcome type")
+        if outcome_type in RECOVERY_ELIGIBLE_OUTCOMES:
+            if finding["review_status"] not in RECOVERY_ELIGIBLE_REVIEW_STATES:
+                raise ValueError("recovery-bearing outcome requires a reviewer-approved candidate")
+            if not evidence_id:
+                raise ValueError("recovery-bearing outcome requires external outcome evidence")
         if evidence_id is not None:
             self.repo.get_evidence(org_id, evidence_id)
         outcome_id = _id("outcome")
@@ -124,20 +110,13 @@ class OutcomeStore:
             raise NotFoundError("outcome not found in organization scope")
         return dict(row)
 
-    def record_recovered_amount_candidate(
-        self,
-        org_id: str,
-        outcome_id: str,
-        payment_id: str,
-        amount,
-        currency: str,
-        evidence_id: str,
-        actor_id: str,
-    ) -> dict[str, Any]:
+    def record_recovered_amount_candidate(self, org_id: str, outcome_id: str, payment_id: str, amount, currency: str, evidence_id: str, actor_id: str) -> dict[str, Any]:
         outcome = self.get_outcome(org_id, outcome_id)
         if outcome["outcome_type"] not in RECOVERY_ELIGIBLE_OUTCOMES:
             raise ValueError("outcome type does not support a recovered-amount record")
         finding = self.findings.get_finding(org_id, outcome["finding_id"])
+        if finding["review_status"] not in RECOVERY_ELIGIBLE_REVIEW_STATES:
+            raise ValueError("finding is not in an approved recovery-outcome state")
         payment = self.get_payment(org_id, payment_id)
         if payment["agreement_id"] != finding["agreement_id"]:
             raise ValueError("payment belongs to a different agreement")
