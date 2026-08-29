@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 10
+    assert pilot["schema_version"] == 11
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -50,6 +50,33 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "software_pre_review_verification_claimed": False,
     }
 
+    timing = pilot["deadline_timing_policy"]
+    assert timing == {
+        "declared_date_timing_states": ["OPEN", "DUE_TODAY", "EXPIRED"],
+        "expired_is_operational_urgency_signal": True,
+        "expired_establishes_nonrecoverability": False,
+        "expired_requires_human_exception_or_waiver_review": True,
+        "timing_establishes_recoverability": False,
+    }
+
+    outcome = pilot["outcome_recording_policy"]
+    assert outcome == {
+        "api_requires_final_cumulative_confirmation": True,
+        "resolve_closes_finding": True,
+        "installment_stream_supported": False,
+        "recorded_amount_semantics": "FINAL_CUMULATIVE_OUTCOME",
+        "documentary_evidence_required": True,
+    }
+
+    transition = pilot["transition_integrity_policy"]
+    assert transition == {
+        "review_requires_valid_dossier_preflight": True,
+        "action_requires_valid_dossier_preflight": True,
+        "resolve_requires_valid_dossier_preflight": True,
+        "corrupt_dossier_blocks_state_mutation": True,
+        "corrupt_dossier_blocks_outcome_evidence_persistence": True,
+    }
+
     bounds = pilot["input_bounds"]
     assert bounds == {
         "tenant_id_max_chars": 64,
@@ -72,6 +99,9 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "tenant_matches_provider_account_contract": True,
         "contract_reference_is_structured_not_delimiter_concatenated": True,
         "shared_store_outcome_id_is_tenant_scoped": True,
+        "case_internal_ids_derived_from_recovery_fingerprint": True,
+        "same_event_and_family_can_coexist_across_distinct_contracts": True,
+        "human_source_references_preserved_in_dossier": True,
     }
 
     dossier = pilot["dossier_lineage"]
@@ -81,6 +111,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert dossier["deadline_evidence_must_be_within_finding"] is True
     assert dossier["recovery_fingerprint_event_must_match_case"] is True
     assert dossier["creation_audit_must_be_unique"] is True
+    assert dossier["queue_creation_audit_must_be_unique"] is True
     assert dossier["outcome_evidence_type_must_match"] is True
     assert dossier["corrupt_or_ambiguous_lineage_fails_closed"] is True
 
@@ -117,6 +148,10 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "review_scope_overclaim",
         "unknown_notice_deadline",
         "pre_review_notice_verification_overclaim",
+        "deadline_expiry_nonrecoverability_overclaim",
+        "missing_final_cumulative_confirmation",
+        "installment_outcome_misuse",
+        "corrupt_dossier_before_transition",
         "missing_claim_currency",
         "invalid_claim_currency",
         "recovery_currency_mismatch",
@@ -124,6 +159,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "outcome_evidence_collision",
         "cross_tenant_outcome_id_collision",
         "ambiguous_contract_reference",
+        "case_id_collision_across_distinct_contracts",
         "oversized_tenant_identifier",
         "oversized_case_or_outcome_reference",
         "oversized_finding_identifier",
@@ -132,6 +168,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "oversized_missing_evidence_collection",
         "numeric_input_capacity_exceeded",
         "dossier_lineage_mismatch",
+        "ambiguous_queue_creation_audit",
         "incomplete_backup_restore",
         "non_finite_economic_input",
         "recovery_exceeds_reviewed_net_potential",
@@ -151,6 +188,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert operator_console["content_security_policy_required"] is True
     assert operator_console["html_injection_renderer_forbidden"] is True
     assert operator_console["tenant_scoped_role_queue"] is True
+    assert operator_console["final_cumulative_outcome_confirmation_required"] is True
 
     required_exit = {
         "canonical_source_green",
@@ -158,11 +196,15 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "pre_review_entitlement_truth_green",
         "review_truth_green",
         "notice_truth_language_green",
+        "deadline_timing_risk_green",
         "currency_lineage_green",
         "numeric_capacity_green",
         "identity_collision_resistance_green",
+        "fingerprint_case_identity_green",
         "outcome_evidence_lineage_green",
+        "final_cumulative_outcome_gate_green",
         "dossier_lineage_green",
+        "transition_integrity_preflight_green",
         "bounded_input_surface_green",
         "role_authorization_green",
         "four_eyes_green",
