@@ -47,7 +47,8 @@ class FactorySwitchboardTests(unittest.TestCase):
         ids = {row["factory_id"] for group in grouped.values() for row in group}
         registry_ids = {factory["id"] for factory in load_switchboard()["factories"]}
         self.assertEqual(ids, registry_ids)
-        self.assertNotIn("contractcredit", ids)
+        self.assertIn("contractcredit", ids)
+        self.assertIn("aviation-lease-entitlement-recovery", ids)
 
     def test_unknown_factory_fails_closed(self) -> None:
         with self.assertRaises(Exception):
