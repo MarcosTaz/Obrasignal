@@ -54,3 +54,25 @@ jobs:
               raise SystemExit(f'foreign key violations: {violations}')
           print(f'schema ok: {len(tables)} tables')
           PY
+      - name: Full application startup smoke
+        working-directory: factories/royaltyrecover
+        env:
+          ROYALTYRECOVER_API_KEYS_JSON: '{"ORG-SMOKE":"smoke-secret"}'
+          ROYALTYRECOVER_DB_PATH: /tmp/royaltyrecover-smoke.db
+        run: |
+          python - <<'PY'
+          from application import app
+          client = app.test_client()
+          health = client.get('/health')
+          assert health.status_code == 200, health.data
+          assert client.get('/app').status_code == 401
+          dashboard = client.get('/app', headers={'X-RoyaltyRecover-API-Key':'smoke-secret'})
+          assert dashboard.status_code == 200, dashboard.data
+          print('full app startup ok')
+          PY
+      - name: Gunicorn configuration smoke
+        working-directory: factories/royaltyrecover
+        env:
+          ROYALTYRECOVER_API_KEYS_JSON: '{"ORG-SMOKE":"smoke-secret"}'
+          ROYALTYRECOVER_DB_PATH: /tmp/royaltyrecover-gunicorn.db
+        run: gunicorn --check-config application:app
