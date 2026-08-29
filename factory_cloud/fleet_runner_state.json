@@ -5,32 +5,36 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 7,
-  "last_factory_id": "sourcing-recovery",
-  "last_run_at": "2026-08-29T19:37:00Z",
+  "cursor": 8,
+  "last_factory_id": "product-market-access",
+  "last_run_at": "2026-08-29T19:37:30Z",
   "last_material_change": {
     "kind": "SOURCE_IDENTITY_NOT_PROVEN_ROTATED",
-    "factory_id": "sourcing-recovery",
-    "summary": "Sourcing Recovery & Supplier Margin Control exact-name PR search produced no bound Factory source, and repository matching refs under sourcing/* are empty. An unrelated watchlist PR appeared in broad text search and was explicitly rejected as non-authoritative. Factory Cloud preserves this lane as UNKNOWN_SOURCE_IDENTITY and rotates immediately to Product Market Access / Legal Product Checker.",
+    "factory_id": "product-market-access",
+    "summary": "Product Market Access / Legal Product Checker exact branch-prefix recovery under market-access/* and legal-product/* returned no repository refs. No trustworthy canonical/source lane was inferred by name similarity. The Factory remains UNKNOWN_SOURCE_IDENTITY and fleet rotation advances to EU Cloud Switching rather than stopping.",
     "evidence": {
-      "sourcing_recovery": {
+      "product_market_access": {
         "classification": "UNKNOWN_SOURCE_IDENTITY",
-        "exact_branch_prefix": "sourcing/*",
-        "matching_refs": 0,
-        "broad_search_false_positive": "PR #150 watchlist",
-        "false_positive_adopted": false
+        "market_access_matching_refs": 0,
+        "legal_product_matching_refs": 0,
+        "source_adopted": false
+      },
+      "factory_cloud_hardening": {
+        "verified_commit": "1958c16d979658057bb37e491eaf4a811edbd19f",
+        "python": "SUCCESS",
+        "mobile": "SUCCESS",
+        "change": "all-blocked fleet retries rotating cursor instead of global-stop error"
       }
     },
-    "active": "Product Market Access / Legal Product Checker: recover exact source/BATON identity and current repository gates, then execute the highest-value bounded safe work if source truth is provable.",
-    "next": "EU Cloud Switching / Migration Capital Network, then Aviation Lease Entitlement Recovery; continue past UNKNOWN lanes.",
+    "active": "EU Cloud Switching / Migration Capital Network: verify exact current branch/PR/head and execute the highest-value safe integrity/readiness action without outreach or production mutation.",
+    "next": "Aviation Lease Entitlement Recovery, then Capacity Commitment; continue beyond any Factory-specific blocker.",
     "wait": [
+      "Product Market Access canonical/source identity remains UNKNOWN",
       "Sourcing Recovery canonical/source identity remains UNKNOWN",
       "Recovery Radar canonical/source identity remains UNKNOWN",
       "ChangeLedger canonical/source identity remains UNKNOWN",
       "ScopeLedger production/Railway source lineage remains unproven",
-      "Customer Journey #762 and #764 remain unresolved",
-      "Portfolio #760 controlled reconciliation remains separate",
-      "Aviation/ContractCredit supervised runtime provisioning remains external/unverified",
+      "Aviation candidate verification remains incomplete where checks are absent",
       "ComplianceLedger canonical source identity remains UNKNOWN",
       "EU Switching real WTP/customer/payment/deployment evidence remains external",
       "production/deploy/secrets/provider/config/customer-data/source activation",
@@ -41,7 +45,8 @@
     {"factory_id":"scopeledger","blocker":"Production lineage cannot be proved from the recovered GitHub branch alone.","global_stop":false},
     {"factory_id":"changeledger","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered.","global_stop":false},
-    {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity or sourcing/* branch recovered.","global_stop":false}
+    {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity or sourcing/* branch recovered.","global_stop":false},
+    {"factory_id":"product-market-access","blocker":"No exact source/BATON identity or market-access/* or legal-product/* branch recovered.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
