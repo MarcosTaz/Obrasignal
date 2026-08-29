@@ -17,11 +17,7 @@ from factory_cloud.shared_contracts import SharedContractError
 from factory_cloud.support_api import register_support_api
 from factory_cloud.support_continuity import SupportLedger
 from factory_cloud.trusted_upstream_identity import TrustedUpstreamVerifier, VerifiedUpstreamIdentity
-from vertical_apps.contractcredit.intake import (
-    ContractCreditPilotIntakeError,
-    ContractCreditPilotIntakeService,
-    EvidenceInput,
-)
+from vertical_apps.contractcredit.intake import ContractCreditPilotIntakeError, ContractCreditPilotIntakeService, EvidenceInput
 from vertical_apps.contractcredit.service import ContractCreditService
 
 API_ERRORS = (
@@ -55,9 +51,16 @@ def create_app(database: str | Path, *, identity_resolver: IdentityResolver | No
         return render_assisted_workspace(
             title="ContractCredit — Assisted Recovery Workspace",
             vertical="contractcredit",
+            requires_breach=True,
             analysis_fields=(
-                ("contract_ref", "Contract reference", "text"),
-                ("incident_ref", "Incident evidence reference", "text"),
+                ("service_contract.source_ref", "Service contract evidence reference", "text"),
+                ("service_contract.sha256", "Service contract SHA-256", "text"),
+                ("service_contract.provenance", "Service contract provenance", "text"),
+                ("service_contract.authorized", "Evidence use is authorized", "checkbox"),
+                ("incident_evidence.source_ref", "Incident evidence reference", "text"),
+                ("incident_evidence.sha256", "Incident evidence SHA-256", "text"),
+                ("incident_evidence.provenance", "Incident evidence provenance", "text"),
+                ("incident_evidence.authorized", "Incident evidence use is authorized", "checkbox"),
                 ("monthly_fee", "Monthly fee", "text"),
                 ("credit_rate", "Contractual credit rate", "text"),
                 ("notice_due", "Notice due", "date"),
@@ -80,12 +83,9 @@ def create_app(database: str | Path, *, identity_resolver: IdentityResolver | No
             tenant_id, actor_id = identity()
             payload = request.get_json(force=True) or {}
             result = service.analyze(
-                tenant_id=tenant_id,
-                actor_id=actor_id,
-                contract_ref=str(payload["contract_ref"]),
-                incident_ref=str(payload["incident_ref"]),
-                monthly_fee=str(payload["monthly_fee"]),
-                credit_rate=str(payload["credit_rate"]),
+                tenant_id=tenant_id, actor_id=actor_id,
+                contract_ref=str(payload["contract_ref"]), incident_ref=str(payload["incident_ref"]),
+                monthly_fee=str(payload["monthly_fee"]), credit_rate=str(payload["credit_rate"]),
                 notice_due=date.fromisoformat(str(payload["notice_due"])),
             )
             return jsonify(result), 201
@@ -100,8 +100,7 @@ def create_app(database: str | Path, *, identity_resolver: IdentityResolver | No
             contract = payload["service_contract"]
             incident = payload["incident_evidence"]
             result = shadow_service.analyze(
-                tenant_id=tenant_id,
-                actor_id=actor_id,
+                tenant_id=tenant_id, actor_id=actor_id,
                 service_contract=EvidenceInput.create(
                     source_ref=contract["source_ref"], sha256=contract["sha256"],
                     provenance=contract["provenance"], authorized=contract["authorized"],
@@ -110,8 +109,7 @@ def create_app(database: str | Path, *, identity_resolver: IdentityResolver | No
                     source_ref=incident["source_ref"], sha256=incident["sha256"],
                     provenance=incident["provenance"], authorized=incident["authorized"],
                 ),
-                monthly_fee=str(payload["monthly_fee"]),
-                credit_rate=str(payload["credit_rate"]),
+                monthly_fee=str(payload["monthly_fee"]), credit_rate=str(payload["credit_rate"]),
                 notice_due=date.fromisoformat(str(payload["notice_due"])),
             )
             adjudications.register_shadow(
@@ -159,12 +157,9 @@ def create_app(database: str | Path, *, identity_resolver: IdentityResolver | No
                 adjudications.require_actionable(tenant_id=tenant_id, finding_id=finding_id)
             payload = request.get_json(force=True) or {}
             outcome = service.resolve(
-                tenant_id=tenant_id,
-                finding_id=finding_id,
-                outcome_id=str(payload["outcome_id"]),
-                recovered_amount=str(payload["recovered_amount"]),
-                currency=str(payload["currency"]),
-                evidence_ref=str(payload["evidence_ref"]),
+                tenant_id=tenant_id, finding_id=finding_id,
+                outcome_id=str(payload["outcome_id"]), recovered_amount=str(payload["recovered_amount"]),
+                currency=str(payload["currency"]), evidence_ref=str(payload["evidence_ref"]),
             )
             return jsonify(outcome.__dict__), 201
         except API_ERRORS as exc:
