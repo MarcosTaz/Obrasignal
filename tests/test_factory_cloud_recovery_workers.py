@@ -39,21 +39,27 @@ def _request(app_id):
     )
 
 
-def test_two_recovery_workers_are_app_isolated_and_durable(tmp_path):
+def test_recovery_workers_are_app_isolated_and_durable(tmp_path):
     store = StateStore(tmp_path / "state.sqlite3")
     queue = DurableWorkQueue(store)
-    apps = ("aviation-lease-entitlement-recovery", "contractcredit")
+    apps = ("aviation-lease-entitlement-recovery", "contractcredit", "industrial-claims")
     for app_id in apps:
         _seed(store, app_id)
         queue.submit_or_get(_request(app_id))
 
     adapters = AdapterRegistry({app_id: DoneAdapter() for app_id in apps})
-    aviation_worker = AppWorkerHost(apps[0], queue, adapters=adapters, worker_id="aviation-worker", job_lease_seconds=10)
-    credit_worker = AppWorkerHost(apps[1], queue, adapters=adapters, worker_id="credit-worker", job_lease_seconds=10)
+    workers = {
+        app_id: AppWorkerHost(
+            app_id,
+            queue,
+            adapters=adapters,
+            worker_id=f"{app_id}-worker",
+            job_lease_seconds=10,
+        )
+        for app_id in apps
+    }
 
-    aviation = aviation_worker.run_once()
-    credit = credit_worker.run_once()
-    assert aviation["state"] == "DONE"
-    assert credit["state"] == "DONE"
-    assert queue.jobs(apps[0])[0]["claimed_by"] == "aviation-worker"
-    assert queue.jobs(apps[1])[0]["claimed_by"] == "credit-worker"
+    for app_id in apps:
+        result = workers[app_id].run_once()
+        assert result["state"] == "DONE"
+        assert queue.jobs(app_id)[0]["claimed_by"] == f"{app_id}-worker"
