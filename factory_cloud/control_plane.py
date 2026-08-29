@@ -109,6 +109,23 @@ def _validate_portfolio_priority(app: dict[str, Any]) -> None:
         raise RegistryError(f"invalid portfolio priority for {app['app_id']}: {exc}") from exc
 
 
+def _validate_runtime_wait_app(app: dict[str, Any]) -> None:
+    app_id = app["app_id"]
+    activation = app.get("activation") or {}
+    if activation.get("enabled") is not False or activation.get("mode") != "runtime_provisioning_wait":
+        raise RegistryError(f"runtime wait app must be disabled and explicit: {app_id}")
+    if not str(app.get("development_state") or "").endswith("RUNTIME_PROVISIONING_WAIT"):
+        raise RegistryError(f"runtime wait development_state required: {app_id}")
+    baton = app.get("baton") or {}
+    if str(baton.get("active") or "") != "runtime:provision":
+        raise RegistryError(f"runtime wait baton must remain on runtime:provision: {app_id}")
+    # Validate the repository-safe contract that would become active after host
+    # provisioning, without granting activation merely because metadata exists.
+    _validate_execution_source(app, "repository_safe_execution")
+    _validate_capability_contract(app, "repository_safe_execution")
+    _validate_portfolio_priority(app)
+
+
 def validate_registry(registry: dict[str, Any]) -> None:
     if registry.get("activation_code") != ACTIVATION_CODE:
         raise RegistryError("activation_code must be D")
@@ -144,6 +161,8 @@ def validate_registry(registry: dict[str, Any]) -> None:
             raise RegistryError(f"application mission required: {app_id}")
         activation = app.get("activation") or {}
         if activation.get("enabled") is not True:
+            if activation.get("mode") == "runtime_provisioning_wait":
+                _validate_runtime_wait_app(app)
             continue
         mode = activation.get("mode")
         if mode not in {"repository_safe_execution", "read_only_until_source_resolved"}:
