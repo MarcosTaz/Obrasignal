@@ -163,6 +163,31 @@ def _failure_count(item):
     return failures
 
 
+def _public_error_category(value):
+    """Return a stable public diagnostic without echoing upstream error text.
+
+    Internal source-health persistence intentionally retains raw failure evidence
+    for operators. The public/customer-facing contract is a separate trust
+    boundary: urllib/provider exceptions can contain bearer material, signed
+    URLs, query credentials, or provider payloads, so only bounded categories
+    may cross it. Ingestion failures are generated internally from an exception
+    class name; preserve that class only when it is a tightly bounded identifier.
+    """
+    if value in (None, ''):
+        return None
+    text = str(value)
+    if text.startswith('ingestion_commit_failed:'):
+        error_class = text.partition(':')[2][:64]
+        if error_class and all(ch.isalnum() or ch == '_' for ch in error_class):
+            return f'ingestion_commit_failed:{error_class}'
+        return 'ingestion_commit_failed'
+    if text.startswith('production gate blocked:'):
+        return 'production_gate_blocked'
+    if text == 'BASE_ACCESS_TOKEN is not configured':
+        return 'source_not_configured'
+    return 'upstream_failure'
+
+
 def _derive_source_state(item, *, now, default_stale_after_minutes=15):
     source = item['source']
     stale_after, expected_refresh = _source_freshness_metadata(source, default_stale_after_minutes)
@@ -231,7 +256,8 @@ def source_health_snapshot(conn, stale_after_minutes=15, *, now=None):
 
     ``status`` is a legacy compatibility field and must never remain stronger than
     the derived freshness/health authority. New consumers should use the additive
-    ``freshness`` and ``health`` fields directly.
+    ``freshness`` and ``health`` fields directly. This operator-facing snapshot
+    retains raw diagnostic evidence; public callers must use source_health_contract.
     """
     ensure_source_health(conn)
     rows = conn.execute('SELECT * FROM source_health ORDER BY source').fetchall()
@@ -268,7 +294,8 @@ def source_health_contract(conn, *, sources=None, now=None, stale_after_minutes=
     Missing registered sources are explicit ``unknown`` entries rather than being
     silently absent. Coverage expectations are derived only from registry sources
     whose runtime status is ``active``; ``ready`` or ``planned`` sources are shown
-    for truth but do not falsely count as current ingestion coverage.
+    for truth but do not falsely count as current ingestion coverage. Raw upstream
+    error strings never cross this public boundary.
     """
     ensure_source_health(conn)
     now = now or datetime.now(timezone.utc)
@@ -314,7 +341,7 @@ def source_health_contract(conn, *, sources=None, now=None, stale_after_minutes=
             'last_success': item.get('last_success'),
             'last_failed': item.get('last_failed'),
             'consecutive_failures': _failure_count(item),
-            'last_error': item.get('last_error'),
+            'last_error': _public_error_category(item.get('last_error')),
             'last_duration_ms': item.get('last_duration_ms'),
             'last_found': item.get('last_found'),
             'last_new_items': item.get('last_new_items'),
