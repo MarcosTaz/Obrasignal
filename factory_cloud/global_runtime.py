@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import json
 import os
 from pathlib import Path
 from typing import Mapping
@@ -53,3 +55,26 @@ def build_global_dispatcher(
         app_executor=app_bridge.execute_app,
         portfolio_worker=portfolio_worker,
     )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="One-command Global Factory Control Tower")
+    parser.add_argument(
+        "scope",
+        nargs="?",
+        default="all",
+        help="all, obrasignal, obrasignal-subs, business, development, or one factory_id",
+    )
+    parser.add_argument("--runtime-dir", type=Path, default=DEFAULT_RUNTIME_DIR)
+    args = parser.parse_args()
+    try:
+        dispatcher = build_global_dispatcher(runtime_dir=args.runtime_dir)
+        result = dispatcher.dispatch(args.scope)
+    except (OSError, ValueError, RuntimeError) as exc:
+        parser.error(str(exc))
+    print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
