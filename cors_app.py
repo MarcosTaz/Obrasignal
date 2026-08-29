@@ -8,6 +8,7 @@ from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
 import notification_privacy_lifecycle as _notification_privacy_lifecycle
+import opportunity_watchlist_api as _opportunity_watchlist_api
 
 # api.py owns the mobile API blueprint; register it here because this is the
 # production WSGI entrypoint and keeps registration explicit at the boundary.
@@ -31,7 +32,7 @@ def _cors(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"

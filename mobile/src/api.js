@@ -111,6 +111,11 @@ export const api={
   opportunities:async({q='',minscore=0,source='',limit=60,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await readWhenReady(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
   opportunity:async(id)=>normalizeOpportunity(await readWhenReady(`/opportunities/${encodeURIComponent(id)}`)),
   workflow:(id)=>readWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`),
-  setWorkflow:(id,status,note)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})})
+  setWorkflow:(id,status,note)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})}),
+  saveOpportunity:(id)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/save`,{method:'POST',body:JSON.stringify({})}),
+  unsaveOpportunity:(id)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/save`,{method:'DELETE'}),
+  savedOpportunity:(id)=>readWhenReady(`/opportunities/${encodeURIComponent(id)}/watch`),
+  updateSavedOpportunity:(id,patch)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/watch`,{method:'PATCH',body:JSON.stringify(patch||{})}),
+  savedOpportunities:({status='',priority='',order='recent',limit=20,offset=0}={})=>{const p=new URLSearchParams({order:String(order),limit:String(limit),offset:String(offset)});if(status)p.set('status',status);if(priority)p.set('priority',priority);return readWhenReady(`/opportunities/saved?${p.toString()}`);}
 };
 export { API_BASE };
