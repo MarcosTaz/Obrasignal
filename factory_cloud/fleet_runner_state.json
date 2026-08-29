@@ -5,41 +5,35 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 10,
-  "last_factory_id": "aviation-lease-entitlement-recovery",
-  "last_run_at": "2026-08-29T19:38:30Z",
+  "cursor": 17,
+  "last_factory_id": "documentary-billing",
+  "last_run_at": "2026-08-29T19:39:00Z",
   "last_material_change": {
-    "kind": "AVIATION_CANDIDATE_VERIFIED_BOUNDED_NOT_GREEN_ROTATED",
-    "factory_id": "aviation-lease-entitlement-recovery",
-    "summary": "Aviation pilot-safe candidate branch apps/aviation-lease-entitlement-recovery-pilot-safe-candidate-20260829 is present at HEAD 5657c8c17c2cd1af09d0934299afbe91aed6438b. Its pilot.json parses as valid JSON, schema_version=2, defines the lessee-side buyer/economic owner and explicit exclusions, retains assisted mode and production_authority=false. No open PR and no exact-head check-runs were observed, so the candidate is not promoted to GREEN. Fleet rotates to Capacity Commitment rather than stopping on missing CI.",
+    "kind": "SOURCE_UNRESOLVED_BATCH_ROTATED_WITHOUT_FALSE_ADOPTION",
+    "factory_id": "documentary-billing",
+    "summary": "Capacity Commitment, LongLead, MachineRelease Safety, WarrantyGuard, Paper-Laminate Works and Documentary Billing have no trustworthy nominal branch/source identity under the recovered repository identifiers; each remains UNKNOWN_SOURCE_IDENTITY and was bypassed. K3 is separately registered in apps.json as runtime verified but canonical repository/source unresolved, so repository mutation remains disallowed. No similarly named ObraSignal lanes were adopted without explicit binding. Fleet advances to Recoverable Money Business Discovery.",
     "evidence": {
-      "aviation": {
-        "branch": "apps/aviation-lease-entitlement-recovery-pilot-safe-candidate-20260829",
-        "head": "5657c8c17c2cd1af09d0934299afbe91aed6438b",
-        "pilot_blob": "c8f1b57845756ce3f676f2becf6d539d09cdc76b",
-        "json_parse": "PASS",
-        "production_authority": false,
-        "open_pr": "NONE_OBSERVED",
-        "check_runs": 0,
-        "classification": "MATERIAL_CANDIDATE_NOT_CI_GREEN"
-      },
-      "factory_cloud_hardening": {
-        "verified_commit": "1958c16d979658057bb37e491eaf4a811edbd19f",
-        "python": "SUCCESS",
-        "mobile": "SUCCESS"
-      }
+      "capacity_commitment": {"matching_refs": 0, "classification": "UNKNOWN_SOURCE_IDENTITY"},
+      "longlead": {"matching_refs": 0, "classification": "UNKNOWN_SOURCE_IDENTITY"},
+      "machine_release_safety": {"matching_refs": 0, "classification": "UNKNOWN_SOURCE_IDENTITY"},
+      "k3_fatality": {"runtime_verified": true, "source_verified": false, "classification": "ACTIVE_RUNTIME_SOURCE_UNRESOLVED"},
+      "warrantyguard": {"matching_refs": 0, "classification": "UNKNOWN_SOURCE_IDENTITY"},
+      "paper_laminate_works": {"matching_refs": 0, "classification": "UNKNOWN_SOURCE_IDENTITY"},
+      "documentary_billing": {"matching_refs": 0, "classification": "UNKNOWN_SOURCE_IDENTITY"},
+      "factory_cloud_hardening": {"verified_commit": "1958c16d979658057bb37e491eaf4a811edbd19f", "python": "SUCCESS", "mobile": "SUCCESS"}
     },
-    "active": "Capacity Commitment: recover exact source/BATON identity and current gates; if unavailable, record UNKNOWN and rotate immediately.",
-    "next": "LongLead, then MachineRelease Safety; no Factory-specific blocker is a global stop.",
+    "active": "Recoverable Money Business Discovery: recover exact source/BATON identity; if source truth is absent, preserve UNKNOWN and rotate to Private Freight Orchestration.",
+    "next": "Private Freight Orchestration -> Autonomous Revenue Recovery -> ObraSignal Data Runner; continue through the registry without global stop.",
     "wait": [
-      "Aviation exact candidate CI is absent; no GREEN claim",
-      "EU Switching real WTP/customer/payment/deployment evidence remains external",
-      "Product Market Access canonical/source identity remains UNKNOWN",
-      "Sourcing Recovery canonical/source identity remains UNKNOWN",
-      "Recovery Radar canonical/source identity remains UNKNOWN",
-      "ChangeLedger canonical/source identity remains UNKNOWN",
-      "ScopeLedger production/Railway source lineage remains unproven",
-      "ComplianceLedger canonical source identity remains UNKNOWN",
+      "Capacity Commitment source identity UNKNOWN",
+      "LongLead source identity UNKNOWN",
+      "MachineRelease Safety source identity UNKNOWN",
+      "K3 canonical repository/source unresolved",
+      "WarrantyGuard source identity UNKNOWN",
+      "Paper-Laminate Works source identity UNKNOWN",
+      "Documentary Billing source identity UNKNOWN",
+      "Aviation exact candidate CI absent",
+      "ScopeLedger production lineage unproven",
       "production/deploy/secrets/provider/config/customer-data/source activation",
       "merge/adoption decisions"
     ]
@@ -49,7 +43,14 @@
     {"factory_id":"changeledger","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity or sourcing/* branch recovered.","global_stop":false},
-    {"factory_id":"product-market-access","blocker":"No exact source/BATON identity or market-access/* or legal-product/* branch recovered.","global_stop":false}
+    {"factory_id":"product-market-access","blocker":"No exact source/BATON identity or market-access/* or legal-product/* branch recovered.","global_stop":false},
+    {"factory_id":"capacity-commitment","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"longlead","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"machine-release-safety","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"k3-fatality","blocker":"Runtime is verified but canonical repository/source is unresolved; repository writes are disallowed.","global_stop":false},
+    {"factory_id":"warrantyguard","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"paper-laminate-works","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"documentary-billing","blocker":"No exact source/BATON identity recovered.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
