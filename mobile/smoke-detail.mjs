@@ -20,7 +20,7 @@ const checks = [
 
 const crossFileChecks = [
   ['startup hydrates local cache before remote data', /Promise\.allSettled\(\[storage\.getSettings\(\),storage\.getCache\(\),storage\.getProfile\(\)\]\)/],
-  ['startup loads independent API data concurrently', /Promise\.allSettled\(\[api\.profile\(\),api\.opportunities/],
+  ['startup loads independent API data concurrently', /Promise\.allSettled\(\[append\?Promise\.resolve\(profile\):api\.profile\(\),api\.opportunities/],
   ['notification sync reads unread server alerts', /api\.alerts\(\{ unreadOnly: true/],
   ['notification sync records scheduling without delivered completion', /rememberLocalScheduledEvent\(eventId\)/],
   ['API exposes alerts endpoint', /alerts:\s*\(\{\s*limit\s*=\s*20,\s*unreadOnly\s*=\s*false\s*\}/],
@@ -56,9 +56,9 @@ const pushChecks = [
   ['consumed native response is cleared to prevent later replay', notifications, /clearLastNotificationResponseAsync\(\)/],
   ['live notification response listener is installed', notifications, /addNotificationResponseReceivedListener\(handle\)/],
   ['tap return fetches current opportunity truth before opening detail', app, /openNotificationOpportunity[\s\S]*api\.opportunity\(opportunityId\)/],
-  ['closed or non-actionable tapped opportunity returns to current Radar', app, /fresh\?\.is_actionable===false\|\|fresh\?\.deadline_status\?\.state==='closed'[\s\S]*já não está acionável[\s\S]*loadRef\.current\?\.\(\{manual:true\}\)/],
+  ['closed or non-actionable tapped opportunity returns to current Radar', app, /fresh\?\.is_actionable===false\|\|fresh\?\.deadline_status\?\.state==='closed'[\s\S]*já não está acionável[\s\S]*loadRef\.current\?\.\(\{manual:true,offset:0\}\)/],
   ['unavailable tapped opportunity fails honestly', app, /notificação já não está disponível/],
-  ['tap return refreshes current Radar truth', app, /loadRef\.current\?\.\(\{preserve:true\}\)/],
+  ['tap return refreshes current Radar truth', app, /loadRef\.current\?\.\(\{preserve:true,offset:0\}\)/],
   ['sign-out attempts server unregister before Supabase sign-out', app, /unregisterRemoteOpportunityPush\(\)[\s\S]*supabase\.auth\.signOut\(\)/],
   ['API facade exposes push registration', api, /registerPushDevice:\(\{installationId,expoPushToken,platform\}\)/],
   ['API facade exposes push unregister', api, /unregisterPushDevice:\(installationId\)/],
