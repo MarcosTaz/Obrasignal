@@ -1,6 +1,20 @@
 """Tests for the real notification-event deduplication implementation."""
 import sqlite3
+
+from decision_log import record_decision
 from notification_events import _key, ensure_event_table, record_new_opportunities
+from opportunity_match_pipeline import RULE_VERSION
+
+
+def _relevant_features():
+    return {
+        "relevance": {
+            "state": "RELEVANT",
+            "evidence": [{"kind": "service", "value": "estrutura metálica"}],
+            "rule_version": "relevance-v1",
+        },
+        "relevant_shortlist_eligible": True,
+    }
 
 
 def test_same_source_and_external_id_have_same_event_key():
@@ -19,6 +33,17 @@ def test_recording_same_opportunity_twice_creates_one_event():
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE tenders (id INTEGER PRIMARY KEY, source TEXT, external_id TEXT, title TEXT, buyer TEXT, deadline TEXT, country TEXT, first_seen TEXT, score INTEGER, url TEXT)")
     conn.execute("INSERT INTO tenders VALUES (1,'TED','2026/S-123456','Estrutura metálica','Município','2026-09-30','ES',datetime('now'),90,'https://example.test/1')")
+    record_decision(
+        conn,
+        "TED",
+        "2026/S-123456",
+        "QUALIFIED",
+        "explicit fixture relevance",
+        score=90,
+        features=_relevant_features(),
+        rule_version=RULE_VERSION,
+        account_id="default",
+    )
     ensure_event_table(conn)
     first = record_new_opportunities(conn, min_score=75)
     second = record_new_opportunities(conn, min_score=75)

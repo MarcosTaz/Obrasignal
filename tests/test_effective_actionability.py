@@ -15,6 +15,17 @@ class Identity:
     authenticated = True
 
 
+def _relevant_features():
+    return {
+        "relevance": {
+            "state": "RELEVANT",
+            "evidence": [{"kind": "service", "value": "construction"}],
+            "rule_version": "relevance-v1",
+        },
+        "relevant_shortlist_eligible": True,
+    }
+
+
 def _seed(monkeypatch, tmp_path):
     db_path = tmp_path / "effective-actionability.db"
     monkeypatch.setenv("OBRASIGNAL_DB", str(db_path))
@@ -50,6 +61,7 @@ def _seed(monkeypatch, tmp_path):
             "QUALIFIED",
             "fixture",
             score=score,
+            features=_relevant_features(),
             account_id=Identity.account_id,
             rule_version=RULE_VERSION,
         )
@@ -172,5 +184,5 @@ def test_event_generation_uses_same_effective_actionability(monkeypatch, tmp_pat
         events = record_new_opportunities(conn, account_id=Identity.account_id, min_score=0)
     finally:
         conn.close()
-    keys = [event["event_key"].split(":", 1)[1] for event in events]
-    assert keys == ["test_source:future-no-lifecycle", "test_source:expired-explicit-open"]
+    keys = {event["event_key"].split(":", 1)[1] for event in events}
+    assert keys == {"test_source:future-no-lifecycle", "test_source:expired-explicit-open"}

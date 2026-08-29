@@ -2,7 +2,20 @@
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+from decision_log import record_decision
 from notification_events import ensure_event_table, record_new_opportunities
+from opportunity_match_pipeline import RULE_VERSION
+
+
+def _relevant_features():
+    return {
+        "relevance": {
+            "state": "RELEVANT",
+            "evidence": [{"kind": "service", "value": "pavilhão industrial"}],
+            "rule_version": "relevance-v1",
+        },
+        "relevant_shortlist_eligible": True,
+    }
 
 
 def test_event_feed_is_idempotent_and_has_delivery_state():
@@ -20,6 +33,17 @@ def test_event_feed_is_idempotent_and_has_delivery_state():
         VALUES (1,'TED','2026/S-1','Pavilhão industrial','ES',
                 'https://example.invalid/1','2099-01-01','perfil: pavilhões',
                 94,94,?)""", (recent,))
+    record_decision(
+        conn,
+        "TED",
+        "2026/S-1",
+        "QUALIFIED",
+        "explicit fixture relevance",
+        score=94,
+        features=_relevant_features(),
+        rule_version=RULE_VERSION,
+        account_id="default",
+    )
     ensure_event_table(conn)
     first = record_new_opportunities(conn, min_score=75)
     second = record_new_opportunities(conn, min_score=75)
