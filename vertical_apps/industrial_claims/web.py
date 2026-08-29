@@ -87,6 +87,19 @@ def create_app(
             )
         return tenant_id, actor_id
 
+    @app.after_request
+    def security_headers(response):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; "
+            "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+        )
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if request.path != "/health":
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
     @app.errorhandler(IndustrialClaimsAuthenticationError)
     def authentication_error(_exc):
         return jsonify({"error": "authentication_required"}), 401
