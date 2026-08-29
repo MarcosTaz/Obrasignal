@@ -10,6 +10,7 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert "CausLedger" in html
     assert "Industrial Claims operator console" in html
     assert 'id="analyze-form"' in html
+    assert 'id="claim_currency"' in html
     assert 'id="refresh-queue"' in html
     assert 'id="queue-list"' in html
     assert 'id="review-form"' in html
@@ -19,6 +20,8 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert "unknown notice deadline" in html.lower()
     assert "not a legal conclusion" in html.lower()
     assert "established recoverability" in html.lower()
+    assert "currency is explicit and immutable" in html.lower()
+    assert 'id="currency" value=' not in html
     assert "http://" not in html
     assert "https://" not in html
     assert "<style" not in html.lower()
@@ -45,6 +48,7 @@ def test_console_has_strict_browser_headers_and_no_html_injection_renderer(tmp_p
     assert "replaceChildren" in javascript
     assert 'send("/findings"' in javascript
     assert "createElement(\"button\")" in javascript
+    assert "finding.currency_unit" in javascript
 
 
 def test_console_shell_contains_no_tenant_or_case_data(tmp_path):
