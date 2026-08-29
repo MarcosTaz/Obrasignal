@@ -23,9 +23,11 @@ def load_pilot_contract(path: str | Path) -> dict[str, Any]:
         if not isinstance(value, list) or not value or any(not str(item).strip() for item in value):
             raise PilotContractError(f"{field} must be a non-empty list")
     pricing = payload.get("pricing") or {}
-    required_pricing = ("currency", "audit_fee_min", "audit_fee_max", "success_fee_percent_min", "success_fee_percent_max")
+    required_pricing = ("status", "currency", "audit_fee_min", "audit_fee_max", "success_fee_percent_min", "success_fee_percent_max")
     if any(key not in pricing for key in required_pricing):
         raise PilotContractError("pricing contract incomplete")
+    if pricing["status"] not in {"HYPOTHESIS", "VALIDATED"}:
+        raise PilotContractError("pricing status must be HYPOTHESIS or VALIDATED")
     if pricing["audit_fee_min"] < 0 or pricing["audit_fee_max"] < pricing["audit_fee_min"]:
         raise PilotContractError("invalid audit fee range")
     if not 0 <= pricing["success_fee_percent_min"] <= pricing["success_fee_percent_max"] <= 100:
