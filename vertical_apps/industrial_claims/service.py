@@ -4,7 +4,7 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, localcontext
 from pathlib import Path
 
 from factory_cloud.assurance_kernel import (
@@ -54,6 +54,7 @@ MAX_AMOUNT_SIGNIFICANT_DIGITS = 50
 MAX_AMOUNT_INTEGER_DIGITS = 36
 MAX_AMOUNT_DECIMAL_PLACES = 18
 MAX_AMOUNT_ABS_EXPONENT = 36
+DECIMAL_WORKING_PRECISION = MAX_AMOUNT_SIGNIFICANT_DIGITS + 10
 
 
 @dataclass(frozen=True)
@@ -350,8 +351,10 @@ class IndustrialClaimsService:
         }
         if any(value < 0 for value in amounts.values()):
             raise AssuranceKernelError("industrial claim amounts cannot be negative")
-        deductions = sum((value for key, value in amounts.items() if key != "gross_cost"), Decimal("0"))
-        net_potential = amounts["gross_cost"] - deductions
+        with localcontext() as decimal_context:
+            decimal_context.prec = DECIMAL_WORKING_PRECISION
+            deductions = sum((value for key, value in amounts.items() if key != "gross_cost"), Decimal("0"))
+            net_potential = amounts["gross_cost"] - deductions
         if net_potential < 0:
             raise AssuranceKernelError("mitigation/recovery cannot exceed gross cost without review")
 
