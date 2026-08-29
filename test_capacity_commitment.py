@@ -155,3 +155,9 @@ def test_capacity_commitment_rejects_zero_unit_basis_for_amortized_cost():
                 amortization_basis_units=Decimal("0"),
             )
         )
+
+
+@pytest.mark.parametrize("currency", ["ＥＵＲ", "ΕΥΡ", "€UR", "EU1"])
+def test_capacity_commitment_rejects_non_ascii_or_non_alpha_currency_codes(currency):
+    with pytest.raises(ValueError, match="currency"):
+        evaluate_recoverability(case("spoofed-currency", currency=currency))
