@@ -85,15 +85,15 @@ def test_unknown_notice_deadline_fails_closed_in_api(tmp_path):
     assert set(body["evidence_states"].values()) == {"CONTENT_HASHED"}
 
 
-def test_verified_no_notice_deadline_can_be_review_ready(tmp_path):
-    client = create_app(tmp_path / "verified-no-notice.sqlite3", identity_resolver=_identity("alpha", "analyst", "analyst")).test_client()
+def test_declared_no_notice_deadline_can_be_review_ready_without_claiming_verification(tmp_path):
+    client = create_app(tmp_path / "declared-no-notice.sqlite3", identity_resolver=_identity("alpha", "analyst", "analyst")).test_client()
     payload = _payload(); payload.pop("notice_due"); payload["notice_deadline_not_applicable"] = True
     analyzed = client.post("/analyze", json=payload)
     assert analyzed.status_code == 201
     body = analyzed.get_json()
     assert body["state"] == "READY_FOR_REVIEW"
     assert body["currency"] == "EUR"
-    assert body["notice_deadline_state"] == "VERIFIED_NONE"
+    assert body["notice_deadline_state"] == "DECLARED_NONE_FOR_REVIEW"
     assert NOTICE_DEADLINE_EVIDENCE not in body["missing_evidence"]
 
 
@@ -109,6 +109,7 @@ def test_assisted_api_runs_role_separated_review_action_resolution(tmp_path):
     assert body["net_potential"] == "8500"
     assert body["currency"] == "EUR"
     assert body["state"] == "READY_FOR_REVIEW"
+    assert body["notice_deadline_state"] == "DECLARED_DATE_FOR_REVIEW"
     finding_id = body["finding_id"]
 
     analyst_review = analyst.post(f"/findings/{finding_id}/review", json={"approved": True, "reason": "analyst must not self-approve"})
