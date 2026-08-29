@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Iterator
 
 from factory_cloud.assurance_kernel import CalculationRecord, DeadlineWindow, EvidenceEnvelope, FindingRecord
 from factory_cloud.shared_platform import AuditEvent, NotificationEvent
@@ -28,6 +29,20 @@ class AssuranceStore:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
+
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        """Expose one database transaction for cross-component atomic persistence."""
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _initialize(self) -> None:
         with self._connect() as conn:
@@ -77,93 +92,154 @@ class AssuranceStore:
     def _json(value) -> str:
         return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
-    def put_evidence(self, item: EvidenceEnvelope) -> None:
+    def _put_evidence(self, conn: sqlite3.Connection, item: EvidenceEnvelope) -> None:
         values = (item.evidence_id, item.tenant_id, item.source_type, item.source_ref, item.received_at, item.content_hash, self._json(item.metadata))
-        with self._connect() as conn:
-            existing = conn.execute("SELECT * FROM evidence WHERE evidence_id=?", (item.evidence_id,)).fetchone()
-            if existing:
-                current_semantic = tuple(existing[key] for key in ("evidence_id","tenant_id","source_type","source_ref","content_hash","metadata_json"))
-                new_semantic = (item.evidence_id, item.tenant_id, item.source_type, item.source_ref, item.content_hash, self._json(item.metadata))
-                if current_semantic != new_semantic:
-                    raise AssuranceStoreError("immutable evidence id collision")
-                return
-            conn.execute("INSERT INTO evidence VALUES(?,?,?,?,?,?,?)", values)
+        existing = conn.execute("SELECT * FROM evidence WHERE evidence_id=?", (item.evidence_id,)).fetchone()
+        if existing:
+            current_semantic = tuple(existing[key] for key in ("evidence_id","tenant_id","source_type","source_ref","content_hash","metadata_json"))
+            new_semantic = (item.evidence_id, item.tenant_id, item.source_type, item.source_ref, item.content_hash, self._json(item.metadata))
+            if current_semantic != new_semantic:
+                raise AssuranceStoreError("immutable evidence id collision")
+            return
+        conn.execute("INSERT INTO evidence VALUES(?,?,?,?,?,?,?)", values)
 
-    def put_calculation(self, item: CalculationRecord) -> None:
+    def put_evidence(self, item: EvidenceEnvelope) -> None:
+        with self._connect() as conn:
+            self._put_evidence(conn, item)
+
+    def _put_calculation(self, conn: sqlite3.Connection, item: CalculationRecord) -> None:
         inputs = [input_item.__dict__ for input_item in item.inputs]
         values = (item.calculation_id, item.tenant_id, item.formula_id, item.formula_version, self._json(inputs), item.output_value, item.output_unit, self._json(item.evidence_ids), item.reproducibility_hash)
+        existing = conn.execute("SELECT * FROM calculations WHERE calculation_id=?", (item.calculation_id,)).fetchone()
+        if existing:
+            current = tuple(existing[key] for key in ("calculation_id","tenant_id","formula_id","formula_version","inputs_json","output_value","output_unit","evidence_ids_json","reproducibility_hash"))
+            if current != values:
+                raise AssuranceStoreError("immutable calculation id collision")
+            return
+        conn.execute("INSERT INTO calculations VALUES(?,?,?,?,?,?,?,?,?)", values)
+
+    def put_calculation(self, item: CalculationRecord) -> None:
         with self._connect() as conn:
-            existing = conn.execute("SELECT * FROM calculations WHERE calculation_id=?", (item.calculation_id,)).fetchone()
-            if existing:
-                current = tuple(existing[key] for key in ("calculation_id","tenant_id","formula_id","formula_version","inputs_json","output_value","output_unit","evidence_ids_json","reproducibility_hash"))
-                if current != values:
-                    raise AssuranceStoreError("immutable calculation id collision")
-                return
-            conn.execute("INSERT INTO calculations VALUES(?,?,?,?,?,?,?,?,?)", values)
+            self._put_calculation(conn, item)
+
+    def _put_deadline(self, conn: sqlite3.Connection, item: DeadlineWindow) -> None:
+        values = (item.deadline_id, item.tenant_id, item.due_date.isoformat(), self._json(item.basis_evidence_ids), item.timezone_name)
+        existing = conn.execute("SELECT * FROM deadlines WHERE deadline_id=?", (item.deadline_id,)).fetchone()
+        if existing:
+            current = tuple(existing[key] for key in ("deadline_id","tenant_id","due_date","basis_evidence_ids_json","timezone_name"))
+            if current != values:
+                raise AssuranceStoreError("immutable deadline id collision")
+            return
+        conn.execute("INSERT INTO deadlines VALUES(?,?,?,?,?)", values)
 
     def put_deadline(self, item: DeadlineWindow) -> None:
-        values = (item.deadline_id, item.tenant_id, item.due_date.isoformat(), self._json(item.basis_evidence_ids), item.timezone_name)
         with self._connect() as conn:
-            existing = conn.execute("SELECT * FROM deadlines WHERE deadline_id=?", (item.deadline_id,)).fetchone()
-            if existing:
-                current = tuple(existing[key] for key in ("deadline_id","tenant_id","due_date","basis_evidence_ids_json","timezone_name"))
-                if current != values:
-                    raise AssuranceStoreError("immutable deadline id collision")
-                return
-            conn.execute("INSERT INTO deadlines VALUES(?,?,?,?,?)", values)
+            self._put_deadline(conn, item)
+
+    def _put_finding(self, conn: sqlite3.Connection, item: FindingRecord) -> None:
+        values = (item.finding_id, item.tenant_id, item.finding_type, item.state, self._json(item.evidence_ids), self._json(item.calculation_ids), item.reviewer, item.decision_reason)
+        existing = conn.execute("SELECT tenant_id FROM findings WHERE finding_id=?", (item.finding_id,)).fetchone()
+        if existing and existing["tenant_id"] != item.tenant_id:
+            raise AssuranceStoreError("cross-tenant finding id collision")
+        conn.execute(
+            """INSERT INTO findings VALUES(?,?,?,?,?,?,?,?)
+               ON CONFLICT(finding_id) DO UPDATE SET
+               finding_type=excluded.finding_type, state=excluded.state,
+               evidence_ids_json=excluded.evidence_ids_json,
+               calculation_ids_json=excluded.calculation_ids_json,
+               reviewer=excluded.reviewer, decision_reason=excluded.decision_reason""", values,
+        )
 
     def put_finding(self, item: FindingRecord) -> None:
-        values = (item.finding_id, item.tenant_id, item.finding_type, item.state, self._json(item.evidence_ids), self._json(item.calculation_ids), item.reviewer, item.decision_reason)
         with self._connect() as conn:
-            existing = conn.execute("SELECT tenant_id FROM findings WHERE finding_id=?", (item.finding_id,)).fetchone()
-            if existing and existing["tenant_id"] != item.tenant_id:
-                raise AssuranceStoreError("cross-tenant finding id collision")
-            conn.execute(
-                """INSERT INTO findings VALUES(?,?,?,?,?,?,?,?)
-                   ON CONFLICT(finding_id) DO UPDATE SET
-                   finding_type=excluded.finding_type, state=excluded.state,
-                   evidence_ids_json=excluded.evidence_ids_json,
-                   calculation_ids_json=excluded.calculation_ids_json,
-                   reviewer=excluded.reviewer, decision_reason=excluded.decision_reason""", values,
-            )
+            self._put_finding(conn, item)
+
+    def _append_audit(self, conn: sqlite3.Connection, event: AuditEvent) -> None:
+        values = (event.event_id, event.tenant_id, event.actor_id, event.event_type, event.occurred_at, event.subject_ref, self._json(event.evidence_refs), event.payload_hash)
+        existing = conn.execute("SELECT * FROM audit_events WHERE event_id=?", (event.event_id,)).fetchone()
+        if existing:
+            current_semantic = tuple(existing[key] for key in ("event_id","tenant_id","actor_id","event_type","subject_ref","evidence_refs_json","payload_hash"))
+            new_semantic = (event.event_id, event.tenant_id, event.actor_id, event.event_type, event.subject_ref, self._json(event.evidence_refs), event.payload_hash)
+            if current_semantic != new_semantic:
+                raise AssuranceStoreError("immutable audit event id collision")
+            return
+        conn.execute("INSERT INTO audit_events VALUES(?,?,?,?,?,?,?,?)", values)
 
     def append_audit(self, event: AuditEvent) -> None:
-        values = (event.event_id, event.tenant_id, event.actor_id, event.event_type, event.occurred_at, event.subject_ref, self._json(event.evidence_refs), event.payload_hash)
         with self._connect() as conn:
-            existing = conn.execute("SELECT * FROM audit_events WHERE event_id=?", (event.event_id,)).fetchone()
-            if existing:
-                current_semantic = tuple(existing[key] for key in ("event_id","tenant_id","actor_id","event_type","subject_ref","evidence_refs_json","payload_hash"))
-                new_semantic = (event.event_id, event.tenant_id, event.actor_id, event.event_type, event.subject_ref, self._json(event.evidence_refs), event.payload_hash)
-                if current_semantic != new_semantic:
-                    raise AssuranceStoreError("immutable audit event id collision")
-                return
-            conn.execute("INSERT INTO audit_events VALUES(?,?,?,?,?,?,?,?)", values)
+            self._append_audit(conn, event)
+
+    def _enqueue_notification(self, conn: sqlite3.Connection, event: NotificationEvent) -> bool:
+        values = (event.event_id, event.tenant_id, event.event_type, event.subject_ref, event.idempotency_key, self._json(event.payload), None)
+        existing = conn.execute("SELECT * FROM notification_outbox WHERE idempotency_key=?", (event.idempotency_key,)).fetchone()
+        if existing:
+            comparable = tuple(existing[key] for key in ("event_id","tenant_id","event_type","subject_ref","idempotency_key","payload_json"))
+            if comparable != values[:-1]:
+                raise AssuranceStoreError("notification idempotency collision")
+            return False
+        conn.execute("INSERT INTO notification_outbox VALUES(?,?,?,?,?,?,?)", values)
+        return True
 
     def enqueue_notification(self, event: NotificationEvent) -> bool:
-        values = (event.event_id, event.tenant_id, event.event_type, event.subject_ref, event.idempotency_key, self._json(event.payload), None)
         with self._connect() as conn:
-            existing = conn.execute("SELECT * FROM notification_outbox WHERE idempotency_key=?", (event.idempotency_key,)).fetchone()
-            if existing:
-                comparable = tuple(existing[key] for key in ("event_id","tenant_id","event_type","subject_ref","idempotency_key","payload_json"))
-                if comparable != values[:-1]:
-                    raise AssuranceStoreError("notification idempotency collision")
-                return False
-            conn.execute("INSERT INTO notification_outbox VALUES(?,?,?,?,?,?,?)", values)
-            return True
+            return self._enqueue_notification(conn, event)
 
-    def persist_case(self, *, evidence: Iterable[EvidenceEnvelope], calculation: CalculationRecord, deadline: DeadlineWindow, finding: FindingRecord, audit: AuditEvent, notification: NotificationEvent) -> None:
+    def _persist_case(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        evidence: Iterable[EvidenceEnvelope],
+        calculation: CalculationRecord,
+        deadline: DeadlineWindow,
+        finding: FindingRecord,
+        audit: AuditEvent,
+        notification: NotificationEvent,
+    ) -> None:
         tenant_ids = {calculation.tenant_id, deadline.tenant_id, finding.tenant_id, audit.tenant_id, notification.tenant_id}
         evidence_items = tuple(evidence)
         tenant_ids.update(item.tenant_id for item in evidence_items)
         if len(tenant_ids) != 1:
             raise AssuranceStoreError("cross-tenant case persistence rejected")
         for item in evidence_items:
-            self.put_evidence(item)
-        self.put_calculation(calculation)
-        self.put_deadline(deadline)
-        self.put_finding(finding)
-        self.append_audit(audit)
-        self.enqueue_notification(notification)
+            self._put_evidence(conn, item)
+        self._put_calculation(conn, calculation)
+        self._put_deadline(conn, deadline)
+        self._put_finding(conn, finding)
+        self._append_audit(conn, audit)
+        self._enqueue_notification(conn, notification)
+
+    def persist_case(
+        self,
+        *,
+        evidence: Iterable[EvidenceEnvelope],
+        calculation: CalculationRecord,
+        deadline: DeadlineWindow,
+        finding: FindingRecord,
+        audit: AuditEvent,
+        notification: NotificationEvent,
+        connection: sqlite3.Connection | None = None,
+    ) -> None:
+        if connection is not None:
+            self._persist_case(
+                connection,
+                evidence=evidence,
+                calculation=calculation,
+                deadline=deadline,
+                finding=finding,
+                audit=audit,
+                notification=notification,
+            )
+            return
+        with self._connect() as conn:
+            self._persist_case(
+                conn,
+                evidence=evidence,
+                calculation=calculation,
+                deadline=deadline,
+                finding=finding,
+                audit=audit,
+                notification=notification,
+            )
 
     def count(self, table: str, tenant_id: str) -> int:
         allowed = {"evidence", "calculations", "deadlines", "findings", "audit_events", "notification_outbox"}
