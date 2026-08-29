@@ -5,20 +5,23 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 9,
-  "last_factory_id": "eu-cloud-switching",
-  "last_run_at": "2026-08-29T19:38:00Z",
+  "cursor": 10,
+  "last_factory_id": "aviation-lease-entitlement-recovery",
+  "last_run_at": "2026-08-29T19:38:30Z",
   "last_material_change": {
-    "kind": "EU_CLOUD_SWITCHING_EXACT_HEAD_VERIFIED_GREEN_DRAFT_ROTATED",
-    "factory_id": "eu-cloud-switching",
-    "summary": "EU Cloud Switching exact lane cloud-switching/t2-consent-trigger-dedup-20260829 was recovered at HEAD f27fd53b64b33cf2af49f28008e7d7e5473edd90. PR #802 remains OPEN/DRAFT with explicit DO NOT MERGE / NOT CANONICAL / NO OUTREACH boundaries. Three observed checks on the exact HEAD completed SUCCESS (mobile plus two python jobs). The lane hardens benchmark consent, deduplicates public acquisition triggers, and preserves fail-closed WTP evidence states without introducing prospects, customer data, payment, deployment or commercial proof. Fleet rotates to Aviation; no merge or external sending performed.",
+    "kind": "AVIATION_CANDIDATE_VERIFIED_BOUNDED_NOT_GREEN_ROTATED",
+    "factory_id": "aviation-lease-entitlement-recovery",
+    "summary": "Aviation pilot-safe candidate branch apps/aviation-lease-entitlement-recovery-pilot-safe-candidate-20260829 is present at HEAD 5657c8c17c2cd1af09d0934299afbe91aed6438b. Its pilot.json parses as valid JSON, schema_version=2, defines the lessee-side buyer/economic owner and explicit exclusions, retains assisted mode and production_authority=false. No open PR and no exact-head check-runs were observed, so the candidate is not promoted to GREEN. Fleet rotates to Capacity Commitment rather than stopping on missing CI.",
     "evidence": {
-      "eu_cloud_switching": {
-        "pr": 802,
-        "branch": "cloud-switching/t2-consent-trigger-dedup-20260829",
-        "head": "f27fd53b64b33cf2af49f28008e7d7e5473edd90",
-        "checks": ["mobile SUCCESS", "python SUCCESS", "python SUCCESS"],
-        "classification": "GREEN_DRAFT_NOT_CANONICAL_NO_OUTREACH"
+      "aviation": {
+        "branch": "apps/aviation-lease-entitlement-recovery-pilot-safe-candidate-20260829",
+        "head": "5657c8c17c2cd1af09d0934299afbe91aed6438b",
+        "pilot_blob": "c8f1b57845756ce3f676f2becf6d539d09cdc76b",
+        "json_parse": "PASS",
+        "production_authority": false,
+        "open_pr": "NONE_OBSERVED",
+        "check_runs": 0,
+        "classification": "MATERIAL_CANDIDATE_NOT_CI_GREEN"
       },
       "factory_cloud_hardening": {
         "verified_commit": "1958c16d979658057bb37e491eaf4a811edbd19f",
@@ -26,16 +29,16 @@
         "mobile": "SUCCESS"
       }
     },
-    "active": "Aviation Lease Entitlement Recovery: verify pilot-safe candidate exact source and gates; do not promote to GREEN where exact-head check evidence is absent.",
-    "next": "Capacity Commitment, then LongLead; continue beyond missing CI/source identity without global stop.",
+    "active": "Capacity Commitment: recover exact source/BATON identity and current gates; if unavailable, record UNKNOWN and rotate immediately.",
+    "next": "LongLead, then MachineRelease Safety; no Factory-specific blocker is a global stop.",
     "wait": [
+      "Aviation exact candidate CI is absent; no GREEN claim",
       "EU Switching real WTP/customer/payment/deployment evidence remains external",
       "Product Market Access canonical/source identity remains UNKNOWN",
       "Sourcing Recovery canonical/source identity remains UNKNOWN",
       "Recovery Radar canonical/source identity remains UNKNOWN",
       "ChangeLedger canonical/source identity remains UNKNOWN",
       "ScopeLedger production/Railway source lineage remains unproven",
-      "Aviation candidate verification remains incomplete where checks are absent",
       "ComplianceLedger canonical source identity remains UNKNOWN",
       "production/deploy/secrets/provider/config/customer-data/source activation",
       "merge/adoption decisions"
