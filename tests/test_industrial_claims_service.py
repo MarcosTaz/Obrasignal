@@ -22,10 +22,11 @@ def _base():
 def test_all_required_claim_families_share_net_potential_contract(tmp_path):
     for family in sorted(ALLOWED_CLAIM_FAMILIES):
         service = IndustrialClaimsService(tmp_path / f"{family}.sqlite3")
+        fixture = _base()
+        fixture["event_ref"] = f"event-{family}"
+        fixture["cost_evidence_ref"] = f"cost-{family}"
         result = service.analyze(
-            **_base(),
-            event_ref=f"event-{family}",
-            cost_evidence_ref=f"cost-{family}",
+            **fixture,
             claim_family=family,
             gross_cost="100000",
             avoided_cost="10000",
