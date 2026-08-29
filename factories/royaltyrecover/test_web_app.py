@@ -5,7 +5,7 @@ from web_app import create_app
 
 class WebAppTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app(api_key="test-secret")
+        self.app = create_app(api_keys={"ORG-1": "secret-one", "ORG-2": "secret-two"})
         self.app.testing = True
         self.client = self.app.test_client()
 
@@ -35,8 +35,8 @@ class WebAppTests(unittest.TestCase):
             }
         }
 
-    def auth(self):
-        return {"X-RoyaltyRecover-API-Key": "test-secret"}
+    def auth(self, secret="secret-one"):
+        return {"X-RoyaltyRecover-API-Key": secret}
 
     def test_health_is_non_sensitive_and_public(self):
         response = self.client.get("/health")
@@ -47,11 +47,16 @@ class WebAppTests(unittest.TestCase):
         response = self.client.post("/api/v1/recoverability/scan", json=self.payload())
         self.assertEqual(response.status_code, 401)
 
-    def test_missing_service_key_fails_closed(self):
-        app = create_app(api_key="")
+    def test_missing_service_key_map_fails_closed(self):
+        app = create_app(api_keys={})
         app.testing = True
         response = app.test_client().post("/api/v1/recoverability/scan", json=self.payload())
         self.assertEqual(response.status_code, 503)
+
+    def test_cross_tenant_key_is_rejected(self):
+        response = self.client.post("/api/v1/recoverability/scan", json=self.payload(), headers=self.auth("secret-two"))
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["error"], "organization_scope_mismatch")
 
     def test_supported_variance_is_returned_but_not_claim_ready(self):
         response = self.client.post("/api/v1/recoverability/scan", json=self.payload(), headers=self.auth())
