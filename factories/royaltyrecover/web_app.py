@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hmac
 import json
 import os
 from datetime import date
@@ -8,6 +7,8 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Flask, jsonify, request
 
+from authz import CredentialRegistry, role_allows
+from contract_store import ContractStore
 from repository import ConflictError, NotFoundError, RoyaltyRepository, ScopeError
 from royalty_engine import PeriodInput, RoyaltyRule, RoyaltyTier
 from service_pipeline import RecoverabilityCase, pack_to_dict, run_case
@@ -47,21 +48,14 @@ def _bool_or_none(value):
     raise ValueError("expected boolean or null")
 
 
-def _load_api_keys() -> dict[str, str]:
+def _load_api_key_config():
     raw = os.getenv("ROYALTYRECOVER_API_KEYS_JSON", "").strip()
     if not raw:
-        return {}
+        return None
     try:
-        payload = json.loads(raw)
+        return json.loads(raw)
     except json.JSONDecodeError:
-        return {}
-    if not isinstance(payload, dict):
-        return {}
-    return {
-        str(org_id).strip(): str(secret)
-        for org_id, secret in payload.items()
-        if str(org_id).strip() and isinstance(secret, str) and secret
-    }
+        return None
 
 
 def _text_content(payload: dict, field: str = "content_utf8") -> bytes:
@@ -125,10 +119,11 @@ def _period(payload):
     )
 
 
-def create_app(api_keys: dict[str, str] | None = None, repository: RoyaltyRepository | None = None) -> Flask:
+def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Flask:
     app = Flask(__name__)
-    configured_keys = dict(api_keys) if api_keys is not None else _load_api_keys()
+    registry = CredentialRegistry.from_config(api_keys if api_keys is not None else _load_api_key_config())
     repo = repository or RoyaltyRepository.file(os.getenv("ROYALTYRECOVER_DB_PATH", "royaltyrecover.db"))
+    contracts = ContractStore(repo)
 
     @app.after_request
     def security_headers(response):
@@ -158,18 +153,14 @@ def create_app(api_keys: dict[str, str] | None = None, repository: RoyaltyReposi
     def authenticate():
         if request.path == "/health":
             return None
-        if not configured_keys:
+        if not registry.configured:
             return jsonify({"error": "service_not_configured"}), 503
-        supplied = request.headers.get("X-RoyaltyRecover-API-Key", "")
-        authenticated_org = None
-        for org_id, expected in configured_keys.items():
-            if hmac.compare_digest(supplied, expected):
-                authenticated_org = org_id
-                break
-        if authenticated_org is None:
+        credential = registry.authenticate(request.headers.get("X-RoyaltyRecover-API-Key", ""))
+        if credential is None:
             return jsonify({"error": "authentication_required"}), 401
-        request.royaltyrecover_org_id = authenticated_org
-        request.royaltyrecover_actor_id = f"api:{authenticated_org}"
+        request.royaltyrecover_org_id = credential.organization_id
+        request.royaltyrecover_actor_id = f"api:{credential.key_id}"
+        request.royaltyrecover_role = credential.role
         return None
 
     def org_id() -> str:
@@ -177,6 +168,11 @@ def create_app(api_keys: dict[str, str] | None = None, repository: RoyaltyReposi
 
     def actor_id() -> str:
         return request.royaltyrecover_actor_id
+
+    def require_role(required_role: str):
+        if not role_allows(request.royaltyrecover_role, required_role):
+            return jsonify({"error": "insufficient_role", "required_role": required_role}), 403
+        return None
 
     @app.post("/api/v1/organization")
     def organization():
@@ -258,6 +254,62 @@ def create_app(api_keys: dict[str, str] | None = None, repository: RoyaltyReposi
         response["content_persisted"] = False
         response["lineage_note"] = "Raw text is hashed for lineage and discarded by this minimum endpoint."
         return jsonify({"evidence": response}), 201
+
+    @app.post("/api/v1/agreement-versions/<version_id>/clauses")
+    def create_clause(version_id):
+        try:
+            payload = _json_payload()
+            item = contracts.add_clause(
+                org_id(), version_id, str(payload.get("clause_ref") or ""), str(payload.get("clause_type") or ""), actor_id(),
+                text_excerpt=payload.get("text_excerpt"), evidence_id=payload.get("evidence_id"), review_status="UNREVIEWED",
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"clause": item}), 201
+
+    @app.post("/api/v1/clauses/<clause_id>/review")
+    def review_clause(clause_id):
+        denied = require_role("REVIEWER")
+        if denied:
+            return denied
+        try:
+            payload = _json_payload()
+            item = contracts.set_clause_review_status(
+                org_id(), clause_id, str(payload.get("review_status") or ""), actor_id(), str(payload.get("rationale") or "")
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"clause": item}), 200
+
+    @app.post("/api/v1/agreement-versions/<version_id>/royalty-rules")
+    def create_royalty_rule(version_id):
+        try:
+            payload = _json_payload()
+            item = contracts.add_royalty_rule(
+                org_id(), version_id, str(payload.get("clause_id") or ""), str(payload.get("basis") or ""),
+                str(payload.get("currency") or ""), actor_id(),
+                rate=_decimal(payload.get("rate")), per_unit=_decimal(payload.get("per_unit")),
+                minimum_guarantee=_decimal(payload.get("minimum_guarantee")), cap=_decimal(payload.get("cap")),
+                floor=_decimal(payload.get("floor")), effective_from=payload.get("effective_from"),
+                effective_to=payload.get("effective_to"), review_status="UNREVIEWED",
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"royalty_rule": item}), 201
+
+    @app.post("/api/v1/royalty-rules/<rule_id>/review")
+    def review_royalty_rule(rule_id):
+        denied = require_role("REVIEWER")
+        if denied:
+            return denied
+        try:
+            payload = _json_payload()
+            item = contracts.set_rule_review_status(
+                org_id(), rule_id, str(payload.get("review_status") or ""), actor_id(), str(payload.get("rationale") or "")
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"royalty_rule": item}), 200
 
     @app.get("/api/v1/audit-events")
     def audit_events():
