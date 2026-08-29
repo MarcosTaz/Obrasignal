@@ -20,6 +20,9 @@ class MigrationCase:
     parallel_run_cost: Money
     refactoring_cost: Money
     risk_contingency_cost: Money
+    # Canonical external input is data_movement_cost; egress_data_movement_cost
+    # remains an explicit compatibility field for earlier internal callers.
+    data_movement_cost: Money = Decimal("0")
     egress_data_movement_cost: Money = Decimal("0")
     decommissioning_cost: Money = Decimal("0")
     backup_dr_transition_cost: Money = Decimal("0")
@@ -44,6 +47,7 @@ class MigrationCase:
             self.parallel_run_cost,
             self.refactoring_cost,
             self.risk_contingency_cost,
+            self.data_movement_cost,
             self.egress_data_movement_cost,
             self.decommissioning_cost,
             self.backup_dr_transition_cost,
@@ -56,12 +60,18 @@ class MigrationCase:
         )
         if any(value < 0 for value in money_fields):
             raise ValueError("money values cannot be negative")
+        if self.data_movement_cost and self.egress_data_movement_cost:
+            raise ValueError("data movement cost cannot be supplied in both compatibility fields")
         if self.observation_months <= 0:
             raise ValueError("observation_months must be positive")
         if self.provider_credit_received > self.provider_credit_approved:
             raise ValueError("received provider credit cannot exceed approved credit")
         if self.partner_incentive_received > self.partner_incentive_approved:
             raise ValueError("received partner incentive cannot exceed approved incentive")
+
+    @property
+    def effective_data_movement_cost(self) -> Money:
+        return self.data_movement_cost or self.egress_data_movement_cost
 
 
 @dataclass(frozen=True)
@@ -96,7 +106,7 @@ def calculate(case: MigrationCase) -> EconomicsResult:
             case.parallel_run_cost,
             case.refactoring_cost,
             case.risk_contingency_cost,
-            case.egress_data_movement_cost,
+            case.effective_data_movement_cost,
             case.decommissioning_cost,
             case.backup_dr_transition_cost,
             case.security_transition_cost,
