@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
 from factory_cloud.pilot_contract import load_pilot_contract
+
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 class PilotReadinessError(RuntimeError):
@@ -37,7 +40,7 @@ class PilotReadinessEvidence:
             self.delivery_economics_defined,
             self.onboarding_exit_criteria,
             self.assisted_api,
-            bool(self.exact_source_head),
+            bool(_SHA_RE.fullmatch(self.exact_source_head)),
         ))
 
     def require_ready(self) -> None:
@@ -50,7 +53,7 @@ class PilotReadinessEvidence:
                 "onboarding_exit_criteria", "assisted_api",
             ) if not getattr(self, name)
         ]
-        if not self.exact_source_head:
+        if not _SHA_RE.fullmatch(self.exact_source_head):
             missing.append("exact_source_head")
         raise PilotReadinessError("pilot readiness incomplete: " + ", ".join(missing))
 
