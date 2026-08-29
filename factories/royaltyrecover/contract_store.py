@@ -14,7 +14,7 @@ SUPPORTED_RULE_BASES = {
     "TIERED_NET_SALES",
     "SUBLICENSE_SHARE",
 }
-REVIEW_STATES = {"UNREVIEWED", "REVIEWED", "REJECTED"}
+REVIEW_STATES = {"UNREVIEWED", "REVIEWED", "HUMAN_REVIEWED", "APPROVED", "REJECTED"}
 
 
 def _id(prefix: str) -> str:
@@ -105,8 +105,8 @@ class ContractStore:
         clause = self.get_clause(org_id, clause_id)
         status = _review_state(review_status)
         rationale = _required(rationale, "rationale")
-        if status == "UNREVIEWED":
-            raise ValueError("review transition cannot reset clause to UNREVIEWED")
+        if status in {"UNREVIEWED", "HUMAN_REVIEWED", "APPROVED"}:
+            raise ValueError("review transition must use REVIEWED or REJECTED")
         self.conn.execute("UPDATE clauses SET review_status=? WHERE id=?", (status, clause_id))
         self.repo._audit(org_id, actor_id, "REVIEW", "Clause", clause_id, {
             "previous_status": clause["review_status"], "review_status": status, "rationale": rationale,
@@ -197,8 +197,8 @@ class ContractStore:
         rule = self.get_royalty_rule(org_id, rule_id)
         status = _review_state(review_status)
         rationale = _required(rationale, "rationale")
-        if status == "UNREVIEWED":
-            raise ValueError("review transition cannot reset rule to UNREVIEWED")
+        if status in {"UNREVIEWED", "HUMAN_REVIEWED", "APPROVED"}:
+            raise ValueError("review transition must use REVIEWED or REJECTED")
         clause = self.get_clause(org_id, rule["clause_id"])
         if status == "REVIEWED" and clause["review_status"] != "REVIEWED":
             raise ValueError("royalty rule cannot be reviewed until its source clause is reviewed")
