@@ -111,7 +111,7 @@ export const api={
   markAlertDelivered:(eventId)=>writeWhenReady(`/alerts/${encodeURIComponent(eventId)}/delivered`,{method:'POST',body:JSON.stringify({})}),
   registerPushDevice:({installationId,expoPushToken,platform})=>writeWhenReady('/push/devices',{method:'POST',body:JSON.stringify({installation_id:installationId,expo_push_token:expoPushToken,platform})}),
   unregisterPushDevice:(installationId)=>request('/push/devices',{method:'DELETE',body:JSON.stringify({installation_id:installationId}),timeout:SIGNOUT_WRITE_TIMEOUT,maxAttempts:1}),
-  opportunities:async({q='',minscore=0,source='',limit=60,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await readWhenReady(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
+  opportunities:async({q='',minscore=0,source='',limit=60,offset=0,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),offset:String(offset),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await readWhenReady(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
   opportunity:async(id)=>normalizeOpportunity(await readWhenReady(`/opportunities/${encodeURIComponent(id)}`)),
   workflow:(id)=>readWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`),
   setWorkflow:(id,status,note)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})}),
