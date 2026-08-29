@@ -63,11 +63,37 @@ def _backup_and_prove(database, tmp_path, tenant):
     assert store.count("audit_events", tenant) >= 1
 
 
-def _complete_finding(client, tenant, finding_id, *, recovered_amount, outcome_id, evidence_ref):
+def _adjudicate_and_complete(
+    client, tenant, finding_id, *, requires_breach, recovered_amount, outcome_id, evidence_ref,
+):
     review_path = f"/findings/{finding_id}/review"
+    premature = client.post(
+        review_path, headers=_headers(tenant, "synthetic-reviewer", path=review_path),
+        json={"approved": True, "reason": "must be blocked before adjudication"},
+    )
+    assert premature.status_code == 422
+    assert "not actionably adjudicated" in premature.get_json()["message"]
+
+    adjudicate_path = f"/findings/{finding_id}/adjudicate"
+    adjudication_payload = {
+        "entitlement_established": True,
+        "evidence_ref": "synthetic-adjudication-evidence",
+        "reason": "synthetic contract and event evidence establish the bounded test entitlement",
+    }
+    if requires_breach:
+        adjudication_payload["breach_established"] = True
+    adjudicated = client.post(
+        adjudicate_path,
+        headers=_headers(tenant, "synthetic-adjudicator", path=adjudicate_path),
+        json=adjudication_payload,
+    )
+    assert adjudicated.status_code == 200
+    assert adjudicated.get_json()["entitlement_state"] == "ESTABLISHED"
+    assert adjudicated.get_json()["actionable"] is True
+
     reviewed = client.post(
         review_path, headers=_headers(tenant, "synthetic-reviewer", path=review_path),
-        json={"approved": True, "reason": "synthetic evidence reviewed"},
+        json={"approved": True, "reason": "synthetic evidence and adjudication reviewed"},
     )
     assert reviewed.get_json()["state"] == "APPROVED"
     action_path = f"/findings/{finding_id}/action"
@@ -106,8 +132,8 @@ def test_contractcredit_synthetic_company_a_runs_product_and_operations_end_to_e
     )
     assert hostile.status_code == 422
 
-    _complete_finding(
-        client, tenant, finding_id, recovered_amount="5000",
+    _adjudicate_and_complete(
+        client, tenant, finding_id, requires_breach=True, recovered_amount="5000",
         outcome_id="synthetic-outcome-1", evidence_ref="synthetic-credit-note",
     )
     assert assurance_health(database).operational_dict()["open_findings"] == 0
@@ -130,8 +156,8 @@ def test_aviation_synthetic_company_b_runs_product_and_operations_end_to_end(tmp
     assert analyzed.status_code == 201
     finding_id = analyzed.get_json()["finding_id"]
     assert analyzed.get_json()["entitlement_state"] == "UNKNOWN"
-    _complete_finding(
-        client, tenant, finding_id, recovered_amount="75000",
+    _adjudicate_and_complete(
+        client, tenant, finding_id, requires_breach=False, recovered_amount="75000",
         outcome_id="synthetic-outcome-2", evidence_ref="synthetic-settlement",
     )
     assert assurance_health(database).operational_dict()["open_findings"] == 0
