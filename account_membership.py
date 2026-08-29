@@ -14,6 +14,10 @@ from pathlib import Path
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _SUBJECT_RE = re.compile(r"^[^\x00-\x1f\x7f]{1,255}$")
 _ALLOWED_ROLES = {"admin", "member"}
+_ROLE_PERMISSIONS = {
+    "admin": frozenset({"profile:read", "profile:write", "workflow:read", "workflow:write", "membership:manage"}),
+    "member": frozenset({"profile:read", "workflow:read", "workflow:write"}),
+}
 
 
 class MembershipAuthorityError(RuntimeError):
@@ -25,6 +29,13 @@ class AccountMembership:
     subject: str
     account_id: str
     role: str
+
+    @property
+    def permissions(self) -> frozenset[str]:
+        return _ROLE_PERMISSIONS[self.role]
+
+    def allows(self, permission: str) -> bool:
+        return str(permission or "").strip() in self.permissions
 
 
 def install_membership_schema(conn: sqlite3.Connection) -> None:
