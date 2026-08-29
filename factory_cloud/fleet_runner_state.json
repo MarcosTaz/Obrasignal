@@ -5,80 +5,44 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 33,
-  "last_factory_id": "complianceledger",
-  "last_run_at": "2026-08-29T19:18:00Z",
+  "cursor": 0,
+  "last_factory_id": "factory-cloud",
+  "last_run_at": "2026-08-29T19:20:00Z",
   "last_material_change": {
-    "kind": "FLEET_PASS_COMPLETED_FRESH_DISCOVERY_REQUIRED",
-    "factory_id": "complianceledger",
-    "summary": "The remaining registered lanes were reconstructed without inventing authority. Product Strategy PR #521 is exact-head GREEN but strategy-only and non-canonical. Data Analytics PR #344 is exact-head GREEN and preserves measurement UNKNOWN semantics without adding production tracking. Release Safety has multiple live owner/integration candidates, so no single successor was fabricated; the lane remains MULTI_CANDIDATE_RECONCILIATION_REQUIRED. Support Ops maps cleanly to support-owned PR #355 at exact head 3aacd6cf08bca752e3023bdef61855f99fb07771 with Quality and CodeQL SUCCESS. EU Switching Evidence Pack has a newer focused T1→T2 candidate PR #802 at be1ab901b43d6be85cfc629a2c5124fa14e0461b: Cloud Switching Quality is SUCCESS, repository Python is SUCCESS, while whole-repository ObraSignal Quality is RED only in Mobile/Expo Doctor; no whole-repository green claim is made. ComplianceLedger has no exact repository/PR identity recoverable from current indexed source and remains UNKNOWN rather than being conflated with generic compliance references. Registry rotation is complete; C requires a fresh discovery pass rather than idle.",
+    "kind": "FLEET_RUNNER_INTEGRATED_GREEN_NEXT_CYCLE_STARTED",
+    "factory_id": "factory-cloud",
+    "summary": "Fresh discovery identified the missing persistent fleet-selection primitive from draft PR #765. The two isolated files were integrated directly into the live Factory Cloud branch without merging the PR: factory_cloud/fleet_runner.py plus its regression suite. The runner validates command D and ACTIVE state, rotates deterministically from persisted cursor, skips blocked Factory IDs, wraps safely, fails closed when all entries are blocked, and persists DISPATCH_SELECTED_NO_EXECUTION_CLAIM so scheduling cannot masquerade as completed Factory work. Exact branch HEAD f81f0d094cc9ced2432989b46e4772fb0c200a5a passed ObraSignal Quality run 33270510350: Python SUCCESS and Mobile SUCCESS. The completed 33-entry discovery pass therefore rolls into a new cycle at registry cursor 0 rather than idle.",
     "evidence": {
-      "product_strategy": {
-        "pr": 521,
-        "branch": "strategy/contractor-decision-superiority-v1",
-        "head": "88c326be65b222781a11473b18bcfb5462cc2981",
-        "ci": "ObraSignal Quality 32994388711 SUCCESS",
-        "classification": "GREEN_STRATEGY_DRAFT_NOT_CANONICAL"
+      "fleet_runner": {
+        "source_pr": 765,
+        "integrated_files": ["factory_cloud/fleet_runner.py", "tests/test_factory_cloud_fleet_runner.py"],
+        "head": "f81f0d094cc9ced2432989b46e4772fb0c200a5a",
+        "ci": "ObraSignal Quality 33270510350 SUCCESS",
+        "python": "SUCCESS",
+        "mobile": "SUCCESS",
+        "classification": "PASSING_AFTER_PROVEN_ON_LIVE_FACTORY_CLOUD_BRANCH"
       },
-      "data_analytics": {
-        "pr": 344,
-        "branch": "analytics/measurement-truth-registry",
-        "head": "37b52f855b88a08e796375f717f3eff2187ed4ad",
-        "ci": "ObraSignal Quality 32891212362 SUCCESS",
-        "classification": "GREEN_DRAFT_NOT_CANONICAL",
-        "truth": "MISSING != ZERO; no causal inference; no production tracking store introduced"
-      },
-      "release_safety": {
-        "classification": "MULTI_CANDIDATE_RECONCILIATION_REQUIRED",
-        "known_candidates": [
-          "#345 Web exact-build/manual Pages release",
-          "#350 single manual EAS production authority",
-          "#414 automatic production Auth E2E read-only",
-          "#568/#571 integration passing-after compositions"
-        ],
-        "reason": "Multiple release-owner and integration lines exist; no singular canonical successor was proven in this pass."
-      },
-      "support_ops": {
-        "pr": 355,
-        "branch": "support/incident-operations-v1",
-        "head": "3aacd6cf08bca752e3023bdef61855f99fb07771",
-        "ci": ["ObraSignal Quality 32892620792 SUCCESS", "ObraSignal CodeQL 32892620579 SUCCESS"],
-        "classification": "GREEN_SUPPORT_OWNER_NOT_CANONICAL",
-        "next": "Consume privacy-safe request/correlation seam and owner-safe public failure taxonomy without duplicating security/runtime ownership."
-      },
-      "eu_switching_evidence_pack": {
-        "pr": 802,
-        "branch": "cloud-switching/t2-consent-trigger-dedup-20260829",
-        "head": "be1ab901b43d6be85cfc629a2c5124fa14e0461b",
-        "focused_ci": "Cloud Switching Quality 33270129876 SUCCESS",
-        "repository_ci": "ObraSignal Quality 33270129877 FAILURE: python SUCCESS, mobile Expo Doctor FAILURE",
-        "classification": "FOCUSED_GREEN_REPOSITORY_MOBILE_RED_NOT_COMMERCIAL_PROOF",
-        "truth": "benchmark consent and trigger dedup implemented; no real prospect/WTP/pilot/payment proof"
-      },
-      "complianceledger": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY",
-        "reason": "No exact ComplianceLedger PR/branch/BATON identity was recoverable; generic compliance references were not adopted as substitute authority."
-      },
-      "factory_cloud_control": {
-        "previous_head": "e40046bdfd1da8aad0701510937f0e870472cde7",
-        "ci": "ObraSignal Quality 33270309186 SUCCESS"
+      "portfolio_architecture": {
+        "pr": 760,
+        "current_head": "02fdfc5422acd9b20b4f05ec511ef7f1cba1bf3a",
+        "ci": "ObraSignal Quality 33265278871 SUCCESS",
+        "classification": "GREEN_DRAFT_SEPARATE_BRANCH_NOT_ADOPTED",
+        "hard_blocker": "Aviation/ContractCredit supervised persistent Linux workspaces/runtime provisioning not verified"
       }
     },
-    "active": "Fresh discovery pass: inspect current Factory Cloud/portfolio truth, regressions, newly moved heads and highest-value safe executable work after completing the 33-entry registry rotation.",
-    "next": "Prioritize fresh RED/regression gates first; then incomplete integrations, unverified code, runtime readiness, portfolio promotion/source-registration gaps and newly executable Factory work.",
+    "active": "Factory Cloud next cycle: reconcile current control-plane branch against GREEN portfolio architecture #760 and adopt only repository-safe, non-conflicting primitives without auto-merge or false runtime claims.",
+    "next": "After portfolio reconciliation, select the next highest-value Factory through the now-GREEN persistent fleet runner and continue execution; prioritize regressions, incomplete integrations and unverified runtime/source truth.",
     "wait": [
-      "Release Safety singular successor/canonical composition requires reconciliation; no auto-merge",
+      "Portfolio #760 persistent supervised host provisioning remains external/unverified",
+      "Aviation/ContractCredit G3 requires real supervised runtime evidence",
+      "Release Safety singular successor/canonical composition requires reconciliation",
       "ComplianceLedger canonical source identity remains UNKNOWN",
-      "EU Switching whole-repository Mobile/Expo dependency drift remains RED while focused Cloud Switching lane is GREEN",
+      "EU Switching focused lane GREEN but whole-repository Mobile drift remains RED",
       "EU Switching real WTP/customer/payment/deployment evidence remains external",
-      "Support real incident/deployed recovery evidence remains external",
-      "Customer Decision integration + Golden acceptance remains unresolved",
-      "Customer Journey Auth owner integration and #762/#764 remain unresolved",
+      "Customer Journey/Auth and Customer Decision/Golden integration handoffs remain unresolved",
       "Data Truth #750/#753 owner repairs remain unresolved",
-      "OS SIDE FACTORY and several business Factory canonical identities remain UNKNOWN",
-      "Aviation/ContractCredit persistent supervised runtime provisioning remains unverified",
-      "Factory Cloud PR merge/adoption remains owner-only",
-      "production/deploy/secrets/provider/config/customer-data/source activation"
+      "production/deploy/secrets/provider/config/customer-data/source activation",
+      "merge/adoption decisions"
     ]
   },
   "blocked": [],
