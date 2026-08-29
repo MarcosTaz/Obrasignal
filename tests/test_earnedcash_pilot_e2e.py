@@ -5,8 +5,7 @@ from earnedcash.backup import copy_database, restore_verified_copy
 from earnedcash.case_workflow import CaseState
 from earnedcash.cash_verification import CashEvidence, CashEvidenceKind
 from earnedcash.fees import calculate_success_fee
-from earnedcash.recovery_queue import RecoveryQueueItem
-from earnedcash.service import reconcile_operator_verified_payload
+from earnedcash.operator import AssistedPilotOperator
 from earnedcash.store import EarnedCashStore
 
 
@@ -45,24 +44,6 @@ def ledger(*, due=True):
     ]
 
 
-def queue_from_result(result):
-    return tuple(
-        RecoveryQueueItem(
-            case_id=item["case_id"],
-            category=item["category"],
-            amount=Decimal(item["amount"]),
-            currency=item["currency"],
-            confidence=item["confidence"],
-            evidence_quality=item["evidence_quality"],
-            blocker=item["blocker"],
-            action=item["action"],
-            priority_score=item["priority_score"],
-            evidence_chain=tuple(item["evidence_chain"]),
-        )
-        for item in result["recovery_queue"]
-    )
-
-
 def pilot_store():
     store = EarnedCashStore.memory()
     store.create_company(tenant_id="tenant-1", company_id="company-1", name="Synthetic MEP")
@@ -91,19 +72,22 @@ def pilot_store():
 
 
 def test_synthetic_pilot_reconciles_to_verified_cash_fee_and_restorable_truth():
-    result = reconcile_operator_verified_payload(ledger(due=True), tenant_id="tenant-1")
+    store = pilot_store()
+    operator = AssistedPilotOperator(store)
+    result = operator.reconcile_project(
+        tenant_id="tenant-1", project_id="project-1", rows=ledger(due=True)
+    )
+    assert result["truth_source"] == "ASSISTED_OPERATOR_VERIFIED"
     assert result["due_unpaid"] == "100000"
     assert result["verified_cash"] == "0"
     assert result["unknown_value"] == "0"
     assert len(result["recovery_queue"]) == 1
+    assert result["queue_persisted"] is True
 
-    store = pilot_store()
-    store.replace_recovery_queue(
-        tenant_id="tenant-1",
-        project_id="project-1",
-        items=queue_from_result(result),
-    )
     case_id = result["recovery_queue"][0]["case_id"]
+    assert store.list_cases(
+        tenant_id="tenant-1", project_id="project-1"
+    )[0]["case_id"] == case_id
 
     store.transition_case(
         tenant_id="tenant-1",
@@ -171,13 +155,20 @@ def test_synthetic_pilot_reconciles_to_verified_cash_fee_and_restorable_truth():
 
 
 def test_synthetic_zero_recovery_is_pass_and_creates_no_recovery_fee():
-    result = reconcile_operator_verified_payload(ledger(due=False), tenant_id="tenant-1")
+    store = pilot_store()
+    operator = AssistedPilotOperator(store)
+    result = operator.reconcile_project(
+        tenant_id="tenant-1", project_id="project-1", rows=ledger(due=False)
+    )
     assert result["due_unpaid"] == "0"
     assert result["not_yet_due"] == "100000"
     assert result["recovery_queue"] == []
+    assert store.list_cases(tenant_id="tenant-1", project_id="project-1") == []
 
     fee = calculate_success_fee(
-        verified_cash_received=Decimal("0"),
+        verified_cash_received=store.verified_cash_total(
+            tenant_id="tenant-1", project_id="project-1"
+        ),
         fee_rate=Decimal("0.15"),
         attribution_verified=True,
     )
