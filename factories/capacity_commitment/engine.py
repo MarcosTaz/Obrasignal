@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.6"
+ENGINE_VERSION = "capacity-recoverability-t1.7"
 
 
 class CommitmentState(str, Enum):
@@ -372,7 +372,13 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
             state = None
 
         if state is None:
-            if case.commitment_state is CommitmentState.FORECAST_ONLY:
+            if (
+                case.commitment_state in {CommitmentState.FIRM, CommitmentState.FLEX_WINDOW}
+                and case.committed_units == ZERO
+            ):
+                state = RecoverabilityState.NON_RECOVERABLE
+                reasons.append("zero_effective_commitment")
+            elif case.commitment_state is CommitmentState.FORECAST_ONLY:
                 state = RecoverabilityState.NON_RECOVERABLE
                 reasons.append("forecast_is_not_firm_commitment")
             elif case.commitment_state is CommitmentState.NONE:
