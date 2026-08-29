@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ from factory_cloud.factory_switchboard import (
     load_switchboard,
 )
 from factory_cloud.portfolio import PortfolioError, load_portfolio
+from factory_cloud.promotion_queue import build_promotion_queue
 
 
 def build_architecture_snapshot(
@@ -35,8 +37,13 @@ def build_architecture_snapshot(
     for capability in capabilities.get("capabilities", []):
         capability_groups.setdefault(str(capability["layer"]), []).append(dict(capability))
 
+    promotion_queue = [
+        asdict(item)
+        for item in build_promotion_queue(switchboard=switchboard, portfolio=portfolio)
+    ]
+
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "authority": {
             "source": "planning_and_switchboard_metadata_only",
             "grants_repository_write": False,
@@ -49,6 +56,7 @@ def build_architecture_snapshot(
         "factories_by_layer": grouped_portfolio_switches(rows),
         "capabilities_by_layer": capability_groups,
         "scheduling_priority": portfolio.get("scheduling_priority", []),
+        "app_promotion_queue": promotion_queue,
     }
 
 
