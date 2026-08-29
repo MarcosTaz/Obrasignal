@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from factory_cloud.assurance_kernel import AssuranceKernelError
+from factory_cloud.assurance_ops import AssuranceOperationError
 from vertical_apps.industrial_claims.service import (
     ALLOWED_CLAIM_FAMILIES,
     NOTICE_DEADLINE_EVIDENCE,
@@ -147,11 +148,35 @@ def test_non_finite_industrial_economics_fail_closed(tmp_path, value):
         service.analyze(**_base(), claim_family="WIP", gross_cost="100", prior_payment=value)
 
 
+def test_creator_cannot_self_review_even_with_direct_service_access(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "four-eyes.sqlite3")
+    result = service.analyze(**_base(), claim_family="TOOLING", gross_cost="50000")
+
+    with pytest.raises(AssuranceOperationError, match="independent"):
+        service.review(
+            tenant_id="alpha",
+            finding_id=result.finding.finding_id,
+            reviewer="analyst",
+            approved=True,
+            reason="self approval must fail",
+        )
+
+    assert service.ops.get_state(tenant_id="alpha", finding_id=result.finding.finding_id) == "READY_FOR_REVIEW"
+
+
 def test_full_assisted_outcome_journey(tmp_path):
     service = IndustrialClaimsService(tmp_path / "industrial.sqlite3")
     result = service.analyze(**_base(), claim_family="EXCESS_OBSOLETE_RAW_MATERIAL", gross_cost="100000", resale_reuse="25000")
     assert service.review(tenant_id="alpha", finding_id=result.finding.finding_id, reviewer="commercial", approved=True, reason="basis and amount reviewed") == "APPROVED"
-    assert service.action(tenant_id="alpha", finding_id=result.finding.finding_id) == "ACTIONED"
-    outcome = service.resolve(tenant_id="alpha", finding_id=result.finding.finding_id, outcome_id="alpha:payment-1", recovered_amount="60000", currency="EUR", evidence_ref="bank-receipt-1")
+    assert service.action(tenant_id="alpha", finding_id=result.finding.finding_id, actor_id="operator") == "ACTIONED"
+    outcome = service.resolve(
+        tenant_id="alpha",
+        finding_id=result.finding.finding_id,
+        outcome_id="alpha:payment-1",
+        recovered_amount="60000",
+        currency="EUR",
+        evidence_ref="bank-receipt-1",
+        actor_id="operator",
+    )
     assert outcome.state == "RECOVERED"
     assert outcome.recovered_amount == "60000"
