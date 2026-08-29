@@ -10,34 +10,45 @@ export function analyzeDebit(d,{contracts=null,evidence=null,requireContext=fals
   if(!validCurrency(currency)){flags.push('CURRENCY_UNKNOWN');reasons.push('CURRENCY_UNKNOWN');}
   if(d.currencyMismatch===true){flags.push('CURRENCY_CONFLICT');reasons.push('CURRENCY_CONFLICT');}
   for(const f of ['part','program','asset'])if(!d[f]){flags.push(`MISSING_${f.toUpperCase()}`);reasons.push('MAPPING_INCOMPLETE');}
-  if(d.wrongPart===true&&d.part)flags.push('WRONG_PART');
-  if(d.wrongProgram===true&&d.program)flags.push('WRONG_PROGRAM');
-  if(d.wrongAsset===true&&d.asset)flags.push('WRONG_ASSET');
-  if(d.wrongCustomer===true)flags.push('WRONG_CUSTOMER');
   let contract=null;
   if(contracts){const s=selectContract(contracts,d); if(!s.ok){flags.push(s.reason);reasons.push(s.reason);} else contract=s.contract;}
   else if(requireContext||d.contractKnown!==true){flags.push('CONTRACT_BASIS_UNKNOWN');reasons.push('CONTRACT_BASIS_UNKNOWN');}
-  if(evidence){const ev=verifyEvidenceBundle(evidence,d);if(!ev.ok){flags.push(ev.reason);reasons.push(ev.reason);}}
+  let ev=null; const evidenceClaims=new Set();
+  if(evidence){ev=verifyEvidenceBundle(evidence,d);if(!ev.ok){flags.push(ev.reason);reasons.push(ev.reason);}else for(const c of ev.claims)evidenceClaims.add(c);}
   else if(requireContext){flags.push('EVIDENCE_MISSING');reasons.push('EVIDENCE_MISSING');}
   else {if(d.rootCauseKnown!==true){flags.push('RESPONSIBILITY_UNKNOWN');reasons.push('RESPONSIBILITY_UNKNOWN');}if(d.evidenceContradictory===true){flags.push('CONTRADICTORY_EVIDENCE');reasons.push('CONTRADICTORY_EVIDENCE');}}
   if(d.rootCauseKnown!==true||!d.responsibility){flags.push('RESPONSIBILITY_UNKNOWN');reasons.push('RESPONSIBILITY_UNKNOWN');}
   if(d.responsibility&&!VALID_RESP.has(d.responsibility)){flags.push('RESPONSIBILITY_INVALID');reasons.push('RESPONSIBILITY_INVALID');}
   if(d.responsibility==='UNDETERMINED'){flags.push('RESPONSIBILITY_UNKNOWN');reasons.push('RESPONSIBILITY_UNKNOWN');}
+  const mappingChallenge=d.wrongPart===true||d.wrongProgram===true||d.wrongAsset===true||d.wrongCustomer===true;
+  if(mappingChallenge&&evidence&&ev?.ok&&!evidenceClaims.has('MAPPING')){flags.push('MAPPING_EVIDENCE_MISSING');reasons.push('MAPPING_EVIDENCE_MISSING');}
+  if(d.wrongPart===true&&d.part)flags.push('WRONG_PART');
+  if(d.wrongProgram===true&&d.program)flags.push('WRONG_PROGRAM');
+  if(d.wrongAsset===true&&d.asset)flags.push('WRONG_ASSET');
+  if(d.wrongCustomer===true)flags.push('WRONG_CUSTOMER');
+  if(d.warrantyEligible!=null&&evidence&&ev?.ok&&!evidenceClaims.has('WARRANTY')){flags.push('WARRANTY_EVIDENCE_MISSING');reasons.push('WARRANTY_EVIDENCE_MISSING');}
+  if((d.costEligible!=null||d.ineligibleCost!=null||d.costCap!=null)&&evidence&&ev?.ok&&!evidenceClaims.has('COST_ELIGIBILITY')){flags.push('COST_EVIDENCE_MISSING');reasons.push('COST_EVIDENCE_MISSING');}
+  if(d.priorCredit!=null&&Number(d.priorCredit)>0&&evidence&&ev?.ok&&!evidenceClaims.has('PRIOR_CREDIT')){flags.push('PRIOR_CREDIT_EVIDENCE_MISSING');reasons.push('PRIOR_CREDIT_EVIDENCE_MISSING');}
+  const duplicateTrusted=d.duplicateConfirmed===true&&(d.duplicateConfirmedSource==='ENGINE_EXACT'||(evidence&&ev?.ok&&evidenceClaims.has('DUPLICATE')));
+  if(d.duplicateConfirmed===true&&!duplicateTrusted){flags.push('DUPLICATE_EVIDENCE_MISSING');reasons.push('DUPLICATE_EVIDENCE_MISSING');}
   const warrantyEligible=d.warrantyEligible ?? contract?.rules?.warrantyEligible;
   const costEligible=d.costEligible ?? contract?.rules?.costEligible;
   if(warrantyEligible==null){flags.push('WARRANTY_ELIGIBILITY_UNKNOWN');reasons.push('WARRANTY_ELIGIBILITY_UNKNOWN');}
   if(costEligible==null){flags.push('COST_ELIGIBILITY_UNKNOWN');reasons.push('COST_ELIGIBILITY_UNKNOWN');}
+  const nffLiable=contract?.rules?.noFaultFoundSupplierLiable;
+  if(d.responsibility==='NO_FAULT_FOUND'&&nffLiable==null){flags.push('NO_FAULT_FOUND_RULE_UNKNOWN');reasons.push('NO_FAULT_FOUND_RULE_UNKNOWN');}
   if(reasons.length)return unknown(d.id,amount,currency,flags,reasons);
   let supported=amount;
-  const hardZero=(warrantyEligible===false)||(d.wrongPart===true&&!!d.part)||(d.wrongProgram===true&&!!d.program)||(d.wrongAsset===true&&!!d.asset)||d.wrongCustomer===true||d.duplicateConfirmed===true||d.responsibility==='CUSTOMER'||d.responsibility==='THIRD_PARTY'||d.responsibility==='NO_FAULT_FOUND';
+  const nffZero=d.responsibility==='NO_FAULT_FOUND'&&nffLiable===false;
+  const hardZero=(warrantyEligible===false)||(d.wrongPart===true&&!!d.part)||(d.wrongProgram===true&&!!d.program)||(d.wrongAsset===true&&!!d.asset)||d.wrongCustomer===true||duplicateTrusted||d.responsibility==='CUSTOMER'||d.responsibility==='THIRD_PARTY'||nffZero;
   if(warrantyEligible===false)flags.push('OUTSIDE_WARRANTY');
-  if(d.duplicateConfirmed===true)flags.push('DUPLICATE_CONFIRMED');
+  if(duplicateTrusted)flags.push('DUPLICATE_CONFIRMED');
+  if(d.responsibility==='NO_FAULT_FOUND')flags.push(nffLiable===true?'NO_FAULT_FOUND_SUPPLIER_LIABLE':'NO_FAULT_FOUND_NOT_SUPPLIER_LIABLE');
   if(hardZero)supported=0;
   if(costEligible===false){flags.push('COST_INELIGIBLE');supported=0;}
   if(d.ineligibleCost!=null){const x=normalizeAmount(d.ineligibleCost);flags.push('INELIGIBLE_COST');supported=Math.max(0,supported-x);}
   if(d.costCap!=null){const cap=normalizeAmount(d.costCap);if(supported>cap){flags.push('COST_CAP');supported=cap;}}
-  if(d.responsibility==='SHARED'){if(d.responsibilityShare===null||d.responsibilityShare===undefined||d.responsibilityShare==='')throw new Error('INVALID_RESPONSIBILITY_SHARE');const s=Number(d.responsibilityShare);if(!Number.isFinite(s)||s<0||s>1)throw new Error('INVALID_RESPONSIBILITY_SHARE');supported*=s;}
-  else if(d.responsibilityShare!=null&&d.responsibility!=='SHARED')throw new Error('RESPONSIBILITY_SHARE_REQUIRES_SHARED');
+  if(d.responsibility==='SHARED'){if(d.responsibilityShare===null||d.responsibilityShare===undefined||d.responsibilityShare==='')throw new Error('INVALID_RESPONSIBILITY_SHARE');const s=Number(d.responsibilityShare); if(!Number.isFinite(s)||s<0||s>1)throw new Error('INVALID_RESPONSIBILITY_SHARE'); supported*=s;} else if(d.responsibilityShare!=null && d.responsibility!=='SHARED') throw new Error('RESPONSIBILITY_SHARE_REQUIRES_SHARED');
   if(d.priorCredit!=null){const x=normalizeAmount(d.priorCredit);flags.push('PRIOR_CREDIT');supported=Math.max(0,supported-x);}
   if(d.priorPayment!=null){normalizeAmount(d.priorPayment);flags.push('PRIOR_PAYMENT_OBSERVED');}
   const disputable=round2(Math.max(0,amount-supported)); supported=round2(supported);
