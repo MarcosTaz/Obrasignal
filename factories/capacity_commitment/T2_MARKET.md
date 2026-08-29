@@ -1,10 +1,15 @@
 # Capacity Commitment — T2 Market Exposure
 
-Status: **T2 ACTIVE / MARKET NOT YET EXPOSED**
+Status: **T2 — MARKET EXPOSED**
 
 Inherited terminal: **T1 — PILOT CAPABLE** at `bb272fbab05217000d0093812e609a07212cbb19`.
 
-Current bottleneck: the pilot-capable assisted offer has not yet been exposed to a qualified real target company.
+T2 achieved after authorized external transmission of the pilot-capable offer to two real public-signal-qualified UK automotive suppliers:
+
+- CT Automotive Group plc — sent to `sales@ct-automotive.net`; Gmail message `1a04ad907dae4739`.
+- Autins Group plc — sent to `sales@autins.com`; Gmail message `1a04ad9158ab6f1b`.
+
+This proves market exposure only. It does not prove recipient delivery, reply, buyer qualification, case existence, data availability, willingness to pay, customer status, recovery, settlement or revenue.
 
 ## Narrow commercial offer
 
@@ -55,7 +60,7 @@ Likely operational champions/users:
 
 ### Trigger
 
-Contact becomes high-priority when there is public or buyer-confirmed evidence of:
+High-priority triggers include:
 
 - OEM production restructuring or plant/model uncertainty;
 - lower-than-planned customer volumes;
@@ -103,8 +108,6 @@ Correct zero recovery is a successful result.
 
 ## Delivery hypotheses — not yet market-proven
 
-These are commercial hypotheses for T2/T3 testing, not established facts.
-
 ### Primary pilot hypothesis
 
 **€3,500 paid pilot** for one customer + one program + one bounded period, with assisted manual review and the T1 package as the output.
@@ -137,140 +140,75 @@ Ask whether the company has a current/recent automotive program where:
 
 If yes, request only a bounded anonymized outline first; full data is requested only after fit and authorization.
 
-## Cohort 1 — ranked
+## Cohort state
 
-### 1. SODECIA — PRIORITY A
+### Sent / live
 
-**Why fit:** Sodecia reports €852M annual sales, 39 locations, global OEM relationships and customer-specific industrial investment. Its 2024 reporting describes approximately €19.5M already invested in VW Group/Ford cross-car-beam projects plus further investment, and approximately €15.7M across 2023–2024 for a VW Group Floor E4 hot-stamping line in Nitra. Its Board assigns business-development/commercial strategy and coordination with CapEx/product to senior management.
+#### CT Automotive Group plc — T2 LIVE
 
-**Current trigger:** Volkswagen is in a major 2026 restructuring/cost-reduction cycle with plant/model uncertainty and weak demand. That does not prove Sodecia has a recoverable shortfall, but it makes commitment-vs-actual exposure worth qualifying where Sodecia has VW-specific investment.
+Why fit: high customer concentration, tooling revenue, automotive interiors/program exposure and recent production-volume pressure.
 
-**Best buyer route:** CEO / Board business-development-commercial responsibility; CFO/VP Finance; commercial/business-development leadership.
+Public route: `sales@ct-automotive.net`.
 
-**Public contact path:** `sgps@sodecia.com`, +351 220 101 900.
+State: CONTACTED=YES; DELIVERED=UNKNOWN/PENDING; REPLIED=NO; BUYER_QUALIFIED=NO; CASE_EXISTS=UNKNOWN; DATA_AVAILABLE=UNKNOWN; PAID=NO.
 
-**Qualification score:** 47/50.
+#### Autins Group plc — T2 LIVE
 
-**T2 state:** TARGET=YES; CONTACTED=NO; REAL_EXPOSURE=UNKNOWN; DATA_AVAILABLE=UNKNOWN.
+Why fit: UK automotive supplier with major-customer demand interruption and tooling/new-program activity.
 
-### 2. SIMOLDES PLÁSTICOS — PRIORITY A
+Public route: `sales@autins.com`.
 
-**Why fit:** automotive injection supplier with customer-specific tooling/program management and strong customer concentration. Its published sustainability report states that, in Europe/Morocco, Volkswagen Group represented about 42% and Stellantis about 39% of sales in the disclosed 2023 portfolio. The same organization chart exposes Commercial, Customer Program Management, Financial/Admin, Costing & Controlling and customer-group ownership. Simoldes was recognized by Volkswagen in 2026 and Stellantis in 2025.
+State: CONTACTED=YES; DELIVERED=UNKNOWN/PENDING; REPLIED=NO; BUYER_QUALIFIED=NO; CASE_EXISTS=UNKNOWN; DATA_AVAILABLE=UNKNOWN; PAID=NO.
 
-**Current trigger:** Volkswagen's 2026 restructuring is material context for a supplier with high disclosed VW exposure. Simoldes has also opened new automotive production capacity in Brazil in 2026. Neither fact proves a claim; together they justify a targeted eligibility question around customer-specific programs and amortization.
+### Qualified / not yet sent
 
-**Named public roles:** Domingos Pinto — CEO; Hugo Carvalho — Commercial; Costing & Controlling and customer-program functions are documented in the organization chart.
+- Sodecia — Portugal — HOLD pending DGC list check.
+- Fehst Componentes — Portugal — HOLD pending DGC list check.
+- COINDU — Portugal — HOLD pending DGC list check.
+- Simoldes Plásticos — Portugal — qualified, but no legitimate generic commercial route confirmed yet.
+- Teknia — Spain — HOLD pending LSSI-compliant basis.
 
-**Public contact path:** corporate contact page / +351 256 661 000. Do not guess personal email formats.
+A DGC inquiry requesting the current legal-person opt-out list/clarification has been sent (Gmail message `1a04ad94d7f104c5`).
 
-**Qualification score:** 45/50.
+## T2 terminal decision
 
-**T2 state:** TARGET=YES; CONTACTED=NO; REAL_EXPOSURE=UNKNOWN; DATA_AVAILABLE=UNKNOWN.
+**ACHIEVED.**
 
-### 3. FEHST COMPONENTES — PRIORITY A
+The pilot-capable offer has been exposed to qualified real companies. This satisfies T2 and immediately changes the optimization target.
 
-**Why fit:** Portuguese automotive supplier, end-to-end plastic/injection/decorative module producer with in-house tooling/process engineering and automated assembly. AFIA reports that Volkswagen recognized Fehst in 2026 for proactively stabilizing production in critical situations, including rapid responsibility for development of new tools and assembly lines. A public COMPETE 2030 operation describes a €3.21M project to expand productive capacity; AFIA also reports a new ~17,000 m² industrial installation and identifies Fehst as a T-Roc supplier to Volkswagen Autoeuropa.
+## Next terminal — T3 COMMERCIAL PROOF
 
-**Current trigger:** direct Volkswagen relationship plus current VW restructuring and recent capacity/tooling expansion make it a strong mid-market qualification target. No recoverable exposure is assumed.
+T3 requires meaningful commercial behavior such as:
 
-**Best buyer route:** Managing Director / Commercial / Finance / Program management.
+- paid audit;
+- paid pilot;
+- signed recovery engagement;
+- success-fee agreement; or
+- real proprietary case data supplied as part of a credible buying process.
 
-**Public contact path:** `fehst.comp@fehstgroup.com`, +351 253 606 600.
+`REPLY != WTP` and `INTEREST != WTP`.
 
-**Qualification score:** 44/50.
+## Current bottleneck
 
-**T2 state:** TARGET=YES; CONTACTED=NO; REAL_EXPOSURE=UNKNOWN; DATA_AVAILABLE=UNKNOWN.
+**REAL BUYER RESPONSE / QUALIFICATION / COSTLY COMMITMENT.**
 
-### 4. TEKNIA — PRIORITY A/B
+## ACTIVE → NEXT → WAIT
 
-**Why fit:** €408M 2025 turnover, 21 plants, automotive component manufacturing across machining/stamping/tube forming/plastic injection/HPDC. Public customer material includes Volkswagen and Stellantis among major OEMs. H1 2026 reporting cited an 8.34% sales decline in a difficult automotive market, while its 2026–2028 plan explicitly emphasizes financial discipline and navigating demand volatility.
+ACTIVE:
+- monitor first-market responses/bounces;
+- qualify any reply without promoting interest into WTP;
+- prepare immediate discovery + pilot conversion path;
+- enrich additional lawful UK targets so one silent pair cannot stall the experiment.
 
-**Buyer map:** Javier Quesada de Luis — CEO; Nieves García — CFO; Rodrigo Marín — CCO, according to Teknia's published governance material.
+NEXT:
+- obtain first buyer-confirmed case/data signal;
+- propose bounded paid pilot when fit exists;
+- capture explicit rejection reasons when fit does not exist;
+- continue lawful cohort expansion if no reply.
 
-**Public contact path:** `info@tekniagroup.com`; investor/finance path `investors@tekniagroup.com`; corporate contact form.
+WAIT:
+- DGC response/list for Portuguese corporate-email outreach;
+- lawful Spain route for Teknia;
+- real customer proprietary data, signed commitment and payment.
 
-**Qualification score:** 42/50.
-
-**T2 state:** TARGET=YES; CONTACTED=NO; REAL_EXPOSURE=UNKNOWN; DATA_AVAILABLE=UNKNOWN.
-
-### 5. COINDU — PRIORITY B
-
-**Why fit:** automotive interior/seat-cover supplier with a disclosed historic revenue scale around the target band and OEM relationships including BMW, Audi, Porsche, Renault and Volkswagen. Public Portuguese funding data shows a €3.91M automotive-component investment project completed by end-2025. Its governance structure includes CEO/COO/CFO executive roles.
-
-**Trigger quality:** weaker than the top four because current public evidence does not yet connect a specific customer-volume disturbance to a named dedicated investment. Keep in cohort, but do not contact before higher-evidence targets unless enrichment improves.
-
-**Public contact path:** `info@coindu.com`, +351 252 920 010.
-
-**Qualification score:** 37/50.
-
-**T2 state:** TARGET=YES; CONTACTED=NO; REAL_EXPOSURE=UNKNOWN; DATA_AVAILABLE=UNKNOWN.
-
-## Cohort 1 scoreboard
-
-- TARGETS: 5
-- QUALIFIED_PUBLIC_SIGNAL: 5
-- CONTACTED: 0
-- REPLIED: 0
-- QUALIFIED_BY_BUYER: 0
-- REAL_EXPOSURE_CONFIRMED: 0
-- REAL_DATA_AVAILABLE: 0
-- DISCOVERY: 0
-- PILOT_PROPOSED: 0
-- PILOT_ACCEPTED: 0
-- PAID: 0
-- REJECTED: 0
-
-`CONTACTED=0` is intentional until external-send authority is explicitly satisfied.
-
-## Evidence URLs retained for qualification
-
-Sodecia:
-- https://www.sodecia.com/wp-content/uploads/2025/07/Sodecia_SGPS_RC_2024-1.pdf
-- https://www.sodecia.com/index.php/about-us/
-- https://www.sodecia.com/index.php/impressum-en-version/
-
-Simoldes:
-- https://www.simoldes.com/wp-content/uploads/2025/02/RelatorioSustentabilidade_Plasticos_V7.pdf
-- https://www.afia.pt/industria-automovel/duas-empresas-associadas-da-afia-distinguidas-pelo-grupo-volkswagen/
-- https://www.media.stellantis.com/pt-pt/corporate/press/stellantis-reconhece-a-empresa-portuguesa-simoldes-como-fornecedor-do-ano-2025
-
-Fehst:
-- https://www.afia.pt/industria-automovel/duas-empresas-associadas-da-afia-distinguidas-pelo-grupo-volkswagen/
-- https://www.afia.pt/industria-automovel/fehst-componentes-30-anos-de-crescimento/
-- https://compete2030.gov.pt/operacoes/listagem/COMPETE2030-FEDER-00108000/
-- https://www.fehstgroup.com/pt/contacts/
-
-Teknia:
-- https://www.tekniagroup.com/
-- https://www.tekniagroup.com/en/teknia-unveils-its-new-strategic-plan-one-teknia-one-north-during-its-second-strategic-day/
-- https://www.tekniagroup.com/en/financial-information-results/
-- https://www.tekniagroup.com/en/contact/
-
-COINDU:
-- https://transparencia.gov.pt/pt/fundos-europeus/prr/beneficiarios-projetos/beneficiario/501998055
-- https://coindu.com/wp-content/uploads/2024/12/COINDU_Sust-Rep-2023_web.pdf
-
-Market trigger context:
-- Volkswagen restructuring/current weak-demand evidence should be refreshed before any send; public 2026 Reuters reporting is the current trigger source.
-
-## External gate
-
-The Factory mandate requires owner approval for unauthorized external communications. Therefore:
-
-- target research: SAFE / ACTIVE;
-- contact enrichment: SAFE / ACTIVE;
-- message drafting: SAFE / ACTIVE;
-- Gmail drafts: SAFE if kept unsent;
-- external send/contact-form submission: **EXTERNAL_GATE — OWNER APPROVAL REQUIRED**.
-
-Do not classify prepared drafts as market exposure.
-
-## Next executable sequence
-
-1. enrich Cohort 1 recipient routes and role confidence;
-2. draft target-specific outreach anchored only in public evidence;
-3. prepare one-page pilot scope + data request + pricing hypothesis;
-4. create unsent drafts where exact public email routes exist;
-5. surface the owner-only send gate once everything else is ready;
-6. after authorized send, update CONTACTED and start reply/follow-up evidence tracking;
-7. T2 is achieved only after real qualified market exposure occurs.
+No merge is authorized by this Factory lane.
