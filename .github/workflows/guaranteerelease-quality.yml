@@ -1,0 +1,30 @@
+name: GuaranteeRelease Quality
+
+on:
+  pull_request:
+    paths:
+      - 'ventures/guaranteerelease/**'
+      - '.github/workflows/guaranteerelease-quality.yml'
+  push:
+    branches:
+      - validation/guaranteerelease-source-20260829-v1
+    paths:
+      - 'ventures/guaranteerelease/**'
+      - '.github/workflows/guaranteerelease-quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Confirm test source lineage
+        run: test -d ventures/guaranteerelease && test -f ventures/guaranteerelease/server_v5.mjs
+      - name: Run GuaranteeRelease Node test suite
+        run: node --test ventures/guaranteerelease/*.test.mjs
