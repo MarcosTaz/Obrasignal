@@ -1,23 +1,28 @@
 export function createSessionCoordinator(auth) {
-  let state = { status: 'loading', session: null };
+  let state = { status: 'loading', session: null, event: null };
   let startPromise = null;
   let subscription = null;
   let authEvents = 0;
   const listeners = new Set();
 
-  const publish = (session) => {
-    state = { status: session?.access_token ? 'signed-in' : 'signed-out', session: session || null };
+  const publish = (session, event = null) => {
+    const status = event === 'PASSWORD_RECOVERY'
+      ? 'password-recovery'
+      : session?.access_token
+        ? 'signed-in'
+        : 'signed-out';
+    state = { status, session: session || null, event };
     listeners.forEach((listener) => listener(state));
   };
 
   const start = () => {
     if (startPromise) return startPromise;
 
-    // Subscribe before reading storage so a login/logout cannot fall into the
-    // gap between getSession() and onAuthStateChange().
-    const { data } = auth.onAuthStateChange((_, session) => {
+    // Subscribe before reading storage so a login/logout/recovery event cannot
+    // fall into the gap between getSession() and onAuthStateChange().
+    const { data } = auth.onAuthStateChange((event, session) => {
       authEvents += 1;
-      publish(session);
+      publish(session, event || null);
     });
     subscription = data?.subscription || null;
     const eventsBeforeRead = authEvents;
@@ -26,11 +31,11 @@ export function createSessionCoordinator(auth) {
         if (error) throw error;
         // An auth event observed while storage was loading is newer than the
         // storage snapshot and must not be overwritten by it.
-        if (authEvents === eventsBeforeRead) publish(result?.session || null);
+        if (authEvents === eventsBeforeRead) publish(result?.session || null, 'INITIAL_SESSION');
         return state;
       })
       .catch(() => {
-        if (authEvents === eventsBeforeRead) publish(null);
+        if (authEvents === eventsBeforeRead) publish(null, 'INITIAL_SESSION');
         return state;
       });
     return startPromise;
@@ -45,7 +50,9 @@ export function createSessionCoordinator(auth) {
     },
     async accessToken() {
       if (state.status === 'loading') await start();
-      // Supabase remains the source of truth; no token is persisted separately.
+      // A password-recovery session is authenticated at the provider but is not
+      // ordinary application authority. It exists only to update the password.
+      if (state.status === 'password-recovery') return null;
       return state.session?.access_token || null;
     },
     async authorizationHeader() {
@@ -53,9 +60,10 @@ export function createSessionCoordinator(auth) {
       return token ? { Authorization: `Bearer ${token}` } : {};
     },
     async refresh() {
+      if (state.status === 'password-recovery') return null;
       const { data, error } = await auth.refreshSession();
       if (error) throw error;
-      publish(data?.session || null);
+      publish(data?.session || null, 'TOKEN_REFRESHED');
       return state.session?.access_token || null;
     },
     stop() {

@@ -2,6 +2,8 @@ import fs from 'node:fs';
 
 const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
+const authScreen = fs.readFileSync(new URL('./components/AuthScreen.tsx', import.meta.url), 'utf8');
+const sessionCoordinator = fs.readFileSync(new URL('./src/sessionCoordinator.js', import.meta.url), 'utf8');
 const billingGate = fs.readFileSync(new URL('./components/BillingGate.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
@@ -26,7 +28,13 @@ const crossFileChecks = [
   ['notification sync acknowledges delivered events', /api\.markAlertDelivered\(item\.event_id\)/, notifications],
   ['API exposes alerts endpoint', /alerts:\s*\(\{\s*limit\s*=\s*20,\s*unreadOnly\s*=\s*false\s*\}/, api],
   ['auth gate scopes local state before publishing signed-in state', /storage\.setAccountScope\(accountScopeFor\(nextState\)\)[\s\S]*setAuthState\(nextState\)/, authGate],
-  ['signed-out state has no local account scope', /return state\?\.status === 'signed-in' \? state\?\.session\?\.user\?\.id \|\| null : null/, authGate],
+  ['signed-out and recovery states have no local account scope', /return state\?\.status === 'signed-in' \? state\?\.session\?\.user\?\.id \|\| null : null/, authGate],
+  ['password recovery event becomes distinct non-product state', /event === 'PASSWORD_RECOVERY'[\s\S]*'password-recovery'/, sessionCoordinator],
+  ['recovery session cannot mint backend authorization header', /if \(state\.status === 'password-recovery'\) return null/, sessionCoordinator],
+  ['auth gate intercepts recovery before billing/product shell', /if \(authState\.status === 'password-recovery'\)[\s\S]*<AuthScreen recoverySession=\{authState\.session\}/, authGate],
+  ['forgot password requests provider recovery email', /supabase\.auth\.resetPasswordForEmail\(/, authScreen],
+  ['recovery updates password through provider authority', /supabase\.auth\.updateUser\(\{ password \}\)/, authScreen],
+  ['recovery ends with sign-out before fresh sign-in', /updateUser\(\{ password \}\)[\s\S]*supabase\.auth\.signOut\(\)[\s\S]*setMode\('signIn'\)/, authScreen],
   ['customer cache/profile/settings derive account-scoped keys', /function scopedStorageKey\(baseKey, accountId = activeAccountScope\)[\s\S]*encodeURIComponent\(scope\)/, storage],
   ['storage rejects writes without authenticated account scope', /Promise\.reject\(new Error\('account_scope_required'\)\)/, storage],
   ['storage rechecks scope after asynchronous read', /return activeAccountScope === scope \? value : fallback/, storage],
