@@ -89,8 +89,8 @@ def build_recovery_package(
 
     The package is itself a truth boundary: direct callers cannot omit evidence
     needed by a supported case, claim a verified notice window without its
-    canonical deadline, or fabricate an expiry flag inconsistent with the
-    supplied assessment date and effective case.
+    canonical deadline/assessment date, or fabricate an expiry flag inconsistent
+    with the supplied temporal context and effective case.
     """
 
     if result.case_id != case.case_id:
@@ -107,8 +107,11 @@ def build_recovery_package(
 
     deadline_date = _canonical_date(deadline, field_name="deadline")
     assessed_date = _canonical_date(assessment_date, field_name="assessment_date")
-    if case.notice_window_verified is True and deadline_date is None:
-        raise ValueError("notice_window_verified requires a canonical package deadline")
+    if case.notice_window_verified is True:
+        if deadline_date is None:
+            raise ValueError("notice_window_verified requires a canonical package deadline")
+        if assessed_date is None:
+            raise ValueError("notice_window_verified requires a canonical assessment_date")
 
     if assessed_date is not None and deadline_date is not None and case.notice_window_verified is True:
         expected_expired = deadline_date < assessed_date
