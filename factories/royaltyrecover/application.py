@@ -5,6 +5,7 @@ import os
 from auditor_api import create_auditor_blueprint
 from operator_ui import create_operator_blueprint
 from outcome_api import create_outcome_blueprint
+from readiness import create_readiness_blueprint
 from repository import RoyaltyRepository
 from web_app import create_app
 
@@ -15,6 +16,7 @@ def create_full_app(api_keys=None, repository: RoyaltyRepository | None = None):
     app.register_blueprint(create_operator_blueprint(repo))
     app.register_blueprint(create_auditor_blueprint(repo))
     app.register_blueprint(create_outcome_blueprint(repo))
+    app.register_blueprint(create_readiness_blueprint(repo))
     return app
 
 
