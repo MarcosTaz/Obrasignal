@@ -6,39 +6,41 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "cursor": 0,
-  "last_factory_id": "factory-cloud",
-  "last_run_at": "2026-08-29T19:20:00Z",
+  "last_factory_id": "eu-switching-evidence-pack",
+  "last_run_at": "2026-08-29T19:23:00Z",
   "last_material_change": {
-    "kind": "FLEET_RUNNER_INTEGRATED_GREEN_NEXT_CYCLE_STARTED",
-    "factory_id": "factory-cloud",
-    "summary": "Fresh discovery identified the missing persistent fleet-selection primitive from draft PR #765. The two isolated files were integrated directly into the live Factory Cloud branch without merging the PR: factory_cloud/fleet_runner.py plus its regression suite. The runner validates command D and ACTIVE state, rotates deterministically from persisted cursor, skips blocked Factory IDs, wraps safely, fails closed when all entries are blocked, and persists DISPATCH_SELECTED_NO_EXECUTION_CLAIM so scheduling cannot masquerade as completed Factory work. Exact branch HEAD f81f0d094cc9ced2432989b46e4772fb0c200a5a passed ObraSignal Quality run 33270510350: Python SUCCESS and Mobile SUCCESS. The completed 33-entry discovery pass therefore rolls into a new cycle at registry cursor 0 rather than idle.",
+    "kind": "REGRESSION_REPAIRED_CONTINUE_FRESH_CYCLE",
+    "factory_id": "eu-switching-evidence-pack",
+    "summary": "Fresh-cycle regression priority selected the only concrete RED found in the EU Switching T2 lane. Exact failure was Expo SDK dependency validation: react-native 0.86.2 while Expo required 0.86.3. The T2 branch cloud-switching/t2-consent-trigger-dedup-20260829 was repaired at f27fd53b64b33cf2af49f28008e7d7e5473edd90. Cloud Switching Quality run 33270604908 is SUCCESS. ObraSignal Quality run 33270604906 is also SUCCESS with Python and Mobile both green, including Expo Doctor and bundle smoke. The previous whole-repository RED is therefore closed; commercial/WTP evidence remains separate and unproven.",
     "evidence": {
+      "eu_switching": {
+        "pr": 802,
+        "head": "f27fd53b64b33cf2af49f28008e7d7e5473edd90",
+        "repair": "mobile/package.json react-native 0.86.2 -> 0.86.3",
+        "focused_ci": "Cloud Switching Quality 33270604908 SUCCESS",
+        "repository_ci": "ObraSignal Quality 33270604906 SUCCESS",
+        "classification": "FOCUSED_GREEN_AND_REPOSITORY_GREEN_NOT_COMMERCIAL_PROOF"
+      },
       "fleet_runner": {
-        "source_pr": 765,
-        "integrated_files": ["factory_cloud/fleet_runner.py", "tests/test_factory_cloud_fleet_runner.py"],
         "head": "f81f0d094cc9ced2432989b46e4772fb0c200a5a",
         "ci": "ObraSignal Quality 33270510350 SUCCESS",
-        "python": "SUCCESS",
-        "mobile": "SUCCESS",
-        "classification": "PASSING_AFTER_PROVEN_ON_LIVE_FACTORY_CLOUD_BRANCH"
+        "classification": "GREEN"
       },
       "portfolio_architecture": {
         "pr": 760,
-        "current_head": "02fdfc5422acd9b20b4f05ec511ef7f1cba1bf3a",
+        "head": "02fdfc5422acd9b20b4f05ec511ef7f1cba1bf3a",
         "ci": "ObraSignal Quality 33265278871 SUCCESS",
-        "classification": "GREEN_DRAFT_SEPARATE_BRANCH_NOT_ADOPTED",
-        "hard_blocker": "Aviation/ContractCredit supervised persistent Linux workspaces/runtime provisioning not verified"
+        "classification": "GREEN_DRAFT_SEPARATE_BRANCH_NOT_ADOPTED"
       }
     },
-    "active": "Factory Cloud next cycle: reconcile current control-plane branch against GREEN portfolio architecture #760 and adopt only repository-safe, non-conflicting primitives without auto-merge or false runtime claims.",
-    "next": "After portfolio reconciliation, select the next highest-value Factory through the now-GREEN persistent fleet runner and continue execution; prioritize regressions, incomplete integrations and unverified runtime/source truth.",
+    "active": "Factory Cloud next cycle: reconcile GREEN portfolio architecture #760 against current control-plane branch and identify a bounded non-conflicting adoption slice; if unsafe/ambiguous, move that integration to WAIT and dispatch the next executable Factory task.",
+    "next": "Resolve Release Safety successor ambiguity and ComplianceLedger source identity, then continue highest-value registry rotation with regressions and incomplete integrations ahead of research-only work.",
     "wait": [
-      "Portfolio #760 persistent supervised host provisioning remains external/unverified",
+      "Portfolio #760 supervised persistent host provisioning remains external/unverified",
       "Aviation/ContractCredit G3 requires real supervised runtime evidence",
+      "EU Switching real WTP/customer/payment/deployment evidence remains external",
       "Release Safety singular successor/canonical composition requires reconciliation",
       "ComplianceLedger canonical source identity remains UNKNOWN",
-      "EU Switching focused lane GREEN but whole-repository Mobile drift remains RED",
-      "EU Switching real WTP/customer/payment/deployment evidence remains external",
       "Customer Journey/Auth and Customer Decision/Golden integration handoffs remain unresolved",
       "Data Truth #750/#753 owner repairs remain unresolved",
       "production/deploy/secrets/provider/config/customer-data/source activation",
