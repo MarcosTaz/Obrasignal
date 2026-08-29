@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import hmac
 import json
 import os
@@ -38,12 +39,11 @@ def execute_agent_request(payload:dict[str,Any],*,environ:dict[str,str]|None=Non
     result['factory_id']=factory_id;result['route']=route;result.setdefault('resume_at',baton.get('resume_at') or baton.get('active'));return result
 
 class PortfolioAgentHTTPHandler(BaseHTTPRequestHandler):
-    environ:dict[str,str]={};auth_token:str|None=None;server_version='PortfolioAgentRuntime/0.1'
+    environ:dict[str,str]={};auth_token:str|None=None;server_version='PortfolioAgentRuntime/0.2'
     def log_message(self,format:str,*args:Any)->None:return
     def _send(self,status:int,payload:dict[str,Any])->None:
         data=json.dumps(payload,ensure_ascii=False,sort_keys=True).encode();self.send_response(status);self.send_header('content-type','application/json; charset=utf-8');self.send_header('cache-control','no-store');self.send_header('x-content-type-options','nosniff');self.send_header('content-length',str(len(data)));self.end_headers();self.wfile.write(data)
-    def _authorized(self)->bool:
-        return bool(self.auth_token and hmac.compare_digest(str(self.headers.get('authorization') or ''),f'Bearer {self.auth_token}'))
+    def _authorized(self)->bool:return bool(self.auth_token and hmac.compare_digest(str(self.headers.get('authorization') or ''),f'Bearer {self.auth_token}'))
     def do_GET(self)->None:
         path=urlsplit(self.path).path
         if path=='/health':self._send(200,{'ok':True,'service':'portfolio-agent-runtime'});return
@@ -67,3 +67,14 @@ def make_agent_server(host:str='127.0.0.1',port:int=8788,*,environ:dict[str,str]
     env=dict(os.environ if environ is None else environ);token=str(env.get('FACTORY_PORTFOLIO_AGENT_TOKEN') or '').strip()
     if not token:raise PortfolioAgentConfigurationError('FACTORY_PORTFOLIO_AGENT_TOKEN required')
     handler=type('BoundPortfolioAgentHTTPHandler',(PortfolioAgentHTTPHandler,),{'environ':env,'auth_token':token});return ThreadingHTTPServer((host,port),handler)
+
+def main()->int:
+    parser=argparse.ArgumentParser(description='Shared portfolio Factory agent runtime boundary');parser.add_argument('--host',default=os.environ.get('FACTORY_PORTFOLIO_AGENT_HOST','127.0.0.1'));parser.add_argument('--port',type=int,default=int(os.environ.get('FACTORY_PORTFOLIO_AGENT_PORT','8788')));args=parser.parse_args()
+    try:server=make_agent_server(args.host,args.port)
+    except PortfolioAgentConfigurationError as exc:parser.error(str(exc))
+    try:server.serve_forever(poll_interval=.25)
+    except KeyboardInterrupt:pass
+    finally:server.server_close()
+    return 0
+
+if __name__=='__main__':raise SystemExit(main())
