@@ -170,12 +170,16 @@ def _public_error_category(value):
     for operators. The public/customer-facing contract is a separate trust
     boundary: urllib/provider exceptions can contain bearer material, signed
     URLs, query credentials, or provider payloads, so only bounded categories
-    may cross it.
+    may cross it. Ingestion failures are generated internally from an exception
+    class name; preserve that class only when it is a tightly bounded identifier.
     """
     if value in (None, ''):
         return None
     text = str(value)
     if text.startswith('ingestion_commit_failed:'):
+        error_class = text.partition(':')[2][:64]
+        if error_class and all(ch.isalnum() or ch == '_' for ch in error_class):
+            return f'ingestion_commit_failed:{error_class}'
         return 'ingestion_commit_failed'
     if text.startswith('production gate blocked:'):
         return 'production_gate_blocked'
