@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from .engine import evaluate_recoverability
 from .recovery_package import RecoveryPackage, build_recovery_package
 from .state import AssistedCaseState, dump_state
+from .temporal import assess_temporal_state
 
 
 def _text(value: Any) -> str:
@@ -52,13 +54,22 @@ def render_delivery_report(state: AssistedCaseState, package: RecoveryPackage) -
 
     if package.case_id != state.recovery_case.case_id:
         raise ValueError("package does not belong to state")
+    if not package.assessment_date:
+        raise ValueError("package assessment date is required")
+    try:
+        assessment_date = date.fromisoformat(package.assessment_date)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("package assessment date is invalid") from exc
 
+    temporal = assess_temporal_state(state, as_of_date=assessment_date)
     expected_package = build_recovery_package(
-        state.recovery_case,
-        evaluate_recoverability(state.recovery_case),
+        temporal.effective_case,
+        evaluate_recoverability(temporal.effective_case),
         evidence_refs=state.evidence_refs,
         missing_evidence=state.missing_evidence,
         deadline=state.deadline,
+        assessment_date=package.assessment_date,
+        deadline_expired_by_date=temporal.deadline_expired_by_date,
     )
     if package != expected_package:
         raise ValueError("package does not match current state")
@@ -88,6 +99,7 @@ def render_delivery_report(state: AssistedCaseState, package: RecoveryPackage) -
         f"- Contract: {_code(state.contract_id)}",
         f"- Nomination/award: {_code(state.nomination_id)}",
         f"- Currency: {_code(currency)}",
+        f"- Assessment date: {_code(package.assessment_date)}",
         f"- Absolute notice deadline: {_code(package.deadline)}",
         "",
         "## Executive result",
@@ -139,7 +151,8 @@ def render_delivery_report(state: AssistedCaseState, package: RecoveryPackage) -
         f"- Mitigation reviewed: {_code(_tri(basis.get('mitigation_reviewed')))}",
         f"- Prior recovery reviewed: {_code(_tri(basis.get('prior_recovery_reviewed')))}",
         f"- Notice window verified: {_code(_tri(basis.get('notice_window_verified')))}",
-        f"- Notice/deadline valid: {_code(_tri(basis.get('notice_valid')))}",
+        f"- Notice/deadline valid as assessed: {_code(_tri(basis.get('notice_valid')))}",
+        f"- Deadline elapsed by assessment date: {_code(_tri(audit.get('deadline_expired_by_date')))}",
         f"- Duplicate claim: {_code(_tri(basis.get('duplicate_claim')))}",
         "",
         "## Engine reasons",
@@ -161,6 +174,7 @@ def render_delivery_report(state: AssistedCaseState, package: RecoveryPackage) -
         "## Audit boundary",
         "",
         f"- Engine version: {_code(audit.get('engine_version'))}",
+        f"- Assessment date: {_code(audit.get('assessment_date'))}",
         f"- Human review required before external submission: {_code(_tri(audit.get('human_review_required_before_external_submission')))}",
         "- A positive engine classification is not evidence that a customer accepted, settled or paid the amount.",
         "- Any external claim/submission/negotiation remains an authorized human action outside this report.",
