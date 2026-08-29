@@ -73,6 +73,17 @@ def eur_minor_units(value: Decimal | str | int | float) -> int:
     return int((amount * Decimal("100")).to_integral_exact())
 
 
+def normalize_fiscal_document_ref(value: str | None) -> str | None:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None
+    if len(normalized) > 160:
+        raise BillingStateError("fiscal document reference is too long")
+    if any(ord(char) < 32 for char in normalized):
+        raise BillingStateError("fiscal document reference contains control characters")
+    return normalized
+
+
 @dataclass(frozen=True)
 class StripeProviderConfig:
     secret_key: str
@@ -126,7 +137,9 @@ class StripeBillingProvider:
     It never handles raw card/bank credentials. Invoice creation and finalization are
     separated from customer delivery; sending an invoice requires an explicit runtime
     delivery gate. Any live-mode write additionally requires legal-entity, fiscal-invoice
-    and payout-bank readiness gates. Idempotency keys are deterministic per engagement.
+    and payout-bank readiness gates. Every live B2B collection invoice must also carry a
+    concrete external fiscal-document reference from the AT-compliant invoicing authority.
+    Idempotency keys are deterministic per engagement.
     """
 
     def __init__(self, config: StripeProviderConfig, *, transport: Transport | None = None) -> None:
@@ -139,6 +152,15 @@ class StripeBillingProvider:
                 f"live Stripe write blocked for {operation}: legal entity, fiscal invoice, "
                 "and payout bank must all be explicitly verified"
             )
+
+    def require_fiscal_document_ref(self, value: str | None, *, operation: str) -> str | None:
+        normalized = normalize_fiscal_document_ref(value)
+        if self.config.livemode and not normalized:
+            raise BillingConfigurationError(
+                f"live Stripe write blocked for {operation}: an external fiscal document "
+                "reference from the AT-compliant invoicing authority is required"
+            )
+        return normalized
 
     def _urlopen_transport(
         self,
@@ -232,8 +254,12 @@ class StripeBillingProvider:
         fee_amount: Decimal | str | int | float,
         description: str,
         days_until_due: int = 15,
+        fiscal_document_ref: str | None = None,
     ) -> dict[str, Any]:
         self.require_write_ready("create_b2b_invoice")
+        fiscal_document_ref = self.require_fiscal_document_ref(
+            fiscal_document_ref, operation="create_b2b_invoice"
+        )
         amount = eur_minor_units(fee_amount)
         if amount <= 0:
             raise BillingStateError("B2B invoice fee must be greater than zero")
@@ -244,6 +270,8 @@ class StripeBillingProvider:
             "engagement_id": str(engagement_id),
             "billing_system": "factory_finance",
         }
+        if fiscal_document_ref:
+            identity["fiscal_document_ref"] = fiscal_document_ref
         self._request(
             "POST",
             "/invoiceitems",
@@ -289,6 +317,12 @@ class StripeBillingProvider:
         if not self.config.customer_delivery_enabled:
             raise BillingConfigurationError(
                 "customer invoice delivery is disabled; set FACTORY_STRIPE_CUSTOMER_DELIVERY_ENABLED only after approval"
+            )
+        if self.config.livemode:
+            authoritative = self.retrieve_invoice(invoice_ref)
+            metadata = authoritative.get("metadata") if isinstance(authoritative.get("metadata"), Mapping) else {}
+            self.require_fiscal_document_ref(
+                str(metadata.get("fiscal_document_ref") or ""), operation="send_invoice"
             )
         return self._request(
             "POST",
@@ -356,6 +390,10 @@ class StripeBillingProvider:
         engagement_id = str(metadata.get("engagement_id") or "").strip()
         if not invoice_ref or not event_ref or not factory_id or not engagement_id:
             raise BillingStateError("invoice.paid evidence is missing Factory identity")
+        if self.config.livemode:
+            self.require_fiscal_document_ref(
+                str(metadata.get("fiscal_document_ref") or ""), operation="invoice.paid evidence"
+            )
         return {
             "provider": "stripe",
             "provider_event_id": event_ref,
