@@ -64,7 +64,9 @@ install -m 0644 "${REPO_DIR}/factory_cloud/runtime/systemd/factory-cloud.target"
 
 for app in ${APPS}; do
   user="factory-cloud-${app}"
+  queue_group="factory-cloud-queue-${app}"
   getent group "${user}" >/dev/null || groupadd --system "${user}"
+  getent group "${queue_group}" >/dev/null || groupadd --system "${queue_group}"
   if ! id -u "${user}" >/dev/null 2>&1; then
     useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin --gid "${user}" "${user}"
   fi
@@ -77,14 +79,15 @@ for app in ${APPS}; do
     exit 4
   fi
 
-  # The control plane is trusted to dispatch every app, so it must be able to
-  # open a private queue even if the app worker creates SQLite/WAL/SHM first.
-  # Workers are never added to another app group or to the shared metadata group.
-  usermod -a -G "${user}" factory-cloud-control
+  # Queue IPC gets its own group. The trusted control user and exactly this app
+  # worker share the queue group; the control user is deliberately NOT added to
+  # the app's primary group, which may protect adapter config/environment secrets.
+  usermod -a -G "${queue_group}" factory-cloud-control
+  usermod -a -G "${queue_group}" "${user}"
 
-  # The control process owns every queue directory; the app-specific group can
-  # access only its own directory. setgid makes SQLite/WAL/SHM inherit that group.
-  install -d -o factory-cloud-control -g "${user}" -m 2770 "${QUEUE_DIR}/${app}"
+  # The control process owns every queue directory; the dedicated queue group can
+  # access only this app's directory. setgid makes SQLite/WAL/SHM inherit it.
+  install -d -o factory-cloud-control -g "${queue_group}" -m 2770 "${QUEUE_DIR}/${app}"
 
   config="${CONFIG_DIR}/apps/${app}.json"
   if [[ ! -f "${config}" ]]; then
