@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
@@ -7,6 +7,7 @@
     "commercial_basis_reference_and_document_content",
     "customer_program_event_reference_and_document_content",
     "cost_evidence_reference_and_document_content",
+    "claim_currency",
     "gross_cost",
     "mitigation_and_prior_recovery",
     "notice_deadline_or_verified_none"
@@ -16,6 +17,12 @@
     "document_content_hashed": true,
     "raw_document_content_persisted_by_service": false,
     "individual_document_content_limit_bytes": 1000000
+  },
+  "economic_lineage": {
+    "currency_required_for_review_ready": true,
+    "currency_normalized_uppercase": true,
+    "recovery_currency_must_match_reviewed_currency": true,
+    "currency_conversion_implemented": false
   },
   "identity_authorization": {
     "source": "verified_provider_identity",
@@ -33,7 +40,7 @@
   "outputs": [
     "evidence_envelope_with_verification_state",
     "entitlement_basis",
-    "reproducible_net_potential_calculation",
+    "reproducible_net_potential_calculation_with_currency",
     "notice_deadline_truth_state",
     "missing_evidence",
     "reviewable_finding",
@@ -46,6 +53,9 @@
     "reference_only_documentary_evidence",
     "partial_entitlement_basis",
     "unknown_notice_deadline",
+    "missing_claim_currency",
+    "invalid_claim_currency",
+    "recovery_currency_mismatch",
     "negative_economic_input",
     "non_finite_economic_input",
     "mitigation_exceeds_gross_cost",
@@ -65,7 +75,8 @@
     "external_runtime_exposure": false,
     "content_security_policy_required": true,
     "html_injection_renderer_forbidden": true,
-    "cache_case_responses": false
+    "cache_case_responses": false,
+    "tenant_scoped_role_queue": true
   },
   "pricing": {
     "status": "HYPOTHESIS",
@@ -80,12 +91,14 @@
     "synthetic_ground_truth_green",
     "all_claim_families_structurally_supported",
     "documentary_content_gate_green",
+    "currency_lineage_green",
     "tenant_isolation_green",
     "role_authorization_green",
     "four_eyes_green",
     "operation_audit_green",
     "atomic_persistence_green",
     "backup_restart_green",
+    "tenant_scoped_role_queue_green",
     "operator_console_green",
     "browser_security_green",
     "no_known_p0_p1",
