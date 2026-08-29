@@ -8,7 +8,7 @@ from io import StringIO
 from .ledger import LedgerKind, LedgerRecord
 
 
-REQUIRED_COLUMNS = {
+CLIENT_REQUIRED_COLUMNS = {
     "record_id",
     "tenant_id",
     "customer_id",
@@ -16,8 +16,9 @@ REQUIRED_COLUMNS = {
     "currency",
     "kind",
     "amount",
-    "verified",
 }
+OPERATOR_REQUIRED_COLUMNS = CLIENT_REQUIRED_COLUMNS | {"verified"}
+SERVER_CONTROLLED_COLUMNS = {"verified", "due"}
 
 
 @dataclass(frozen=True)
@@ -50,13 +51,19 @@ def _parse_due(value: str) -> bool | None:
     return _parse_bool(raw)
 
 
-def parse_ledger_csv(text: str, *, expected_tenant_id: str) -> ImportResult:
+def _parse_ledger_csv(
+    text: str,
+    *,
+    expected_tenant_id: str,
+    operator_verified_truth: bool,
+) -> ImportResult:
     if not expected_tenant_id:
         raise ValueError("expected_tenant_id is required")
 
     reader = csv.DictReader(StringIO(text))
     fields = set(reader.fieldnames or [])
-    missing = sorted(REQUIRED_COLUMNS - fields)
+    required = OPERATOR_REQUIRED_COLUMNS if operator_verified_truth else CLIENT_REQUIRED_COLUMNS
+    missing = sorted(required - fields)
     if missing:
         return ImportResult(
             records=(),
@@ -65,6 +72,21 @@ def parse_ledger_csv(text: str, *, expected_tenant_id: str) -> ImportResult:
             ),
             rejected=True,
         )
+
+    if not operator_verified_truth:
+        supplied_truth = sorted(SERVER_CONTROLLED_COLUMNS & fields)
+        if supplied_truth:
+            return ImportResult(
+                records=(),
+                issues=(
+                    ImportIssue(
+                        row=1,
+                        code="SERVER_CONTROLLED_COLUMNS",
+                        detail=",".join(supplied_truth),
+                    ),
+                ),
+                rejected=True,
+            )
 
     records: list[LedgerRecord] = []
     issues: list[ImportIssue] = []
@@ -96,8 +118,16 @@ def parse_ledger_csv(text: str, *, expected_tenant_id: str) -> ImportResult:
                 kind=kind,
                 amount=amount,
                 relates_to=(row.get("relates_to") or "").strip() or None,
-                verified=_parse_bool(row.get("verified") or ""),
-                due=_parse_due(row.get("due") or ""),
+                verified=(
+                    _parse_bool(row.get("verified") or "")
+                    if operator_verified_truth
+                    else False
+                ),
+                due=(
+                    _parse_due(row.get("due") or "")
+                    if operator_verified_truth
+                    else None
+                ),
             )
             if not all(
                 (record.record_id, record.customer_id, record.project_id, record.currency)
@@ -116,4 +146,24 @@ def parse_ledger_csv(text: str, *, expected_tenant_id: str) -> ImportResult:
         records=() if hard_reject else tuple(records),
         issues=tuple(issues),
         rejected=hard_reject,
+    )
+
+
+def parse_ledger_csv(text: str, *, expected_tenant_id: str) -> ImportResult:
+    """Parse a client CSV without trusting verification/due-state columns."""
+    return _parse_ledger_csv(
+        text,
+        expected_tenant_id=expected_tenant_id,
+        operator_verified_truth=False,
+    )
+
+
+def parse_operator_verified_ledger_csv(
+    text: str, *, expected_tenant_id: str
+) -> ImportResult:
+    """Parse a CSV after the assisted operator has reviewed evidence truth."""
+    return _parse_ledger_csv(
+        text,
+        expected_tenant_id=expected_tenant_id,
+        operator_verified_truth=True,
     )
