@@ -11,6 +11,10 @@ from urllib.parse import urlsplit
 import requests
 
 
+ALLOWED_RESULT_STATUSES = {"DONE", "WAIT", "BLOCKED", "ERROR"}
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
 class PortfolioWorkerError(RuntimeError):
     pass
 
@@ -55,7 +59,7 @@ def configured_endpoint(environ: dict[str, str] | None = None) -> str | None:
     parsed = urlsplit(raw)
     if parsed.scheme not in {"https", "http"} or not parsed.netloc:
         raise PortfolioWorkerError("FACTORY_CLOUD_PORTFOLIO_WORKER_ENDPOINT must be an absolute HTTP(S) URL")
-    if parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+    if parsed.scheme == "http" and parsed.hostname not in LOCAL_HOSTS:
         raise PortfolioWorkerError("remote portfolio worker endpoint must use HTTPS")
     if parsed.username or parsed.password:
         raise PortfolioWorkerError("portfolio worker endpoint credentials must not be embedded in URL")
@@ -71,12 +75,11 @@ def _base_result(request: PortfolioExecutionRequest) -> dict[str, Any]:
 
 
 class PortfolioFactoryWorker:
-    """One host-level execution boundary for every non-app Factory.
+    """One execution boundary for every non-app Factory.
 
-    Factory identity is delivered in the request body; founders do not configure a
-    chat/conversation URL for every Factory. One isolated worker executable OR one
-    shared HTTPS worker endpoint can multiplex Factory IDs while the Control Tower
-    preserves independent per-Factory BATON state.
+    The founder configures one executable OR one shared HTTPS endpoint. Factory
+    identity and BATON are carried in the payload. Remote execution requires a
+    host-level bearer token and returned identity/status are validated fail-closed.
     """
 
     def __init__(
@@ -108,6 +111,15 @@ class PortfolioFactoryWorker:
                 "blockers": ["portfolio_worker_configuration_ambiguous"],
                 "error": {"type": "AMBIGUOUS_WORKER_CONFIGURATION"},
             }
+        if endpoint is not None:
+            parsed = urlsplit(endpoint)
+            token = str(self.environ.get("FACTORY_CLOUD_PORTFOLIO_WORKER_TOKEN") or "").strip()
+            if parsed.hostname not in LOCAL_HOSTS and not token:
+                return {
+                    "status": "BLOCKED",
+                    "blockers": ["portfolio_worker_token_required"],
+                    "error": {"type": "REMOTE_WORKER_TOKEN_REQUIRED"},
+                }
         return executable, endpoint
 
     def execute(self, request: PortfolioExecutionRequest) -> dict[str, Any]:
@@ -138,13 +150,6 @@ class PortfolioFactoryWorker:
                 timeout=self.timeout_seconds,
                 allow_redirects=False,
             )
-        except requests.RequestException:
-            return {
-                **_base_result(request),
-                "status": "ERROR",
-                "blockers": ["portfolio_factory_worker_endpoint_failed"],
-                "error": {"type": "WORKER_ENDPOINT_FAILED"},
-            }
         except Exception:
             return {
                 **_base_result(request),
@@ -162,12 +167,7 @@ class PortfolioFactoryWorker:
         try:
             payload = response.json()
         except (ValueError, json.JSONDecodeError):
-            return {
-                **_base_result(request),
-                "status": "ERROR",
-                "blockers": ["portfolio_factory_worker_invalid_result"],
-                "error": {"type": "INVALID_WORKER_RESULT"},
-            }
+            return self._invalid_result(request)
         return self._validated_payload(request, payload)
 
     def _execute_executable(self, request: PortfolioExecutionRequest, executable: Path) -> dict[str, Any]:
@@ -188,7 +188,6 @@ class PortfolioFactoryWorker:
                 "blockers": ["portfolio_factory_worker_execution_failed"],
                 "error": {"type": "WORKER_EXECUTION_FAILED"},
             }
-
         if completed.returncode != 0:
             return {
                 **_base_result(request),
@@ -196,26 +195,36 @@ class PortfolioFactoryWorker:
                 "blockers": ["portfolio_factory_worker_nonzero_exit"],
                 "error": {"type": "WORKER_NONZERO_EXIT", "code": completed.returncode},
             }
-
         try:
             payload = json.loads(completed.stdout or "")
         except json.JSONDecodeError:
-            return {
-                **_base_result(request),
-                "status": "ERROR",
-                "blockers": ["portfolio_factory_worker_invalid_result"],
-                "error": {"type": "INVALID_WORKER_RESULT"},
-            }
+            return self._invalid_result(request)
         return self._validated_payload(request, payload)
+
+    def _invalid_result(self, request: PortfolioExecutionRequest, detail: str | None = None) -> dict[str, Any]:
+        error: dict[str, Any] = {"type": "INVALID_WORKER_RESULT"}
+        if detail:
+            error["detail"] = detail
+        return {
+            **_base_result(request),
+            "status": "ERROR",
+            "blockers": ["portfolio_factory_worker_invalid_result"],
+            "error": error,
+        }
 
     def _validated_payload(self, request: PortfolioExecutionRequest, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
-            return {
-                **_base_result(request),
-                "status": "ERROR",
-                "blockers": ["portfolio_factory_worker_invalid_result"],
-                "error": {"type": "INVALID_WORKER_RESULT"},
-            }
-        payload.setdefault("factory_id", request.factory_id)
-        payload.setdefault("route", request.route)
+            return self._invalid_result(request)
+        status = str(payload.get("status") or "")
+        if status not in ALLOWED_RESULT_STATUSES:
+            return self._invalid_result(request, "unsupported status")
+        returned_factory = payload.get("factory_id")
+        returned_route = payload.get("route")
+        if returned_factory is not None and str(returned_factory) != request.factory_id:
+            return self._invalid_result(request, "factory identity mismatch")
+        if returned_route is not None and str(returned_route) != request.route:
+            return self._invalid_result(request, "route identity mismatch")
+        payload["factory_id"] = request.factory_id
+        payload["route"] = request.route
+        payload.setdefault("resume_at", request.baton.get("resume_at") or request.baton.get("active"))
         return payload
