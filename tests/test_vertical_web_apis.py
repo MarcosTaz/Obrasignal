@@ -13,6 +13,26 @@ def test_health_endpoints_are_explicitly_assisted(tmp_path):
     assert credit.get("/health").get_json()["mode"] == "assisted"
 
 
+def test_assisted_web_workspaces_expose_full_action_surface_without_identity_override(tmp_path):
+    aviation = create_aviation_app(tmp_path / "aviation.sqlite3").test_client()
+    credit = create_contractcredit_app(tmp_path / "credit.sqlite3").test_client()
+    for client, expected_field in ((aviation, 'name="eligible_cost"'), (credit, 'name="monthly_fee"')):
+        response = client.get("/")
+        body = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert response.content_type.startswith("text/html")
+        assert "assisted, pre-customer certification" in body
+        assert "synthetic/shadow evidence only until PILOT_SAFE" in body
+        assert expected_field in body
+        assert 'id="analysis-form"' in body
+        assert 'id="review-form"' in body
+        assert 'id="action-form"' in body
+        assert 'id="resolve-form"' in body
+        assert 'aria-live="polite"' in body
+        assert 'name="tenant_id"' not in body
+        assert 'name="actor_id"' not in body
+
+
 def test_aviation_web_api_full_flow_and_tenant_isolation(tmp_path):
     client = create_aviation_app(tmp_path / "aviation.sqlite3").test_client()
     response = client.post("/analyze", headers=_headers("airline"), json={
