@@ -4,10 +4,12 @@ Status: **OPERATIONALLY READY FOR A BOUNDED ASSISTED CASE / COMMERCIAL PROOF NOT
 
 This file separates what is actually ready from what still depends on a real buyer or external account/compliance event.
 
+Latest validated code/test head before this documentation reconciliation: `996473147b623a677b6879fc028a5534db08017b`, engine `capacity-recoverability-t1.12`, exact-head Python **949 passed / 2 skipped / 2 warnings** in `ObraSignal Quality` run `33270658282`. The unrelated mobile/Expo lane remains red and is not represented as green.
+
 ## Terminal truth
 
 - T0 — distinct thesis survived: **ACHIEVED**
-- T1 — pilot capable: **ACHIEVED** on frozen T1 terminal SHA `bb272fbab05217000d0093812e609a07212cbb19`
+- T1 — pilot capable: **ACHIEVED / CURRENTLY HARDENED**
 - T2 — market exposed: **ACHIEVED**
 - T3 — commercial proof: **NOT YET ACHIEVED**
 - T4 — verified economic value + our revenue: **NOT YET ACHIEVED**
@@ -46,20 +48,28 @@ No stronger terminal is inferred from technical readiness.
 
 | Capability | State | Evidence / boundary |
 | --- | --- | --- |
-| Fail-closed recoverability engine | READY | T1 terminal + exact-head regressions |
+| Fail-closed recoverability engine | READY | t1.12 + exact-head regressions |
+| Deterministic exact arithmetic | READY | isolated Decimal context; float rejection; range failures become invalid input |
 | Forecast kept separate from firm entitlement | READY | engine/tests |
-| Customer/program/period/unit/currency integrity | READY | engine/tests |
+| Zero-effective commitment handling | READY | FIRM/FLEX zero effective units cannot become positive recoverability |
+| Customer/program/period/unit/currency integrity | READY | engine/tests; ASCII currency identity enforced |
 | Contract/amendment/notice gates | READY | engine/tests |
-| Mitigation/prior-recovery deductions | READY | engine/tests |
-| Correct-zero outcome | READY | engine + synthetic matrix |
+| Time-sensitive deadline aging | READY | verified deadline re-evaluated against explicit/UTC assessment date |
+| Mitigation/prior-recovery deductions and review | READY | engine/tests |
+| Duplicate-claim review | READY | positive position requires explicit completed duplicate search; known duplicate blocked |
+| Correct-zero truth | READY | zero cannot be upgraded from unverified zero-producing inputs |
+| Exact API evidence boundary | READY | material booleans and financial values explicit; decimal strings/integers only |
 | Tenant-scoped persistence | READY | repository/web tests |
+| Exact snapshot structure | READY | checksum plus exact schema-v2 top-level and nested `RecoveryCase` field sets |
 | Retry/conflict/restart durability | READY | T1 tests |
+| Canonical backup/restore | READY | canonical schema only; source rows validated before mutation; samefile aliases rejected |
 | Existing-case browser | READY | authenticated `/cases`, tenant scoped |
 | Buyer-ready findings report | READY | authenticated `/api/capacity/cases/<case_id>/report` |
-| Report restart determinism | READY | regression test |
+| Package direct-call truth boundary | READY | current-result, evidence, deadline, assessment-date and expiry consistency enforced |
+| Report restart/current-state integrity | READY | package recomputation + stale/mutated-package rejection |
 | Report source/Markdown injection hardening | READY | adversarial test |
-| Web case-ID addressability | READY | unsafe IDs rejected before persistence |
-| Automatic raw-contract extraction | NOT REQUIRED FOR CURRENT ASSISTED PILOT | manual review remains an intentional T1/T3 boundary |
+| Web/repository case-ID addressability | READY | one safe identity policy across create/load/list/restore |
+| Automatic raw-contract extraction | NOT REQUIRED FOR CURRENT ASSISTED PILOT | manual review remains intentional boundary |
 | Automated external claim submission | NOT AUTHORIZED / NOT REQUIRED | human action only |
 | Production-hosted public/self-service app | NOT PROVEN / NOT REQUIRED FOR FIRST ASSISTED PILOT | isolated runtime is not claimed deployed |
 
@@ -79,16 +89,16 @@ No stronger terminal is inferred from technical readiness.
 
 ## Payment rail
 
-Current connected Stripe context exposes only **K3 Fatality**, which belongs to another Factory.
+Current connected payment context does not expose a Capacity Commitment account. The previously visible K3 Fatality account belongs to another Factory and is prohibited for Capacity funds.
 
 Capacity Commitment payment state:
 
-- correct Stripe account: **EXTERNAL_BLOCKED / NOT CONNECTED**
+- correct Capacity payment account: **EXTERNAL / NOT CONNECTED OR VERIFIED**
 - Capacity product/price/payment link: **NOT CREATED**
 - bank/procurement route for first buyer: **BUYER-SPECIFIC / UNKNOWN**
 - payment received: **NO**
 
-This does not block discovery, qualification, proprietary-data handoff, supplier onboarding, a PO or signed commercial commitment. It blocks only a payment action that actually requires a presently unavailable correct rail.
+This does not block discovery, qualification, proprietary-data handoff, supplier onboarding, PO or signed commercial commitment. It blocks only a payment action that actually requires a presently unavailable correct rail.
 
 ## Market/compliance readiness
 
@@ -111,11 +121,11 @@ Owner authorization does not override a legal/compliance hold.
 
 ## Current critical path
 
-1. **REAL BUYER RESPONSE**
+1. **REAL BUYER RESPONSE / DELIVERY SIGNAL**
 2. buyer-qualified bounded case and/or meaningful proprietary data
 3. smallest credible costly commitment (priced pilot / signed engagement / qualified proprietary-data process)
 4. correct procurement/payment rail when payment becomes due
-5. execute bounded case → red-team → deliver → review
+5. execute bounded case → red-team → deliverable → buyer review
 6. verify buyer economic outcome and our real revenue before T4
 
 ## Autonomous work exhaustion rule
@@ -123,10 +133,12 @@ Owner authorization does not override a legal/compliance hold.
 Repository-safe preparation is considered exhausted only when:
 
 - no known applicable P0/P1 remains in the bounded assisted journey;
+- the latest material branch head has exact-head Python SUCCESS;
 - buyer conversion copy/process exists;
 - intake/confidentiality/payment boundaries exist;
-- case execution/reporting/reopen flow is tested;
+- case execution/package/reporting/reopen flow is tested;
 - current market continuation is scheduled/monitored;
-- remaining blockers require buyer/compliance/account evidence rather than more speculative feature building.
+- documentation and canonical baton reflect current product truth;
+- remaining blockers require buyer/compliance/account evidence rather than speculative feature building.
 
 Do **not** build automatic document extraction, broad SaaS workflows or portfolio features merely to avoid waiting for real T3 evidence. Reopen technical work immediately if a real case exposes a missing P0/P1 or delivery bottleneck.
