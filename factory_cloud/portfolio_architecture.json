@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "purpose": "portfolio maturity and shared-capability planning metadata; no source, production, merge, billing or customer-data authority",
   "layers": [
     {"id":"control","name":"Factory Cloud / Control Tower"},
@@ -30,7 +30,8 @@
     {"id":"sourcing-recovery","layer":"verticals","family":"recovery-assurance","source_status":"registered","maturity":"UNASSESSED"},
     {"id":"product-market-access","layer":"verticals","family":"compliance-assurance","source_status":"registered","maturity":"G1"},
     {"id":"eu-cloud-switching","layer":"verticals","family":"migration-economics","source_status":"registered","maturity":"G1"},
-    {"id":"aviation-lease-entitlement-recovery","layer":"verticals","family":"recovery-assurance","source_status":"registered","maturity":"G1"},
+    {"id":"aviation-lease-entitlement-recovery","layer":"verticals","family":"recovery-assurance","source_status":"registered","maturity":"G2"},
+    {"id":"contractcredit","layer":"verticals","family":"recovery-assurance","source_status":"registered","maturity":"G2"},
     {"id":"capacity-commitment","layer":"verticals","family":"recovery-assurance","source_status":"registered","maturity":"G1"},
     {"id":"longlead","layer":"verticals","family":"recovery-assurance","source_status":"registered","maturity":"G1"},
     {"id":"machine-release-safety","layer":"verticals","family":"industrial-safety","source_status":"registered","maturity":"G1"},
@@ -54,7 +55,6 @@
     {"id":"obrasignal-support-ops","layer":"specialists","family":"obrasignal","source_status":"registered","maturity":"UNASSESSED"},
     {"id":"eu-switching-evidence-pack","layer":"specialists","family":"migration-economics","source_status":"registered","maturity":"G2"},
     {"id":"complianceledger","layer":"specialists","family":"compliance-assurance","source_status":"registered","maturity":"G1"},
-    {"id":"contractcredit","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"},
     {"id":"guaranteerelease","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"},
     {"id":"debtrecover","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"},
     {"id":"royaltyrecover","layer":"verticals","family":"recovery-assurance","source_status":"unregistered","maturity":"G1"},
@@ -67,6 +67,7 @@
     "Maturity entries are provisional planning classifications, not claims of business completion.",
     "UNASSESSED is used when canonical switchboard registration exists but current evidence is insufficient to assert a maturity gate.",
     "Unregistered source_status means Factory Cloud must not dispatch repository mutations until canonical source truth is explicitly registered and verified.",
+    "Aviation and ContractCredit have dedicated source branches and persistent assisted application services; repository dispatch remains disabled until an execution adapter is verified.",
     "Shared capability candidates do not imply shared databases, secrets, production authority or customer data."
   ]
 }
