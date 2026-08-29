@@ -42,7 +42,12 @@ export default function AuthScreen() {
     <View style={styles.container}>
       <Text style={styles.brand}>OBRASIGNAL</Text>
       <Text style={styles.title}>{mode === 'signIn' ? 'Entrar' : 'Criar conta'}</Text>
-      <Text style={styles.subtitle}>O teu radar comercial de contratação pública.</Text>
+      <Text style={styles.subtitle}>
+        Encontra e filtra concursos de obra que encaixam no perfil da tua empresa — com a razão do encaixe antes de perderes tempo na análise.
+      </Text>
+      <Text style={styles.valueNote}>
+        Configura o perfil da empresa, recebe uma shortlist explicada e guarda as oportunidades que merecem investigação.
+      </Text>
 
       <TextInput
         autoCapitalize="none"
@@ -80,7 +85,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#f8fbff' },
   brand: { fontSize: 13, fontWeight: '800', letterSpacing: 2.5, color: '#315ea8', marginBottom: 10 },
   title: { fontSize: 32, fontWeight: '800', color: '#17233a' },
-  subtitle: { fontSize: 15, lineHeight: 22, color: '#64718a', marginTop: 8, marginBottom: 28 },
+  subtitle: { fontSize: 15, lineHeight: 22, color: '#64718a', marginTop: 8, marginBottom: 8 },
+  valueNote: { fontSize: 13, lineHeight: 20, color: '#485875', marginBottom: 24 },
   input: { height: 50, borderWidth: 1, borderColor: '#d6deea', backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, color: '#17233a', marginBottom: 12 },
   primary: { height: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#315ea8', marginTop: 4, marginBottom: 18 },
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
