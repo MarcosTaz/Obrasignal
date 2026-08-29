@@ -3,6 +3,42 @@ from decision_log import record_decision
 from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
 
+_UNUSABLE_EVALUATION_SOURCES = {"", "UNKNOWN", "UNAVAILABLE", "ERROR"}
+
+
+def _record_customer_evaluation_events(conn, item, evaluation, account_id):
+    """Bridge the real account-scoped classification path into Evaluation.
+
+    A persisted decision proves usable market data only when the normalized row has
+    a concrete source identity and opportunity identity. A relevant shortlist event
+    is emitted only for the same tenant when classification is QUALIFIED/REVIEW.
+    Billing/Evaluation persistence remains authoritative in evaluation_policy.
+    """
+    source = str(item.get("source") or "").strip()
+    external_id = str(item.get("external_id") or item.get("id") or "").strip()
+    if source.upper() in _UNUSABLE_EVALUATION_SOURCES or not external_id:
+        return False
+
+    from account_registry import ensure_account
+    from evaluation_policy import record_evaluation_event
+
+    ensure_account(conn, account_id)
+    record_evaluation_event(
+        conn,
+        account_id,
+        "market_data_available",
+        metadata={"source": source, "external_id": external_id},
+    )
+    if evaluation.get("decision") in {"QUALIFIED", "REVIEW"}:
+        record_evaluation_event(
+            conn,
+            account_id,
+            "first_shortlist_generated",
+            metadata={"source": source, "external_id": external_id},
+        )
+    return True
+
+
 def persist_and_classify(conn, item, is_new, account_id='default'):
     """Persist the canonical commercial decision with full account-scoped evidence."""
     enriched = dict(item)
@@ -44,4 +80,11 @@ def persist_and_classify(conn, item, is_new, account_id='default'):
         rule_version=RULE_VERSION,
         account_id=account_id,
     )
+
+    # Decisioning is the primary customer operation. Evaluation telemetry is
+    # downstream and must fail closed without breaking a valid Radar decision.
+    try:
+        _record_customer_evaluation_events(conn, enriched, evaluation, account_id)
+    except Exception:
+        pass
     return evaluation["decision"], evaluation["reason"]
