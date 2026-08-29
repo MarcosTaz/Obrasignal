@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "owner": "factory-cloud/shared-platform",
+  "compatibility_policy": "semver-compatible contracts; breaking schema/state changes require explicit migration and consumer re-verification",
+  "data_authority": "consumer-owned storage only; no cross-app production database authority",
+  "capabilities": {
+    "identity_authentication": {"version":"1.0.0","module":"factory_cloud.shared_contracts","consumers":["aviation-lease-entitlement-recovery","contractcredit"]},
+    "tenant_role_isolation": {"version":"1.0.0","module":"factory_cloud.shared_platform","consumers":["aviation-lease-entitlement-recovery","contractcredit"]},
+    "billing_interfaces": {"version":"1.0.0","module":"factory_cloud.shared_contracts","consumers":["aviation-lease-entitlement-recovery","contractcredit"]},
+    "audit_decision_lineage": {"version":"1.0.0","module":"factory_cloud.shared_platform","storage":"factory_cloud.assurance_store","consumers":["aviation-lease-entitlement-recovery","contractcredit"]},
+    "notifications": {"version":"1.0.0","module":"factory_cloud.shared_platform","storage":"factory_cloud.assurance_store","consumers":["aviation-lease-entitlement-recovery","contractcredit"]},
+    "document_ingestion_contract": {"version":"1.0.0","module":"factory_cloud.assurance_kernel","storage":"factory_cloud.assurance_store","consumers":["aviation-lease-entitlement-recovery","contractcredit"]},
+    "evidence_lineage": {"version":"1.0.0","module":"factory_cloud.assurance_kernel","storage":"factory_cloud.assurance_store","consumers":["aviation-lease-entitlement-recovery","contractcredit"]},
+    "deterministic_calculation_contract": {"version":"1.0.0","module":"factory_cloud.assurance_kernel","storage":"factory_cloud.assurance_store","consumers":["aviation-lease-entitlement-recovery","contractcredit"]},
+    "deadline_notice_window": {"version":"1.0.0","module":"factory_cloud.assurance_kernel","storage":"factory_cloud.assurance_store","consumers":["aviation-lease-entitlement-recovery","contractcredit"]},
+    "finding_review_workflow": {"version":"1.0.0","module":"factory_cloud.assurance_kernel","storage":"factory_cloud.assurance_store","consumers":["aviation-lease-entitlement-recovery","contractcredit"]}
+  }
+}
