@@ -13,7 +13,15 @@ from .store import EarnedCashStore
 
 
 def create_earnedcash_blueprint(store: EarnedCashStore | None = None) -> Blueprint:
-    bp = Blueprint("earnedcash_api", __name__, url_prefix="/api/v1/earnedcash")
+    # Templates live inside the earnedcash package. Declaring the folder on the
+    # blueprint keeps dashboard rendering independent of the parent Flask app's
+    # template root and makes the package portable under tests/deployments.
+    bp = Blueprint(
+        "earnedcash_api",
+        __name__,
+        url_prefix="/api/v1/earnedcash",
+        template_folder="templates",
+    )
 
     def payload_object():
         payload = request.get_json(silent=True)
