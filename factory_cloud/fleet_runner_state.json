@@ -5,29 +5,47 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 22,
-  "last_factory_id": "obrasignal-data-truth",
-  "last_run_at": "2026-08-29T19:41:00Z",
+  "cursor": 25,
+  "last_factory_id": "obrasignal-global-market-entry",
+  "last_run_at": "2026-08-29T19:40:22Z",
   "last_material_change": {
-    "kind": "DATA_TRUTH_SCOPE_AUTHORITY_REPAIR_VERIFIED_GREEN",
-    "factory_id": "obrasignal-data-truth",
-    "summary": "ObraSignal Data Runner has no exact data-runner/* repository lane and remains UNKNOWN_SOURCE_IDENTITY. Fleet therefore rotated to Data Truth, where deterministic probe #750 had proven that source-filtered datasets could overstate global coverage authority. Successor repair PR #773 on branch data-truth/source-health-requested-scope-authority-repair-20260829 at exact HEAD 1557a31601a89c6752af00929e6d6a90f193abca explicitly distinguishes requested_sources/requested_active_sources from global registered_sources/active_sources. Exact-head python and mobile checks both completed SUCCESS. PR remains OPEN/DRAFT / DO NOT MERGE / NOT CANONICAL; no production mutation occurred. Fleet advances to OS SIDE FACTORY.",
+    "kind": "CUSTOMER_JOURNEY_AUTH_DEAD_END_OWNER_CANDIDATE_GREEN_AND_MARKET_ENTRY_RECONSTRUCTED",
+    "factory_id": "obrasignal-global-market-entry",
+    "summary": "OS SIDE FACTORY remains UNKNOWN_SOURCE_IDENTITY: the similarly named codex/execute-obrasignal-recovery-directive branch is only an ObraSignal mobile session-refresh retry fix and is not sufficient identity evidence. Fleet therefore rotated to Customer Journey. Customer Journey issue #761 had recorded a P1 password-recovery customer dead end; an Auth-owner successor now exists as draft PR #775, auth/password-recovery-complete-path-20260829, exact HEAD b7f963a60e127712a439e8c9f0e059461349e1f8. Exact-head GitHub checks python and mobile both completed SUCCESS. The candidate keeps PASSWORD_RECOVERY distinct from ordinary signed-in state, prevents recovery-session authorization from reaching the product shell, uses provider resetPasswordForEmail/updateUser authority, and ends recovery with sign-out before fresh sign-in. This materially changes #761 from NO_OWNER_CANDIDATE to OWNER_CANDIDATE_GREEN_NOT_CANONICAL; native deep-link/email delivery remains an external acceptance boundary. Fleet then reconstructed Global Market Entry from draft PR #519, factory/country-launch-registry-v1, exact HEAD 93131df867eea723df59e6734ca71af4a4e6f124. Python and mobile checks are SUCCESS. The registry remains fail-closed: first-wave LAUNCH_NOW is research priority only, source blockers remain upstream pending, and ICP/pricing/channel are hypotheses rather than market proof. No merge/deploy/provider/config/outbound/customer-data action occurred.",
     "evidence": {
-      "obrasignal_data_runner": {"matching_refs": 0, "classification": "UNKNOWN_SOURCE_IDENTITY"},
-      "obrasignal_data_truth": {
-        "probe_pr": 750,
-        "repair_pr": 773,
-        "branch": "data-truth/source-health-requested-scope-authority-repair-20260829",
-        "head": "1557a31601a89c6752af00929e6d6a90f193abca",
+      "os_side_factory": {
+        "classification": "UNKNOWN_SOURCE_IDENTITY",
+        "rejected_false_match": "codex/execute-obrasignal-recovery-directive@0d2bfb213ed880f828e15480a704d8e41ebf9159",
+        "reason": "branch content is generic mobile session-refresh recovery, not a canonical OS SIDE FACTORY BATON"
+      },
+      "customer_journey": {
+        "integration_pr": 723,
+        "owner_gap_issue": 761,
+        "owner_candidate_pr": 775,
+        "branch": "auth/password-recovery-complete-path-20260829",
+        "head": "b7f963a60e127712a439e8c9f0e059461349e1f8",
         "python": "SUCCESS",
         "mobile": "SUCCESS",
-        "classification": "GREEN_DRAFT_NOT_CANONICAL"
+        "classification": "OWNER_CANDIDATE_GREEN_NOT_CANONICAL",
+        "remaining_acceptance": "real native deep-link/provider email delivery and integration adoption are unproven"
       },
-      "factory_cloud_hardening": {"verified_commit": "1958c16d979658057bb37e491eaf4a811edbd19f", "python": "SUCCESS", "mobile": "SUCCESS"}
+      "global_market_entry": {
+        "pr": 519,
+        "branch": "factory/country-launch-registry-v1",
+        "head": "93131df867eea723df59e6734ca71af4a4e6f124",
+        "python": "SUCCESS",
+        "mobile": "SUCCESS",
+        "classification": "GREEN_DRAFT_RESEARCH_ONLY_NOT_CANONICAL",
+        "first_wave": ["Portugal", "Spain", "United Kingdom", "France", "Italy"]
+      }
     },
-    "active": "OS SIDE FACTORY — RECOVERY SUCCESSOR: recover the exact source/BATON lane and inspect current gates; execute only bounded safe work on a provably identified source.",
-    "next": "Customer Journey -> Global Market Entry -> GTM; continue registry order while prioritizing RED exact-source gates.",
+    "active": "ObraSignal GTM / First Revenue: reconstruct exact current GTM owner lane, revenue/WTP evidence, and external-action gates; execute repository-safe or research-safe work only.",
+    "next": "Customer Decision -> Product Strategy -> Data Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger; then wrap registry and continue highest-value unresolved gates.",
     "wait": [
+      "OS SIDE FACTORY source identity UNKNOWN",
+      "Customer Journey password-recovery candidate is noncanonical until owner/integration adoption",
+      "Customer Journey native recovery deep-link/provider email delivery is unproven",
+      "Global Market Entry first-wave ICP/pricing/channel remain hypotheses without qualified cohort evidence",
       "ObraSignal Data Runner source identity UNKNOWN",
       "Data Truth repair is noncanonical until owner adoption",
       "Recoverable Money source identity UNKNOWN",
@@ -55,7 +73,8 @@
     {"factory_id":"recoverable-money","blocker":"No exact source/BATON identity or recoverable/* branch recovered.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"No exact source/BATON identity or private-freight/* branch recovered.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"No exact source/BATON identity or autonomous-revenue/* branch recovered.","global_stop":false},
-    {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity or data-runner/* branch recovered.","global_stop":false}
+    {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity or data-runner/* branch recovered.","global_stop":false},
+    {"factory_id":"os-side-factory","blocker":"No exact source/BATON identity recovered; similarly named recovery branch is not sufficient identity evidence.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
