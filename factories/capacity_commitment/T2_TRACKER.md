@@ -15,6 +15,7 @@ Truth rule: a researched target or unsent draft is **not CONTACTED**. A sent mes
 | Autins Group plc | United Kingdom | Automotive NVH / acoustic & thermal components | UK revenue -20.3% in H1 FY26 due major-customer demand interruption; tooling for new programs | major-customer program volumes / tooling / component awards — UNKNOWN | sales@autins.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04ad9158ab6f1b` |
 | Castings plc | United Kingdom | Commercial-vehicle foundry / machining | >70% heavy-truck revenue; demand around 10% below OEM-normalised level; FY26 capex £20.5m | program volume / dedicated foundry-machining capacity / tooling — UNKNOWN | sales@castings.plc.uk | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04adae56e38c0b` |
 | Trifast plc | United Kingdom | Engineered fastenings to automotive OEM/Tier suppliers | FY26 revenue -7.3% CER; company reported weaker volumes particularly in automotive | program/customer volume / engineering-manufacturing commitment — UNKNOWN | corporate.enquiries@trifast.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04adb25afe9d0b` |
+| Strip Tinning Holdings plc | United Kingdom | Automotive glazing / EV electrical connectors | high-volume Tier-1/OEM supply with customer/application-specific automation and production-line investment; no public shortfall asserted | customer programme volume / dedicated automated line / tooling-NRE basis — UNKNOWN | sales@striptinning.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility screen CTA | NO | NO | NO | Sent via Gmail; message `1a04b1bd28e1da3b`; capacity-fit qualification, not a claimed shortfall |
 
 ## Channel/compliance state
 
@@ -38,6 +39,7 @@ First market test is live. Generic corporate mailboxes are used; sender identity
 - Autins — SENT → `1a04ad9158ab6f1b`.
 - Castings — SENT → `1a04adae56e38c0b`.
 - Trifast — SENT → `1a04adb25afe9d0b`.
+- Strip Tinning — SENT → `1a04b1bd28e1da3b`.
 - Sodecia — draft `r9030987917445416142` — UNSENT / HOLD DGC.
 - Fehst — draft `r3228309606481883657` — UNSENT / HOLD DGC.
 - COINDU — draft `r-2357619079086902254` — UNSENT / HOLD DGC.
@@ -46,16 +48,16 @@ First market test is live. Generic corporate mailboxes are used; sender identity
 
 ## Funnel scoreboard
 
-- TARGETS_RESEARCHED = 9
-- PUBLIC_SIGNAL_QUALIFIED = 9
-- CONTACTED = 4
-- DELIVERED = 0 confirmed / 4 pending
+- TARGETS_RESEARCHED = 10
+- PUBLIC_SIGNAL_QUALIFIED = 10
+- CONTACTED = 5
+- DELIVERED = 0 confirmed / 5 pending
 - REPLIED = 0
 - QUALIFIED_BY_BUYER = 0
 - CASE_EXISTS = 0 confirmed
 - DATA_AVAILABLE = 0 confirmed
 - DISCOVERY = 0
-- PILOT_PROPOSED = 4 low-friction eligibility CTAs / 0 priced pilot proposals
+- PILOT_PROPOSED = 5 low-friction eligibility CTAs / 0 priced pilot proposals
 - PILOT_ACCEPTED = 0
 - PAID = 0
 - REJECTED = 0
@@ -64,7 +66,7 @@ First market test is live. Generic corporate mailboxes are used; sender identity
 
 **T2 — MARKET EXPOSED = ACHIEVED.**
 
-Reason: the pilot-capable offer has been externally transmitted to four real, public-signal-qualified UK automotive/commercial-vehicle supplier targets through corporate routes. This is market exposure only; it is **not** delivery proof, reply, qualification, WTP, commercial proof, customer proof, recovery proof or revenue.
+Reason: the pilot-capable offer has been externally transmitted to five real, public-signal-qualified UK automotive/commercial-vehicle supplier targets through corporate routes. This is market exposure only; it is **not** delivery proof, reply, qualification, WTP, commercial proof, customer proof, recovery proof or revenue.
 
 ## Next terminal
 
@@ -76,9 +78,12 @@ Meaningful evidence required includes a paid audit/pilot, signed recovery engage
 
 **BUYER RESPONSE / QUALIFICATION / COSTLY COMMITMENT.**
 
+Current monitoring snapshot (2026-08-29 Europe/Lisbon): no reply or bounce detected from the live UK cohort and no DGC response yet. This remains `NO_REPLY_YET`, not delivery proof or rejection.
+
 ACTIVE:
-- monitor bounces/replies;
+- monitor bounces/replies and DGC response;
 - qualify any buyer reply without promoting interest into WTP;
-- convert fit into one bounded paid-pilot proposal;
+- convert fit into one bounded paid-pilot proposal using the T3 conversion kit;
 - preserve rejection reasons;
+- do not send premature follow-ups within the initial response window;
 - keep Portuguese/Spanish routes fail-closed until lawful basis is actually established.
