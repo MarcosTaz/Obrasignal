@@ -16,6 +16,17 @@ class Identity:
     authenticated = True
 
 
+def _relevant_features():
+    return {
+        "relevance": {
+            "state": "RELEVANT",
+            "evidence": [{"kind": "service", "value": "construction"}],
+            "rule_version": "relevance-v1",
+        },
+        "relevant_shortlist_eligible": True,
+    }
+
+
 def _seed(monkeypatch, tmp_path):
     db_path = tmp_path / "lifecycle-presentation.db"
     monkeypatch.setenv("OBRASIGNAL_DB", str(db_path))
@@ -36,8 +47,8 @@ def _seed(monkeypatch, tmp_path):
         rows,
     )
     conn.commit()
-    record_decision(conn, "UK_PROCUREMENT", "ocds-live:lot:1", "QUALIFIED", "live fit", score=90, rule_version=RULE_VERSION, account_id=Identity.account_id)
-    record_decision(conn, "UK_PROCUREMENT", "ocds-closed:lot:1", "QUALIFIED", "historical fit", score=95, rule_version=RULE_VERSION, account_id=Identity.account_id)
+    record_decision(conn, "UK_PROCUREMENT", "ocds-live:lot:1", "QUALIFIED", "live fit", score=90, features=_relevant_features(), rule_version=RULE_VERSION, account_id=Identity.account_id)
+    record_decision(conn, "UK_PROCUREMENT", "ocds-closed:lot:1", "QUALIFIED", "historical fit", score=95, features=_relevant_features(), rule_version=RULE_VERSION, account_id=Identity.account_id)
     persist_lifecycle_observations(
         conn,
         [{"source": "UK_PROCUREMENT", "external_id": "ocds-closed:lot:1", "is_actionable": False, "lifecycle_status": "cancelled", "lifecycle_reason": "publisher reports tender cancelled", "source_updated_at": "2026-08-24T12:00:00+01:00"}],
