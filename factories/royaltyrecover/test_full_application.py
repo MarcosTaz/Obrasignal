@@ -31,8 +31,8 @@ class FullApplicationTests(unittest.TestCase):
 
     def _candidate(self):
         licensor = self.repo.create_licensor("ORG-A", "University", "system")
-        licensee = self.repo.create_licensee("ORG-A", "Licensee", "system")
-        agreement = self.repo.create_agreement("ORG-A", licensor["id"], licensee["id"], "Patent Licence", "system")
+        licensee = self.repo.create_licensee("ORG-A", "Tenant A Licensee", "system")
+        agreement = self.repo.create_agreement("ORG-A", licensor["id"], licensee["id"], "Tenant A Patent Licence", "system")
         version = self.repo.add_agreement_version("ORG-A", agreement["id"], "v1", b"agreement", "system")
         contract_ev = self.repo.add_evidence("ORG-A", "AGREEMENT", b"5% net sales", "system")
         statement_ev = self.repo.add_evidence("ORG-A", "ROYALTY_STATEMENT", b"statement", "system")
@@ -56,10 +56,11 @@ class FullApplicationTests(unittest.TestCase):
         page_a = self.client.get("/app", headers=self.a)
         page_b = self.client.get("/app", headers=self.b)
         self.assertEqual(page_a.status_code, 200)
-        self.assertIn(b"Licensee", page_a.data)
+        self.assertIn(b"Tenant A Licensee", page_a.data)
         self.assertIn(b"Claim-ready", page_a.data)
         self.assertIn(b">0</div>", page_a.data)
-        self.assertNotIn(b"Licensee", page_b.data)
+        self.assertNotIn(b"Tenant A Licensee", page_b.data)
+        self.assertNotIn(b"Tenant A Patent Licence", page_b.data)
 
     def test_formal_audit_packet_endpoint_requires_reviewer_route(self):
         finding = self._candidate()
