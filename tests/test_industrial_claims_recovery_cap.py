@@ -17,6 +17,7 @@ def _actioned_finding(tmp_path):
         cost_evidence_ref="ledger-1",
         gross_cost="100000",
         resale_reuse="25000",
+        notice_deadline_not_applicable=True,
     )
     service.review(
         tenant_id="alpha",
