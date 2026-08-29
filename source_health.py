@@ -295,7 +295,9 @@ def source_health_contract(conn, *, sources=None, now=None, stale_after_minutes=
     Missing registered sources are explicit ``unknown`` entries rather than being
     silently absent. Coverage expectations are derived only from registry sources
     whose runtime status is ``active``; ``ready`` or ``planned`` sources are shown
-    for truth but do not falsely count as current ingestion coverage.
+    for truth but do not falsely count as current ingestion coverage. Requested
+    subsets carry their requested source set and cannot masquerade as global
+    registered/active-source coverage authority.
     """
     ensure_source_health(conn)
     now = now or datetime.now(timezone.utc)
@@ -304,10 +306,12 @@ def source_health_contract(conn, *, sources=None, now=None, stale_after_minutes=
     now = now.astimezone(timezone.utc)
 
     rows = {row['source']: dict(row) for row in conn.execute('SELECT * FROM source_health').fetchall()}
+    requested_sources = None
     if sources is None:
         names = sorted(set(SOURCES) | set(rows))
     else:
-        names = sorted({str(source).strip() for source in sources if str(source).strip()})
+        requested_sources = sorted({str(source).strip() for source in sources if str(source).strip()})
+        names = requested_sources
 
     items = []
     for source in names:
@@ -366,11 +370,11 @@ def source_health_contract(conn, *, sources=None, now=None, stale_after_minutes=
     else:
         coverage_status = 'current'
 
-    return {
+    contract = {
         'contract_version': SOURCE_HEALTH_CONTRACT_VERSION,
         'generated_at': now.isoformat(),
-        'scope': 'registered_sources',
-        'coverage_scope': 'active_sources',
+        'scope': 'registered_sources' if requested_sources is None else 'requested_sources',
+        'coverage_scope': 'active_sources' if requested_sources is None else 'requested_active_sources',
         'items': items,
         'summary': {
             'expected_source_count': len(expected),
@@ -381,6 +385,9 @@ def source_health_contract(conn, *, sources=None, now=None, stale_after_minutes=
             'zero_market_claim_allowed': False,
         },
     }
+    if requested_sources is not None:
+        contract['requested_sources'] = requested_sources
+    return contract
 
 
 def empty_result_context(health_contract, item_count):
