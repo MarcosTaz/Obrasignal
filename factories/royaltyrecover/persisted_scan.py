@@ -105,14 +105,8 @@ def run_persisted_scan(
         "period_input": _period_payload(period_input),
     }
     calculation_run = repository.create_calculation_run(
-        org_id,
-        agreement_id,
-        agreement_version_id,
-        period_start,
-        period_end,
-        ENGINE_VERSION,
-        input_payload,
-        actor_id,
+        org_id, agreement_id, agreement_version_id, period_start, period_end,
+        ENGINE_VERSION, input_payload, actor_id,
     )
 
     result = calculate(_engine_rule(stored_rule, clause), period_input)
@@ -124,16 +118,16 @@ def run_persisted_scan(
         FindingState.REQUIRES_PROFESSIONAL_REVIEW: "PROFESSIONAL_REVIEW_REQUIRED",
     }[result.state]
     finding = finding_store.create_finding(
-        org_id,
-        agreement_id,
-        "PERSISTED_RULE_SCAN",
-        result.state,
-        confidence,
-        actor_id,
+        org_id, agreement_id, "PERSISTED_RULE_SCAN", result.state, confidence, actor_id,
         amount=result.recoverable_candidate,
         currency=stored_rule["currency"] if result.recoverable_candidate is not None else None,
         source_clause_id=clause["id"],
     )
+    for item in evidence:
+        repository.conn.execute(
+            "INSERT OR IGNORE INTO finding_evidence(finding_id, evidence_id, role) VALUES(?,?,?)",
+            (finding["id"], item["id"], "CALCULATION_SOURCE"),
+        )
     repository._audit(org_id, actor_id, "LINK", "Finding", finding["id"], {
         "calculation_run_id": calculation_run["id"],
         "rule_id": stored_rule["id"],
