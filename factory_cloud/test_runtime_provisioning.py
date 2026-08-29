@@ -90,6 +90,8 @@ class RuntimeProvisioningTests(unittest.TestCase):
         self.assertIn('install -d -o factory-cloud-control -g "${user}" -m 2770 "${QUEUE_DIR}/${app}"', text)
         self.assertIn('install -o root -g "${user}" -m 0640', text)
         self.assertIn('prepare-obrasignal-workspace.sh', text)
+        self.assertNotIn('--groups factory-cloud', text)
+        self.assertIn('still belongs to legacy shared group factory-cloud', text)
         self.assertNotIn('APPS="${APPS:-obrasignal k3-fatality}"', text)
 
     def test_systemd_worker_has_private_queue_and_shared_state_is_inaccessible(self):
