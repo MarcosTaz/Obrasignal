@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from enum import Enum
 from typing import Callable, Optional
 
@@ -14,7 +14,7 @@ from .identifiers import CASE_ID_ADDRESSABILITY_ERROR, is_addressable_case_id
 from .operator_ui import OPERATOR_HTML
 from .repository import CapacityRepository
 from .service import load_and_process, save_and_process
-from .state import AssistedCaseState, recovery_case_from_payload
+from .state import AssistedCaseState, exact_decimal_from_input, recovery_case_from_payload
 
 
 TenantResolver = Callable[[object], Optional[str]]
@@ -74,10 +74,7 @@ def _optional_decimal(payload: dict, key: str) -> Optional[Decimal]:
     raw = payload.get(key)
     if raw is None:
         return None
-    try:
-        return Decimal(str(raw))
-    except (InvalidOperation, ValueError, TypeError) as exc:
-        raise ValueError(f"{key} must be numeric") from exc
+    return exact_decimal_from_input(raw, field_name=key)
 
 
 def _addressable_recovery_case(raw: dict):
