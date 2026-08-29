@@ -19,22 +19,61 @@ def test_claim_package_is_evidence_indexed_and_never_overclaims(tmp_path):
         claim_family="TOOLING", commercial_basis_ref="po-1", cost_evidence_ref="invoice-1", currency="EUR",
         gross_cost="50000", prior_payment="10000", notice_due=date(2026, 9, 30), **_documents(),
     )
-    package = build_claim_package(result, customer_ref="oem-1", program_ref="program-1", event_ref="cancel-1")
-    assert package["schema_version"] == 4
+    package = build_claim_package(
+        result,
+        customer_ref="oem-1",
+        program_ref="program-1",
+        event_ref="cancel-1",
+        as_of_date=date(2026, 9, 29),
+    )
+    assert package["schema_version"] == 5
     assert package["net_potential"] == "40000"
     assert package["currency"] == "EUR"
     assert package["calculation"]["output_unit"] == "EUR"
     assert package["economic_truth_state"] == "DOCUMENTED_CANDIDATE_FOR_REVIEW"
     assert package["entitlement"]["confidence"] == "PARTIAL"
     assert package["entitlement"]["rule_ref"] == "documented-commercial-basis-v3-pre-review"
+    assert package["entitlement"]["pre_review"] is True
+    assert package["entitlement"]["generic_actionable"] is False
     assert package["entitlement"]["recoverability_established"] is False
-    assert package["notice"] == {"truth_state": "DECLARED_DATE_FOR_REVIEW", "due_date": "2026-09-30"}
+    assert package["notice"] == {
+        "truth_state": "DECLARED_DATE_FOR_REVIEW",
+        "due_date": "2026-09-30",
+        "timing_state": "OPEN",
+        "as_of_date": "2026-09-29",
+        "timing_establishes_recoverability": False,
+        "expired_establishes_nonrecoverability": False,
+        "expired_requires_human_exception_or_waiver_review": False,
+    }
+    assert package["finding"]["workflow_scope"] == "DOCUMENTARY_REVIEW"
     assert package["customer_action_authorized"] is False
+    assert package["external_claim_submission_authorized"] is False
     assert package["legal_conclusion"] is None
     assert len(package["evidence_index"]) == 3
     assert all(item["content_hash"] for item in package["evidence_index"])
     assert {item["verification_state"] for item in package["evidence_index"]} == {"CONTENT_HASHED"}
     assert {item["raw_content_persisted"] for item in package["evidence_index"]} == {"false"}
+
+
+def test_expired_declared_date_in_package_is_risk_not_nonrecoverability(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "expired-package.sqlite3")
+    result = service.analyze(
+        tenant_id="alpha", actor_id="analyst", customer_ref="oem-1", program_ref="program-1", event_ref="expired-1",
+        claim_family="TOOLING", commercial_basis_ref="po-expired", cost_evidence_ref="invoice-expired", currency="EUR",
+        gross_cost="50000", notice_due=date(2026, 9, 30), **_documents(),
+    )
+    package = build_claim_package(
+        result,
+        customer_ref="oem-1",
+        program_ref="program-1",
+        event_ref="expired-1",
+        as_of_date=date(2026, 10, 1),
+    )
+    assert package["notice"]["timing_state"] == "EXPIRED"
+    assert package["notice"]["expired_requires_human_exception_or_waiver_review"] is True
+    assert package["notice"]["expired_establishes_nonrecoverability"] is False
+    assert package["notice"]["timing_establishes_recoverability"] is False
+    assert package["economic_truth_state"] == "DOCUMENTED_CANDIDATE_FOR_REVIEW"
 
 
 def test_missing_evidence_package_stays_potential_entitlement(tmp_path):
@@ -44,12 +83,22 @@ def test_missing_evidence_package_stays_potential_entitlement(tmp_path):
         claim_family="FINISHED_GOODS", commercial_basis_ref="contract-1", cost_evidence_ref="inventory-1", currency="EUR",
         gross_cost="75000", missing_evidence=("ownership", "release_history"), **_documents(),
     )
-    package = build_claim_package(result, customer_ref="oem-1", program_ref="program-1", event_ref="reduction-1")
+    package = build_claim_package(
+        result,
+        customer_ref="oem-1",
+        program_ref="program-1",
+        event_ref="reduction-1",
+        as_of_date=date(2026, 8, 29),
+    )
     assert package["economic_truth_state"] == "POTENTIAL_ENTITLEMENT"
     assert package["currency"] == "EUR"
     assert package["entitlement"]["confidence"] == "UNRESOLVED"
+    assert package["entitlement"]["pre_review"] is True
+    assert package["entitlement"]["generic_actionable"] is False
     assert package["entitlement"]["recoverability_established"] is False
-    assert package["notice"] == {"truth_state": "UNKNOWN", "due_date": None}
+    assert package["notice"]["truth_state"] == "UNKNOWN"
+    assert package["notice"]["due_date"] is None
+    assert package["notice"]["timing_state"] == "UNKNOWN"
     assert package["missing_evidence"] == [NOTICE_DEADLINE_EVIDENCE, "ownership", "release_history"]
     assert {item["verification_state"] for item in package["evidence_index"]} == {"CONTENT_HASHED"}
 
@@ -61,13 +110,22 @@ def test_reference_only_package_cannot_claim_evidence_supported(tmp_path):
         claim_family="TOOLING", commercial_basis_ref="po-reference", cost_evidence_ref="ledger-reference", currency="EUR",
         gross_cost="10000", notice_deadline_not_applicable=True,
     )
-    package = build_claim_package(result, customer_ref="oem-1", program_ref="program-1", event_ref="reference-only")
+    package = build_claim_package(
+        result,
+        customer_ref="oem-1",
+        program_ref="program-1",
+        event_ref="reference-only",
+        as_of_date=date(2026, 8, 29),
+    )
     assert package["economic_truth_state"] == "POTENTIAL_ENTITLEMENT"
     assert package["currency"] == "EUR"
     assert package["entitlement"]["confidence"] == "UNRESOLVED"
+    assert package["entitlement"]["generic_actionable"] is False
     assert package["entitlement"]["recoverability_established"] is False
+    assert package["notice"]["timing_state"] == "NO_DEADLINE_DECLARED_FOR_REVIEW"
     assert {item["verification_state"] for item in package["evidence_index"]} == {"REFERENCE_ONLY"}
     assert package["customer_action_authorized"] is False
+    assert package["external_claim_submission_authorized"] is False
     assert package["legal_conclusion"] is None
 
 
@@ -78,9 +136,16 @@ def test_missing_currency_is_never_fabricated_in_package(tmp_path):
         claim_family="WIP", commercial_basis_ref="po-no-currency", cost_evidence_ref="ledger-no-currency",
         gross_cost="10000", notice_deadline_not_applicable=True, **_documents(),
     )
-    package = build_claim_package(result, customer_ref="oem-1", program_ref="program-1", event_ref="no-currency")
+    package = build_claim_package(
+        result,
+        customer_ref="oem-1",
+        program_ref="program-1",
+        event_ref="no-currency",
+        as_of_date=date(2026, 8, 29),
+    )
     assert package["currency"] is None
     assert package["calculation"]["output_unit"] == "UNKNOWN"
     assert CLAIM_CURRENCY_EVIDENCE in package["missing_evidence"]
     assert package["entitlement"]["confidence"] == "UNRESOLVED"
+    assert package["entitlement"]["generic_actionable"] is False
     assert package["economic_truth_state"] == "POTENTIAL_ENTITLEMENT"
