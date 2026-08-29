@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hmac
 import json
 import os
 from datetime import date
@@ -8,9 +7,11 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Flask, jsonify, request
 
+from authz import CredentialRegistry, role_allows
+from contract_store import ContractStore
+from persisted_scan import run_persisted_scan
 from repository import ConflictError, NotFoundError, RoyaltyRepository, ScopeError
-from royalty_engine import PeriodInput, RoyaltyRule, RoyaltyTier
-from service_pipeline import RecoverabilityCase, pack_to_dict, run_case
+from royalty_engine import PeriodInput
 
 
 MAX_TEXT_EVIDENCE_BYTES = 1_000_000
@@ -39,29 +40,17 @@ def _date(value):
         raise ValueError(f"invalid ISO date: {value}") from exc
 
 
-def _bool_or_none(value):
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return value
-    raise ValueError("expected boolean or null")
-
-
-def _load_api_keys() -> dict[str, str]:
-    raw = os.getenv("ROYALTYRECOVER_API_KEYS_JSON", "").strip()
+def _load_credentials_config():
+    modern = os.getenv("ROYALTYRECOVER_CREDENTIALS_JSON", "").strip()
+    legacy = os.getenv("ROYALTYRECOVER_API_KEYS_JSON", "").strip()
+    raw = modern or legacy
     if not raw:
-        return {}
+        return None
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
-        return {}
-    if not isinstance(payload, dict):
-        return {}
-    return {
-        str(org_id).strip(): str(secret)
-        for org_id, secret in payload.items()
-        if str(org_id).strip() and isinstance(secret, str) and secret
-    }
+        return None
+    return payload
 
 
 def _text_content(payload: dict, field: str = "content_utf8") -> bytes:
@@ -79,32 +68,6 @@ def _json_payload() -> dict:
     if not isinstance(payload, dict):
         raise ValueError("JSON object required")
     return payload
-
-
-def _rule(payload):
-    tiers = tuple(
-        RoyaltyTier(
-            lower_bound=_decimal(item.get("lower_bound"), required=True),
-            upper_bound=_decimal(item.get("upper_bound")),
-            rate=_decimal(item.get("rate"), required=True),
-            source_clause=item.get("source_clause"),
-        )
-        for item in payload.get("tiers", [])
-    )
-    return RoyaltyRule(
-        rule_id=str(payload.get("rule_id") or ""),
-        basis=str(payload.get("basis") or ""),
-        rate=_decimal(payload.get("rate")),
-        per_unit=_decimal(payload.get("per_unit")),
-        minimum_guarantee=_decimal(payload.get("minimum_guarantee")),
-        cap=_decimal(payload.get("cap")),
-        floor=_decimal(payload.get("floor")),
-        tiers=tiers,
-        sublicense_share=_decimal(payload.get("sublicense_share")),
-        currency=str(payload.get("currency") or "EUR").upper(),
-        source_clause=payload.get("source_clause"),
-        requires_professional_review=bool(payload.get("requires_professional_review", False)),
-    )
 
 
 def _period(payload):
@@ -125,10 +88,29 @@ def _period(payload):
     )
 
 
-def create_app(api_keys: dict[str, str] | None = None, repository: RoyaltyRepository | None = None) -> Flask:
+def _serialize_persisted_result(result):
+    return {
+        "calculation_run": result.calculation_run,
+        "calculation": {
+            "state": result.calculation_state.value,
+            "expected_royalty": None if result.expected_royalty is None else format(result.expected_royalty, "f"),
+            "recoverable_candidate": None if result.recoverable_candidate is None else format(result.recoverable_candidate, "f"),
+        },
+        "finding": result.finding,
+        "claim_ready": False,
+        "disclaimer": "Analytical output only. Positive variance is not a legal claim or formal audit conclusion.",
+    }
+
+
+def create_app(api_keys=None, repository: RoyaltyRepository | None = None) -> Flask:
     app = Flask(__name__)
-    configured_keys = dict(api_keys) if api_keys is not None else _load_api_keys()
+    config = api_keys if api_keys is not None else _load_credentials_config()
+    try:
+        credentials = CredentialRegistry.from_config(config)
+    except ValueError:
+        credentials = CredentialRegistry(())
     repo = repository or RoyaltyRepository.file(os.getenv("ROYALTYRECOVER_DB_PATH", "royaltyrecover.db"))
+    contracts = ContractStore(repo)
 
     @app.after_request
     def security_headers(response):
@@ -158,18 +140,14 @@ def create_app(api_keys: dict[str, str] | None = None, repository: RoyaltyReposi
     def authenticate():
         if request.path == "/health":
             return None
-        if not configured_keys:
+        if not credentials.configured:
             return jsonify({"error": "service_not_configured"}), 503
-        supplied = request.headers.get("X-RoyaltyRecover-API-Key", "")
-        authenticated_org = None
-        for org_id, expected in configured_keys.items():
-            if hmac.compare_digest(supplied, expected):
-                authenticated_org = org_id
-                break
-        if authenticated_org is None:
+        credential = credentials.authenticate(request.headers.get("X-RoyaltyRecover-API-Key", ""))
+        if credential is None:
             return jsonify({"error": "authentication_required"}), 401
-        request.royaltyrecover_org_id = authenticated_org
-        request.royaltyrecover_actor_id = f"api:{authenticated_org}"
+        request.royaltyrecover_org_id = credential.organization_id
+        request.royaltyrecover_actor_id = f"api:{credential.key_id}"
+        request.royaltyrecover_role = credential.role
         return None
 
     def org_id() -> str:
@@ -177,6 +155,14 @@ def create_app(api_keys: dict[str, str] | None = None, repository: RoyaltyReposi
 
     def actor_id() -> str:
         return request.royaltyrecover_actor_id
+
+    def role() -> str:
+        return request.royaltyrecover_role
+
+    def require_role(required: str):
+        if not role_allows(role(), required):
+            return jsonify({"error": "insufficient_role", "required_role": required}), 403
+        return None
 
     @app.post("/api/v1/organization")
     def organization():
@@ -259,44 +245,98 @@ def create_app(api_keys: dict[str, str] | None = None, repository: RoyaltyReposi
         response["lineage_note"] = "Raw text is hashed for lineage and discarded by this minimum endpoint."
         return jsonify({"evidence": response}), 201
 
+    @app.post("/api/v1/agreement-versions/<agreement_version_id>/reviewed-clauses")
+    def create_reviewed_clause(agreement_version_id):
+        denied = require_role("REVIEWER")
+        if denied:
+            return denied
+        try:
+            payload = _json_payload()
+            item = contracts.add_clause(
+                org_id(), agreement_version_id,
+                str(payload.get("clause_ref") or ""),
+                str(payload.get("clause_type") or "ROYALTY"),
+                actor_id(),
+                text_excerpt=payload.get("text_excerpt"),
+                evidence_id=payload.get("evidence_id"),
+                review_status="HUMAN_REVIEWED",
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"clause": item}), 201
+
+    @app.post("/api/v1/agreement-versions/<agreement_version_id>/reviewed-royalty-rules")
+    def create_reviewed_royalty_rule(agreement_version_id):
+        denied = require_role("REVIEWER")
+        if denied:
+            return denied
+        try:
+            payload = _json_payload()
+            item = contracts.add_royalty_rule(
+                org_id(), agreement_version_id,
+                str(payload.get("clause_id") or ""),
+                str(payload.get("basis") or ""),
+                str(payload.get("currency") or "EUR"),
+                actor_id(),
+                rate=_decimal(payload.get("rate")),
+                per_unit=_decimal(payload.get("per_unit")),
+                minimum_guarantee=_decimal(payload.get("minimum_guarantee")),
+                cap=_decimal(payload.get("cap")),
+                floor=_decimal(payload.get("floor")),
+                effective_from=payload.get("effective_from"),
+                effective_to=payload.get("effective_to"),
+                review_status="HUMAN_REVIEWED",
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"royalty_rule": item}), 201
+
     @app.get("/api/v1/audit-events")
     def audit_events():
         return jsonify({"items": repo.list_audit_events(org_id())})
 
     @app.post("/api/v1/recoverability/scan")
-    def recoverability_scan():
-        payload = request.get_json(silent=True)
-        if not isinstance(payload, dict):
-            return jsonify({"error": "invalid_json"}), 400
-        try:
-            organization_id = str(payload.get("organization_id") or "").strip()
-            case_id = str(payload.get("case_id") or "").strip()
-            licensee_id = str(payload.get("licensee_id") or "").strip()
-            agreement_id = str(payload.get("agreement_id") or "").strip()
-            if not all((organization_id, case_id, licensee_id, agreement_id)):
-                raise ValueError("organization_id, case_id, licensee_id and agreement_id are required")
-            if organization_id != org_id():
-                return jsonify({"error": "organization_scope_mismatch"}), 403
-            case = RecoverabilityCase(
-                case_id=case_id,
-                licensee_id=licensee_id,
-                agreement_id=agreement_id,
-                annual_reported_royalty=_decimal(payload.get("annual_reported_royalty")),
-                audit_deadline=_date(payload.get("audit_deadline")),
-                audit_right_supported=_bool_or_none(payload.get("audit_right_supported")),
-                contract_version_complete=bool(payload.get("contract_version_complete", False)),
-                auditor_requirement=payload.get("auditor_requirement"),
-                rule=_rule(payload.get("rule") or {}),
-                period_input=_period(payload.get("period_input") or {}),
-            )
-            today = _date(payload.get("as_of_date")) or date.today()
-        except (TypeError, ValueError) as exc:
-            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+    def deprecated_direct_scan():
+        payload = request.get_json(silent=True) or {}
+        supplied_org = str(payload.get("organization_id") or "").strip()
+        if supplied_org and supplied_org != org_id():
+            return jsonify({"error": "organization_scope_mismatch"}), 403
+        return jsonify({
+            "error": "persisted_lineage_required",
+            "detail": "Direct caller-supplied royalty rules are not accepted. Use /api/v1/recoverability/persisted-scan with a human-reviewed persisted rule and tenant-scoped evidence.",
+        }), 409
 
-        result = pack_to_dict(run_case(case, today=today))
-        result["organization_id"] = organization_id
-        result["disclaimer"] = "Analytical output only. Positive variance is not a legal claim or formal audit conclusion."
-        return jsonify(result)
+    @app.post("/api/v1/recoverability/persisted-scan")
+    def persisted_recoverability_scan():
+        try:
+            payload = _json_payload()
+            supplied_org = str(payload.get("organization_id") or "").strip()
+            if supplied_org and supplied_org != org_id():
+                return jsonify({"error": "organization_scope_mismatch"}), 403
+            agreement_id = str(payload.get("agreement_id") or "").strip()
+            agreement_version_id = str(payload.get("agreement_version_id") or "").strip()
+            rule_id = str(payload.get("rule_id") or "").strip()
+            period_start = str(payload.get("period_start") or "").strip()
+            period_end = str(payload.get("period_end") or "").strip()
+            evidence_ids = payload.get("evidence_ids")
+            if not isinstance(evidence_ids, list) or not all(isinstance(item, str) and item.strip() for item in evidence_ids):
+                raise ValueError("evidence_ids must be a non-empty array of evidence ids")
+            if not evidence_ids:
+                raise ValueError("evidence_ids must be a non-empty array of evidence ids")
+            if not all((agreement_id, agreement_version_id, rule_id, period_start, period_end)):
+                raise ValueError("agreement_id, agreement_version_id, rule_id, period_start and period_end are required")
+            if _date(period_start) is None or _date(period_end) is None or period_end < period_start:
+                raise ValueError("period_start/period_end must be valid ordered ISO dates")
+            result = run_persisted_scan(
+                repo, org_id(), agreement_id, agreement_version_id, rule_id,
+                period_start, period_end, _period(payload.get("period_input") or {}),
+                evidence_ids, actor_id(),
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        response = _serialize_persisted_result(result)
+        response["organization_id"] = org_id()
+        return jsonify(response)
 
     return app
 
