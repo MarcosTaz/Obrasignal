@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import asdict
 from decimal import Decimal, InvalidOperation
 from enum import Enum
@@ -17,6 +18,7 @@ from .state import AssistedCaseState, recovery_case_from_payload
 
 TenantResolver = Callable[[object], Optional[str]]
 MAX_REQUEST_BYTES = 1_000_000
+WEB_CASE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 
 
 _TOP_LEVEL_FIELDS = {
@@ -78,6 +80,15 @@ def _optional_decimal(payload: dict, key: str) -> Optional[Decimal]:
         raise ValueError(f"{key} must be numeric") from exc
 
 
+def _addressable_recovery_case(raw: dict):
+    recovery_case = recovery_case_from_payload(raw)
+    if not WEB_CASE_ID_PATTERN.fullmatch(recovery_case.case_id):
+        raise ValueError(
+            "case_id must be URL-addressable: 1-200 letters, digits, dot, underscore, colon, or hyphen"
+        )
+    return recovery_case
+
+
 def _state_from_payload(payload: dict, tenant_id: str) -> AssistedCaseState:
     if not isinstance(payload, dict):
         raise ValueError("request body must be a JSON object")
@@ -94,7 +105,7 @@ def _state_from_payload(payload: dict, tenant_id: str) -> AssistedCaseState:
         company_id=_required_string(payload, "company_id"),
         customer_id=_required_string(payload, "customer_id"),
         program_id=_required_string(payload, "program_id"),
-        recovery_case=recovery_case_from_payload(payload["recovery_case"]),
+        recovery_case=_addressable_recovery_case(payload["recovery_case"]),
         evidence_refs=_string_list(payload, "evidence_refs"),
         missing_evidence=_string_list(payload, "missing_evidence"),
         deadline=_optional_string(payload, "deadline"),
