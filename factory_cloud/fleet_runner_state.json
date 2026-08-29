@@ -5,31 +5,30 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 6,
-  "last_factory_id": "recovery-radar",
-  "last_run_at": "2026-08-29T19:36:00Z",
+  "cursor": 7,
+  "last_factory_id": "sourcing-recovery",
+  "last_run_at": "2026-08-29T19:37:00Z",
   "last_material_change": {
     "kind": "SOURCE_IDENTITY_NOT_PROVEN_ROTATED",
-    "factory_id": "recovery-radar",
-    "summary": "Recovery Radar exact business-Factory source identity could not be recovered from repository truth. Search results containing Radar resolve to ObraSignal customer/product Radar and integration repair work, not an explicitly bound Recovery Radar business repository/BATON. No branch under the recovery/* prefix exists for Recovery Radar; only the separately proven ScopeLedger recovery branch is present. Factory Cloud therefore preserves Recovery Radar as UNKNOWN_SOURCE_IDENTITY rather than conflating it with ObraSignal Radar. Fleet rotates to Sourcing Recovery & Supplier Margin Control.",
+    "factory_id": "sourcing-recovery",
+    "summary": "Sourcing Recovery & Supplier Margin Control exact-name PR search produced no bound Factory source, and repository matching refs under sourcing/* are empty. An unrelated watchlist PR appeared in broad text search and was explicitly rejected as non-authoritative. Factory Cloud preserves this lane as UNKNOWN_SOURCE_IDENTITY and rotates immediately to Product Market Access / Legal Product Checker.",
     "evidence": {
-      "recovery_radar": {
+      "sourcing_recovery": {
         "classification": "UNKNOWN_SOURCE_IDENTITY",
-        "exact_business_source": "NOT_RECOVERED",
-        "recovery_prefix_refs": ["recovery/scopeledger-source-20260829"],
-        "obrasignal_radar_candidates_adopted": false,
-        "reason": "ObraSignal Radar integration/repair PRs do not prove identity with the separate Recovery Radar Factory."
+        "exact_branch_prefix": "sourcing/*",
+        "matching_refs": 0,
+        "broad_search_false_positive": "PR #150 watchlist",
+        "false_positive_adopted": false
       }
     },
-    "active": "Sourcing Recovery & Supplier Margin Control: recover exact source/BATON identity and current gates; execute bounded safe work only if the lane is provably identified.",
-    "next": "Product Market Access / Legal Product Checker, then EU Cloud Switching; UNKNOWN source identity is WAIT, not a fleet stop.",
+    "active": "Product Market Access / Legal Product Checker: recover exact source/BATON identity and current repository gates, then execute the highest-value bounded safe work if source truth is provable.",
+    "next": "EU Cloud Switching / Migration Capital Network, then Aviation Lease Entitlement Recovery; continue past UNKNOWN lanes.",
     "wait": [
+      "Sourcing Recovery canonical/source identity remains UNKNOWN",
       "Recovery Radar canonical/source identity remains UNKNOWN",
       "ChangeLedger canonical/source identity remains UNKNOWN",
       "ScopeLedger production/Railway source lineage remains unproven",
-      "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
-      "Customer Journey #764 Web purchase completion remains unresolved",
-      "Customer Journey real provider email/deep-link/device recovery acceptance remains external",
+      "Customer Journey #762 and #764 remain unresolved",
       "Portfolio #760 controlled reconciliation remains separate",
       "Aviation/ContractCredit supervised runtime provisioning remains external/unverified",
       "ComplianceLedger canonical source identity remains UNKNOWN",
@@ -39,9 +38,10 @@
     ]
   },
   "blocked": [
-    {"factory_id":"scopeledger","blocker":"Production lineage cannot be proved from the recovered GitHub branch alone; no production mutation is authorized from an unverified recovery source.","global_stop":false},
-    {"factory_id":"changeledger","blocker":"No exact source/BATON identity recovered; similarly named change-impact branches cannot be adopted without proof.","global_stop":false},
-    {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered; ObraSignal Radar branches are not substituted for the business Factory.","global_stop":false}
+    {"factory_id":"scopeledger","blocker":"Production lineage cannot be proved from the recovered GitHub branch alone.","global_stop":false},
+    {"factory_id":"changeledger","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity or sourcing/* branch recovered.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
