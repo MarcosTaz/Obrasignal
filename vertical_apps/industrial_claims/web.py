@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
 from flask import Flask, jsonify, request
+from jwt import InvalidTokenError
 
+from auth_context import RequestIdentity, configured_identity
+from auth_context_jwt import JwksUnavailableError
 from factory_cloud.assurance_kernel import AssuranceKernelError
 from factory_cloud.assurance_ops import AssuranceOperationError
 from factory_cloud.assurance_store import AssuranceStoreError
@@ -24,16 +28,59 @@ API_ERRORS = (
 )
 
 
-def create_app(database: str | Path) -> Flask:
+class IndustrialClaimsAuthenticationError(Exception):
+    pass
+
+
+class IndustrialClaimsAuthorizationError(Exception):
+    pass
+
+
+def create_app(
+    database: str | Path,
+    *,
+    identity_resolver: Callable[[], RequestIdentity] | None = None,
+) -> Flask:
     app = Flask(__name__)
     service = IndustrialClaimsService(database)
+    resolve_identity = identity_resolver or configured_identity
 
     def identity() -> tuple[str, str]:
-        tenant_id = request.headers.get("X-Tenant-ID", "").strip()
-        actor_id = request.headers.get("X-Actor-ID", "").strip()
+        try:
+            verified = resolve_identity()
+        except JwksUnavailableError:
+            raise
+        except (InvalidTokenError, RuntimeError) as exc:
+            raise IndustrialClaimsAuthenticationError("verified identity required") from exc
+        if not verified.authenticated:
+            raise IndustrialClaimsAuthenticationError("verified identity required")
+
+        tenant_id = verified.account_id.strip()
+        actor_id = (verified.subject or verified.account_id).strip()
         if not tenant_id or not actor_id:
-            raise SharedPlatformError("trusted upstream tenant and actor identity headers are required")
+            raise IndustrialClaimsAuthenticationError("verified tenant and actor identity required")
+
+        # X-* identity headers are compatibility assertions only. They are never
+        # authoritative: the verified provider identity is the tenant boundary.
+        requested_tenant = request.headers.get("X-Tenant-ID", "").strip()
+        requested_actor = request.headers.get("X-Actor-ID", "").strip()
+        if requested_tenant and requested_tenant != tenant_id:
+            raise IndustrialClaimsAuthorizationError("requested tenant does not match verified identity")
+        if requested_actor and requested_actor != actor_id:
+            raise IndustrialClaimsAuthorizationError("requested actor does not match verified identity")
         return tenant_id, actor_id
+
+    @app.errorhandler(IndustrialClaimsAuthenticationError)
+    def authentication_error(_exc):
+        return jsonify({"error": "authentication_required"}), 401
+
+    @app.errorhandler(IndustrialClaimsAuthorizationError)
+    def authorization_error(_exc):
+        return jsonify({"error": "identity_scope_mismatch"}), 403
+
+    @app.errorhandler(JwksUnavailableError)
+    def authentication_provider_unavailable(_exc):
+        return jsonify({"error": "authentication_service_unavailable"}), 503
 
     @app.get("/health")
     def health():
