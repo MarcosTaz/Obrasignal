@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 import sqlite3
 
+from earnedcash.attribution import verified_case_cash_attribution
 from earnedcash.backup import copy_database, restore_verified_copy
 from earnedcash.case_workflow import CaseState
 from earnedcash.cash_verification import CashEvidence, CashEvidenceKind
@@ -85,7 +86,7 @@ def pilot_store():
     return store
 
 
-def test_synthetic_pilot_reconciles_to_verified_cash_fee_and_restorable_truth():
+def test_synthetic_pilot_reconciles_to_attributed_cash_fee_and_restorable_truth():
     store = pilot_store()
     operator = AssistedPilotOperator(store)
     result = operator.reconcile_project(
@@ -140,19 +141,27 @@ def test_synthetic_pilot_reconciles_to_verified_cash_fee_and_restorable_truth():
         ),
     )
 
-    verified_cash = store.verified_cash_total(
+    project_cash = store.verified_cash_total(
         tenant_id="tenant-1", project_id="project-1"
     )
-    assert verified_cash == Decimal("100000")
+    assert project_cash == Decimal("100000")
     assert store.list_cases(
         tenant_id="tenant-1", project_id="project-1"
     )[0]["status"] == "PAID"
     assert store.audit_valid("tenant-1") is True
 
+    attribution = verified_case_cash_attribution(
+        store, tenant_id="tenant-1", project_id="project-1"
+    )
+    assert attribution.valid is True
+    assert attribution.verified_total == Decimal("100000")
+    assert attribution.attributions[0].case_id == case_id
+    assert attribution.attributions[0].evidence_ref == "bank:synthetic-tx-1"
+
     fee = calculate_success_fee(
-        verified_cash_received=verified_cash,
+        verified_cash_received=attribution.verified_total,
         fee_rate=Decimal("0.15"),
-        attribution_verified=True,
+        attribution_verified=attribution.valid,
     )
     assert fee.verified_economic_result == Decimal("100000")
     assert fee.fee_due == Decimal("15000.00")
@@ -169,6 +178,11 @@ def test_synthetic_pilot_reconciles_to_verified_cash_fee_and_restorable_truth():
     assert restored.verified_cash_total(
         tenant_id="tenant-1", project_id="project-1"
     ) == Decimal("100000")
+    restored_attribution = verified_case_cash_attribution(
+        restored, tenant_id="tenant-1", project_id="project-1"
+    )
+    assert restored_attribution.valid is True
+    assert restored_attribution.verified_total == Decimal("100000")
     assert restored.list_cases(
         tenant_id="tenant-1", project_id="project-1"
     )[0]["status"] == "PAID"
@@ -190,11 +204,14 @@ def test_synthetic_zero_recovery_is_pass_and_creates_no_recovery_fee():
     assert result["recovery_queue"] == []
     assert store.list_cases(tenant_id="tenant-1", project_id="project-1") == []
 
+    attribution = verified_case_cash_attribution(
+        store, tenant_id="tenant-1", project_id="project-1"
+    )
+    assert attribution.valid is True
+    assert attribution.verified_total == Decimal("0")
     fee = calculate_success_fee(
-        verified_cash_received=store.verified_cash_total(
-            tenant_id="tenant-1", project_id="project-1"
-        ),
+        verified_cash_received=attribution.verified_total,
         fee_rate=Decimal("0.15"),
-        attribution_verified=True,
+        attribution_verified=attribution.valid,
     )
     assert fee.fee_due == Decimal("0.00")
