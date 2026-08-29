@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "factory_id": "contractcredit",
+  "exact_source_head": "5b26801d5d54f224f1da36bb66ba8d26f1f8208c",
+  "classification": "NOT_PILOT_SAFE",
+  "evidence": {
+    "wedge_defined": {"status":"PASS","refs":["vertical_apps/contractcredit/pilot.json"]},
+    "buyer_defined": {"status":"UNKNOWN","refs":[]},
+    "economic_or_entitlement_basis_defined": {"status":"PASS","refs":["vertical_apps/contractcredit/pilot.json","vertical_apps/contractcredit/service.py"]},
+    "non_claims_defined": {"status":"PASS","refs":["vertical_apps/contractcredit/pilot.json","factory_cloud/apps.json"]},
+    "end_to_end_product": {"status":"UNKNOWN","refs":["tests/test_vertical_end_to_end_outcomes.py","tests/test_vertical_web_apis.py"]},
+    "web_complete": {"status":"UNKNOWN","refs":[]},
+    "deterministic_calculation": {"status":"PASS","refs":["tests/test_factory_cloud_assurance_kernel.py","vertical_apps/contractcredit/service.py"]},
+    "evidence_lineage": {"status":"PASS","refs":["tests/test_factory_cloud_assurance_kernel.py","vertical_apps/contractcredit/service.py"]},
+    "tenant_isolation": {"status":"PASS","refs":["tests/test_vertical_web_apis.py","tests/test_factory_cloud_assurance_kernel.py"]},
+    "adversarial": {"status":"UNKNOWN","refs":[]},
+    "durable_recovery": {"status":"UNKNOWN","refs":[]},
+    "backup_restore": {"status":"UNKNOWN","refs":[]},
+    "observability": {"status":"UNKNOWN","refs":[]},
+    "support_continuity": {"status":"UNKNOWN","refs":[]},
+    "synthetic_company_e2e": {"status":"UNKNOWN","refs":[]},
+    "billing_sandbox": {"status":"UNKNOWN","refs":[]},
+    "shadow_validation": {"status":"UNKNOWN","refs":[]},
+    "source_registered": {"status":"PASS","refs":["factory_cloud/apps.json"]},
+    "exact_source_head": {"status":"PASS","refs":["factory_cloud/apps.json"]},
+    "assisted_api": {"status":"PASS","refs":["tests/test_vertical_web_apis.py","vertical_apps/contractcredit/web.py"]},
+    "delivery_economics_defined": {"status":"PASS","refs":["vertical_apps/contractcredit/pilot.json"]},
+    "onboarding_exit_criteria": {"status":"PASS","refs":["vertical_apps/contractcredit/pilot.json","tests/test_vertical_pilot_contracts.py"]},
+    "service_e2e_partial": {"status":"PASS","refs":["tests/test_vertical_end_to_end_outcomes.py"]}
+  }
+}
