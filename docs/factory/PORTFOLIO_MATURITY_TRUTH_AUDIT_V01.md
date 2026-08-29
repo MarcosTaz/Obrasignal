@@ -1,160 +1,163 @@
-# Portfolio Maturity & Promotion Truth Audit v0.1
+# Portfolio Maturity & Promotion Truth Audit v0.2
 
-Status: INDEPENDENT_GOVERNANCE_AUDIT / NON_RUNTIME / NO_MERGE_AUTHORIZATION
+Status: INDEPENDENT_GOVERNANCE_AUDIT / NON_RUNTIME / EVIDENCE_INTEGRITY_OVERRIDE_ACTIVE / NO_MERGE_AUTHORIZATION
 
 ## Scope
 
-Audit Factory Cloud PR #760 planning/maturity metadata, scheduling priority and portfolio-to-application promotion boundaries so planning state cannot silently become repository/runtime/business authority.
+Audit Factory Cloud PR #760 planning/maturity metadata, scheduling priority and portfolio-to-application promotion so planning state cannot silently become repository, runtime, customer or business authority.
 
-Observed owner implementation:
+Observed owner:
 - PR #760
 - branch `factory-cloud/shared-platform-portfolio-architecture`
 - observed exact HEAD `02fdfc5422acd9b20b4f05ec511ef7f1cba1bf3a`
-- exact-head Quality run `33265278871`: SUCCESS
+- exact-head Quality `33265278871`: SUCCESS
 
-Related global Control Tower owner:
+Related Control Tower owner:
 - PR #722
 - branch `factory-cloud/global-control-tower-routing`
-- current observed HEAD `cfaca761dfb816ac36ac98627671e9e6502b3090`
+- observed HEAD `cfaca761dfb816ac36ac98627671e9e6502b3090`
 
-## 1. Portfolio metadata is explicitly non-authoritative — PASS
+## 1. Planning metadata remains non-authoritative — PASS
 
-`portfolio_architecture.json` describes its purpose as portfolio maturity/shared-capability planning metadata with no source, production, merge, billing or customer-data authority.
+Factory Cloud portfolio metadata explicitly denies repository-write, production-write, cross-app-data and merge authority. Maturity is planning classification, not company completion.
 
-Its notes additionally state:
-- maturity entries are provisional planning classifications, not business-completion claims;
-- `UNASSESSED` is used where evidence is insufficient;
-- unregistered application source truth must block repository mutation;
-- shared candidates do not imply shared databases, secrets, production authority or customer data.
-
-`architecture_snapshot.py` preserves that boundary with an explicit authority block:
-- `grants_repository_write = false`;
-- `grants_production_write = false`;
-- `grants_cross_app_data_access = false`;
-- `grants_merge = false`.
-
-Independent disposition: `PASS_PLANNING_ONLY`.
+Disposition: `PASS_PLANNING_ONLY`.
 
 ## 2. Switchboard registration != application source registration — PASS
 
-The portfolio uses `source_status=registered` to mean the Factory exists in the canonical thin switchboard mapping. This is not sufficient for application dispatch.
-
-`promotion_queue.py` independently checks the application registry. A vertical missing from `apps.json` becomes:
+A Factory can exist in `factories.json`/portfolio without being a source-registered application. `promotion_queue.py` independently checks `apps.json`; missing application source becomes:
 
 `PROMOTION_BLOCKED / canonical_application_source_truth_required`.
 
-Therefore a research/business Factory may be visible and maturity-ranked without gaining repository mutation authority.
+Product Market Access / Legal Product Checker therefore remains a research/business Factory visible to the portfolio but not an application with canonical source/runtime authority.
 
-Product Market Access / Legal Product Checker remains a relevant example: it is represented in the Factory portfolio but is not to be treated as a canonical application merely because it has a switchboard entry.
+Disposition: `PASS_FAIL_CLOSED_APPLICATION_PROMOTION`.
 
-Independent disposition: `PASS_FAIL_CLOSED_APPLICATION_PROMOTION`.
+## 3. Priority does not grant execution capability — PASS
 
-## 3. Scheduling priority does not grant capability — PASS
-
-`portfolio_priority.py` calculates a strict lexicographic scheduling score:
+`portfolio_priority.py` orders eligible work:
 
 `safety > pilot blocker > evidence integrity > commercial leverage > shared leverage > base priority`.
 
-The score only orders eligible work. It does not add adapter capabilities or bypass runtime/source gates.
+It does not grant adapters, source authority, repository mutation or runtime provisioning.
 
-This is compatible with the required principle:
+Invariant:
 
-`PRIORITY MAY SELECT WHAT TO ATTEMPT; IT MAY NOT CREATE AUTHORITY TO EXECUTE.`
+`PRIORITY SELECTS WHAT TO ATTEMPT; IT DOES NOT CREATE AUTHORITY.`
 
-Independent disposition: `PASS_SCHEDULING_ONLY`.
+## 4. G3 semantic contract — amended by evidence-integrity red team
 
-## 4. G3 semantics — PASS only as assisted PILOT-CAPABLE
+Factory Cloud names G3 `pilot_capable` and `PilotReadinessEvidence.ready` checks source registration, exact SHA, technical test categories, assisted API, pricing/exit-criteria presence and runtime provisioning.
 
-Portfolio gate G3 is named `pilot_capable`.
+The previous audit accepted that as a credible engineering readiness contract for beginning an assisted pilot while explicitly distinguishing it from pilot validation.
 
-`PilotReadinessEvidence.ready` requires:
-- registered source;
-- deterministic calculation proof;
-- evidence lineage;
-- tenant isolation;
-- durable recovery;
-- adversarial tests;
-- pricing block defined;
-- pilot exit criteria defined;
-- assisted API;
-- runtime provisioned;
-- exact 40-character source SHA.
+A later source audit proved an additional material gap for Aviation and ContractCredit:
+- canonical `/analyze` paths do not accept the actual contract/clause/remedy evidence required to prove entitlement;
+- evidence content is synthesized internally from references/economic inputs;
+- entitlement basis is marked `SUPPORTED` from hardcoded rule refs;
+- current outcome path can create `RECOVERED` from a symbolic evidence reference and unconstrained caller-supplied amount/currency after approval/action;
+- the shared path does not prove full review/action/resolve audit lineage.
 
-That is a credible engineering/operational readiness contract for beginning an assisted pilot.
+Therefore the G3 readiness function is **not sufficient by itself** for a real-customer `PILOT_CAPABLE` claim for these two verticals.
 
-It is **not** evidence that a real pilot has already been validated.
+Current independent interpretation:
 
-Current Aviation and ContractCredit pilot contracts explicitly show:
-- `pricing.status = HYPOTHESIS`;
-- real contract/evidence ingestion remains a pilot exit criterion;
-- human review remains a pilot exit criterion;
-- real outcome or no-recovery record remains a pilot exit criterion;
-- delivery-cost measurement remains a pilot exit criterion;
-- pricing validation/revision remains a pilot exit criterion.
+`PilotReadinessEvidence.ready == TECHNICAL/ENGINEERING ASSISTED READINESS ONLY`.
 
-Therefore:
+For Aviation and ContractCredit, real-customer pilot capability additionally requires:
+1. evidence intake sufficient to support executed contract/remedy basis;
+2. missing/reference-only evidence fails closed;
+3. reviewed entitlement/applicability truth remains vertical-owned;
+4. reviewed economic amount + currency lineage;
+5. verified outcome evidence before `RECOVERED`;
+6. actor-aware transition audit;
+7. exact-head adversarial tests proving these controls.
 
-`G3 READY == ASSISTED PILOT-CAPABLE`.
+Until those exist:
 
-It does not mean:
+`ENGINEERING_ASSISTED / SYNTHETIC_FLOW_GREEN`
++
+`REAL_CUSTOMER_PILOT_CAPABILITY BLOCKED`.
+
+This is stricter than the earlier wording and is authoritative for the Side Factory audit.
+
+Critical evidence/repair contract:
+`RECOVERY_ENTITLEMENT_OUTCOME_INTEGRITY_AUDIT_V01.md`
+and PR #760 comment `5464535076`.
+
+## 5. G3 still does not mean validated business outcome
+
+Even after the above evidence-integrity repair, G3 can mean only **capable of safely beginning an assisted real pilot**.
+
+Current Aviation and ContractCredit pilot contracts still mark pricing `HYPOTHESIS` and require real-case exit evidence including:
+- real contract/evidence loaded with permission;
+- human review;
+- outcome/no-recovery record;
+- delivery cost measured;
+- pricing validated or revised.
+
+Therefore G3 never means:
 - `PILOT_VALIDATED`;
 - `MARKET_VALIDATED`;
 - `FIRST_PAID_OUTCOME`;
 - `COMMERCIAL_READY`;
 - `PRICING_VALIDATED`.
 
-This non-escalation boundary was routed to Factory Cloud PR #760 in comment `5464503964`.
+Existing non-escalation comment: PR #760 `5464503964`.
 
-## 5. Canonical global command D — source truth PASS; composition required
+## 6. Canonical global command D — PASS with composition constraint
 
-Factory Cloud switchboard registry on PR #760 already records:
+Factory Cloud `factories.json` on the shared-platform branch already records `factory-cloud.signal = D`; `factory_switchboard.py` derives the signal from that registry.
 
-`factory-cloud.signal = D`.
+The legacy static UI inherited by PR #760 still contains historical `Ω`/clipboard behavior, but PR #760 does not own that file.
 
-`factory_switchboard.py` derives its packet signal from that registry.
+Control Tower PR #722 owns the newer UI/router and already provides:
+- `D = Factory Cloud / orquestração global`;
+- API `/v1/dispatch` for `LIGAR TODAS`;
+- deterministic internal routes rather than manual chat URLs;
+- API execution-state rendering.
 
-The older static Switchboard UI inherited by the PR #760 base still contains historical `Ω`/clipboard behavior, but PR #760 does not modify that file.
+Composition invariant:
 
-The dedicated Control Tower owner PR #722 contains the newer API-dispatch Switchboard:
-- footer says `D = Factory Cloud / orquestração global`;
-- `LIGAR TODAS` performs `/v1/dispatch` for scope `all`;
-- routing no longer depends on manual per-Factory chat URLs;
-- states are rendered from API execution truth.
+`DO NOT INTEGRATE #760 IN A WAY THAT REGRESSES #722 TO Ω OR CLIPBOARD-ONLY LIGAR TODAS.`
 
-Independent disposition:
+## 7. Capability maturity != Factory maturity — PASS with two material exceptions
 
-`CANONICAL D / API DISPATCH EXISTS IN OWNER PR #722`.
+Separate state machines remain structurally correct.
 
-Composition requirement:
+Known independent exceptions:
 
-`DO NOT INTEGRATE #760 IN A WAY THAT REGRESSES #722 TO LEGACY Ω OR CLIPBOARD-ONLY LIGAR TODAS.`
+### Source verification
 
-## 6. Capability maturity remains separate from portfolio maturity — PASS with known exception
+`source_truth_verification=SHARED_VERIFIED` is too strong for the real persistent worker path until live remote-head verification is mandatory before execution.
 
-A Factory's G0–G6 maturity is not the same state machine as a shared capability's:
-- VERTICAL_ONLY;
-- CANDIDATE_SHARED;
-- SHARED_CONTRACT_PROPOSED;
-- SHARED_VERIFIED;
-- SHARED_CORE.
+Safe independent state:
+`VERIFIER_LIBRARY_PROVEN / RUNTIME_INTEGRATION_PARTIAL`.
 
-The separation is structurally present.
+### Audit/recovery lifecycle
 
-Known independent exception remains:
-`source_truth_verification` is labelled `SHARED_VERIFIED` in capability inventory although live remote source-head verification is not proven in the actual persistent worker path. See `FACTORY_CLOUD_SHARED_CAPABILITY_GATE_AUDIT_V01.md`.
+`audit_decision_lineage=SHARED_CORE` is safe only if interpreted as the reusable audit-event primitive/storage contract. It is too strong if interpreted as complete review -> action -> recovered-outcome audit on current Aviation/ContractCredit canonical paths.
 
-## 7. No customer-facing capability overclaim found in the examined Switchboard
+Safe independent state:
+`AUDIT_PRIMITIVE_PROVEN / FULL RECOVERY LIFECYCLE AUDIT PARTIAL`.
 
-The examined Founder Switchboard UI renders Factory identity, routing/readiness estimates and execution states. It does not directly render `duplicate_overlap_detection`, `outcome_fee_lineage` or other assurance capability ids as customer claims.
+## 8. Portfolio/UI must preserve layer-qualified truth
 
-Therefore no additional customer-facing UI defect was proven from those capability names in this surface.
+Any internal or future customer-facing surface must not flatten:
+- exact duplicate fingerprints into broad semantic overlap protection;
+- fee calculation lineage into contractual fee entitlement;
+- entitlement-basis representation into entitlement determination;
+- technical G3 readiness into real-customer pilot capability;
+- `RECOVERED` into verified recovery when outcome evidence/reconciliation is incomplete;
+- planning `registered` into application source authority;
+- priority into execution capability.
 
-The scope/naming findings remain important for architecture snapshots, internal maturity reports and future product UI.
+The examined Switchboard does not currently expose those assurance capability names as customer claims, so no separate UI mutation is required from this Side Factory.
 
 ## ACTIVE / NEXT / WAIT
 
-ACTIVE: maintain separation among planning maturity, application registration, runtime execution truth and real pilot validation; re-audit any owner changes that cross those layers.
+ACTIVE: enforce evidence-integrity override on Aviation/ContractCredit maturity while tracking owner repair; keep planning, source registration, runtime readiness, real-pilot capability and pilot validation as distinct states.
 
-NEXT: exact-head recheck of PR #760, PR #722 and Side Factory PR #608; persist current BATON with the unresolved source-verifier runtime defect and composition constraints.
+NEXT: re-audit PR #760 after owner changes; only restore real-customer pilot-capable classification from exact-head evidence that satisfies the entitlement/outcome repair contract and runtime gates.
 
-WAIT: no planning score/maturity state grants merge, deploy, production write, cross-app data, billing/provider authority or real-pilot validation by itself.
+WAIT: no maturity/priority/planning state grants merge, deploy, production write, cross-app data, billing/provider authority, real-customer pilot capability or pilot validation by itself.
