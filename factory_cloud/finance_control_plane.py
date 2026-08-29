@@ -51,6 +51,19 @@ def finance_status(
     delivery_key = str(
         policy.get("stripe_customer_delivery_env") or "FACTORY_STRIPE_CUSTOMER_DELIVERY_ENABLED"
     )
+    legal_entity_key = str(
+        policy.get("production_legal_entity_verified_env")
+        or "FACTORY_PRODUCTION_LEGAL_ENTITY_VERIFIED"
+    )
+    fiscal_key = str(
+        policy.get("production_fiscal_invoice_ready_env")
+        or "FACTORY_PRODUCTION_FISCAL_INVOICE_READY"
+    )
+    payout_key = str(
+        policy.get("production_payout_bank_verified_env")
+        or "FACTORY_PRODUCTION_PAYOUT_BANK_VERIFIED"
+    )
+
     livemode_raw = str(environ.get(stripe_livemode_key) or "").strip().lower()
     if not livemode_raw:
         stripe_mode = "UNCONFIGURED"
@@ -72,6 +85,13 @@ def finance_status(
             "bic_configured": bool(bank.bic),
         }
 
+    production_gates_declared = {
+        "legal_entity_verified": _bool_setting(environ.get(legal_entity_key)),
+        "fiscal_invoice_ready": _bool_setting(environ.get(fiscal_key)),
+        "payout_bank_verified": _bool_setting(environ.get(payout_key)),
+    }
+    production_gates_declared["all_declared_ready"] = all(production_gates_declared.values())
+
     runtime = {
         "stripe_secret_configured": bool(str(environ.get(stripe_secret_key) or "").strip()),
         "stripe_webhook_secret_configured": bool(
@@ -79,6 +99,7 @@ def finance_status(
         ),
         "stripe_mode": stripe_mode,
         "stripe_customer_delivery_enabled": _bool_setting(environ.get(delivery_key)),
+        "production_gates_declared": production_gates_declared,
         "direct_bank": direct_bank,
         "secrets_exposed": False,
         "full_iban_exposed": False,
@@ -88,10 +109,13 @@ def finance_status(
         and runtime["stripe_webhook_secret_configured"]
         and runtime["stripe_mode"] in {"TEST_REQUESTED", "LIVE_REQUESTED"}
     )
-    runtime["live_customer_delivery_flags_ready"] = bool(
+    runtime["live_write_flags_ready"] = bool(
         runtime["stripe_runtime_flags_ready"]
         and runtime["stripe_mode"] == "LIVE_REQUESTED"
-        and runtime["stripe_customer_delivery_enabled"]
+        and production_gates_declared["all_declared_ready"]
+    )
+    runtime["live_customer_delivery_flags_ready"] = bool(
+        runtime["live_write_flags_ready"] and runtime["stripe_customer_delivery_enabled"]
     )
 
     routes = []
@@ -119,7 +143,7 @@ def finance_status(
         )["factories"].append(row["factory_id"])
 
     status: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "registered_factories": plan["registered_factories"],
         "billing_owners": plan["billing_owners"],
         "all_registered_factories_covered": plan["all_registered_factories_covered"],
@@ -130,7 +154,11 @@ def finance_status(
             "provider_live_operation_verified": False,
             "bank_payout_verified": False,
             "fiscal_invoice_compliance_verified": False,
-            "reason": "runtime flags are configuration evidence only, not production settlement proof",
+            "legal_entity_verified_by_control_plane": False,
+            "reason": (
+                "runtime declarations only unlock code paths; they are not independent evidence "
+                "of provider operation, bank settlement, fiscal compliance or legal-entity status"
+            ),
         },
     }
     if ledger is not None:
