@@ -49,3 +49,11 @@ def test_load_state_rejects_missing_schema_v2_payload_fields():
 
     with pytest.raises(ValueError, match="state payload fields"):
         load_state(_resign(envelope), expected_tenant_id="tenant-a")
+
+
+def test_load_state_rejects_missing_persisted_recovery_case_field_even_when_api_field_is_optional():
+    envelope = json.loads(dump_state(_state()))
+    envelope["payload"]["recovery_case"].pop("contract_matches")
+
+    with pytest.raises(ValueError, match="persisted recovery_case fields"):
+        load_state(_resign(envelope), expected_tenant_id="tenant-a")
