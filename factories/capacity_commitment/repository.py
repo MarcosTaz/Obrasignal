@@ -7,6 +7,15 @@ from pathlib import Path
 from typing import List
 
 from .engine import ENGINE_VERSION, evaluate_recoverability
+from .evidence import (
+    EvidenceKind,
+    EvidenceSource,
+    ExtractedFact,
+    FactType,
+    ReviewState,
+    validate_fact,
+    validate_source,
+)
 from .identifiers import CASE_ID_ADDRESSABILITY_ERROR, is_addressable_case_id
 from .state import AssistedCaseState, dump_state, load_state
 
@@ -17,6 +26,35 @@ _TABLE_NAME = "capacity_commitment_cases"
 _LINEAGE_SCHEMA_COLUMNS = {"tenant_id", "child_case_id", "parent_case_id", "created_at"}
 _LINEAGE_PRIMARY_KEY = ("tenant_id", "child_case_id")
 _LINEAGE_TABLE_NAME = "capacity_commitment_case_revisions"
+_EVIDENCE_SOURCE_COLUMNS = {
+    "tenant_id",
+    "evidence_id",
+    "kind",
+    "display_name",
+    "external_ref",
+    "sha256",
+    "captured_at",
+    "created_at",
+}
+_EVIDENCE_SOURCE_PK = ("tenant_id", "evidence_id")
+_EVIDENCE_SOURCE_TABLE = "capacity_commitment_evidence_sources"
+_EVIDENCE_FACT_COLUMNS = {
+    "tenant_id",
+    "fact_id",
+    "evidence_id",
+    "fact_type",
+    "raw_value",
+    "normalized_value",
+    "scope_ref",
+    "page_ref",
+    "clause_ref",
+    "review_state",
+    "created_at",
+    "reviewed_at",
+}
+_EVIDENCE_FACT_PK = ("tenant_id", "fact_id")
+_EVIDENCE_FACT_TABLE = "capacity_commitment_evidence_facts"
+_EVIDENCE_FACT_NULLABLE = {"scope_ref", "page_ref", "clause_ref", "reviewed_at"}
 
 
 def _same_physical_file(first: str, second: str) -> bool:
@@ -34,7 +72,8 @@ class CapacityRepository:
     Source-state snapshots are create-only and checksummed. A changed contract,
     amendment, actuals correction, or evidence update is represented as a new
     immutable case revision linked to its parent; the prior snapshot is never
-    overwritten. Exact retries remain idempotent.
+    overwritten. Evidence provenance/fact tables share the same SQLite durability
+    boundary so backup/restore cannot rewind a case without its evidence chain.
     """
 
     def __init__(self, db_path: str):
@@ -74,26 +113,19 @@ class CapacityRepository:
                 return "capacity schema columns must use TEXT storage"
             if row["notnull"] != 1:
                 return "capacity schema columns must be NOT NULL"
-
         triggers = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name=?",
             (_TABLE_NAME,),
         ).fetchall()
         if triggers:
             return "capacity schema contains unexpected trigger"
-
         custom_indexes = conn.execute(
-            """
-            SELECT name FROM sqlite_master
-            WHERE type='index' AND tbl_name=? AND sql IS NOT NULL
-            """,
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
             (_TABLE_NAME,),
         ).fetchall()
         if custom_indexes:
             return "capacity schema contains unexpected index"
-
-        foreign_keys = conn.execute(f"PRAGMA foreign_key_list({_TABLE_NAME})").fetchall()
-        if foreign_keys:
+        if conn.execute(f"PRAGMA foreign_key_list({_TABLE_NAME})").fetchall():
             return "capacity schema contains unexpected foreign key"
         return None
 
@@ -126,23 +158,99 @@ class CapacityRepository:
         if triggers:
             return "revision lineage schema contains unexpected trigger"
         custom_indexes = conn.execute(
-            """
-            SELECT name FROM sqlite_master
-            WHERE type='index' AND tbl_name=? AND sql IS NOT NULL
-            """,
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
             (_LINEAGE_TABLE_NAME,),
         ).fetchall()
         if custom_indexes:
             return "revision lineage schema contains unexpected index"
-        foreign_keys = conn.execute(f"PRAGMA foreign_key_list({_LINEAGE_TABLE_NAME})").fetchall()
-        if foreign_keys:
+        if conn.execute(f"PRAGMA foreign_key_list({_LINEAGE_TABLE_NAME})").fetchall():
             return "revision lineage schema contains unexpected foreign key"
+        return None
+
+    @staticmethod
+    def _evidence_schema_error(
+        conn: sqlite3.Connection,
+        *,
+        table: str,
+        expected_columns: set[str],
+        expected_pk: tuple[str, ...],
+        nullable: set[str] | None = None,
+    ) -> str | None:
+        nullable = nullable or set()
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        if not rows:
+            return f"{table} schema is missing"
+        names = {row["name"] for row in rows}
+        if names != expected_columns:
+            return f"{table} schema columns require explicit migration"
+        primary_key = tuple(
+            row["name"] for row in sorted((row for row in rows if row["pk"]), key=lambda row: row["pk"])
+        )
+        if primary_key != expected_pk:
+            return f"{table} primary key mismatch"
+        for row in rows:
+            if str(row["type"] or "").upper() != "TEXT":
+                return f"{table} columns must use TEXT storage"
+            should_be_nullable = row["name"] in nullable
+            if should_be_nullable and row["notnull"] != 0:
+                return f"{table} nullable column constraint mismatch"
+            if not should_be_nullable and row["notnull"] != 1:
+                return f"{table} required columns must be NOT NULL"
+        if conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name=?",
+            (table,),
+        ).fetchall():
+            return f"{table} contains unexpected trigger"
+        if conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
+            (table,),
+        ).fetchall():
+            return f"{table} contains unexpected index"
+        if conn.execute(f"PRAGMA foreign_key_list({table})").fetchall():
+            return f"{table} contains unexpected foreign key"
         return None
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
         return conn
+
+    @staticmethod
+    def _create_evidence_schema(conn: sqlite3.Connection) -> None:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS capacity_commitment_evidence_sources (
+                tenant_id TEXT NOT NULL,
+                evidence_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                external_ref TEXT NOT NULL,
+                sha256 TEXT NOT NULL,
+                captured_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (tenant_id, evidence_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS capacity_commitment_evidence_facts (
+                tenant_id TEXT NOT NULL,
+                fact_id TEXT NOT NULL,
+                evidence_id TEXT NOT NULL,
+                fact_type TEXT NOT NULL,
+                raw_value TEXT NOT NULL,
+                normalized_value TEXT NOT NULL,
+                scope_ref TEXT,
+                page_ref TEXT,
+                clause_ref TEXT,
+                review_state TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                reviewed_at TEXT,
+                PRIMARY KEY (tenant_id, fact_id)
+            )
+            """
+        )
 
     def _ensure_schema(self) -> None:
         with self._connect() as conn:
@@ -169,12 +277,30 @@ class CapacityRepository:
                 )
                 """
             )
+            self._create_evidence_schema(conn)
             schema_error = self._schema_error(conn)
             if schema_error:
                 raise RuntimeError(f"{schema_error}; explicit migration required")
             lineage_error = self._lineage_schema_error(conn)
             if lineage_error:
                 raise RuntimeError(f"{lineage_error}; explicit migration required")
+            source_error = self._evidence_schema_error(
+                conn,
+                table=_EVIDENCE_SOURCE_TABLE,
+                expected_columns=_EVIDENCE_SOURCE_COLUMNS,
+                expected_pk=_EVIDENCE_SOURCE_PK,
+            )
+            if source_error:
+                raise RuntimeError(f"{source_error}; explicit migration required")
+            fact_error = self._evidence_schema_error(
+                conn,
+                table=_EVIDENCE_FACT_TABLE,
+                expected_columns=_EVIDENCE_FACT_COLUMNS,
+                expected_pk=_EVIDENCE_FACT_PK,
+                nullable=_EVIDENCE_FACT_NULLABLE,
+            )
+            if fact_error:
+                raise RuntimeError(f"{fact_error}; explicit migration required")
 
     def _load_validated_row(
         self,
@@ -184,10 +310,7 @@ class CapacityRepository:
         case_id: str,
     ) -> AssistedCaseState:
         row = conn.execute(
-            """
-            SELECT snapshot, engine_version FROM capacity_commitment_cases
-            WHERE tenant_id=? AND case_id=?
-            """,
+            "SELECT snapshot, engine_version FROM capacity_commitment_cases WHERE tenant_id=? AND case_id=?",
             (tenant_id, case_id),
         ).fetchone()
         if row is None:
@@ -213,10 +336,7 @@ class CapacityRepository:
         current = case_id
         while True:
             row = conn.execute(
-                """
-                SELECT parent_case_id FROM capacity_commitment_case_revisions
-                WHERE tenant_id=? AND child_case_id=?
-                """,
+                "SELECT parent_case_id FROM capacity_commitment_case_revisions WHERE tenant_id=? AND child_case_id=?",
                 (tenant_id, current),
             ).fetchone()
             if row is None:
@@ -232,8 +352,6 @@ class CapacityRepository:
         return chain
 
     def save(self, state: AssistedCaseState) -> bool:
-        """Create validated state, returning True if inserted and False for exact retry."""
-
         case_id = self._validate_case_id(state.recovery_case.case_id)
         evaluate_recoverability(state.recovery_case)
         snapshot = dump_state(state)
@@ -252,10 +370,7 @@ class CapacityRepository:
         except sqlite3.IntegrityError as exc:
             with self._connect() as conn:
                 existing = conn.execute(
-                    """
-                    SELECT snapshot, engine_version FROM capacity_commitment_cases
-                    WHERE tenant_id=? AND case_id=?
-                    """,
+                    "SELECT snapshot, engine_version FROM capacity_commitment_cases WHERE tenant_id=? AND case_id=?",
                     (state.tenant_id, case_id),
                 ).fetchone()
             if existing is None:
@@ -267,13 +382,6 @@ class CapacityRepository:
             raise FileExistsError("case already exists with different source state") from exc
 
     def create_revision(self, state: AssistedCaseState, *, parent_case_id: str) -> bool:
-        """Atomically create a new immutable child revision linked to one parent.
-
-        The child must use a new case_id. The parent must exist in the same
-        tenant. Exact retries of the same child snapshot + parent are idempotent;
-        any changed child source state or changed parent is a conflict.
-        """
-
         parent_case_id = self._validate_case_id(parent_case_id)
         child_case_id = self._validate_case_id(state.recovery_case.case_id)
         if parent_case_id == child_case_id:
@@ -284,32 +392,21 @@ class CapacityRepository:
 
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            self._validated_lineage_chain(
-                conn,
-                tenant_id=state.tenant_id,
-                case_id=parent_case_id,
-            )
+            self._validated_lineage_chain(conn, tenant_id=state.tenant_id, case_id=parent_case_id)
             existing = conn.execute(
-                """
-                SELECT snapshot, engine_version FROM capacity_commitment_cases
-                WHERE tenant_id=? AND case_id=?
-                """,
+                "SELECT snapshot, engine_version FROM capacity_commitment_cases WHERE tenant_id=? AND case_id=?",
                 (state.tenant_id, child_case_id),
             ).fetchone()
             if existing is not None:
                 if existing["engine_version"] != ENGINE_VERSION:
                     raise RuntimeError("case requires explicit reassessment for engine version drift")
                 link = conn.execute(
-                    """
-                    SELECT parent_case_id FROM capacity_commitment_case_revisions
-                    WHERE tenant_id=? AND child_case_id=?
-                    """,
+                    "SELECT parent_case_id FROM capacity_commitment_case_revisions WHERE tenant_id=? AND child_case_id=?",
                     (state.tenant_id, child_case_id),
                 ).fetchone()
                 if existing["snapshot"] == snapshot and link is not None and link["parent_case_id"] == parent_case_id:
                     return False
                 raise FileExistsError("revision child already exists with different source state or parent")
-
             try:
                 conn.execute(
                     """
@@ -343,10 +440,7 @@ class CapacityRepository:
             raise ValueError("tenant_id is required")
         with self._connect() as conn:
             rows = conn.execute(
-                """
-                SELECT case_id FROM capacity_commitment_cases
-                WHERE tenant_id=? ORDER BY case_id
-                """,
+                "SELECT case_id FROM capacity_commitment_cases WHERE tenant_id=? ORDER BY case_id",
                 (tenant_id,),
             ).fetchall()
         case_ids = [row["case_id"] for row in rows]
@@ -371,10 +465,7 @@ class CapacityRepository:
         with self._connect() as conn:
             self._load_validated_row(conn, tenant_id=tenant_id, case_id=parent_case_id)
             rows = conn.execute(
-                """
-                SELECT child_case_id FROM capacity_commitment_case_revisions
-                WHERE tenant_id=? AND parent_case_id=? ORDER BY child_case_id
-                """,
+                "SELECT child_case_id FROM capacity_commitment_case_revisions WHERE tenant_id=? AND parent_case_id=? ORDER BY child_case_id",
                 (tenant_id, parent_case_id),
             ).fetchall()
             children = [row["child_case_id"] for row in rows]
@@ -394,12 +485,11 @@ class CapacityRepository:
             source.backup(dest)
 
     def restore_from(self, source_path: str) -> None:
-        """Restore validated immutable cases and revision lineage.
+        """Restore cases, revision lineage and evidence as one validated snapshot.
 
-        The source database schema is never copied over the live database. Older
-        valid backups without the lineage table remain restorable as root-only
-        histories. When lineage exists, every parent/child relation is validated
-        before the live repository is mutated.
+        The source schema is validated before destination mutation. Older valid
+        backups without revision/evidence tables are accepted as root-only/no-
+        evidence snapshots and therefore clear newer lineage/evidence on restore.
         """
 
         if not source_path or not Path(source_path).is_file():
@@ -411,10 +501,7 @@ class CapacityRepository:
         source.row_factory = sqlite3.Row
         try:
             table = source.execute(
-                """
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name='capacity_commitment_cases'
-                """
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='capacity_commitment_cases'"
             ).fetchone()
             if table is None:
                 raise ValueError("restore source lacks capacity schema")
@@ -425,8 +512,7 @@ class CapacityRepository:
             rows = source.execute(
                 """
                 SELECT tenant_id, case_id, snapshot, engine_version, updated_at
-                FROM capacity_commitment_cases
-                ORDER BY tenant_id, case_id
+                FROM capacity_commitment_cases ORDER BY tenant_id, case_id
                 """
             ).fetchall()
             validated_rows = []
@@ -444,22 +530,15 @@ class CapacityRepository:
                 evaluate_recoverability(state.recovery_case)
                 case_keys.add((row["tenant_id"], row["case_id"]))
                 validated_rows.append(
-                    (
-                        row["tenant_id"],
-                        row["case_id"],
-                        row["snapshot"],
-                        row["engine_version"],
-                        row["updated_at"],
-                    )
+                    (row["tenant_id"], row["case_id"], row["snapshot"], row["engine_version"], row["updated_at"])
                 )
 
-            lineage_table = source.execute(
-                """
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name='capacity_commitment_case_revisions'
-                """
-            ).fetchone()
             lineage_rows = []
+            parent_by_child = {}
+            lineage_table = source.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (_LINEAGE_TABLE_NAME,),
+            ).fetchone()
             if lineage_table is not None:
                 lineage_error = self._lineage_schema_error(source)
                 if lineage_error:
@@ -467,11 +546,9 @@ class CapacityRepository:
                 raw_lineage = source.execute(
                     """
                     SELECT tenant_id, child_case_id, parent_case_id, created_at
-                    FROM capacity_commitment_case_revisions
-                    ORDER BY tenant_id, child_case_id
+                    FROM capacity_commitment_case_revisions ORDER BY tenant_id, child_case_id
                     """
                 ).fetchall()
-                parent_by_child = {}
                 for row in raw_lineage:
                     try:
                         child_case_id = self._validate_case_id(row["child_case_id"])
@@ -485,7 +562,6 @@ class CapacityRepository:
                         raise ValueError("restore source revision lineage references missing or cross-tenant case")
                     parent_by_child[(tenant_id, child_case_id)] = parent_case_id
                     lineage_rows.append((tenant_id, child_case_id, parent_case_id, row["created_at"]))
-
                 for tenant_id, child_case_id in parent_by_child:
                     seen = set()
                     current = child_case_id
@@ -495,20 +571,144 @@ class CapacityRepository:
                         seen.add(current)
                         current = parent_by_child[(tenant_id, current)]
 
+            source_table = source.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (_EVIDENCE_SOURCE_TABLE,),
+            ).fetchone()
+            fact_table = source.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (_EVIDENCE_FACT_TABLE,),
+            ).fetchone()
+            if (source_table is None) != (fact_table is None):
+                raise ValueError("restore source has incomplete evidence schema")
+
+            evidence_source_rows = []
+            evidence_fact_rows = []
+            evidence_keys = set()
+            if source_table is not None:
+                source_error = self._evidence_schema_error(
+                    source,
+                    table=_EVIDENCE_SOURCE_TABLE,
+                    expected_columns=_EVIDENCE_SOURCE_COLUMNS,
+                    expected_pk=_EVIDENCE_SOURCE_PK,
+                )
+                fact_error = self._evidence_schema_error(
+                    source,
+                    table=_EVIDENCE_FACT_TABLE,
+                    expected_columns=_EVIDENCE_FACT_COLUMNS,
+                    expected_pk=_EVIDENCE_FACT_PK,
+                    nullable=_EVIDENCE_FACT_NULLABLE,
+                )
+                if source_error:
+                    raise ValueError(f"restore source {source_error}")
+                if fact_error:
+                    raise ValueError(f"restore source {fact_error}")
+                for row in source.execute(
+                    """
+                    SELECT tenant_id, evidence_id, kind, display_name, external_ref, sha256, captured_at, created_at
+                    FROM capacity_commitment_evidence_sources ORDER BY tenant_id, evidence_id
+                    """
+                ).fetchall():
+                    try:
+                        validated = validate_source(
+                            EvidenceSource(
+                                tenant_id=row["tenant_id"],
+                                evidence_id=row["evidence_id"],
+                                kind=EvidenceKind(row["kind"]),
+                                display_name=row["display_name"],
+                                external_ref=row["external_ref"],
+                                sha256=row["sha256"],
+                                captured_at=row["captured_at"],
+                            )
+                        )
+                    except (ValueError, TypeError) as exc:
+                        raise ValueError("restore source has invalid evidence provenance") from exc
+                    evidence_keys.add((validated.tenant_id, validated.evidence_id))
+                    evidence_source_rows.append(
+                        (
+                            validated.tenant_id,
+                            validated.evidence_id,
+                            validated.kind.value,
+                            validated.display_name,
+                            validated.external_ref,
+                            validated.sha256,
+                            validated.captured_at,
+                            row["created_at"],
+                        )
+                    )
+                for row in source.execute(
+                    """
+                    SELECT tenant_id, fact_id, evidence_id, fact_type, raw_value, normalized_value,
+                           scope_ref, page_ref, clause_ref, review_state, created_at, reviewed_at
+                    FROM capacity_commitment_evidence_facts ORDER BY tenant_id, fact_id
+                    """
+                ).fetchall():
+                    try:
+                        validated = validate_fact(
+                            ExtractedFact(
+                                tenant_id=row["tenant_id"],
+                                fact_id=row["fact_id"],
+                                evidence_id=row["evidence_id"],
+                                fact_type=FactType(row["fact_type"]),
+                                raw_value=row["raw_value"],
+                                normalized_value=row["normalized_value"],
+                                scope_ref=row["scope_ref"],
+                                page_ref=row["page_ref"],
+                                clause_ref=row["clause_ref"],
+                                review_state=ReviewState(row["review_state"]),
+                            )
+                        )
+                    except (ValueError, TypeError) as exc:
+                        raise ValueError("restore source has invalid evidence fact") from exc
+                    if (validated.tenant_id, validated.evidence_id) not in evidence_keys:
+                        raise ValueError("restore source evidence fact references missing or cross-tenant source")
+                    if validated.normalized_value != row["normalized_value"]:
+                        raise ValueError("restore source evidence fact is not canonically normalized")
+                    evidence_fact_rows.append(
+                        (
+                            validated.tenant_id,
+                            validated.fact_id,
+                            validated.evidence_id,
+                            validated.fact_type.value,
+                            validated.raw_value,
+                            validated.normalized_value,
+                            validated.scope_ref,
+                            validated.page_ref,
+                            validated.clause_ref,
+                            validated.review_state.value,
+                            row["created_at"],
+                            row["reviewed_at"],
+                        )
+                    )
+
             try:
                 with self._connect() as destination:
                     schema_error = self._schema_error(destination)
-                    if schema_error:
-                        raise RuntimeError(f"{schema_error}; explicit migration required")
                     lineage_error = self._lineage_schema_error(destination)
-                    if lineage_error:
-                        raise RuntimeError(f"{lineage_error}; explicit migration required")
+                    source_error = self._evidence_schema_error(
+                        destination,
+                        table=_EVIDENCE_SOURCE_TABLE,
+                        expected_columns=_EVIDENCE_SOURCE_COLUMNS,
+                        expected_pk=_EVIDENCE_SOURCE_PK,
+                    )
+                    fact_error = self._evidence_schema_error(
+                        destination,
+                        table=_EVIDENCE_FACT_TABLE,
+                        expected_columns=_EVIDENCE_FACT_COLUMNS,
+                        expected_pk=_EVIDENCE_FACT_PK,
+                        nullable=_EVIDENCE_FACT_NULLABLE,
+                    )
+                    for error in (schema_error, lineage_error, source_error, fact_error):
+                        if error:
+                            raise RuntimeError(f"{error}; explicit migration required")
+                    destination.execute("DELETE FROM capacity_commitment_evidence_facts")
+                    destination.execute("DELETE FROM capacity_commitment_evidence_sources")
                     destination.execute("DELETE FROM capacity_commitment_case_revisions")
                     destination.execute("DELETE FROM capacity_commitment_cases")
                     destination.executemany(
                         """
                         INSERT INTO capacity_commitment_cases
-                            (tenant_id, case_id, snapshot, engine_version, updated_at)
+                        (tenant_id, case_id, snapshot, engine_version, updated_at)
                         VALUES (?, ?, ?, ?, ?)
                         """,
                         validated_rows,
@@ -516,10 +716,27 @@ class CapacityRepository:
                     destination.executemany(
                         """
                         INSERT INTO capacity_commitment_case_revisions
-                            (tenant_id, child_case_id, parent_case_id, created_at)
+                        (tenant_id, child_case_id, parent_case_id, created_at)
                         VALUES (?, ?, ?, ?)
                         """,
                         lineage_rows,
+                    )
+                    destination.executemany(
+                        """
+                        INSERT INTO capacity_commitment_evidence_sources
+                        (tenant_id, evidence_id, kind, display_name, external_ref, sha256, captured_at, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        evidence_source_rows,
+                    )
+                    destination.executemany(
+                        """
+                        INSERT INTO capacity_commitment_evidence_facts
+                        (tenant_id, fact_id, evidence_id, fact_type, raw_value, normalized_value,
+                         scope_ref, page_ref, clause_ref, review_state, created_at, reviewed_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        evidence_fact_rows,
                     )
             except sqlite3.IntegrityError as exc:
                 raise ValueError("restore source violates canonical capacity constraints") from exc
