@@ -21,7 +21,7 @@ def test_backup_restore_preserves_claim_and_verified_outcome(tmp_path):
         notice_deadline_not_applicable=True,
     )
     service.review(tenant_id="alpha", finding_id=result.finding.finding_id, reviewer="reviewer", approved=True, reason="supported")
-    service.action(tenant_id="alpha", finding_id=result.finding.finding_id)
+    service.action(tenant_id="alpha", finding_id=result.finding.finding_id, actor_id="operator")
     service.resolve(
         tenant_id="alpha",
         finding_id=result.finding.finding_id,
@@ -29,6 +29,7 @@ def test_backup_restore_preserves_claim_and_verified_outcome(tmp_path):
         recovered_amount="35000",
         currency="EUR",
         evidence_ref="bank-1",
+        actor_id="operator",
     )
 
     backup = tmp_path / "backup.sqlite3"
@@ -44,6 +45,7 @@ def test_backup_restore_preserves_claim_and_verified_outcome(tmp_path):
     ops = AssuranceOperations(store)
     assert store.count("evidence", "alpha") == 3
     assert store.count("findings", "alpha") == 1
+    assert store.count("audit_events", "alpha") == 4
     assert ops.get_state(tenant_id="alpha", finding_id=result.finding.finding_id) == "RECOVERED"
     outcomes = ops.outcomes(tenant_id="alpha")
     assert len(outcomes) == 1
