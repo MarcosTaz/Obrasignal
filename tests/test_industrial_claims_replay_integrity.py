@@ -16,6 +16,7 @@ def _analyze(service, *, gross_cost="100000"):
         cost_evidence_ref="ledger-1",
         gross_cost=gross_cost,
         resale_reuse="25000",
+        notice_deadline_not_applicable=True,
     )
 
 
@@ -45,6 +46,7 @@ def test_duplicate_analysis_does_not_downgrade_recovered_finding(tmp_path):
     assert replay.finding.state == "RECOVERED"
     assert replay.finding.reviewer == "commercial-reviewer"
     assert replay.finding.decision_reason == "reviewed evidence and amount"
+    assert replay.notice_deadline_state == "VERIFIED_NONE"
     assert service.ops.get_state(tenant_id="alpha", finding_id=first.finding.finding_id) == "RECOVERED"
     assert len(service.ops.outcomes(tenant_id="alpha")) == 1
 
