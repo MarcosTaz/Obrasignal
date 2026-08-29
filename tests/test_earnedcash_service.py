@@ -35,6 +35,28 @@ def test_operator_verified_service_returns_due_unpaid_and_queue():
     assert result["recovery_queue"][0]["amount"] == "100"
 
 
+def test_operator_payment_boolean_cannot_create_verified_cash():
+    rows = verified_chain()
+    rows.append(
+        {"record_id":"pay1","customer_id":"c1","project_id":"p1","currency":"GBP","kind":"PAYMENT","amount":"40","relates_to":"i1","verified":True}
+    )
+    with pytest.raises(
+        PayloadError, match="payment_verified_requires_cash_evidence_boundary"
+    ):
+        reconcile_operator_verified_payload(rows, tenant_id="tenant-test")
+
+
+def test_operator_unverified_observed_payment_reduces_open_without_verified_cash():
+    rows = verified_chain()
+    rows.append(
+        {"record_id":"pay1","customer_id":"c1","project_id":"p1","currency":"GBP","kind":"PAYMENT","amount":"40","relates_to":"i1","verified":False}
+    )
+    result = reconcile_operator_verified_payload(rows, tenant_id="tenant-test")
+    assert result["verified_cash"] == "0"
+    assert result["due_unpaid"] == "60"
+    assert result["positions"][0]["verified_cash"] == "0"
+
+
 def test_client_cannot_self_attest_verified_truth():
     with pytest.raises(PayloadError, match="verified_is_server_controlled"):
         reconcile_payload(verified_chain(), tenant_id="tenant-test")
