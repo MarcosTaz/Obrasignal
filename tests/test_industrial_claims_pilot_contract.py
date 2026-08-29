@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 5
+    assert pilot["schema_version"] == 6
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -17,6 +17,17 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert evidence["individual_document_content_limit_bytes"] == 1_000_000
     assert evidence["recovered_or_closed_outcome_requires_document_content"] is True
     assert evidence["outcome_document_and_state_persist_atomically"] is True
+
+    bounds = pilot["input_bounds"]
+    assert bounds == {
+        "case_and_outcome_reference_max_chars": 512,
+        "finding_id_max_chars": 2048,
+        "actor_id_max_chars": 256,
+        "review_reason_max_chars": 4000,
+        "missing_evidence_max_items": 100,
+        "missing_evidence_key_max_chars": 128,
+        "finding_queue_max_items": 100,
+    }
 
     economic = pilot["economic_lineage"]
     assert economic["currency_required_for_review_ready"] is True
@@ -40,6 +51,11 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "recovery_currency_mismatch",
         "missing_outcome_documentary_evidence",
         "outcome_evidence_collision",
+        "oversized_case_or_outcome_reference",
+        "oversized_finding_identifier",
+        "oversized_actor_identifier",
+        "oversized_review_reason",
+        "oversized_missing_evidence_collection",
         "non_finite_economic_input",
         "recovery_exceeds_reviewed_net_potential",
         "duplicate_success_fee",
@@ -48,6 +64,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "missing_required_role",
         "self_review",
         "partial_case_persistence",
+        "partial_case_metadata_persistence",
     }
     assert required_fail_closed <= set(pilot["fail_closed"])
 
@@ -63,10 +80,12 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "documentary_content_gate_green",
         "currency_lineage_green",
         "outcome_evidence_lineage_green",
+        "bounded_input_surface_green",
         "role_authorization_green",
         "four_eyes_green",
         "operation_audit_green",
         "atomic_persistence_green",
+        "case_metadata_atomicity_green",
         "tenant_scoped_role_queue_green",
         "operator_console_green",
         "browser_security_green",
