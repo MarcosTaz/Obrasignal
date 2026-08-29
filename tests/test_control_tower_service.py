@@ -1,5 +1,6 @@
 import http.client
 import json
+import stat
 import threading
 from pathlib import Path
 import pytest
@@ -21,10 +22,22 @@ def test_health_and_dispatch_boundary(tmp_path:Path):
         status,batch,_=request(port,'POST','/v1/dispatch',{'scope':'all'});assert status==202;assert batch['batch_id'];assert batch['items'];assert all('chat_url' not in item for item in batch['items'])
     finally:server.shutdown();thread.join(timeout=5);server.server_close()
 
-def test_ready_becomes_true_when_shared_worker_is_configured(tmp_path:Path):
-    server,thread,port=running(tmp_path,{'FACTORY_CLOUD_PORTFOLIO_WORKER':'/opt/shared-worker'})
+def test_ready_requires_an_existing_executable_worker(tmp_path:Path):
+    unavailable,thread,port=running(tmp_path,{'FACTORY_CLOUD_PORTFOLIO_WORKER':'/opt/shared-worker'})
     try:
-        status,payload,_=request(port,'GET','/ready');assert status==200;assert payload['ready'] is True;assert payload['portfolio_runtime']=='EXECUTABLE_CONFIGURED'
+        status,payload,_=request(port,'GET','/ready');assert status==503;assert payload['ready'] is False;assert payload['portfolio_runtime']=='EXECUTABLE_UNAVAILABLE'
+    finally:unavailable.shutdown();thread.join(timeout=5);unavailable.server_close()
+
+    worker=tmp_path/'worker';worker.write_text('#!/bin/sh\necho "{}"\n',encoding='utf-8');worker.chmod(worker.stat().st_mode|stat.S_IXUSR)
+    server,thread,port=running(tmp_path,{'FACTORY_CLOUD_PORTFOLIO_WORKER':str(worker)})
+    try:
+        status,payload,_=request(port,'GET','/ready');assert status==200;assert payload['ready'] is True;assert payload['portfolio_runtime']=='EXECUTABLE_READY'
+    finally:server.shutdown();thread.join(timeout=5);server.server_close()
+
+def test_remote_endpoint_is_configured_but_not_claimed_ready_before_probe(tmp_path:Path):
+    server,thread,port=running(tmp_path,{'FACTORY_CLOUD_PORTFOLIO_WORKER_ENDPOINT':'https://worker.example.test/v1/execute','FACTORY_CLOUD_PORTFOLIO_WORKER_TOKEN':'worker-secret'})
+    try:
+        status,payload,_=request(port,'GET','/ready');assert status==503;assert payload['ready'] is False;assert payload['portfolio_runtime']=='ENDPOINT_CONFIGURED_UNVERIFIED'
     finally:server.shutdown();thread.join(timeout=5);server.server_close()
 
 def test_token_and_origin_are_fail_closed(tmp_path:Path):
