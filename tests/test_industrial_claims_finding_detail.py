@@ -1,4 +1,7 @@
+from datetime import date
+
 from auth_context import RequestIdentity
+from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 from vertical_apps.industrial_claims.web import create_app
 
 
@@ -45,7 +48,10 @@ def test_finding_detail_is_tenant_scoped_and_does_not_leak_cross_tenant_case(tmp
     assert own_body["case"]["finding_id"] == finding_id
     assert own_body["case"]["customer_ref"] == "SECRET-CUSTOMER-ALPHA"
     assert own_body["case"]["notice_deadline_state"] == "DECLARED_DATE_FOR_REVIEW"
-    assert own_body["notice"] == {"truth_state": "DECLARED_DATE_FOR_REVIEW", "due_date": "2026-09-30"}
+    assert own_body["notice"]["truth_state"] == "DECLARED_DATE_FOR_REVIEW"
+    assert own_body["notice"]["due_date"] == "2026-09-30"
+    assert own_body["notice"]["timing_establishes_recoverability"] is False
+    assert own_body["notice"]["expired_establishes_nonrecoverability"] is False
     assert own_body["raw_document_content_included"] is False
     serialized = own.get_data(as_text=True)
     assert "SECRET RAW COMMERCIAL DOCUMENT" not in serialized
@@ -59,6 +65,27 @@ def test_finding_detail_is_tenant_scoped_and_does_not_leak_cross_tenant_case(tmp
     assert "SECRET-PROGRAM-ALPHA" not in denied_text
     assert "SECRET-EVENT-ALPHA" not in denied_text
     assert "SECRET RAW" not in denied_text
+
+
+def test_notice_timing_exposes_operational_risk_without_deciding_recoverability(tmp_path):
+    database = tmp_path / "deadline-timing.sqlite3"
+    analyst = create_app(database, identity_resolver=_identity("alpha", "analyst-a", "analyst")).test_client()
+    created = analyst.post("/analyze", json=_payload())
+    assert created.status_code == 201
+    finding_id = created.get_json()["finding_id"]
+    read_model = IndustrialClaimsReadModel(database)
+
+    open_detail = read_model.get_finding(tenant_id="alpha", finding_id=finding_id, as_of_date=date(2026, 9, 29))
+    due_detail = read_model.get_finding(tenant_id="alpha", finding_id=finding_id, as_of_date=date(2026, 9, 30))
+    expired_detail = read_model.get_finding(tenant_id="alpha", finding_id=finding_id, as_of_date=date(2026, 10, 1))
+
+    assert open_detail["notice"]["timing_state"] == "OPEN"
+    assert due_detail["notice"]["timing_state"] == "DUE_TODAY"
+    assert expired_detail["notice"]["timing_state"] == "EXPIRED"
+    assert expired_detail["notice"]["expired_requires_human_exception_or_waiver_review"] is True
+    assert expired_detail["notice"]["expired_establishes_nonrecoverability"] is False
+    assert expired_detail["notice"]["timing_establishes_recoverability"] is False
+    assert expired_detail["finding"]["state"] == "READY_FOR_REVIEW"
 
 
 def test_finding_detail_requires_verified_authorized_identity(tmp_path):
