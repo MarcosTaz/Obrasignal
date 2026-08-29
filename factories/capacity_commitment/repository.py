@@ -68,8 +68,8 @@ class CapacityRepository:
     def save(self, state: AssistedCaseState) -> bool:
         """Create validated state, returning True if inserted and False for exact retry."""
 
-        evaluate_recoverability(state.recovery_case)
         case_id = self._validate_case_id(state.recovery_case.case_id)
+        evaluate_recoverability(state.recovery_case)
         snapshot = dump_state(state)
         updated_at = datetime.now(timezone.utc).isoformat()
         try:
