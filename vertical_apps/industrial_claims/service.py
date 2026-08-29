@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import date
@@ -55,6 +56,7 @@ MAX_AMOUNT_INTEGER_DIGITS = 36
 MAX_AMOUNT_DECIMAL_PLACES = 18
 MAX_AMOUNT_ABS_EXPONENT = 36
 DECIMAL_WORKING_PRECISION = MAX_AMOUNT_SIGNIFICANT_DIGITS + 10
+_TENANT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,28 @@ class IndustrialClaimsService:
     @staticmethod
     def _id(tenant_id: str, local: str) -> str:
         return f"{tenant_id}:{local}"
+
+    @staticmethod
+    def _contract_ref(customer_ref: str, program_ref: str, commercial_basis_ref: str) -> str:
+        return json.dumps(
+            [customer_ref, program_ref, commercial_basis_ref],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+    @staticmethod
+    def _tenant_id(value: object) -> str:
+        tenant = str(value or "").strip()
+        if not _TENANT_RE.fullmatch(tenant):
+            raise AssuranceKernelError("tenant_id must match the verified account-id contract")
+        return tenant
+
+    @staticmethod
+    def _operation_tenant_id(value: object) -> str:
+        tenant = str(value or "").strip()
+        if not _TENANT_RE.fullmatch(tenant):
+            raise AssuranceOperationError("tenant_id must match the verified account-id contract")
+        return tenant
 
     @staticmethod
     def _bounded_text(value: object, *, label: str, max_chars: int) -> str:
@@ -307,7 +331,7 @@ class IndustrialClaimsService:
         notice_deadline_not_applicable: bool = False,
         missing_evidence: tuple[str, ...] = (),
     ) -> IndustrialClaimResult:
-        tenant = self._bounded_text(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
+        tenant = self._tenant_id(tenant_id)
         actor = self._bounded_text(actor_id, label="actor_id", max_chars=MAX_ACTOR_CHARS)
         customer = self._bounded_text(customer_ref, label="customer_ref", max_chars=MAX_REFERENCE_CHARS)
         program = self._bounded_text(program_ref, label="program_ref", max_chars=MAX_REFERENCE_CHARS)
@@ -368,7 +392,13 @@ class IndustrialClaimsService:
             source_evidence_ids=tuple(item.evidence_id for item in evidence), rule_ref="documented-commercial-basis-v2",
             confidence="SUPPORTED" if not effective_missing else "PARTIAL",
         )
-        fingerprint = RecoveryFingerprint.create(tenant_id=tenant, vertical=self.vertical, contract_ref=f"{customer}:{program}:{basis_ref}", event_ref=event_key, remedy_type=family.lower())
+        fingerprint = RecoveryFingerprint.create(
+            tenant_id=tenant,
+            vertical=self.vertical,
+            contract_ref=self._contract_ref(customer, program, basis_ref),
+            event_ref=event_key,
+            remedy_type=family.lower(),
+        )
         calculation = CalculationRecord.create(
             calculation_id=self._id(tenant, f"{event_key}:{family}:net-potential"), tenant_id=tenant,
             formula_id="industrial_net_potential_claim", formula_version="1",
@@ -410,7 +440,7 @@ class IndustrialClaimsService:
         return IndustrialClaimResult(tenant_id=tenant, claim_family=family, evidence=evidence, entitlement=entitlement, fingerprint=fingerprint, calculation=calculation, deadline=deadline, notice_deadline_state=notice_deadline_state, finding=finding, audit=audit, notification=notification, missing_evidence=tuple(sorted(effective_missing)), is_new_recovery=is_new)
 
     def review(self, *, tenant_id: str, finding_id: str, reviewer: str, approved: bool, reason: str) -> str:
-        tenant = self._bounded_operation_text(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
+        tenant = self._operation_tenant_id(tenant_id)
         finding_key = self._bounded_operation_text(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
         reviewer_id = self._bounded_operation_text(reviewer, label="reviewer", max_chars=MAX_ACTOR_CHARS)
         decision_reason = self._bounded_operation_text(reason, label="review reason", max_chars=MAX_REASON_CHARS)
@@ -420,7 +450,7 @@ class IndustrialClaimsService:
         return self.ops.review(tenant_id=tenant, finding_id=finding_key, reviewer=reviewer_id, approved=approved, reason=decision_reason)
 
     def action(self, *, tenant_id: str, finding_id: str, actor_id: str) -> str:
-        tenant = self._bounded_operation_text(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
+        tenant = self._operation_tenant_id(tenant_id)
         finding_key = self._bounded_operation_text(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
         actor = self._bounded_operation_text(actor_id, label="action actor", max_chars=MAX_ACTOR_CHARS)
         return self.ops.action(tenant_id=tenant, finding_id=finding_key, actor_id=actor)
@@ -437,9 +467,10 @@ class IndustrialClaimsService:
         evidence_content: bytes | bytearray | memoryview | str | None = None,
         actor_id: str,
     ):
-        tenant = self._bounded_operation_text(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
+        tenant = self._operation_tenant_id(tenant_id)
         finding_key = self._bounded_operation_text(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
         outcome_key = self._bounded_operation_text(outcome_id, label="outcome_id", max_chars=MAX_REFERENCE_CHARS)
+        scoped_outcome_id = self._id(tenant, outcome_key)
         evidence_reference = self._bounded_operation_text(evidence_ref, label="outcome evidence ref", max_chars=MAX_REFERENCE_CHARS)
         actor = self._bounded_operation_text(actor_id, label="resolution actor", max_chars=MAX_ACTOR_CHARS)
         amount = self._operation_amount(recovered_amount, label="recovered amount")
@@ -462,6 +493,6 @@ class IndustrialClaimsService:
         with self.store.transaction() as conn:
             self.store._put_evidence(conn, outcome_evidence)
             return self.ops.resolve(
-                tenant_id=tenant, finding_id=finding_key, outcome_id=outcome_key, recovered_amount=str(amount),
+                tenant_id=tenant, finding_id=finding_key, outcome_id=scoped_outcome_id, recovered_amount=str(amount),
                 currency=recovery_currency, evidence_ref=outcome_evidence.evidence_id, actor_id=actor, connection=conn,
             )
