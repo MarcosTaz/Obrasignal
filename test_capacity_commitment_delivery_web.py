@@ -79,3 +79,32 @@ def test_report_endpoint_is_authenticated_tenant_scoped_and_no_store(tmp_path):
 
     unauthenticated = client.get("/api/capacity/cases/tenant-report/report")
     assert unauthenticated.status_code == 401
+
+
+def test_report_is_deterministic_after_repository_restart(tmp_path):
+    db_path = tmp_path / "capacity.db"
+    first_repo = CapacityRepository(str(db_path))
+    first_app = create_app(first_repo, lambda req: req.headers.get("X-Test-Tenant"))
+    first_app.config.update(TESTING=True)
+    first_client = first_app.test_client()
+
+    created = first_client.post(
+        "/api/capacity/cases",
+        headers=_headers(create=True),
+        json=_payload("stable-report"),
+    )
+    assert created.status_code == 201
+    initial_report = created.get_json()["delivery_report_markdown"]
+
+    reopened_repo = CapacityRepository(str(db_path))
+    reopened_app = create_app(reopened_repo, lambda req: req.headers.get("X-Test-Tenant"))
+    reopened_app.config.update(TESTING=True)
+    reopened = reopened_app.test_client().get(
+        "/api/capacity/cases/stable-report/report",
+        headers=_headers(),
+    )
+
+    assert reopened.status_code == 200
+    assert reopened.get_data(as_text=True) == initial_report
+    assert "Verified recovery: **NO**" in initial_report
+    assert "Payment received: **NO**" in initial_report
