@@ -34,7 +34,12 @@ def _bool(value, field: str) -> bool:
     raise PayloadError(f"{field} must be boolean")
 
 
-def reconcile_payload(rows: object, *, tenant_id: str) -> dict:
+def _reconcile_payload(
+    rows: object,
+    *,
+    tenant_id: str,
+    operator_verified_truth: bool,
+) -> dict:
     if not tenant_id:
         raise PayloadError("tenant_id required")
     if not isinstance(rows, list):
@@ -46,6 +51,10 @@ def reconcile_payload(rows: object, *, tenant_id: str) -> dict:
             raise PayloadError(f"record {index} must be an object")
         if "tenant_id" in row:
             raise PayloadError("tenant_id_is_server_controlled")
+        if not operator_verified_truth and "verified" in row:
+            raise PayloadError("verified_is_server_controlled")
+        if not operator_verified_truth and "due" in row:
+            raise PayloadError("due_is_server_controlled")
         try:
             kind = LedgerKind(str(row.get("kind") or "").upper())
         except ValueError:
@@ -60,8 +69,16 @@ def reconcile_payload(rows: object, *, tenant_id: str) -> dict:
             kind=kind,
             amount=_decimal(row.get("amount"), "amount"),
             relates_to=str(row.get("relates_to") or "").strip() or None,
-            verified=_bool(row.get("verified", False), "verified"),
-            due=_due(row.get("due")),
+            verified=(
+                _bool(row.get("verified", False), "verified")
+                if operator_verified_truth
+                else False
+            ),
+            due=(
+                _due(row.get("due"))
+                if operator_verified_truth
+                else None
+            ),
         )
         if not all((record.record_id, record.customer_id, record.project_id, record.currency)):
             raise PayloadError(f"record {index} missing required scope field")
@@ -123,3 +140,29 @@ def reconcile_payload(rows: object, *, tenant_id: str) -> dict:
             for a in result.anomalies
         ],
     }
+
+
+def reconcile_payload(rows: object, *, tenant_id: str) -> dict:
+    """Reconcile a client-supplied payload without trusting truth-state booleans.
+
+    `verified` and `due` are deliberately server/operator-controlled and are
+    rejected when supplied through this public contract.
+    """
+    return _reconcile_payload(
+        rows,
+        tenant_id=tenant_id,
+        operator_verified_truth=False,
+    )
+
+
+def reconcile_operator_verified_payload(rows: object, *, tenant_id: str) -> dict:
+    """Reconcile evidence states asserted by the assisted-pilot operator layer.
+
+    This is an internal boundary. It is intentionally not exposed directly by
+    the EarnedCash Flask blueprint.
+    """
+    return _reconcile_payload(
+        rows,
+        tenant_id=tenant_id,
+        operator_verified_truth=True,
+    )
