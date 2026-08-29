@@ -6,6 +6,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Iterable, Optional, Tuple
 
+from risk_catalog import UC_2023_SOURCE, validate_risk_factors
 from royalty_engine import DeadlineState, FindingState, assess_deadline
 
 
@@ -29,6 +30,7 @@ class LicenseeSignal:
     contract_version_complete: bool
     auditor_requirement: Optional[str] = None
     missing_items: Tuple[str, ...] = ()
+    risk_factors: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,8 @@ class ScanResult:
     rationale: Tuple[str, ...]
     missing_items: Tuple[str, ...]
     formal_auditor_required: bool
+    unweighted_risk_factors: Tuple[str, ...] = ()
+    risk_factor_source: Optional[str] = None
 
 
 def _score_deadline(state: DeadlineState) -> int:
@@ -58,6 +62,7 @@ def scan_licensee(signal: LicenseeSignal, today: date, approaching_days: int = 1
     missing = list(signal.missing_items)
     score = _score_deadline(deadline.state)
     formal_required = bool((signal.auditor_requirement or "").strip())
+    risk_factors = validate_risk_factors(signal.risk_factors)
 
     if signal.audit_right_supported is None:
         missing.append("contract-supported audit-right determination")
@@ -106,6 +111,11 @@ def scan_licensee(signal: LicenseeSignal, today: date, approaching_days: int = 1
     else:
         missing.append("annual royalty stream value")
 
+    if risk_factors:
+        reasons.append(
+            f"{len(risk_factors)} externally sourced qualitative risk factor(s) recorded; they are deliberately unweighted and do not alter the numeric priority score."
+        )
+
     score = max(0, min(100, score))
 
     if signal.finding_state == FindingState.REQUIRES_PROFESSIONAL_REVIEW or deadline.state == DeadlineState.EXPIRED:
@@ -133,6 +143,8 @@ def scan_licensee(signal: LicenseeSignal, today: date, approaching_days: int = 1
         rationale=tuple(reasons),
         missing_items=tuple(dict.fromkeys(missing)),
         formal_auditor_required=formal_required,
+        unweighted_risk_factors=risk_factors,
+        risk_factor_source=UC_2023_SOURCE if risk_factors else None,
     )
 
 
