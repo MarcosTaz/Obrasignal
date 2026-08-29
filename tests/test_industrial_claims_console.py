@@ -4,7 +4,6 @@ from vertical_apps.industrial_claims.web import create_app
 def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tmp_path):
     client = create_app(tmp_path / "console.sqlite3").test_client()
     response = client.get("/")
-
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "CausLedger" in html
@@ -16,11 +15,13 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
     assert 'id="review-form"' in html
     assert 'id="action-form"' in html
     assert 'id="resolve-form"' in html
+    assert 'id="evidence_content"' in html
     assert "Four-eyes review" in html
     assert "unknown notice deadline" in html.lower()
     assert "not a legal conclusion" in html.lower()
     assert "established recoverability" in html.lower()
     assert "currency is explicit and immutable" in html.lower()
+    assert "requires hashed documentary evidence" in html.lower()
     assert 'id="currency" value=' not in html
     assert "http://" not in html
     assert "https://" not in html
@@ -31,7 +32,6 @@ def test_operator_console_is_self_contained_and_exposes_full_assisted_journey(tm
 def test_console_has_strict_browser_headers_and_no_html_injection_renderer(tmp_path):
     client = create_app(tmp_path / "console.sqlite3").test_client()
     response = client.get("/")
-
     csp = response.headers["Content-Security-Policy"]
     assert "default-src 'self'" in csp
     assert "script-src 'self'" in csp
@@ -49,12 +49,12 @@ def test_console_has_strict_browser_headers_and_no_html_injection_renderer(tmp_p
     assert 'send("/findings"' in javascript
     assert "createElement(\"button\")" in javascript
     assert "finding.currency_unit" in javascript
+    assert 'document.getElementById("evidence_content").value' in javascript
 
 
 def test_console_shell_contains_no_tenant_or_case_data(tmp_path):
     client = create_app(tmp_path / "console.sqlite3").test_client()
     html = client.get("/").get_data(as_text=True)
-
     assert "alpha" not in html
     assert "oem-1" not in html
     assert "payment-1" not in html
