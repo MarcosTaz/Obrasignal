@@ -317,14 +317,18 @@ def evaluation_metrics(conn, account, *, now=None):
         return any(ts and floor <= ts < ceiling and name in (VALUE_EXPOSURE_EVENTS | ENGAGEMENT_EVENTS) for name, ts in events)
 
     return {
-        # Value exposure is useful product telemetry, but this lifecycle has no
-        # canonical evidence-backed FIRST_VERIFIED_VALUE event yet. Fail closed:
-        # never derive verified value from shortlist/view/alert/action events.
+        # Exposure/action can prove interaction with the product, not verified
+        # customer value. No canonical evidence-backed FIRST_VERIFIED_VALUE or
+        # subsequent new-value event exists in this lifecycle yet, so both
+        # first verified value and repeat value fail closed.
         "TIME_TO_FIRST_VALUE_SECONDS": None,
         "TIME_TO_FIRST_VALUE_EXPOSURE_SECONDS": int((first_exposure - created).total_seconds()) if first_exposure and created else None,
         "TIME_TO_FIRST_VERIFIED_VALUE_SECONDS": None,
         "FIRST_VERIFIED_VALUE_RECORDED": False,
         "first_value_semantics": "NO_CANONICAL_VERIFIED_VALUE_EVENT",
+        "TIME_TO_FIRST_REPEAT_VALUE_SECONDS": None,
+        "REPEAT_VALUE_RECORDED": False,
+        "repeat_value_semantics": "REQUIRES_CANONICAL_VERIFIED_VALUE_AND_NEW_VALUE_EVENT",
         "TRIAL_ACTIVATION_RATE": 1 if activated else 0,
         "VALUE_EXPOSURE_RATE": 1 if exposure_count else 0,
         "DAY_1_ACTIVE": active_on_day(1),
