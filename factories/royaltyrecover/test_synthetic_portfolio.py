@@ -28,9 +28,19 @@ class SyntheticTTOPortfolioTests(unittest.TestCase):
         supported = [pack for pack in self.run.packs if pack.calculation.state == FindingState.RECOVERY_CANDIDATE]
         self.assertTrue(all(pack.calculation.recoverable_candidate == 1000 for pack in supported))
 
-    def test_missing_and_duplicate_data_never_create_money_candidate(self):
-        unresolved = self.run.packs[130:160]
-        self.assertTrue(all(pack.calculation.recoverable_candidate is None for pack in unresolved))
+    def test_true_calculation_blockers_never_create_money_candidate(self):
+        missing_data = self.run.packs[130:145]
+        professional_review = self.run.packs[155:160]
+        duplicate_data = self.run.packs[160:165]
+        blocked = missing_data + professional_review + duplicate_data
+        self.assertTrue(all(pack.calculation.recoverable_candidate is None for pack in blocked))
+
+    def test_incomplete_contract_set_may_have_arithmetic_but_recovery_stays_blocked(self):
+        incomplete_contract = self.run.packs[145:155]
+        self.assertTrue(all(pack.calculation.state == FindingState.RECOVERY_CANDIDATE for pack in incomplete_contract))
+        self.assertTrue(all(pack.scan.state == ScanState.NEEDS_DATA for pack in incomplete_contract))
+        self.assertTrue(all("complete operative agreement/amendment set" in pack.information_requests for pack in incomplete_contract))
+        self.assertTrue(all(not pack.claim_ready for pack in incomplete_contract))
 
     def test_professional_judgment_cases_are_explicit(self):
         self.assertEqual(self.run.count_calculation_state(FindingState.REQUIRES_PROFESSIONAL_REVIEW), 5)
