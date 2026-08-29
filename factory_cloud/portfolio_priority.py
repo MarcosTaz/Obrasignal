@@ -11,10 +11,11 @@ class PortfolioPriorityError(RuntimeError):
 @dataclass(frozen=True)
 class PrioritySignals:
     safety_severity: int = 0
-    pilot_blocker: int = 0
-    commercial_leverage: int = 0
+    pilot_safe_blocker: int = 0
     shared_leverage: int = 0
     evidence_integrity: int = 0
+    pilot_blocker: int = 0
+    commercial_leverage: int = 0
     base_priority: int = 0
 
     @classmethod
@@ -23,10 +24,11 @@ class PrioritySignals:
         raw = app.get("portfolio_priority") or {}
         values = {
             "safety_severity": raw.get("safety_severity", 0),
-            "pilot_blocker": raw.get("pilot_blocker", 0),
-            "commercial_leverage": raw.get("commercial_leverage", 0),
+            "pilot_safe_blocker": raw.get("pilot_safe_blocker", 0),
             "shared_leverage": raw.get("shared_leverage", 0),
             "evidence_integrity": raw.get("evidence_integrity", 0),
+            "pilot_blocker": raw.get("pilot_blocker", 0),
+            "commercial_leverage": raw.get("commercial_leverage", 0),
             "base_priority": activation.get("priority", 0),
         }
         normalized: dict[str, int] = {}
@@ -43,15 +45,18 @@ class PrioritySignals:
     @property
     def score(self) -> int:
         # Strict lexicographic ordering using base-101 digits. One point of a
-        # higher-order signal always dominates every possible combination below it:
-        # safety > pilot blocker > evidence integrity > commercial > shared > base.
+        # higher-order signal always dominates every possible combination below it.
+        # Pre-customer order is deliberately:
+        # safety > PILOT_SAFE blocker > shared unblock > evidence integrity >
+        # legacy pilot blocker > commercial leverage > base priority.
         bounded_base = max(0, min(self.base_priority, 100))
         score = self.safety_severity
         for value in (
-            self.pilot_blocker,
-            self.evidence_integrity,
-            self.commercial_leverage,
+            self.pilot_safe_blocker,
             self.shared_leverage,
+            self.evidence_integrity,
+            self.pilot_blocker,
+            self.commercial_leverage,
             bounded_base,
         ):
             score = score * 101 + value
