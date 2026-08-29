@@ -103,6 +103,8 @@ class AssuranceOperations:
             amount = Decimal(recovered_amount)
         except InvalidOperation as exc:
             raise AssuranceOperationError("recovered amount must be decimal") from exc
+        if not amount.is_finite():
+            raise AssuranceOperationError("recovered amount must be a finite decimal")
         if amount < 0:
             raise AssuranceOperationError("recovered amount cannot be negative")
         state = "RECOVERED" if amount > 0 else "CLOSED_NO_RECOVERY"
