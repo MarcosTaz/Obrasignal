@@ -1,13 +1,21 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "scope": "shared_billing_core",
   "currency_default": "EUR",
   "bank_destination_env": "FACTORY_BILLING_IBAN",
   "bank_bic_env": "FACTORY_BILLING_BIC",
+  "stripe_secret_key_env": "FACTORY_STRIPE_SECRET_KEY",
+  "stripe_webhook_secret_env": "FACTORY_STRIPE_WEBHOOK_SECRET",
+  "stripe_livemode_env": "FACTORY_STRIPE_LIVEMODE",
+  "stripe_customer_delivery_env": "FACTORY_STRIPE_CUSTOMER_DELIVERY_ENABLED",
+  "provider_catalog_strategy": "metadata_factory_id_lookup",
+  "provider_ids_embedded_in_repository": false,
   "defaults_by_group": {
     "control": {
       "mode": "internal_only",
-      "payment_rail": "none"
+      "payment_rail": "none",
+      "collection_rails": [],
+      "provider": null
     },
     "obrasignal": {
       "mode": "inherit",
@@ -15,28 +23,38 @@
     },
     "business": {
       "mode": "b2b_invoice",
-      "payment_rail": "bank_transfer",
+      "payment_rail": "b2b_invoice",
+      "collection_rails": ["stripe_hosted_invoice", "direct_bank_transfer"],
+      "provider": "stripe",
       "currency": "EUR"
     },
     "developing": {
       "mode": "b2b_invoice",
-      "payment_rail": "bank_transfer",
+      "payment_rail": "b2b_invoice",
+      "collection_rails": ["stripe_hosted_invoice", "direct_bank_transfer"],
+      "provider": "stripe",
       "currency": "EUR"
     },
     "specialist": {
       "mode": "b2b_invoice",
-      "payment_rail": "bank_transfer",
+      "payment_rail": "b2b_invoice",
+      "collection_rails": ["stripe_hosted_invoice", "direct_bank_transfer"],
+      "provider": "stripe",
       "currency": "EUR"
     }
   },
   "overrides": {
     "factory-cloud": {
       "mode": "internal_only",
-      "payment_rail": "none"
+      "payment_rail": "none",
+      "collection_rails": [],
+      "provider": null
     },
     "obrasignal": {
       "mode": "subscription",
       "payment_rail": "revenuecat_store",
+      "collection_rails": ["app_store", "google_play"],
+      "provider": "revenuecat",
       "currency": "store_localized",
       "entitlement": "pro",
       "product_id": "obrasignal_pro_monthly"
@@ -44,6 +62,8 @@
     "k3-fatality": {
       "mode": "supporter_contribution",
       "payment_rail": "supporter_checkout",
+      "collection_rails": ["stripe_supporter_checkout"],
+      "provider": "stripe",
       "currency": "EUR",
       "grants_entitlement": false,
       "subscription_enabled": false
