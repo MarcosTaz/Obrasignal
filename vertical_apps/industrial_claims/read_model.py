@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import asdict, dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,44 @@ class IndustrialClaimsReadModel:
     def _same_members(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
         return len(left) == len(right) and set(left) == set(right)
 
+    @staticmethod
+    def _notice_timing(*, truth_state: str, due_date_raw: object, as_of_date: date) -> dict[str, Any]:
+        if truth_state == "UNKNOWN":
+            return {
+                "timing_state": "UNKNOWN",
+                "as_of_date": as_of_date.isoformat(),
+                "timing_establishes_recoverability": False,
+                "expired_establishes_nonrecoverability": False,
+                "expired_requires_human_exception_or_waiver_review": False,
+            }
+        if truth_state == "DECLARED_NONE_FOR_REVIEW":
+            return {
+                "timing_state": "NO_DEADLINE_DECLARED_FOR_REVIEW",
+                "as_of_date": as_of_date.isoformat(),
+                "timing_establishes_recoverability": False,
+                "expired_establishes_nonrecoverability": False,
+                "expired_requires_human_exception_or_waiver_review": False,
+            }
+        if truth_state != "DECLARED_DATE_FOR_REVIEW":
+            raise AssuranceStoreError("industrial notice truth state is invalid")
+        try:
+            due_date = date.fromisoformat(str(due_date_raw))
+        except (TypeError, ValueError) as exc:
+            raise AssuranceStoreError("industrial notice due date is invalid") from exc
+        if as_of_date < due_date:
+            timing_state = "OPEN"
+        elif as_of_date == due_date:
+            timing_state = "DUE_TODAY"
+        else:
+            timing_state = "EXPIRED"
+        return {
+            "timing_state": timing_state,
+            "as_of_date": as_of_date.isoformat(),
+            "timing_establishes_recoverability": False,
+            "expired_establishes_nonrecoverability": False,
+            "expired_requires_human_exception_or_waiver_review": timing_state == "EXPIRED",
+        }
+
     def list_findings(self, *, tenant_id: str, states: tuple[str, ...], limit: int = 100) -> tuple[FindingQueueItem, ...]:
         tenant = self._bounded_key(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
         if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 100:
@@ -131,9 +170,12 @@ class IndustrialClaimsReadModel:
                 ))
         return tuple(items)
 
-    def get_finding(self, *, tenant_id: str, finding_id: str) -> dict[str, Any]:
+    def get_finding(self, *, tenant_id: str, finding_id: str, as_of_date: date | None = None) -> dict[str, Any]:
         tenant = self._bounded_key(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
         finding_key = self._bounded_key(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
+        as_of = as_of_date or date.today()
+        if not isinstance(as_of, date):
+            raise AssuranceStoreError("as_of_date must be a date")
         metadata = self.case_store.get(tenant_id=tenant, finding_id=finding_key)
 
         with self._connect() as conn:
@@ -230,6 +272,12 @@ class IndustrialClaimsReadModel:
                 for row in conn.execute("SELECT * FROM audit_events WHERE tenant_id=? AND subject_ref=? ORDER BY occurred_at,event_id", (tenant, finding_key)).fetchall()
             ]
 
+        due_date = str(deadline["due_date"]) if metadata.notice_deadline_state == "DECLARED_DATE_FOR_REVIEW" else None
+        notice_timing = self._notice_timing(
+            truth_state=metadata.notice_deadline_state,
+            due_date_raw=deadline["due_date"],
+            as_of_date=as_of,
+        )
         return {
             "case": {
                 "finding_id": metadata.finding_id, "claim_family": metadata.claim_family,
@@ -240,7 +288,7 @@ class IndustrialClaimsReadModel:
             "finding": {"state": str(finding["state"]), "reviewer": finding["reviewer"], "decision_reason": finding["decision_reason"]},
             "calculation": {"formula_id": str(calculation["formula_id"]), "formula_version": str(calculation["formula_version"]), "net_potential": str(calculation["output_value"]), "currency": calculation["output_unit"], "reproducibility_hash": str(calculation["reproducibility_hash"])},
             "entitlement": {"rule_ref": str(entitlement["rule_ref"]), "confidence": str(entitlement["confidence"]), "basis_hash": str(entitlement["basis_hash"]), "recoverability_established": False},
-            "notice": {"truth_state": metadata.notice_deadline_state, "due_date": str(deadline["due_date"]) if metadata.notice_deadline_state == "DECLARED_DATE_FOR_REVIEW" else None},
+            "notice": {"truth_state": metadata.notice_deadline_state, "due_date": due_date, **notice_timing},
             "evidence_index": evidence_index,
             "outcomes": outcomes,
             "audit_events": audits,
