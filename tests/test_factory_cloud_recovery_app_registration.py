@@ -3,6 +3,8 @@ from pathlib import Path
 from factory_cloud.control_plane import load_registry
 from factory_cloud.process_adapter import ProcessAdapterConfig
 
+EXPECTED_HEAD = "5b26801d5d54f224f1da36bb66ba8d26f1f8208c"
+
 
 def test_recovery_apps_are_source_registered_and_verification_only():
     registry = load_registry()
@@ -15,7 +17,8 @@ def test_recovery_apps_are_source_registered_and_verification_only():
         assert app["activation"]["enabled"] is True
         assert app["activation"]["mode"] == "repository_safe_execution"
         assert app["source_truth"]["canonical_branch"] == branch
-        assert app["source_truth"]["canonical_head"] == "2630470fdc03bbb447305da9a277ae1730d681df"
+        assert app["source_truth"]["canonical_head"] == EXPECTED_HEAD
+        assert app["execution_source"]["head"] == EXPECTED_HEAD
         assert app["execution_adapter"]["repository_mutation_capability"] is False
         assert set(app["execution_adapter"]["allowlisted_tasks"]) == {"verify:service", "verify:shared-contracts"}
 
