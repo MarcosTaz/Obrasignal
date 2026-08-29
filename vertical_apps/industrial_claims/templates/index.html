@@ -11,7 +11,7 @@
   <header>
     <div class="eyebrow">Assisted recovery assurance</div>
     <h1>CausLedger</h1>
-    <p>Industrial Claims operator console. Reconstruct potential recovery from evidence, preserve UNKNOWN states, require independent review, and record only verified outcomes.</p>
+    <p>Industrial Claims operator console. Reconstruct potential recovery from documentary evidence, preserve UNKNOWN states, require independent review, and record only verified outcomes.</p>
   </header>
 
   <main>
@@ -26,7 +26,7 @@
         <section class="panel">
           <span class="badge">Analyst</span>
           <h2>Reconstruct a candidate</h2>
-          <p class="sub">Every required reference is evidence lineage, not a narrative substitute.</p>
+          <p class="sub">References identify sources; source content is hashed for provenance and raw document content is not persisted by this service.</p>
           <form id="analyze-form">
             <div class="form-grid">
               <div class="field"><label for="customer_ref">Customer reference</label><input id="customer_ref" name="customer_ref" required autocomplete="off"></div>
@@ -44,8 +44,11 @@
                 <option>MITIGATION_COST</option>
                 <option>OTHER_DOCUMENTED_PROGRAM_EXPOSURE</option>
               </select></div>
-              <div class="field"><label for="commercial_basis_ref">Commercial basis evidence</label><input id="commercial_basis_ref" name="commercial_basis_ref" required autocomplete="off"></div>
-              <div class="field"><label for="cost_evidence_ref">Cost evidence</label><input id="cost_evidence_ref" name="cost_evidence_ref" required autocomplete="off"></div>
+              <div class="field"><label for="commercial_basis_ref">Commercial basis evidence reference</label><input id="commercial_basis_ref" name="commercial_basis_ref" required autocomplete="off"></div>
+              <div class="field"><label for="cost_evidence_ref">Cost evidence reference</label><input id="cost_evidence_ref" name="cost_evidence_ref" required autocomplete="off"></div>
+              <div class="field full"><label for="commercial_basis_content">Commercial basis document content</label><textarea id="commercial_basis_content" name="commercial_basis_content" required placeholder="Paste the relevant extracted agreement / PO terms. Content is hashed; raw text is not persisted by this service."></textarea></div>
+              <div class="field full"><label for="event_evidence_content">Event document content</label><textarea id="event_evidence_content" name="event_evidence_content" required placeholder="Paste the relevant cancellation, change, release, correspondence, or other event evidence."></textarea></div>
+              <div class="field full"><label for="cost_evidence_content">Cost document content</label><textarea id="cost_evidence_content" name="cost_evidence_content" required placeholder="Paste the relevant invoice, ledger, inventory, commitment, or cost evidence."></textarea></div>
               <div class="field"><label for="gross_cost">Gross cost</label><input id="gross_cost" name="gross_cost" inputmode="decimal" required value="0"></div>
               <div class="field"><label for="prior_payment">Prior payment</label><input id="prior_payment" name="prior_payment" inputmode="decimal" value="0"></div>
               <div class="field"><label for="avoided_cost">Avoided cost</label><input id="avoided_cost" name="avoided_cost" inputmode="decimal" value="0"></div>
@@ -101,7 +104,7 @@
 
         <section class="panel">
           <h2>Truth rules</h2>
-          <p class="note">An unknown notice deadline is evidence missing, not an infinite deadline. <code>READY_FOR_REVIEW</code> means evidence-supported for human review; it is not a legal conclusion or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
+          <p class="note">A reference without documentary content is REFERENCE_ONLY and cannot become review-ready. An unknown notice deadline is evidence missing, not an infinite deadline. <code>READY_FOR_REVIEW</code> means evidence-supported for human review; it is not a legal conclusion or guaranteed recovery. Pricing remains a hypothesis until real market evidence exists.</p>
         </section>
       </aside>
     </div>
