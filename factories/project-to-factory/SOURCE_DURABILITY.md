@@ -12,7 +12,7 @@ The complete validated v0.12.0 source is the versioned conversation artifact:
 
 ZIP SHA-256:
 
-`09daf7d80e8362cf1fd717cc3f474237f55ee85d93471e7f886213be97602b91`
+`61a3fa9d40eb05e1404948567383f98de71d0dfdf80c6d7fc53d37afd0d0883b`
 
 The source tree inside the ZIP is `project-to-factory-vertical-slice/`.
 
