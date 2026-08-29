@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+import pytest
+
 from factories.capacity_commitment.engine import ENGINE_VERSION
 from factories.capacity_commitment.repository import CapacityRepository
 from factories.capacity_commitment.state import recovery_case_to_payload
@@ -222,6 +224,35 @@ def test_web_rejects_invalid_numeric_without_persisting(tmp_path):
     )
     assert response.status_code == 400
     assert "dedicated_cost must be numeric" in response.get_json()["detail"]
+    assert repository.list_case_ids(tenant_id="tenant-a") == []
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "mitigation",
+        "prior_payment",
+        "evidence_supported",
+        "asset_dedicated",
+        "already_fully_amortized",
+        "already_paid",
+        "duplicate_claim",
+    ],
+)
+def test_web_rejects_omitted_material_case_facts_instead_of_inventing_defaults(missing_field, tmp_path):
+    app, repository = app_for(tmp_path)
+    request_payload = payload(f"missing-{missing_field.replace('_', '-')}")
+    request_payload["recovery_case"].pop(missing_field)
+
+    response = app.test_client().post(
+        "/api/capacity/cases",
+        headers=headers(),
+        json=request_payload,
+    )
+
+    assert response.status_code == 400
+    assert "state missing case fields" in response.get_json()["detail"]
+    assert missing_field in response.get_json()["detail"]
     assert repository.list_case_ids(tenant_id="tenant-a") == []
 
 
