@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from typing import Callable
 
 from flask import Flask, jsonify, request
 
@@ -13,6 +14,7 @@ from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.shared_contracts import SharedContractError
 from factory_cloud.support_api import register_support_api
 from factory_cloud.support_continuity import SupportLedger
+from factory_cloud.trusted_upstream_identity import TrustedUpstreamVerifier, VerifiedUpstreamIdentity
 from vertical_apps.aviation_recovery.intake import AviationPilotIntakeError, AviationPilotIntakeService, EvidenceInput
 from vertical_apps.aviation_recovery.service import AviationRecoveryService
 
@@ -20,21 +22,22 @@ API_ERRORS = (
     KeyError, TypeError, ValueError, AssuranceKernelError, AssuranceOperationError,
     AssuranceStoreError, SharedContractError, AviationPilotIntakeError,
 )
+IdentityResolver = Callable[[object], VerifiedUpstreamIdentity]
 
 
-def create_app(database: str | Path) -> Flask:
+def create_app(database: str | Path, *, identity_resolver: IdentityResolver | None = None) -> Flask:
     app = Flask(__name__)
     database_path = Path(database)
     service = AviationRecoveryService(database_path)
     shadow_service = AviationPilotIntakeService(database_path)
     support_ledger = SupportLedger(database_path.with_name(database_path.name + ".support.sqlite3"))
+    resolver = identity_resolver or TrustedUpstreamVerifier.from_env().verify_request
 
     def identity() -> tuple[str, str]:
-        tenant_id = request.headers.get("X-Tenant-ID", "").strip()
-        actor_id = request.headers.get("X-Actor-ID", "").strip()
-        if not tenant_id or not actor_id:
-            raise SharedContractError("trusted upstream tenant and actor identity headers are required")
-        return tenant_id, actor_id
+        verified = resolver(request)
+        if not isinstance(verified, VerifiedUpstreamIdentity):
+            raise SharedContractError("trusted upstream identity resolver returned invalid identity")
+        return verified.tenant_id, verified.actor_id
 
     register_support_api(app, ledger=support_ledger, identity=identity)
 
