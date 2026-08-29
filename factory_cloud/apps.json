@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "activation_code": "D",
   "registry_scope": "application_development_only",
   "rules": {
@@ -40,24 +40,15 @@
         "kind": "obrasignal_verification_v2_execution_source",
         "configured": true,
         "config_path": "factory_cloud/runtime/obrasignal-adapter.json",
-        "allowlisted_tasks": [
-          "verify:execution:compile",
-          "verify:execution:python",
-          "verify:execution:mobile",
-          "verify:execution:quality"
-        ],
-        "capabilities": [
-          "READ_REPOSITORY",
-          "RUN_TESTS",
-          "UPDATE_BATON"
-        ],
+        "allowlisted_tasks": ["verify:execution:compile","verify:execution:python","verify:execution:mobile","verify:execution:quality"],
+        "capabilities": ["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],
         "repository_mutation_capability": false
       },
       "task_capabilities": {
-        "verify:execution:compile": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
-        "verify:execution:python": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
-        "verify:execution:mobile": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
-        "verify:execution:quality": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"]
+        "verify:execution:compile": ["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],
+        "verify:execution:python": ["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],
+        "verify:execution:mobile": ["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],
+        "verify:execution:quality": ["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]
       },
       "development_evidence": {
         "last_green_candidate": "#677@ea9f31b224ff7758bc28532acd3c5d4731971afa",
@@ -66,24 +57,10 @@
       },
       "baton": {
         "active": "verify:execution:compile",
-        "next": [
-          "verify:execution:python",
-          "verify:execution:mobile",
-          "Continue source-to-canonical causal, normalization and historical provenance probes from GREEN current spine #677 while preserving UNKNOWN where authority is absent"
-        ],
-        "wait": [
-          "repository mutation/code-authoring tasks require a separately verified repository-safe coding adapter",
-          "canonical adoption",
-          "merge",
-          "deploy",
-          "production/provider/secrets/config/source activation"
-        ]
+        "next": ["verify:execution:python","verify:execution:mobile","Continue source-to-canonical causal, normalization and historical provenance probes from GREEN current spine #677 while preserving UNKNOWN where authority is absent"],
+        "wait": ["repository mutation/code-authoring tasks require a separately verified repository-safe coding adapter","canonical adoption","merge","deploy","production/provider/secrets/config/source activation"]
       },
-      "activation": {
-        "enabled": true,
-        "mode": "repository_safe_execution",
-        "priority": 100
-      }
+      "activation": {"enabled": true,"mode": "repository_safe_execution","priority": 100}
     },
     {
       "app_id": "k3-fatality",
@@ -91,35 +68,61 @@
       "kind": "application",
       "mission": "Advance K3 Fatality only through source-safe work until canonical repository truth is resolved, then continue application development without crossing production authority boundaries.",
       "development_state": "ACTIVE_RUNTIME_SOURCE_UNRESOLVED",
-      "source_truth": {
-        "provider": "vercel",
-        "project": "k3-fatality",
-        "canonical_repository": null,
-        "verified_runtime": true,
-        "verified_source": false
-      },
+      "source_truth": {"provider": "vercel","project": "k3-fatality","canonical_repository": null,"verified_runtime": true,"verified_source": false},
       "baton": {
         "active": "Resolve canonical source truth before repository mutations",
-        "next": ["Probability-model validation", "calibration/backtest evidence", "commercial MVP progression"],
-        "wait": ["repository writes until source truth is resolved", "production mutation"]
+        "next": ["Probability-model validation","calibration/backtest evidence","commercial MVP progression"],
+        "wait": ["repository writes until source truth is resolved","production mutation"]
       },
-      "activation": {
-        "enabled": true,
-        "mode": "read_only_until_source_resolved",
-        "priority": 80
-      }
+      "activation": {"enabled": true,"mode": "read_only_until_source_resolved","priority": 80}
+    },
+    {
+      "app_id": "aviation-lease-entitlement-recovery",
+      "name": "Aviation Lease Entitlement Recovery",
+      "kind": "application",
+      "mission": "Deliver evidence-first lessee-side maintenance-reserve recoverability analysis using the shared assurance kernel, without inventing entitlement or mutating production.",
+      "development_state": "SOURCE_REGISTERED_ADAPTER_PENDING",
+      "source_truth": {
+        "provider": "github",
+        "repository": "MarcosTaz/Obrasignal",
+        "canonical_branch": "apps/aviation-lease-entitlement-recovery",
+        "canonical_head": "2630470fdc03bbb447305da9a277ae1730d681df",
+        "verified": true,
+        "application_path": "vertical_apps/aviation_recovery"
+      },
+      "baton": {
+        "active": "Configure and verify a repository-safe application adapter against exact source truth",
+        "next": ["Run application service contract tests","Add assisted intake/API boundary","Prove review-to-outcome persistence"],
+        "wait": ["repository dispatch until adapter contract is configured","production deploy","customer data"]
+      },
+      "portfolio_priority": {"safety_severity": 0,"pilot_blocker": 90,"commercial_leverage": 85,"shared_leverage": 90,"evidence_integrity": 95},
+      "activation": {"enabled": false,"priority": 90}
+    },
+    {
+      "app_id": "contractcredit",
+      "name": "ContractCredit",
+      "kind": "application",
+      "mission": "Deliver evidence-first enterprise service-credit reconciliation using the shared assurance kernel, without inventing SLA breach or contractual remedy.",
+      "development_state": "SOURCE_REGISTERED_ADAPTER_PENDING",
+      "source_truth": {
+        "provider": "github",
+        "repository": "MarcosTaz/Obrasignal",
+        "canonical_branch": "apps/contractcredit",
+        "canonical_head": "2630470fdc03bbb447305da9a277ae1730d681df",
+        "verified": true,
+        "application_path": "vertical_apps/contractcredit"
+      },
+      "baton": {
+        "active": "Configure and verify a repository-safe application adapter against exact source truth",
+        "next": ["Run application service contract tests","Add assisted intake/API boundary","Prove review-to-outcome persistence"],
+        "wait": ["repository dispatch until adapter contract is configured","production deploy","customer data"]
+      },
+      "portfolio_priority": {"safety_severity": 0,"pilot_blocker": 90,"commercial_leverage": 88,"shared_leverage": 90,"evidence_integrity": 95},
+      "activation": {"enabled": false,"priority": 91}
     }
   ],
   "explicitly_not_registered": {
     "reason": "Research/business Factories are not applications and must not be mixed into the application-development cloud until promoted to a real app with canonical source/runtime truth.",
-    "examples": [
-      "Industrial Supplier Claims & Margin Recovery",
-      "ChangeLedger",
-      "Recovery Radar",
-      "Sourcing Recovery & Supplier Margin Control",
-      "Product Market Access / Legal Product Checker",
-      "EU Cloud Switching / Migration Capital Network",
-      "Recoverable Money Business Discovery"
-    ]
+    "examples": ["Industrial Supplier Claims & Margin Recovery","ChangeLedger","Recovery Radar","Sourcing Recovery & Supplier Margin Control","Product Market Access / Legal Product Checker","EU Cloud Switching / Migration Capital Network","Recoverable Money Business Discovery"]
   }
 }
