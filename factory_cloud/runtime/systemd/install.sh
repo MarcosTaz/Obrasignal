@@ -36,7 +36,15 @@ for app in ${APPS}; do
   user="factory-cloud-${app}"
   getent group "${user}" >/dev/null || groupadd --system "${user}"
   if ! id -u "${user}" >/dev/null 2>&1; then
-    useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin --gid "${user}" --groups factory-cloud "${user}"
+    useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin --gid "${user}" "${user}"
+  fi
+
+  # Older Factory Cloud installs put every app worker in the shared metadata
+  # group. Do not continue under that legacy identity: a worker must never be
+  # able to open the control-plane state database through Unix group access.
+  if id -nG "${user}" | tr ' ' '\n' | grep -Fxq factory-cloud; then
+    echo "${user} still belongs to legacy shared group factory-cloud; remove that supplementary membership before restart" >&2
+    exit 4
   fi
 
   # The control process owns every queue directory; the app-specific group can
