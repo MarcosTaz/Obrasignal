@@ -66,6 +66,24 @@ def test_delivery_report_rejects_package_from_different_case():
         render_delivery_report(second, package)
 
 
+def test_delivery_report_rejects_stale_package_for_same_case_id():
+    current = _state(case("report-same", actual_units=Decimal("80000")))
+    stale = _state(case("report-same", actual_units=Decimal("0")))
+    package = process_state(stale).recovery_package
+
+    with pytest.raises(ValueError, match="package does not match current state"):
+        render_delivery_report(current, package)
+
+
+def test_delivery_report_rejects_mutated_package_truth():
+    state = _state(case("report-mutated"))
+    package = process_state(state).recovery_package
+    package.executive_summary["payment_received"] = True
+
+    with pytest.raises(ValueError, match="package does not match current state"):
+        render_delivery_report(state, package)
+
+
 def test_delivery_report_normalizes_newlines_in_external_references():
     state = AssistedCaseState(
         tenant_id="tenant-a",
