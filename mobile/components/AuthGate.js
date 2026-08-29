@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import AuthScreen from './AuthScreen'
+import PasswordRecoveryScreen from './PasswordRecoveryScreen'
 import BillingGate from './BillingGate'
 import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
@@ -35,7 +36,7 @@ export default function AuthGate({ children }) {
 
           setAuthState(nextState)
           setTenantStatus('ready')
-          if (nextState.status === 'signed-in') ensureBackendReady().catch(() => {})
+          if (nextState.status === 'signed-in' && nextState.event !== 'PASSWORD_RECOVERY') ensureBackendReady().catch(() => {})
         })
         .catch(() => {
           if (!active || currentGeneration !== generation) return
@@ -52,7 +53,7 @@ export default function AuthGate({ children }) {
     }
 
     const unsubscribe = authSession.subscribe(update)
-    authSession.start().then(update).catch(() => update({ status: 'signed-out', session: null }))
+    authSession.start().then(update).catch(() => update({ status: 'signed-out', session: null, event: null }))
     return () => { active = false; generation += 1; unsubscribe() }
   }, [])
 
@@ -65,6 +66,7 @@ export default function AuthGate({ children }) {
   }
 
   if (authState.status !== 'signed-in') return <AuthScreen />
+  if (authState.event === 'PASSWORD_RECOVERY') return <PasswordRecoveryScreen />
 
   // Supabase remains the authentication source of truth. This gate only binds
   // local private state to the authenticated identity before hydration.
