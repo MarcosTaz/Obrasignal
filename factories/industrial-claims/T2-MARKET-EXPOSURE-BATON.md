@@ -6,7 +6,7 @@ Source class: publication/control pointer only; not the canonical application so
 ## Reconstructed truth
 
 - Publication branch: `factory/industrial-claims-causledger-v0.23.0`
-- Publication branch current evidence HEAD: `81e044ae85139eed28d8c2dfeb7a4208f1e9a7ca`
+- Publication branch current evidence HEAD: `84691d225a5afdd6ee1d7c1d8c90ea031c831316`
 - Referenced local canonical application HEAD: `9ea86553d8978da1197b5aed9f27cb5b1529d39d`
 - Distribution artifact: `causledger-industrial-recovery-mvp-v0.23.0.zip`
 - Recorded distribution SHA-256: `3225bf0795db547f24339a7123ef70e1bc983d56ec043e14d30d8fe30ed6dd23`
@@ -20,16 +20,17 @@ These application facts are inherited only from the existing repository provenan
 
 - Froze a repository-only T2 market-exposure BATON.
 - Added `SYNTHETIC-PILOT-ADMISSIBILITY-v0.1.md` defining fail-closed admission/rejection rules and a synthetic candidate whose amount is explicitly not a proven entitlement or recovery.
+- Added `SYNTHETIC-ASSISTED-PILOT-PACKET-v0.1.md` proving generated intake → evidence classification → transaction linkage → amount reconstruction → admissibility → human-reviewable candidate → `EVIDENCE_REQUIRED`, with entitlement/recovery remaining UNKNOWN.
 
 ## ACTIVE
 
-Build the next reversible, non-customer-specific market-exposure proof for the assisted pilot without claiming outreach, demand, recovery, entitlement or revenue.
+Freeze a narrow pilot ICP/qualification screen for documentary supplier-claim opportunities without naming or contacting real prospects.
 
 ## NEXT
 
-1. Prepare a synthetic end-to-end pilot packet demonstrating intake → evidence classification → candidate claim → human review → defensible output, with every amount explicitly synthetic.
-2. Freeze a narrow pilot ICP/qualification screen for documentary supplier-claim opportunities without naming or contacting real prospects.
-3. Define the minimum commercial evidence required to move from `T2_MARKET_EXPOSED` to a later real-pilot terminal: named prospect evidence, exposure date, response, qualified problem, admissible documents and explicit authorization boundary.
+1. Freeze a narrow pilot ICP/qualification screen for documentary supplier-claim opportunities without naming or contacting real prospects.
+2. Define the minimum commercial evidence required to move from `T2_MARKET_EXPOSED` to a later real-pilot terminal: named prospect evidence, exposure date, response, qualified problem, admissible documents and explicit authorization boundary.
+3. Prepare a reversible market-exposure operator pack that can be populated with real prospects only after outreach authority is available.
 4. Re-verify the referenced canonical application HEAD and distribution hash from the actual canonical source workspace before any real pilot exposure.
 
 ## WAIT
@@ -45,4 +46,4 @@ Build the next reversible, non-customer-specific market-exposure proof for the a
 
 ## EXACT NEXT EXECUTABLE ACTION
 
-Create a synthetic end-to-end assisted-pilot packet that consumes only generated placeholder evidence and terminates in a human-reviewable candidate output with explicit UNKNOWN/missing-evidence fields.
+Create a repository-only ICP and qualification screen that prioritizes industrial buyers with document-rich supplier leakage and fails closed when transaction evidence, contractual basis, reconstructable amount or reviewer access is absent.
