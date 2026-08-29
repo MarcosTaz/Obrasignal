@@ -43,7 +43,7 @@ function renderQueue(body) {
   if (!findings.length) {
     const empty = document.createElement("p");
     empty.className = "note";
-    empty.textContent = "No actionable findings for this verified role and tenant.";
+    empty.textContent = "No workflow findings for this verified role and tenant.";
     list.append(empty);
   }
 }
@@ -117,7 +117,11 @@ document.getElementById("resolve-form").addEventListener("submit", async (event)
     currency: document.getElementById("currency").value.trim().toUpperCase(),
     evidence_ref: document.getElementById("evidence_ref").value,
     evidence_content: document.getElementById("evidence_content").value,
+    final_cumulative: document.getElementById("final_cumulative").checked,
   };
   const result = await send(`/findings/${encodeURIComponent(id)}/resolve`, jsonRequest(payload), "resolve-result");
-  if (result && result.response.ok) await loadQueue();
+  if (result && result.response.ok) {
+    document.getElementById("final_cumulative").checked = false;
+    await loadQueue();
+  }
 });
