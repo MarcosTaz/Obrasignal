@@ -50,6 +50,7 @@ jobs:
         run: node --check scopeledger-recovery/app/static/app.js
 
       - name: Run autonomous P0 integrity and concurrency gate
+        working-directory: scopeledger-recovery
         env:
-          PYTHONPATH: scopeledger-recovery
-        run: python -m pytest -q scopeledger-recovery/tests/test_integrity.py
+          PYTHONPATH: .
+        run: python -m pytest -q --confcutdir=. tests/test_integrity.py
