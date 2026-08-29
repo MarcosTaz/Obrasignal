@@ -55,5 +55,5 @@ def test_independent_synthetic_ground_truth_cases(tmp_path):
         assert result.calculation.output_value == case["expected_net_potential"], case["id"]
         assert result.calculation.output_unit == "EUR", case["id"]
         assert result.finding.state == case["expected_state"], case["id"]
-        assert result.notice_deadline_state == "VERIFIED_NONE", case["id"]
+        assert result.notice_deadline_state == "DECLARED_NONE_FOR_REVIEW", case["id"]
         assert {item.metadata["verification_state"] for item in result.evidence} == {"CONTENT_HASHED"}
