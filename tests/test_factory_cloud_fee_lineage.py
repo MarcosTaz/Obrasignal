@@ -40,3 +40,37 @@ def test_fee_lineage_rejects_other_tenant_and_zero_recovery(tmp_path):
         service.ops.record_fee(tenant_id="enterprise", outcome_id=outcome.outcome_id, fee_id="fee", fee_rate="0.20")
     with pytest.raises(AssuranceOperationError, match="not found"):
         service.ops.record_fee(tenant_id="other", outcome_id=outcome.outcome_id, fee_id="other-fee", fee_rate="0.20")
+
+
+def test_success_fee_is_idempotent_but_cannot_be_double_recorded(tmp_path):
+    service = ContractCreditService(tmp_path / "credit.sqlite3")
+    outcome = _recover(
+        service,
+        "enterprise",
+        dict(contract_ref="msa", incident_ref="inc", monthly_fee="1000", credit_rate="0.10", notice_due=date(2026, 9, 15)),
+        "100",
+    )
+
+    first = service.ops.record_fee(
+        tenant_id="enterprise",
+        outcome_id=outcome.outcome_id,
+        fee_id="enterprise:fee-1",
+        fee_rate="0.20",
+    )
+    replay = service.ops.record_fee(
+        tenant_id="enterprise",
+        outcome_id=outcome.outcome_id,
+        fee_id="enterprise:fee-1",
+        fee_rate="0.20",
+    )
+    assert replay == first
+
+    with pytest.raises(AssuranceOperationError, match="already recorded"):
+        service.ops.record_fee(
+            tenant_id="enterprise",
+            outcome_id=outcome.outcome_id,
+            fee_id="enterprise:fee-2",
+            fee_rate="0.20",
+        )
+
+    assert len(service.ops.fees(tenant_id="enterprise")) == 1
