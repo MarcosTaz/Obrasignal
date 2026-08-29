@@ -35,12 +35,22 @@ def verify(item, *, claimed_amount=Decimal("1000"), tenant_id="tenant-1",
     )
 
 
-def test_exact_scope_amount_match_is_verified():
+def test_exact_scope_bank_receipt_match_is_verified():
     result = verify(evidence())
     assert result.state == CashVerificationState.VERIFIED
     assert result.verified_amount == Decimal("1000")
     assert result.evidence_ref == "bank:tx-1"
     assert result.reason == "EXACT_SCOPE_AMOUNT_MATCH"
+
+
+def test_credit_note_never_counts_as_verified_cash():
+    result = verify(
+        evidence(kind=CashEvidenceKind.CREDIT_NOTE, evidence_ref="credit:cn-1")
+    )
+    assert result.state == CashVerificationState.MISMATCH
+    assert result.verified_amount == Decimal("0")
+    assert result.evidence_ref == "credit:cn-1"
+    assert result.reason == "NON_CASH_EVIDENCE_KIND"
 
 
 def test_self_attested_evidence_never_verifies_cash():
