@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 8
+    assert pilot["schema_version"] == 9
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -18,6 +18,17 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert evidence["individual_document_content_limit_bytes"] == 1_000_000
     assert evidence["recovered_or_closed_outcome_requires_document_content"] is True
     assert evidence["outcome_document_and_state_persist_atomically"] is True
+
+    pre_review = pilot["pre_review_entitlement_policy"]
+    assert pre_review == {
+        "documentary_complete_confidence": "PARTIAL",
+        "missing_evidence_confidence": "UNRESOLVED",
+        "generic_actionable_before_human_review": False,
+        "ready_for_review_is_documentary_workflow_state": True,
+        "review_approval_is_legal_conclusion": False,
+        "recoverability_established_before_external_evidence": False,
+        "rule_ref": "documented-commercial-basis-v3-pre-review",
+    }
 
     notice = pilot["notice_truth_policy"]
     assert notice == {
@@ -43,6 +54,13 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "amount_integer_digits_max": 36,
         "amount_decimal_places_max": 18,
         "amount_absolute_exponent_max": 36,
+    }
+
+    collision = pilot["identity_collision_policy"]
+    assert collision == {
+        "tenant_matches_provider_account_contract": True,
+        "contract_reference_is_structured_not_delimiter_concatenated": True,
+        "shared_store_outcome_id_is_tenant_scoped": True,
     }
 
     dossier = pilot["dossier_lineage"]
@@ -72,6 +90,8 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     required_fail_closed = {
         "cost_without_commercial_basis",
         "reference_only_documentary_evidence",
+        "unresolved_entitlement_basis",
+        "pre_review_entitlement_supported_overclaim",
         "unknown_notice_deadline",
         "pre_review_notice_verification_overclaim",
         "missing_claim_currency",
@@ -79,6 +99,8 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "recovery_currency_mismatch",
         "missing_outcome_documentary_evidence",
         "outcome_evidence_collision",
+        "cross_tenant_outcome_id_collision",
+        "ambiguous_contract_reference",
         "oversized_tenant_identifier",
         "oversized_case_or_outcome_reference",
         "oversized_finding_identifier",
@@ -109,9 +131,11 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     required_exit = {
         "canonical_source_green",
         "documentary_content_gate_green",
+        "pre_review_entitlement_truth_green",
         "notice_truth_language_green",
         "currency_lineage_green",
         "numeric_capacity_green",
+        "identity_collision_resistance_green",
         "outcome_evidence_lineage_green",
         "dossier_lineage_green",
         "bounded_input_surface_green",
