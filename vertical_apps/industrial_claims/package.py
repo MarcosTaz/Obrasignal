@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict
 from datetime import date
 from typing import Any
@@ -28,6 +29,20 @@ def _notice_package(result: IndustrialClaimResult, *, as_of_date: date) -> dict[
     }
 
 
+def _immutable_case_labels(result: IndustrialClaimResult) -> tuple[str, str, str]:
+    try:
+        contract_parts = json.loads(result.fingerprint.contract_ref)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("industrial package contract identity is invalid") from exc
+    if not isinstance(contract_parts, list) or len(contract_parts) != 3:
+        raise ValueError("industrial package contract identity is invalid")
+    customer_ref, program_ref, _commercial_basis_ref = (str(value) for value in contract_parts)
+    event_ref = str(result.fingerprint.event_ref)
+    if not customer_ref or not program_ref or not event_ref:
+        raise ValueError("industrial package case identity is incomplete")
+    return customer_ref, program_ref, event_ref
+
+
 def build_claim_package(
     result: IndustrialClaimResult,
     *,
@@ -38,21 +53,26 @@ def build_claim_package(
 ) -> dict[str, Any]:
     """Build a review package without upgrading economic/legal truth state.
 
-    The amount is deliberately labelled net_potential, never "owed" or
-    "claimable". READY_FOR_REVIEW means documentary inputs are structurally
-    present for independent human review; it does not establish entitlement or
-    recoverability. Raw document content is not embedded.
+    Human-readable case labels supplied by the caller must match the immutable
+    recovery fingerprint. This prevents a valid calculation/evidence lineage
+    from being exported under another customer, program, or event label.
     """
+    immutable_customer, immutable_program, immutable_event = _immutable_case_labels(result)
+    supplied = (str(customer_ref), str(program_ref), str(event_ref))
+    immutable = (immutable_customer, immutable_program, immutable_event)
+    if supplied != immutable:
+        raise ValueError("industrial package labels do not match immutable case identity")
+
     as_of = as_of_date or date.today()
     currency = result.calculation.output_unit
     verified_currency = currency if currency and currency != "UNKNOWN" else None
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "vertical": "industrial-claims",
         "tenant_id": result.tenant_id,
-        "customer_ref": customer_ref,
-        "program_ref": program_ref,
-        "event_ref": event_ref,
+        "customer_ref": immutable_customer,
+        "program_ref": immutable_program,
+        "event_ref": immutable_event,
         "claim_family": result.claim_family,
         "economic_truth_state": "DOCUMENTED_CANDIDATE_FOR_REVIEW" if result.finding.state == "READY_FOR_REVIEW" else "POTENTIAL_ENTITLEMENT",
         "net_potential": result.calculation.output_value,
