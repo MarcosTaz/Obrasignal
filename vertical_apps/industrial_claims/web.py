@@ -30,6 +30,7 @@ API_ERRORS = (
 REVIEWER_QUEUE_STATES = {"READY_FOR_REVIEW"}
 OPERATOR_QUEUE_STATES = {"APPROVED", "ACTIONED"}
 ADMIN_QUEUE_STATES = REVIEWER_QUEUE_STATES | OPERATOR_QUEUE_STATES
+REVIEW_SCOPE = "INTERNAL_WORKFLOW_APPROVAL"
 
 
 class IndustrialClaimsAuthenticationError(Exception):
@@ -86,6 +87,14 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     def identity(required_role: str) -> tuple[str, str]:
         tenant_id, actor_id, _roles = identity_any(required_role)
         return tenant_id, actor_id
+
+    def json_object() -> dict:
+        payload = request.get_json(force=True)
+        if payload is None:
+            return {}
+        if not isinstance(payload, dict):
+            raise ValueError("JSON body must be an object")
+        return payload
 
     @app.after_request
     def security_headers(response):
@@ -149,7 +158,15 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     def finding_detail(finding_id: str):
         try:
             tenant_id, _actor_id, _roles = identity_any("analyst", "reviewer", "operator")
-            return jsonify(read_model.get_finding(tenant_id=tenant_id, finding_id=finding_id))
+            detail = read_model.get_finding(tenant_id=tenant_id, finding_id=finding_id)
+            detail["review_contract"] = {
+                "approval_scope": REVIEW_SCOPE,
+                "approval_establishes_recoverability": False,
+                "approval_is_legal_conclusion": False,
+                "approval_authorizes_customer_contact": False,
+                "approval_authorizes_external_claim_submission": False,
+            }
+            return jsonify(detail)
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -157,7 +174,7 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     def analyze():
         try:
             tenant_id, actor_id = identity("analyst")
-            payload = request.get_json(force=True) or {}
+            payload = json_object()
             missing = payload.get("missing_evidence") or []
             if not isinstance(missing, list):
                 raise ValueError("missing_evidence must be a list")
@@ -180,12 +197,20 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     def review_finding(finding_id: str):
         try:
             tenant_id, actor_id = identity("reviewer")
-            payload = request.get_json(force=True) or {}
+            payload = json_object()
             approved = payload["approved"]
             if not isinstance(approved, bool):
                 raise ValueError("approved must be boolean")
             state = service.review(tenant_id=tenant_id, finding_id=finding_id, reviewer=actor_id, approved=approved, reason=str(payload["reason"]))
-            return jsonify({"finding_id": finding_id, "state": state})
+            return jsonify({
+                "finding_id": finding_id,
+                "state": state,
+                "review_scope": REVIEW_SCOPE,
+                "recoverability_established": False,
+                "legal_conclusion": None,
+                "customer_contact_authorized": False,
+                "external_claim_submission_authorized": False,
+            })
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -193,7 +218,13 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     def action_finding(finding_id: str):
         try:
             tenant_id, actor_id = identity("operator")
-            return jsonify({"finding_id": finding_id, "state": service.action(tenant_id=tenant_id, finding_id=finding_id, actor_id=actor_id)})
+            return jsonify({
+                "finding_id": finding_id,
+                "state": service.action(tenant_id=tenant_id, finding_id=finding_id, actor_id=actor_id),
+                "internal_workflow_only": True,
+                "customer_contact_performed": False,
+                "external_claim_submitted": False,
+            })
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -201,7 +232,7 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     def resolve_finding(finding_id: str):
         try:
             tenant_id, actor_id = identity("operator")
-            payload = request.get_json(force=True) or {}
+            payload = json_object()
             evidence_content = payload.get("evidence_content")
             if not isinstance(evidence_content, str) or not evidence_content.strip():
                 raise ValueError("documentary outcome evidence content is required as text")
