@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
 from jwt import InvalidTokenError
 
 from auth_context import RequestIdentity, configured_identity
@@ -98,6 +98,10 @@ def create_app(
     @app.errorhandler(JwksUnavailableError)
     def authentication_provider_unavailable(_exc):
         return jsonify({"error": "authentication_service_unavailable"}), 503
+
+    @app.get("/")
+    def console():
+        return render_template("index.html")
 
     @app.get("/health")
     def health():
