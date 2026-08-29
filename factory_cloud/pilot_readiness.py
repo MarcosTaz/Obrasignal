@@ -26,6 +26,7 @@ class PilotReadinessEvidence:
     delivery_economics_defined: bool
     onboarding_exit_criteria: bool
     assisted_api: bool
+    runtime_provisioned: bool
     exact_source_head: str
 
     @property
@@ -40,6 +41,7 @@ class PilotReadinessEvidence:
             self.delivery_economics_defined,
             self.onboarding_exit_criteria,
             self.assisted_api,
+            self.runtime_provisioned,
             bool(_SHA_RE.fullmatch(self.exact_source_head)),
         ))
 
@@ -50,7 +52,7 @@ class PilotReadinessEvidence:
             name for name in (
                 "source_registered", "deterministic_core", "evidence_lineage", "tenant_isolation",
                 "durable_recovery", "adversarial_tests", "delivery_economics_defined",
-                "onboarding_exit_criteria", "assisted_api",
+                "onboarding_exit_criteria", "assisted_api", "runtime_provisioned",
             ) if not getattr(self, name)
         ]
         if not _SHA_RE.fullmatch(self.exact_source_head):
@@ -58,7 +60,15 @@ class PilotReadinessEvidence:
         raise PilotReadinessError("pilot readiness incomplete: " + ", ".join(missing))
 
 
-def assess_recovery_vertical(*, vertical: str, pilot_path: str | Path, exact_source_head: str, source_registered: bool, verified_tests: Iterable[str]) -> PilotReadinessEvidence:
+def assess_recovery_vertical(
+    *,
+    vertical: str,
+    pilot_path: str | Path,
+    exact_source_head: str,
+    source_registered: bool,
+    verified_tests: Iterable[str],
+    runtime_provisioned: bool = False,
+) -> PilotReadinessEvidence:
     pilot = load_pilot_contract(pilot_path)
     if pilot["vertical"] != vertical:
         raise PilotReadinessError("pilot contract vertical mismatch")
@@ -74,5 +84,6 @@ def assess_recovery_vertical(*, vertical: str, pilot_path: str | Path, exact_sou
         delivery_economics_defined=bool(pilot.get("pricing")),
         onboarding_exit_criteria=bool(pilot.get("pilot_exit_criteria")),
         assisted_api="assisted_api" in tests,
+        runtime_provisioned=bool(runtime_provisioned),
         exact_source_head=exact_source_head,
     )
