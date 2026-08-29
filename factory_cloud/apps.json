@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "activation_code": "D",
   "registry_scope": "application_development_only",
   "rules": {
@@ -51,12 +51,12 @@
       "name":"Aviation Lease Entitlement Recovery",
       "kind":"application",
       "mission":"Deliver evidence-first lessee-side maintenance-reserve recoverability analysis using the shared assurance kernel, without inventing entitlement or mutating production.",
-      "development_state":"ACTIVE_SOURCE_REGISTERED_VERIFICATION_ONLY",
+      "development_state":"ACTIVE_PILOT_SAFE_CANDIDATE",
       "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/aviation-lease-entitlement-recovery","canonical_head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"application_path":"vertical_apps/aviation_recovery"},
-      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/aviation-lease-entitlement-recovery","head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
+      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/aviation-lease-entitlement-recovery-pilot-safe-candidate-20260829","head":"5657c8c17c2cd1af09d0934299afbe91aed6438b","verified":true,"classification":"NONCANONICAL_PILOT_SAFE_CANDIDATE_GREEN","evidence":"PR #810 validation lineage; Quality + Browser Runtime GREEN on same application source composition"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/aviation-recovery-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
-      "baton":{"active":"verify:service","next":["verify:shared-contracts","Close PILOT_SAFE web/support/observability/backup/synthetic-company/shadow-validation gaps"],"wait":["real customer or proprietary customer data until PILOT_SAFE","production deploy","repository mutation beyond verification-only adapter"]},
+      "baton":{"active":"close:pilot-safe-evidence","next":["verify evidence manifest source binding","close billing_sandbox settlement/reconciliation without live authority","re-run exact-head certification"],"wait":["real customer or proprietary customer data until PILOT_SAFE","production deploy","canonical adoption/merge","live billing/provider authority"]},
       "portfolio_priority":{"safety_severity":0,"pilot_safe_blocker":100,"pilot_blocker":90,"commercial_leverage":20,"shared_leverage":95,"evidence_integrity":95},
       "activation":{"enabled":true,"mode":"repository_safe_execution","priority":90}
     },
@@ -65,12 +65,12 @@
       "name":"ContractCredit",
       "kind":"application",
       "mission":"Deliver evidence-first enterprise service-credit reconciliation using the shared assurance kernel, without inventing SLA breach or contractual remedy.",
-      "development_state":"ACTIVE_SOURCE_REGISTERED_VERIFICATION_ONLY",
+      "development_state":"ACTIVE_PILOT_SAFE_CANDIDATE",
       "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/contractcredit","canonical_head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"application_path":"vertical_apps/contractcredit"},
-      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/contractcredit","head":"5b26801d5d54f224f1da36bb66ba8d26f1f8208c","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
+      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/contractcredit-pilot-safe-candidate-20260829","head":"5657c8c17c2cd1af09d0934299afbe91aed6438b","verified":true,"classification":"NONCANONICAL_PILOT_SAFE_CANDIDATE_GREEN","evidence":"PR #810 validation lineage; Quality + Browser Runtime GREEN on same application source composition"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/contractcredit-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
-      "baton":{"active":"verify:service","next":["verify:shared-contracts","Close PILOT_SAFE web/support/observability/backup/synthetic-company/shadow-validation gaps"],"wait":["real customer or proprietary customer data until PILOT_SAFE","production deploy","repository mutation beyond verification-only adapter"]},
+      "baton":{"active":"close:pilot-safe-evidence","next":["verify evidence manifest source binding","close billing_sandbox settlement/reconciliation without live authority","re-run exact-head certification"],"wait":["real customer or proprietary customer data until PILOT_SAFE","production deploy","canonical adoption/merge","live billing/provider authority"]},
       "portfolio_priority":{"safety_severity":0,"pilot_safe_blocker":100,"pilot_blocker":90,"commercial_leverage":20,"shared_leverage":95,"evidence_integrity":95},
       "activation":{"enabled":true,"mode":"repository_safe_execution","priority":91}
     }
