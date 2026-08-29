@@ -3,7 +3,7 @@ name: RoyaltyRecover Quality
 on:
   push:
     branches:
-      - royaltyrecover/company-web-app
+      - 'royaltyrecover/**'
     paths:
       - 'factories/royaltyrecover/**'
       - '.github/workflows/royaltyrecover-quality.yml'
