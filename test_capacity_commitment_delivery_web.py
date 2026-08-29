@@ -15,7 +15,7 @@ def _payload(case_id="delivery-web"):
         "recovery_case": recovery_case_to_payload(case(case_id)),
         "evidence_refs": ["contract:lta-2026-01#12", "actuals:2026Q2"],
         "missing_evidence": [],
-        "deadline": "2026-12-31",
+        "deadline": "2099-12-31",
     }
 
 
@@ -42,11 +42,14 @@ def test_create_payload_includes_truth_preserving_markdown_report(tmp_path):
     )
 
     assert response.status_code == 201
-    report = response.get_json()["delivery_report_markdown"]
+    body = response.get_json()
+    report = body["delivery_report_markdown"]
     assert "Capacity Commitment Recovery Audit" in report
     assert "Recoverability state: **RECOVERABLE**" in report
     assert "Verified recovery: **NO**" in report
     assert "Payment received: **NO**" in report
+    assert body["recovery_package"]["assessment_date"]
+    assert body["recovery_package"]["audit_trail"]["deadline_expired_by_date"] is False
 
 
 def test_report_endpoint_is_authenticated_tenant_scoped_and_no_store(tmp_path):
@@ -68,6 +71,7 @@ def test_report_endpoint_is_authenticated_tenant_scoped_and_no_store(tmp_path):
     assert own.headers["Cache-Control"] == "no-store"
     text = own.get_data(as_text=True)
     assert "Supplier/company: `supplier-1`" in text
+    assert "Assessment date:" in text
     assert "not proof of payment" in text
 
     other = client.get(
@@ -81,7 +85,7 @@ def test_report_endpoint_is_authenticated_tenant_scoped_and_no_store(tmp_path):
     assert unauthenticated.status_code == 401
 
 
-def test_report_is_deterministic_after_repository_restart(tmp_path):
+def test_report_is_deterministic_after_repository_restart_on_same_assessment_date(tmp_path):
     db_path = tmp_path / "capacity.db"
     first_repo = CapacityRepository(str(db_path))
     first_app = create_app(first_repo, lambda req: req.headers.get("X-Test-Tenant"))
