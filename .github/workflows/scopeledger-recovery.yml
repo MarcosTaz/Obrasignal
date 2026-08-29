@@ -38,8 +38,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
-          cache-dependency-path: scopeledger-recovery/requirements.txt
 
       - name: Install recovered runtime dependencies
         run: python -m pip install -r /tmp/scopeledger-recovery-run/scopeledger-recovery/requirements.txt
