@@ -1,15 +1,20 @@
+from datetime import date
 from decimal import Decimal
 import sqlite3
 
 from earnedcash.backup import copy_database, restore_verified_copy
 from earnedcash.case_workflow import CaseState
 from earnedcash.cash_verification import CashEvidence, CashEvidenceKind
+from earnedcash.due_date import DueDateEvidence
 from earnedcash.fees import calculate_success_fee
 from earnedcash.operator import AssistedPilotOperator
 from earnedcash.store import EarnedCashStore
 
 
-def ledger(*, due=True):
+AS_OF = date(2026, 8, 29)
+
+
+def ledger():
     return [
         {
             "record_id": "app-1",
@@ -39,9 +44,18 @@ def ledger(*, due=True):
             "amount": "100000",
             "relates_to": "cert-1",
             "verified": True,
-            "due": due,
         },
     ]
+
+
+def due_evidence(due_date):
+    return {
+        "inv-1": DueDateEvidence(
+            due_date=due_date,
+            evidence_ref="invoice:inv-1:due-date",
+            independently_verified=True,
+        )
+    }
 
 
 def pilot_store():
@@ -75,9 +89,15 @@ def test_synthetic_pilot_reconciles_to_verified_cash_fee_and_restorable_truth():
     store = pilot_store()
     operator = AssistedPilotOperator(store)
     result = operator.reconcile_project(
-        tenant_id="tenant-1", project_id="project-1", rows=ledger(due=True)
+        tenant_id="tenant-1",
+        project_id="project-1",
+        rows=ledger(),
+        as_of=AS_OF,
+        due_evidence_by_record=due_evidence(AS_OF),
     )
     assert result["truth_source"] == "ASSISTED_OPERATOR_VERIFIED"
+    assert result["as_of"] == "2026-08-29"
+    assert result["due_truth"]["inv-1"]["state"] == "DUE"
     assert result["due_unpaid"] == "100000"
     assert result["verified_cash"] == "0"
     assert result["unknown_value"] == "0"
@@ -158,8 +178,13 @@ def test_synthetic_zero_recovery_is_pass_and_creates_no_recovery_fee():
     store = pilot_store()
     operator = AssistedPilotOperator(store)
     result = operator.reconcile_project(
-        tenant_id="tenant-1", project_id="project-1", rows=ledger(due=False)
+        tenant_id="tenant-1",
+        project_id="project-1",
+        rows=ledger(),
+        as_of=AS_OF,
+        due_evidence_by_record=due_evidence(date(2026, 8, 30)),
     )
+    assert result["due_truth"]["inv-1"]["state"] == "NOT_YET_DUE"
     assert result["due_unpaid"] == "0"
     assert result["not_yet_due"] == "100000"
     assert result["recovery_queue"] == []
