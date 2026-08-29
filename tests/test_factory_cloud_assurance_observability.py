@@ -1,9 +1,12 @@
 from datetime import date
 
 from factory_cloud.assurance_observability import assurance_health
+from factory_cloud.trusted_upstream_identity import TrustedUpstreamVerifier
 from vertical_apps.aviation_recovery.web import create_app as create_aviation_app
 from vertical_apps.contractcredit import ContractCreditService
 from vertical_apps.contractcredit.web import create_app as create_contractcredit_app
+
+VERIFIER = TrustedUpstreamVerifier("s" * 32, clock=lambda: 1_800_000_000)
 
 
 def test_missing_database_is_fail_closed_without_activity_counts(tmp_path):
@@ -51,7 +54,7 @@ def test_vertical_readiness_endpoints_expose_no_activity_counts(tmp_path):
         (create_aviation_app, "aviation.sqlite3", "aviation-lease-entitlement-recovery"),
         (create_contractcredit_app, "credit.sqlite3", "contractcredit"),
     ):
-        client = create_app(tmp_path / filename).test_client()
+        client = create_app(tmp_path / filename, identity_resolver=VERIFIER.verify_request).test_client()
         response = client.get("/ready")
         assert response.status_code == 200
         payload = response.get_json()
