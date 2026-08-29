@@ -17,7 +17,14 @@ def test_health_and_dispatch_boundary(tmp_path:Path):
     server,thread,port=running(tmp_path)
     try:
         assert request(port,'GET','/health')[0]==200
+        ready_status,ready,_=request(port,'GET','/ready');assert ready_status==503;assert ready['ready'] is False;assert ready['portfolio_runtime']=='NOT_PROVISIONED'
         status,batch,_=request(port,'POST','/v1/dispatch',{'scope':'all'});assert status==202;assert batch['batch_id'];assert batch['items'];assert all('chat_url' not in item for item in batch['items'])
+    finally:server.shutdown();thread.join(timeout=5);server.server_close()
+
+def test_ready_becomes_true_when_shared_worker_is_configured(tmp_path:Path):
+    server,thread,port=running(tmp_path,{'FACTORY_CLOUD_PORTFOLIO_WORKER':'/opt/shared-worker'})
+    try:
+        status,payload,_=request(port,'GET','/ready');assert status==200;assert payload['ready'] is True;assert payload['portfolio_runtime']=='EXECUTABLE_CONFIGURED'
     finally:server.shutdown();thread.join(timeout=5);server.server_close()
 
 def test_token_and_origin_are_fail_closed(tmp_path:Path):
@@ -29,7 +36,5 @@ def test_token_and_origin_are_fail_closed(tmp_path:Path):
     finally:server.shutdown();thread.join(timeout=5);server.server_close()
 
 def test_non_local_bind_requires_control_token_before_server_starts(tmp_path:Path):
-    with pytest.raises(ControlTowerConfigurationError):
-        make_server('0.0.0.0',0,environ={},runtime_dir=tmp_path)
-    server=make_server('0.0.0.0',0,environ={'FACTORY_CONTROL_TOKEN':'secret'},runtime_dir=tmp_path)
-    server.server_close()
+    with pytest.raises(ControlTowerConfigurationError):make_server('0.0.0.0',0,environ={},runtime_dir=tmp_path)
+    server=make_server('0.0.0.0',0,environ={'FACTORY_CONTROL_TOKEN':'secret'},runtime_dir=tmp_path);server.server_close()
