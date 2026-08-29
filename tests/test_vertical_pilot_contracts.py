@@ -12,5 +12,7 @@ def test_aviation_and_contractcredit_pilot_contracts_are_complete_and_fail_close
     assert credit["production_authority"] is False
     assert "outcome_record" in aviation["outputs"]
     assert "outcome_record" in credit["outputs"]
-    assert aviation["pilot_exit_criteria"][-1] == "delivery_cost_measured"
-    assert credit["pilot_exit_criteria"][-1] == "delivery_cost_measured"
+    assert aviation["pricing"]["status"] == "HYPOTHESIS"
+    assert credit["pricing"]["status"] == "HYPOTHESIS"
+    assert aviation["pilot_exit_criteria"][-1] == "pricing_validated_or_revised"
+    assert credit["pilot_exit_criteria"][-1] == "pricing_validated_or_revised"
