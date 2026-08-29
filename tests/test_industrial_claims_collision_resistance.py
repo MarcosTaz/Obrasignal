@@ -1,7 +1,18 @@
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
-def _analyze(service, *, tenant_id, event_ref, customer_ref="oem", program_ref="program", basis_ref="basis"):
+def _analyze(
+    service,
+    *,
+    tenant_id,
+    event_ref,
+    customer_ref="oem",
+    program_ref="program",
+    basis_ref="basis",
+    cost_ref=None,
+    basis_content="signed tooling agreement",
+    cost_content="cost ledger supporting tooling exposure",
+):
     return service.analyze(
         tenant_id=tenant_id,
         actor_id="analyst",
@@ -10,12 +21,12 @@ def _analyze(service, *, tenant_id, event_ref, customer_ref="oem", program_ref="
         event_ref=event_ref,
         claim_family="TOOLING",
         commercial_basis_ref=basis_ref,
-        cost_evidence_ref=f"cost-{event_ref}",
+        cost_evidence_ref=cost_ref or f"cost-{event_ref}",
         gross_cost="10000",
         currency="EUR",
-        commercial_basis_content="signed tooling agreement",
+        commercial_basis_content=basis_content,
         event_evidence_content="documented cancellation event",
-        cost_evidence_content="cost ledger supporting tooling exposure",
+        cost_evidence_content=cost_content,
         notice_deadline_not_applicable=True,
     )
 
@@ -26,7 +37,7 @@ def _action(service, result):
         finding_id=result.finding.finding_id,
         reviewer="reviewer",
         approved=True,
-        reason="reviewed",
+        reason="reviewed for internal workflow",
     )
     service.action(
         tenant_id=result.tenant_id,
@@ -58,6 +69,61 @@ def test_structured_contract_reference_prevents_delimiter_collision(tmp_path):
 
     assert first.fingerprint.contract_ref != second.fingerprint.contract_ref
     assert first.fingerprint.fingerprint != second.fingerprint.fingerprint
+
+
+def test_fingerprint_derived_case_ids_allow_same_event_and_family_across_distinct_contracts(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "same-event-contracts.sqlite3")
+
+    first = _analyze(
+        service,
+        tenant_id="alpha",
+        event_ref="shared-event-reference",
+        customer_ref="oem-a",
+        program_ref="program-a",
+        basis_ref="basis-a",
+        cost_ref="cost-a",
+        basis_content="signed agreement A",
+        cost_content="cost ledger A",
+    )
+    second = _analyze(
+        service,
+        tenant_id="alpha",
+        event_ref="shared-event-reference",
+        customer_ref="oem-b",
+        program_ref="program-b",
+        basis_ref="basis-b",
+        cost_ref="cost-b",
+        basis_content="signed agreement B",
+        cost_content="cost ledger B",
+    )
+
+    assert first.is_new_recovery is True
+    assert second.is_new_recovery is True
+    assert first.fingerprint.fingerprint != second.fingerprint.fingerprint
+    assert first.finding.finding_id != second.finding.finding_id
+    assert first.finding.finding_id.endswith(":finding")
+    assert second.finding.finding_id.endswith(":finding")
+    assert first.fingerprint.fingerprint in first.finding.finding_id
+    assert second.fingerprint.fingerprint in second.finding.finding_id
+    assert service.store.count("findings", "alpha") == 2
+    assert service.case_store.count("alpha") == 2
+    assert service.index.count_fingerprints("alpha") == 2
+
+    replay = _analyze(
+        service,
+        tenant_id="alpha",
+        event_ref="shared-event-reference",
+        customer_ref="oem-a",
+        program_ref="program-a",
+        basis_ref="basis-a",
+        cost_ref="cost-a",
+        basis_content="signed agreement A",
+        cost_content="cost ledger A",
+    )
+    assert replay.is_new_recovery is False
+    assert replay.finding.finding_id == first.finding.finding_id
+    assert replay.fingerprint.fingerprint == first.fingerprint.fingerprint
+    assert service.store.count("findings", "alpha") == 2
 
 
 def test_same_external_outcome_id_is_isolated_across_tenants(tmp_path):
