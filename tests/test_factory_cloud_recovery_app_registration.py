@@ -1,6 +1,9 @@
+from copy import deepcopy
 from pathlib import Path
 
-from factory_cloud.control_plane import load_registry
+import pytest
+
+from factory_cloud.control_plane import RegistryError, load_registry, validate_registry
 from factory_cloud.process_adapter import ProcessAdapterConfig
 
 EXPECTED_HEAD = "e8470dbc209c7ec5eaeef7e088573d6adf7cf510"
@@ -14,17 +17,34 @@ def test_recovery_apps_are_source_registered_but_runtime_fail_closed():
         ("contractcredit", "apps/contractcredit"),
     ):
         app = apps[app_id]
-        # Source truth is registered, but dispatch must remain disabled until the
-        # configured worker workspace/runtime has been provisioned and verified.
         assert app["activation"]["enabled"] is False
         assert app["activation"]["mode"] == "runtime_provisioning_wait"
         assert app["development_state"] == "PILOT_CAPABLE_ASSISTED_RUNTIME_PROVISIONING_WAIT"
+        assert app["baton"]["active"] == "runtime:provision"
         assert app["source_truth"]["canonical_branch"] == branch
         assert app["source_truth"]["canonical_head"] == EXPECTED_HEAD
         assert app["execution_source"]["head"] == EXPECTED_HEAD
         assert app["execution_adapter"]["repository_mutation_capability"] is False
         assert set(app["execution_adapter"]["allowlisted_tasks"]) == {"verify:service", "verify:shared-contracts"}
         assert any("runtime workspace provisioning" in item for item in app["baton"]["wait"])
+
+
+def test_disabled_runtime_wait_app_is_still_source_and_capability_validated():
+    registry = load_registry()
+    broken = deepcopy(registry)
+    target = next(app for app in broken["applications"] if app["app_id"] == "contractcredit")
+    target["execution_source"]["head"] = "not-a-sha"
+    with pytest.raises(RegistryError, match="exact SHA"):
+        validate_registry(broken)
+
+
+def test_runtime_wait_app_cannot_hide_a_stale_active_task():
+    registry = load_registry()
+    broken = deepcopy(registry)
+    target = next(app for app in broken["applications"] if app["app_id"] == "contractcredit")
+    target["baton"]["active"] = "verify:service"
+    with pytest.raises(RegistryError, match="runtime:provision"):
+        validate_registry(broken)
 
 
 def test_recovery_runtime_configs_are_process_adapter_valid_but_not_proof_of_provisioning():
