@@ -6,7 +6,7 @@ from earnedcash.case_workflow import CaseState
 from earnedcash.cash_verification import CashEvidence, CashEvidenceKind
 from earnedcash.fees import calculate_success_fee
 from earnedcash.recovery_queue import RecoveryQueueItem
-from earnedcash.service import reconcile_payload
+from earnedcash.service import reconcile_operator_verified_payload
 from earnedcash.store import EarnedCashStore
 
 
@@ -91,7 +91,7 @@ def pilot_store():
 
 
 def test_synthetic_pilot_reconciles_to_verified_cash_fee_and_restorable_truth():
-    result = reconcile_payload(ledger(due=True), tenant_id="tenant-1")
+    result = reconcile_operator_verified_payload(ledger(due=True), tenant_id="tenant-1")
     assert result["due_unpaid"] == "100000"
     assert result["verified_cash"] == "0"
     assert result["unknown_value"] == "0"
@@ -171,7 +171,7 @@ def test_synthetic_pilot_reconciles_to_verified_cash_fee_and_restorable_truth():
 
 
 def test_synthetic_zero_recovery_is_pass_and_creates_no_recovery_fee():
-    result = reconcile_payload(ledger(due=False), tenant_id="tenant-1")
+    result = reconcile_operator_verified_payload(ledger(due=False), tenant_id="tenant-1")
     assert result["due_unpaid"] == "0"
     assert result["not_yet_due"] == "100000"
     assert result["recovery_queue"] == []
