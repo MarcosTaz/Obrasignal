@@ -1,14 +1,21 @@
 import json
 from pathlib import Path
 
+from factory_cloud.trusted_upstream_identity import TrustedUpstreamVerifier, signed_test_headers
 from vertical_apps.aviation_recovery.web import create_app as create_aviation_app
 from vertical_apps.contractcredit.web import create_app as create_contractcredit_app
 
 CASES = Path("factory_cloud/public_shadow_cases.json")
+SECRET = "s" * 32
+NOW = 1_800_000_000
+VERIFIER = TrustedUpstreamVerifier(SECRET, clock=lambda: NOW)
 
 
 def _headers(tenant):
-    return {"X-Tenant-ID": tenant, "X-Actor-ID": "public-shadow-validator"}
+    return signed_test_headers(
+        secret=SECRET, tenant_id=tenant, actor_id="public-shadow-validator",
+        method="POST", path="/shadow/analyze", timestamp=NOW,
+    )
 
 
 def _case(case_id):
@@ -20,7 +27,9 @@ def test_contractcredit_public_shadow_preserves_unknown_when_public_incident_can
     case = _case("contractcredit-aws-lambda-2023")
     assert len(case["sources"]) == 2
     assert case["unknown"]
-    client = create_contractcredit_app(tmp_path / "contractcredit.sqlite3").test_client()
+    client = create_contractcredit_app(
+        tmp_path / "contractcredit.sqlite3", identity_resolver=VERIFIER.verify_request,
+    ).test_client()
     evidence = {
         "source_ref": case["id"],
         "sha256": case["evidence_sha256"],
@@ -46,7 +55,9 @@ def test_aviation_public_shadow_preserves_unknown_without_specific_lease_and_eve
     case = _case("aviation-maintenance-reserve-public")
     assert len(case["sources"]) == 2
     assert case["unknown"]
-    client = create_aviation_app(tmp_path / "aviation.sqlite3").test_client()
+    client = create_aviation_app(
+        tmp_path / "aviation.sqlite3", identity_resolver=VERIFIER.verify_request,
+    ).test_client()
     evidence = {
         "source_ref": case["id"],
         "sha256": case["evidence_sha256"],
