@@ -80,3 +80,16 @@ def test_recovery_package_rejects_mismatched_result():
         assert "does not belong" in str(exc)
     else:
         raise AssertionError("mismatched result must be rejected")
+
+
+def test_recovery_package_rejects_stale_result_with_same_case_id():
+    current_case = case("package-same-id", actual_units=Decimal("80000"))
+    stale_case = case("package-same-id", actual_units=Decimal("0"))
+    stale_result = evaluate_recoverability(stale_case)
+
+    try:
+        build_recovery_package(current_case, stale_result)
+    except ValueError as exc:
+        assert "does not match current case evaluation" in str(exc)
+    else:
+        raise AssertionError("same-id stale result must be rejected")
