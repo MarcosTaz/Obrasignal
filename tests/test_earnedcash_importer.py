@@ -6,7 +6,8 @@ from earnedcash.ledger import LedgerKind
 
 
 CLIENT_HEADER = "record_id,tenant_id,customer_id,project_id,currency,kind,amount,relates_to\n"
-OPERATOR_HEADER = CLIENT_HEADER.rstrip("\n") + ",verified,due\n"
+OPERATOR_HEADER = CLIENT_HEADER.rstrip("\n") + ",verified\n"
+OPERATOR_BAD_DUE_HEADER = OPERATOR_HEADER.rstrip("\n") + ",due\n"
 
 
 def test_client_csv_import_preserves_lineage_but_not_truth_state():
@@ -25,7 +26,7 @@ def test_client_csv_import_preserves_lineage_but_not_truth_state():
 
 
 def test_client_csv_cannot_supply_server_controlled_truth_columns():
-    text = OPERATOR_HEADER + (
+    text = OPERATOR_BAD_DUE_HEADER + (
         "a1,t1,c1,p1,GBP,application,100,,true,\n"
     )
     result = parse_ledger_csv(text, expected_tenant_id="t1")
@@ -33,21 +34,33 @@ def test_client_csv_cannot_supply_server_controlled_truth_columns():
     assert result.records == ()
     assert result.issues[0].code == "SERVER_CONTROLLED_COLUMNS"
     assert "verified" in result.issues[0].detail
+    assert "due" in result.issues[0].detail
 
 
-def test_operator_verified_csv_can_preserve_reviewed_truth_state():
+def test_operator_verified_csv_preserves_reviewed_evidence_but_due_remains_unknown():
     text = OPERATOR_HEADER + (
-        "a1,t1,c1,p1,gbp,application,100,,true,\n"
-        "c1,t1,c1,p1,GBP,certificate,100,a1,true,\n"
-        "i1,t1,c1,p1,GBP,invoice,100,c1,true,true\n"
+        "a1,t1,c1,p1,gbp,application,100,,true\n"
+        "c1,t1,c1,p1,GBP,certificate,100,a1,true\n"
+        "i1,t1,c1,p1,GBP,invoice,100,c1,true\n"
     )
     result = parse_operator_verified_ledger_csv(text, expected_tenant_id="t1")
     assert result.rejected is False
     assert result.issues == ()
     assert result.records[2].kind == LedgerKind.INVOICE
-    assert result.records[2].due is True
+    assert result.records[2].due is None
     assert result.records[2].verified is True
     assert result.records[2].currency == "GBP"
+
+
+def test_operator_csv_cannot_import_magic_due_boolean():
+    text = OPERATOR_BAD_DUE_HEADER + (
+        "i1,t1,c1,p1,GBP,invoice,100,c1,true,true\n"
+    )
+    result = parse_operator_verified_ledger_csv(text, expected_tenant_id="t1")
+    assert result.rejected is True
+    assert result.records == ()
+    assert result.issues[0].code == "OPERATOR_DUE_COLUMN_FORBIDDEN"
+    assert result.issues[0].detail == "due"
 
 
 def test_cross_tenant_csv_rejects_entire_import():
@@ -63,8 +76,8 @@ def test_cross_tenant_csv_rejects_entire_import():
 
 def test_operator_cross_tenant_csv_rejects_entire_import():
     text = OPERATOR_HEADER + (
-        "a1,t1,c1,p1,GBP,application,100,,true,\n"
-        "i1,t2,c1,p1,GBP,invoice,100,a1,true,true\n"
+        "a1,t1,c1,p1,GBP,application,100,,true\n"
+        "i1,t2,c1,p1,GBP,invoice,100,a1,true\n"
     )
     result = parse_operator_verified_ledger_csv(text, expected_tenant_id="t1")
     assert result.rejected is True
