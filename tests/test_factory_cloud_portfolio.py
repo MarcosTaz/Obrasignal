@@ -13,7 +13,7 @@ def test_canonical_portfolio_covers_switchboard():
     data = load_portfolio()
     index = portfolio_index(data)
     assert index["factory-cloud"]["layer"] == "control"
-    assert index["contractcredit"]["source_status"] == "unregistered"
+    assert index["contractcredit"]["source_status"] == "registered"
 
 
 def test_missing_registered_factory_fails_closed(tmp_path):
