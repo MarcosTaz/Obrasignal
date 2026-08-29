@@ -98,6 +98,19 @@ class IndustrialClaimsService:
             decision_reason=row["decision_reason"],
         )
 
+    def _creator_actor(self, *, tenant_id: str, finding_id: str) -> str:
+        with sqlite3.connect(self.store.path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """SELECT actor_id FROM audit_events
+                   WHERE tenant_id=? AND subject_ref=? AND event_type='industrial_finding_created'
+                   ORDER BY occurred_at,event_id LIMIT 1""",
+                (tenant_id, finding_id),
+            ).fetchone()
+        if row is None or not str(row["actor_id"]).strip():
+            raise AssuranceOperationError("finding creation audit not found")
+        return str(row["actor_id"])
+
     def _validate_replay_without_state_change(
         self,
         *,
@@ -363,12 +376,15 @@ class IndustrialClaimsService:
         )
 
     def review(self, *, tenant_id: str, finding_id: str, reviewer: str, approved: bool, reason: str) -> str:
+        creator = self._creator_actor(tenant_id=tenant_id, finding_id=finding_id)
+        if creator == reviewer:
+            raise AssuranceOperationError("reviewer must be independent from finding creator")
         return self.ops.review(tenant_id=tenant_id, finding_id=finding_id, reviewer=reviewer, approved=approved, reason=reason)
 
-    def action(self, *, tenant_id: str, finding_id: str) -> str:
-        return self.ops.action(tenant_id=tenant_id, finding_id=finding_id)
+    def action(self, *, tenant_id: str, finding_id: str, actor_id: str) -> str:
+        return self.ops.action(tenant_id=tenant_id, finding_id=finding_id, actor_id=actor_id)
 
-    def resolve(self, *, tenant_id: str, finding_id: str, outcome_id: str, recovered_amount: str, currency: str, evidence_ref: str):
+    def resolve(self, *, tenant_id: str, finding_id: str, outcome_id: str, recovered_amount: str, currency: str, evidence_ref: str, actor_id: str):
         try:
             amount = Decimal(recovered_amount)
         except (InvalidOperation, ValueError, TypeError) as exc:
@@ -385,4 +401,5 @@ class IndustrialClaimsService:
             recovered_amount=recovered_amount,
             currency=currency,
             evidence_ref=evidence_ref,
+            actor_id=actor_id,
         )
