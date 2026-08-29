@@ -15,23 +15,25 @@ Only public company contact paths independently observed on current web sources 
 | H2Plus Energy, Lda. | `geral@h2p.pt` · +351 916 338 691 · h2p.pt | Official company legal/contact pages | Identify commercial/tender owner before outreach |
 | Beneproject — Construções, Lda. | `geral@beneproject.pt` · +351 968 452 533 | Public engineering recruitment listing naming company contact | Prefer official company source before any outbound message |
 | Electro Instaladora de Carnaxide — Estudos, Projectos e Montagens Eléctricas, Lda. | +351 214 170 841 · electroinstaladora.pai.pt | Public business profile plus procurement record | Email shown by business directory must be reverified from a first-party/authoritative source before use |
+| Electro Planície, Lda. | `geral@electroplanicie.pt` · +351 284 324 108 · electroplanicie.pt | Official company website; current crawl | Identify commercial/procurement/tender owner before outreach |
+| Instaléctrica, Lda. | `instalectrica@sapo.pt` · +351 212 220 116 | Portuguese civil-protection authority entity register; current validity shown through 2027 | Prefer a first-party route if discoverable; otherwise verify role and appropriate use before message |
 
 ## Still unverified
 
-The following prepared targets remain contact-unverified in this pass:
+- GT Renewables, Lda.
 
-- Electro Planície, Lda.
-- Gt Renewables, Lda.
-- Instaléctrica, Lda.
+Current business directories associate GT Renewables with a `go-solar.pt` email domain, but no first-party or authoritative company contact source was established in this pass. The address is therefore not promoted into the usable contact set.
 
-Their procurement-workflow qualification remains useful, but no contact should be guessed.
-
-## Stronger qualification signal discovered
+## Stronger qualification signals discovered
 
 Electro Instaladora de Carnaxide has public data indicating a long history of public contracting (dozens of contracts and multiple public entities), which makes it materially stronger as a workflow-qualified candidate than a company selected only from one isolated award. This still does not prove pain or willingness to buy.
+
+Electro Planície's official site explicitly names public and private clients, lists electrical/telecom/renewables construction and maintenance services, and states E-REDES contractor qualification. This strengthens workflow/technical fit without proving the proposed discovery problem.
+
+Instaléctrica has a Portuguese civil-protection authority register entry with a public business email and telephone, and public-procurement data indicates multiple contracts. This is sufficient to establish a public contact route and procurement participation, not buying intent.
 
 Electroinstal's own site shows a broad portfolio of electrical/AVAC projects and names a CEO, but the generic company address remains the appropriate public contact path until the relevant commercial/tender role is verified.
 
 ## Contact-state classification
 
-`7_PUBLIC_CONTACT_PATHS_FOUND / 3_CONTACTS_UNVERIFIED / 0_MESSAGES_SENT / DECISION_MAKERS_NOT_VERIFIED / LAWFUL_OUTREACH_ROUTE_STILL_REQUIRED`
+`9_PUBLIC_CONTACT_PATHS_FOUND / 1_CONTACT_UNVERIFIED / 0_MESSAGES_SENT / DECISION_MAKERS_NOT_VERIFIED / LAWFUL_OUTREACH_ROUTE_STILL_REQUIRED`
