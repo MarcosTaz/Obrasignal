@@ -1,13 +1,81 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
-  "required_inputs": ["commercial_basis", "customer_program_event", "cost_evidence", "gross_cost", "mitigation_and_prior_recovery"],
-  "outputs": ["evidence_envelope", "entitlement_basis", "reproducible_net_potential_calculation", "missing_evidence", "reviewable_finding", "outcome_record"],
-  "fail_closed": ["cost_without_commercial_basis", "missing_event_evidence", "partial_entitlement_basis", "negative_economic_input", "mitigation_exceeds_gross_cost", "duplicate_recovery_fingerprint", "cross_tenant_composition", "unsupported_review_transition"],
-  "pricing": {"status": "HYPOTHESIS", "currency": "EUR", "audit_fee_min": 0, "audit_fee_max": 5000, "success_fee_percent_min": 10, "success_fee_percent_max": 25},
-  "pilot_exit_criteria": ["canonical_source_green", "synthetic_ground_truth_green", "all_claim_families_structurally_supported", "tenant_isolation_green", "backup_restart_green", "no_known_p0_p1", "runtime_provisioned", "pricing_validated_or_revised"],
-  "commercial_success": {"status": "UNPROVEN", "requires": ["real_incremental_recovery_gt_zero", "real_customer_revenue_gt_zero"]},
+  "required_inputs": [
+    "commercial_basis",
+    "customer_program_event",
+    "cost_evidence",
+    "gross_cost",
+    "mitigation_and_prior_recovery",
+    "notice_deadline_or_verified_none"
+  ],
+  "identity_authorization": {
+    "source": "verified_provider_identity",
+    "raw_identity_headers_authoritative": false,
+    "roles": {
+      "analyze": "analyst",
+      "review": "reviewer",
+      "action": "operator",
+      "resolve": "operator"
+    },
+    "admin_override": true
+  },
+  "outputs": [
+    "evidence_envelope",
+    "entitlement_basis",
+    "reproducible_net_potential_calculation",
+    "notice_deadline_truth_state",
+    "missing_evidence",
+    "reviewable_finding",
+    "outcome_record"
+  ],
+  "fail_closed": [
+    "cost_without_commercial_basis",
+    "missing_event_evidence",
+    "partial_entitlement_basis",
+    "unknown_notice_deadline",
+    "negative_economic_input",
+    "non_finite_economic_input",
+    "mitigation_exceeds_gross_cost",
+    "recovery_exceeds_reviewed_net_potential",
+    "duplicate_recovery_fingerprint",
+    "duplicate_success_fee",
+    "cross_tenant_composition",
+    "unverified_identity",
+    "tenant_identity_mismatch",
+    "missing_required_role",
+    "unsupported_review_transition",
+    "partial_case_persistence"
+  ],
+  "pricing": {
+    "status": "HYPOTHESIS",
+    "currency": "EUR",
+    "audit_fee_min": 0,
+    "audit_fee_max": 5000,
+    "success_fee_percent_min": 10,
+    "success_fee_percent_max": 25
+  },
+  "pilot_exit_criteria": [
+    "canonical_source_green",
+    "synthetic_ground_truth_green",
+    "all_claim_families_structurally_supported",
+    "tenant_isolation_green",
+    "role_authorization_green",
+    "atomic_persistence_green",
+    "backup_restart_green",
+    "no_known_p0_p1",
+    "runtime_provisioned",
+    "provider_role_mapping_verified",
+    "pricing_validated_or_revised"
+  ],
+  "commercial_success": {
+    "status": "UNPROVEN",
+    "requires": [
+      "real_incremental_recovery_gt_zero",
+      "real_customer_revenue_gt_zero"
+    ]
+  },
   "production_authority": false
 }
