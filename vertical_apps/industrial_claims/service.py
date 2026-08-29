@@ -152,6 +152,8 @@ class IndustrialClaimsService:
             maximum = Decimal(str(calculation["output_value"]))
         except InvalidOperation as exc:
             raise AssuranceOperationError("reviewed net potential is not a valid decimal") from exc
+        if not maximum.is_finite():
+            raise AssuranceOperationError("reviewed net potential must be finite")
         if maximum < 0:
             raise AssuranceOperationError("reviewed net potential cannot be negative")
         return maximum
@@ -185,14 +187,19 @@ class IndustrialClaimsService:
         if any(not str(value).strip() for value in refs):
             raise AssuranceKernelError("customer, program, event, commercial basis and cost evidence are required")
 
-        amounts = {
-            "gross_cost": Decimal(gross_cost),
-            "avoided_cost": Decimal(avoided_cost),
-            "resale_reuse": Decimal(resale_reuse),
-            "third_party_recovery": Decimal(third_party_recovery),
-            "prior_payment": Decimal(prior_payment),
-            "other_mitigation": Decimal(other_mitigation),
-        }
+        try:
+            amounts = {
+                "gross_cost": Decimal(gross_cost),
+                "avoided_cost": Decimal(avoided_cost),
+                "resale_reuse": Decimal(resale_reuse),
+                "third_party_recovery": Decimal(third_party_recovery),
+                "prior_payment": Decimal(prior_payment),
+                "other_mitigation": Decimal(other_mitigation),
+            }
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            raise AssuranceKernelError("industrial claim amounts must be decimals") from exc
+        if any(not value.is_finite() for value in amounts.values()):
+            raise AssuranceKernelError("industrial claim amounts must be finite decimals")
         if any(value < 0 for value in amounts.values()):
             raise AssuranceKernelError("industrial claim amounts cannot be negative")
         deductions = sum((value for key, value in amounts.items() if key != "gross_cost"), Decimal("0"))
@@ -339,8 +346,10 @@ class IndustrialClaimsService:
     def resolve(self, *, tenant_id: str, finding_id: str, outcome_id: str, recovered_amount: str, currency: str, evidence_ref: str):
         try:
             amount = Decimal(recovered_amount)
-        except InvalidOperation as exc:
+        except (InvalidOperation, ValueError, TypeError) as exc:
             raise AssuranceOperationError("recovered amount must be decimal") from exc
+        if not amount.is_finite():
+            raise AssuranceOperationError("recovered amount must be a finite decimal")
         maximum = self._reviewed_net_potential(tenant_id=tenant_id, finding_id=finding_id)
         if amount > maximum:
             raise AssuranceOperationError("recovered amount exceeds reviewed net potential; amend and re-review the finding")
