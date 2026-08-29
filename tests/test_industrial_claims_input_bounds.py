@@ -9,6 +9,7 @@ from vertical_apps.industrial_claims.service import (
     MAX_MISSING_EVIDENCE_ITEMS,
     MAX_REASON_CHARS,
     MAX_REFERENCE_CHARS,
+    MAX_TENANT_CHARS,
     IndustrialClaimsService,
 )
 from vertical_apps.industrial_claims.web import create_app
@@ -44,9 +45,11 @@ def _identity(tenant_id: str, actor_id: str, *roles: str):
     )
 
 
-def test_oversized_case_reference_fails_before_any_case_persistence(tmp_path):
+def test_oversized_tenant_and_case_reference_fail_before_any_case_persistence(tmp_path):
     service = IndustrialClaimsService(tmp_path / "oversized-ref.sqlite3")
 
+    with pytest.raises(AssuranceKernelError, match="tenant_id exceeds"):
+        _analyze(service, tenant_id="t" * (MAX_TENANT_CHARS + 1))
     with pytest.raises(AssuranceKernelError, match="customer_ref exceeds"):
         _analyze(service, customer_ref="x" * (MAX_REFERENCE_CHARS + 1))
 
@@ -70,6 +73,29 @@ def test_missing_evidence_collection_and_keys_are_bounded_before_persistence(tmp
     assert service.store.count("findings", "alpha") == 0
 
 
+@pytest.mark.parametrize("value", ["1e999999", "1e-999999", "9" * 129, "0." + "1" * 19])
+def test_pathological_decimal_shapes_fail_before_case_persistence(tmp_path, value):
+    service = IndustrialClaimsService(tmp_path / "decimal-capacity.sqlite3")
+
+    with pytest.raises(AssuranceKernelError, match="numeric input capacity"):
+        _analyze(service, gross_cost=value)
+
+    assert service.index.count_fingerprints("alpha") == 0
+    assert service.case_store.count("alpha") == 0
+    assert service.store.count("calculations", "alpha") == 0
+    assert service.store.count("findings", "alpha") == 0
+
+
+def test_large_but_bounded_decimal_shape_remains_supported(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "decimal-supported.sqlite3")
+    value = "9" * 36
+
+    result = _analyze(service, gross_cost=value)
+
+    assert result.calculation.output_value == value
+    assert result.finding.state == "READY_FOR_REVIEW"
+
+
 def test_review_reason_is_bounded_without_mutating_finding_state(tmp_path):
     service = IndustrialClaimsService(tmp_path / "review-bounds.sqlite3")
     result = _analyze(service)
@@ -87,7 +113,7 @@ def test_review_reason_is_bounded_without_mutating_finding_state(tmp_path):
     assert service.store.count("audit_events", "alpha") == 1
 
 
-def test_oversized_resolution_identifiers_fail_before_outcome_evidence_persistence(tmp_path):
+def test_oversized_resolution_identifiers_and_amounts_fail_before_outcome_evidence_persistence(tmp_path):
     service = IndustrialClaimsService(tmp_path / "resolution-bounds.sqlite3")
     result = _analyze(service)
     service.review(
@@ -107,7 +133,19 @@ def test_oversized_resolution_identifiers_fail_before_outcome_evidence_persisten
             recovered_amount="1000",
             currency="EUR",
             evidence_ref="bank-1",
-            evidence_content="verified bank settlement evidence",
+            evidence_content="bank settlement evidence",
+            actor_id="operator",
+        )
+
+    with pytest.raises(AssuranceOperationError, match="numeric input capacity"):
+        service.resolve(
+            tenant_id="alpha",
+            finding_id=result.finding.finding_id,
+            outcome_id="outcome-2",
+            recovered_amount="1e999999",
+            currency="EUR",
+            evidence_ref="bank-2",
+            evidence_content="bank settlement evidence",
             actor_id="operator",
         )
 
