@@ -7,6 +7,7 @@ from flask import Flask, jsonify, request
 
 from factory_cloud.assisted_web_ui import render_assisted_workspace
 from factory_cloud.assurance_kernel import AssuranceKernelError
+from factory_cloud.assurance_observability import assurance_health
 from factory_cloud.assurance_ops import AssuranceOperationError
 from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.shared_contracts import SharedContractError
@@ -43,6 +44,12 @@ def create_app(database: str | Path) -> Flask:
     @app.get("/health")
     def health():
         return jsonify({"status": "ok", "vertical": "contractcredit", "mode": "assisted"})
+
+    @app.get("/ready")
+    def ready():
+        health = assurance_health(service.store.path)
+        payload = health.public_dict() | {"vertical": "contractcredit", "mode": "assisted"}
+        return jsonify(payload), 200 if health.status == "ready" else 503
 
     @app.post("/analyze")
     def analyze():
