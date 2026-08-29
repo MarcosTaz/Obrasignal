@@ -4,9 +4,11 @@ from typing import Callable
 
 from flask import Flask, jsonify, request
 
+from factory_cloud.shared_contracts import SharedContractError
 from factory_cloud.support_continuity import SupportContinuityError, SupportIncident, SupportLedger
 
 SUPPORT_OPERATOR_ROLES = frozenset({"on_call", "support_operator", "support_manager"})
+SUPPORT_API_ERRORS = (KeyError, TypeError, ValueError, SharedContractError, SupportContinuityError)
 
 
 def _public_incident(incident: SupportIncident) -> dict:
@@ -58,7 +60,7 @@ def register_support_api(
                 summary=str(payload["summary"]),
             )
             return jsonify(_public_incident(incident)), 201
-        except (KeyError, TypeError, ValueError, SupportContinuityError) as exc:
+        except SUPPORT_API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @app.get("/support/incidents/<incident_id>")
@@ -66,7 +68,7 @@ def register_support_api(
         try:
             tenant_id, _actor_id, _role = support_context()
             return jsonify(_public_incident(ledger.get(tenant_id=tenant_id, incident_id=incident_id)))
-        except SupportContinuityError as exc:
+        except (SharedContractError, SupportContinuityError) as exc:
             message = str(exc)
             status = 404 if message == "support incident not found" else 422
             return jsonify({"error": type(exc).__name__, "message": message}), status
@@ -83,7 +85,7 @@ def register_support_api(
                 evidence_ref=(str(payload["evidence_ref"]) if payload.get("evidence_ref") is not None else None),
             )
             return jsonify(_public_incident(incident))
-        except (KeyError, TypeError, ValueError, SupportContinuityError) as exc:
+        except SUPPORT_API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @app.post("/support/incidents/<incident_id>/customer-update")
@@ -97,5 +99,5 @@ def register_support_api(
                 communication_evidence_ref=str(payload["communication_evidence_ref"]),
             )
             return jsonify(_public_incident(incident))
-        except (KeyError, TypeError, ValueError, SupportContinuityError) as exc:
+        except SUPPORT_API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
