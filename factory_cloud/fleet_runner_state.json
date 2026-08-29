@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "command": "D",
+  "status": "ACTIVE",
+  "mode": "GLOBAL_FACTORY_FLEET",
+  "policy": "highest-value-safe-work-first",
+  "registry": "factory_cloud/factories.json",
+  "cursor": 0,
+  "last_factory_id": null,
+  "last_run_at": null,
+  "last_material_change": null,
+  "blocked": [],
+  "rules": {
+    "technical_window_is_not_stop": true,
+    "other_owner_is_not_stop": true,
+    "wait_is_not_global_stop": true,
+    "no_false_progress": true,
+    "no_automatic_merge": true,
+    "move_to_next_factory_when_blocked": true,
+    "persist_exact_baton_before_switch": true
+  }
+}
