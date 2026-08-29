@@ -12,7 +12,7 @@ from jwt import InvalidTokenError
 from app import APP
 from auth_context import configured_identity
 from auth_context_jwt import JwksUnavailableError
-from decision_log import ensure_decision_table, latest_opportunity_current_decision
+from decision_log import ensure_decision_table, latest_decision, latest_opportunity_current_decision
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 
 
@@ -289,8 +289,9 @@ def _finalize_exhausted_pushes(conn, account_id):
 def _pending_push_rows(conn, account_id, limit=100):
     ensure_push_tables(conn)
     ensure_lifecycle_table(conn)
-    return conn.execute(
+    rows = conn.execute(
         f"""SELECT e.id AS event_id, e.tender_id,
+                   t.source AS opportunity_source, t.external_id AS opportunity_external_id,
                    d.id AS push_device_id, d.expo_push_token, d.binding_id,
                    COALESCE(pd.attempt_count,0) AS attempt_count
             FROM opportunity_events e
@@ -309,6 +310,25 @@ def _pending_push_rows(conn, account_id, limit=100):
             LIMIT ?""",
         (str(account_id), MAX_PUSH_ATTEMPTS, max(1, min(100, int(limit)))),
     ).fetchall()
+    eligible = []
+    for row in rows:
+        historical_decision = latest_decision(
+            conn,
+            row["opportunity_source"],
+            row["opportunity_external_id"],
+            account_id=account_id,
+        )
+        if historical_decision is None:
+            eligible.append(row)
+            continue
+        if latest_opportunity_current_decision(
+            conn,
+            row["opportunity_source"],
+            row["opportunity_external_id"],
+            account_id=account_id,
+        ) is not None:
+            eligible.append(row)
+    return eligible
 
 
 def _record_push_attempt(conn, row, *, ticket_id=None, submitted_at=None, error=None, attempted_at=None, next_attempt_at=None, failed_at=None):
