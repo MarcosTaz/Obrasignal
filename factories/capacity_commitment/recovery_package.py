@@ -21,6 +21,7 @@ class RecoveryPackage:
     evidence: Tuple[str, ...]
     missing_evidence: Tuple[str, ...]
     deadline: Optional[str]
+    assessment_date: Optional[str]
     next_actions: Tuple[str, ...]
     audit_trail: dict
 
@@ -51,17 +52,23 @@ def build_recovery_package(
     evidence_refs: Tuple[str, ...] = (),
     missing_evidence: Tuple[str, ...] = (),
     deadline: Optional[str] = None,
+    assessment_date: Optional[str] = None,
+    deadline_expired_by_date: bool = False,
 ) -> RecoveryPackage:
     """Build a truth-preserving assisted-review package.
 
     This function never upgrades the evaluator's truth state and never invents
     evidence, deadlines, contractual rights, approvals, settlements, or payment.
+    Time-sensitive expiry may be supplied only as explicit assessment context by
+    the service's verified-deadline temporal layer.
     """
 
     if result.case_id != case.case_id:
         raise ValueError("result does not belong to case")
     if result != evaluate_recoverability(case):
         raise ValueError("result does not match current case evaluation")
+    if type(deadline_expired_by_date) is not bool:
+        raise ValueError("deadline_expired_by_date must be boolean")
 
     state = result.recoverability_state
     positive_position = state is RecoverabilityState.RECOVERABLE
@@ -153,6 +160,8 @@ def build_recovery_package(
         "source_evidence_refs": evidence_refs,
         "missing_evidence": missing_evidence,
         "deadline": deadline,
+        "assessment_date": assessment_date,
+        "deadline_expired_by_date": deadline_expired_by_date,
         "customer_matches": case.customer_matches,
         "contract_matches": case.contract_matches,
         "amendment_matches": case.amendment_matches,
@@ -178,6 +187,7 @@ def build_recovery_package(
         evidence=evidence_refs,
         missing_evidence=missing_evidence,
         deadline=deadline,
+        assessment_date=assessment_date,
         next_actions=_next_actions(result, missing_evidence),
         audit_trail=audit_trail,
     )
