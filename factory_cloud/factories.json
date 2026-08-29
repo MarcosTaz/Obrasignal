@@ -1,14 +1,16 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "scope": "switchboard_only",
   "default_signal": "X",
   "progress_semantics": "estimated readiness of the current Factory phase; not lifetime business completion",
+  "aliases": {
+    "changeledger": "scopeledger"
+  },
   "factories": [
     {"id":"factory-cloud","name":"Factory Cloud / Control Tower","signal":"D","target":"factory-cloud/app-development-control-plane","group":"control","progress_seed":68},
     {"id":"obrasignal","name":"ObraSignal","target":"ObraSignal","group":"obrasignal","progress_seed":72},
     {"id":"industrial-claims","name":"Industrial Supplier Claims & Margin Recovery","target":"Industrial Claims","group":"business","progress_seed":64},
     {"id":"scopeledger","name":"ScopeLedger","target":"ScopeLedger","group":"business","progress_seed":66},
-    {"id":"changeledger","name":"ChangeLedger","target":"ChangeLedger","group":"business","progress_seed":54},
     {"id":"recovery-radar","name":"Recovery Radar","target":"Recovery Radar","group":"business","progress_seed":48},
     {"id":"sourcing-recovery","name":"Sourcing Recovery & Supplier Margin Control","target":"Sourcing Recovery","group":"business","progress_seed":46},
     {"id":"product-market-access","name":"Product Market Access / Legal Product Checker","target":"Product Market Access / Legal Product Checker","group":"business","progress_seed":57},
