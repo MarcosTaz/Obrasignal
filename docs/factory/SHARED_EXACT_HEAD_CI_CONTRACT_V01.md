@@ -1,50 +1,44 @@
-# Shared Exact-Head CI Contract v0.1
+# Shared Exact-Head CI Contract v0.2
 
-Status: PROPOSED_CONTRACT / NON_RUNTIME / NOT_SHARED / NO_MERGE_AUTHORIZATION
+Status: CONTRACT_RECONCILED / NON_RUNTIME / NO_MERGE_AUTHORIZATION
 
 ## Purpose
 
-Define the smallest domain-neutral CI contract that may later be reused across independent product repositories without sharing runtime authority, production data, secrets, deployment credentials, or product semantics.
+Define the smallest domain-neutral exact-revision evidence contract that can be reused across independent products without sharing runtime authority, production data, secrets, deployment credentials or product semantics.
 
-This document does **not** create a shared package or second consumer. It makes the candidate contract explicit so future source-level comparison can be evidence-based rather than similarity-based.
+This document now distinguishes two layers that source truth has proven separately:
+
+1. the **concrete ObraSignal GitHub Actions workflow**, which remains repository-coupled;
+2. Factory Cloud's provider-neutral **`ReleaseEvidence` exact-SHA contract**, which is now a real multi-consumer shared contract.
 
 ## Candidate invariant
 
-A CI result may classify a candidate only if the repository proves that the jobs actually executed against the exact revision being classified.
+A CI/release result may classify a candidate only if the repository proves that the jobs/checks actually apply to the exact immutable revision being classified.
 
 Required invariant:
 
-`CLASSIFIED_REVISION == CHECKED_OUT_REVISION == TESTED_REVISION`
+`CLASSIFIED_REVISION == CHECKED_OUT_REVISION == TESTED_REVISION`.
 
-If exact revision identity cannot be proven, CI evidence is `UNKNOWN`, not GREEN.
+If exact revision identity cannot be proven, evidence is `UNKNOWN`, not GREEN.
 
 ## Minimum contract
 
 A conforming implementation MUST:
 
-1. Resolve one immutable candidate revision identifier before product tests run.
-2. Checkout that exact revision rather than an implicit or moving branch tip.
-3. Assert locally that the checked-out revision equals the expected candidate revision.
-4. Fail closed before product tests if revision identity differs or is unavailable.
-5. Run product-owned tests only after the identity assertion passes.
-6. Preserve independent job results rather than converting one passing job into repository-wide GREEN.
-7. Bind evidence to the exact revision in the resulting CI record.
-8. Keep mergeability, deployment state, and CI success as separate facts.
+1. resolve one immutable candidate revision identifier before product checks run;
+2. bind all classified checks to that exact revision;
+3. fail closed if revision identity is missing or mismatched;
+4. preserve independent required-check results rather than converting one passing check into global GREEN;
+5. preserve mergeability, deployment state and CI success as separate facts;
+6. retain product-owned commands and quality semantics outside the neutral revision/evidence contract.
 
-## Event neutrality
-
-The contract may be implemented for pull requests, pushes, or explicit/manual runs, but the event mechanism must not weaken revision identity.
-
-Examples of acceptable revision sources:
-- pull-request head SHA supplied by the CI provider;
-- immutable push SHA;
-- an explicitly supplied commit SHA validated as reachable in the target repository.
-
-A branch name alone is not sufficient evidence because it can move between scheduling and execution.
+For workflow implementations that perform a checkout, additionally:
+- checkout the exact revision rather than a moving branch tip;
+- assert locally that checked-out revision equals expected revision before product tests.
 
 ## Product-owned surface
 
-The shared candidate contract MUST NOT prescribe:
+A shared exact-head contract MUST NOT prescribe:
 - programming language;
 - package manager;
 - repository layout;
@@ -68,91 +62,139 @@ Those remain product-owned.
 | Expected revision missing | UNKNOWN / FAIL_CLOSED |
 | Checkout cannot resolve expected revision | FAIL |
 | Checked-out revision differs | FAIL |
-| Identity assertion passes; one product job fails | PARTIAL / NOT_FULLY_GREEN |
-| Identity assertion passes; all required product jobs pass | EXACT_HEAD_GREEN for that repository candidate only |
+| Exact identity passes; one required product check fails | PARTIAL / NOT_FULLY_GREEN |
+| Exact identity passes; all required product checks pass | EXACT_HEAD_GREEN for that candidate only |
 | CI passes but deployment is unverified | CI_GREEN / DEPLOYMENT_UNKNOWN |
 | Mergeable but required CI missing | TEST_EVIDENCE_UNKNOWN |
 
-No condition above authorizes automatic merge or production deployment.
+No state authorizes automatic merge or production deployment.
 
-## Current ObraSignal evidence
+## Concrete ObraSignal workflow evidence
 
-ObraSignal's `.github/workflows/quality.yml` currently demonstrates the pattern by:
+ObraSignal `.github/workflows/quality.yml` demonstrates a concrete exact-head implementation by:
 - deriving `OBRASIGNAL_TEST_SHA` from pull-request head SHA or `github.sha`;
 - checking out that SHA explicitly;
 - asserting `git rev-parse HEAD == OBRASIGNAL_TEST_SHA` before Python and Mobile tests;
 - reporting Python and Mobile independently.
 
-This is one proven implementation only. Product-specific names and commands are not part of the shared candidate contract.
+This implementation remains repository-coupled because its environment names, repository layout, mobile path and Expo commands are ObraSignal-specific.
 
-## Current non-equivalence evidence
+Disposition:
+`REPOSITORY_COUPLED / NOT_SHARED_PACKAGE`.
+
+## Factory Cloud `ReleaseEvidence` — proven neutral seam
+
+Factory Cloud PR #760 implements a narrower provider-neutral contract in `factory_cloud/shared_contracts.py`:
+- revision must be an exact 40-character SHA;
+- required checks are explicit;
+- successful checks are explicit;
+- readiness fails closed when any required check is missing.
+
+Aviation and ContractCredit each consume the same `ReleaseEvidence` contract through their release modules.
+
+Observed Factory Cloud exact HEAD:
+`02fdfc5422acd9b20b4f05ec511ef7f1cba1bf3a`.
+
+Exact-head ObraSignal Quality run:
+`33265278871` — SUCCESS.
+
+Independent G1–G5 result for **the neutral `ReleaseEvidence` contract**:
+- G1: PASS — two real vertical release consumers;
+- G2: PASS_AT_OBSERVED_HEAD;
+- G3: PASS — no vertical economics/domain semantics;
+- G4: PASS — exact input/failure contract;
+- G5: PASS — Aviation + ContractCredit.
+
+Disposition:
+**`SHARED_VERIFIED_CONTRACT`**.
+
+This does not convert the entire ObraSignal workflow into a shared package.
+
+## Current cross-product evidence
 
 ### Aircraft Lease Cash Assurance
 
-`MarcosTaz/money-leakage-auditor` now contains a real Aircraft Lease Cash Assurance Factory source tree and durable Factory baton. Its present source surface is documentation / HTML / evidence-pack oriented and does not yet prove an equivalent exact-head CI implementation.
+Repository `MarcosTaz/money-leakage-auditor`, source path `aircraft-lease-cash-assurance/`, is a real second product source tree. No equivalent GitHub exact-head workflow implementation was proven on its observed source.
 
-State for exact-head CI comparison: `SECOND_SOURCE_PRESENT / EQUIVALENT_CI_UNKNOWN`.
+State for concrete workflow comparison:
+`SECOND_SOURCE_PRESENT / EQUIVALENT_CI_WORKFLOW_NOT_PROVEN`.
 
 ### K3 Fatality
 
-K3 has a proven independent Vercel runtime and additional versioned V0.518 deployment projects. The connected evidence still does not expose a canonical editable Git source tree or a source-level exact-head CI implementation.
+K3 has a proven live Vercel runtime. The current stable `k3-fatality` project has a newer READY production deployment, but connected evidence still does not expose a canonical editable Git source tree or source-level exact-head workflow.
 
-State for exact-head CI comparison: `RUNTIME_PRESENT / SOURCE_UNKNOWN`.
+State:
+`RUNTIME_PROVEN / CANONICAL_EDITABLE_SOURCE_UNKNOWN`.
 
-### Industrial Supplier Claims / Product Checker
+### Industrial Supplier Claims
 
-Canonical editable source truth remains UNKNOWN on the connected evidence surface.
+The previous UNKNOWN statement is retired.
 
-## G1-G5 mapping for this candidate
+Canonical application source is proven:
+- repository `MarcosTaz/Obrasignal`;
+- branch `apps/industrial-claims`;
+- PR #785;
+- exact observed HEAD `449e3e846d1ad7096b7cf6790ecc119299a35023`;
+- exact-head Quality run `33270696084`: SUCCESS.
 
-- **G1 DUPLICATION:** NOT PASSED. Only ObraSignal implementation is source-proven.
-- **G2 STABILITY:** PARTIAL. ObraSignal exact-head mechanism is proven, but the current branch can still be repository-wide RED from independent Mobile dependency drift.
-- **G3 DOMAIN NEUTRALITY:** CONTRACT_PASSING. Revision identity itself has no procurement semantics.
-- **G4 CONTRACT:** PASSING_AT_V0_1. Inputs, failure semantics, evidence boundary, and exclusions are explicit here.
-- **G5 SECOND CONSUMER:** NOT PASSED.
+Industrial Claims therefore proves a third real consumer of multiple Factory Cloud assurance contracts, but this alone does not make the concrete ObraSignal workflow portable because it lives in the same repository/workflow system.
 
-Result: `PRECLASSIFIED_CANDIDATE / NOT_SHARED`.
+### Product Market Access / Legal Product Checker
 
-## Second-consumer proof requirements
+Factory Cloud explicitly classifies this as a research/business Factory that is **not registered as an application** until canonical application source/runtime truth exists.
 
-Do not count a second product as a consumer merely because it uses GitHub Actions or runs tests.
+State:
+`RESEARCH_BUSINESS_FACTORY_NOT_APPLICATION_REGISTERED / CANONICAL_APP_SOURCE_RUNTIME_NOT_ESTABLISHED`.
 
-To satisfy G1/G5, connected source evidence must prove that a second independent product:
-1. identifies one immutable candidate revision;
-2. checks out that exact revision;
-3. asserts exact revision equality before product tests;
-4. fails closed on mismatch;
-5. preserves its own independent product test semantics;
-6. does not depend on ObraSignal production secrets, data, databases, auth, billing, or deployment authority.
+## Updated G1–G5 distinction
 
-Only then may the two implementations be compared for a shared template/helper pilot.
+### Concrete ObraSignal workflow/template
 
-## First pilot boundary
+- G1 duplication for a portable workflow: NOT PROVEN across independent repositories.
+- G2 stability: exact-head identity pattern is stable, but repository-wide jobs can fail for product-specific reasons.
+- G3 domain neutrality: the revision identity invariant passes; the concrete commands do not.
+- G4 contract: PASS at the invariant layer.
+- G5 second independent repository consumer of the same portable workflow: NOT PROVEN.
 
-If G1-G4 later pass on two proven source trees, the first pilot should be configuration-only or test-helper-only.
+Result:
+`CONCRETE_WORKFLOW_NOT_SHARED`.
 
-Preferred blast-radius order:
-1. provider-neutral revision assertion helper/pattern;
-2. generic workflow skeleton with product-owned commands injected explicitly;
-3. reusable evidence metadata convention.
+### Neutral `ReleaseEvidence` contract
 
-Explicitly excluded from the first pilot:
-- authentication;
-- tenant/account authority;
-- persistence/database adapters;
-- secrets;
-- billing;
-- production deployment credentials;
-- production smoke URLs;
-- automatic cross-product dependency updates.
+G1–G5: PASS at the current Factory Cloud observed exact head.
+
+Result:
+`SHARED_VERIFIED_CONTRACT`.
+
+## Source-head verification is a separate problem
+
+An exact-SHA release record proves **what revision a result claims to classify**. It does not by itself prove that a persistent worker's pinned revision is still the live canonical branch head.
+
+The Side Factory audit found a separate Factory Cloud gap:
+- `GitHubHeadVerifier` / `VerifiedDispatchAdapter` correctly provide live remote-head verification as a library;
+- the actual persistent worker path loads `ProcessAgentAdapter` directly and proves only local workspace HEAD == pinned request HEAD;
+- runtime gate/provisioning checks are also local-workspace checks;
+- therefore stale registry + stale matching local workspace can execute without mandatory live remote-head revalidation.
+
+This is tracked in:
+`docs/factory/FACTORY_CLOUD_SHARED_CAPABILITY_GATE_AUDIT_V01.md`
+and Factory Cloud PR #760 comment `5464440957`.
+
+Do not conflate:
+
+`EXACT RESULT REVISION EVIDENCE`
+with
+`LIVE CANONICAL SOURCE HEAD VERIFICATION`.
+
+Both are required for source-safe persistent execution.
 
 ## Rollback and containment
 
-Any future shared CI artifact must be independently versioned and pinned by each consumer. A new shared version must never auto-propagate across every product.
+Any future shared CI artifact must be independently versioned and pinned by each consumer. A new version must never auto-propagate across every product.
 
 Required future migration sequence:
 
-`LOCAL PROVEN -> SHARED CANDIDATE -> PINNED PILOT -> EXACT-HEAD PROOF IN CONSUMER A -> EXACT-HEAD PROOF IN CONSUMER B -> OPTIONAL ADOPTION`
+`LOCAL PROVEN -> NEUTRAL CONTRACT -> PINNED PILOT -> EXACT-HEAD PROOF -> SECOND CONSUMER -> OPTIONAL ADOPTION`.
 
 Never:
 
@@ -160,8 +202,8 @@ Never:
 
 ## ACTIVE / NEXT / WAIT
 
-ACTIVE: use this contract to classify newly reachable product source trees without building a shared runtime or package.
+ACTIVE: reuse Factory Cloud's proven neutral `ReleaseEvidence` contract; keep concrete workflow bodies product-owned; independently track mandatory live source-head verification in persistent workers.
 
-NEXT: the first source-proven second implementation triggers an evidence-backed equivalence matrix against this contract.
+NEXT: after Factory Cloud repairs the real worker source-verification path, re-audit exact source identity from registry -> live remote branch -> local workspace -> executed checks -> release evidence.
 
-WAIT: extraction, shared package publication, auth/billing/persistence reuse, production rollout, data movement, and automatic merge remain blocked until the relevant gates pass.
+WAIT: automatic workflow extraction, auth/billing/persistence authority sharing, production rollout, data movement, automatic merge and deploy remain outside this lane.
