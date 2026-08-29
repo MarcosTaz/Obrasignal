@@ -198,10 +198,10 @@ def test_duplicate_actual_scope_blocks_aggregate_instead_of_double_counting(tmp_
     assert normalized.conflicts == ("duplicate confirmed ACTUAL_UNITS scope shipment-1",)
 
 
-def test_numeric_fact_rejects_float_style_non_exact_inputs(tmp_path):
+def test_numeric_fact_rejects_nonfinite_or_negative_inputs(tmp_path):
     repo = EvidenceRepository(str(tmp_path / "capacity.db"))
     repo.save_source(source())
-    with pytest.raises(ValueError, match="exact decimal string"):
+    with pytest.raises(ValueError, match="finite and non-negative"):
         repo.save_fact(fact("nan", FactType.DEDICATED_COST, "NaN"))
     with pytest.raises(ValueError, match="finite and non-negative"):
         repo.save_fact(fact("negative", FactType.DEDICATED_COST, "-1"))
