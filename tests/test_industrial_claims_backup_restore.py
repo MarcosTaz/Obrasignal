@@ -16,6 +16,7 @@ def test_backup_restore_preserves_claim_and_verified_outcome(tmp_path):
         claim_family="TOOLING",
         commercial_basis_ref="po-1",
         cost_evidence_ref="invoice-1",
+        currency="EUR",
         commercial_basis_content="signed tooling terms",
         event_evidence_content="documented cancellation event",
         cost_evidence_content="invoice and ledger supporting tooling exposure",
@@ -53,3 +54,4 @@ def test_backup_restore_preserves_claim_and_verified_outcome(tmp_path):
     outcomes = ops.outcomes(tenant_id="alpha")
     assert len(outcomes) == 1
     assert outcomes[0].recovered_amount == "35000"
+    assert outcomes[0].currency == "EUR"
