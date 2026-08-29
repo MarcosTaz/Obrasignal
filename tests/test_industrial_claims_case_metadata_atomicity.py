@@ -1,6 +1,7 @@
 import pytest
 
 from factory_cloud.assurance_store import AssuranceStoreError
+from vertical_apps.industrial_claims.case_store import IndustrialCaseMetadata
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
@@ -67,17 +68,58 @@ def test_case_metadata_failure_rolls_back_new_fingerprint_and_all_new_case_rows(
     assert service.case_store.count("alpha") == 1
 
 
-def test_immutable_case_metadata_collision_rolls_back_alternate_fingerprint(tmp_path):
-    service = IndustrialClaimsService(tmp_path / "case-metadata-collision.sqlite3")
+def test_distinct_contracts_can_share_event_reference_without_case_id_collision(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "case-metadata-distinct-contracts.sqlite3")
     first = service.analyze(**_payload())
+    second = service.analyze(**_payload(
+        customer_ref="oem-2",
+        program_ref="program-2",
+        commercial_basis_ref="basis-2",
+        cost_evidence_ref="cost-2",
+        commercial_basis_content="signed tooling agreement for second contract",
+        cost_evidence_content="cost ledger supporting second tooling exposure",
+    ))
+
+    assert first.is_new_recovery is True
+    assert second.is_new_recovery is True
+    assert first.fingerprint.fingerprint != second.fingerprint.fingerprint
+    assert first.finding.finding_id != second.finding.finding_id
+    assert first.entitlement.entitlement_id != second.entitlement.entitlement_id
+    assert first.calculation.calculation_id != second.calculation.calculation_id
+    assert first.deadline.deadline_id != second.deadline.deadline_id
+    assert service.index.count_entitlements("alpha") == 2
+    assert service.index.count_fingerprints("alpha") == 2
+    assert service.case_store.count("alpha") == 2
+    assert service.store.count("findings", "alpha") == 2
+
+    first_metadata = service.case_store.get(tenant_id="alpha", finding_id=first.finding.finding_id)
+    second_metadata = service.case_store.get(tenant_id="alpha", finding_id=second.finding.finding_id)
+    assert first_metadata.event_ref == second_metadata.event_ref == "case-metadata-event"
+    assert first_metadata.customer_ref == "oem-1"
+    assert second_metadata.customer_ref == "oem-2"
+
+
+def test_case_store_still_rejects_same_internal_id_with_different_metadata(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "case-metadata-immutable.sqlite3")
+    result = service.analyze(**_payload())
+    persisted = service.case_store.get(tenant_id="alpha", finding_id=result.finding.finding_id)
+    conflicting = IndustrialCaseMetadata(
+        finding_id=persisted.finding_id,
+        tenant_id=persisted.tenant_id,
+        claim_family=persisted.claim_family,
+        customer_ref="different-customer",
+        program_ref=persisted.program_ref,
+        event_ref=persisted.event_ref,
+        entitlement_id=persisted.entitlement_id,
+        deadline_id=persisted.deadline_id,
+        recovery_fingerprint=persisted.recovery_fingerprint,
+        notice_deadline_state=persisted.notice_deadline_state,
+        missing_evidence=persisted.missing_evidence,
+    )
 
     with pytest.raises(AssuranceStoreError, match="immutable industrial case metadata collision"):
-        service.analyze(**_payload(customer_ref="oem-2"))
+        service.case_store.put(conflicting)
 
-    assert service.index.count_entitlements("alpha") == 1
-    assert service.index.count_fingerprints("alpha") == 1
+    unchanged = service.case_store.get(tenant_id="alpha", finding_id=result.finding.finding_id)
+    assert unchanged.customer_ref == "oem-1"
     assert service.case_store.count("alpha") == 1
-    persisted = service.case_store.get(tenant_id="alpha", finding_id=first.finding.finding_id)
-    assert persisted.customer_ref == "oem-1"
-    assert persisted.notice_deadline_state == "DECLARED_NONE_FOR_REVIEW"
-    assert service.store.count("findings", "alpha") == 1
