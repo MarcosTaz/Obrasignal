@@ -5,41 +5,38 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 24,
-  "last_factory_id": "obrasignal-customer-journey",
-  "last_run_at": "2026-08-29T19:09:00Z",
+  "cursor": 25,
+  "last_factory_id": "obrasignal-global-market-entry",
+  "last_run_at": "2026-08-29T19:13:00Z",
   "last_material_change": {
-    "kind": "FACTORY_ADVANCED_AND_FLEET_ROTATED",
-    "factory_id": "obrasignal-customer-journey",
-    "summary": "Factory Cloud resumed from the exact fleet baton. OS SIDE FACTORY / RECOVERY SUCCESSOR had no exact repository/BATON identity recoverable from indexed source and was preserved UNKNOWN rather than inferred. Customer Journey was then reconstructed from current repository truth: integration PR #723 remains a GREEN non-canonical journey candidate and Auth owner PR #775 now provides a complete password-recovery candidate for P1 issue #761. Exact owner HEAD b7f963a60e127712a439e8c9f0e059461349e1f8 has ObraSignal Quality run 33262656887 SUCCESS. The password-recovery dead end is therefore OWNER_CANDIDATE_GREEN but not integrated/canonical and real provider/email/native deep-link acceptance remains external. Fleet cursor advanced to ObraSignal Global Market Entry.",
+    "kind": "FACTORY_CLASSIFIED_AND_FLEET_ROTATED",
+    "factory_id": "obrasignal-global-market-entry",
+    "summary": "Global Market Entry was reconstructed from current repository truth. Draft PR #519 is the exact recoverable country-launch candidate on branch factory/country-launch-registry-v1 at 93131df867eea723df59e6734ca71af4a4e6f124. ObraSignal Quality run 32989101224 is SUCCESS. The candidate remains DRAFT / NOT CANONICAL and correctly separates source readiness from commercial launch readiness: Portugal, Spain, United Kingdom, France and Italy are research-priority LAUNCH_NOW hypotheses only; source-gated markets fail closed. No production launch, outreach, spend, partnership or commercial proof is inferred. Fleet cursor advanced to ObraSignal GTM.",
     "evidence": {
-      "registry": {"factory_count": 33, "sha": "d21da89e2af0cef4f8b638e3b785fc69570c2a3d"},
-      "os_side_factory": {
-        "state": "UNKNOWN",
-        "reason": "No exact indexed repository source or canonical BATON identity for OS SIDE FACTORY / RECOVERY SUCCESSOR was recoverable; no similarly named branch was adopted without identity proof."
-      },
-      "customer_journey": {
+      "global_market_entry": {
         "state": "ACTIVE",
-        "integration_pr": 723,
-        "integration_head": "79c54833d5f5e927f352165eda6784c39c3f6ca1",
-        "integration_classification": "GREEN / DRAFT / NOT CANONICAL / DO NOT MERGE",
-        "auth_gap_issue": 761,
+        "pr": 519,
+        "branch": "factory/country-launch-registry-v1",
+        "head": "93131df867eea723df59e6734ca71af4a4e6f124",
+        "ci": "ObraSignal Quality 32989101224 SUCCESS",
+        "classification": "GREEN_DRAFT_NOT_CANONICAL",
+        "first_wave": ["Portugal", "Spain", "United Kingdom", "France", "Italy"],
+        "commercial_truth": "ICP/pricing/channel remain hypotheses until qualified cohort evidence exists",
+        "next": "Refresh first-wave launch evidence against current source/product truth before any promotion beyond LAUNCH_RESEARCH."
+      },
+      "previous_customer_journey": {
         "auth_owner_pr": 775,
         "auth_owner_head": "b7f963a60e127712a439e8c9f0e059461349e1f8",
-        "auth_owner_ci": "ObraSignal Quality 33262656887 SUCCESS",
-        "classification": "PASSWORD_RECOVERY_OWNER_CANDIDATE_GREEN_NOT_INTEGRATED",
-        "unresolved": [
-          "compose Auth owner candidate #775 into Customer Journey integration line and rerun exact-head Quality/Mobile/Supply-Chain",
-          "#762 shared-company multi-user membership NOT_MODELED",
-          "#764 Web in-product purchase completion gap",
-          "real provider email delivery/native deep-link/device acceptance remains external"
-        ]
+        "ci": "ObraSignal Quality 33262656887 SUCCESS",
+        "classification": "PASSWORD_RECOVERY_OWNER_CANDIDATE_GREEN_NOT_INTEGRATED"
       }
     },
-    "active": "ObraSignal Global Market Entry: reconstruct exact current repository/BATON/PR truth and execute the highest-value repository-safe milestone.",
-    "next": "Continue registry rotation through Global Market Entry, GTM, Customer Decision, Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger; revisit UNKNOWN lanes only when source identity becomes provable.",
+    "active": "ObraSignal GTM: reconstruct exact current repository/BATON/PR/evidence truth and execute the highest-value safe milestone.",
+    "next": "Continue rotation through Customer Decision, Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger; revisit unresolved lanes only with provable source identity.",
     "wait": [
-      "Customer Journey #761 requires composition of GREEN Auth owner #775 into integration candidate before journey gate can close",
+      "Global Market Entry real qualified cohort/WTP/channel evidence remains external",
+      "Global Market Entry production launch/outreach/spend/partnership authority not granted",
+      "Customer Journey #761 Auth owner GREEN but integration handoff remains",
       "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
       "Customer Journey #764 Web purchase completion remains unresolved",
       "Data Truth #750/#753 owner repairs remain unresolved",
