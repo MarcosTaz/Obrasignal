@@ -4,25 +4,28 @@ Factory Cloud is orchestration infrastructure above registered applications. It 
 
 ## Runtime topology
 
-1. `factory_cloud.worker` is the control-plane host. It loads `apps.json`, acquires the durable dispatch lease, recovers interrupted BATON state, verifies current source truth where supported, chooses safe work, and hands repository-safe jobs to the durable app-worker queue.
-2. `factory_cloud.app_worker` is restricted to one `app_id`. Separate processes may be hosted with separate OS users, credentials and environments. With no configured process adapter it remains fail-closed. A repository-safe app can inject an app-owned executable through `--adapter-config`.
+1. `factory_cloud.worker` is the control-plane host. It loads `apps.json`, acquires the durable dispatch lease, recovers interrupted BATON state, verifies current source truth where supported, chooses safe work, and hands repository-safe jobs to a **physically separate durable queue per app**.
+2. `factory_cloud.app_worker` is restricted to one `app_id` and requires an explicit private `--queue` SQLite path. Separate processes are hosted with separate OS users, groups, credentials and environments. With no configured process adapter it remains fail-closed. A repository-safe app can inject an app-owned executable through `--adapter-config`.
 3. `factory_cloud.process_adapter` is the process boundary between a queued Factory Cloud job and an application-specific execution agent. It independently verifies the configured local workspace HEAD before invocation, uses argv without a shell, accepts only a bounded JSON result contract and never persists raw stdout/stderr.
 4. `factory_cloud.obrasignal_agent` is the first concrete application-specific agent. It is deliberately non-mutating and supports only an explicit ObraSignal verification task allowlist; it is not a general shell or an LLM coding agent.
-5. SQLite stores orchestration metadata only: BATON/checkpoints, leases, execution history and worker-job envelopes/results. It is not a shared application database.
+5. The global SQLite database stores control-plane orchestration metadata only: BATON/checkpoints, leases and execution history. Worker-job envelopes/results are stored in per-app queue databases under the app's private queue directory. None of these databases is an application production database.
 
-The control-plane process and each app worker may be restarted. State is recovered from the durable SQLite checkpoint. A dispatch lease prevents two control-plane hosts from dispatching simultaneously. App jobs use app-scoped claims with expiries so an abandoned job can be reclaimed after a worker crash.
+The control-plane process and each app worker may be restarted. Global BATON state is recovered from the durable control database. A dispatch lease prevents two control-plane hosts from dispatching simultaneously. Each app queue has app-scoped claims with expiries so an abandoned job can be reclaimed after a worker crash without exposing another app's queue.
 
 ## Example foreground processes
 
 ```bash
-python -m factory_cloud.worker Ω --state /var/lib/factory-cloud/state.sqlite3
+python -m factory_cloud.worker Ω \
+  --state /var/lib/factory-cloud/state.sqlite3 \
+  --queue-dir /var/lib/factory-cloud/queues
+
 python -m factory_cloud.app_worker Ω \
   --app-id obrasignal \
-  --state /var/lib/factory-cloud/state.sqlite3 \
+  --queue /var/lib/factory-cloud/queues/obrasignal/queue.sqlite3 \
   --adapter-config /etc/factory-cloud/apps/obrasignal.json
 ```
 
-With no `--adapter-config`, repository-safe workers intentionally retain `WAIT / repository_tooling_adapter_required`. A process adapter config is allowed only for `repository_safe_execution`; it cannot be used to bypass K3's unresolved-source boundary.
+An app worker no longer accepts the global control-plane state database as its job transport. The explicit queue path is required. With no `--adapter-config`, repository-safe workers intentionally retain `WAIT / repository_tooling_adapter_required`. A process adapter config is allowed only for `repository_safe_execution`; it cannot be used to bypass K3's unresolved-source boundary.
 
 Host-side systemd templates and the provisioning helper live under `factory_cloud/runtime/`. They are deployment artifacts, not proof that an external host is running. Keeping Factory Cloud alive across machine/process failure still requires those services to be provisioned and acceptance-tested on a real isolated host.
 
@@ -59,9 +62,20 @@ K3 Fatality remains `read_only_until_source_resolved`. Runtime existence is not 
 
 ## Isolation boundary
 
-Every app keeps its own repository, credentials, secrets, application database, production environment, billing/provider authority, customer data, deployment authority and rollback path. Factory Cloud may share only metadata, BATON state, scheduling, safe task envelopes, evidence references and read-only verification.
+Every app keeps its own repository, credentials, secrets, application database, production environment, billing/provider authority, customer data, deployment authority, rollback path **and worker queue database**. The control plane may share only global metadata/BATON state, scheduling and read-only verification; app worker processes do not receive filesystem access to that global control database.
 
-Never place app secrets or customer data in `factory_cloud_state.sqlite3`, `apps.json`, adapter config/result metadata, execution evidence or worker-job payloads.
+Runtime defense is layered:
+
+- one SQLite queue file and parent directory per `app_id`;
+- queue paths validate `app_id` and reject traversal-like identifiers;
+- the queue API rejects cross-app submit/claim/enumeration/finish operations when physically scoped;
+- one Unix user/group per app, with no membership in the shared control metadata group;
+- per-app queue directories are group-accessible only to the corresponding worker identity and the control owner;
+- the systemd app unit grants write access only to `/var/lib/factory-cloud/queues/%i` and masks the global `state.sqlite3` path.
+
+The installer fails closed if it detects the legacy shared `factory-cloud` supplementary group on an app user. It also refuses the queue-layout migration while the legacy shared `worker_jobs` table contains an unconsumed job, preventing silent loss/replay of in-flight work.
+
+Never place app secrets or customer data in `state.sqlite3`, per-app queue SQLite files, `apps.json`, adapter config/result metadata, execution evidence or worker-job payloads.
 
 ## Safety boundary
 
@@ -71,4 +85,4 @@ A repository-safe process adapter is not equivalent to production authority. The
 
 ## 24/7 truth gate
 
-Do not claim 24/7 autonomous execution until an external host/process manager has actually been provisioned and verified with durable state, restart/takeover acceptance, app-worker claim recovery, independent app OS identities and the source-truth gates above. The exact acceptance checklist is in `factory_cloud/runtime/README.md`.
+Do not claim 24/7 autonomous execution until an external host/process manager has actually been provisioned and verified with durable state, restart/takeover acceptance, app-worker claim recovery, independent app OS identities, private per-app queues and the source-truth gates above. The exact acceptance checklist is in `factory_cloud/runtime/README.md`.

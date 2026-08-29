@@ -1,22 +1,63 @@
 from __future__ import annotations
 
 import json
+import re
+import sqlite3
 import uuid
+from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from pathlib import Path
+from typing import Any, Iterator
 
 from factory_cloud.adapters import ExecutionRequest, ExecutionResult
 from factory_cloud.state_store import StateStore, StateStoreError, utc_now
 
 JOB_TERMINAL = {"DONE", "WAIT", "BLOCKED", "ERROR"}
+APP_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+class QueueStore:
+    """Queue-only SQLite store suitable for one physically isolated app queue."""
+
+    def __init__(self, path: str | Path):
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+    @contextmanager
+    def connection(self) -> Iterator[sqlite3.Connection]:
+        conn = sqlite3.connect(self.path, timeout=30)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            yield conn
+        finally:
+            conn.close()
+
+
+def app_queue_path(queue_dir: str | Path, app_id: str) -> Path:
+    if not APP_ID_RE.fullmatch(app_id or ""):
+        raise StateStoreError("safe app_id required for queue path")
+    return Path(queue_dir) / app_id / "queue.sqlite3"
+
+
+def open_app_queue(queue_dir: str | Path, app_id: str) -> "DurableWorkQueue":
+    return DurableWorkQueue(QueueStore(app_queue_path(queue_dir, app_id)), app_id_scope=app_id)
 
 
 class DurableWorkQueue:
-    """Metadata-only handoff queue between control plane and app-specific workers."""
+    """Metadata-only handoff queue between control plane and app-specific workers.
 
-    def __init__(self, store: StateStore):
+    Runtime workers should use a queue-only SQLite file scoped to exactly one app.
+    The legacy StateStore-backed form remains available for in-process tests and
+    migrations, but it is not an isolation boundary between app worker processes.
+    """
+
+    def __init__(self, store: StateStore | QueueStore, app_id_scope: str | None = None):
+        if app_id_scope is not None and not APP_ID_RE.fullmatch(app_id_scope):
+            raise StateStoreError("safe app_id_scope required")
         self.store = store
+        self.app_id_scope = app_id_scope
         with self.store.connection() as conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS worker_jobs (
@@ -32,12 +73,21 @@ class DurableWorkQueue:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     finished_at TEXT,
-                    consumed_at TEXT,
-                    FOREIGN KEY(app_id) REFERENCES app_state(app_id) ON DELETE CASCADE
+                    consumed_at TEXT
                 )"""
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_worker_jobs_app_status ON worker_jobs(app_id,status,created_at)")
             conn.commit()
+
+    def _require_scope(self, app_id: str) -> None:
+        if self.app_id_scope is not None and app_id != self.app_id_scope:
+            raise StateStoreError(f"cross-app queue access rejected: {app_id}")
+
+    def _require_job_scope(self, conn: sqlite3.Connection, job_id: str) -> sqlite3.Row | None:
+        row = conn.execute("SELECT * FROM worker_jobs WHERE job_id=?", (job_id,)).fetchone()
+        if row is not None:
+            self._require_scope(row["app_id"])
+        return row
 
     @staticmethod
     def _decode(row) -> dict[str, Any]:
@@ -48,6 +98,7 @@ class DurableWorkQueue:
         return item
 
     def submit_or_get(self, request: ExecutionRequest) -> dict[str, Any]:
+        self._require_scope(request.app_id)
         now = utc_now()
         with self.store.connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -69,6 +120,7 @@ class DurableWorkQueue:
         return self._decode(row)
 
     def claim(self, app_id: str, worker_id: str, lease_seconds: float = 60.0) -> dict[str, Any] | None:
+        self._require_scope(app_id)
         if lease_seconds <= 0:
             raise StateStoreError("positive worker job lease required")
         now_dt = datetime.now(timezone.utc)
@@ -109,6 +161,7 @@ class DurableWorkQueue:
     def renew_claim(self, job_id: str, worker_id: str, lease_seconds: float) -> bool:
         expires = (datetime.now(timezone.utc) + timedelta(seconds=lease_seconds)).isoformat()
         with self.store.connection() as conn:
+            self._require_job_scope(conn, job_id)
             cur = conn.execute(
                 """UPDATE worker_jobs SET claim_expires_at=?, updated_at=?
                    WHERE job_id=? AND claimed_by=? AND status='RUNNING'""",
@@ -122,6 +175,7 @@ class DurableWorkQueue:
             raise StateStoreError(f"invalid worker result status: {result.status}")
         now = utc_now()
         with self.store.connection() as conn:
+            self._require_job_scope(conn, job_id)
             cur = conn.execute(
                 """UPDATE worker_jobs SET status=?, result_json=?, finished_at=?, updated_at=?, claim_expires_at=NULL
                    WHERE job_id=? AND claimed_by=? AND status='RUNNING'""",
@@ -135,7 +189,7 @@ class DurableWorkQueue:
         now = utc_now()
         with self.store.connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            row = conn.execute("SELECT * FROM worker_jobs WHERE job_id=?", (job_id,)).fetchone()
+            row = self._require_job_scope(conn, job_id)
             if row is None or row["status"] not in JOB_TERMINAL or row["consumed_at"] is not None:
                 conn.rollback()
                 raise StateStoreError(f"worker result not consumable: {job_id}")
@@ -144,6 +198,10 @@ class DurableWorkQueue:
         return self._decode(row)
 
     def jobs(self, app_id: str | None = None) -> list[dict[str, Any]]:
+        if self.app_id_scope is not None:
+            if app_id is None:
+                app_id = self.app_id_scope
+            self._require_scope(app_id)
         with self.store.connection() as conn:
             if app_id:
                 rows = conn.execute("SELECT * FROM worker_jobs WHERE app_id=? ORDER BY created_at", (app_id,)).fetchall()
