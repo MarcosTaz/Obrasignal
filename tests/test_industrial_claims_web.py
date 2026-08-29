@@ -149,19 +149,28 @@ def test_assisted_api_runs_role_separated_review_action_resolution(tmp_path):
     assert resolved.get_json()["state"] == "RECOVERED"
 
 
-def test_admin_role_can_execute_all_web_roles(tmp_path):
+def test_admin_role_spans_functions_but_not_four_eyes(tmp_path):
     database = tmp_path / "admin.sqlite3"
-    admin = create_app(database, identity_resolver=_identity("alpha", "admin-1", "admin")).test_client()
+    admin_creator = create_app(database, identity_resolver=_identity("alpha", "admin-1", "admin")).test_client()
+    admin_reviewer = create_app(database, identity_resolver=_identity("alpha", "admin-2", "admin")).test_client()
 
-    analyzed = admin.post("/analyze", json=_payload())
+    analyzed = admin_creator.post("/analyze", json=_payload())
     assert analyzed.status_code == 201
     finding_id = analyzed.get_json()["finding_id"]
-    reviewed = admin.post(
+
+    self_review = admin_creator.post(
         f"/findings/{finding_id}/review",
-        json={"approved": True, "reason": "admin override"},
+        json={"approved": True, "reason": "admin cannot self approve"},
+    )
+    assert self_review.status_code == 422
+    assert "independent" in self_review.get_json()["message"]
+
+    reviewed = admin_reviewer.post(
+        f"/findings/{finding_id}/review",
+        json={"approved": True, "reason": "independent admin review"},
     )
     assert reviewed.status_code == 200
-    assert admin.post(f"/findings/{finding_id}/action").status_code == 200
+    assert admin_creator.post(f"/findings/{finding_id}/action").status_code == 200
 
 
 def test_missing_evidence_fails_closed_in_api(tmp_path):
