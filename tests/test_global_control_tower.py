@@ -15,11 +15,9 @@ def test_business_factories_fail_closed_until_worker_exists():
     by_id={r.factory_id:r for r in all_routes(load_switchboard())};industrial=by_id['industrial-claims'];assert industrial.route=='factory://portfolio/industrial-claims';assert industrial.execution_state=='WAIT_RUNTIME';assert industrial.blocker=='portfolio_factory_worker_not_provisioned'
 
 def test_recent_portfolio_factories_are_registered_and_get_automatic_routes():
-    required={'change-exposure','contractcredit','debtrecover','royaltyrecover','gridrecover','govmargin','dealrecover','guaranteerelease'}
-    routes={r.factory_id:r for r in all_routes(load_switchboard())}
-    assert required.issubset(routes)
+    required={'change-exposure','contractcredit','debtrecover','royaltyrecover','gridrecover','govmargin','dealrecover','guaranteerelease'};routes={r.factory_id:r for r in all_routes(load_switchboard())};assert required.issubset(routes)
     for factory_id in required:
-        route=routes[factory_id]
-        assert route.route==f'factory://portfolio/{factory_id}'
-        assert route.worker_key==f'portfolio:{factory_id}'
-        assert route.execution_state=='WAIT_RUNTIME'
+        route=routes[factory_id];assert route.route==f'factory://portfolio/{factory_id}';assert route.worker_key==f'portfolio:{factory_id}';assert route.execution_state=='WAIT_RUNTIME'
+
+def test_historical_changeledger_scope_routes_once_to_scopeledger():
+    registry=load_switchboard();plan=dispatch_plan(registry,'changeledger');assert plan['canonical_scope']=='scopeledger';assert plan['selected']==1;assert plan['routes'][0]['factory_id']=='scopeledger';assert all(route.factory_id!='changeledger' for route in all_routes(registry))
