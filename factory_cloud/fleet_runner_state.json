@@ -6,41 +6,45 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "cursor": 0,
-  "last_factory_id": "eu-switching-evidence-pack",
-  "last_run_at": "2026-08-29T19:23:00Z",
+  "last_factory_id": "obrasignal-release-safety",
+  "last_run_at": "2026-08-29T19:25:00Z",
   "last_material_change": {
-    "kind": "REGRESSION_REPAIRED_CONTINUE_FRESH_CYCLE",
-    "factory_id": "eu-switching-evidence-pack",
-    "summary": "Fresh-cycle regression priority selected the only concrete RED found in the EU Switching T2 lane. Exact failure was Expo SDK dependency validation: react-native 0.86.2 while Expo required 0.86.3. The T2 branch cloud-switching/t2-consent-trigger-dedup-20260829 was repaired at f27fd53b64b33cf2af49f28008e7d7e5473edd90. Cloud Switching Quality run 33270604908 is SUCCESS. ObraSignal Quality run 33270604906 is also SUCCESS with Python and Mobile both green, including Expo Doctor and bundle smoke. The previous whole-repository RED is therefore closed; commercial/WTP evidence remains separate and unproven.",
+    "kind": "OWNER_AND_INTEGRATION_TRUTH_RECONCILED_CONTINUE",
+    "factory_id": "obrasignal-release-safety",
+    "summary": "Release Safety ambiguity was reduced without fabricating canonical adoption. The current bounded owner for automatic-production Auth E2E safety is PR #414 at exact HEAD 834cc5aac46cc36dae0783e70c38f810f2eaa0bb with ObraSignal Quality 32899508360 SUCCESS. The strongest recovered cross-owner passing composition is PR #571 at 631befa3b9ed8c2c8b5e90bc9544fa79f9037267, which preserves #414 read-only production behavior while repairing the nested workflow consumer and immutable checkout contract; its recorded exact-head Quality/JWT/Supply-Chain gates are GREEN. Earlier #345/#350 remain separate Web/EAS release-authority candidates rather than competing owners of the Auth-E2E defect. Nothing is canonical or merged. ComplianceLedger remains UNKNOWN after exact-name code and PR searches returned no source identity, so it stays WAIT and does not block the cycle.",
     "evidence": {
+      "release_safety": {
+        "owner_pr": 414,
+        "owner_head": "834cc5aac46cc36dae0783e70c38f810f2eaa0bb",
+        "owner_ci": "ObraSignal Quality 32899508360 SUCCESS",
+        "owner_classification": "GREEN_OWNER_DRAFT_NOT_CANONICAL",
+        "integration_pr": 571,
+        "integration_head": "631befa3b9ed8c2c8b5e90bc9544fa79f9037267",
+        "integration_classification": "FULL_CROSS_OWNER_EXACT_HEAD_GREEN_NOT_CANONICAL",
+        "parallel_release_authorities": ["#345 Web/Pages", "#350 EAS/mobile"]
+      },
+      "complianceledger": {
+        "classification": "UNKNOWN_SOURCE_IDENTITY",
+        "search_result": "No exact ComplianceLedger code or PR identity recovered; no substitute authority inferred."
+      },
       "eu_switching": {
-        "pr": 802,
         "head": "f27fd53b64b33cf2af49f28008e7d7e5473edd90",
-        "repair": "mobile/package.json react-native 0.86.2 -> 0.86.3",
         "focused_ci": "Cloud Switching Quality 33270604908 SUCCESS",
-        "repository_ci": "ObraSignal Quality 33270604906 SUCCESS",
-        "classification": "FOCUSED_GREEN_AND_REPOSITORY_GREEN_NOT_COMMERCIAL_PROOF"
+        "repository_ci": "ObraSignal Quality 33270604906 SUCCESS"
       },
       "fleet_runner": {
         "head": "f81f0d094cc9ced2432989b46e4772fb0c200a5a",
-        "ci": "ObraSignal Quality 33270510350 SUCCESS",
-        "classification": "GREEN"
-      },
-      "portfolio_architecture": {
-        "pr": 760,
-        "head": "02fdfc5422acd9b20b4f05ec511ef7f1cba1bf3a",
-        "ci": "ObraSignal Quality 33265278871 SUCCESS",
-        "classification": "GREEN_DRAFT_SEPARATE_BRANCH_NOT_ADOPTED"
+        "ci": "ObraSignal Quality 33270510350 SUCCESS"
       }
     },
-    "active": "Factory Cloud next cycle: reconcile GREEN portfolio architecture #760 against current control-plane branch and identify a bounded non-conflicting adoption slice; if unsafe/ambiguous, move that integration to WAIT and dispatch the next executable Factory task.",
-    "next": "Resolve Release Safety successor ambiguity and ComplianceLedger source identity, then continue highest-value registry rotation with regressions and incomplete integrations ahead of research-only work.",
+    "active": "Factory Cloud next cycle: inspect portfolio #760 for a bounded adoption/rebase strategy; do not wholesale copy its 89-file delta across newer control-plane work. If no safe bounded adoption exists, preserve it as GREEN integration candidate and dispatch the next registry Factory.",
+    "next": "Use persistent fleet rotation from cursor 0; prioritize current Factory Cloud source/runtime consistency and then ObraSignal/Industrial Claims executable gaps.",
     "wait": [
+      "Portfolio #760 full 89-file adoption needs controlled reconciliation with newer Factory Cloud branch",
       "Portfolio #760 supervised persistent host provisioning remains external/unverified",
       "Aviation/ContractCredit G3 requires real supervised runtime evidence",
-      "EU Switching real WTP/customer/payment/deployment evidence remains external",
-      "Release Safety singular successor/canonical composition requires reconciliation",
       "ComplianceLedger canonical source identity remains UNKNOWN",
+      "EU Switching real WTP/customer/payment/deployment evidence remains external",
       "Customer Journey/Auth and Customer Decision/Golden integration handoffs remain unresolved",
       "Data Truth #750/#753 owner repairs remain unresolved",
       "production/deploy/secrets/provider/config/customer-data/source activation",
