@@ -54,21 +54,53 @@ jobs:
               raise SystemExit(f'foreign key violations: {violations}')
           print(f'schema ok: {len(tables)} tables')
           PY
-      - name: Full application startup smoke
+      - name: Full application startup and readiness smoke
         working-directory: factories/royaltyrecover
         env:
           ROYALTYRECOVER_API_KEYS_JSON: '{"ORG-SMOKE":"smoke-secret"}'
           ROYALTYRECOVER_DB_PATH: /tmp/royaltyrecover-smoke.db
         run: |
+          rm -f /tmp/royaltyrecover-smoke.db /tmp/royaltyrecover-smoke.db-wal /tmp/royaltyrecover-smoke.db-shm
           python - <<'PY'
           from application import app
           client = app.test_client()
+          headers = {'X-RoyaltyRecover-API-Key':'smoke-secret'}
           health = client.get('/health')
           assert health.status_code == 200, health.data
           assert client.get('/app').status_code == 401
-          dashboard = client.get('/app', headers={'X-RoyaltyRecover-API-Key':'smoke-secret'})
+          assert client.get('/api/v1/readiness').status_code == 401
+          dashboard = client.get('/app', headers=headers)
           assert dashboard.status_code == 200, dashboard.data
-          print('full app startup ok')
+          readiness = client.get('/api/v1/readiness', headers=headers)
+          assert readiness.status_code == 200, readiness.data
+          assert readiness.get_json()['ready'] is True
+          assert readiness.get_json()['journal_mode'].lower() == 'wal'
+          print('full app startup/readiness ok')
+          PY
+      - name: Backup and restore smoke
+        working-directory: factories/royaltyrecover
+        run: |
+          python - <<'PY'
+          import os
+          from backup import backup_repository, verify_backup
+          from repository import RoyaltyRepository
+          source = '/tmp/royaltyrecover-smoke.db'
+          destination = '/tmp/royaltyrecover-smoke-backup.db'
+          if os.path.exists(destination):
+              os.unlink(destination)
+          repo = RoyaltyRepository.file(source)
+          try:
+              result = backup_repository(repo, destination)
+          finally:
+              repo.close()
+          verified = verify_backup(destination, result.sha256)
+          assert verified.integrity == 'ok'
+          restored = RoyaltyRepository.file(destination)
+          try:
+              assert restored.integrity_status()['ready'] is True
+          finally:
+              restored.close()
+          print('backup/restore smoke ok')
           PY
       - name: Gunicorn configuration smoke
         working-directory: factories/royaltyrecover
