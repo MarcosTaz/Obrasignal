@@ -48,7 +48,7 @@ def build_claim_package(
         },
         "notice": {
             "truth_state": result.notice_deadline_state,
-            "due_date": result.deadline.due_date.isoformat() if result.notice_deadline_state == "VERIFIED_DATE" else None,
+            "due_date": result.deadline.due_date.isoformat() if result.notice_deadline_state == "DECLARED_DATE_FOR_REVIEW" else None,
         },
         "evidence_index": [
             {
