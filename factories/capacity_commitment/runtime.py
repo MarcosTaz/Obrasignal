@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import os
 
+from .application import create_completion_app
 from .auth import provider_tenant_resolver
 from .repository import CapacityRepository
-from .web import create_app
 
 
 def create_provider_app(*, db_path: str | None = None):
-    """Create the provider-authenticated assisted T1 application.
+    """Create the provider-authenticated Capacity Commitment application.
 
     There is no development-auth fallback. A durable database path is required
     either explicitly or through CAPACITY_COMMITMENT_DB_PATH.
@@ -18,4 +18,4 @@ def create_provider_app(*, db_path: str | None = None):
     if not resolved:
         raise RuntimeError("CAPACITY_COMMITMENT_DB_PATH is required")
     repository = CapacityRepository(resolved)
-    return create_app(repository, provider_tenant_resolver)
+    return create_completion_app(repository, provider_tenant_resolver)
