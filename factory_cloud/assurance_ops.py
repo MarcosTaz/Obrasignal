@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
 from factory_cloud.assurance_store import AssuranceStore
 from factory_cloud.recovery_primitives import FeeLineage, RecoveryPrimitiveError
+from factory_cloud.shared_platform import AuditEvent, TenantContext
 from factory_cloud.state_store import utc_now
 
 
@@ -73,6 +75,16 @@ class AssuranceOperations:
             raise AssuranceOperationError("tenant-scoped finding not found")
         return row
 
+    @staticmethod
+    def _evidence_ids(row: sqlite3.Row) -> tuple[str, ...]:
+        try:
+            values = json.loads(row["evidence_ids_json"])
+        except (TypeError, ValueError) as exc:
+            raise AssuranceOperationError("finding evidence lineage is invalid") from exc
+        if not isinstance(values, list):
+            raise AssuranceOperationError("finding evidence lineage is invalid")
+        return tuple(str(item) for item in values)
+
     def review(self, *, tenant_id: str, finding_id: str, reviewer: str, approved: bool, reason: str) -> str:
         if not reviewer.strip() or not reason.strip():
             raise AssuranceOperationError("reviewer and reason are required")
@@ -83,22 +95,45 @@ class AssuranceOperations:
             if row["state"] != "READY_FOR_REVIEW":
                 raise AssuranceOperationError("finding is not ready for review")
             conn.execute("UPDATE findings SET state=?, reviewer=?, decision_reason=? WHERE tenant_id=? AND finding_id=?", (new_state, reviewer, reason, tenant_id, finding_id))
+            audit = AuditEvent.create(
+                event_id=f"{tenant_id}:{finding_id}:review:{new_state.lower()}",
+                context=TenantContext(tenant_id=tenant_id, actor_id=reviewer, roles=("reviewer",)),
+                event_type="finding_reviewed",
+                subject_ref=finding_id,
+                evidence_refs=self._evidence_ids(row),
+                payload={"state": new_state, "approved": approved, "reason": reason},
+            )
+            self.store._append_audit(conn, audit)
             conn.commit()
         return new_state
 
-    def action(self, *, tenant_id: str, finding_id: str) -> str:
+    def action(self, *, tenant_id: str, finding_id: str, actor_id: str | None = None) -> str:
+        if actor_id is not None and not actor_id.strip():
+            raise AssuranceOperationError("action actor is required when supplied")
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = self._finding(conn, tenant_id, finding_id)
             if row["state"] != "APPROVED":
                 raise AssuranceOperationError("only approved findings may be actioned")
             conn.execute("UPDATE findings SET state='ACTIONED' WHERE tenant_id=? AND finding_id=?", (tenant_id, finding_id))
+            if actor_id is not None:
+                audit = AuditEvent.create(
+                    event_id=f"{tenant_id}:{finding_id}:action",
+                    context=TenantContext(tenant_id=tenant_id, actor_id=actor_id, roles=("operator",)),
+                    event_type="finding_actioned",
+                    subject_ref=finding_id,
+                    evidence_refs=self._evidence_ids(row),
+                    payload={"state": "ACTIONED"},
+                )
+                self.store._append_audit(conn, audit)
             conn.commit()
         return "ACTIONED"
 
-    def resolve(self, *, tenant_id: str, finding_id: str, outcome_id: str, recovered_amount: str, currency: str, evidence_ref: str) -> OutcomeRecord:
+    def resolve(self, *, tenant_id: str, finding_id: str, outcome_id: str, recovered_amount: str, currency: str, evidence_ref: str, actor_id: str | None = None) -> OutcomeRecord:
         if not outcome_id.strip() or not currency.strip() or not evidence_ref.strip():
             raise AssuranceOperationError("outcome identity, currency and evidence ref are required")
+        if actor_id is not None and not actor_id.strip():
+            raise AssuranceOperationError("resolution actor is required when supplied")
         try:
             amount = Decimal(recovered_amount)
         except InvalidOperation as exc:
@@ -125,6 +160,22 @@ class AssuranceOperations:
                 raise AssuranceOperationError("only actioned findings may be resolved")
             conn.execute("INSERT INTO recovery_outcomes VALUES(?,?,?,?,?,?,?,?)", (outcome_id, tenant_id, finding_id, state, str(amount), currency, evidence_ref, recorded_at))
             conn.execute("UPDATE findings SET state=? WHERE tenant_id=? AND finding_id=?", (state, tenant_id, finding_id))
+            if actor_id is not None:
+                audit = AuditEvent.create(
+                    event_id=f"{tenant_id}:{outcome_id}:resolve",
+                    context=TenantContext(tenant_id=tenant_id, actor_id=actor_id, roles=("operator",)),
+                    event_type="finding_resolved",
+                    subject_ref=finding_id,
+                    evidence_refs=self._evidence_ids(row),
+                    payload={
+                        "state": state,
+                        "outcome_id": outcome_id,
+                        "recovered_amount": str(amount),
+                        "currency": currency,
+                        "evidence_ref": evidence_ref,
+                    },
+                )
+                self.store._append_audit(conn, audit)
             conn.commit()
         return record
 
