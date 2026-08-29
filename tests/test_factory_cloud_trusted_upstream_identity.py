@@ -8,11 +8,14 @@ SECRET = "s" * 32
 NOW = 1_800_000_000
 
 
-def _request(verifier, *, method="POST", path="/analyze", tenant="tenant-a", actor="actor-a", timestamp=NOW, mutate=None):
+def _request(
+    verifier, *, method="POST", path="/analyze", tenant="tenant-a", actor="actor-a",
+    timestamp=NOW, support_role="", mutate=None,
+):
     app = Flask(__name__)
     headers = signed_test_headers(
         secret=SECRET, tenant_id=tenant, actor_id=actor,
-        method=method, path=path, timestamp=timestamp,
+        method=method, path=path, timestamp=timestamp, support_role=support_role,
     )
     if mutate:
         headers.update(mutate)
@@ -34,6 +37,17 @@ def test_signed_identity_is_bound_to_method_path_tenant_actor_and_time():
     ):
         with pytest.raises(SharedContractError, match="signature"):
             _request(verifier, method=method, path=path, mutate=mutate)
+
+
+def test_support_role_is_cryptographically_bound_and_cannot_be_escalated():
+    verifier = TrustedUpstreamVerifier(SECRET, clock=lambda: NOW)
+    identity = _request(verifier, path="/support/incidents", support_role="support_viewer")
+    assert identity.tenant_id == "tenant-a"
+    with pytest.raises(SharedContractError, match="signature"):
+        _request(
+            verifier, path="/support/incidents", support_role="support_viewer",
+            mutate={"X-Support-Role": "on_call_admin"},
+        )
 
 
 def test_expired_or_future_signature_fails_closed():
