@@ -5,21 +5,18 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 3,
+  "cursor": 4,
   "last_factory_id": "scopeledger",
-  "last_run_at": "2026-08-29T15:40:20Z",
+  "last_run_at": "2026-08-29T15:41:10Z",
   "last_material_change": {
     "kind": "FLEET_ADVANCED",
     "factory_id": "scopeledger",
-    "summary": "Factory Cloud persistent fleet rotation is exact-head GREEN in draft PR #765; Industrial Claims received its T2 market-exposure baton and synthetic fail-closed pilot admissibility fixture; ObraSignal GTM gained real negative ICP evidence from RODTEC; ScopeLedger current repository head was reconstructed for the next readiness proof.",
+    "summary": "Factory Cloud persistent fleet rotation remains exact-head GREEN in draft PR #765; Industrial Claims received T2 baton + fail-closed synthetic pilot admissibility evidence; ObraSignal GTM gained real negative ICP evidence from RODTEC; ScopeLedger exact current head now has repeated simulation-and-recovery CI success, so repository safety is GREEN while production runtime truth remains unverified.",
     "evidence": {
       "factory_cloud_pr": 765,
       "factory_cloud_head": "b6e25348b9c11c11ed7f88aa39fb82ba33d34b9e",
       "factory_cloud_quality_run": "33260748440 SUCCESS",
-      "factory_cloud_checks": {
-        "python": "success",
-        "mobile": "success"
-      },
+      "factory_cloud_checks": {"python":"success","mobile":"success"},
       "industrial_claims_branch": "factory/industrial-claims-causledger-v0.23.0",
       "industrial_claims_baton_commit": "b1bd806380328077779c2115632e2cc001f82c1e",
       "industrial_claims_fixture_commit": "81e044ae85139eed28d8c2dfeb7a4208f1e9a7ca",
@@ -35,16 +32,21 @@
         "branch": "scopeledger-railway",
         "head": "1631dba08ad4d849bec05287f3a230df3f65643f",
         "head_message": "Add secure invitation lifecycle simulations",
-        "production_probe": "not_verified_in_this_slice"
+        "ci": {
+          "simulation-and-recovery_run_33259142173": "success",
+          "simulation-and-recovery_run_33224533585": "success"
+        },
+        "repository_state": "EXACT_HEAD_GREEN",
+        "production_state": "UNKNOWN_NOT_VERIFIED_IN_THIS_SLICE"
       }
     },
-    "active": "ScopeLedger: verify exact-head checks and current production readiness without production mutation; compare the observed runtime revision to 1631dba08ad4d849bec05287f3a230df3f65643f when the endpoint is reachable.",
-    "next": "After ScopeLedger proof, advance to changeledger. Independently preserve ObraSignal GTM RODTEC as negative ICP/channel evidence and do not count it as NO_REPLY_YET.",
+    "active": "ChangeLedger: reconstruct exact current source/BATON and execute the highest-value repository-safe proof or repair; do not infer readiness from ScopeLedger.",
+    "next": "When ChangeLedger yields or blocks, continue registry rotation. Reopen ScopeLedger production verification when the public endpoint is reachable and compare runtime revision to 1631dba08ad4d849bec05287f3a230df3f65643f.",
     "wait": [
       "merge/adoption of PR #765",
       "Industrial Claims real outreach without explicit authorization",
       "Industrial Claims canonical source re-verification requires access to the referenced canonical source workspace",
-      "ScopeLedger production endpoint verification was not completed in this slice",
+      "ScopeLedger production endpoint/runtime revision verification",
       "production/deploy/secrets/provider/config/customer-data/source activation"
     ]
   },
