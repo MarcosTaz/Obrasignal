@@ -90,6 +90,16 @@ def test_mitigation_over_gross_and_unknown_family_fail_closed(tmp_path):
         service.analyze(**_base(), claim_family="NOT_REAL", gross_cost="10")
 
 
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
+def test_non_finite_industrial_economics_fail_closed(tmp_path, value):
+    service = IndustrialClaimsService(tmp_path / f"non-finite-{value}.sqlite3")
+    with pytest.raises(AssuranceKernelError, match="finite decimals"):
+        service.analyze(**_base(), claim_family="WIP", gross_cost=value)
+
+    with pytest.raises(AssuranceKernelError, match="finite decimals"):
+        service.analyze(**_base(), claim_family="WIP", gross_cost="100", prior_payment=value)
+
+
 def test_full_assisted_outcome_journey(tmp_path):
     service = IndustrialClaimsService(tmp_path / "industrial.sqlite3")
     result = service.analyze(**_base(), claim_family="EXCESS_OBSOLETE_RAW_MATERIAL", gross_cost="100000", resale_reuse="25000")
