@@ -3,6 +3,8 @@ from decimal import Decimal
 import pytest
 
 from factories.capacity_commitment.delivery_report import render_delivery_report
+from factories.capacity_commitment.engine import evaluate_recoverability
+from factories.capacity_commitment.recovery_package import build_recovery_package
 from factories.capacity_commitment.service import process_state
 from factories.capacity_commitment.state import AssistedCaseState
 from factories.capacity_commitment.synthetic_cases import case
@@ -81,6 +83,25 @@ def test_delivery_report_rejects_mutated_package_truth():
     package.executive_summary["payment_received"] = True
 
     with pytest.raises(ValueError, match="package does not match current state"):
+        render_delivery_report(state, package)
+
+
+def test_delivery_report_direct_call_rejects_positive_case_without_persisted_evidence_reference():
+    recovery_case = case("report-no-evidence-ref")
+    state = AssistedCaseState(
+        tenant_id="tenant-a",
+        company_id="supplier-a",
+        customer_id="oem-a",
+        program_id="program-a",
+        contract_id="LTA-2026-01",
+        recovery_case=recovery_case,
+        evidence_refs=(),
+        deadline="2026-12-31",
+    )
+    result = evaluate_recoverability(recovery_case)
+    package = build_recovery_package(recovery_case, result, evidence_refs=(), deadline="2026-12-31")
+
+    with pytest.raises(ValueError, match="evidence_supported requires"):
         render_delivery_report(state, package)
 
 
