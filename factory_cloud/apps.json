@@ -1,5 +1,5 @@
 {
-  "schema_version": 7,
+  "schema_version": 8,
   "activation_code": "D",
   "registry_scope": "application_development_only",
   "rules": {"include_only_kind":"application","exclude_research_factories":true,"unknown_source_is_not_absent":true,"no_automatic_merge":true,"no_automatic_deploy":true,"no_production_mutation":true,"independent_trust_boundaries":true,"no_shared_production_authority":true,"metadata_only_persistence":true},
@@ -26,9 +26,9 @@
       "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/aviation-lease-entitlement-recovery","head":"e8470dbc209c7ec5eaeef7e088573d6adf7cf510","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/aviation-recovery-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
-      "baton":{"active":"verify:service","next":["verify:shared-contracts"],"wait":["provision /srv/factory-cloud/apps/aviation-lease-entitlement-recovery workspace and supervised worker","production deploy","real customer data until authorized"]},
+      "baton":{"active":"runtime:provision","next":["verify:service","verify:shared-contracts"],"wait":["runtime workspace provisioning: /srv/factory-cloud/apps/aviation-lease-entitlement-recovery and supervised worker","production deploy","real customer data until authorized"]},
       "portfolio_priority":{"safety_severity":0,"pilot_blocker":95,"commercial_leverage":85,"shared_leverage":90,"evidence_integrity":95},
-      "activation":{"enabled":false,"mode":"repository_safe_execution","priority":90}
+      "activation":{"enabled":false,"mode":"runtime_provisioning_wait","priority":90}
     },
     {
       "app_id":"contractcredit","name":"ContractCredit","kind":"application","mission":"Deliver evidence-first enterprise service-credit reconciliation using the shared assurance kernel, without inventing SLA breach or contractual remedy.","development_state":"PILOT_CAPABLE_ASSISTED_RUNTIME_PROVISIONING_WAIT",
@@ -36,9 +36,9 @@
       "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/contractcredit","head":"e8470dbc209c7ec5eaeef7e088573d6adf7cf510","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/contractcredit-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
-      "baton":{"active":"verify:service","next":["verify:shared-contracts"],"wait":["provision /srv/factory-cloud/apps/contractcredit workspace and supervised worker","production deploy","real customer data until authorized"]},
+      "baton":{"active":"runtime:provision","next":["verify:service","verify:shared-contracts"],"wait":["runtime workspace provisioning: /srv/factory-cloud/apps/contractcredit and supervised worker","production deploy","real customer data until authorized"]},
       "portfolio_priority":{"safety_severity":0,"pilot_blocker":95,"commercial_leverage":88,"shared_leverage":90,"evidence_integrity":95},
-      "activation":{"enabled":false,"mode":"repository_safe_execution","priority":91}
+      "activation":{"enabled":false,"mode":"runtime_provisioning_wait","priority":91}
     }
   ],
   "explicitly_not_registered":{"reason":"Research/business Factories are not applications and must not be mixed into the application-development cloud until promoted to a real app with canonical source/runtime truth.","examples":["Industrial Supplier Claims & Margin Recovery","ChangeLedger","Recovery Radar","Sourcing Recovery & Supplier Margin Control","Product Market Access / Legal Product Checker","EU Cloud Switching / Migration Capital Network","Recoverable Money Business Discovery"]}
