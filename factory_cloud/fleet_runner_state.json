@@ -5,37 +5,43 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 25,
-  "last_factory_id": "obrasignal-global-market-entry",
-  "last_run_at": "2026-08-29T19:13:00Z",
+  "cursor": 27,
+  "last_factory_id": "obrasignal-customer-decision",
+  "last_run_at": "2026-08-29T19:15:00Z",
   "last_material_change": {
     "kind": "FACTORY_CLASSIFIED_AND_FLEET_ROTATED",
-    "factory_id": "obrasignal-global-market-entry",
-    "summary": "Global Market Entry was reconstructed from current repository truth. Draft PR #519 is the exact recoverable country-launch candidate on branch factory/country-launch-registry-v1 at 93131df867eea723df59e6734ca71af4a4e6f124. ObraSignal Quality run 32989101224 is SUCCESS. The candidate remains DRAFT / NOT CANONICAL and correctly separates source readiness from commercial launch readiness: Portugal, Spain, United Kingdom, France and Italy are research-priority LAUNCH_NOW hypotheses only; source-gated markets fail closed. No production launch, outreach, spend, partnership or commercial proof is inferred. Fleet cursor advanced to ObraSignal GTM.",
+    "factory_id": "obrasignal-customer-decision",
+    "summary": "ObraSignal GTM had no distinct exact repository/BATON identity recoverable beyond the GTM evidence embedded in Global Market Entry PR #519, so the lane remains UNKNOWN_AS_DISTINCT_FACTORY rather than being conflated. Customer Decision was then reconstructed from current repository truth: draft PR #376 on codex/customer-decision-intelligence-v1 is at exact HEAD b3c211d76707fce363bdba4c8970bda0cae25754 and ObraSignal Quality run 32907370397 is SUCCESS. Its decision/outcome seam preserves UNKNOWN, requires explicit customer pursuit decisions, prevents missing outcome=LOST and keeps optimization disabled. It remains DRAFT / NOT CANONICAL and still requires Integration Lab + Golden acceptance. Fleet cursor advanced to Product Strategy.",
     "evidence": {
-      "global_market_entry": {
-        "state": "ACTIVE",
-        "pr": 519,
-        "branch": "factory/country-launch-registry-v1",
-        "head": "93131df867eea723df59e6734ca71af4a4e6f124",
-        "ci": "ObraSignal Quality 32989101224 SUCCESS",
-        "classification": "GREEN_DRAFT_NOT_CANONICAL",
-        "first_wave": ["Portugal", "Spain", "United Kingdom", "France", "Italy"],
-        "commercial_truth": "ICP/pricing/channel remain hypotheses until qualified cohort evidence exists",
-        "next": "Refresh first-wave launch evidence against current source/product truth before any promotion beyond LAUNCH_RESEARCH."
+      "obrasignal_gtm": {
+        "state": "UNKNOWN_AS_DISTINCT_FACTORY",
+        "reason": "No separate exact GTM repository/BATON source was recovered; PR #519 contains first-wave GTM evidence but was not reclassified as the distinct GTM lane without identity proof."
       },
-      "previous_customer_journey": {
-        "auth_owner_pr": 775,
-        "auth_owner_head": "b7f963a60e127712a439e8c9f0e059461349e1f8",
-        "ci": "ObraSignal Quality 33262656887 SUCCESS",
-        "classification": "PASSWORD_RECOVERY_OWNER_CANDIDATE_GREEN_NOT_INTEGRATED"
+      "customer_decision": {
+        "state": "ACTIVE",
+        "pr": 376,
+        "branch": "codex/customer-decision-intelligence-v1",
+        "head": "b3c211d76707fce363bdba4c8970bda0cae25754",
+        "ci": "ObraSignal Quality 32907370397 SUCCESS",
+        "classification": "GREEN_DRAFT_NOT_CANONICAL",
+        "truth_contracts": [
+          "missing decision != NO_BID",
+          "missing outcome != LOST",
+          "NO_BID decision != NO_SUBMISSION outcome",
+          "UNKNOWN economic state remains UNKNOWN",
+          "tenant mismatch fails closed",
+          "outcome/decision pair does not establish causality",
+          "optimization_allowed=false"
+        ],
+        "next": "Independent Integration Lab composition and Golden acceptance against current owner heads/main; do not promote from PR prose alone."
       }
     },
-    "active": "ObraSignal GTM: reconstruct exact current repository/BATON/PR/evidence truth and execute the highest-value safe milestone.",
-    "next": "Continue rotation through Customer Decision, Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger; revisit unresolved lanes only with provable source identity.",
+    "active": "ObraSignal Product Strategy: reconstruct exact current repository/BATON/PR truth and execute the highest-value repository-safe milestone.",
+    "next": "Continue rotation through Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger; then perform a fresh discovery pass for newly executable work.",
     "wait": [
+      "Customer Decision integration + Golden acceptance remains unresolved",
+      "Distinct ObraSignal GTM source/BATON identity remains UNKNOWN",
       "Global Market Entry real qualified cohort/WTP/channel evidence remains external",
-      "Global Market Entry production launch/outreach/spend/partnership authority not granted",
       "Customer Journey #761 Auth owner GREEN but integration handoff remains",
       "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
       "Customer Journey #764 Web purchase completion remains unresolved",
@@ -43,13 +49,8 @@
       "OS SIDE FACTORY and multiple business Factory canonical identities remain UNKNOWN",
       "Aviation real permissioned evidence and human/commercial proof",
       "Capacity external T3 commercial proof",
-      "LongLead and MachineRelease canonical sources UNKNOWN",
       "EU Cloud Switching external WTP/customer/payment/deployment evidence",
-      "ChangeLedger compliance/address/DGC/outbound gates",
-      "Recovery Radar and Sourcing Recovery canonical sources UNKNOWN",
       "merge/adoption of Factory Cloud PR #765",
-      "Industrial Claims outbound requires explicit authorization",
-      "ScopeLedger production endpoint/runtime verification",
       "production/deploy/secrets/provider/config/customer-data/source activation"
     ]
   },
