@@ -18,7 +18,8 @@ CLIENT_REQUIRED_COLUMNS = {
     "amount",
 }
 OPERATOR_REQUIRED_COLUMNS = CLIENT_REQUIRED_COLUMNS | {"verified"}
-SERVER_CONTROLLED_COLUMNS = {"verified", "due"}
+CLIENT_SERVER_CONTROLLED_COLUMNS = {"verified", "due"}
+OPERATOR_FORBIDDEN_COLUMNS = {"due"}
 
 
 @dataclass(frozen=True)
@@ -44,13 +45,6 @@ def _parse_bool(value: str) -> bool:
     raise ValueError("invalid boolean")
 
 
-def _parse_due(value: str) -> bool | None:
-    raw = (value or "").strip().lower()
-    if raw in {"", "unknown", "null", "none"}:
-        return None
-    return _parse_bool(raw)
-
-
 def _parse_ledger_csv(
     text: str,
     *,
@@ -73,20 +67,28 @@ def _parse_ledger_csv(
             rejected=True,
         )
 
-    if not operator_verified_truth:
-        supplied_truth = sorted(SERVER_CONTROLLED_COLUMNS & fields)
-        if supplied_truth:
-            return ImportResult(
-                records=(),
-                issues=(
-                    ImportIssue(
-                        row=1,
-                        code="SERVER_CONTROLLED_COLUMNS",
-                        detail=",".join(supplied_truth),
+    forbidden = (
+        OPERATOR_FORBIDDEN_COLUMNS
+        if operator_verified_truth
+        else CLIENT_SERVER_CONTROLLED_COLUMNS
+    )
+    supplied_forbidden = sorted(forbidden & fields)
+    if supplied_forbidden:
+        return ImportResult(
+            records=(),
+            issues=(
+                ImportIssue(
+                    row=1,
+                    code=(
+                        "OPERATOR_DUE_COLUMN_FORBIDDEN"
+                        if operator_verified_truth
+                        else "SERVER_CONTROLLED_COLUMNS"
                     ),
+                    detail=",".join(supplied_forbidden),
                 ),
-                rejected=True,
-            )
+            ),
+            rejected=True,
+        )
 
     records: list[LedgerRecord] = []
     issues: list[ImportIssue] = []
@@ -123,11 +125,7 @@ def _parse_ledger_csv(
                     if operator_verified_truth
                     else False
                 ),
-                due=(
-                    _parse_due(row.get("due") or "")
-                    if operator_verified_truth
-                    else None
-                ),
+                due=None,
             )
             if not all(
                 (record.record_id, record.customer_id, record.project_id, record.currency)
@@ -139,8 +137,6 @@ def _parse_ledger_csv(
                 ImportIssue(row=row_number, code="INVALID_ROW", detail=str(exc))
             )
 
-    # Tenant mismatch is a hard rejection: never silently create a partial
-    # cross-tenant dataset.
     hard_reject = any(issue.code == "TENANT_MISMATCH" for issue in issues)
     return ImportResult(
         records=() if hard_reject else tuple(records),
@@ -150,7 +146,7 @@ def _parse_ledger_csv(
 
 
 def parse_ledger_csv(text: str, *, expected_tenant_id: str) -> ImportResult:
-    """Parse a client CSV without trusting verification/due-state columns."""
+    """Parse client CSV without trusting verification or due-state columns."""
     return _parse_ledger_csv(
         text,
         expected_tenant_id=expected_tenant_id,
@@ -161,7 +157,11 @@ def parse_ledger_csv(text: str, *, expected_tenant_id: str) -> ImportResult:
 def parse_operator_verified_ledger_csv(
     text: str, *, expected_tenant_id: str
 ) -> ImportResult:
-    """Parse a CSV after the assisted operator has reviewed evidence truth."""
+    """Parse operator-reviewed evidence flags, but never import due as a boolean.
+
+    Invoice due-state must be derived later from verified due-date evidence and an
+    explicit `as_of` date through the assisted operator boundary.
+    """
     return _parse_ledger_csv(
         text,
         expected_tenant_id=expected_tenant_id,
