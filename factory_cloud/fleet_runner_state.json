@@ -6,82 +6,60 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "cursor": 0,
-  "last_factory_id": "complianceledger",
-  "last_run_at": "2026-08-29T19:44:30Z",
+  "last_factory_id": "eu-switching-evidence-pack",
+  "last_run_at": "2026-08-29T19:48:15Z",
   "last_material_change": {
-    "kind": "FULL_REGISTRY_ROTATION_COMPLETED_WITH_TWO_PRIORITY_REDS",
-    "factory_id": "complianceledger",
-    "summary": "One complete 33-Factory registry rotation was traversed without treating blockers as global stops. Late-lane verification found: Customer Decision candidate codex/customer-decision-intelligence-v1@b3c211d76707fce363bdba4c8970bda0cae25754 python/mobile SUCCESS; Product Strategy exact source identity not recovered; Data Analytics analytics/measurement-truth-registry@37b52f855b88a08e796375f717f3eff2187ed4ad with observed exact-head quality checks SUCCESS; Release Safety PR #350 release-safety/single-manual-eas-authority@2f772dbad537add44169c30e527627de64dbdeab python/mobile SUCCESS; Support Ops support/incident-operations-v1@3aacd6cf08bca752e3023bdef61855f99fb07771 has associated Quality and CodeQL workflow runs SUCCESS. EU Switching Evidence Pack PR #711 factory/eu-cloud-switching-migration-capital@60694599b42d705b22a5ceb4f51dda24b0636d42 is RED: two python checks SUCCESS but mobile FAILURE because Expo Doctor expects react-native 0.86.3 and found 0.86.2 (20/21 doctor checks passed). ComplianceLedger exact source/PR/code identity was not recovered and remains UNKNOWN. Separately, current Customer Journey PR #723@89ecc0bbeacad2f3a753b02db4cfcf2c3c2d5350 remains RED from exact job logs: 828 passed, 4 failed, 2 skipped; four legacy event-generation fixtures still expect score-only authority while current notification runtime correctly requires current account-scoped explicit relevance authority. No runtime weakening, merge, deploy, external sending, provider/config/secret/customer-data mutation occurred.",
+    "kind": "EVIDENCE_PACK_RED_REPAIRED_GREEN_CUSTOMER_JOURNEY_REPAIR_IN_CI",
+    "factory_id": "eu-switching-evidence-pack",
+    "summary": "After completing a full 33-Factory registry rotation, priority RED repair continued. EU Switching Evidence Pack parent PR #711@60694599b42d705b22a5ceb4f51dda24b0636d42 was RED only because Expo Doctor required react-native 0.86.3 while the candidate declared 0.86.2. A bounded successor branch cloud-switching/evidence-pack-rn-compat-repair-20260829 changed only mobile/package.json from 0.86.2 to 0.86.3 and draft PR #818 was retargeted to the exact parent branch, yielding 1 commit / 1 file / +1 -1. Exact successor HEAD f9ffcf82f2eebbfdeb400de76f562cb185ec5adf now has mobile SUCCESS and two python SUCCESS checks. No merge/deploy/outreach occurred. Customer Journey parent #723 remains RED, but repair successor #819 now exists from exact RED HEAD; it changes only four legacy notification fixtures to seed explicit current tenant/account relevance authority and preserves score-only fail-closed runtime truth. First #819 CI reduced the parent 4 failures to one irrelevant event-order assertion (831 passed, 1 failed, 2 skipped); that assertion was repaired to compare the exact event set instead of ordering. New exact HEAD 52eefb70afd82f8646fb940591058dad7789b211 is currently under CI and is not yet classified GREEN.",
     "evidence": {
-      "customer_journey_red": {
+      "eu_switching_evidence_pack_parent": {
+        "pr": 711,
+        "head": "60694599b42d705b22a5ceb4f51dda24b0636d42",
+        "classification": "RED_PARENT_UNCHANGED"
+      },
+      "eu_switching_evidence_pack_repair": {
+        "pr": 818,
+        "branch": "cloud-switching/evidence-pack-rn-compat-repair-20260829",
+        "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
+        "diff": "1 commit / 1 file / +1 -1",
+        "mobile": "SUCCESS",
+        "python": "SUCCESS",
+        "python_secondary": "SUCCESS",
+        "classification": "GREEN_DRAFT_SUCCESSOR_NOT_CANONICAL"
+      },
+      "customer_journey_parent": {
         "pr": 723,
         "head": "89ecc0bbeacad2f3a753b02db4cfcf2c3c2d5350",
         "python": "FAILURE",
-        "mobile": "SUCCESS",
-        "npm_resolution": "SUCCESS",
-        "pytest": "828 passed, 4 failed, 2 skipped",
-        "classification": "RED_LEGACY_FIXTURES_CONFLICT_WITH_CURRENT_EVENT_AUTHORITY"
+        "failing_before": "828 passed, 4 failed, 2 skipped",
+        "classification": "RED_PARENT_UNCHANGED"
       },
-      "customer_decision": {
-        "branch": "codex/customer-decision-intelligence-v1",
-        "head": "b3c211d76707fce363bdba4c8970bda0cae25754",
-        "python": "SUCCESS",
-        "mobile": "SUCCESS",
-        "classification": "GREEN_CANDIDATE_NOT_ADOPTION_PROOF"
-      },
-      "data_analytics": {
-        "branch": "analytics/measurement-truth-registry",
-        "head": "37b52f855b88a08e796375f717f3eff2187ed4ad",
-        "observed_checks": "SUCCESS",
-        "classification": "GREEN_CANDIDATE_NOT_ADOPTION_PROOF"
-      },
-      "release_safety": {
-        "pr": 350,
-        "branch": "release-safety/single-manual-eas-authority",
-        "head": "2f772dbad537add44169c30e527627de64dbdeab",
-        "python": "SUCCESS",
-        "mobile": "SUCCESS",
-        "classification": "GREEN_CANDIDATE_NO_RELEASE_AUTHORITY"
-      },
-      "support_ops": {
-        "branch": "support/incident-operations-v1",
-        "head": "3aacd6cf08bca752e3023bdef61855f99fb07771",
-        "workflow_runs": "QUALITY_AND_CODEQL_SUCCESS",
-        "classification": "GREEN_CANDIDATE_NOT_CANONICAL"
-      },
-      "eu_switching_evidence_pack": {
-        "pr": 711,
-        "branch": "factory/eu-cloud-switching-migration-capital",
-        "head": "60694599b42d705b22a5ceb4f51dda24b0636d42",
-        "python_checks": "SUCCESS,SUCCESS",
-        "mobile": "FAILURE",
-        "expo_doctor": "20/21 PASS; react-native expected 0.86.3 found 0.86.2",
-        "classification": "RED_DEPENDENCY_GRAPH_MISMATCH"
-      },
-      "complianceledger": {
-        "matching_branch": 0,
-        "matching_pr": 0,
-        "matching_code": 0,
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
+      "customer_journey_repair": {
+        "pr": 819,
+        "branch": "customer-journey/notification-fixture-authority-repair-20260829",
+        "head": "52eefb70afd82f8646fb940591058dad7789b211",
+        "files": ["test_alert_feed.py", "test_deduplication.py", "tests/test_effective_actionability.py", "tests/test_lifecycle_presentation.py"],
+        "first_repair_head_result": "831 passed, 1 failed, 2 skipped; remaining failure was event ordering only",
+        "current_ci": "IN_PROGRESS",
+        "classification": "REPAIR_ACTIVE_CI_PENDING"
       },
       "factory_cloud_hardening": {
         "verified_commit": "1958c16d979658057bb37e491eaf4a811edbd19f",
         "python": "SUCCESS",
-        "mobile": "SUCCESS",
-        "change": "all-blocked fleet retries rotating cursor instead of global stop"
+        "mobile": "SUCCESS"
       }
     },
-    "active": "Priority RED repair rotation: first re-check Customer Journey PR #723 for a successor exact HEAD; if still RED and no safe owner repair exists, preserve it and move immediately to EU Switching Evidence Pack PR #711 dependency-graph repair/successor verification. A RED or source blocker never stops the fleet.",
-    "next": "After the two RED gates, resume cursor 0 and continue highest-value executable Factory work; retry blocked lanes when new source truth appears because the fleet runner now supports all-blocked retry.",
+    "active": "Customer Journey #819 exact-head CI at 52eefb70afd82f8646fb940591058dad7789b211. If any check fails, inspect exact logs, repair the remaining bounded defect without weakening runtime truth, rerun through a new exact HEAD, and continue. If GREEN, persist successor classification and resume cursor 0 fleet work.",
+    "next": "Resume full fleet from Factory Cloud/ObraSignal after Customer Journey repair verification, prioritizing any new RED gate over UNKNOWN source lanes. Never treat a Factory blocker as fleet stop.",
     "wait": [
-      "Customer Journey PR #723 exact HEAD is RED: four legacy score-only event fixtures require safe alignment with explicit current account relevance authority",
-      "EU Switching Evidence Pack PR #711 exact HEAD is RED: react-native 0.86.2 vs Expo-required 0.86.3",
+      "Customer Journey #819 exact-head CI is currently in progress",
+      "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
+      "Customer Journey #775 password-recovery candidate remains noncanonical and native provider/deep-link acceptance unproven",
       "ComplianceLedger canonical/source identity remains UNKNOWN",
       "Product Strategy exact source identity remains UNKNOWN",
       "GTM repository source/revenue/WTP evidence was not recovered; no revenue claim",
       "OS SIDE FACTORY source identity UNKNOWN",
-      "Customer Journey password-recovery #775 candidate remains noncanonical and native provider/deep-link acceptance unproven",
-      "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
       "ScopeLedger production lineage remains unproven",
       "Aviation candidate lacks exact-head CI",
       "production/deploy/secrets/provider/config/customer-data/source activation",
@@ -105,9 +83,8 @@
     {"factory_id":"private-freight-orchestration","blocker":"No exact source/BATON identity or private-freight/* branch recovered.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"No exact source/BATON identity or autonomous-revenue/* branch recovered.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity or data-runner/* branch recovered.","global_stop":false},
-    {"factory_id":"os-side-factory","blocker":"No exact source/BATON identity recovered; similarly named recovery branch is not sufficient identity evidence.","global_stop":false},
-    {"factory_id":"obrasignal-customer-journey","blocker":"PR #723 exact HEAD 89ecc0b python FAILURE: four legacy event fixtures conflict with explicit current account-relevance authority.","global_stop":false},
-    {"factory_id":"eu-switching-evidence-pack","blocker":"PR #711 exact HEAD 6069459 mobile FAILURE: Expo requires react-native 0.86.3 but candidate resolves 0.86.2.","global_stop":false},
+    {"factory_id":"os-side-factory","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"obrasignal-customer-journey","blocker":"Parent PR #723 remains RED; bounded repair successor #819 is active under exact-head CI.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"No exact source/BATON/branch/PR/code identity recovered.","global_stop":false}
   ],
   "rules": {
