@@ -16,6 +16,14 @@ def _summary(conn, account_id):
     return evaluation_summary(conn, get_account(conn, account_id))
 
 
+def _relevant(decision="QUALIFIED"):
+    return {
+        "decision": decision,
+        "relevant_shortlist_eligible": True,
+        "relevance": {"state": "RELEVANT", "rule_version": "relevance-v1"},
+    }
+
+
 def test_real_funnel_path_invokes_customer_evaluation_bridge(monkeypatch):
     evaluation = {
         "decision": "QUALIFIED",
@@ -31,6 +39,8 @@ def test_real_funnel_path_invokes_customer_evaluation_bridge(monkeypatch):
         "capability_evidence": {},
         "cpv_evidence": {},
         "hard_capability_blockers": [],
+        "relevance": {"state": "RELEVANT", "rule_version": "relevance-v1"},
+        "relevant_shortlist_eligible": True,
         "explanation": {},
     }
     calls = []
@@ -57,7 +67,7 @@ def test_real_funnel_path_invokes_customer_evaluation_bridge(monkeypatch):
     assert calls[0][2] == "tenant-a"
 
 
-def test_usable_market_data_and_relevant_shortlist_activate_same_tenant_only():
+def test_usable_market_data_and_explicit_relevant_shortlist_activate_same_tenant_only():
     conn = _db()
     ensure_account(conn, "tenant-a")
     ensure_account(conn, "tenant-b")
@@ -67,7 +77,7 @@ def test_usable_market_data_and_relevant_shortlist_activate_same_tenant_only():
     emitted = funnel_integration._record_customer_evaluation_events(
         conn,
         {"source": "TED", "external_id": "notice-1"},
-        {"decision": "QUALIFIED"},
+        _relevant(),
         "tenant-a",
     )
 
@@ -89,6 +99,25 @@ def test_usable_market_data_and_relevant_shortlist_activate_same_tenant_only():
     assert tenant_b["activated_at"] is None
 
 
+def test_review_or_qualified_label_without_explicit_relevance_cannot_activate_shortlist():
+    conn = _db()
+    ensure_account(conn, "tenant-a")
+    record_evaluation_event(conn, "tenant-a", "profile_ready")
+
+    for decision in ("REVIEW", "QUALIFIED"):
+        assert funnel_integration._record_customer_evaluation_events(
+            conn,
+            {"source": "TED", "external_id": f"notice-{decision}"},
+            {"decision": decision, "relevant_shortlist_eligible": False, "relevance": {"state": "UNKNOWN", "rule_version": "relevance-v1"}},
+            "tenant-a",
+        ) is True
+
+    summary = _summary(conn, "tenant-a")
+    assert summary["activation_requirements"]["market_data_available"] is True
+    assert summary["activation_requirements"]["first_relevant_shortlist_generated"] is False
+    assert summary["activated_at"] is None
+
+
 def test_empty_or_unknown_market_identity_cannot_satisfy_activation_requirements():
     conn = _db()
     ensure_account(conn, "tenant-a")
@@ -101,7 +130,7 @@ def test_empty_or_unknown_market_identity_cannot_satisfy_activation_requirements
         {"source": "TED", "external_id": ""},
     ):
         assert funnel_integration._record_customer_evaluation_events(
-            conn, item, {"decision": "QUALIFIED"}, "tenant-a"
+            conn, item, _relevant(), "tenant-a"
         ) is False
 
     summary = _summary(conn, "tenant-a")
@@ -120,7 +149,7 @@ def test_retry_after_restart_never_resets_or_extends_evaluation_clock(tmp_path):
     funnel_integration._record_customer_evaluation_events(
         conn,
         {"source": "TED", "external_id": "notice-1"},
-        {"decision": "REVIEW"},
+        _relevant("REVIEW"),
         "tenant-a",
     )
     first = _summary(conn, "tenant-a")
@@ -132,13 +161,13 @@ def test_retry_after_restart_never_resets_or_extends_evaluation_clock(tmp_path):
     funnel_integration._record_customer_evaluation_events(
         restarted,
         {"source": "TED", "external_id": "notice-1"},
-        {"decision": "QUALIFIED"},
+        _relevant("QUALIFIED"),
         "tenant-a",
     )
     funnel_integration._record_customer_evaluation_events(
         restarted,
         {"source": "TED", "external_id": "notice-2"},
-        {"decision": "REVIEW"},
+        _relevant("REVIEW"),
         "tenant-a",
     )
     after_retry = _summary(restarted, "tenant-a")
