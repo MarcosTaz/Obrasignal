@@ -20,6 +20,10 @@ class NotFoundError(LookupError):
     pass
 
 
+class ConflictError(ValueError):
+    pass
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -28,7 +32,16 @@ def _id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex}"
 
 
+def _required_text(value: str, field: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError(f"{field} is required")
+    return text
+
+
 def sha256_bytes(content: bytes) -> str:
+    if not isinstance(content, bytes):
+        raise TypeError("content must be bytes")
     return hashlib.sha256(content).hexdigest()
 
 
@@ -62,26 +75,27 @@ class RoyaltyRepository:
     def _audit(self, org_id: str, actor_id: str, event_type: str, entity_type: str, entity_id: str, payload: Optional[dict[str, Any]] = None) -> None:
         self.conn.execute(
             "INSERT INTO audit_events(id, organization_id, actor_id, event_type, entity_type, entity_id, event_at, payload_json) VALUES(?,?,?,?,?,?,?,?)",
-            (_id("evt"), org_id, actor_id, event_type, entity_type, entity_id, _now(), json.dumps(payload or {}, sort_keys=True)),
+            (_id("evt"), org_id, _required_text(actor_id, "actor_id"), event_type, entity_type, entity_id, _now(), json.dumps(payload or {}, sort_keys=True)),
         )
 
     def ensure_organization(self, org_id: str, name: str, actor_id: str = "system") -> dict[str, Any]:
-        if not org_id or not name.strip():
-            raise ValueError("organization id and name are required")
+        org_id = _required_text(org_id, "organization_id")
+        name = _required_text(name, "organization name")
         row = self.conn.execute("SELECT * FROM organizations WHERE id=?", (org_id,)).fetchone()
         if row:
             if row["name"] != name:
                 raise ScopeError("organization identifier already exists with a different name")
             return dict(row)
-        self.conn.execute("INSERT INTO organizations(id, name, created_at) VALUES(?,?,?)", (org_id, name.strip(), _now()))
+        self.conn.execute("INSERT INTO organizations(id, name, created_at) VALUES(?,?,?)", (org_id, name, _now()))
         self._audit(org_id, actor_id, "CREATE", "Organization", org_id)
         self.conn.commit()
         return dict(self.conn.execute("SELECT * FROM organizations WHERE id=?", (org_id,)).fetchone())
 
     def create_licensor(self, org_id: str, legal_name: str, actor_id: str) -> dict[str, Any]:
         self._require_org(org_id)
+        legal_name = _required_text(legal_name, "legal_name")
         licensor_id = _id("licensor")
-        self.conn.execute("INSERT INTO licensors(id, organization_id, legal_name) VALUES(?,?,?)", (licensor_id, org_id, legal_name.strip()))
+        self.conn.execute("INSERT INTO licensors(id, organization_id, legal_name) VALUES(?,?,?)", (licensor_id, org_id, legal_name))
         self._audit(org_id, actor_id, "CREATE", "Licensor", licensor_id)
         self.conn.commit()
         return self.get_licensor(org_id, licensor_id)
@@ -94,8 +108,9 @@ class RoyaltyRepository:
 
     def create_licensee(self, org_id: str, legal_name: str, actor_id: str) -> dict[str, Any]:
         self._require_org(org_id)
+        legal_name = _required_text(legal_name, "legal_name")
         licensee_id = _id("licensee")
-        self.conn.execute("INSERT INTO licensees(id, organization_id, legal_name) VALUES(?,?,?)", (licensee_id, org_id, legal_name.strip()))
+        self.conn.execute("INSERT INTO licensees(id, organization_id, legal_name) VALUES(?,?,?)", (licensee_id, org_id, legal_name))
         self._audit(org_id, actor_id, "CREATE", "Licensee", licensee_id)
         self.conn.commit()
         return self.get_licensee(org_id, licensee_id)
@@ -109,10 +124,11 @@ class RoyaltyRepository:
     def create_agreement(self, org_id: str, licensor_id: str, licensee_id: str, title: str, actor_id: str, governing_law: Optional[str] = None) -> dict[str, Any]:
         self.get_licensor(org_id, licensor_id)
         self.get_licensee(org_id, licensee_id)
+        title = _required_text(title, "title")
         agreement_id = _id("agreement")
         self.conn.execute(
             "INSERT INTO agreements(id, licensor_id, licensee_id, title, governing_law, status) VALUES(?,?,?,?,?, 'ACTIVE')",
-            (agreement_id, licensor_id, licensee_id, title.strip(), governing_law),
+            (agreement_id, licensor_id, licensee_id, title, governing_law),
         )
         self._audit(org_id, actor_id, "CREATE", "Agreement", agreement_id)
         self.conn.commit()
@@ -132,13 +148,18 @@ class RoyaltyRepository:
 
     def add_agreement_version(self, org_id: str, agreement_id: str, version_label: str, content: bytes, actor_id: str, effective_from: Optional[str] = None, effective_to: Optional[str] = None, source_uri: Optional[str] = None) -> dict[str, Any]:
         self.get_agreement(org_id, agreement_id)
+        version_label = _required_text(version_label, "version_label")
         digest = sha256_bytes(content)
         version_id = _id("version")
-        self.conn.execute(
-            """INSERT INTO agreement_versions(id, agreement_id, version_label, effective_from, effective_to, document_sha256, source_uri)
-               VALUES(?,?,?,?,?,?,?)""",
-            (version_id, agreement_id, version_label.strip(), effective_from, effective_to, digest, source_uri),
-        )
+        try:
+            self.conn.execute(
+                """INSERT INTO agreement_versions(id, agreement_id, version_label, effective_from, effective_to, document_sha256, source_uri)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (version_id, agreement_id, version_label, effective_from, effective_to, digest, source_uri),
+            )
+        except sqlite3.IntegrityError as exc:
+            self.conn.rollback()
+            raise ConflictError("agreement version label already exists or violates integrity constraints") from exc
         self._audit(org_id, actor_id, "CREATE", "AgreementVersion", version_id, {"agreement_id": agreement_id, "sha256": digest})
         self.conn.commit()
         return self.get_agreement_version(org_id, version_id)
@@ -158,6 +179,7 @@ class RoyaltyRepository:
 
     def add_evidence(self, org_id: str, evidence_type: str, content: bytes, actor_id: str, source_uri: Optional[str] = None, metadata: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         self._require_org(org_id)
+        evidence_type = _required_text(evidence_type, "evidence_type")
         evidence_id = _id("evidence")
         digest = sha256_bytes(content)
         self.conn.execute(
@@ -182,5 +204,6 @@ class RoyaltyRepository:
         return [dict(row) for row in self.conn.execute("SELECT * FROM audit_events WHERE organization_id=? ORDER BY event_at, id", (org_id,)).fetchall()]
 
     def _require_org(self, org_id: str) -> None:
+        org_id = _required_text(org_id, "organization_id")
         if not self.conn.execute("SELECT 1 FROM organizations WHERE id=?", (org_id,)).fetchone():
             raise NotFoundError("organization not found")
