@@ -6,21 +6,15 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "cursor": 0,
-  "last_factory_id": "eu-switching-evidence-pack",
-  "last_run_at": "2026-08-29T19:48:15Z",
+  "last_factory_id": "obrasignal-customer-journey",
+  "last_run_at": "2026-08-29T19:49:00Z",
   "last_material_change": {
-    "kind": "EVIDENCE_PACK_RED_REPAIRED_GREEN_CUSTOMER_JOURNEY_REPAIR_IN_CI",
-    "factory_id": "eu-switching-evidence-pack",
-    "summary": "After completing a full 33-Factory registry rotation, priority RED repair continued. EU Switching Evidence Pack parent PR #711@60694599b42d705b22a5ceb4f51dda24b0636d42 was RED only because Expo Doctor required react-native 0.86.3 while the candidate declared 0.86.2. A bounded successor branch cloud-switching/evidence-pack-rn-compat-repair-20260829 changed only mobile/package.json from 0.86.2 to 0.86.3 and draft PR #818 was retargeted to the exact parent branch, yielding 1 commit / 1 file / +1 -1. Exact successor HEAD f9ffcf82f2eebbfdeb400de76f562cb185ec5adf now has mobile SUCCESS and two python SUCCESS checks. No merge/deploy/outreach occurred. Customer Journey parent #723 remains RED, but repair successor #819 now exists from exact RED HEAD; it changes only four legacy notification fixtures to seed explicit current tenant/account relevance authority and preserves score-only fail-closed runtime truth. First #819 CI reduced the parent 4 failures to one irrelevant event-order assertion (831 passed, 1 failed, 2 skipped); that assertion was repaired to compare the exact event set instead of ordering. New exact HEAD 52eefb70afd82f8646fb940591058dad7789b211 is currently under CI and is not yet classified GREEN.",
+    "kind": "BOTH_PRIORITY_REDS_REPAIRED_IN_GREEN_DRAFT_SUCCESSORS",
+    "factory_id": "obrasignal-customer-journey",
+    "summary": "The full 33-Factory rotation found two exact-head RED gates and both now have bounded GREEN draft successors. EU Switching Evidence Pack parent #711@60694599b42d705b22a5ceb4f51dda24b0636d42 remains untouched/RED, while successor #818@f9ffcf82f2eebbfdeb400de76f562cb185ec5adf changes only react-native 0.86.2 to 0.86.3 and has mobile plus two python checks SUCCESS. Customer Journey parent #723@89ecc0bbeacad2f3a753b02db4cfcf2c3c2d5350 remains untouched/RED, while successor #819@52eefb70afd82f8646fb940591058dad7789b211 changes only four legacy test fixtures/order expectations, preserves explicit account-scoped relevance authority in runtime, and has python and mobile SUCCESS. No merge, deploy, outreach, production, provider, config, secrets, payments or customer-data mutation occurred.",
     "evidence": {
-      "eu_switching_evidence_pack_parent": {
-        "pr": 711,
-        "head": "60694599b42d705b22a5ceb4f51dda24b0636d42",
-        "classification": "RED_PARENT_UNCHANGED"
-      },
       "eu_switching_evidence_pack_repair": {
         "pr": 818,
-        "branch": "cloud-switching/evidence-pack-rn-compat-repair-20260829",
         "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
         "diff": "1 commit / 1 file / +1 -1",
         "mobile": "SUCCESS",
@@ -28,38 +22,29 @@
         "python_secondary": "SUCCESS",
         "classification": "GREEN_DRAFT_SUCCESSOR_NOT_CANONICAL"
       },
-      "customer_journey_parent": {
-        "pr": 723,
-        "head": "89ecc0bbeacad2f3a753b02db4cfcf2c3c2d5350",
-        "python": "FAILURE",
-        "failing_before": "828 passed, 4 failed, 2 skipped",
-        "classification": "RED_PARENT_UNCHANGED"
-      },
       "customer_journey_repair": {
         "pr": 819,
-        "branch": "customer-journey/notification-fixture-authority-repair-20260829",
         "head": "52eefb70afd82f8646fb940591058dad7789b211",
-        "files": ["test_alert_feed.py", "test_deduplication.py", "tests/test_effective_actionability.py", "tests/test_lifecycle_presentation.py"],
-        "first_repair_head_result": "831 passed, 1 failed, 2 skipped; remaining failure was event ordering only",
-        "current_ci": "IN_PROGRESS",
-        "classification": "REPAIR_ACTIVE_CI_PENDING"
+        "python": "SUCCESS",
+        "mobile": "SUCCESS",
+        "classification": "GREEN_DRAFT_SUCCESSOR_NOT_CANONICAL"
       },
       "factory_cloud_hardening": {
         "verified_commit": "1958c16d979658057bb37e491eaf4a811edbd19f",
         "python": "SUCCESS",
-        "mobile": "SUCCESS"
+        "mobile": "SUCCESS",
+        "classification": "BLOCKER_RETRY_HARDENING_GREEN"
       }
     },
-    "active": "Customer Journey #819 exact-head CI at 52eefb70afd82f8646fb940591058dad7789b211. If any check fails, inspect exact logs, repair the remaining bounded defect without weakening runtime truth, rerun through a new exact HEAD, and continue. If GREEN, persist successor classification and resume cursor 0 fleet work.",
-    "next": "Resume full fleet from Factory Cloud/ObraSignal after Customer Journey repair verification, prioritizing any new RED gate over UNKNOWN source lanes. Never treat a Factory blocker as fleet stop.",
+    "active": "Resume cursor 0. Re-verify Factory Cloud exact current HEAD and ObraSignal highest-value current RED/unverified gate; continue through any blocker rather than stopping.",
+    "next": "Prioritize any newly observed RED exact-source gate. Retry source-identity-blocked Factories only when new trustworthy repository truth appears. Do not merge or mutate production.",
     "wait": [
-      "Customer Journey #819 exact-head CI is currently in progress",
       "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
-      "Customer Journey #775 password-recovery candidate remains noncanonical and native provider/deep-link acceptance unproven",
+      "Customer Journey #775 password-recovery candidate remains noncanonical and real native provider/deep-link acceptance remains external",
       "ComplianceLedger canonical/source identity remains UNKNOWN",
       "Product Strategy exact source identity remains UNKNOWN",
       "GTM repository source/revenue/WTP evidence was not recovered; no revenue claim",
-      "OS SIDE FACTORY source identity UNKNOWN",
+      "OS SIDE FACTORY source identity remains UNKNOWN",
       "ScopeLedger production lineage remains unproven",
       "Aviation candidate lacks exact-head CI",
       "production/deploy/secrets/provider/config/customer-data/source activation",
@@ -84,7 +69,6 @@
     {"factory_id":"autonomous-revenue-recovery","blocker":"No exact source/BATON identity or autonomous-revenue/* branch recovered.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity or data-runner/* branch recovered.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"No exact source/BATON identity recovered.","global_stop":false},
-    {"factory_id":"obrasignal-customer-journey","blocker":"Parent PR #723 remains RED; bounded repair successor #819 is active under exact-head CI.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"No exact source/BATON/branch/PR/code identity recovered.","global_stop":false}
   ],
   "rules": {
