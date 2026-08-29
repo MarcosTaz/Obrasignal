@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
@@ -19,6 +19,15 @@
     "individual_document_content_limit_bytes": 1000000,
     "recovered_or_closed_outcome_requires_document_content": true,
     "outcome_document_and_state_persist_atomically": true
+  },
+  "input_bounds": {
+    "case_and_outcome_reference_max_chars": 512,
+    "finding_id_max_chars": 2048,
+    "actor_id_max_chars": 256,
+    "review_reason_max_chars": 4000,
+    "missing_evidence_max_items": 100,
+    "missing_evidence_key_max_chars": 128,
+    "finding_queue_max_items": 100
   },
   "economic_lineage": {
     "currency_required_for_review_ready": true,
@@ -55,6 +64,11 @@
     "recovery_currency_mismatch",
     "missing_outcome_documentary_evidence",
     "outcome_evidence_collision",
+    "oversized_case_or_outcome_reference",
+    "oversized_finding_identifier",
+    "oversized_actor_identifier",
+    "oversized_review_reason",
+    "oversized_missing_evidence_collection",
     "negative_economic_input",
     "non_finite_economic_input",
     "mitigation_exceeds_gross_cost",
@@ -67,7 +81,8 @@
     "missing_required_role",
     "self_review",
     "unsupported_review_transition",
-    "partial_case_persistence"
+    "partial_case_persistence",
+    "partial_case_metadata_persistence"
   ],
   "operator_console": {
     "status": "REPOSITORY_IMPLEMENTED",
@@ -92,11 +107,13 @@
     "documentary_content_gate_green",
     "currency_lineage_green",
     "outcome_evidence_lineage_green",
+    "bounded_input_surface_green",
     "tenant_isolation_green",
     "role_authorization_green",
     "four_eyes_green",
     "operation_audit_green",
     "atomic_persistence_green",
+    "case_metadata_atomicity_green",
     "backup_restart_green",
     "tenant_scoped_role_queue_green",
     "operator_console_green",
