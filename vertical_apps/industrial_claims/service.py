@@ -34,6 +34,7 @@ ALLOWED_CLAIM_FAMILIES = {
     "MITIGATION_COST",
     "OTHER_DOCUMENTED_PROGRAM_EXPOSURE",
 }
+NOTICE_DEADLINE_EVIDENCE = "notice_deadline_or_verified_none"
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class IndustrialClaimResult:
     fingerprint: RecoveryFingerprint
     calculation: CalculationRecord
     deadline: DeadlineWindow
+    notice_deadline_state: str
     finding: FindingRecord
     audit: AuditEvent
     notification: NotificationEvent
@@ -176,6 +178,7 @@ class IndustrialClaimsService:
         prior_payment: str = "0",
         other_mitigation: str = "0",
         notice_due: date | None = None,
+        notice_deadline_not_applicable: bool = False,
         missing_evidence: tuple[str, ...] = (),
     ) -> IndustrialClaimResult:
         context = TenantContext(tenant_id=tenant_id, actor_id=actor_id, roles=("analyst",))
@@ -186,6 +189,19 @@ class IndustrialClaimsService:
         refs = (customer_ref, program_ref, event_ref, commercial_basis_ref, cost_evidence_ref)
         if any(not str(value).strip() for value in refs):
             raise AssuranceKernelError("customer, program, event, commercial basis and cost evidence are required")
+        if not isinstance(notice_deadline_not_applicable, bool):
+            raise AssuranceKernelError("notice_deadline_not_applicable must be boolean")
+        if notice_due is not None and notice_deadline_not_applicable:
+            raise AssuranceKernelError("notice due date and verified no-deadline state are mutually exclusive")
+
+        effective_missing = {str(item).strip() for item in missing_evidence if str(item).strip()}
+        if notice_due is not None:
+            notice_deadline_state = "VERIFIED_DATE"
+        elif notice_deadline_not_applicable:
+            notice_deadline_state = "VERIFIED_NONE"
+        else:
+            notice_deadline_state = "UNKNOWN"
+            effective_missing.add(NOTICE_DEADLINE_EVIDENCE)
 
         try:
             amounts = {
@@ -236,7 +252,7 @@ class IndustrialClaimsService:
             domain=self.vertical,
             source_evidence_ids=tuple(item.evidence_id for item in evidence),
             rule_ref="documented-commercial-basis-v1",
-            confidence="SUPPORTED" if not missing_evidence else "PARTIAL",
+            confidence="SUPPORTED" if not effective_missing else "PARTIAL",
         )
         fingerprint = RecoveryFingerprint.create(
             tenant_id=tenant_id,
@@ -292,7 +308,8 @@ class IndustrialClaimsService:
                 "calculation_hash": calculation.reproducibility_hash,
                 "entitlement_basis_hash": entitlement.basis_hash,
                 "recovery_fingerprint": fingerprint.fingerprint,
-                "missing_evidence": sorted(set(missing_evidence)),
+                "notice_deadline_state": notice_deadline_state,
+                "missing_evidence": sorted(effective_missing),
             },
         )
         notification = NotificationEvent.create(
@@ -300,7 +317,12 @@ class IndustrialClaimsService:
             tenant_id=tenant_id,
             event_type="finding_ready" if state == "READY_FOR_REVIEW" else "finding_unresolved",
             subject_ref=finding.finding_id,
-            payload={"vertical": self.vertical, "claim_family": family, "state": state},
+            payload={
+                "vertical": self.vertical,
+                "claim_family": family,
+                "state": state,
+                "notice_deadline_state": notice_deadline_state,
+            },
         )
 
         is_new = self.index.persist_case_index(entitlement, fingerprint)
@@ -330,10 +352,11 @@ class IndustrialClaimsService:
             fingerprint=fingerprint,
             calculation=calculation,
             deadline=deadline,
+            notice_deadline_state=notice_deadline_state,
             finding=finding,
             audit=audit,
             notification=notification,
-            missing_evidence=tuple(sorted(set(missing_evidence))),
+            missing_evidence=tuple(sorted(effective_missing)),
             is_new_recovery=is_new,
         )
 
