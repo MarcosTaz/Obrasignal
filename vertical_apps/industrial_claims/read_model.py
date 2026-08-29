@@ -195,7 +195,7 @@ class IndustrialClaimsReadModel:
             "finding": {"state": str(finding["state"]), "reviewer": finding["reviewer"], "decision_reason": finding["decision_reason"]},
             "calculation": {"formula_id": str(calculation["formula_id"]), "formula_version": str(calculation["formula_version"]), "net_potential": str(calculation["output_value"]), "currency": calculation["output_unit"], "reproducibility_hash": str(calculation["reproducibility_hash"])},
             "entitlement": {"rule_ref": str(entitlement["rule_ref"]), "confidence": str(entitlement["confidence"]), "basis_hash": str(entitlement["basis_hash"]), "recoverability_established": False},
-            "notice": {"truth_state": metadata.notice_deadline_state, "due_date": str(deadline["due_date"]) if metadata.notice_deadline_state == "VERIFIED_DATE" else None},
+            "notice": {"truth_state": metadata.notice_deadline_state, "due_date": str(deadline["due_date"]) if metadata.notice_deadline_state == "DECLARED_DATE_FOR_REVIEW" else None},
             "evidence_index": evidence_index,
             "outcomes": outcomes,
             "audit_events": audits,
