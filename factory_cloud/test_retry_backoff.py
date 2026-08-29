@@ -21,6 +21,13 @@ class ErrorAdapter:
         )
 
 
+def _obrasignal_registry():
+    registry = load_registry()
+    isolated = dict(registry)
+    isolated["applications"] = [app for app in registry["applications"] if app["app_id"] == "obrasignal"]
+    return isolated
+
+
 class RetryBackoffTests(unittest.TestCase):
     @staticmethod
     def _obrasignal_decision(cloud):
@@ -31,7 +38,7 @@ class RetryBackoffTests(unittest.TestCase):
             store = StateStore(Path(tmp) / "cloud.sqlite3")
             queue = DurableWorkQueue(store)
             cloud = PersistentFactoryOrchestrator(
-                load_registry(),
+                _obrasignal_registry(),
                 store,
                 AdapterRegistry({"obrasignal": QueuedAppAdapter(queue)}),
             )
@@ -46,7 +53,7 @@ class RetryBackoffTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "cloud.sqlite3"
             store = StateStore(path)
-            registry = load_registry()
+            registry = _obrasignal_registry()
             cloud = PersistentFactoryOrchestrator(
                 registry,
                 store,
@@ -74,7 +81,7 @@ class RetryBackoffTests(unittest.TestCase):
     def test_retry_gate_is_task_scoped_and_cannot_block_a_new_active_task(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = StateStore(Path(tmp) / "cloud.sqlite3")
-            registry = load_registry()
+            registry = _obrasignal_registry()
             cloud = PersistentFactoryOrchestrator(
                 registry,
                 store,
@@ -94,7 +101,7 @@ class RetryBackoffTests(unittest.TestCase):
     def test_malformed_same_task_retry_timestamp_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = StateStore(Path(tmp) / "cloud.sqlite3")
-            cloud = PersistentFactoryOrchestrator(load_registry(), store)
+            cloud = PersistentFactoryOrchestrator(_obrasignal_registry(), store)
             task = store.get_app("obrasignal")["active"]
             store.checkpoint(
                 "obrasignal",
