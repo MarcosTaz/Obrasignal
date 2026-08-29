@@ -59,7 +59,7 @@ def main() -> int:
             "status": "BLOCKED",
             "evidence": {"task_state": "NOT_ALLOWLISTED", "evidence_codes": ["RECOVERY_AGENT_SCOPE_REJECTED"]},
             "next_active": task,
-            "blockers": ["recovery_vertical_tests_failed" if False else "recovery_agent_task_not_allowlisted"],
+            "blockers": ["recovery_agent_task_not_allowlisted"],
             "resume_at": task,
         }))
         return 0
