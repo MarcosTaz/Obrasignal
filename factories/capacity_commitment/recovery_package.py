@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from .engine import RecoveryCase, RecoveryResult, RecoverabilityState
+from .engine import RecoveryCase, RecoveryResult, RecoverabilityState, evaluate_recoverability
 
 
 @dataclass(frozen=True)
@@ -60,6 +60,8 @@ def build_recovery_package(
 
     if result.case_id != case.case_id:
         raise ValueError("result does not belong to case")
+    if result != evaluate_recoverability(case):
+        raise ValueError("result does not match current case evaluation")
 
     state = result.recoverability_state
     positive_position = state is RecoverabilityState.RECOVERABLE
