@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
+const billingGate = fs.readFileSync(new URL('./components/BillingGate.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
@@ -29,6 +30,8 @@ const crossFileChecks = [
   ['customer cache/profile/settings derive account-scoped keys', /function scopedStorageKey\(baseKey, accountId = activeAccountScope\)[\s\S]*encodeURIComponent\(scope\)/, storage],
   ['storage rejects writes without authenticated account scope', /Promise\.reject\(new Error\('account_scope_required'\)\)/, storage],
   ['storage rechecks scope after asynchronous read', /return activeAccountScope === scope \? value : fallback/, storage],
+  ['expired billing gate still exposes sign-out/account-switch action', /A avaliação terminou[\s\S]*onPress=\{signOut\}[\s\S]*Terminar sessão ou trocar de conta/, billingGate],
+  ['expired billing sign-out uses canonical Supabase auth', /const signOut = async \(\) => \{[\s\S]*supabase\.auth\.signOut\(\)/, billingGate],
 ];
 
 const failures = [
