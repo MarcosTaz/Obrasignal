@@ -77,6 +77,11 @@ for app in ${APPS}; do
     exit 4
   fi
 
+  # The control plane is trusted to dispatch every app, so it must be able to
+  # open a private queue even if the app worker creates SQLite/WAL/SHM first.
+  # Workers are never added to another app group or to the shared metadata group.
+  usermod -a -G "${user}" factory-cloud-control
+
   # The control process owns every queue directory; the app-specific group can
   # access only its own directory. setgid makes SQLite/WAL/SHM inherit that group.
   install -d -o factory-cloud-control -g "${user}" -m 2770 "${QUEUE_DIR}/${app}"
