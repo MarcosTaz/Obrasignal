@@ -39,6 +39,7 @@ def test_independent_synthetic_ground_truth_cases(tmp_path):
             third_party_recovery=case["third_party_recovery"],
             prior_payment=case["prior_payment"],
             other_mitigation=case["other_mitigation"],
+            notice_deadline_not_applicable=True,
             missing_evidence=tuple(case["missing_evidence"]),
         )
         if "expected_error" in case:
@@ -49,3 +50,4 @@ def test_independent_synthetic_ground_truth_cases(tmp_path):
         result = service.analyze(**kwargs)
         assert result.calculation.output_value == case["expected_net_potential"], case["id"]
         assert result.finding.state == case["expected_state"], case["id"]
+        assert result.notice_deadline_state == "VERIFIED_NONE", case["id"]
