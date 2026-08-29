@@ -37,6 +37,7 @@ INDUSTRIAL_TESTS = COMMON_TESTS + (
     "tests/test_industrial_claims_console.py",
     "tests/test_industrial_claims_queue.py",
     "tests/test_industrial_claims_finding_detail.py",
+    "tests/test_industrial_claims_dossier_integrity.py",
 )
 APP_TESTS = {
     "aviation-lease-entitlement-recovery": COMMON_TESTS,
@@ -58,7 +59,7 @@ def main() -> int:
             "status": "BLOCKED",
             "evidence": {"task_state": "NOT_ALLOWLISTED", "evidence_codes": ["RECOVERY_AGENT_SCOPE_REJECTED"]},
             "next_active": task,
-            "blockers": ["recovery_agent_task_not_allowlisted"],
+            "blockers": ["recovery_vertical_tests_failed" if False else "recovery_agent_task_not_allowlisted"],
             "resume_at": task,
         }))
         return 0
