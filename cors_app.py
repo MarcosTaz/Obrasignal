@@ -7,7 +7,7 @@ from flask import jsonify, request
 from api import APP, bp as MOBILE_API_BP
 from account_privacy import bp as ACCOUNT_PRIVACY_BP
 from auth_context import configured_identity, customer_role_allows, InvalidTokenError
-from auth_context_jwt import authentication_health
+from auth_context_jwt import authentication_health, JwksUnavailableError
 import notification_privacy_lifecycle as _notification_privacy_lifecycle
 import opportunity_watchlist_api as _opportunity_watchlist_api
 
@@ -65,20 +65,25 @@ def _global_api_preflight():
 
 @APP.before_request
 def _authorize_customer_mutation():
-    """Enforce signed company roles before any customer-facing mutation runs.
+    """Enforce signed company roles before authenticated customer mutations.
 
     RevenueCat webhook authentication is a separate provider-owned boundary and is
-    deliberately excluded from user-role authorization. All ordinary customer
-    POST/PATCH/DELETE requests require owner/editor; account deletion is owner-only.
-    Development mode resolves to owner so deterministic local/synthetic tests keep
-    their historical behavior.
+    deliberately excluded from user-role authorization. In provider mode, requests
+    without a bearer are left to the owning endpoint so its established auth/JWKS
+    failure semantics remain authoritative. A present verified bearer is role-gated.
     """
     if not request.path.startswith("/api/v1/") or request.method not in {"POST", "PATCH", "DELETE"}:
         return None
     if request.path == "/api/v1/billing/webhook":
         return None
+    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "").strip().lower()
+    if auth_mode == "provider" and not request.headers.get("Authorization", "").strip():
+        return None
     try:
         identity = configured_identity()
+    except JwksUnavailableError:
+        response = jsonify({"error": "auth_provider_unavailable"})
+        return _cors(response), 503
     except (RuntimeError, InvalidTokenError):
         response = jsonify({"error": "authentication_required"})
         return _cors(response), 401
@@ -97,6 +102,9 @@ def _protect_radar_api():
         return None
     try:
         identity = getattr(request, "obrasignal_identity", None) or configured_identity()
+    except JwksUnavailableError:
+        response = jsonify({"error": "auth_provider_unavailable"})
+        return _cors(response), 503
     except (RuntimeError, InvalidTokenError):
         response = jsonify({"error": "authentication_required"})
         return _cors(response), 401
