@@ -44,6 +44,8 @@ def test_finding_detail_is_tenant_scoped_and_does_not_leak_cross_tenant_case(tmp
     own_body = own.get_json()
     assert own_body["case"]["finding_id"] == finding_id
     assert own_body["case"]["customer_ref"] == "SECRET-CUSTOMER-ALPHA"
+    assert own_body["case"]["notice_deadline_state"] == "DECLARED_DATE_FOR_REVIEW"
+    assert own_body["notice"] == {"truth_state": "DECLARED_DATE_FOR_REVIEW", "due_date": "2026-09-30"}
     assert own_body["raw_document_content_included"] is False
     serialized = own.get_data(as_text=True)
     assert "SECRET RAW COMMERCIAL DOCUMENT" not in serialized
