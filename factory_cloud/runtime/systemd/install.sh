@@ -9,6 +9,7 @@ STATE_DIR="${STATE_DIR:-/var/lib/factory-cloud}"
 CONFIG_DIR="${CONFIG_DIR:-/etc/factory-cloud}"
 APPS="${APPS:-obrasignal}"
 PREPARE_WORKSPACES="${PREPARE_WORKSPACES:-1}"
+QUEUE_DIR="${QUEUE_DIR:-${STATE_DIR}/queues}"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "install.sh must run as root on the isolated Factory Cloud host" >&2
@@ -18,10 +19,15 @@ fi
 getent group factory-cloud >/dev/null || groupadd --system factory-cloud
 id -u factory-cloud-control >/dev/null 2>&1 || useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin --gid factory-cloud factory-cloud-control
 
-# setgid keeps SQLite/WAL/SHM files on the shared metadata group even when an
-# isolated app user creates them. Service UMask=0007 keeps them group-writable.
-install -d -o factory-cloud-control -g factory-cloud -m 2770 "${STATE_DIR}"
-install -d -o root -g factory-cloud -m 0750 "${CONFIG_DIR}" "${CONFIG_DIR}/apps"
+# Global control state is not an app-worker IPC mechanism. Keep its directory
+# traversable for the per-app queue path, but do not expose directory listings.
+install -d -o factory-cloud-control -g factory-cloud -m 0711 "${STATE_DIR}"
+install -d -o factory-cloud-control -g factory-cloud -m 0711 "${QUEUE_DIR}"
+
+# App config parents are traversable without exposing directory listings. Each
+# concrete config remains group-readable only by its app-specific group.
+install -d -o root -g root -m 0751 "${CONFIG_DIR}"
+install -d -o root -g root -m 0711 "${CONFIG_DIR}/apps"
 install -m 0644 "${REPO_DIR}/factory_cloud/runtime/systemd/factory-cloud-control.service" /etc/systemd/system/factory-cloud-control.service
 install -m 0644 "${REPO_DIR}/factory_cloud/runtime/systemd/factory-cloud-app@.service" /etc/systemd/system/factory-cloud-app@.service
 install -m 0644 "${REPO_DIR}/factory_cloud/runtime/systemd/factory-cloud.target" /etc/systemd/system/factory-cloud.target
@@ -31,9 +37,11 @@ for app in ${APPS}; do
   getent group "${user}" >/dev/null || groupadd --system "${user}"
   if ! id -u "${user}" >/dev/null 2>&1; then
     useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin --gid "${user}" --groups factory-cloud "${user}"
-  else
-    usermod -a -G factory-cloud "${user}"
   fi
+
+  # The control process owns every queue directory; the app-specific group can
+  # access only its own directory. setgid makes SQLite/WAL/SHM inherit that group.
+  install -d -o factory-cloud-control -g "${user}" -m 2770 "${QUEUE_DIR}/${app}"
 
   config="${CONFIG_DIR}/apps/${app}.json"
   if [[ ! -f "${config}" ]]; then
