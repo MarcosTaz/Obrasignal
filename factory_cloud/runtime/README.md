@@ -8,7 +8,7 @@ Each repository-safe application worker can be given an external JSON config via
 
 The app-owned executable receives one `ExecutionRequest` JSON object on stdin. It must emit exactly one JSON object on stdout with a terminal status (`DONE`, `WAIT`, `BLOCKED`, `ERROR`) plus metadata-only baton fields. Raw stdout/stderr is discarded by Factory Cloud. Only a narrow evidence allowlist is persisted.
 
-Before the executable runs, the worker independently checks `git rev-parse HEAD` inside the configured workspace and requires exact equality with the canonical head already verified by the control plane. A stale/unverifiable workspace fails closed.
+Before the executable runs, the worker independently checks `git rev-parse HEAD` inside the configured workspace and requires exact equality with the execution-source head already verified by the control plane. A stale/unverifiable workspace fails closed.
 
 `app-adapter.example.json` remains the generic example. `obrasignal-adapter.json` is now a concrete non-secret configuration for the built-in ObraSignal verification agent.
 
@@ -20,9 +20,9 @@ The built-in ObraSignal adapter expects:
 - Factory Cloud control-plane checkout: `/opt/factory-cloud/current`;
 - concrete executable: `/usr/bin/python3 /opt/factory-cloud/current/factory_cloud/obrasignal_agent.py`.
 
-`systemd/prepare-obrasignal-workspace.sh` reads the **verified canonical SHA** from `factory_cloud/apps.json`, creates a private development checkout when absent, refuses to move a dirty existing workspace, fetches `origin/main`, and checks out the registered SHA detached. It does not reset/clean a dirty checkout and does not touch K3.
+`systemd/prepare-obrasignal-workspace.sh` reads the **verified execution-source branch and SHA** from `factory_cloud/apps.json` (falling back to canonical source only when no separate execution source is registered), creates a private development checkout when absent, refuses to move a dirty existing workspace, fetches the registered branch, and checks out the registered SHA detached. It does not reset/clean a dirty checkout and does not touch K3.
 
-The concrete agent supports `verify:canonical:compile`, `verify:canonical:python`, `verify:canonical:mobile`, and `verify:canonical:quality`. It accepts no arbitrary shell task. `verify:canonical:compile` requires only the configured Python interpreter and is the registry's first host-acceptance BATON item. Mobile verification deliberately requires pre-existing `mobile/node_modules`; it never installs dependencies itself. Python tooling may be selected in the isolated worker environment with `FACTORY_CLOUD_OBRASIGNAL_PYTHON`; no such path is persisted in shared Factory Cloud state.
+The concrete agent supports `verify:execution:compile`, `verify:execution:python`, `verify:execution:mobile`, and `verify:execution:quality`. It accepts no arbitrary shell task. `verify:execution:compile` requires only the configured Python interpreter and is the registry's first host-acceptance BATON item. Mobile verification deliberately requires pre-existing `mobile/node_modules`; it never installs dependencies itself. Python tooling may be selected in the isolated worker environment with `FACTORY_CLOUD_OBRASIGNAL_PYTHON`; no such path is persisted in shared Factory Cloud state.
 
 ## systemd topology
 
@@ -56,8 +56,8 @@ A host is not considered provisioned until all of the following have been observ
 3. `/var/lib/factory-cloud/state.sqlite3` survives process restarts and remains writable through WAL/SHM creation by both control and app worker processes;
 4. killing/restarting the control service records interruption/recovery without duplicate dispatch;
 5. killing/restarting an app worker allows an expired app-scoped job claim to be reclaimed;
-6. ObraSignal workspace HEAD exactly matches independently verified canonical source truth;
-7. ObraSignal concrete adapter successfully executes the seeded `verify:canonical:compile` task and persists metadata-only evidence;
+6. ObraSignal workspace HEAD exactly matches the independently verified execution-source head (or canonical head only when no separate execution source is registered);
+7. ObraSignal concrete adapter successfully executes the seeded `verify:execution:compile` task and persists metadata-only evidence;
 8. ObraSignal adapter refuses a stale local HEAD and refuses a non-allowlisted task;
 9. K3 remains without a repository-mutating process adapter until canonical source truth is independently verified.
 
