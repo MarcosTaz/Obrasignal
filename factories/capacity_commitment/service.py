@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from .engine import RecoveryResult, evaluate_recoverability
 from .recovery_package import RecoveryPackage, build_recovery_package
 from .repository import CapacityRepository
 from .state import AssistedCaseState, dump_state
+from .temporal import assess_temporal_state
 
 
 @dataclass(frozen=True)
@@ -15,18 +17,25 @@ class ProcessedCase:
     recovery_package: RecoveryPackage
 
 
-def process_state(state: AssistedCaseState) -> ProcessedCase:
+def process_state(
+    state: AssistedCaseState,
+    *,
+    as_of_date: date | None = None,
+) -> ProcessedCase:
     # The engine validates economic semantics, while the persisted-state envelope
     # validates identity, contract anchors, evidence references and deadline
     # consistency. Apply both before producing any reviewable output.
     dump_state(state)
-    result = evaluate_recoverability(state.recovery_case)
+    temporal = assess_temporal_state(state, as_of_date=as_of_date)
+    result = evaluate_recoverability(temporal.effective_case)
     package = build_recovery_package(
-        state.recovery_case,
+        temporal.effective_case,
         result,
         evidence_refs=state.evidence_refs,
         missing_evidence=state.missing_evidence,
         deadline=state.deadline,
+        assessment_date=temporal.assessment_date.isoformat(),
+        deadline_expired_by_date=temporal.deadline_expired_by_date,
     )
     return ProcessedCase(state=state, result=result, recovery_package=package)
 
