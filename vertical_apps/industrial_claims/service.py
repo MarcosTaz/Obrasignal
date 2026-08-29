@@ -21,6 +21,7 @@ from factory_cloud.assurance_store import AssuranceStore, AssuranceStoreError
 from factory_cloud.recovery_index import RecoveryIndex
 from factory_cloud.recovery_primitives import EntitlementBasis, RecoveryFingerprint
 from factory_cloud.shared_platform import AuditEvent, NotificationEvent, TenantContext, assert_tenant_context
+from vertical_apps.industrial_claims.case_store import IndustrialCaseMetadata, IndustrialClaimsCaseStore
 
 
 ALLOWED_CLAIM_FAMILIES = {
@@ -73,6 +74,7 @@ class IndustrialClaimsService:
     def __init__(self, database: str | Path):
         self.store = AssuranceStore(database)
         self.index = RecoveryIndex(database)
+        self.case_store = IndustrialClaimsCaseStore(database)
         self.ops = AssuranceOperations(self.store)
 
     @staticmethod
@@ -119,10 +121,7 @@ class IndustrialClaimsService:
     def _existing_finding(self, *, tenant_id: str, finding_id: str) -> FindingRecord:
         with sqlite3.connect(self.store.path) as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                "SELECT * FROM findings WHERE tenant_id=? AND finding_id=?",
-                (tenant_id, finding_id),
-            ).fetchone()
+            row = conn.execute("SELECT * FROM findings WHERE tenant_id=? AND finding_id=?", (tenant_id, finding_id)).fetchone()
         if row is None:
             raise AssuranceStoreError("registered recovery fingerprint has no persisted finding")
         try:
@@ -131,14 +130,8 @@ class IndustrialClaimsService:
         except (TypeError, ValueError) as exc:
             raise AssuranceStoreError("persisted finding lineage is invalid") from exc
         return FindingRecord(
-            finding_id=row["finding_id"],
-            tenant_id=row["tenant_id"],
-            finding_type=row["finding_type"],
-            state=row["state"],
-            evidence_ids=evidence_ids,
-            calculation_ids=calculation_ids,
-            reviewer=row["reviewer"],
-            decision_reason=row["decision_reason"],
+            finding_id=row["finding_id"], tenant_id=row["tenant_id"], finding_type=row["finding_type"], state=row["state"],
+            evidence_ids=evidence_ids, calculation_ids=calculation_ids, reviewer=row["reviewer"], decision_reason=row["decision_reason"],
         )
 
     def _creator_actor(self, *, tenant_id: str, finding_id: str) -> str:
@@ -171,21 +164,14 @@ class IndustrialClaimsService:
         self.store.append_audit(audit)
         self.store.enqueue_notification(notification)
         existing = self._existing_finding(tenant_id=finding.tenant_id, finding_id=finding.finding_id)
-        if (
-            existing.finding_type != finding.finding_type
-            or existing.evidence_ids != finding.evidence_ids
-            or existing.calculation_ids != finding.calculation_ids
-        ):
+        if existing.finding_type != finding.finding_type or existing.evidence_ids != finding.evidence_ids or existing.calculation_ids != finding.calculation_ids:
             raise AssuranceStoreError("duplicate finding lineage does not match persisted case")
         return existing
 
     def _reviewed_net_potential(self, *, tenant_id: str, finding_id: str) -> tuple[Decimal, str]:
         with sqlite3.connect(self.store.path) as conn:
             conn.row_factory = sqlite3.Row
-            finding = conn.execute(
-                "SELECT calculation_ids_json FROM findings WHERE tenant_id=? AND finding_id=?",
-                (tenant_id, finding_id),
-            ).fetchone()
+            finding = conn.execute("SELECT calculation_ids_json FROM findings WHERE tenant_id=? AND finding_id=?", (tenant_id, finding_id)).fetchone()
             if finding is None:
                 raise AssuranceOperationError("tenant-scoped finding not found")
             try:
@@ -194,10 +180,7 @@ class IndustrialClaimsService:
                 raise AssuranceOperationError("finding calculation lineage is invalid") from exc
             if not isinstance(calculation_ids, list) or len(calculation_ids) != 1:
                 raise AssuranceOperationError("industrial finding requires exactly one reviewed calculation")
-            calculation = conn.execute(
-                "SELECT formula_id,output_value,output_unit FROM calculations WHERE tenant_id=? AND calculation_id=?",
-                (tenant_id, str(calculation_ids[0])),
-            ).fetchone()
+            calculation = conn.execute("SELECT formula_id,output_value,output_unit FROM calculations WHERE tenant_id=? AND calculation_id=?", (tenant_id, str(calculation_ids[0]))).fetchone()
             if calculation is None or calculation["formula_id"] != "industrial_net_potential_claim":
                 raise AssuranceOperationError("reviewed industrial net-potential calculation not found")
         try:
@@ -270,12 +253,8 @@ class IndustrialClaimsService:
 
         try:
             amounts = {
-                "gross_cost": Decimal(gross_cost),
-                "avoided_cost": Decimal(avoided_cost),
-                "resale_reuse": Decimal(resale_reuse),
-                "third_party_recovery": Decimal(third_party_recovery),
-                "prior_payment": Decimal(prior_payment),
-                "other_mitigation": Decimal(other_mitigation),
+                "gross_cost": Decimal(gross_cost), "avoided_cost": Decimal(avoided_cost), "resale_reuse": Decimal(resale_reuse),
+                "third_party_recovery": Decimal(third_party_recovery), "prior_payment": Decimal(prior_payment), "other_mitigation": Decimal(other_mitigation),
             }
         except (InvalidOperation, ValueError, TypeError) as exc:
             raise AssuranceKernelError("industrial claim amounts must be decimals") from exc
@@ -294,22 +273,16 @@ class IndustrialClaimsService:
         evidence = (basis, event, cost)
 
         entitlement = EntitlementBasis.create(
-            entitlement_id=self._id(tenant_id, f"{event_ref}:{family}:basis"),
-            tenant_id=tenant_id,
-            domain=self.vertical,
-            source_evidence_ids=tuple(item.evidence_id for item in evidence),
-            rule_ref="documented-commercial-basis-v2",
+            entitlement_id=self._id(tenant_id, f"{event_ref}:{family}:basis"), tenant_id=tenant_id, domain=self.vertical,
+            source_evidence_ids=tuple(item.evidence_id for item in evidence), rule_ref="documented-commercial-basis-v2",
             confidence="SUPPORTED" if not effective_missing else "PARTIAL",
         )
         fingerprint = RecoveryFingerprint.create(tenant_id=tenant_id, vertical=self.vertical, contract_ref=f"{customer_ref}:{program_ref}:{commercial_basis_ref}", event_ref=event_ref, remedy_type=family.lower())
         calculation = CalculationRecord.create(
-            calculation_id=self._id(tenant_id, f"{event_ref}:{family}:net-potential"),
-            tenant_id=tenant_id,
-            formula_id="industrial_net_potential_claim",
-            formula_version="1",
+            calculation_id=self._id(tenant_id, f"{event_ref}:{family}:net-potential"), tenant_id=tenant_id,
+            formula_id="industrial_net_potential_claim", formula_version="1",
             inputs=tuple(CalculationInput(name=name, value=str(value), unit=currency_code, evidence_ids=(cost.evidence_id, basis.evidence_id)) for name, value in amounts.items()),
-            output_value=net_potential,
-            output_unit=currency_code,
+            output_value=net_potential, output_unit=currency_code,
         )
         deadline = DeadlineWindow.create(deadline_id=self._id(tenant_id, f"{event_ref}:{family}:notice"), tenant_id=tenant_id, due_date=notice_due or date.max, basis_evidence_ids=(basis.evidence_id, event.evidence_id))
         state = "READY_FOR_REVIEW" if entitlement.actionable and net_potential > 0 else "UNRESOLVED_EVIDENCE"
@@ -317,17 +290,28 @@ class IndustrialClaimsService:
         assert_same_tenant(*evidence, calculation, deadline, finding)
         assert_tenant_context(context, *evidence, calculation, deadline, finding)
         audit = AuditEvent.create(
-            event_id=self._id(tenant_id, f"{event_ref}:{family}:audit"),
-            context=context,
-            event_type="industrial_finding_created",
-            subject_ref=finding.finding_id,
-            evidence_refs=finding.evidence_ids,
+            event_id=self._id(tenant_id, f"{event_ref}:{family}:audit"), context=context, event_type="industrial_finding_created",
+            subject_ref=finding.finding_id, evidence_refs=finding.evidence_ids,
             payload={"claim_family": family, "calculation_hash": calculation.reproducibility_hash, "entitlement_basis_hash": entitlement.basis_hash, "recovery_fingerprint": fingerprint.fingerprint, "currency": currency_code, "notice_deadline_state": notice_deadline_state, "evidence_states": {item.source_type: item.metadata.get("verification_state") for item in evidence}, "missing_evidence": sorted(effective_missing)},
         )
         notification = NotificationEvent.create(event_id=self._id(tenant_id, f"{event_ref}:{family}:notification"), tenant_id=tenant_id, event_type="finding_ready" if state == "READY_FOR_REVIEW" else "finding_unresolved", subject_ref=finding.finding_id, payload={"vertical": self.vertical, "claim_family": family, "state": state, "currency": currency_code, "notice_deadline_state": notice_deadline_state})
+        case_metadata = IndustrialCaseMetadata(
+            finding_id=finding.finding_id,
+            tenant_id=tenant_id,
+            claim_family=family,
+            customer_ref=customer_ref,
+            program_ref=program_ref,
+            event_ref=event_ref,
+            entitlement_id=entitlement.entitlement_id,
+            deadline_id=deadline.deadline_id,
+            recovery_fingerprint=fingerprint.fingerprint,
+            notice_deadline_state=notice_deadline_state,
+            missing_evidence=tuple(sorted(effective_missing)),
+        )
 
         with self.store.transaction() as conn:
             is_new = self.index.persist_case_index(entitlement, fingerprint, connection=conn)
+            self.case_store.put(case_metadata, connection=conn)
             if is_new:
                 self.store.persist_case(evidence=evidence, calculation=calculation, deadline=deadline, finding=finding, audit=audit, notification=notification, connection=conn)
         if not is_new:
@@ -374,22 +358,12 @@ class IndustrialClaimsService:
         if outcome_missing:
             raise AssuranceOperationError("verified outcome evidence content is required")
         outcome_evidence = EvidenceEnvelope.create(
-            evidence_id=self._id(tenant_id, f"{outcome_id}:outcome-evidence"),
-            tenant_id=tenant_id,
-            source_type="recovery_outcome_evidence",
-            source_ref=evidence_ref,
-            content=outcome_content,
-            metadata=outcome_metadata,
+            evidence_id=self._id(tenant_id, f"{outcome_id}:outcome-evidence"), tenant_id=tenant_id,
+            source_type="recovery_outcome_evidence", source_ref=evidence_ref, content=outcome_content, metadata=outcome_metadata,
         )
         with self.store.transaction() as conn:
             self.store._put_evidence(conn, outcome_evidence)
             return self.ops.resolve(
-                tenant_id=tenant_id,
-                finding_id=finding_id,
-                outcome_id=outcome_id,
-                recovered_amount=recovered_amount,
-                currency=recovery_currency,
-                evidence_ref=outcome_evidence.evidence_id,
-                actor_id=actor_id,
-                connection=conn,
+                tenant_id=tenant_id, finding_id=finding_id, outcome_id=outcome_id, recovered_amount=recovered_amount,
+                currency=recovery_currency, evidence_ref=outcome_evidence.evidence_id, actor_id=actor_id, connection=conn,
             )
