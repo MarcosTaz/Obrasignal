@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {"source": "/v1/dispatch", "destination": "/api/control-tower"},
+    {"source": "/v1/batches/:batch_id", "destination": "/api/control-tower?batch_id=:batch_id"}
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {"key": "X-Content-Type-Options", "value": "nosniff"},
+        {"key": "Referrer-Policy", "value": "no-referrer"}
+      ]
+    }
+  ]
+}
