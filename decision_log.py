@@ -197,6 +197,28 @@ def latest_decision(conn, source, external_id, account_id='default'):
     return item
 
 
+def decision_opportunity_is_current(conn, decision):
+    """Prove only the canonical opportunity-revision edge for a decision."""
+    if not decision:
+        return False
+    current_opportunity = current_opportunity_fingerprint(
+        conn,
+        decision.get('source'),
+        decision.get('external_id'),
+    )
+    if current_opportunity is None:
+        return False
+    return decision.get('opportunity_fingerprint') == current_opportunity
+
+
+def latest_opportunity_current_decision(conn, source, external_id, account_id='default'):
+    """Preserve legacy presentation semantics but never show a stale revision."""
+    decision = latest_decision(conn, source, external_id, account_id=account_id)
+    if not decision_opportunity_is_current(conn, decision):
+        return None
+    return decision
+
+
 def decision_is_current(conn, decision, *, account_id='default', expected_rule_version):
     """Prove whether the latest stored decision still has current authority."""
     if not decision:
@@ -209,14 +231,7 @@ def decision_is_current(conn, decision, *, account_id='default', expected_rule_v
     current_profile = current_profile_fingerprint(conn, account)
     if current_profile is None or decision.get('profile_fingerprint') != current_profile:
         return False
-    current_opportunity = current_opportunity_fingerprint(
-        conn,
-        decision.get('source'),
-        decision.get('external_id'),
-    )
-    if current_opportunity is None:
-        return False
-    return decision.get('opportunity_fingerprint') == current_opportunity
+    return decision_opportunity_is_current(conn, decision)
 
 
 def latest_current_decision(conn, source, external_id, *, account_id='default', expected_rule_version):
