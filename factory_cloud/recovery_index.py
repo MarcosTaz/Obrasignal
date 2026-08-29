@@ -43,36 +43,62 @@ class RecoveryIndex:
     def _json(value) -> str:
         return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
-    def put_entitlement(self, item: EntitlementBasis) -> None:
+    def _put_entitlement(self, conn: sqlite3.Connection, item: EntitlementBasis) -> None:
         values = (item.entitlement_id, item.tenant_id, item.domain, self._json(item.source_evidence_ids), item.rule_ref, item.confidence, item.basis_hash)
-        with self._connect() as conn:
-            existing = conn.execute("SELECT * FROM entitlement_basis WHERE entitlement_id=?", (item.entitlement_id,)).fetchone()
-            if existing:
-                current = tuple(existing[key] for key in ("entitlement_id","tenant_id","domain","source_evidence_ids_json","rule_ref","confidence","basis_hash"))
-                if current != values:
-                    raise RecoveryIndexError("immutable entitlement basis collision")
-                return
-            conn.execute("INSERT INTO entitlement_basis VALUES(?,?,?,?,?,?,?)", values)
+        existing = conn.execute("SELECT * FROM entitlement_basis WHERE entitlement_id=?", (item.entitlement_id,)).fetchone()
+        if existing:
+            current = tuple(existing[key] for key in ("entitlement_id","tenant_id","domain","source_evidence_ids_json","rule_ref","confidence","basis_hash"))
+            if current != values:
+                raise RecoveryIndexError("immutable entitlement basis collision")
+            return
+        conn.execute("INSERT INTO entitlement_basis VALUES(?,?,?,?,?,?,?)", values)
 
-    def register_fingerprint(self, item: RecoveryFingerprint) -> bool:
+    def put_entitlement(self, item: EntitlementBasis, *, connection: sqlite3.Connection | None = None) -> None:
+        if connection is not None:
+            self._put_entitlement(connection, item)
+            return
+        with self._connect() as conn:
+            self._put_entitlement(conn, item)
+
+    def _register_fingerprint(self, conn: sqlite3.Connection, item: RecoveryFingerprint) -> bool:
         values = (item.tenant_id, item.fingerprint, item.vertical, item.contract_ref, item.event_ref, item.remedy_type)
-        with self._connect() as conn:
-            existing = conn.execute("SELECT * FROM recovery_fingerprints WHERE tenant_id=? AND fingerprint=?", (item.tenant_id, item.fingerprint)).fetchone()
-            if existing:
-                current = tuple(existing[key] for key in ("tenant_id","fingerprint","vertical","contract_ref","event_ref","remedy_type"))
-                if current != values:
-                    raise RecoveryIndexError("recovery fingerprint collision")
-                return False
-            conn.execute("INSERT INTO recovery_fingerprints VALUES(?,?,?,?,?,?)", values)
-            return True
+        existing = conn.execute("SELECT * FROM recovery_fingerprints WHERE tenant_id=? AND fingerprint=?", (item.tenant_id, item.fingerprint)).fetchone()
+        if existing:
+            current = tuple(existing[key] for key in ("tenant_id","fingerprint","vertical","contract_ref","event_ref","remedy_type"))
+            if current != values:
+                raise RecoveryIndexError("recovery fingerprint collision")
+            return False
+        conn.execute("INSERT INTO recovery_fingerprints VALUES(?,?,?,?,?,?)", values)
+        return True
 
-    def persist_case_index(self, entitlement: EntitlementBasis, fingerprint: RecoveryFingerprint) -> bool:
+    def register_fingerprint(self, item: RecoveryFingerprint, *, connection: sqlite3.Connection | None = None) -> bool:
+        if connection is not None:
+            return self._register_fingerprint(connection, item)
+        with self._connect() as conn:
+            return self._register_fingerprint(conn, item)
+
+    def persist_case_index(
+        self,
+        entitlement: EntitlementBasis,
+        fingerprint: RecoveryFingerprint,
+        *,
+        connection: sqlite3.Connection | None = None,
+    ) -> bool:
         if entitlement.tenant_id != fingerprint.tenant_id:
             raise RecoveryIndexError("cross-tenant recovery index rejected")
-        self.put_entitlement(entitlement)
-        return self.register_fingerprint(fingerprint)
+        if connection is not None:
+            self._put_entitlement(connection, entitlement)
+            return self._register_fingerprint(connection, fingerprint)
+        with self._connect() as conn:
+            self._put_entitlement(conn, entitlement)
+            return self._register_fingerprint(conn, fingerprint)
 
     def count_fingerprints(self, tenant_id: str) -> int:
         with self._connect() as conn:
             row = conn.execute("SELECT COUNT(*) AS n FROM recovery_fingerprints WHERE tenant_id=?", (tenant_id,)).fetchone()
+        return int(row["n"])
+
+    def count_entitlements(self, tenant_id: str) -> int:
+        with self._connect() as conn:
+            row = conn.execute("SELECT COUNT(*) AS n FROM entitlement_basis WHERE tenant_id=?", (tenant_id,)).fetchone()
         return int(row["n"])
