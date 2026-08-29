@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from vertical_apps.industrial_claims.package import build_claim_package
 from vertical_apps.industrial_claims.service import CLAIM_CURRENCY_EVIDENCE, NOTICE_DEADLINE_EVIDENCE, IndustrialClaimsService
 
@@ -26,7 +28,10 @@ def test_claim_package_is_evidence_indexed_and_never_overclaims(tmp_path):
         event_ref="cancel-1",
         as_of_date=date(2026, 9, 29),
     )
-    assert package["schema_version"] == 5
+    assert package["schema_version"] == 6
+    assert package["customer_ref"] == "oem-1"
+    assert package["program_ref"] == "program-1"
+    assert package["event_ref"] == "cancel-1"
     assert package["net_potential"] == "40000"
     assert package["currency"] == "EUR"
     assert package["calculation"]["output_unit"] == "EUR"
@@ -53,6 +58,23 @@ def test_claim_package_is_evidence_indexed_and_never_overclaims(tmp_path):
     assert all(item["content_hash"] for item in package["evidence_index"])
     assert {item["verification_state"] for item in package["evidence_index"]} == {"CONTENT_HASHED"}
     assert {item["raw_content_persisted"] for item in package["evidence_index"]} == {"false"}
+
+
+def test_package_rejects_labels_that_do_not_match_immutable_recovery_identity(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "mislabeled-package.sqlite3")
+    result = service.analyze(
+        tenant_id="alpha", actor_id="analyst", customer_ref="oem-1", program_ref="program-1", event_ref="cancel-1",
+        claim_family="TOOLING", commercial_basis_ref="po-1", cost_evidence_ref="invoice-1", currency="EUR",
+        gross_cost="50000", notice_deadline_not_applicable=True, **_documents(),
+    )
+
+    for overrides in (
+        {"customer_ref": "oem-2", "program_ref": "program-1", "event_ref": "cancel-1"},
+        {"customer_ref": "oem-1", "program_ref": "program-2", "event_ref": "cancel-1"},
+        {"customer_ref": "oem-1", "program_ref": "program-1", "event_ref": "other-event"},
+    ):
+        with pytest.raises(ValueError, match="labels do not match immutable case identity"):
+            build_claim_package(result, **overrides, as_of_date=date(2026, 8, 29))
 
 
 def test_expired_declared_date_in_package_is_risk_not_nonrecoverability(tmp_path):
