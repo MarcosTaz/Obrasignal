@@ -5,10 +5,26 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 0,
-  "last_factory_id": null,
-  "last_run_at": null,
-  "last_material_change": null,
+  "cursor": 1,
+  "last_factory_id": "factory-cloud",
+  "last_run_at": "2026-08-29T15:35:46Z",
+  "last_material_change": {
+    "kind": "FACTORY_ADVANCED",
+    "factory_id": "factory-cloud",
+    "summary": "Created draft PR #765 adding persistent D fleet rotation with fail-closed blocker handling and explicit no-execution-claim semantics.",
+    "evidence": {
+      "pr": 765,
+      "head": "b6e25348b9c11c11ed7f88aa39fb82ba33d34b9e",
+      "local_targeted_tests": "4 passed",
+      "github_actions": "not_observed_yet"
+    },
+    "active": "Classify exact-head CI for PR #765 without merging.",
+    "next": "Resume at registry cursor 1 (obrasignal); reconstruct its current repository truth and execute the highest-value repository-safe task while PR #765 remains independent.",
+    "wait": [
+      "merge/adoption of PR #765",
+      "production/deploy/secrets/provider/config/customer-data/source activation"
+    ]
+  },
   "blocked": [],
   "rules": {
     "technical_window_is_not_stop": true,
