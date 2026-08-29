@@ -24,9 +24,11 @@ def test_shared_work_wins_tie_before_vertical_work():
     assert queue[1].evidence_key == "web_complete"
 
 
-def test_real_portfolio_produces_work_for_transitional_and_registered_factories():
+def test_real_portfolio_produces_source_work_and_only_remaining_recovery_blocker():
     queue = portfolio_work_queue(portfolio_matrix())
     pairs = {(item.factory_id, item.evidence_key) for item in queue}
     assert ("dealrecover", "source_registered") in pairs
-    assert ("contractcredit", "web_complete") in pairs
-    assert ("aviation-lease-entitlement-recovery", "support_continuity") in pairs
+    assert ("contractcredit", "billing_sandbox") in pairs
+    assert ("aviation-lease-entitlement-recovery", "billing_sandbox") in pairs
+    assert ("contractcredit", "web_complete") not in pairs
+    assert ("aviation-lease-entitlement-recovery", "support_continuity") not in pairs
