@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -44,3 +45,17 @@ def test_process_state_rejects_verified_notice_window_without_persisted_deadline
 
     with pytest.raises(ValueError, match="notice_window_verified requires"):
         process_state(state)
+
+
+def test_process_state_expires_verified_notice_window_after_absolute_deadline():
+    state = _state(
+        case("service-expired-by-date", notice_valid=True, notice_window_verified=True),
+        deadline="2026-08-28",
+    )
+
+    processed = process_state(state, as_of_date=date(2026, 8, 29))
+
+    assert processed.result.recoverability_state.value == "EXPIRED"
+    assert processed.result.claimable_amount == Decimal("0")
+    assert processed.recovery_package.deadline == "2026-08-28"
+    assert processed.recovery_package.assessment_date == "2026-08-29"
