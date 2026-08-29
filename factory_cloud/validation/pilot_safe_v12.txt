@@ -1,0 +1,4 @@
+validation-only exact-head trigger v12
+source-head=c8a8d3887b194e5c125cde97508dc251f54a7def
+scope=source-binding + candidate registry + promoted evidence manifests + billing fail-closed
+no-merge no-deploy no-production no-real-customer no-live-billing
