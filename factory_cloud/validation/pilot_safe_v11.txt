@@ -1,0 +1,4 @@
+validation-only exact-head trigger v11
+source-head=5657c8c17c2cd1af09d0934299afbe91aed6438b
+scope=buyer-definition + prior PILOT_SAFE composition
+no-merge no-deploy no-production no-real-customer no-live-billing
