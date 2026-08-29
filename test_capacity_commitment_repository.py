@@ -109,6 +109,19 @@ def test_repository_rejects_non_string_case_ids_before_persistence(tmp_path):
     assert repo.list_case_ids(tenant_id="tenant-a") == []
 
 
+@pytest.mark.parametrize(
+    "case_id",
+    ["case/with/slash", "case\\with\\backslash", "case with space", "case?query", "case#fragment"],
+)
+def test_repository_rejects_case_ids_that_cannot_be_addressed_by_assisted_api(case_id, tmp_path):
+    repo = CapacityRepository(str(tmp_path / "capacity.db"))
+
+    with pytest.raises(ValueError, match="case_id must be URL-addressable"):
+        repo.save(make_state("tenant-a", case_id))
+
+    assert repo.list_case_ids(tenant_id="tenant-a") == []
+
+
 def test_repository_load_fails_closed_on_stored_case_identity_mismatch(tmp_path):
     db_path = tmp_path / "capacity.db"
     repo = CapacityRepository(str(db_path))
