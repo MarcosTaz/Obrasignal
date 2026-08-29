@@ -42,17 +42,20 @@ class PrioritySignals:
 
     @property
     def score(self) -> int:
-        # Safety and pilot-blocking work dominate. Commercial/shared leverage then
-        # resolve otherwise similar work. Base priority is only a bounded tiebreaker.
+        # Strict lexicographic ordering using base-101 digits. One point of a
+        # higher-order signal always dominates every possible combination below it:
+        # safety > pilot blocker > evidence integrity > commercial > shared > base.
         bounded_base = max(0, min(self.base_priority, 100))
-        return (
-            self.safety_severity * 10000
-            + self.pilot_blocker * 1000
-            + self.evidence_integrity * 200
-            + self.commercial_leverage * 100
-            + self.shared_leverage * 50
-            + bounded_base
-        )
+        score = self.safety_severity
+        for value in (
+            self.pilot_blocker,
+            self.evidence_integrity,
+            self.commercial_leverage,
+            self.shared_leverage,
+            bounded_base,
+        ):
+            score = score * 101 + value
+        return score
 
 
 def priority_for_app(app: dict[str, Any]) -> PrioritySignals:
