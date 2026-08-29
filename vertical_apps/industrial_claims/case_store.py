@@ -11,7 +11,7 @@ from factory_cloud.assurance_store import AssuranceStoreError
 ALLOWED_NOTICE_STATES = {"UNKNOWN", "DECLARED_DATE_FOR_REVIEW", "DECLARED_NONE_FOR_REVIEW"}
 MAX_REFERENCE_CHARS = 512
 MAX_FINDING_ID_CHARS = 2_048
-MAX_TENANT_CHARS = 128
+MAX_TENANT_CHARS = 64
 MAX_MISSING_EVIDENCE_ITEMS = 100
 MAX_MISSING_EVIDENCE_CHARS = 128
 
@@ -58,9 +58,7 @@ class IndustrialClaimsCaseStore:
                     missing_evidence_json TEXT NOT NULL
                 )"""
             )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_industrial_claim_cases_tenant ON industrial_claim_cases(tenant_id,finding_id)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_industrial_claim_cases_tenant ON industrial_claim_cases(tenant_id,finding_id)")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)
@@ -100,16 +98,8 @@ class IndustrialClaimsCaseStore:
     def _values(cls, item: IndustrialCaseMetadata) -> tuple[str, ...]:
         valid = cls._validate(item)
         return (
-            valid.finding_id,
-            valid.tenant_id,
-            valid.claim_family,
-            valid.customer_ref,
-            valid.program_ref,
-            valid.event_ref,
-            valid.entitlement_id,
-            valid.deadline_id,
-            valid.recovery_fingerprint,
-            valid.notice_deadline_state,
+            valid.finding_id, valid.tenant_id, valid.claim_family, valid.customer_ref, valid.program_ref, valid.event_ref,
+            valid.entitlement_id, valid.deadline_id, valid.recovery_fingerprint, valid.notice_deadline_state,
             json.dumps(list(valid.missing_evidence), sort_keys=True, separators=(",", ":")),
         )
 
@@ -138,10 +128,7 @@ class IndustrialClaimsCaseStore:
         tenant = self._required(tenant_id, label="tenant_id", max_chars=MAX_TENANT_CHARS)
         finding = self._required(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM industrial_claim_cases WHERE tenant_id=? AND finding_id=?",
-                (tenant, finding),
-            ).fetchone()
+            row = conn.execute("SELECT * FROM industrial_claim_cases WHERE tenant_id=? AND finding_id=?", (tenant, finding)).fetchone()
         if row is None:
             raise AssuranceStoreError("tenant-scoped industrial case metadata not found")
         try:
