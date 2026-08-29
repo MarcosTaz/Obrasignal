@@ -7,46 +7,59 @@
   "registry": "factory_cloud/factories.json",
   "cursor": 0,
   "last_factory_id": "obrasignal-customer-journey",
-  "last_run_at": "2026-08-29T19:49:00Z",
+  "last_run_at": "2026-08-29T19:57:30Z",
   "last_material_change": {
-    "kind": "BOTH_PRIORITY_REDS_REPAIRED_IN_GREEN_DRAFT_SUCCESSORS",
+    "kind": "SHARED_COMPANY_MEMBERSHIP_OWNER_GREEN_COMPOSITION_ACTIVE",
     "factory_id": "obrasignal-customer-journey",
-    "summary": "The full 33-Factory rotation found two exact-head RED gates and both now have bounded GREEN draft successors. EU Switching Evidence Pack parent #711@60694599b42d705b22a5ceb4f51dda24b0636d42 remains untouched/RED, while successor #818@f9ffcf82f2eebbfdeb400de76f562cb185ec5adf changes only react-native 0.86.2 to 0.86.3 and has mobile plus two python checks SUCCESS. Customer Journey parent #723@89ecc0bbeacad2f3a753b02db4cfcf2c3c2d5350 remains untouched/RED, while successor #819@52eefb70afd82f8646fb940591058dad7789b211 changes only four legacy test fixtures/order expectations, preserves explicit account-scoped relevance authority in runtime, and has python and mobile SUCCESS. No merge, deploy, outreach, production, provider, config, secrets, payments or customer-data mutation occurred.",
+    "summary": "After the full fleet rotation and GREEN successors #818/#819, Customer Journey P1 #762 was advanced rather than left NOT_MODELED. Auth owner candidate PR #820 now has exact HEAD ba5966c7b576f35aa55ef9026619d810070b94ed with python SUCCESS and mobile SUCCESS. It introduces opt-in server-authoritative subject→company membership, admin/member roles, deterministic revocation and legacy subject-mode compatibility without client-selected tenant authority. Composition draft PR #821 is based on GREEN Customer Journey #819 and adds same-company durable profile sharing, same-company workflow handoff, cross-company isolation, revocation-on-return and explicit role permission semantics. Current composition HEAD abf49bd90f6f80fde26c1f8fcd73760336342b2a has python/mobile CI IN_PROGRESS and is not yet GREEN. Issue #762 remains open because endpoint-level permission enforcement and persisted mutation audit attribution still require completion/verification. No merge, deploy, provider/config/secrets, production, payment, customer-data or external sending occurred.",
     "evidence": {
+      "account_auth_owner": {
+        "pr": 820,
+        "branch": "auth/account-membership-v1-20260829",
+        "head": "ba5966c7b576f35aa55ef9026619d810070b94ed",
+        "python": "SUCCESS",
+        "mobile": "SUCCESS",
+        "classification": "GREEN_DRAFT_OWNER_CANDIDATE_NOT_CANONICAL"
+      },
+      "customer_journey_composition": {
+        "pr": 821,
+        "branch": "customer-journey/shared-company-membership-composition-20260829",
+        "base_head": "52eefb70afd82f8646fb940591058dad7789b211",
+        "head": "abf49bd90f6f80fde26c1f8fcd73760336342b2a",
+        "acceptance_covered": ["stable company tenant distinct from subject", "server-authoritative membership", "explicit admin/member permissions", "same-company durable profile read", "same-company workflow handoff", "cross-company isolation", "deterministic revocation", "actor subject retained separately from company account"],
+        "python": "IN_PROGRESS",
+        "mobile": "IN_PROGRESS",
+        "classification": "COMPOSITION_ACTIVE_CI_PENDING"
+      },
       "eu_switching_evidence_pack_repair": {
         "pr": 818,
         "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
-        "diff": "1 commit / 1 file / +1 -1",
         "mobile": "SUCCESS",
         "python": "SUCCESS",
         "python_secondary": "SUCCESS",
         "classification": "GREEN_DRAFT_SUCCESSOR_NOT_CANONICAL"
       },
-      "customer_journey_repair": {
+      "customer_journey_notification_repair": {
         "pr": 819,
         "head": "52eefb70afd82f8646fb940591058dad7789b211",
         "python": "SUCCESS",
         "mobile": "SUCCESS",
         "classification": "GREEN_DRAFT_SUCCESSOR_NOT_CANONICAL"
-      },
-      "factory_cloud_hardening": {
-        "verified_commit": "1958c16d979658057bb37e491eaf4a811edbd19f",
-        "python": "SUCCESS",
-        "mobile": "SUCCESS",
-        "classification": "BLOCKER_RETRY_HARDENING_GREEN"
       }
     },
-    "active": "Resume cursor 0. Re-verify Factory Cloud exact current HEAD and ObraSignal highest-value current RED/unverified gate; continue through any blocker rather than stopping.",
-    "next": "Prioritize any newly observed RED exact-source gate. Retry source-identity-blocked Factories only when new trustworthy repository truth appears. Do not merge or mutate production.",
+    "active": "Customer Journey #821 exact-head CI. If RED, inspect exact logs and repair without weakening tenant or fail-closed truth. If GREEN, continue #762 endpoint permission enforcement and persisted actor audit attribution; #764 Web purchase remains external commercial-owner blocked and is not a fleet stop.",
+    "next": "After #762 bounded work, resume highest-value exact-source RED/unverified lane. Retry source-identity blockers only when new trustworthy source truth appears. Never merge automatically or mutate production.",
     "wait": [
-      "Customer Journey #762 shared-company multi-user membership remains NOT_MODELED",
+      "Customer Journey #821 exact-head CI is in progress",
+      "Customer Journey #762 endpoint-level role enforcement and persisted mutation audit attribution remain incomplete",
+      "Customer Journey #764 Web purchase completion requires a real authorized commercial system; no fake checkout/price may be created",
       "Customer Journey #775 password-recovery candidate remains noncanonical and real native provider/deep-link acceptance remains external",
       "ComplianceLedger canonical/source identity remains UNKNOWN",
       "Product Strategy exact source identity remains UNKNOWN",
       "GTM repository source/revenue/WTP evidence was not recovered; no revenue claim",
       "OS SIDE FACTORY source identity remains UNKNOWN",
       "ScopeLedger production lineage remains unproven",
-      "Aviation candidate lacks exact-head CI",
+      "Aviation source topology is 295 commits ahead of main and lacks a clean bounded CI base",
       "production/deploy/secrets/provider/config/customer-data/source activation",
       "merge/adoption decisions"
     ]
@@ -69,6 +82,8 @@
     {"factory_id":"autonomous-revenue-recovery","blocker":"No exact source/BATON identity or autonomous-revenue/* branch recovered.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity or data-runner/* branch recovered.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"obrasignal-customer-journey","blocker":"#762 composition #821 is active under CI; endpoint permission enforcement/audit attribution remain incomplete. #764 requires real commercial owner/system.","global_stop":false},
+    {"factory_id":"aviation-lease-entitlement-recovery","blocker":"Candidate source topology is not bounded against main; no clean isolated CI PR was created.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"No exact source/BATON/branch/PR/code identity recovered.","global_stop":false}
   ],
   "rules": {
