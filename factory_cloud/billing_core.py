@@ -32,6 +32,8 @@ class BillingRoute:
     mode: str
     payment_rail: str
     currency: str
+    collection_rails: tuple[str, ...] = ()
+    provider: str | None = None
     entitlement: str | None = None
     product_id: str | None = None
     grants_entitlement: bool | None = None
@@ -93,6 +95,8 @@ def load_billing_policy(path: Path = POLICY_PATH) -> dict[str, Any]:
         raise BillingConfigurationError("defaults_by_group is required")
     if not isinstance(policy.get("overrides"), dict):
         raise BillingConfigurationError("overrides is required")
+    if policy.get("provider_ids_embedded_in_repository") is not False:
+        raise BillingConfigurationError("provider IDs must not be embedded in repository policy")
     return policy
 
 
@@ -142,6 +146,8 @@ def billing_route_for(
             mode="inherit",
             payment_rail=owner_route.payment_rail,
             currency=owner_route.currency,
+            collection_rails=owner_route.collection_rails,
+            provider=owner_route.provider,
             entitlement=owner_route.entitlement,
             product_id=owner_route.product_id,
             grants_entitlement=owner_route.grants_entitlement,
@@ -151,6 +157,11 @@ def billing_route_for(
     payment_rail = str(raw.get("payment_rail") or "").strip()
     if not mode or not payment_rail:
         raise BillingConfigurationError(f"incomplete billing policy for {factory_id}")
+    collection_rails_raw = raw.get("collection_rails", [])
+    if not isinstance(collection_rails_raw, list) or any(
+        not str(item).strip() for item in collection_rails_raw
+    ):
+        raise BillingConfigurationError(f"invalid collection rails for {factory_id}")
 
     currency = str(raw.get("currency") or policy.get("currency_default") or "EUR")
     return BillingRoute(
@@ -159,6 +170,8 @@ def billing_route_for(
         mode=mode,
         payment_rail=payment_rail,
         currency=currency,
+        collection_rails=tuple(str(item) for item in collection_rails_raw),
+        provider=str(raw.get("provider")).strip() if raw.get("provider") else None,
         entitlement=raw.get("entitlement"),
         product_id=raw.get("product_id"),
         grants_entitlement=raw.get("grants_entitlement"),
@@ -176,12 +189,16 @@ def billing_plan(
         billing_route_for(str(factory["id"]), registry, policy)
         for factory in registry.get("factories", [])
     ]
+    owner_ids = {route.billing_owner_id for route in routes}
     return {
         "schema_version": policy.get("schema_version"),
         "registered_factories": len(routes),
+        "billing_owners": len(owner_ids),
         "all_registered_factories_covered": True,
         "real_provider_calls_enabled": False,
         "bank_secret_embedded_in_repository": False,
+        "provider_ids_embedded_in_repository": False,
+        "provider_catalog_strategy": policy.get("provider_catalog_strategy"),
         "routes": [asdict(route) for route in routes],
     }
 
@@ -227,6 +244,7 @@ def payment_instructions(
     registry: Mapping[str, Any] | None = None,
     policy: Mapping[str, Any] | None = None,
     environ: Mapping[str, str] | None = None,
+    include_full_bank_destination: bool = False,
 ) -> dict[str, Any]:
     registry = dict(registry or load_switchboard())
     policy = dict(policy or load_billing_policy())
@@ -237,17 +255,28 @@ def payment_instructions(
         "billing_owner_id": route.billing_owner_id,
         "mode": route.mode,
         "payment_rail": route.payment_rail,
+        "collection_rails": list(route.collection_rails),
+        "provider": route.provider,
         "currency": route.currency,
         "provider_call_performed": False,
     }
-    if route.payment_rail == "bank_transfer":
-        destination = bank_destination_from_env(policy, environ)
-        result["bank_destination"] = {
-            "iban": destination.iban,
-            "bic": destination.bic,
-            "masked_iban": destination.masked_iban,
-        }
-    elif route.payment_rail == "revenuecat_store":
+    if "direct_bank_transfer" in route.collection_rails:
+        try:
+            destination = bank_destination_from_env(policy, environ)
+        except BillingConfigurationError:
+            if include_full_bank_destination:
+                raise
+            result["direct_bank_transfer"] = {"configured": False}
+        else:
+            bank: dict[str, Any] = {
+                "configured": True,
+                "masked_iban": destination.masked_iban,
+                "bic": destination.bic,
+            }
+            if include_full_bank_destination:
+                bank["iban"] = destination.iban
+            result["direct_bank_transfer"] = bank
+    if route.payment_rail == "revenuecat_store":
         result["entitlement"] = route.entitlement
         result["product_id"] = route.product_id
     elif route.payment_rail == "supporter_checkout":
