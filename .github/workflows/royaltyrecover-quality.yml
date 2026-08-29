@@ -108,3 +108,23 @@ jobs:
           ROYALTYRECOVER_API_KEYS_JSON: '{"ORG-SMOKE":"smoke-secret"}'
           ROYALTYRECOVER_DB_PATH: /tmp/royaltyrecover-gunicorn.db
         run: gunicorn --check-config application:app
+      - name: Build assisted-pilot container
+        run: docker build -f factories/royaltyrecover/Dockerfile -t royaltyrecover:ci .
+      - name: Run assisted-pilot container smoke
+        run: |
+          mkdir -p /tmp/royaltyrecover-container-data
+          chmod 777 /tmp/royaltyrecover-container-data
+          docker run -d --rm --name royaltyrecover-ci \
+            -p 18080:8080 \
+            -v /tmp/royaltyrecover-container-data:/data \
+            -e 'ROYALTYRECOVER_API_KEYS_JSON={"ORG-SMOKE":"smoke-secret"}' \
+            royaltyrecover:ci
+          cleanup() { docker stop royaltyrecover-ci >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:18080/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18080/health | grep '"claim_generation":false'
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/app)" = "401"
+          curl --fail --silent -H 'X-RoyaltyRecover-API-Key: smoke-secret' http://127.0.0.1:18080/api/v1/readiness | grep '"ready":true'
