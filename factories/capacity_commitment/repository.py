@@ -30,6 +30,14 @@ class CapacityRepository:
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
 
+    @staticmethod
+    def _validate_case_id(case_id) -> str:
+        if not isinstance(case_id, str) or not case_id.strip():
+            raise ValueError("case_id must be a non-empty string")
+        if len(case_id) > 200:
+            raise ValueError("case_id must be at most 200 characters")
+        return case_id
+
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
@@ -61,8 +69,8 @@ class CapacityRepository:
         """Create validated state, returning True if inserted and False for exact retry."""
 
         evaluate_recoverability(state.recovery_case)
+        case_id = self._validate_case_id(state.recovery_case.case_id)
         snapshot = dump_state(state)
-        case_id = state.recovery_case.case_id
         updated_at = datetime.now(timezone.utc).isoformat()
         try:
             with self._connect() as conn:
@@ -93,8 +101,9 @@ class CapacityRepository:
             raise FileExistsError("case already exists with different source state") from exc
 
     def load(self, *, tenant_id: str, case_id: str) -> AssistedCaseState:
-        if not tenant_id or not case_id:
+        if not tenant_id:
             raise ValueError("tenant_id and case_id are required")
+        self._validate_case_id(case_id)
         with self._connect() as conn:
             row = conn.execute(
                 """
@@ -108,6 +117,8 @@ class CapacityRepository:
         if row["engine_version"] != ENGINE_VERSION:
             raise RuntimeError("case requires explicit reassessment for engine version drift")
         state = load_state(row["snapshot"], expected_tenant_id=tenant_id)
+        if state.recovery_case.case_id != case_id:
+            raise RuntimeError("capacity repository case identity mismatch")
         evaluate_recoverability(state.recovery_case)
         return state
 
@@ -122,7 +133,13 @@ class CapacityRepository:
                 """,
                 (tenant_id,),
             ).fetchall()
-        return [row["case_id"] for row in rows]
+        case_ids = [row["case_id"] for row in rows]
+        for case_id in case_ids:
+            try:
+                self._validate_case_id(case_id)
+            except ValueError as exc:
+                raise RuntimeError("capacity repository case identity mismatch") from exc
+        return case_ids
 
     def backup_to(self, destination_path: str) -> None:
         if not destination_path:
@@ -157,16 +174,22 @@ class CapacityRepository:
                 row["name"]
                 for row in source.execute("PRAGMA table_info(capacity_commitment_cases)").fetchall()
             }
-            required = {"tenant_id", "snapshot", "engine_version"}
+            required = {"tenant_id", "case_id", "snapshot", "engine_version", "updated_at"}
             if not required.issubset(columns):
                 raise ValueError("restore source lacks required capacity columns")
             rows = source.execute(
-                "SELECT tenant_id, snapshot, engine_version FROM capacity_commitment_cases"
+                "SELECT tenant_id, case_id, snapshot, engine_version FROM capacity_commitment_cases"
             ).fetchall()
             for row in rows:
+                try:
+                    self._validate_case_id(row["case_id"])
+                except ValueError as exc:
+                    raise ValueError("restore source has invalid case identity") from exc
                 if row["engine_version"] != ENGINE_VERSION:
                     raise ValueError("restore source requires explicit engine reassessment")
                 state = load_state(row["snapshot"], expected_tenant_id=row["tenant_id"])
+                if state.recovery_case.case_id != row["case_id"]:
+                    raise ValueError("restore source case identity mismatch")
                 evaluate_recoverability(state.recovery_case)
 
             with self._connect() as destination:
