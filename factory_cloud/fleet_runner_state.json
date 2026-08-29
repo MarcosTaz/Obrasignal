@@ -7,18 +7,18 @@
   "registry": "factory_cloud/factories.json",
   "cursor": 4,
   "last_factory_id": "scopeledger",
-  "last_run_at": "2026-08-29T19:32:52Z",
+  "last_run_at": "2026-08-29T19:34:00Z",
   "last_material_change": {
-    "kind": "INDUSTRIAL_CLAIMS_VERIFIED_AND_SCOPELEDGER_SOURCE_RECOVERED",
+    "kind": "INDUSTRIAL_DETAIL_BOUNDARY_GREEN_SCOPELEDGER_RECOVERED_CONTINUE",
     "factory_id": "scopeledger",
-    "summary": "Industrial Claims PR #785 remains OPEN/DRAFT at exact HEAD 449e3e846d1ad7096b7cf6790ecc119299a35023 with both python and mobile checks SUCCESS; no merge was performed. Fleet then recovered ScopeLedger source identity via branch recovery/scopeledger-source-20260829 at BATON HEAD 79450c800397c7cce873d6efbd6f7401df142625. That BATON records independently verified application recovery HEAD 05a41621806c9bf1ce142263782772b133cee053 with workflow 33224493149 / recovered-source-integrity SUCCESS, while explicitly preserving production lineage as unproven. ScopeLedger therefore remains recovery-candidate GREEN only, not production-verified. Fleet rotated onward rather than stopping on the external lineage boundary.",
+    "summary": "Industrial Claims received an additional adversarial finding-detail boundary regression on apps/industrial-claims. Exact HEAD ea8d428fb7b4236d8d1c336d28213dfaf5bb2a9a passed ObraSignal Quality run 33271161119 SUCCESS. The new proof covers own-tenant detail access, cross-tenant non-disclosure, raw-document exclusion, verified-role enforcement, and path-style finding IDs reaching the bounded handler rather than bypassing route semantics. No production claim was added. In parallel, ScopeLedger source recovery remains exact-head GREEN only as a recovered candidate: production/Railway lineage is still unproven. Fleet remains advanced to ChangeLedger.",
     "evidence": {
       "industrial_claims": {
         "pr": 785,
         "branch": "apps/industrial-claims",
-        "head": "449e3e846d1ad7096b7cf6790ecc119299a35023",
-        "python": "SUCCESS",
-        "mobile": "SUCCESS",
+        "head": "ea8d428fb7b4236d8d1c336d28213dfaf5bb2a9a",
+        "quality": "ObraSignal Quality 33271161119 SUCCESS",
+        "new_regression": "tests/test_industrial_claims_finding_detail.py",
         "classification": "GREEN_DRAFT_ACTIVE_NO_MERGE"
       },
       "scopeledger": {
