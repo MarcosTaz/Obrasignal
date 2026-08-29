@@ -26,15 +26,7 @@ class WorkerHost:
     a standby process from misclassifying a live worker's EXECUTING task as crashed.
     """
 
-    def __init__(
-        self,
-        orchestrator: PersistentFactoryOrchestrator,
-        poll_seconds: float = 5.0,
-        max_dispatches_per_cycle: int = 100,
-        sleeper: Callable[[float], None] = time.sleep,
-        owner_id: str | None = None,
-        lease_ttl_seconds: float | None = None,
-    ):
+    def __init__(self, orchestrator: PersistentFactoryOrchestrator, poll_seconds: float = 5.0, max_dispatches_per_cycle: int = 100, sleeper: Callable[[float], None] = time.sleep, owner_id: str | None = None, lease_ttl_seconds: float | None = None):
         if poll_seconds < 0:
             raise ValueError("poll_seconds must be >= 0")
         self.orchestrator = orchestrator
@@ -63,13 +55,7 @@ class WorkerHost:
                 return
 
     def _standby(self) -> dict[str, Any]:
-        return {
-            "activation_code": ACTIVATION_CODE,
-            "global_state": "STANDBY",
-            "dispatches": [],
-            "blockers": {"factory_cloud": ["dispatch_lease_held_by_another_worker"]},
-            "apps": self.store.list_apps(),
-        }
+        return {"activation_code": ACTIVATION_CODE, "global_state": "STANDBY", "dispatches": [], "blockers": {"factory_cloud": ["dispatch_lease_held_by_another_worker"]}, "apps": self.store.list_apps()}
 
     def run_once(self) -> dict[str, Any]:
         if not self.store.acquire_or_renew_lease(LEASE_NAME, self.owner_id, self.lease_ttl_seconds):
@@ -105,9 +91,8 @@ class WorkerHost:
 
 
 def _install_signal_handlers(host: WorkerHost) -> None:
-    def request_stop(signum, frame):  # pragma: no cover - OS integration
+    def request_stop(signum, frame):  # pragma: no cover
         host.stop()
-
     signal.signal(signal.SIGINT, request_stop)
     signal.signal(signal.SIGTERM, request_stop)
 
@@ -126,19 +111,14 @@ def _runtime_adapters(registry: dict[str, Any], queue: DurableWorkQueue) -> Adap
         expected_head = execution.get("head") or canonical.get("canonical_head")
         provider = execution.get("provider") or canonical.get("provider")
         if provider == "github":
-            delegate = VerifiedDispatchAdapter(
-                delegate,
-                repository=repository,
-                branch=branch,
-                expected_head=expected_head,
-            )
+            delegate = VerifiedDispatchAdapter(delegate, repository=repository, branch=branch, expected_head=expected_head)
         overrides[app["app_id"]] = delegate
     return AdapterRegistry(overrides)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Long-lived Factory Cloud worker host")
-    parser.add_argument("code", help="activation code; must be Ω")
+    parser.add_argument("code", help="activation code; must be D")
     parser.add_argument("--registry", type=Path, default=None)
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE_PATH)
     parser.add_argument("--poll-seconds", type=float, default=5.0)
@@ -147,22 +127,12 @@ def main() -> int:
     parser.add_argument("--max-cycles", type=int, default=None, help="test/operator bound; omit for continuous foreground execution")
     args = parser.parse_args()
     if args.code != ACTIVATION_CODE:
-        parser.error("Factory Cloud activation requires Ω")
+        parser.error("Factory Cloud activation requires D")
     registry = load_registry(args.registry) if args.registry else load_registry()
     store = StateStore(args.state)
     queue = DurableWorkQueue(store)
-    orchestrator = PersistentFactoryOrchestrator(
-        registry,
-        store,
-        adapters=_runtime_adapters(registry, queue),
-        recover_interrupted=False,
-    )
-    host = WorkerHost(
-        orchestrator,
-        poll_seconds=args.poll_seconds,
-        max_dispatches_per_cycle=args.max_dispatches,
-        lease_ttl_seconds=args.lease_ttl_seconds,
-    )
+    orchestrator = PersistentFactoryOrchestrator(registry, store, adapters=_runtime_adapters(registry, queue), recover_interrupted=False)
+    host = WorkerHost(orchestrator, poll_seconds=args.poll_seconds, max_dispatches_per_cycle=args.max_dispatches, lease_ttl_seconds=args.lease_ttl_seconds)
     _install_signal_handlers(host)
     result = host.run_forever(args.max_cycles)
     if result is not None:
