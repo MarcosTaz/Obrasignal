@@ -5,48 +5,37 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 0,
-  "last_factory_id": "obrasignal-release-safety",
-  "last_run_at": "2026-08-29T19:25:00Z",
+  "cursor": 2,
+  "last_factory_id": "obrasignal",
+  "last_run_at": "2026-08-29T19:27:00Z",
   "last_material_change": {
-    "kind": "OWNER_AND_INTEGRATION_TRUTH_RECONCILED_CONTINUE",
-    "factory_id": "obrasignal-release-safety",
-    "summary": "Release Safety ambiguity was reduced without fabricating canonical adoption. The current bounded owner for automatic-production Auth E2E safety is PR #414 at exact HEAD 834cc5aac46cc36dae0783e70c38f810f2eaa0bb with ObraSignal Quality 32899508360 SUCCESS. The strongest recovered cross-owner passing composition is PR #571 at 631befa3b9ed8c2c8b5e90bc9544fa79f9037267, which preserves #414 read-only production behavior while repairing the nested workflow consumer and immutable checkout contract; its recorded exact-head Quality/JWT/Supply-Chain gates are GREEN. Earlier #345/#350 remain separate Web/EAS release-authority candidates rather than competing owners of the Auth-E2E defect. Nothing is canonical or merged. ComplianceLedger remains UNKNOWN after exact-name code and PR searches returned no source identity, so it stays WAIT and does not block the cycle.",
+    "kind": "FACTORY_CLOUD_RECONCILED_AND_NEXT_FACTORY_DISPATCHED",
+    "factory_id": "obrasignal",
+    "summary": "Factory Cloud portfolio #760 was compared directly with the live control-plane branch. The branches diverge from merge-base 3c39c0e221978526bfa685f0d090d98659a80012: portfolio is 153 commits ahead while the live control plane is 29 commits ahead of that merge base. The portfolio delta touches central authority files including apps.json, control_plane.py, factory_switchboard.py and orchestrator.py plus 80+ additional files. Wholesale adoption is therefore not a bounded safe slice and is moved to WAIT for controlled reconciliation rather than overwriting newer control-plane work. The persistent fleet cycle advances past Factory Cloud to ObraSignal, preserving no-auto-merge and no-runtime-overclaim boundaries.",
     "evidence": {
-      "release_safety": {
-        "owner_pr": 414,
-        "owner_head": "834cc5aac46cc36dae0783e70c38f810f2eaa0bb",
-        "owner_ci": "ObraSignal Quality 32899508360 SUCCESS",
-        "owner_classification": "GREEN_OWNER_DRAFT_NOT_CANONICAL",
-        "integration_pr": 571,
-        "integration_head": "631befa3b9ed8c2c8b5e90bc9544fa79f9037267",
-        "integration_classification": "FULL_CROSS_OWNER_EXACT_HEAD_GREEN_NOT_CANONICAL",
-        "parallel_release_authorities": ["#345 Web/Pages", "#350 EAS/mobile"]
+      "factory_cloud": {
+        "portfolio_pr": 760,
+        "portfolio_head": "02fdfc5422acd9b20b4f05ec511ef7f1cba1bf3a",
+        "portfolio_ci": "ObraSignal Quality 33265278871 SUCCESS",
+        "merge_base": "3c39c0e221978526bfa685f0d090d98659a80012",
+        "relationship": "DIVERGED",
+        "portfolio_ahead_by": 153,
+        "live_control_plane_ahead_by": 29,
+        "classification": "GREEN_BUT_CONTROLLED_RECONCILIATION_REQUIRED"
       },
-      "complianceledger": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY",
-        "search_result": "No exact ComplianceLedger code or PR identity recovered; no substitute authority inferred."
-      },
-      "eu_switching": {
-        "head": "f27fd53b64b33cf2af49f28008e7d7e5473edd90",
-        "focused_ci": "Cloud Switching Quality 33270604908 SUCCESS",
-        "repository_ci": "ObraSignal Quality 33270604906 SUCCESS"
-      },
-      "fleet_runner": {
-        "head": "f81f0d094cc9ced2432989b46e4772fb0c200a5a",
-        "ci": "ObraSignal Quality 33270510350 SUCCESS"
+      "obrasignal_dispatch": {
+        "registry_index": 1,
+        "classification": "SELECTED_FOR_NEXT_SAFE_EXECUTION"
       }
     },
-    "active": "Factory Cloud next cycle: inspect portfolio #760 for a bounded adoption/rebase strategy; do not wholesale copy its 89-file delta across newer control-plane work. If no safe bounded adoption exists, preserve it as GREEN integration candidate and dispatch the next registry Factory.",
-    "next": "Use persistent fleet rotation from cursor 0; prioritize current Factory Cloud source/runtime consistency and then ObraSignal/Industrial Claims executable gaps.",
+    "active": "ObraSignal: reconstruct the highest-value current RED/incomplete integration from live repository truth and execute a bounded repository-safe repair or integration candidate without mutating main/production.",
+    "next": "After ObraSignal safe work is persisted and verified, continue to Industrial Claims and subsequent registry entries; WAIT lanes do not halt rotation.",
     "wait": [
-      "Portfolio #760 full 89-file adoption needs controlled reconciliation with newer Factory Cloud branch",
-      "Portfolio #760 supervised persistent host provisioning remains external/unverified",
+      "Portfolio #760 full adoption requires controlled reconciliation with 29 newer live-control commits",
+      "Portfolio supervised persistent host provisioning remains external/unverified",
       "Aviation/ContractCredit G3 requires real supervised runtime evidence",
       "ComplianceLedger canonical source identity remains UNKNOWN",
       "EU Switching real WTP/customer/payment/deployment evidence remains external",
-      "Customer Journey/Auth and Customer Decision/Golden integration handoffs remain unresolved",
-      "Data Truth #750/#753 owner repairs remain unresolved",
       "production/deploy/secrets/provider/config/customer-data/source activation",
       "merge/adoption decisions"
     ]
