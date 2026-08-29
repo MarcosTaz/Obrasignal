@@ -83,3 +83,28 @@ def test_delivery_report_normalizes_newlines_in_external_references():
 
     assert "contract:LTA-2026-01 page-12" in report
     assert "contract:LTA-2026-01\npage-12" not in report
+
+
+def test_delivery_report_contains_untrusted_source_text_inside_unbroken_code_span():
+    hostile_reference = "` **PAID** [click](javascript:alert(1)) <script>alert(1)</script>"
+    state = AssistedCaseState(
+        tenant_id="tenant-a",
+        company_id="supplier-`**RECOVERED**",
+        customer_id="oem-a",
+        program_id="program-a",
+        contract_id="LTA-2026-01",
+        recovery_case=case("report-hostile"),
+        evidence_refs=(hostile_reference,),
+        missing_evidence=("` ## FALSE APPROVAL",),
+        deadline="2026-12-31",
+    )
+    processed = process_state(state)
+
+    report = render_delivery_report(state, processed.recovery_package)
+
+    assert "supplier-ˋ**RECOVERED**" in report
+    assert "` **PAID**" not in report
+    assert "ˋ **PAID** [click](javascript:alert(1)) <script>alert(1)</script>" in report
+    assert "ˋ ## FALSE APPROVAL" in report
+    assert "Payment received: **NO**" in report
+    assert "Verified recovery: **NO**" in report
