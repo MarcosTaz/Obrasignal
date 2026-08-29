@@ -11,14 +11,23 @@ from factory_cloud.assurance_observability import assurance_health
 from factory_cloud.assurance_ops import AssuranceOperationError
 from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.shared_contracts import SharedContractError
+from vertical_apps.aviation_recovery.intake import (
+    AviationPilotIntakeError,
+    AviationPilotIntakeService,
+    EvidenceInput,
+)
 from vertical_apps.aviation_recovery.service import AviationRecoveryService
 
-API_ERRORS = (KeyError, ValueError, AssuranceKernelError, AssuranceOperationError, AssuranceStoreError, SharedContractError)
+API_ERRORS = (
+    KeyError, TypeError, ValueError, AssuranceKernelError, AssuranceOperationError,
+    AssuranceStoreError, SharedContractError, AviationPilotIntakeError,
+)
 
 
 def create_app(database: str | Path) -> Flask:
     app = Flask(__name__)
     service = AviationRecoveryService(database)
+    shadow_service = AviationPilotIntakeService(database)
 
     def identity() -> tuple[str, str]:
         tenant_id = request.headers.get("X-Tenant-ID", "").strip()
@@ -61,6 +70,32 @@ def create_app(database: str | Path) -> Flask:
                 actor_id=actor_id,
                 contract_ref=str(payload["contract_ref"]),
                 event_ref=str(payload["event_ref"]),
+                eligible_cost=str(payload["eligible_cost"]),
+                reimbursed_amount=str(payload["reimbursed_amount"]),
+                notice_due=date.fromisoformat(str(payload["notice_due"])),
+            )
+            return jsonify(result), 201
+        except API_ERRORS as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @app.post("/shadow/analyze")
+    def shadow_analyze():
+        try:
+            tenant_id, actor_id = identity()
+            payload = request.get_json(force=True) or {}
+            contract = payload["lease_contract"]
+            event = payload["maintenance_event"]
+            result = shadow_service.analyze(
+                tenant_id=tenant_id,
+                actor_id=actor_id,
+                lease_contract=EvidenceInput.create(
+                    source_ref=contract["source_ref"], sha256=contract["sha256"],
+                    provenance=contract["provenance"], authorized=contract["authorized"],
+                ),
+                maintenance_event=EvidenceInput.create(
+                    source_ref=event["source_ref"], sha256=event["sha256"],
+                    provenance=event["provenance"], authorized=event["authorized"],
+                ),
                 eligible_cost=str(payload["eligible_cost"]),
                 reimbursed_amount=str(payload["reimbursed_amount"]),
                 notice_due=date.fromisoformat(str(payload["notice_due"])),
