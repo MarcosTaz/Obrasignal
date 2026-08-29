@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "purpose": "candidate reusable capability inventory; classification only, no cross-app authority",
   "promotion_states": ["VERTICAL_ONLY","CANDIDATE_SHARED","SHARED_CONTRACT_PROPOSED","SHARED_VERIFIED","SHARED_CORE"],
   "capabilities": [
@@ -70,42 +70,42 @@
     {
       "id": "document_ingestion_contract",
       "layer": "assurance-kernel",
-      "state": "CANDIDATE_SHARED",
-      "source_app": "portfolio",
-      "evidence_paths": [],
-      "next_proof": "implement minimum immutable document/evidence envelope in one recovery vertical and replay in a second"
+      "state": "SHARED_CONTRACT_PROPOSED",
+      "source_app": "factory-cloud",
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
+      "next_proof": "consume EvidenceEnvelope from two independent vertical adapters before SHARED_VERIFIED"
     },
     {
       "id": "evidence_lineage",
       "layer": "assurance-kernel",
-      "state": "CANDIDATE_SHARED",
-      "source_app": "portfolio",
-      "evidence_paths": ["decision_log.py"],
-      "next_proof": "define evidence-to-finding lineage contract that cannot assert entitlement without source support"
+      "state": "SHARED_CONTRACT_PROPOSED",
+      "source_app": "factory-cloud",
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
+      "next_proof": "prove evidence-to-calculation-to-finding lineage in two vertical schemas"
     },
     {
       "id": "deterministic_calculation_contract",
       "layer": "assurance-kernel",
-      "state": "CANDIDATE_SHARED",
-      "source_app": "portfolio",
-      "evidence_paths": [],
-      "next_proof": "implement typed inputs, formula/version lineage and reproducible output in first recovery vertical"
+      "state": "SHARED_CONTRACT_PROPOSED",
+      "source_app": "factory-cloud",
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
+      "next_proof": "run formula/version/reproducibility contract in two recovery verticals before SHARED_VERIFIED"
     },
     {
       "id": "deadline_notice_window",
       "layer": "assurance-kernel",
-      "state": "CANDIDATE_SHARED",
-      "source_app": "portfolio",
-      "evidence_paths": [],
-      "next_proof": "prove date semantics across two verticals before extracting shared implementation"
+      "state": "SHARED_CONTRACT_PROPOSED",
+      "source_app": "factory-cloud",
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
+      "next_proof": "prove date semantics and source-basis evidence across two verticals before SHARED_VERIFIED"
     },
     {
       "id": "finding_review_workflow",
       "layer": "assurance-kernel",
-      "state": "CANDIDATE_SHARED",
-      "source_app": "portfolio",
-      "evidence_paths": [],
-      "next_proof": "define fail-closed finding states including unresolved evidence, reviewer decision and outcome lineage"
+      "state": "SHARED_CONTRACT_PROPOSED",
+      "source_app": "factory-cloud",
+      "evidence_paths": ["factory_cloud/assurance_kernel.py", "tests/test_factory_cloud_assurance_kernel.py"],
+      "next_proof": "prove fail-closed review and outcome states across two vertical adapters before SHARED_VERIFIED"
     }
   ]
 }
