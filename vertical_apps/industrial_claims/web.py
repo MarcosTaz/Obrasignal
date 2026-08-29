@@ -44,6 +44,7 @@ def create_app(
     identity_resolver: Callable[[], RequestIdentity] | None = None,
 ) -> Flask:
     app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = 3_500_000
     service = IndustrialClaimsService(database)
     resolve_identity = identity_resolver or configured_identity
 
@@ -128,6 +129,15 @@ def create_app(
             missing = payload.get("missing_evidence") or []
             if not isinstance(missing, list):
                 raise ValueError("missing_evidence must be a list")
+            document_fields = (
+                "commercial_basis_content",
+                "event_evidence_content",
+                "cost_evidence_content",
+            )
+            for field in document_fields:
+                value = payload.get(field)
+                if value is not None and not isinstance(value, str):
+                    raise ValueError(f"{field} must be text when supplied")
             notice_raw = payload.get("notice_due")
             no_notice_deadline = payload.get("notice_deadline_not_applicable", False)
             if not isinstance(no_notice_deadline, bool):
@@ -142,6 +152,9 @@ def create_app(
                 commercial_basis_ref=str(payload["commercial_basis_ref"]),
                 cost_evidence_ref=str(payload["cost_evidence_ref"]),
                 gross_cost=str(payload["gross_cost"]),
+                commercial_basis_content=payload.get("commercial_basis_content"),
+                event_evidence_content=payload.get("event_evidence_content"),
+                cost_evidence_content=payload.get("cost_evidence_content"),
                 avoided_cost=str(payload.get("avoided_cost", "0")),
                 resale_reuse=str(payload.get("resale_reuse", "0")),
                 third_party_recovery=str(payload.get("third_party_recovery", "0")),
@@ -158,6 +171,10 @@ def create_app(
                 "net_potential": result.calculation.output_value,
                 "calculation_hash": result.calculation.reproducibility_hash,
                 "notice_deadline_state": result.notice_deadline_state,
+                "evidence_states": {
+                    item.source_type: item.metadata.get("verification_state", "UNKNOWN")
+                    for item in result.evidence
+                },
                 "missing_evidence": list(result.missing_evidence),
                 "is_new_recovery": result.is_new_recovery,
             }), 201
