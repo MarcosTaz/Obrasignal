@@ -75,6 +75,7 @@ def ensure_b2b_product(
         return {"factory_id": factory_id, "status": "EXISTS", "provider_ref_present": True}
     if not allow_create:
         return {"factory_id": factory_id, "status": "MISSING", "provider_ref_present": False}
+    provider.require_write_ready("create_catalog_product")
     created = provider._request(
         "POST",
         "/products",
