@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "scope": "shared_billing_core",
+  "currency_default": "EUR",
+  "bank_destination_env": "FACTORY_BILLING_IBAN",
+  "bank_bic_env": "FACTORY_BILLING_BIC",
+  "defaults_by_group": {
+    "control": {
+      "mode": "internal_only",
+      "payment_rail": "none"
+    },
+    "obrasignal": {
+      "mode": "inherit",
+      "billing_owner_id": "obrasignal"
+    },
+    "business": {
+      "mode": "b2b_invoice",
+      "payment_rail": "bank_transfer",
+      "currency": "EUR"
+    },
+    "developing": {
+      "mode": "b2b_invoice",
+      "payment_rail": "bank_transfer",
+      "currency": "EUR"
+    },
+    "specialist": {
+      "mode": "b2b_invoice",
+      "payment_rail": "bank_transfer",
+      "currency": "EUR"
+    }
+  },
+  "overrides": {
+    "factory-cloud": {
+      "mode": "internal_only",
+      "payment_rail": "none"
+    },
+    "obrasignal": {
+      "mode": "subscription",
+      "payment_rail": "revenuecat_store",
+      "currency": "store_localized",
+      "entitlement": "pro",
+      "product_id": "obrasignal_pro_monthly"
+    },
+    "k3-fatality": {
+      "mode": "supporter_contribution",
+      "payment_rail": "supporter_checkout",
+      "currency": "EUR",
+      "grants_entitlement": false,
+      "subscription_enabled": false
+    },
+    "eu-switching-evidence-pack": {
+      "mode": "inherit",
+      "billing_owner_id": "eu-cloud-switching"
+    },
+    "complianceledger": {
+      "mode": "inherit",
+      "billing_owner_id": "documentary-billing"
+    }
+  }
+}
