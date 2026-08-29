@@ -1,5 +1,5 @@
 {
-  "schema_version": 8,
+  "schema_version": 9,
   "activation_code": "D",
   "registry_scope": "application_development_only",
   "rules": {"include_only_kind":"application","exclude_research_factories":true,"unknown_source_is_not_absent":true,"no_automatic_merge":true,"no_automatic_deploy":true,"no_production_mutation":true,"independent_trust_boundaries":true,"no_shared_production_authority":true,"metadata_only_persistence":true},
@@ -22,8 +22,8 @@
     },
     {
       "app_id":"aviation-lease-entitlement-recovery","name":"Aviation Lease Entitlement Recovery","kind":"application","mission":"Deliver evidence-first lessee-side maintenance-reserve recoverability analysis using the shared assurance kernel, without inventing entitlement or mutating production.","development_state":"PILOT_CAPABLE_ASSISTED_RUNTIME_PROVISIONING_WAIT",
-      "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/aviation-lease-entitlement-recovery","canonical_head":"e8470dbc209c7ec5eaeef7e088573d6adf7cf510","verified":true,"application_path":"vertical_apps/aviation_recovery"},
-      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/aviation-lease-entitlement-recovery","head":"e8470dbc209c7ec5eaeef7e088573d6adf7cf510","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
+      "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/aviation-lease-entitlement-recovery","canonical_head":"0d1759832a06b3177b67b35a4c53ee0c69db459e","verified":true,"application_path":"vertical_apps/aviation_recovery"},
+      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/aviation-lease-entitlement-recovery","head":"0d1759832a06b3177b67b35a4c53ee0c69db459e","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH_GREEN","evidence":"ObraSignal Quality #3533 / run 33264421114"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/aviation-recovery-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
       "baton":{"active":"runtime:provision","next":["verify:service","verify:shared-contracts"],"wait":["runtime workspace provisioning: /srv/factory-cloud/apps/aviation-lease-entitlement-recovery and supervised worker","production deploy","real customer data until authorized"]},
@@ -32,8 +32,8 @@
     },
     {
       "app_id":"contractcredit","name":"ContractCredit","kind":"application","mission":"Deliver evidence-first enterprise service-credit reconciliation using the shared assurance kernel, without inventing SLA breach or contractual remedy.","development_state":"PILOT_CAPABLE_ASSISTED_RUNTIME_PROVISIONING_WAIT",
-      "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/contractcredit","canonical_head":"e8470dbc209c7ec5eaeef7e088573d6adf7cf510","verified":true,"application_path":"vertical_apps/contractcredit"},
-      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/contractcredit","head":"e8470dbc209c7ec5eaeef7e088573d6adf7cf510","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH"},
+      "source_truth":{"provider":"github","repository":"MarcosTaz/Obrasignal","canonical_branch":"apps/contractcredit","canonical_head":"0d1759832a06b3177b67b35a4c53ee0c69db459e","verified":true,"application_path":"vertical_apps/contractcredit"},
+      "execution_source":{"provider":"github","repository":"MarcosTaz/Obrasignal","branch":"apps/contractcredit","head":"0d1759832a06b3177b67b35a4c53ee0c69db459e","verified":true,"classification":"SOURCE_REGISTERED_APPLICATION_BRANCH_GREEN","evidence":"ObraSignal Quality #3533 / run 33264421114"},
       "execution_adapter":{"kind":"recovery_vertical_verification_v1","configured":true,"config_path":"factory_cloud/runtime/contractcredit-adapter.json","allowlisted_tasks":["verify:service","verify:shared-contracts"],"capabilities":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"repository_mutation_capability":false},
       "task_capabilities":{"verify:service":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"],"verify:shared-contracts":["READ_REPOSITORY","RUN_TESTS","UPDATE_BATON"]},
       "baton":{"active":"runtime:provision","next":["verify:service","verify:shared-contracts"],"wait":["runtime workspace provisioning: /srv/factory-cloud/apps/contractcredit and supervised worker","production deploy","real customer data until authorized"]},
