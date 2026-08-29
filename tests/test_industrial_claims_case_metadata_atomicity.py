@@ -38,6 +38,7 @@ def test_case_metadata_is_committed_with_shared_case_rows(tmp_path):
     assert metadata.entitlement_id == result.entitlement.entitlement_id
     assert metadata.deadline_id == result.deadline.deadline_id
     assert metadata.recovery_fingerprint == result.fingerprint.fingerprint
+    assert metadata.notice_deadline_state == "DECLARED_NONE_FOR_REVIEW"
 
 
 def test_case_metadata_failure_rolls_back_new_fingerprint_and_all_new_case_rows(tmp_path, monkeypatch):
@@ -78,4 +79,5 @@ def test_immutable_case_metadata_collision_rolls_back_alternate_fingerprint(tmp_
     assert service.case_store.count("alpha") == 1
     persisted = service.case_store.get(tenant_id="alpha", finding_id=first.finding.finding_id)
     assert persisted.customer_ref == "oem-1"
+    assert persisted.notice_deadline_state == "DECLARED_NONE_FOR_REVIEW"
     assert service.store.count("findings", "alpha") == 1
