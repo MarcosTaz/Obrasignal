@@ -28,6 +28,27 @@ class AssistedCaseState:
     forecast_units: Optional[Decimal] = None
 
 
+def exact_decimal_from_input(value, *, field_name: str) -> Decimal:
+    """Parse an exact decimal boundary value without accepting binary floats.
+
+    JSON floating-point values have already lost their original decimal lexical
+    representation before application code sees them. Accepting them would make
+    an evidence value depend on IEEE-754 rounding. Strings and integers retain
+    exact decimal meaning; booleans are explicitly rejected despite being ints.
+    """
+
+    if type(value) is int:
+        raw = str(value)
+    elif isinstance(value, str):
+        raw = value
+    else:
+        raise ValueError(f"{field_name} must be an exact decimal string or integer")
+    try:
+        return Decimal(raw)
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        raise ValueError(f"{field_name} must be numeric") from exc
+
+
 def _validate_identifier(name: str, value: str) -> None:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} is required")
@@ -139,10 +160,7 @@ def recovery_case_from_payload(raw: dict) -> RecoveryCase:
         "mitigation",
         "prior_payment",
     ):
-        try:
-            values[key] = Decimal(str(values[key]))
-        except (InvalidOperation, ValueError, TypeError) as exc:
-            raise ValueError(f"{key} must be numeric") from exc
+        values[key] = exact_decimal_from_input(values[key], field_name=key)
 
     required_bool_fields = (
         "evidence_supported",
@@ -261,10 +279,7 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
     if forecast_raw is None:
         forecast_units = None
     else:
-        try:
-            forecast_units = Decimal(str(forecast_raw))
-        except (InvalidOperation, ValueError, TypeError) as exc:
-            raise ValueError("forecast_units must be numeric") from exc
+        forecast_units = exact_decimal_from_input(forecast_raw, field_name="forecast_units")
         if not forecast_units.is_finite() or forecast_units < Decimal("0"):
             raise ValueError("forecast_units must be a finite non-negative value")
 
