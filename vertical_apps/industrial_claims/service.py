@@ -325,17 +325,19 @@ class IndustrialClaimsService:
             },
         )
 
-        is_new = self.index.persist_case_index(entitlement, fingerprint)
-        if is_new:
-            self.store.persist_case(
-                evidence=evidence,
-                calculation=calculation,
-                deadline=deadline,
-                finding=finding,
-                audit=audit,
-                notification=notification,
-            )
-        else:
+        with self.store.transaction() as conn:
+            is_new = self.index.persist_case_index(entitlement, fingerprint, connection=conn)
+            if is_new:
+                self.store.persist_case(
+                    evidence=evidence,
+                    calculation=calculation,
+                    deadline=deadline,
+                    finding=finding,
+                    audit=audit,
+                    notification=notification,
+                    connection=conn,
+                )
+        if not is_new:
             finding = self._validate_replay_without_state_change(
                 evidence=evidence,
                 calculation=calculation,
