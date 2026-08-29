@@ -1,0 +1,47 @@
+from datetime import date
+
+from vertical_apps.industrial_claims.package import build_claim_package
+from vertical_apps.industrial_claims.service import IndustrialClaimsService
+
+
+def test_claim_package_is_evidence_indexed_and_never_overclaims(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "industrial.sqlite3")
+    result = service.analyze(
+        tenant_id="alpha",
+        actor_id="analyst",
+        customer_ref="oem-1",
+        program_ref="program-1",
+        event_ref="cancel-1",
+        claim_family="TOOLING",
+        commercial_basis_ref="po-1",
+        cost_evidence_ref="invoice-1",
+        gross_cost="50000",
+        prior_payment="10000",
+        notice_due=date(2026, 9, 30),
+    )
+    package = build_claim_package(result, customer_ref="oem-1", program_ref="program-1", event_ref="cancel-1")
+    assert package["net_potential"] == "40000"
+    assert package["economic_truth_state"] == "EVIDENCE_SUPPORTED"
+    assert package["customer_action_authorized"] is False
+    assert package["legal_conclusion"] is None
+    assert len(package["evidence_index"]) == 3
+    assert all(item["content_hash"] for item in package["evidence_index"])
+
+
+def test_missing_evidence_package_stays_potential_entitlement(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "industrial.sqlite3")
+    result = service.analyze(
+        tenant_id="alpha",
+        actor_id="analyst",
+        customer_ref="oem-1",
+        program_ref="program-1",
+        event_ref="reduction-1",
+        claim_family="FINISHED_GOODS",
+        commercial_basis_ref="contract-1",
+        cost_evidence_ref="inventory-1",
+        gross_cost="75000",
+        missing_evidence=("ownership", "release_history"),
+    )
+    package = build_claim_package(result, customer_ref="oem-1", program_ref="program-1", event_ref="reduction-1")
+    assert package["economic_truth_state"] == "POTENTIAL_ENTITLEMENT"
+    assert package["missing_evidence"] == ["ownership", "release_history"]
