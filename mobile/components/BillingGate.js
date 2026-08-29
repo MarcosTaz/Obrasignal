@@ -70,13 +70,23 @@ export default function BillingGate({ children }) {
     finally { setBusy(false); }
   };
 
+  const signOut = async () => {
+    setBusy(true); setError('');
+    try {
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
+    } catch (e) {
+      setError(e?.message || 'Não foi possível terminar a sessão. Tenta novamente.');
+    } finally { setBusy(false); }
+  };
+
   const packagePrice = offering?.availablePackages?.find(p => p?.product?.identifier === 'obrasignal_pro_monthly')?.product?.priceString
     || offering?.availablePackages?.[0]?.product?.priceString
     || 'Preço apresentado pelo Google Play/App Store';
   const expired = billing.plan === 'expired';
 
   return <View style={{ flex: 1 }}>
-    {expired ? <View style={styles.blocked}><Text style={styles.blockedTitle}>A avaliação terminou</Text><Text style={styles.blockedText}>Para continuar a receber oportunidades personalizadas, ativa o ObraSignal Pro.</Text><Pressable style={styles.primary} onPress={openPaywall}><Text style={styles.primaryText}>Ver subscrição</Text></Pressable></View> : <>{billing.plan === 'evaluation' && billing.evaluation ? <View style={styles.evalCard}>
+    {expired ? <View style={styles.blocked}><Text style={styles.blockedTitle}>A avaliação terminou</Text><Text style={styles.blockedText}>Para continuar a receber oportunidades personalizadas, ativa o ObraSignal Pro.</Text><Pressable disabled={busy} style={styles.primary} onPress={openPaywall}><Text style={styles.primaryText}>Ver subscrição</Text></Pressable><Pressable disabled={busy} onPress={signOut} style={styles.secondary}><Text style={styles.secondaryText}>Terminar sessão ou trocar de conta</Text></Pressable>{error ? <Text style={styles.error}>{error}</Text> : null}</View> : <>{billing.plan === 'evaluation' && billing.evaluation ? <View style={styles.evalCard}>
       <Text style={styles.evalTitle}>AVALIAÇÃO OBRASIGNAL</Text>
       <Text style={styles.evalText}>{billing.evaluation.status === 'EVALUATION_ACTIVE' ? `${billing.evaluation.days_remaining} dias restantes` : 'A janela de 21 dias ainda não começou'}</Text>
       <Text style={styles.evalMeta}>{billing.evaluation.activated_at ? `Começou em ${new Date(billing.evaluation.activated_at).toLocaleDateString()}` : 'Começa quando o perfil estiver pronto, houver dados de mercado e a primeira shortlist relevante for gerada.'}</Text>

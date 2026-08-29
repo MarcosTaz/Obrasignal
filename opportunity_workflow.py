@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 STATUSES = ("NEW", "REVIEWING", "PREPARING", "SUBMITTED", "WON", "LOST")
+TERMINAL_REPORTED_STATUSES = ("WON", "LOST")
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS opportunity_workflow (
@@ -27,6 +28,22 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _with_outcome_truth(workflow):
+    """Expose workflow truth without promoting a user-set terminal state to verification.
+
+    WON/LOST are useful account-scoped workflow reports. They are not evidence that an
+    award/business outcome was independently verified, so callers must receive an
+    explicit semantic boundary until a separate evidence-backed outcome owner exists.
+    """
+    item = dict(workflow)
+    if item.get("status") in TERMINAL_REPORTED_STATUSES:
+        item["outcome_verification"] = "CUSTOMER_REPORTED_UNVERIFIED"
+    else:
+        item["outcome_verification"] = "NOT_AN_OUTCOME"
+    item["verified_outcome"] = False
+    return item
+
+
 def get_workflow(conn, account_id, source, external_id):
     ensure_workflow_table(conn)
     row = conn.execute(
@@ -36,9 +53,9 @@ def get_workflow(conn, account_id, source, external_id):
         (str(account_id or "default"), source, external_id),
     ).fetchone()
     if row is None:
-        return {"account_id": str(account_id or "default"), "source": source, "external_id": external_id,
-                "status": "NEW", "note": None, "updated_at": None}
-    return dict(row)
+        return _with_outcome_truth({"account_id": str(account_id or "default"), "source": source, "external_id": external_id,
+                "status": "NEW", "note": None, "updated_at": None})
+    return _with_outcome_truth(dict(row))
 
 
 def set_workflow(conn, account_id, source, external_id, status, note=None):

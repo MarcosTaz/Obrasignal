@@ -18,8 +18,8 @@ const STEPS = [
   ['REVIEWING', 'Em análise', COLORS.blue],
   ['PREPARING', 'A preparar', COLORS.amber],
   ['SUBMITTED', 'Enviada', COLORS.amber],
-  ['WON', 'Ganho', COLORS.green],
-  ['LOST', 'Perdido', COLORS.red],
+  ['WON', 'Ganho reportado', COLORS.green],
+  ['LOST', 'Perdido reportado', COLORS.red],
 ];
 
 export default function WorkflowFunnel({ refreshKey }) {
@@ -67,9 +67,12 @@ export default function WorkflowFunnel({ refreshKey }) {
         </View>;
       })}
       <View style={{ flexDirection: 'row', marginTop: 12, gap: 16 }}>
-        <Text style={{ color: COLORS.green, fontSize: 11, fontWeight: '800' }}>Ganhos: {counts.WON || 0}</Text>
-        <Text style={{ color: COLORS.red, fontSize: 11, fontWeight: '800' }}>Perdidos: {counts.LOST || 0}</Text>
+        <Text style={{ color: COLORS.green, fontSize: 11, fontWeight: '800' }}>Ganhos reportados: {counts.WON || 0}</Text>
+        <Text style={{ color: COLORS.red, fontSize: 11, fontWeight: '800' }}>Perdidos reportados: {counts.LOST || 0}</Text>
       </View>
+      <Text style={{ color: COLORS.muted, fontSize: 10, marginTop: 8 }}>
+        Estados ganhos/perdidos são reportados pela equipa; resultado não verificado pela ObraSignal.
+      </Text>
     </View> : null}
   </View>;
 }

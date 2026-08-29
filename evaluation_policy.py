@@ -269,7 +269,6 @@ def evaluation_summary(conn, account, *, now=None):
     current = _now(now)
     access = evaluation_access_state(account, now=current)
     status = "PAID" if account.get("evaluation_status") == "PAID" else (access or {}).get("evaluation_status", account.get("evaluation_status"))
-    activated = _parse_iso(account.get("evaluation_activated_at"))
     ends = _parse_iso(account.get("evaluation_ends_at"))
     remaining = None
     if ends and status != "PAID":
@@ -305,7 +304,10 @@ def evaluation_metrics(conn, account, *, now=None):
     events = [(row[0], _parse_iso(row[1])) for row in rows]
     created = _parse_iso(account.get("created_at"))
     activated = _parse_iso(account.get("evaluation_activated_at"))
-    first_value = next((ts for name, ts in events if name in VALUE_EXPOSURE_EVENTS and ts), None)
+
+    first_exposure = next((ts for name, ts in events if name in VALUE_EXPOSURE_EVENTS and ts), None)
+    value_available = next((ts for name, ts in events if name == "first_shortlist_generated" and ts), None)
+    first_observed = next((ts for name, ts in events if name in ENGAGEMENT_EVENTS and ts), None)
     names = [name for name, _ in events]
     exposure_count = sum(1 for name in names if name in VALUE_EXPOSURE_EVENTS)
     engagement_count = sum(1 for name in names if name in ENGAGEMENT_EVENTS)
@@ -315,10 +317,27 @@ def evaluation_metrics(conn, account, *, now=None):
             return False
         floor = activated + timedelta(days=day)
         ceiling = floor + timedelta(days=1)
-        return any(ts and floor <= ts < ceiling and name in (VALUE_EXPOSURE_EVENTS | ENGAGEMENT_EVENTS) for name, ts in events)
+        # Product-generated availability or delivery alone is not customer activity.
+        return any(ts and floor <= ts < ceiling and name in ENGAGEMENT_EVENTS for name, ts in events)
+
+    exposure_seconds = int((first_exposure - created).total_seconds()) if first_exposure and created else None
+    available_seconds = int((value_available - created).total_seconds()) if value_available and created else None
+    observed_seconds = int((first_observed - created).total_seconds()) if first_observed and created else None
 
     return {
-        "TIME_TO_FIRST_VALUE_SECONDS": int((first_value - created).total_seconds()) if first_value and created else None,
+        # Availability, observed engagement, and verified customer value are
+        # deliberately different truths. The product can observe interaction;
+        # it still has no canonical evidence-backed verified-value event.
+        "TIME_TO_VALUE_AVAILABLE_SECONDS": available_seconds,
+        "TIME_TO_OBSERVED_FIRST_VALUE_SECONDS": observed_seconds,
+        "TIME_TO_FIRST_VALUE_EXPOSURE_SECONDS": exposure_seconds,
+        "TIME_TO_FIRST_VALUE_SECONDS": None,
+        "TIME_TO_FIRST_VERIFIED_VALUE_SECONDS": None,
+        "FIRST_VERIFIED_VALUE_RECORDED": False,
+        "first_value_semantics": "NO_CANONICAL_VERIFIED_VALUE_EVENT",
+        "TIME_TO_FIRST_REPEAT_VALUE_SECONDS": None,
+        "REPEAT_VALUE_RECORDED": False,
+        "repeat_value_semantics": "REQUIRES_CANONICAL_VERIFIED_VALUE_AND_NEW_VALUE_EVENT",
         "TRIAL_ACTIVATION_RATE": 1 if activated else 0,
         "VALUE_EXPOSURE_RATE": 1 if exposure_count else 0,
         "DAY_1_ACTIVE": active_on_day(1),

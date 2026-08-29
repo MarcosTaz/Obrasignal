@@ -32,8 +32,11 @@ def test_radar_page_uses_open_future_visual_system():
     assert "Um radar comercial que explica cada oportunidade através do perfil da empresa, lote, geografia, capacidade e Economic Fit." in html
 
 
-def test_radar_page_has_explicit_empty_state():
-    assert "Nenhuma oportunidade encontrada." in render_radar_page([])
+def test_radar_page_has_explicit_truthful_empty_state():
+    html = render_radar_page([])
+    assert "Nada material encontrado neste momento." in html
+    assert "RESULTADO VÁLIDO · ZERO-VALUE" in html
+    assert "Não baixamos critérios nem fabricamos uma oportunidade" in html
 
 
 def test_radar_page_escapes_opportunity_fields():

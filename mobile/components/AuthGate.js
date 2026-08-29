@@ -4,15 +4,26 @@ import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
 import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
+import { storage } from '../src/storage'
+
+function accountScopeFor(state) {
+  return state?.status === 'signed-in' ? state?.session?.user?.id || null : null
+}
 
 export default function AuthGate({ children }) {
-  const [authState, setAuthState] = useState(authSession.getState())
-
+  const [authState, setAuthState] = useState(() => {
+    const initial = authSession.getState()
+    storage.setAccountScope(accountScopeFor(initial))
+    return initial
+  })
 
   useEffect(() => {
     let active = true
     const update = (nextState) => {
       if (!active) return
+      // Bind local customer cache/profile/settings only to an ordinary signed-in
+      // subject. A provider password-recovery session has no application/cache authority.
+      storage.setAccountScope(accountScopeFor(nextState))
       setAuthState(nextState)
       if (nextState.status === 'signed-in') ensureBackendReady().catch(() => {})
     }
@@ -25,11 +36,15 @@ export default function AuthGate({ children }) {
     return <View style={styles.loading}><Text style={styles.brand}>OBRA<Text style={styles.blue}>SIGNAL</Text></Text><ActivityIndicator size="small" color="#5E8BFF" /><Text style={styles.message}>A recuperar a sessão…</Text></View>
   }
 
+  if (authState.status === 'password-recovery') {
+    return <AuthScreen recoverySession={authState.session} />
+  }
+
   if (authState.status !== 'signed-in') return <AuthScreen />
 
-  // Hard rule: once Supabase has authenticated the user, the application
-  // shell opens immediately. Profile, billing and API availability are
-  // background concerns and cannot gate the first authenticated render.
+  // Hard rule: once Supabase has authenticated the user through an ordinary
+  // sign-in, the application shell opens immediately. Recovery sessions are
+  // intentionally intercepted above and cannot enter the product shell.
   return <BillingGate>{children}</BillingGate>
 }
 

@@ -11,7 +11,7 @@ import uruguay_arce as _uruguay_arce
 import south_africa_etenders as _south_africa_etenders
 from procurement_quality import dedupe_records
 from notification_events import record_new_opportunities
-from source_health import get_source_cursor, record_source_result, set_source_cursor, source_health_snapshot
+from source_health import get_source_cursor, record_source_result, source_health_snapshot
 from source_registry import production_gate_reasons
 from canada_buys_runtime import install_canadabuys_runtime
 from us_sam_runtime import install_us_sam_runtime
@@ -189,9 +189,18 @@ def _fetch_ted_with_health(*args, **kwargs):
             raise RuntimeError("TED returned an unexpected empty result set")
         duration_ms = int((time.perf_counter() - started) * 1000)
         watermark = _max_ted_publication_date(rows)
+        # TED used to advance its durable cursor here, before the legacy tender
+        # projection had committed. That could produce a false checkpoint after
+        # a later persistence failure. Normalize and stage TED like the other
+        # source runtimes so Signal + metadata + lifecycle + cursor move together
+        # only after _original_sync_once() has committed the legacy projection.
+        normalized = []
+        for row in rows:
+            record = _app.normalize_ted(row)
+            if record.get("external_id"):
+                normalized.append(record)
+        stage_source_sync("TED", normalized, watermark)
         conn = _app.db()
-        if watermark:
-            set_source_cursor(conn, "TED", watermark)
         record_source_result(conn, "TED", success=True, duration_ms=duration_ms, found=len(rows))
         record_stage(conn, "TED", "fetch", started_at, duration_ms, len(rows))
         conn.close()

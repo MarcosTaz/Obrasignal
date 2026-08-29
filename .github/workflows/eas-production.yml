@@ -31,8 +31,17 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Require canonical npm lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f package-lock.json || {
+            echo 'BLOCKED: mobile/package-lock.json is required for an EAS production build.' >&2
+            exit 1
+          }
+
+      - name: Install canonical locked dependencies
+        run: npm ci --no-audit --no-fund
 
       - name: Build production binaries
         run: eas build --platform all --profile production --non-interactive --no-wait

@@ -68,6 +68,10 @@ CREATE TABLE IF NOT EXISTS company_profiles (
 """
 
 
+class CompanyProfileStorageError(RuntimeError):
+    """Durable company profile state cannot be interpreted safely."""
+
+
 def _db_path() -> str:
     return os.getenv("OBRASIGNAL_DB", str(Path(__file__).with_name("obrasignal.db")))
 
@@ -192,16 +196,21 @@ def load_profile(account_id: str | None = None) -> dict:
     if row:
         try:
             raw = json.loads(row["profile_json"])
+            if not isinstance(raw, dict):
+                raise TypeError("profile_json must contain an object")
             profile = dict(DEFAULT_PROFILE)
-            profile.update(raw or {})
+            profile.update(raw)
             profile["account_id"] = account
             return derive_profile(profile.get("activity", ""), profile)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            pass
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            # A durable row exists, therefore falling back to a legacy file or
+            # defaults would silently replace persisted customer state. Fail
+            # closed without including account id or payload in the error.
+            raise CompanyProfileStorageError("persisted company profile is corrupt") from exc
 
     # Backward compatibility for any profile written by an older deployment.
     # Import it once into durable storage instead of continuing to depend on
-    # the Render filesystem.
+    # the Render filesystem. This path is valid only when no durable row exists.
     legacy = _load_legacy_profile(account)
     if legacy is not None:
         _persist_profile_db(legacy, account)

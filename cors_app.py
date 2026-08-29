@@ -7,11 +7,16 @@ from flask import jsonify, request
 from api import APP, bp as MOBILE_API_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
+from e2e_fixture_api import install as install_e2e_fixture_api
 
-# api.py owns the mobile API blueprint; register it here because this is the
-# production WSGI entrypoint and keeps registration explicit at the boundary.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
+install_e2e_fixture_api(APP)
+
+# Customer Value #542 owns the truth boundary where profile persistence may
+# succeed while synchronous Radar recalculation still requires recovery.
+from onboarding_recovery import install as install_onboarding_recovery
+install_onboarding_recovery()
 
 
 def _origin():
@@ -39,7 +44,6 @@ def _cors(response):
 
 
 def _decorate_health(response):
-    """Add bounded auth readiness metadata without exposing provider secrets."""
     if request.path != "/api/v1/health" or not response.is_json:
         return response
     payload = response.get_json(silent=True)
@@ -78,11 +82,9 @@ def _global_api_cors(response):
     return response
 
 
-# Gunicorn imports this module before it starts accepting requests. Complete all
-# idempotent schema/read-model work and install additive global-source runtimes
-# before allowing the ingestion worker to run.
 import app as _app
 from app import db, init_db, start_background_worker
+from storage_migration_lock import run_serialized_schema_init
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
 from latvia_runtime import install as install_latvia_runtime
@@ -99,13 +101,18 @@ from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 import preload as _preload
 
-init_db()
-_lifecycle_conn = db()
-try:
-    ensure_lifecycle_table(_lifecycle_conn)
-    _lifecycle_conn.commit()
-finally:
-    _lifecycle_conn.close()
+
+def _initialize_persistent_schema():
+    init_db()
+    lifecycle_conn = db()
+    try:
+        ensure_lifecycle_table(lifecycle_conn)
+        lifecycle_conn.commit()
+    finally:
+        lifecycle_conn.close()
+
+
+run_serialized_schema_init(_initialize_persistent_schema, _app.DB)
 install_lifecycle_read_model(_preload)
 install_latvia_runtime()
 install_uk_runtime()

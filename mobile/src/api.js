@@ -65,7 +65,6 @@ async function request(path, options={}) {
   throw lastError||new Error(`API ${path}: não foi possível concluir o pedido.`);
 }
 
-
 // One health probe is shared by every caller. It has a deliberately separate
 // cold-start budget, while normal business requests keep their 20 s budget.
 // A completed probe is cleared so only an in-flight warm-up is shared. A later
@@ -95,13 +94,64 @@ async function writeWhenReady(path,options={}){
 
 function normalizeOpportunity(item){if(!item||typeof item!=='object')return item;return {...item,decision_score:item.decision_score??item.account_score??null,decision_reason:item.decision_reason??item.account_reason??null};}
 function unwrapProfile(data){return data?.profile||data||null;}
+function actionableProfileValidationError(error){
+  const details=error?.responseBody?.detail?.errors;
+  if(error?.responseBody?.error!=='invalid_profile'||!Array.isArray(details))return error;
+  const messages=details.map(item=>String(item||'').trim()).filter(Boolean);
+  if(!messages.length)return error;
+  const message=messages.join(' ');
+  error.message=message;
+  error.responseBody={...error.responseBody,error:message};
+  return error;
+}
+function validateProfileNumbersBeforeSerialization(profile){
+  const data=profile||{};
+  for(const field of ['min_value','max_value']){
+    const value=data[field];
+    if(value!=null&&!Number.isFinite(value)){
+      const error=new Error('Revê o intervalo de valor dos contratos. Usa apenas números válidos.');
+      error.code='INVALID_PROFILE_NUMBER';
+      throw error;
+    }
+  }
+  if(data.min_value!=null&&data.max_value!=null&&data.min_value>data.max_value){
+    const error=new Error('O valor mínimo não pode ser superior ao valor máximo.');
+    error.code='INVALID_PROFILE_RANGE';
+    throw error;
+  }
+}
+
+async function saveProfileForEditor(profile){
+  validateProfileNumbersBeforeSerialization(profile);
+  try{
+    const state=await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT});
+    if(state?.profile_saved===true&&state?.radar_state==='RECOVERY_REQUIRED'){
+      // The write itself succeeded. Throw a typed recovery state so existing edit
+      // surfaces stay put and show the truthful message instead of caching/switching
+      // as if synchronous Radar recalculation had also completed.
+      const recovery=new Error('O perfil ficou guardado, mas o Radar ainda não foi atualizado. Tenta novamente para concluir a atualização.');
+      recovery.code='RADAR_RECOVERY_REQUIRED';
+      recovery.responseBody=state;
+      throw recovery;
+    }
+    return unwrapProfile(state);
+  }catch(error){
+    throw actionableProfileValidationError(error);
+  }
+}
 
 export const api={
   health:()=>ensureBackendReady(),
   profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
   // POST is intentionally single-attempt: retrying an authenticated write can
   // duplicate work and makes a stuck Save button look like a UI failure.
-  saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
+  // The ordinary editor additionally treats HTTP 202 Radar recovery as a typed
+  // incomplete state; durable profile success must not masquerade as full success.
+  saveProfile:saveProfileForEditor,
+  // Initial onboarding needs the full response envelope. In particular, a 202
+  // can prove the profile is durable while Radar recalculation still requires
+  // recovery; unwrapping the profile here would erase that material state.
+  saveProfileState:async(profile)=>writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT}),
   billingStatus:()=>readWhenReady('/billing/status'),
   stats:()=>readWhenReady('/stats'),
   workflowStats:()=>readWhenReady('/workflow/stats'),

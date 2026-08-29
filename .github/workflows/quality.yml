@@ -48,6 +48,8 @@ jobs:
           node-version: '22.13.1'
       - run: npm install --no-audit --no-fund
       - run: npx expo-doctor
+      - name: Run P0 regression suite
+        run: npm run test:p0
       - name: Verify critical detail wiring
         run: npm run smoke:detail
       - name: Smoke-test Expo bundle
