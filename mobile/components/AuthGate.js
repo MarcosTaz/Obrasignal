@@ -4,15 +4,26 @@ import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
 import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
+import { storage } from '../src/storage'
+
+function accountScopeFor(state) {
+  return state?.status === 'signed-in' ? state?.session?.user?.id || null : null
+}
 
 export default function AuthGate({ children }) {
-  const [authState, setAuthState] = useState(authSession.getState())
-
+  const [authState, setAuthState] = useState(() => {
+    const initial = authSession.getState()
+    storage.setAccountScope(accountScopeFor(initial))
+    return initial
+  })
 
   useEffect(() => {
     let active = true
     const update = (nextState) => {
       if (!active) return
+      // Bind local customer cache/profile/settings to the authenticated subject
+      // before Main can render. Signed-out/loading states have no cache authority.
+      storage.setAccountScope(accountScopeFor(nextState))
       setAuthState(nextState)
       if (nextState.status === 'signed-in') ensureBackendReady().catch(() => {})
     }
