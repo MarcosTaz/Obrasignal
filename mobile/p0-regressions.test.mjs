@@ -169,7 +169,9 @@ test('writes wait for readiness but execute exactly once', () => {
   assert.match(api, /async function writeWhenReady[\s\S]*await ensureBackendReady\(\);\n\s*return request\(path,\{\.\.\.options,maxAttempts:1\}\)/);
   assert.match(api, /async function saveProfileForEditor[\s\S]*writeWhenReady\('\/profile'/);
   assert.match(api, /saveProfile:saveProfileForEditor/);
-  assert.doesNotMatch(api, /writeWhenReady[\s\S]*for\s*\(/);
+  const writeBody = api.match(/async function writeWhenReady\(path,options=\{\}\)\{([\s\S]*?)\n\}/)?.[1] || '';
+  assert.ok(writeBody);
+  assert.doesNotMatch(writeBody, /for\s*\(|while\s*\(|attempt\s*[+\-]=/);
 });
 
 
