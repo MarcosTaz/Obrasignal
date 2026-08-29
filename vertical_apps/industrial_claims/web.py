@@ -95,6 +95,9 @@ def create_app(
             if not isinstance(missing, list):
                 raise ValueError("missing_evidence must be a list")
             notice_raw = payload.get("notice_due")
+            no_notice_deadline = payload.get("notice_deadline_not_applicable", False)
+            if not isinstance(no_notice_deadline, bool):
+                raise ValueError("notice_deadline_not_applicable must be boolean")
             result = service.analyze(
                 tenant_id=tenant_id,
                 actor_id=actor_id,
@@ -111,6 +114,7 @@ def create_app(
                 prior_payment=str(payload.get("prior_payment", "0")),
                 other_mitigation=str(payload.get("other_mitigation", "0")),
                 notice_due=date.fromisoformat(str(notice_raw)) if notice_raw else None,
+                notice_deadline_not_applicable=no_notice_deadline,
                 missing_evidence=tuple(str(item) for item in missing),
             )
             return jsonify({
@@ -119,6 +123,7 @@ def create_app(
                 "claim_family": result.claim_family,
                 "net_potential": result.calculation.output_value,
                 "calculation_hash": result.calculation.reproducibility_hash,
+                "notice_deadline_state": result.notice_deadline_state,
                 "missing_evidence": list(result.missing_evidence),
                 "is_new_recovery": result.is_new_recovery,
             }), 201
