@@ -1,8 +1,14 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "vertical": "contractcredit",
   "mode": "assisted",
   "wedge": "enterprise SaaS and managed-service credit recovery",
+  "buyer": {
+    "primary": "enterprise finance or procurement owner accountable for vendor spend and recoveries",
+    "operational_users": ["IT service owner", "vendor manager", "commercial contracts analyst"],
+    "economic_owner": "finance or procurement leadership",
+    "excluded": ["consumer debt collection", "legal claim automation", "supplier-side credit issuance"]
+  },
   "required_inputs": ["service_contract", "incident_evidence", "monthly_fee", "credit_rate", "notice_due"],
   "outputs": ["evidence_envelope", "reproducible_calculation", "deadline_state", "reviewable_finding", "outcome_record"],
   "fail_closed": ["missing_contract_basis", "missing_incident_evidence", "cross_tenant_composition", "invalid_credit_rate", "unsupported_review_transition"],
