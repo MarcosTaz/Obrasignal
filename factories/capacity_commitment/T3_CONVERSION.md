@@ -29,6 +29,35 @@ The following do **not** independently prove T3:
 - theoretical exposure;
 - synthetic case.
 
+## Outbound pre-send control
+
+Every external commercial email must be re-read from the exact stored draft/message immediately before sending. Do not rely on an earlier copy or assumption about draft state.
+
+Fail the send if any of the following are present in the external subject/body unless deliberately customer-facing:
+
+- `HOLD`;
+- `OWNER APPROVAL`;
+- `DGC`;
+- `COMPLIANCE`;
+- `DRAFT`;
+- `INTERNAL`;
+- legal-channel notes;
+- placeholder text;
+- unsupported customer/recovery/payment claims.
+
+Before send verify exactly:
+
+1. recipient is the intended public/corporate route;
+2. subject contains no internal control token;
+3. body identifies the sender;
+4. body contains a simple opt-out where required/appropriate;
+5. public trigger facts are still supported and current enough for the message;
+6. no public signal is promoted into a real case, entitlement, recovery or customer state;
+7. country/channel compliance gate is satisfied;
+8. no weekend/overnight timing assumption is used as evidence of demand or rejection.
+
+The CT Automotive / Autins subject-prefix incident is the regression case that motivated this control.
+
 ## Reply classification
 
 Every inbound response must be classified exactly as one of:
