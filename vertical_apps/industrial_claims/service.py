@@ -79,7 +79,7 @@ class IndustrialClaimsService:
 
     @staticmethod
     def _evidence_payload(
-        content: bytes | str | None,
+        content: bytes | bytearray | memoryview | str | None,
         *,
         source_ref: str,
         missing_key: str,
@@ -93,12 +93,14 @@ class IndustrialClaimsService:
                 missing.add(missing_key)
                 return f"REFERENCE_ONLY:{source_ref}", {"verification_state": "REFERENCE_ONLY"}
             size = len(content.encode("utf-8"))
-        else:
+        elif isinstance(content, (bytes, bytearray, memoryview)):
             content = bytes(content)
             if not content:
                 missing.add(missing_key)
                 return f"REFERENCE_ONLY:{source_ref}", {"verification_state": "REFERENCE_ONLY"}
             size = len(content)
+        else:
+            raise AssuranceKernelError("evidence content must be text or bytes")
         if size > MAX_EVIDENCE_BYTES:
             raise AssuranceKernelError("individual evidence content exceeds assisted intake limit")
         return content, {"verification_state": "CONTENT_HASHED", "raw_content_persisted": "false"}
@@ -210,9 +212,9 @@ class IndustrialClaimsService:
         commercial_basis_ref: str,
         cost_evidence_ref: str,
         gross_cost: str,
-        commercial_basis_content: bytes | str | None = None,
-        event_evidence_content: bytes | str | None = None,
-        cost_evidence_content: bytes | str | None = None,
+        commercial_basis_content: bytes | bytearray | memoryview | str | None = None,
+        event_evidence_content: bytes | bytearray | memoryview | str | None = None,
+        cost_evidence_content: bytes | bytearray | memoryview | str | None = None,
         avoided_cost: str = "0",
         resale_reuse: str = "0",
         third_party_recovery: str = "0",
