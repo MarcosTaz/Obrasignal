@@ -13,7 +13,7 @@ from .delivery_report import render_delivery_report
 from .identifiers import CASE_ID_ADDRESSABILITY_ERROR, is_addressable_case_id
 from .operator_ui import OPERATOR_HTML
 from .repository import CapacityRepository
-from .service import load_and_process, save_and_process
+from .service import load_and_process, save_and_process, save_revision_and_process
 from .state import AssistedCaseState, exact_decimal_from_input, recovery_case_from_payload
 
 
@@ -110,9 +110,9 @@ def _state_from_payload(payload: dict, tenant_id: str) -> AssistedCaseState:
     )
 
 
-def _processed_payload(processed) -> dict:
+def _processed_payload(processed, *, revision_lineage=None) -> dict:
     state = processed.state
-    return {
+    payload = {
         "case": {
             "case_id": state.recovery_case.case_id,
             "company_id": state.company_id,
@@ -132,6 +132,9 @@ def _processed_payload(processed) -> dict:
             processed.recovery_package,
         ),
     }
+    if revision_lineage is not None:
+        payload["revision_lineage"] = list(revision_lineage)
+    return payload
 
 
 def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) -> Flask:
@@ -221,7 +224,28 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
         payload = request.get_json(silent=False)
         state = _state_from_payload(payload, g.capacity_tenant_id)
         processed = save_and_process(repository, state)
-        return jsonify(_json_safe(_processed_payload(processed))), 201
+        lineage = repository.revision_lineage(
+            tenant_id=g.capacity_tenant_id,
+            case_id=state.recovery_case.case_id,
+        )
+        return jsonify(_json_safe(_processed_payload(processed, revision_lineage=lineage))), 201
+
+    @app.route("/api/capacity/cases/<parent_case_id>/revisions", methods=["POST"])
+    def create_case_revision(parent_case_id: str):
+        if request.headers.get("X-Capacity-Intent") != "create-revision":
+            return jsonify({"error": "revision_intent_required"}), 403
+        payload = request.get_json(silent=False)
+        state = _state_from_payload(payload, g.capacity_tenant_id)
+        processed = save_revision_and_process(
+            repository,
+            state,
+            parent_case_id=parent_case_id,
+        )
+        lineage = repository.revision_lineage(
+            tenant_id=g.capacity_tenant_id,
+            case_id=state.recovery_case.case_id,
+        )
+        return jsonify(_json_safe(_processed_payload(processed, revision_lineage=lineage))), 201
 
     @app.route("/api/capacity/cases/<case_id>", methods=["GET"])
     def get_case(case_id: str):
@@ -230,7 +254,23 @@ def create_app(repository: CapacityRepository, tenant_resolver: TenantResolver) 
             tenant_id=g.capacity_tenant_id,
             case_id=case_id,
         )
-        return jsonify(_json_safe(_processed_payload(processed)))
+        lineage = repository.revision_lineage(
+            tenant_id=g.capacity_tenant_id,
+            case_id=case_id,
+        )
+        return jsonify(_json_safe(_processed_payload(processed, revision_lineage=lineage)))
+
+    @app.route("/api/capacity/cases/<case_id>/lineage", methods=["GET"])
+    def get_case_lineage(case_id: str):
+        lineage = repository.revision_lineage(
+            tenant_id=g.capacity_tenant_id,
+            case_id=case_id,
+        )
+        children = repository.list_revision_children(
+            tenant_id=g.capacity_tenant_id,
+            parent_case_id=case_id,
+        )
+        return jsonify({"items": lineage, "count": len(lineage), "children": children})
 
     @app.route("/api/capacity/cases/<case_id>/report", methods=["GET"])
     def get_case_report(case_id: str):
