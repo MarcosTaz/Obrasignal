@@ -21,6 +21,7 @@ class CredentialRegistry:
     def __init__(self, credentials: Iterable[Credential]):
         items = tuple(credentials)
         seen_ids = set()
+        seen_secrets = set()
         for credential in items:
             if not credential.key_id.strip():
                 raise ValueError("credential key_id is required")
@@ -32,7 +33,10 @@ class CredentialRegistry:
                 raise ValueError(f"unsupported credential role: {credential.role}")
             if credential.key_id in seen_ids:
                 raise ValueError("credential key_id must be unique")
+            if credential.secret in seen_secrets:
+                raise ValueError("credential secret must be unique")
             seen_ids.add(credential.key_id)
+            seen_secrets.add(credential.secret)
         self._credentials = items
 
     @classmethod
