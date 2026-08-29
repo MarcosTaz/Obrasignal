@@ -19,7 +19,7 @@ def build_claim_package(
     "claimable". Human review and customer authority remain external gates.
     """
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "vertical": "industrial-claims",
         "tenant_id": result.tenant_id,
         "customer_ref": customer_ref,
@@ -38,6 +38,10 @@ def build_claim_package(
             "rule_ref": result.entitlement.rule_ref,
             "confidence": result.entitlement.confidence,
             "basis_hash": result.entitlement.basis_hash,
+        },
+        "notice": {
+            "truth_state": result.notice_deadline_state,
+            "due_date": result.deadline.due_date.isoformat() if result.notice_deadline_state == "VERIFIED_DATE" else None,
         },
         "evidence_index": [
             {
