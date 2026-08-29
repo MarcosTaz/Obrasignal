@@ -449,6 +449,9 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
         conn.commit()
         return 0
 
+    # Detect duplicate provider ticket identities in the same response before any
+    # one row can claim authority. A duplicate provider id means causal parentage
+    # is UNKNOWN even if Expo accepted every payload.
     ticket_counts = {}
     for ticket in tickets:
         if not isinstance(ticket, dict) or ticket.get("status") != "ok":
@@ -478,6 +481,8 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
             continue
 
         if status == "ok":
+            # A provider acknowledgement without a ticket id cannot be reconciled
+            # to a receipt, so never record it as a successful submission.
             error = "push_response_missing_ticket"
         else:
             details = ticket.get("details") if isinstance(ticket, dict) else {}
@@ -498,6 +503,8 @@ def submit_pending_pushes(conn, account_id, limit=100, post=requests.post):
             )
             conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (error, row["push_device_id"]))
         else:
+            # Individual ticket rejection means Expo did not accept the payload;
+            # retain the terminal error rather than spinning the same bad request.
             _record_push_attempt(conn, row, error=error, attempted_at=now, failed_at=now)
             conn.execute("UPDATE push_devices SET last_error=? WHERE id=?", (error, row["push_device_id"]))
     conn.commit()
@@ -509,6 +516,9 @@ def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, mi
     ensure_push_tables(conn)
     now_dt = datetime.now(timezone.utc)
     now = now_dt.isoformat()
+    # Parentage is global to the external ticket identity, not tenant-local. Any
+    # duplicate historical/current ticket is made terminally non-authoritative
+    # before the provider is queried, so one receipt can never fan out.
     duplicate_tickets = conn.execute(
         """SELECT ticket_id FROM push_deliveries
            WHERE ticket_id IS NOT NULL AND TRIM(ticket_id)<>''
@@ -573,6 +583,8 @@ def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, mi
     for row in due:
         receipt = receipts.get(row["ticket_id"])
         if not isinstance(receipt, dict):
+            # Expo documents missing receipts as possible while processing; after
+            # the recommended wait this is observable but remains re-checkable.
             conn.execute(
                 "UPDATE push_deliveries SET receipt_checked_at=?,last_error=? WHERE id=?",
                 (now, "receipt_not_available", row["id"]),
@@ -581,6 +593,8 @@ def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, mi
 
         status = receipt.get("status")
         if status == "ok":
+            # provider_accepted means FCM/APNs accepted the notification. It is
+            # deliberately not named delivered: the device/user may not receive it.
             conn.execute(
                 """UPDATE push_deliveries
                    SET receipt_status='provider_accepted',receipt_checked_at=?,receipt_error=NULL,last_error=NULL,next_attempt_at=NULL
@@ -593,6 +607,8 @@ def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, mi
         details = receipt.get("details") or {}
         error = str(details.get("error") or receipt.get("message") or "receipt_error")[:240]
         if error == "MessageRateExceeded" and int(row["attempt_count"]) < MAX_PUSH_ATTEMPTS:
+            # Expo explicitly recommends exponential backoff and retry for this
+            # receipt state, but the local owner budget still forbids replay > 8.
             retry_at = _next_retry_at(int(row["attempt_count"]) + 1, now_dt)
             conn.execute(
                 "DELETE FROM push_ticket_parents WHERE ticket_id=? AND push_delivery_id=?",
@@ -613,6 +629,8 @@ def reconcile_push_receipts(conn, account_id, limit=1000, post=requests.post, mi
                 (now, error, error, now, row["id"]),
             )
             if error == "DeviceNotRegistered" and row["expo_push_token"]:
+                # Receipt is delayed. Revoke only if this exact token is still on
+                # the stable device row; never revoke a newly rotated valid token.
                 _revoke_device_row(
                     conn,
                     row["push_device_id"],
@@ -681,6 +699,8 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
                 "url": d.get("url"),
             })
     conn.commit()
+    # Reconcile older accepted tickets first, then retry/new-submit due pairs.
+    # Neither step can promote an Expo/FCM/APNs acknowledgement to user delivery.
     try:
         reconcile_push_receipts(conn, account_id)
     except Exception as exc:
