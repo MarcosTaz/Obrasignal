@@ -11,7 +11,9 @@ def test_canonical_inventory_promotes_only_evidenced_multi_consumer_core():
     assert index["identity_authentication"]["state"] == "SHARED_CORE"
     assert len(index["identity_authentication"]["verified_consumers"]) >= 2
     assert index["identity_authentication"]["owner"] == "factory-cloud/shared-platform"
-    assert index["persistent_execution_recovery"]["state"] == "SHARED_VERIFIED"
+    # Code/tests alone are not enough to claim deployed persistent execution.
+    assert index["persistent_execution_recovery"]["state"] == "SHARED_CONTRACT_PROPOSED"
+    assert index["persistent_execution_recovery"]["verified_consumers"] == []
     for item in data["capabilities"]:
         if item["state"] == "SHARED_CORE":
             assert item["evidence_paths"]
