@@ -5,15 +5,19 @@ from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
+from account_privacy import bp as ACCOUNT_PRIVACY_BP
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
 import notification_privacy_lifecycle as _notification_privacy_lifecycle
 import opportunity_watchlist_api as _opportunity_watchlist_api
 
-# api.py owns the mobile API blueprint; register it here because this is the
-# production WSGI entrypoint and keeps registration explicit at the boundary.
+# api.py owns the mobile API blueprint; account_privacy.py owns authenticated
+# export/deletion. Register each public owner explicitly and idempotently at the
+# production WSGI boundary so implemented routes cannot remain test-only truth.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
+if "account_privacy" not in APP.blueprints:
+    APP.register_blueprint(ACCOUNT_PRIVACY_BP)
 
 
 def _origin():
