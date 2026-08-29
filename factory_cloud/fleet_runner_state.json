@@ -5,61 +5,47 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 2,
-  "last_factory_id": "obrasignal",
-  "last_run_at": "2026-08-29T22:39:37Z",
+  "cursor": 3,
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-08-29T23:40:28Z",
   "last_material_change": {
-    "kind": "CONTROL_PLANE_ADOPTION_CONFIRMED_OBRASIGNAL_BILLING_FAILING_BEFORE_DISCOVERED",
-    "factory_id": "obrasignal",
-    "summary": "Factory Cloud control-plane runner adoption is now directly proven on exact HEAD d2e7dcbd6c7dce1052e9208c431800875bf29e9b with ObraSignal Quality SUCCESS run 33276737516. The control-plane runner differs materially from draft PR #765 by preserving non-stop rotation even when every Factory is listed blocked, without claiming task execution. Product Strategy head 131073cbb095c9a87fd66a1d3b466d3b254d3175 and Data Analytics head 303fce7fc69284ef2b7a7fd5d117addd1e53f110 have now been exact-head classified: Python SUCCESS, Mobile FAILURE specifically at npx expo-doctor, so their repository evidence contracts remain valid but neither head is globally GREEN. ObraSignal canonical main remains 66d43f6fd51cf9cea08016dad335aaa04b711a24. A new draft failing-before PR #828 on exact GREEN product base 0611198c77ad090e6d931b05afc2c09a29a873ff probes a high-risk billing authority defect: BillingGate must not fall back to client entitlement when server billing authority is unavailable. #828 head a69d553854423ce9cd5e2aa1c031061351849561 is one-test-file-only, DRAFT/NOT CANONICAL, with Quality run 33279176454 currently IN_PROGRESS. Industrial Claims #785 also advanced to head cbfafa8f78bbe971efb1abc0430ae05a1a85e123 with new numeric/dossier pilot-gate tests; Quality run 33279181799 is IN_PROGRESS and is the next cursor lane.",
+    "kind": "INDUSTRIAL_CLAIMS_EXACT_HEAD_RED_AND_BILLING_FAILING_BEFORE_CONFIRMED",
+    "factory_id": "industrial-claims",
+    "summary": "Industrial Claims #785 advanced beyond the previously recorded cbfafa8 head to exact current head afea1533c88a7cc4f209be18c6c07af0813d8b0c. Latest exact-head ObraSignal Quality run 33280705038 is FAILURE: Mobile is fully SUCCESS including expo-doctor and bundle; Python compiles successfully and fails only at repository/Factory Cloud tests. The prior cbfafa8 exact-head run 33279181799 has the same Python-only failure shape. Cause remains unproven from available structured CI metadata, so this is RED/NOT CANONICAL and not promoted to deterministic failing-before. Separately, ObraSignal billing probe #828 exact head a69d553854423ce9cd5e2aa1c031061351849561 completed FAILURE on Python repository tests while Mobile is fully SUCCESS, confirming a reproducible RED probe on the one-test-file candidate; exact failing assertion still requires log-level proof before declaring the billing invariant deterministic. ScopeLedger is next; absence of a heads/scope* branch keeps production lineage unresolved but is not a global stop.",
     "evidence": {
-      "factory_cloud": {
-        "control_head": "d2e7dcbd6c7dce1052e9208c431800875bf29e9b",
-        "quality_run": 33276737516,
-        "quality": "SUCCESS",
-        "runner_blob": "bd64d4d1ffd38687ba47e8d92cc03945f04610a5",
-        "pr_765_head": "b6e25348b9c11c11ed7f88aa39fb82ba33d34b9e",
-        "pr_765_runner_blob": "da54df08069b3594417145498fb063f57f17a193",
-        "classification": "CONTROL_PLANE_IMPLEMENTATION_PRESENT_GREEN_PR765_NOT_SOLE_AUTHORITY"
-      },
-      "product_strategy": {
-        "head": "131073cbb095c9a87fd66a1d3b466d3b254d3175",
-        "quality_run": 33276689483,
-        "python": "SUCCESS",
-        "mobile": "FAILURE_AT_EXPO_DOCTOR",
-        "classification": "PYTHON_GREEN_MOBILE_OWNER_DRIFT_NOT_GLOBAL_GREEN_NOT_CANONICAL"
-      },
-      "data_analytics": {
-        "head": "303fce7fc69284ef2b7a7fd5d117addd1e53f110",
-        "quality_run": 33276709834,
-        "python": "SUCCESS",
-        "mobile": "FAILURE_AT_EXPO_DOCTOR",
-        "classification": "PYTHON_GREEN_MOBILE_OWNER_DRIFT_NOT_GLOBAL_GREEN_NOT_CANONICAL"
-      },
-      "obrasignal": {
-        "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
-        "billing_probe_pr": 828,
-        "billing_probe_base": "0611198c77ad090e6d931b05afc2c09a29a873ff",
-        "billing_probe_head": "a69d553854423ce9cd5e2aa1c031061351849561",
-        "billing_probe_quality_run": 33279176454,
-        "billing_probe_quality": "IN_PROGRESS",
-        "classification": "BILLING_AUTHORITY_FAIL_CLOSED_PROBE_ACTIVE_DRAFT_NOT_CANONICAL"
-      },
-      "industrial_claims_next": {
+      "industrial_claims": {
         "pr": 785,
         "branch": "apps/industrial-claims",
-        "head": "cbfafa8f78bbe971efb1abc0430ae05a1a85e123",
-        "quality_run": 33279181799,
-        "quality": "IN_PROGRESS",
-        "classification": "ACTIVE_EXACT_HEAD_VALIDATION_PENDING"
+        "head": "afea1533c88a7cc4f209be18c6c07af0813d8b0c",
+        "latest_quality_run": 33280705038,
+        "latest_quality": "FAILURE",
+        "python": "FAILURE_AT_REPOSITORY_AND_FACTORY_CLOUD_TESTS",
+        "mobile": "SUCCESS",
+        "prior_head": "cbfafa8f78bbe971efb1abc0430ae05a1a85e123",
+        "prior_quality_run": 33279181799,
+        "prior_quality": "FAILURE",
+        "classification": "RED_EXACT_HEAD_CAUSE_NOT_YET_PROVEN_DRAFT_NOT_CANONICAL"
+      },
+      "obrasignal_billing_probe": {
+        "pr": 828,
+        "head": "a69d553854423ce9cd5e2aa1c031061351849561",
+        "quality_run": 33279176454,
+        "quality": "FAILURE",
+        "python": "FAILURE_AT_REPOSITORY_TESTS",
+        "mobile": "SUCCESS",
+        "classification": "REPRODUCIBLE_RED_PROBE_ASSERTION_CAUSE_NOT_YET_LOG_PROVEN_DRAFT_NOT_CANONICAL"
+      },
+      "scopeledger": {
+        "matching_head_prefix_scope": "NONE",
+        "classification": "SOURCE_IDENTITY_PARTIAL_PRODUCTION_LINEAGE_UNPROVEN"
       }
     },
-    "active": "Industrial Supplier Claims & Margin Recovery: classify exact-head Quality run 33279181799 on cbfafa8f78bbe971efb1abc0430ae05a1a85e123, preserve fail-closed recovery-cap/dossier truth, then advance the next repository-safe pilot milestone.",
-    "next": "After Industrial Claims, rotate to ScopeLedger and onward. Independently classify #828 when CI completes; if it fails only on the new billing-authority invariant, freeze it as deterministic failing-before and route an owner repair without weakening server authority. Independently route shared Mobile expo-doctor drift.",
+    "active": "ScopeLedger: reconstruct the exact recoverable repository/BATON truth, verify any non-scope-named source identity before association, and execute only repository-safe work independent of unproven production lineage.",
+    "next": "After ScopeLedger, rotate immediately to ChangeLedger and onward. Independently inspect Industrial Claims #785 Python failure details and #828 failure details when exact assertion/log evidence is recoverable; do not weaken fail-closed recovery or server billing authority to make CI green.",
     "wait": [
-      "#828 exact-head CI completion/classification",
-      "Industrial Claims #785 exact-head CI completion/classification",
-      "Shared Mobile/Expo owner repair for expo-doctor failures on Product Strategy and Data Analytics heads",
+      "Industrial Claims #785 exact Python failing assertion/root cause",
+      "#828 exact Python failing assertion/root cause before deterministic failing-before classification",
+      "Shared Mobile/Expo owner repair for Product Strategy and Data Analytics heads",
       "Customer Journey #762 still lacks complete endpoint role enforcement and persisted actor audit attribution",
       "Customer Decision shared-company fixture depends on noncanonical #821",
       "GTM real replies/WTP/payment require external evidence",
@@ -70,7 +56,7 @@
     ]
   },
   "blocked": [
-    {"factory_id":"scopeledger","blocker":"Production lineage cannot be proved from the recovered GitHub branch alone.","global_stop":false},
+    {"factory_id":"scopeledger","blocker":"Production lineage cannot be proved from recovered GitHub evidence; no heads/scope* branch currently resolves the canonical source identity.","global_stop":false},
     {"factory_id":"changeledger","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity recovered.","global_stop":false},
