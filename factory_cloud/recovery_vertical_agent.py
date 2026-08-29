@@ -22,6 +22,7 @@ COMMON_TESTS = (
 INDUSTRIAL_TESTS = COMMON_TESTS + (
     "tests/test_industrial_claims_service.py",
     "tests/test_industrial_claims_recovery_cap.py",
+    "tests/test_industrial_claims_replay_integrity.py",
     "tests/test_industrial_claims_synthetic_oracle.py",
     "tests/test_industrial_claims_package.py",
     "tests/test_industrial_claims_pilot_contract.py",
