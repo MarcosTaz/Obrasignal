@@ -49,19 +49,22 @@ class CapacityRepository:
         if not rows:
             return "capacity schema is missing"
         names = {row["name"] for row in rows}
-        if names != _SCHEMA_COLUMNS:
-            return "capacity schema columns require explicit migration"
+        missing = _SCHEMA_COLUMNS - names
+        if missing:
+            return "lacks required capacity columns"
+        extra = names - _SCHEMA_COLUMNS
+        if extra:
+            return "capacity schema has unknown columns and requires explicit migration"
         primary_key = tuple(
             row["name"] for row in sorted((row for row in rows if row["pk"]), key=lambda row: row["pk"])
         )
         if primary_key != _PRIMARY_KEY:
             return "capacity schema primary key must be (tenant_id, case_id)"
         for row in rows:
-            if row["name"] in _SCHEMA_COLUMNS:
-                if str(row["type"] or "").upper() != "TEXT":
-                    return "capacity schema columns must use TEXT storage"
-                if row["notnull"] != 1:
-                    return "capacity schema columns must be NOT NULL"
+            if str(row["type"] or "").upper() != "TEXT":
+                return "capacity schema columns must use TEXT storage"
+            if row["notnull"] != 1:
+                return "capacity schema columns must be NOT NULL"
         return None
 
     def _connect(self) -> sqlite3.Connection:
