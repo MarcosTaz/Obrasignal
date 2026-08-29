@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request
 
 from normalized_import import NormalizedSalesRow, import_sales_batch, list_sales_records
-from repository import RoyaltyRepository
+from repository import ConflictError, RoyaltyRepository
 
 
 def _decimal(value):
@@ -52,6 +52,11 @@ def create_import_blueprint(repository: RoyaltyRepository) -> Blueprint:
                 str(data.get("evidence_id") or ""),
                 request.royaltyrecover_actor_id,
             )
+        except ConflictError:
+            # Preserve conflict semantics for duplicate source rows/datasets.
+            # ConflictError subclasses ValueError, so it must bypass the generic
+            # input handler and reach the application's canonical 409 handler.
+            raise
         except (TypeError, ValueError) as exc:
             return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
         return jsonify({
