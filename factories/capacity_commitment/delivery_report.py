@@ -12,6 +12,17 @@ def _text(value: Any) -> str:
     return " ".join(str(value).replace("\r", " ").replace("\n", " ").split())
 
 
+def _code(value: Any) -> str:
+    """Render untrusted case/source text inside a non-breakable Markdown code span.
+
+    Newlines are already collapsed by `_text`. Source backticks are replaced with
+    a visually similar modifier mark so user-controlled values cannot close the
+    code span and inject headings, links, HTML, emphasis or false report states.
+    """
+
+    return f"`{_text(value).replace('`', 'ˋ')}`"
+
+
 def _tri(value: Any) -> str:
     if value is True:
         return "YES"
@@ -21,7 +32,7 @@ def _tri(value: Any) -> str:
 
 
 def _bullet_items(values) -> list[str]:
-    items = [_text(value) for value in values]
+    items = [_code(value) for value in values]
     return [f"- {item}" for item in items] if items else ["- None recorded"]
 
 
@@ -54,14 +65,14 @@ def render_delivery_report(state: AssistedCaseState, package: RecoveryPackage) -
         "",
         "## Case identity",
         "",
-        f"- Case ID: `{_text(package.case_id)}`",
-        f"- Supplier/company: `{_text(state.company_id)}`",
-        f"- Customer: `{_text(state.customer_id)}`",
-        f"- Programme: `{_text(state.program_id)}`",
-        f"- Contract: `{_text(state.contract_id)}`",
-        f"- Nomination/award: `{_text(state.nomination_id)}`",
-        f"- Currency: `{currency}`",
-        f"- Absolute notice deadline: `{_text(package.deadline)}`",
+        f"- Case ID: {_code(package.case_id)}",
+        f"- Supplier/company: {_code(state.company_id)}",
+        f"- Customer: {_code(state.customer_id)}",
+        f"- Programme: {_code(state.program_id)}",
+        f"- Contract: {_code(state.contract_id)}",
+        f"- Nomination/award: {_code(state.nomination_id)}",
+        f"- Currency: {_code(currency)}",
+        f"- Absolute notice deadline: {_code(package.deadline)}",
         "",
         "## Executive result",
         "",
@@ -75,45 +86,45 @@ def render_delivery_report(state: AssistedCaseState, package: RecoveryPackage) -
         "",
         "## Commitment vs actual",
         "",
-        f"- Commitment state: `{_text(baseline.get('commitment_state'))}`",
-        f"- Committed units: `{_text(baseline.get('committed_units'))}`",
-        f"- Forecast units (context only): `{_text(state.forecast_units)}`",
-        f"- Actual units: `{_text(actual.get('actual_units'))}`",
-        f"- Shortfall units: `{_text(package.shortfall.get('shortfall_units'))}`",
-        f"- Actuals complete: `{_tri(actual.get('actuals_complete'))}`",
-        f"- Actuals deduplicated: `{_tri(actual.get('actuals_deduplicated'))}`",
-        f"- Cancelled orders excluded: `{_tri(actual.get('cancelled_orders_excluded'))}`",
+        f"- Commitment state: {_code(baseline.get('commitment_state'))}",
+        f"- Committed units: {_code(baseline.get('committed_units'))}",
+        f"- Forecast units (context only): {_code(state.forecast_units)}",
+        f"- Actual units: {_code(actual.get('actual_units'))}",
+        f"- Shortfall units: {_code(package.shortfall.get('shortfall_units'))}",
+        f"- Actuals complete: {_code(_tri(actual.get('actuals_complete')))}",
+        f"- Actuals deduplicated: {_code(_tri(actual.get('actuals_deduplicated')))}",
+        f"- Cancelled orders excluded: {_code(_tri(actual.get('cancelled_orders_excluded')))}",
         "",
         "## Dedicated investment and net exposure",
         "",
-        f"- Exposure type: `{_text(capacity.get('exposure_type'))}`",
-        f"- Cost recovery mode: `{_text(exposure.get('cost_recovery_mode'))}`",
-        f"- Dedicated cost basis: `{currency} {_text(exposure.get('dedicated_cost'))}`",
-        f"- Amortisation basis units: `{_text(exposure.get('amortization_basis_units'))}`",
-        f"- Recovered through actual units: `{currency} {_text(exposure.get('recovered_via_actual_units'))}`",
-        f"- Mitigation/reuse deduction: `{currency} {_text(mitigation.get('mitigation'))}`",
-        f"- Prior payment/recovery deduction: `{currency} {_text(mitigation.get('prior_payment'))}`",
-        f"- Asset dedicated: `{_tri(capacity.get('asset_dedicated'))}`",
-        f"- Asset dedication verified: `{_tri(basis.get('asset_dedication_verified'))}`",
-        f"- Amortisation verified: `{_tri(basis.get('amortization_verified'))}`",
+        f"- Exposure type: {_code(capacity.get('exposure_type'))}",
+        f"- Cost recovery mode: {_code(exposure.get('cost_recovery_mode'))}",
+        f"- Dedicated cost basis: {_code(f'{currency} {_text(exposure.get("dedicated_cost"))}')}",
+        f"- Amortisation basis units: {_code(exposure.get('amortization_basis_units'))}",
+        f"- Recovered through actual units: {_code(f'{currency} {_text(exposure.get("recovered_via_actual_units"))}')}",
+        f"- Mitigation/reuse deduction: {_code(f'{currency} {_text(mitigation.get("mitigation"))}')}",
+        f"- Prior payment/recovery deduction: {_code(f'{currency} {_text(mitigation.get("prior_payment"))}')}",
+        f"- Asset dedicated: {_code(_tri(capacity.get('asset_dedicated')))}",
+        f"- Asset dedication verified: {_code(_tri(basis.get('asset_dedication_verified')))}",
+        f"- Amortisation verified: {_code(_tri(basis.get('amortization_verified')))}",
         "",
         "## Contract / amendment / notice integrity",
         "",
-        f"- Customer matches: `{_tri(basis.get('customer_matches'))}`",
-        f"- Programme matches: `{_tri(basis.get('program_matches'))}`",
-        f"- Period matches: `{_tri(basis.get('period_matches'))}`",
-        f"- Currency matches: `{_tri(basis.get('currency_matches'))}`",
-        f"- Unit matches: `{_tri(basis.get('unit_matches'))}`",
-        f"- Explicit recovery right supported: `{_tri(basis.get('explicit_recovery_right'))}`",
-        f"- Contract matches: `{_tri(basis.get('contract_matches'))}`",
-        f"- Current contract: `{_tri(basis.get('contract_current'))}`",
-        f"- Amendments reviewed: `{_tri(basis.get('amendment_reviewed'))}`",
-        f"- Applicable amendment matches: `{_tri(basis.get('amendment_matches'))}`",
-        f"- Mitigation reviewed: `{_tri(basis.get('mitigation_reviewed'))}`",
-        f"- Prior recovery reviewed: `{_tri(basis.get('prior_recovery_reviewed'))}`",
-        f"- Notice window verified: `{_tri(basis.get('notice_window_verified'))}`",
-        f"- Notice/deadline valid: `{_tri(basis.get('notice_valid'))}`",
-        f"- Duplicate claim: `{_tri(basis.get('duplicate_claim'))}`",
+        f"- Customer matches: {_code(_tri(basis.get('customer_matches')))}",
+        f"- Programme matches: {_code(_tri(basis.get('program_matches')))}",
+        f"- Period matches: {_code(_tri(basis.get('period_matches')))}",
+        f"- Currency matches: {_code(_tri(basis.get('currency_matches')))}",
+        f"- Unit matches: {_code(_tri(basis.get('unit_matches')))}",
+        f"- Explicit recovery right supported: {_code(_tri(basis.get('explicit_recovery_right')))}",
+        f"- Contract matches: {_code(_tri(basis.get('contract_matches')))}",
+        f"- Current contract: {_code(_tri(basis.get('contract_current')))}",
+        f"- Amendments reviewed: {_code(_tri(basis.get('amendment_reviewed')))}",
+        f"- Applicable amendment matches: {_code(_tri(basis.get('amendment_matches')))}",
+        f"- Mitigation reviewed: {_code(_tri(basis.get('mitigation_reviewed')))}",
+        f"- Prior recovery reviewed: {_code(_tri(basis.get('prior_recovery_reviewed')))}",
+        f"- Notice window verified: {_code(_tri(basis.get('notice_window_verified')))}",
+        f"- Notice/deadline valid: {_code(_tri(basis.get('notice_valid')))}",
+        f"- Duplicate claim: {_code(_tri(basis.get('duplicate_claim')))}",
         "",
         "## Engine reasons",
         "",
@@ -133,8 +144,8 @@ def render_delivery_report(state: AssistedCaseState, package: RecoveryPackage) -
         "",
         "## Audit boundary",
         "",
-        f"- Engine version: `{_text(audit.get('engine_version'))}`",
-        f"- Human review required before external submission: `{_tri(audit.get('human_review_required_before_external_submission'))}`",
+        f"- Engine version: {_code(audit.get('engine_version'))}",
+        f"- Human review required before external submission: {_code(_tri(audit.get('human_review_required_before_external_submission')))}",
         "- A positive engine classification is not evidence that a customer accepted, settled or paid the amount.",
         "- Any external claim/submission/negotiation remains an authorized human action outside this report.",
         "",
