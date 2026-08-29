@@ -27,7 +27,6 @@ API_ERRORS = (
     RecoveryIndexError,
     SharedPlatformError,
 )
-
 REVIEWER_QUEUE_STATES = {"READY_FOR_REVIEW"}
 OPERATOR_QUEUE_STATES = {"APPROVED", "ACTIONED"}
 ADMIN_QUEUE_STATES = REVIEWER_QUEUE_STATES | OPERATOR_QUEUE_STATES
@@ -43,11 +42,7 @@ class IndustrialClaimsAuthorizationError(Exception):
         self.code = code
 
 
-def create_app(
-    database: str | Path,
-    *,
-    identity_resolver: Callable[[], RequestIdentity] | None = None,
-) -> Flask:
+def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestIdentity] | None = None) -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 3_500_000
     service = IndustrialClaimsService(database)
@@ -65,12 +60,10 @@ def create_app(
             raise IndustrialClaimsAuthenticationError("verified identity required") from exc
         if not verified.authenticated:
             raise IndustrialClaimsAuthenticationError("verified identity required")
-
         tenant_id = verified.account_id.strip()
         actor_id = (verified.subject or verified.account_id).strip()
         if not tenant_id or not actor_id:
             raise IndustrialClaimsAuthenticationError("verified tenant and actor identity required")
-
         claims = verified.claims if isinstance(verified.claims, dict) else {}
         role_values: set[str] = set()
         for claim_name in ("roles", "role"):
@@ -81,21 +74,13 @@ def create_app(
                 role_values.update(str(item).strip().lower() for item in raw if str(item).strip())
         required = {role.strip().lower() for role in required_roles if role.strip()}
         if "admin" not in role_values and not role_values.intersection(required):
-            requested = "/".join(sorted(required))
-            raise IndustrialClaimsAuthorizationError(f"verified {requested} role required")
-
+            raise IndustrialClaimsAuthorizationError(f"verified {'/'.join(sorted(required))} role required")
         requested_tenant = request.headers.get("X-Tenant-ID", "").strip()
         requested_actor = request.headers.get("X-Actor-ID", "").strip()
         if requested_tenant and requested_tenant != tenant_id:
-            raise IndustrialClaimsAuthorizationError(
-                "requested tenant does not match verified identity",
-                code="identity_scope_mismatch",
-            )
+            raise IndustrialClaimsAuthorizationError("requested tenant does not match verified identity", code="identity_scope_mismatch")
         if requested_actor and requested_actor != actor_id:
-            raise IndustrialClaimsAuthorizationError(
-                "requested actor does not match verified identity",
-                code="identity_scope_mismatch",
-            )
+            raise IndustrialClaimsAuthorizationError("requested actor does not match verified identity", code="identity_scope_mismatch")
         return tenant_id, actor_id, frozenset(role_values)
 
     def identity(required_role: str) -> tuple[str, str]:
@@ -104,10 +89,7 @@ def create_app(
 
     @app.after_request
     def security_headers(response):
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; "
-            "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
-        )
+        response.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
@@ -147,7 +129,6 @@ def create_app(
                     permitted_states.update(REVIEWER_QUEUE_STATES)
                 if "operator" in roles:
                     permitted_states.update(OPERATOR_QUEUE_STATES)
-
             raw_states = request.args.getlist("state")
             if not raw_states and request.args.get("states"):
                 raw_states = [item for item in request.args.get("states", "").split(",") if item.strip()]
@@ -155,18 +136,12 @@ def create_app(
             if requested_states and not requested_states.issubset(permitted_states):
                 raise IndustrialClaimsAuthorizationError("requested queue state is not permitted for verified role")
             states = tuple(sorted(requested_states or permitted_states))
-
-            limit_raw = request.args.get("limit", "100")
             try:
-                limit = int(limit_raw)
+                limit = int(request.args.get("limit", "100"))
             except (TypeError, ValueError) as exc:
                 raise ValueError("limit must be an integer") from exc
             items = read_model.list_findings(tenant_id=tenant_id, states=states, limit=limit)
-            return jsonify({
-                "queue_scope": list(states),
-                "count": len(items),
-                "findings": [item.as_dict() for item in items],
-            })
+            return jsonify({"queue_scope": list(states), "count": len(items), "findings": [item.as_dict() for item in items]})
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -178,12 +153,7 @@ def create_app(
             missing = payload.get("missing_evidence") or []
             if not isinstance(missing, list):
                 raise ValueError("missing_evidence must be a list")
-            document_fields = (
-                "commercial_basis_content",
-                "event_evidence_content",
-                "cost_evidence_content",
-            )
-            for field in document_fields:
+            for field in ("commercial_basis_content", "event_evidence_content", "cost_evidence_content"):
                 value = payload.get(field)
                 if value is not None and not isinstance(value, str):
                     raise ValueError(f"{field} must be text when supplied")
@@ -192,43 +162,9 @@ def create_app(
             if not isinstance(no_notice_deadline, bool):
                 raise ValueError("notice_deadline_not_applicable must be boolean")
             result = service.analyze(
-                tenant_id=tenant_id,
-                actor_id=actor_id,
-                customer_ref=str(payload["customer_ref"]),
-                program_ref=str(payload["program_ref"]),
-                event_ref=str(payload["event_ref"]),
-                claim_family=str(payload["claim_family"]),
-                commercial_basis_ref=str(payload["commercial_basis_ref"]),
-                cost_evidence_ref=str(payload["cost_evidence_ref"]),
-                gross_cost=str(payload["gross_cost"]),
-                currency=str(payload.get("currency", "")),
-                commercial_basis_content=payload.get("commercial_basis_content"),
-                event_evidence_content=payload.get("event_evidence_content"),
-                cost_evidence_content=payload.get("cost_evidence_content"),
-                avoided_cost=str(payload.get("avoided_cost", "0")),
-                resale_reuse=str(payload.get("resale_reuse", "0")),
-                third_party_recovery=str(payload.get("third_party_recovery", "0")),
-                prior_payment=str(payload.get("prior_payment", "0")),
-                other_mitigation=str(payload.get("other_mitigation", "0")),
-                notice_due=date.fromisoformat(str(notice_raw)) if notice_raw else None,
-                notice_deadline_not_applicable=no_notice_deadline,
-                missing_evidence=tuple(str(item) for item in missing),
+                tenant_id=tenant_id, actor_id=actor_id, customer_ref=str(payload["customer_ref"]), program_ref=str(payload["program_ref"]), event_ref=str(payload["event_ref"]), claim_family=str(payload["claim_family"]), commercial_basis_ref=str(payload["commercial_basis_ref"]), cost_evidence_ref=str(payload["cost_evidence_ref"]), gross_cost=str(payload["gross_cost"]), currency=str(payload.get("currency", "")), commercial_basis_content=payload.get("commercial_basis_content"), event_evidence_content=payload.get("event_evidence_content"), cost_evidence_content=payload.get("cost_evidence_content"), avoided_cost=str(payload.get("avoided_cost", "0")), resale_reuse=str(payload.get("resale_reuse", "0")), third_party_recovery=str(payload.get("third_party_recovery", "0")), prior_payment=str(payload.get("prior_payment", "0")), other_mitigation=str(payload.get("other_mitigation", "0")), notice_due=date.fromisoformat(str(notice_raw)) if notice_raw else None, notice_deadline_not_applicable=no_notice_deadline, missing_evidence=tuple(str(item) for item in missing),
             )
-            return jsonify({
-                "finding_id": result.finding.finding_id,
-                "state": result.finding.state,
-                "claim_family": result.claim_family,
-                "net_potential": result.calculation.output_value,
-                "currency": result.calculation.output_unit,
-                "calculation_hash": result.calculation.reproducibility_hash,
-                "notice_deadline_state": result.notice_deadline_state,
-                "evidence_states": {
-                    item.source_type: item.metadata.get("verification_state", "UNKNOWN")
-                    for item in result.evidence
-                },
-                "missing_evidence": list(result.missing_evidence),
-                "is_new_recovery": result.is_new_recovery,
-            }), 201
+            return jsonify({"finding_id": result.finding.finding_id, "state": result.finding.state, "claim_family": result.claim_family, "net_potential": result.calculation.output_value, "currency": result.calculation.output_unit, "calculation_hash": result.calculation.reproducibility_hash, "notice_deadline_state": result.notice_deadline_state, "evidence_states": {item.source_type: item.metadata.get("verification_state", "UNKNOWN") for item in result.evidence}, "missing_evidence": list(result.missing_evidence), "is_new_recovery": result.is_new_recovery}), 201
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -240,13 +176,7 @@ def create_app(
             approved = payload["approved"]
             if not isinstance(approved, bool):
                 raise ValueError("approved must be boolean")
-            state = service.review(
-                tenant_id=tenant_id,
-                finding_id=finding_id,
-                reviewer=actor_id,
-                approved=approved,
-                reason=str(payload["reason"]),
-            )
+            state = service.review(tenant_id=tenant_id, finding_id=finding_id, reviewer=actor_id, approved=approved, reason=str(payload["reason"]))
             return jsonify({"finding_id": finding_id, "state": state})
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
@@ -255,10 +185,7 @@ def create_app(
     def action_finding(finding_id: str):
         try:
             tenant_id, actor_id = identity("operator")
-            return jsonify({
-                "finding_id": finding_id,
-                "state": service.action(tenant_id=tenant_id, finding_id=finding_id, actor_id=actor_id),
-            })
+            return jsonify({"finding_id": finding_id, "state": service.action(tenant_id=tenant_id, finding_id=finding_id, actor_id=actor_id)})
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -267,6 +194,9 @@ def create_app(
         try:
             tenant_id, actor_id = identity("operator")
             payload = request.get_json(force=True) or {}
+            evidence_content = payload.get("evidence_content")
+            if not isinstance(evidence_content, str) or not evidence_content.strip():
+                raise ValueError("verified outcome evidence content is required as text")
             outcome = service.resolve(
                 tenant_id=tenant_id,
                 finding_id=finding_id,
@@ -274,6 +204,7 @@ def create_app(
                 recovered_amount=str(payload["recovered_amount"]),
                 currency=str(payload["currency"]),
                 evidence_ref=str(payload["evidence_ref"]),
+                evidence_content=evidence_content,
                 actor_id=actor_id,
             )
             return jsonify(outcome.__dict__), 201
