@@ -1,0 +1,27 @@
+name: PILOT_SAFE Browser Runtime
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PILOT_SAFE_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  browser-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PILOT_SAFE_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$PILOT_SAFE_TEST_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest playwright
+      - name: Install Chromium runtime
+        run: python -m playwright install --with-deps chromium
+      - name: Run PILOT_SAFE browser certification
+        run: PYTHONPATH=. pytest -q tests/browser/test_pilot_safe_browser.py
