@@ -25,6 +25,7 @@ INDUSTRIAL_TESTS = COMMON_TESTS + (
     "tests/test_industrial_claims_recovery_cap.py",
     "tests/test_industrial_claims_replay_integrity.py",
     "tests/test_industrial_claims_atomic_persistence.py",
+    "tests/test_industrial_claims_outcome_atomicity.py",
     "tests/test_industrial_claims_document_privacy.py",
     "tests/test_industrial_claims_synthetic_oracle.py",
     "tests/test_industrial_claims_package.py",
