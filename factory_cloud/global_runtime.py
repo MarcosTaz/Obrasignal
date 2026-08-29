@@ -33,9 +33,11 @@ def runtime_readiness(environ:Mapping[str,str]|None=None)->dict[str,object]:
         token=bool(str(env.get('FACTORY_CLOUD_PORTFOLIO_WORKER_TOKEN') or '').strip())
         if host not in LOCAL_HOSTS and not token:
             return {'ready':False,'portfolio_runtime':'ENDPOINT_BLOCKED','blockers':['portfolio_worker_token_required']}
-        return {'ready':True,'portfolio_runtime':'ENDPOINT_CONFIGURED','blockers':[]}
+        return {'ready':False,'portfolio_runtime':'ENDPOINT_CONFIGURED_UNVERIFIED','blockers':['portfolio_worker_endpoint_unverified']}
     if executable is not None:
-        return {'ready':True,'portfolio_runtime':'EXECUTABLE_CONFIGURED','blockers':[]}
+        if not executable.is_file() or not os.access(executable,os.X_OK):
+            return {'ready':False,'portfolio_runtime':'EXECUTABLE_UNAVAILABLE','blockers':['portfolio_worker_executable_unavailable']}
+        return {'ready':True,'portfolio_runtime':'EXECUTABLE_READY','blockers':[]}
     return {'ready':False,'portfolio_runtime':'NOT_PROVISIONED','blockers':['portfolio_factory_worker_not_provisioned']}
 
 def build_global_dispatcher(environ:Mapping[str,str]|None=None,*,runtime_dir:Path|None=None)->GlobalDispatcher:
