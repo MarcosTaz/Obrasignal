@@ -35,6 +35,10 @@ ALLOWED_CLAIM_FAMILIES = {
     "OTHER_DOCUMENTED_PROGRAM_EXPOSURE",
 }
 NOTICE_DEADLINE_EVIDENCE = "notice_deadline_or_verified_none"
+COMMERCIAL_BASIS_DOCUMENT = "commercial_basis_document"
+EVENT_DOCUMENT = "event_document"
+COST_DOCUMENT = "cost_document"
+MAX_EVIDENCE_BYTES = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -57,9 +61,9 @@ class IndustrialClaimResult:
 class IndustrialClaimsService:
     """Assisted supplier-side industrial claim reconstruction.
 
-    Cost is never treated as money owed by itself. A reviewable finding requires
-    explicit commercial-basis evidence plus event and cost evidence. Formula
-    version 1 computes net potential only; it does not make a legal conclusion.
+    Cost is never treated as money owed by itself. Documentary source content is
+    hashed and raw content is not persisted. A reference without source content
+    remains REFERENCE_ONLY and cannot make an entitlement review-ready.
     """
 
     vertical = "industrial-claims"
@@ -72,6 +76,32 @@ class IndustrialClaimsService:
     @staticmethod
     def _id(tenant_id: str, local: str) -> str:
         return f"{tenant_id}:{local}"
+
+    @staticmethod
+    def _evidence_payload(
+        content: bytes | str | None,
+        *,
+        source_ref: str,
+        missing_key: str,
+        missing: set[str],
+    ) -> tuple[bytes | str, dict[str, str]]:
+        if content is None:
+            missing.add(missing_key)
+            return f"REFERENCE_ONLY:{source_ref}", {"verification_state": "REFERENCE_ONLY"}
+        if isinstance(content, str):
+            if not content.strip():
+                missing.add(missing_key)
+                return f"REFERENCE_ONLY:{source_ref}", {"verification_state": "REFERENCE_ONLY"}
+            size = len(content.encode("utf-8"))
+        else:
+            content = bytes(content)
+            if not content:
+                missing.add(missing_key)
+                return f"REFERENCE_ONLY:{source_ref}", {"verification_state": "REFERENCE_ONLY"}
+            size = len(content)
+        if size > MAX_EVIDENCE_BYTES:
+            raise AssuranceKernelError("individual evidence content exceeds assisted intake limit")
+        return content, {"verification_state": "CONTENT_HASHED", "raw_content_persisted": "false"}
 
     def _existing_finding(self, *, tenant_id: str, finding_id: str) -> FindingRecord:
         with sqlite3.connect(self.store.path) as conn:
@@ -138,11 +168,6 @@ class IndustrialClaimsService:
         return existing
 
     def _reviewed_net_potential(self, *, tenant_id: str, finding_id: str) -> Decimal:
-        """Return the immutable net-potential calculation linked to a finding.
-
-        A payment larger than this reviewed amount requires a new/amended finding
-        and review rather than silently rewriting verified incremental recovery.
-        """
         with sqlite3.connect(self.store.path) as conn:
             conn.row_factory = sqlite3.Row
             finding = conn.execute(
@@ -185,6 +210,9 @@ class IndustrialClaimsService:
         commercial_basis_ref: str,
         cost_evidence_ref: str,
         gross_cost: str,
+        commercial_basis_content: bytes | str | None = None,
+        event_evidence_content: bytes | str | None = None,
+        cost_evidence_content: bytes | str | None = None,
         avoided_cost: str = "0",
         resale_reuse: str = "0",
         third_party_recovery: str = "0",
@@ -216,6 +244,25 @@ class IndustrialClaimsService:
             notice_deadline_state = "UNKNOWN"
             effective_missing.add(NOTICE_DEADLINE_EVIDENCE)
 
+        basis_content, basis_metadata = self._evidence_payload(
+            commercial_basis_content,
+            source_ref=commercial_basis_ref,
+            missing_key=COMMERCIAL_BASIS_DOCUMENT,
+            missing=effective_missing,
+        )
+        event_content, event_metadata = self._evidence_payload(
+            event_evidence_content,
+            source_ref=event_ref,
+            missing_key=EVENT_DOCUMENT,
+            missing=effective_missing,
+        )
+        cost_content, cost_metadata = self._evidence_payload(
+            cost_evidence_content,
+            source_ref=cost_evidence_ref,
+            missing_key=COST_DOCUMENT,
+            missing=effective_missing,
+        )
+
         try:
             amounts = {
                 "gross_cost": Decimal(gross_cost),
@@ -241,21 +288,24 @@ class IndustrialClaimsService:
             tenant_id=tenant_id,
             source_type="commercial_basis",
             source_ref=commercial_basis_ref,
-            content=f"commercial-basis:{customer_ref}:{program_ref}:{commercial_basis_ref}",
+            content=basis_content,
+            metadata=basis_metadata,
         )
         event = EvidenceEnvelope.create(
             evidence_id=self._id(tenant_id, f"{event_ref}:event"),
             tenant_id=tenant_id,
             source_type="industrial_commercial_event",
             source_ref=event_ref,
-            content=f"event:{customer_ref}:{program_ref}:{event_ref}",
+            content=event_content,
+            metadata=event_metadata,
         )
         cost = EvidenceEnvelope.create(
             evidence_id=self._id(tenant_id, f"{cost_evidence_ref}:cost"),
             tenant_id=tenant_id,
             source_type="cost_evidence",
             source_ref=cost_evidence_ref,
-            content=f"cost:{family}:{gross_cost}:{cost_evidence_ref}",
+            content=cost_content,
+            metadata=cost_metadata,
         )
         evidence = (basis, event, cost)
 
@@ -264,7 +314,7 @@ class IndustrialClaimsService:
             tenant_id=tenant_id,
             domain=self.vertical,
             source_evidence_ids=tuple(item.evidence_id for item in evidence),
-            rule_ref="documented-commercial-basis-v1",
+            rule_ref="documented-commercial-basis-v2",
             confidence="SUPPORTED" if not effective_missing else "PARTIAL",
         )
         fingerprint = RecoveryFingerprint.create(
@@ -322,6 +372,7 @@ class IndustrialClaimsService:
                 "entitlement_basis_hash": entitlement.basis_hash,
                 "recovery_fingerprint": fingerprint.fingerprint,
                 "notice_deadline_state": notice_deadline_state,
+                "evidence_states": {item.source_type: item.metadata.get("verification_state") for item in evidence},
                 "missing_evidence": sorted(effective_missing),
             },
         )
