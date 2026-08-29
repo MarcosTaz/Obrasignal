@@ -50,6 +50,21 @@ def test_web_rejects_case_ids_that_cannot_be_safely_addressed(case_id, tmp_path)
     assert repository.list_case_ids(tenant_id="tenant-a") == []
 
 
+@pytest.mark.parametrize("case_id", [None, 0, True, [], {}])
+def test_web_rejects_non_string_case_ids_as_400_without_persisting(case_id, tmp_path):
+    app, repository = _app(tmp_path)
+    response = app.test_client().post(
+        "/api/capacity/cases",
+        headers={"X-Test-Tenant": "tenant-a", "X-Capacity-Intent": "create-case"},
+        json=_payload(case_id),
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "invalid_input"
+    assert "case_id must be URL-addressable" in response.get_json()["detail"]
+    assert repository.list_case_ids(tenant_id="tenant-a") == []
+
+
 def test_web_accepts_and_retrieves_safe_case_id(tmp_path):
     app, _ = _app(tmp_path)
     client = app.test_client()
