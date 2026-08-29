@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from factory_cloud.control_tower_api import handle_request
-from factory_cloud.global_runtime import build_global_dispatcher
+from factory_cloud.global_runtime import build_global_dispatcher, runtime_readiness
 
 MAX_BODY_BYTES=64*1024
 LOCAL_BIND_HOSTS={"127.0.0.1","localhost","::1"}
@@ -18,7 +18,7 @@ LOCAL_BIND_HOSTS={"127.0.0.1","localhost","::1"}
 class ControlTowerConfigurationError(RuntimeError): pass
 
 class ControlTowerHTTPHandler(BaseHTTPRequestHandler):
-    dispatcher=None; auth_token:str|None=None; allowed_origin:str|None=None; server_version='FactoryControlTower/0.3'
+    dispatcher=None; auth_token:str|None=None; allowed_origin:str|None=None; runtime_status:dict[str,object]={}; server_version='FactoryControlTower/0.4'
     def log_message(self,format:str,*args:Any)->None:return
     def _origin_allowed(self)->bool:
         origin=str(self.headers.get('origin') or '').strip()
@@ -55,9 +55,12 @@ class ControlTowerHTTPHandler(BaseHTTPRequestHandler):
         if self.allowed_origin:self.send_header('access-control-allow-origin',self.allowed_origin);self.send_header('vary','Origin')
         self.send_header('access-control-allow-methods','GET,POST,OPTIONS');self.send_header('access-control-allow-headers','authorization,content-type');self.send_header('access-control-max-age','600');self.send_header('cache-control','no-store');self.end_headers()
     def do_GET(self)->None:
-        if self._path()=='/health':self._send(200,{'ok':True,'service':'global-control-tower'});return
+        path=self._path()
+        if path=='/health':self._send(200,{'ok':True,'service':'global-control-tower'});return
+        if path=='/ready':
+            payload=dict(self.runtime_status);payload['service']='global-control-tower';self._send(200 if payload.get('ready') is True else 503,payload);return
         if not self._guard_api():return
-        status,payload=handle_request(self.dispatcher,method='GET',path=self._path());self._send(status,payload)
+        status,payload=handle_request(self.dispatcher,method='GET',path=path);self._send(status,payload)
     def do_POST(self)->None:
         if not self._guard_api():return
         valid,body=self._json_body()
@@ -66,20 +69,18 @@ class ControlTowerHTTPHandler(BaseHTTPRequestHandler):
 
 def _validate_bind_security(host:str, token:str|None)->None:
     normalized=str(host or '').strip().lower()
-    if normalized not in LOCAL_BIND_HOSTS and not token:
-        raise ControlTowerConfigurationError('non-local Control Tower bind requires FACTORY_CONTROL_TOKEN')
+    if normalized not in LOCAL_BIND_HOSTS and not token:raise ControlTowerConfigurationError('non-local Control Tower bind requires FACTORY_CONTROL_TOKEN')
 
 def make_server(host:str,port:int,*,environ:dict[str,str]|None=None,runtime_dir:Path|None=None)->ThreadingHTTPServer:
     env=dict(os.environ if environ is None else environ);token=str(env.get('FACTORY_CONTROL_TOKEN') or '').strip() or None;origin=str(env.get('FACTORY_CONTROL_ALLOWED_ORIGIN') or '').strip() or None
-    _validate_bind_security(host,token)
-    dispatcher=build_global_dispatcher(environ=env,runtime_dir=runtime_dir)
-    handler=type('BoundControlTowerHTTPHandler',(ControlTowerHTTPHandler,),{'dispatcher':dispatcher,'auth_token':token,'allowed_origin':origin});return ThreadingHTTPServer((host,port),handler)
+    _validate_bind_security(host,token);dispatcher=build_global_dispatcher(environ=env,runtime_dir=runtime_dir);readiness=runtime_readiness(env)
+    handler=type('BoundControlTowerHTTPHandler',(ControlTowerHTTPHandler,),{'dispatcher':dispatcher,'auth_token':token,'allowed_origin':origin,'runtime_status':readiness});return ThreadingHTTPServer((host,port),handler)
 
 def main()->int:
     parser=argparse.ArgumentParser(description='Persistent Global Factory Control Tower service');parser.add_argument('--host',default=os.environ.get('FACTORY_CONTROL_HOST','127.0.0.1'));parser.add_argument('--port',type=int,default=int(os.environ.get('FACTORY_CONTROL_PORT','8787')));parser.add_argument('--runtime-dir',type=Path,default=None);args=parser.parse_args()
     if args.port<1 or args.port>65535:parser.error('port must be between 1 and 65535')
-    try: server=make_server(args.host,args.port,runtime_dir=args.runtime_dir)
-    except ControlTowerConfigurationError as exc: parser.error(str(exc))
+    try:server=make_server(args.host,args.port,runtime_dir=args.runtime_dir)
+    except ControlTowerConfigurationError as exc:parser.error(str(exc))
     try:server.serve_forever(poll_interval=.25)
     except KeyboardInterrupt:pass
     finally:server.server_close()
