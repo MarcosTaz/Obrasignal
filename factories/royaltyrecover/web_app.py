@@ -8,8 +8,12 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Flask, jsonify, request
 
+from repository import ConflictError, NotFoundError, RoyaltyRepository, ScopeError
 from royalty_engine import PeriodInput, RoyaltyRule, RoyaltyTier
 from service_pipeline import RecoverabilityCase, pack_to_dict, run_case
+
+
+MAX_TEXT_EVIDENCE_BYTES = 1_000_000
 
 
 def _decimal(value, *, required=False):
@@ -60,6 +64,23 @@ def _load_api_keys() -> dict[str, str]:
     }
 
 
+def _text_content(payload: dict, field: str = "content_utf8") -> bytes:
+    content = payload.get(field)
+    if not isinstance(content, str) or not content:
+        raise ValueError(f"{field} is required and must be non-empty UTF-8 text")
+    encoded = content.encode("utf-8")
+    if len(encoded) > MAX_TEXT_EVIDENCE_BYTES:
+        raise ValueError(f"{field} exceeds {MAX_TEXT_EVIDENCE_BYTES} byte limit")
+    return encoded
+
+
+def _json_payload() -> dict:
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValueError("JSON object required")
+    return payload
+
+
 def _rule(payload):
     tiers = tuple(
         RoyaltyTier(
@@ -104,9 +125,10 @@ def _period(payload):
     )
 
 
-def create_app(api_keys: dict[str, str] | None = None) -> Flask:
+def create_app(api_keys: dict[str, str] | None = None, repository: RoyaltyRepository | None = None) -> Flask:
     app = Flask(__name__)
     configured_keys = dict(api_keys) if api_keys is not None else _load_api_keys()
+    repo = repository or RoyaltyRepository.file(os.getenv("ROYALTYRECOVER_DB_PATH", "royaltyrecover.db"))
 
     @app.after_request
     def security_headers(response):
@@ -115,6 +137,18 @@ def create_app(api_keys: dict[str, str] | None = None) -> Flask:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
+
+    @app.errorhandler(NotFoundError)
+    def not_found(error):
+        return jsonify({"error": "not_found", "detail": str(error)}), 404
+
+    @app.errorhandler(ConflictError)
+    def conflict(error):
+        return jsonify({"error": "conflict", "detail": str(error)}), 409
+
+    @app.errorhandler(ScopeError)
+    def scope_error(error):
+        return jsonify({"error": "scope_conflict", "detail": str(error)}), 409
 
     @app.get("/health")
     def health():
@@ -135,7 +169,99 @@ def create_app(api_keys: dict[str, str] | None = None) -> Flask:
         if authenticated_org is None:
             return jsonify({"error": "authentication_required"}), 401
         request.royaltyrecover_org_id = authenticated_org
+        request.royaltyrecover_actor_id = f"api:{authenticated_org}"
         return None
+
+    def org_id() -> str:
+        return request.royaltyrecover_org_id
+
+    def actor_id() -> str:
+        return request.royaltyrecover_actor_id
+
+    @app.post("/api/v1/organization")
+    def organization():
+        try:
+            payload = _json_payload()
+            item = repo.ensure_organization(org_id(), str(payload.get("name") or ""), actor_id())
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"organization": item}), 200
+
+    @app.post("/api/v1/licensors")
+    def create_licensor():
+        try:
+            payload = _json_payload()
+            item = repo.create_licensor(org_id(), str(payload.get("legal_name") or ""), actor_id())
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"licensor": item}), 201
+
+    @app.post("/api/v1/licensees")
+    def create_licensee():
+        try:
+            payload = _json_payload()
+            item = repo.create_licensee(org_id(), str(payload.get("legal_name") or ""), actor_id())
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"licensee": item}), 201
+
+    @app.post("/api/v1/agreements")
+    def create_agreement():
+        try:
+            payload = _json_payload()
+            item = repo.create_agreement(
+                org_id(),
+                str(payload.get("licensor_id") or ""),
+                str(payload.get("licensee_id") or ""),
+                str(payload.get("title") or ""),
+                actor_id(),
+                governing_law=payload.get("governing_law"),
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        return jsonify({"agreement": item}), 201
+
+    @app.get("/api/v1/agreements/<agreement_id>")
+    def get_agreement(agreement_id):
+        return jsonify({"agreement": repo.get_agreement(org_id(), agreement_id)})
+
+    @app.post("/api/v1/agreements/<agreement_id>/versions")
+    def create_agreement_version(agreement_id):
+        try:
+            payload = _json_payload()
+            content = _text_content(payload)
+            item = repo.add_agreement_version(
+                org_id(), agreement_id, str(payload.get("version_label") or ""), content, actor_id(),
+                effective_from=payload.get("effective_from"),
+                effective_to=payload.get("effective_to"),
+                source_uri=payload.get("source_uri"),
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        response = dict(item)
+        response["content_persisted"] = False
+        response["lineage_note"] = "Raw text is hashed for lineage and discarded by this minimum endpoint."
+        return jsonify({"agreement_version": response}), 201
+
+    @app.post("/api/v1/evidence")
+    def create_evidence():
+        try:
+            payload = _json_payload()
+            content = _text_content(payload)
+            item = repo.add_evidence(
+                org_id(), str(payload.get("evidence_type") or ""), content, actor_id(),
+                source_uri=payload.get("source_uri"), metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None,
+            )
+        except ValueError as exc:
+            return jsonify({"error": "invalid_input", "detail": str(exc)}), 400
+        response = dict(item)
+        response["content_persisted"] = False
+        response["lineage_note"] = "Raw text is hashed for lineage and discarded by this minimum endpoint."
+        return jsonify({"evidence": response}), 201
+
+    @app.get("/api/v1/audit-events")
+    def audit_events():
+        return jsonify({"items": repo.list_audit_events(org_id())})
 
     @app.post("/api/v1/recoverability/scan")
     def recoverability_scan():
@@ -149,7 +275,7 @@ def create_app(api_keys: dict[str, str] | None = None) -> Flask:
             agreement_id = str(payload.get("agreement_id") or "").strip()
             if not all((organization_id, case_id, licensee_id, agreement_id)):
                 raise ValueError("organization_id, case_id, licensee_id and agreement_id are required")
-            if organization_id != request.royaltyrecover_org_id:
+            if organization_id != org_id():
                 return jsonify({"error": "organization_scope_mismatch"}), 403
             case = RecoverabilityCase(
                 case_id=case_id,
