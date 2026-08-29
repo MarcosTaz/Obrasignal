@@ -15,6 +15,7 @@ def _actioned_finding(tmp_path):
         claim_family="TOOLING",
         commercial_basis_ref="po-1",
         cost_evidence_ref="ledger-1",
+        currency="EUR",
         commercial_basis_content="signed tooling commercial basis",
         event_evidence_content="documented customer cancellation event",
         cost_evidence_content="tooling ledger supporting gross cost and resale reuse",
@@ -51,6 +52,24 @@ def test_recovery_cannot_exceed_reviewed_net_potential(tmp_path):
     assert service.ops.outcomes(tenant_id="alpha") == ()
 
 
+def test_recovery_currency_cannot_drift_from_reviewed_candidate(tmp_path):
+    service, finding_id = _actioned_finding(tmp_path)
+
+    with pytest.raises(AssuranceOperationError, match="does not match reviewed claim currency"):
+        service.resolve(
+            tenant_id="alpha",
+            finding_id=finding_id,
+            outcome_id="alpha:payment-usd",
+            recovered_amount="1000",
+            currency="USD",
+            evidence_ref="bank-usd",
+            actor_id="operator",
+        )
+
+    assert service.ops.get_state(tenant_id="alpha", finding_id=finding_id) == "ACTIONED"
+    assert service.ops.outcomes(tenant_id="alpha") == ()
+
+
 @pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
 def test_non_finite_recovery_amounts_fail_closed(tmp_path, value):
     service, finding_id = _actioned_finding(tmp_path)
@@ -78,10 +97,11 @@ def test_recovery_at_reviewed_net_potential_is_allowed(tmp_path):
         finding_id=finding_id,
         outcome_id="alpha:payment-at-cap",
         recovered_amount="75000",
-        currency="EUR",
+        currency="eur",
         evidence_ref="bank-at-cap",
         actor_id="operator",
     )
 
     assert outcome.state == "RECOVERED"
     assert outcome.recovered_amount == "75000"
+    assert outcome.currency == "EUR"
