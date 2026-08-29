@@ -7,40 +7,57 @@ import {
   BILLING_SUPPORTED,
   configureBilling,
   getCurrentOffering,
-  hasProEntitlement,
   purchasePro,
   restoreBilling,
 } from '../src/billing';
 
 const COLORS = { bg: '#070C18', panel: '#10182B', line: '#253553', text: '#F3F6FF', muted: '#9BA8C0', blue: '#5E8BFF', green: '#6FE39A', red: '#FF8998' };
+const SERVER_PLANS = new Set(['evaluation', 'pro', 'expired', 'pilot']);
 
 export default function BillingGate({ children }) {
-  const [billing, setBilling] = useState({ configured: false, pro: false, plan: 'evaluation', expiresAt: null, managementUrl: null, evaluation: null, metrics: null });
+  const [billing, setBilling] = useState({ authority: 'loading', configured: false, pro: false, plan: null, expiresAt: null, managementUrl: null, evaluation: null, metrics: null });
   const [modal, setModal] = useState(false);
   const [offering, setOffering] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const refresh = async () => {
+    setBilling(current => ({ ...current, authority: 'loading', pro: false }));
+    setError('');
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setBilling(current => ({ ...current, authority: 'unavailable', pro: false, plan: null }));
+      setError('Não foi possível validar o estado da subscrição.');
+      return;
+    }
     try {
-      const result = await configureBilling(session.user.id);
+      // Server projection is the access authority. Store/RevenueCat state is
+      // purchase UX metadata only and must never become an access fallback.
+      const server = await api.billingStatus();
+      if (!server?.plan || !SERVER_PLANS.has(server.plan)) throw new Error('invalid_server_billing_state');
+
+      let result = { configured: false, customerInfo: null };
+      try {
+        result = await configureBilling(session.user.id);
+      } catch (_) {
+        // Store availability must not weaken a valid server decision. Purchase
+        // controls stay unavailable, while access remains server-authoritative.
+      }
       const info = result.customerInfo;
-      let server = null;
-      try { server = await api.billingStatus(); } catch (_) {}
       const entitlement = activeEntitlement(info);
       setBilling({
+        authority: 'ready',
         configured: result.configured,
-        pro: hasProEntitlement(info),
-        plan: server?.plan || (hasProEntitlement(info) ? 'pro' : 'evaluation'),
-        expiresAt: server?.expires_at || entitlement?.expirationDate || server?.trial_ends_at || null,
+        pro: server.plan === 'pro',
+        plan: server.plan,
+        expiresAt: server.expires_at || server.trial_ends_at || entitlement?.expirationDate || null,
         managementUrl: info?.managementURL || null,
-        evaluation: server?.evaluation || null,
-        metrics: server?.evaluation_metrics || null,
+        evaluation: server.evaluation || null,
+        metrics: server.evaluation_metrics || null,
       });
     } catch (e) {
-      setError(e?.message || 'Não foi possível verificar a subscrição.');
+      setBilling(current => ({ ...current, authority: 'unavailable', pro: false, plan: null }));
+      setError('Não foi possível validar o estado da subscrição.');
     }
   };
 
@@ -55,8 +72,9 @@ export default function BillingGate({ children }) {
   const buy = async () => {
     setBusy(true); setError('');
     try {
-      const info = await purchasePro();
-      if (!hasProEntitlement(info)) throw new Error('subscription_not_active');
+      await purchasePro();
+      // A successful store purchase is not sufficient authority. Re-read the
+      // server projection before changing access; webhook lag therefore fails safe.
       await refresh();
       setModal(false);
     } catch (e) {
@@ -73,6 +91,15 @@ export default function BillingGate({ children }) {
   const packagePrice = offering?.availablePackages?.find(p => p?.product?.identifier === 'obrasignal_pro_monthly')?.product?.priceString
     || offering?.availablePackages?.[0]?.product?.priceString
     || 'Preço apresentado pelo Google Play/App Store';
+
+  if (billing.authority !== 'ready') {
+    return <View style={styles.blocked}>
+      <Text style={styles.blockedTitle}>{billing.authority === 'loading' ? 'A validar a subscrição…' : 'Subscrição não validada'}</Text>
+      <Text style={styles.blockedText}>{billing.authority === 'loading' ? 'Estamos a confirmar o estado atual da tua conta.' : 'Não foi possível validar o estado da subscrição. O acesso fica protegido até o servidor confirmar o estado atual.'}</Text>
+      {billing.authority === 'loading' ? <ActivityIndicator color={COLORS.blue} /> : <Pressable style={styles.primary} onPress={refresh}><Text style={styles.primaryText}>Tentar novamente</Text></Pressable>}
+    </View>;
+  }
+
   const expired = billing.plan === 'expired';
 
   return <View style={{ flex: 1 }}>
