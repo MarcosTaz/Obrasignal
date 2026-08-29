@@ -99,6 +99,32 @@ def test_distinct_contracts_can_share_event_reference_without_case_id_collision(
     assert second_metadata.customer_ref == "oem-2"
 
 
+def test_case_store_rejects_tenant_outside_verified_provider_contract(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "case-metadata-tenant.sqlite3")
+    result = service.analyze(**_payload())
+    persisted = service.case_store.get(tenant_id="alpha", finding_id=result.finding.finding_id)
+    malformed = IndustrialCaseMetadata(
+        finding_id=persisted.finding_id,
+        tenant_id="invalid tenant",
+        claim_family=persisted.claim_family,
+        customer_ref=persisted.customer_ref,
+        program_ref=persisted.program_ref,
+        event_ref=persisted.event_ref,
+        entitlement_id=persisted.entitlement_id,
+        deadline_id=persisted.deadline_id,
+        recovery_fingerprint=persisted.recovery_fingerprint,
+        notice_deadline_state=persisted.notice_deadline_state,
+        missing_evidence=persisted.missing_evidence,
+    )
+
+    with pytest.raises(AssuranceStoreError, match="tenant_id is invalid"):
+        service.case_store.put(malformed)
+    with pytest.raises(AssuranceStoreError, match="tenant_id is invalid"):
+        service.case_store.count("invalid tenant")
+
+    assert service.case_store.count("alpha") == 1
+
+
 def test_case_store_still_rejects_same_internal_id_with_different_metadata(tmp_path):
     service = IndustrialClaimsService(tmp_path / "case-metadata-immutable.sqlite3")
     result = service.analyze(**_payload())
