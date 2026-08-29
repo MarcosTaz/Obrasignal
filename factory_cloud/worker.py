@@ -9,12 +9,10 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
-from factory_cloud.adapters import AdapterRegistry
 from factory_cloud.control_plane import ACTIVATION_CODE, load_registry
 from factory_cloud.orchestrator import DEFAULT_STATE_PATH, PersistentFactoryOrchestrator
+from factory_cloud.runtime_adapters import build_runtime_adapters
 from factory_cloud.state_store import StateStore
-from factory_cloud.verification import VerifiedDispatchAdapter
-from factory_cloud.work_queue import QueuedAppAdapter, open_app_queue
 
 LEASE_NAME = "factory_cloud_dispatch"
 
@@ -97,26 +95,6 @@ def _install_signal_handlers(host: WorkerHost) -> None:
     signal.signal(signal.SIGTERM, request_stop)
 
 
-def _runtime_adapters(registry: dict[str, Any], queue_dir: Path) -> AdapterRegistry:
-    overrides = {}
-    for app in registry.get("applications", []):
-        activation = app.get("activation") or {}
-        canonical = app.get("source_truth") or {}
-        if activation.get("enabled") is not True or activation.get("mode") != "repository_safe_execution":
-            continue
-        app_id = app["app_id"]
-        delegate = QueuedAppAdapter(open_app_queue(queue_dir, app_id))
-        execution = app.get("execution_source") or {}
-        repository = str(execution.get("repository") or canonical.get("repository") or "")
-        branch = str(execution.get("branch") or canonical.get("canonical_branch") or "")
-        expected_head = execution.get("head") or canonical.get("canonical_head")
-        provider = execution.get("provider") or canonical.get("provider")
-        if provider == "github":
-            delegate = VerifiedDispatchAdapter(delegate, repository=repository, branch=branch, expected_head=expected_head)
-        overrides[app_id] = delegate
-    return AdapterRegistry(overrides)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Long-lived Factory Cloud worker host")
     parser.add_argument("code", help="activation code; must be D")
@@ -133,7 +111,7 @@ def main() -> int:
     registry = load_registry(args.registry) if args.registry else load_registry()
     store = StateStore(args.state)
     queue_dir = args.queue_dir or (args.state.parent / "queues")
-    orchestrator = PersistentFactoryOrchestrator(registry, store, adapters=_runtime_adapters(registry, queue_dir), recover_interrupted=False)
+    orchestrator = PersistentFactoryOrchestrator(registry, store, adapters=build_runtime_adapters(registry, queue_dir), recover_interrupted=False)
     host = WorkerHost(orchestrator, poll_seconds=args.poll_seconds, max_dispatches_per_cycle=args.max_dispatches, lease_ttl_seconds=args.lease_ttl_seconds)
     _install_signal_handlers(host)
     result = host.run_forever(args.max_cycles)
