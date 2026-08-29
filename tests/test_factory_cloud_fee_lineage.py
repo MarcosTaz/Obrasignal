@@ -74,3 +74,24 @@ def test_success_fee_is_idempotent_but_cannot_be_double_recorded(tmp_path):
         )
 
     assert len(service.ops.fees(tenant_id="enterprise")) == 1
+
+
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
+def test_success_fee_rejects_non_finite_rate(tmp_path, value):
+    service = ContractCreditService(tmp_path / f"credit-{value}.sqlite3")
+    outcome = _recover(
+        service,
+        "enterprise",
+        dict(contract_ref="msa", incident_ref="inc", monthly_fee="1000", credit_rate="0.10", notice_due=date(2026, 9, 15)),
+        "100",
+    )
+
+    with pytest.raises(AssuranceOperationError, match="finite decimals"):
+        service.ops.record_fee(
+            tenant_id="enterprise",
+            outcome_id=outcome.outcome_id,
+            fee_id=f"enterprise:fee-{value}",
+            fee_rate=value,
+        )
+
+    assert service.ops.fees(tenant_id="enterprise") == ()
