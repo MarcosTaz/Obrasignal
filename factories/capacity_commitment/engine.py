@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.9"
+ENGINE_VERSION = "capacity-recoverability-t1.10"
 ENGINE_DECIMAL_PRECISION = 60
 ENGINE_DECIMAL_EMAX = 999999
 ENGINE_DECIMAL_EMIN = -999999
@@ -116,8 +116,13 @@ def _engine_decimal_context() -> Context:
 def _validate(case: RecoveryCase) -> None:
     if not isinstance(case.case_id, str) or not case.case_id.strip() or len(case.case_id) > 200:
         raise ValueError("case_id must be a non-empty string up to 200 characters")
-    if not isinstance(case.currency, str) or len(case.currency) != 3 or not case.currency.isalpha():
-        raise ValueError("currency must be a 3-letter alphabetic code")
+    if (
+        not isinstance(case.currency, str)
+        or len(case.currency) != 3
+        or not case.currency.isascii()
+        or not case.currency.isalpha()
+    ):
+        raise ValueError("currency must be a 3-letter ASCII alphabetic code")
     if not isinstance(case.commitment_state, CommitmentState):
         raise ValueError("commitment_state must be a valid CommitmentState")
     if not isinstance(case.exposure_type, ExposureType):
