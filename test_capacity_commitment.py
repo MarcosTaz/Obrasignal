@@ -60,6 +60,8 @@ RED_TEAM_CASE_IDS = {
     "contract-match-unknown",
     "wrong-amendment",
     "amendment-match-unknown",
+    "duplicate-claim-not-reviewed",
+    "duplicate-claim-review-unknown",
     "customer-match-unknown",
     "program-match-unknown",
     "period-match-unknown",
@@ -109,6 +111,7 @@ def test_capacity_commitment_unknown_integrity_fails_closed():
         ("notice_window_verified", "notice_window_not_verified"),
         ("contract_matches", "wrong_contract"),
         ("amendment_matches", "wrong_amendment"),
+        ("duplicate_claim_reviewed", "duplicate_claim_not_reviewed"),
         ("customer_matches", "wrong_customer"),
     ],
 )
