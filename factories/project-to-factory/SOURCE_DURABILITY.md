@@ -12,7 +12,7 @@ The complete validated v0.12.0 source is the versioned conversation artifact:
 
 ZIP SHA-256:
 
-`61a3fa9d40eb05e1404948567383f98de71d0dfdf80c6d7fc53d37afd0d0883b`
+`813ebfea2e3becd882e8f961ce60a650040c57a6dbff0b3f750e146a12077020`
 
 The source tree inside the ZIP is `project-to-factory-vertical-slice/`.
 
@@ -22,21 +22,23 @@ The connected GitHub write surface accepts UTF-8 file content but does not accep
 
 Version: `0.12.0`
 
-Validated before packaging:
+Validated after the final 2026-08-29 ICP/contact-package audit:
 
 - `npm run check` — PASS
 - schema suite — 10 valid/expected fixtures + 6 adversarial cases PASS
 - 10 machine-readable endpoints — GET/HEAD 200 and POST 405 fail-closed
 - `npm run check:browser` — PASS
 - browser-generated evidence package validates against buyer, RFQ-dispatch, normalized-quote, award and order schemas
+- `manifest.sha256` — 58 entries, verification PASS
 - `unzip -t project-to-factory-v0.12.0.zip` — PASS
-- artifact manifest verification — PASS
 
 ## Business truth
 
 BUSINESS_STATE: SIGNAL.
 
 Winning cell under validation: sandwich-panel + accessory packages × repeat professional construction buyers with non-captive procurement × Central Portugal.
+
+The former installer-first wording was corrected: company type is not qualification. Direct evidence must establish repeat procurement, authority/influence, non-captive supplier choice, alternative-comparison willingness, pain and a plausible payer.
 
 Real transaction truth at this checkpoint:
 
@@ -49,12 +51,12 @@ Real transaction truth at this checkpoint:
 - verified GMV: EUR 0
 - verified revenue: EUR 0
 
-Priority-A public demand signal remains Prosertã. Its internal procurement method, supplier captivity, switching willingness and WTP remain UNKNOWN.
+Priority-A public demand signal remains Prosertã. A current public general contact route is prepared as `PUBLIC_CONTACT_ROUTE_ONLY`; no outreach was sent. Its internal procurement method, supplier captivity, switching willingness and WTP remain UNKNOWN.
 
 ## Resume rule
 
 On X, recover this metadata plus the versioned ZIP/manifest. Do not reconstruct v0.12.0 from narrative claims if the ZIP is unavailable. Repository/source truth overrides chat history.
 
-ACTIVE: direct buyer procurement-workflow falsification, owner-gated for external contact.
+ACTIVE: direct buyer procurement-workflow falsification on Prosertã, owner-gated for external contact.
 
 If outbound authorization is absent: continue safe exact-panel buyer evidence and product/evidence hardening. Do not send supplier RFQs without a genuine buyer project plus auditable sourcing authorization.
