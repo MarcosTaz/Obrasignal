@@ -1,17 +1,30 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from factory_cloud.assurance_kernel import AssuranceKernelError
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 FIXTURES = Path("vertical_apps/industrial_claims/synthetic_cases.json")
+REQUIRED_SYNTHETIC_COMPANIES = {
+    "ALPHA COMPONENTS",
+    "NOVA PRECISION",
+    "TITAN INDUSTRIES",
+    "LEGACY PARTS",
+    "DISTRESSED SUPPLIER",
+    "REDTEAM INDUSTRIAL",
+}
 
 
 def test_independent_synthetic_ground_truth_cases(tmp_path):
     data = json.loads(FIXTURES.read_text(encoding="utf-8"))
     assert data["truth_owner"] == "independent_test_fixture"
+    assert REQUIRED_SYNTHETIC_COMPANIES <= {case["company"] for case in data["cases"]}
+
     for case in data["cases"]:
         service = IndustrialClaimsService(tmp_path / f"{case['id']}.sqlite3")
-        result = service.analyze(
+        kwargs = dict(
             tenant_id="synthetic",
             actor_id="oracle-runner",
             customer_ref="synthetic-oem",
@@ -28,5 +41,11 @@ def test_independent_synthetic_ground_truth_cases(tmp_path):
             other_mitigation=case["other_mitigation"],
             missing_evidence=tuple(case["missing_evidence"]),
         )
+        if "expected_error" in case:
+            with pytest.raises(AssuranceKernelError, match=case["expected_error"]):
+                service.analyze(**kwargs)
+            continue
+
+        result = service.analyze(**kwargs)
         assert result.calculation.output_value == case["expected_net_potential"], case["id"]
         assert result.finding.state == case["expected_state"], case["id"]
