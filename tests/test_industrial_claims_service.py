@@ -6,6 +6,9 @@ from factory_cloud.assurance_kernel import AssuranceKernelError
 from factory_cloud.assurance_ops import AssuranceOperationError
 from vertical_apps.industrial_claims.service import (
     ALLOWED_CLAIM_FAMILIES,
+    COMMERCIAL_BASIS_DOCUMENT,
+    COST_DOCUMENT,
+    EVENT_DOCUMENT,
     NOTICE_DEADLINE_EVIDENCE,
     IndustrialClaimsService,
 )
@@ -20,6 +23,9 @@ def _base():
         event_ref="cancel-1",
         commercial_basis_ref="po-1",
         cost_evidence_ref="ledger-1",
+        commercial_basis_content="signed supply agreement clause and purchase order terms",
+        event_evidence_content="customer cancellation notice for program-1",
+        cost_evidence_content="inventory and cost ledger supporting the stated exposure",
         notice_due=date(2026, 9, 30),
     )
 
@@ -30,6 +36,8 @@ def test_all_required_claim_families_share_net_potential_contract(tmp_path):
         fixture = _base()
         fixture["event_ref"] = f"event-{family}"
         fixture["cost_evidence_ref"] = f"cost-{family}"
+        fixture["event_evidence_content"] = f"documented commercial event for {family}"
+        fixture["cost_evidence_content"] = f"documented cost ledger for {family}"
         result = service.analyze(
             **fixture,
             claim_family=family,
@@ -43,8 +51,33 @@ def test_all_required_claim_families_share_net_potential_contract(tmp_path):
         assert result.calculation.output_value == "79000"
         assert result.finding.state == "READY_FOR_REVIEW"
         assert result.entitlement.actionable is True
+        assert result.entitlement.rule_ref == "documented-commercial-basis-v2"
         assert result.notice_deadline_state == "VERIFIED_DATE"
+        assert {item.metadata["verification_state"] for item in result.evidence} == {"CONTENT_HASHED"}
         assert result.is_new_recovery is True
+
+
+def test_reference_only_sources_never_become_review_ready(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "reference-only.sqlite3")
+    base = _base()
+    base.pop("commercial_basis_content")
+    base.pop("event_evidence_content")
+    base.pop("cost_evidence_content")
+
+    result = service.analyze(**base, claim_family="TOOLING", gross_cost="50000")
+
+    assert result.finding.state == "UNRESOLVED_EVIDENCE"
+    assert result.entitlement.confidence == "PARTIAL"
+    assert {COMMERCIAL_BASIS_DOCUMENT, EVENT_DOCUMENT, COST_DOCUMENT} <= set(result.missing_evidence)
+    assert {item.metadata["verification_state"] for item in result.evidence} == {"REFERENCE_ONLY"}
+    with pytest.raises(AssuranceOperationError, match="not ready for review"):
+        service.review(
+            tenant_id="alpha",
+            finding_id=result.finding.finding_id,
+            reviewer="reviewer",
+            approved=True,
+            reason="references are not documentary proof",
+        )
 
 
 def test_cost_never_becomes_money_owed_when_evidence_is_missing(tmp_path):
