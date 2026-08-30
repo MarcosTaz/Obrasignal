@@ -3,7 +3,8 @@ import re
 
 
 API = Path('mobile/src/api.js').read_text(encoding='utf-8')
-GATE = Path('mobile/components/BillingGate.js').read_text(encoding='utf-8')
+OWNER = Path('mobile/components/AccountPrivacyControls.js').read_text(encoding='utf-8')
+BILLING = Path('mobile/components/BillingGate.js').read_text(encoding='utf-8')
 
 
 def test_customer_client_exposes_authenticated_account_privacy_owner_routes():
@@ -13,31 +14,35 @@ def test_customer_client_exposes_authenticated_account_privacy_owner_routes():
 
 
 def test_destructive_deletion_requires_exact_server_confirmation_literal():
-    assert "const DELETE_CONFIRMATION = 'DELETE_MY_OBRASIGNAL_DATA';" in GATE
-    assert "deleteConfirmation !== DELETE_CONFIRMATION" in GATE
+    assert "const DELETE_CONFIRMATION = 'DELETE_MY_OBRASIGNAL_DATA'" in OWNER
+    assert "confirmation !== DELETE_CONFIRMATION" in OWNER
     assert "body:JSON.stringify({confirmation})" in API
-    assert "Eliminar dados privados do produto" in GATE
+    assert "Pedir eliminação dos dados privados" in OWNER
 
 
 def test_pending_deletion_copy_does_not_overclaim_external_revocation():
-    assert "isto ainda não é eliminação completa da conta" in GATE
-    assert "identidade/sessões" in GATE
-    assert "cache local" in GATE
-    assert "billing" in GATE
-    assert "Nenhum sucesso é assumido" in GATE
+    assert "revogação externa" in OWNER
+    assert "não é apresentada como totalmente eliminada" in OWNER
+    assert "O ObraSignal não assume que os dados foram eliminados" in OWNER
 
 
-def test_signout_after_pending_deletion_is_explicit_customer_action():
-    request_body = GATE.split('const requestDeletion = async () => {', 1)[1].split('const signOutAfterDeletion', 1)[0]
-    assert 'supabase.auth.signOut' not in request_body
-    assert "deletionState?.state === 'PENDING'" in GATE
-    assert 'Terminar sessão neste dispositivo' in GATE
-    assert 'await supabase.auth.signOut()' in GATE
+def test_accepted_deletion_locks_private_ui_and_attempts_local_purge_and_signout():
+    request_body = OWNER.split('const requestDeletion = async () => {', 1)[1].split('if (!lifecycleReady)', 1)[0]
+    assert 'setPrivacyLocked(true)' in request_body
+    assert 'await storage.bindPrivateTenant(null)' in request_body
+    assert 'await supabase.auth.signOut()' in request_body
+    assert 'A revogação externa continua pendente.' in request_body
 
 
-def test_export_is_customer_initiated_without_console_logging_payload():
-    export_body = GATE.split('const exportAccountData = async () => {', 1)[1].split('const requestDeletion', 1)[0]
+def test_export_is_customer_initiated_without_console_logging_or_false_file_claim():
+    export_body = OWNER.split('const prepareExport = async () => {', 1)[1].split('const requestDeletion', 1)[0]
     assert 'api.accountExport()' in export_body
-    assert "obrasignal-account-export.json" in export_body
-    assert 'Share.share' in export_body
+    assert "schema_version !== 'account-export.v1'" in export_body
     assert 'console.' not in export_body
+    assert 'Este build não afirma que criou um ficheiro no dispositivo.' in OWNER
+
+
+def test_billing_gate_does_not_duplicate_privacy_lifecycle_owner():
+    assert 'requestAccountDeletion' not in BILLING
+    assert 'accountExport' not in BILLING
+    assert 'DELETE_MY_OBRASIGNAL_DATA' not in BILLING
