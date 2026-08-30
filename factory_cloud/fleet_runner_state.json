@@ -5,44 +5,44 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 3,
-  "last_factory_id": "industrial-claims",
-  "last_run_at": "2026-08-29T23:40:28Z",
+  "cursor": 7,
+  "last_factory_id": "sourcing-recovery",
+  "last_run_at": "2026-08-30T00:37:41Z",
   "last_material_change": {
-    "kind": "INDUSTRIAL_CLAIMS_EXACT_HEAD_RED_AND_BILLING_FAILING_BEFORE_CONFIRMED",
-    "factory_id": "industrial-claims",
-    "summary": "Industrial Claims #785 advanced beyond the previously recorded cbfafa8 head to exact current head afea1533c88a7cc4f209be18c6c07af0813d8b0c. Latest exact-head ObraSignal Quality run 33280705038 is FAILURE: Mobile is fully SUCCESS including expo-doctor and bundle; Python compiles successfully and fails only at repository/Factory Cloud tests. The prior cbfafa8 exact-head run 33279181799 has the same Python-only failure shape. Cause remains unproven from available structured CI metadata, so this is RED/NOT CANONICAL and not promoted to deterministic failing-before. Separately, ObraSignal billing probe #828 exact head a69d553854423ce9cd5e2aa1c031061351849561 completed FAILURE on Python repository tests while Mobile is fully SUCCESS, confirming a reproducible RED probe on the one-test-file candidate; exact failing assertion still requires log-level proof before declaring the billing invariant deterministic. ScopeLedger is next; absence of a heads/scope* branch keeps production lineage unresolved but is not a global stop.",
+    "kind": "SCOPELEDGER_SOURCE_IDENTITY_RECOVERED_AND_CHANGELEDGER_IDENTITY_CONFIRMED",
+    "factory_id": "scopeledger",
+    "summary": "ScopeLedger source identity is no longer UNKNOWN: recovery/scopeledger-source-20260829 exists at 79450c800397c7cce873d6efbd6f7401df142625 and carries an exact recovery BATON. Its independently verified predecessor 05a41621806c9bf1ce142263782772b133cee053 is recorded GREEN via workflow 33224493149 with recovered-source-integrity PASS and deterministic archive SHA verification. Product truth remains recovery-candidate only; Railway/live production lineage is still unproven and is an external boundary, so no production mutation is authorized. ChangeLedger identity is also confirmed at factory/changeledger-cumulative-delay-snapshot-20260828@e93efa9358d94e0f4e093e8a70358627c4a7cd83 with 75/75 PASS and synthetic dry-run PASS recorded in its BATON, but outbound remains compliance/owner blocked. Recovery Radar and Sourcing Recovery still have no exact recoverable branch/source identity from GitHub branch/code search and remain UNKNOWN rather than inferred absent.",
     "evidence": {
-      "industrial_claims": {
-        "pr": 785,
-        "branch": "apps/industrial-claims",
-        "head": "afea1533c88a7cc4f209be18c6c07af0813d8b0c",
-        "latest_quality_run": 33280705038,
-        "latest_quality": "FAILURE",
-        "python": "FAILURE_AT_REPOSITORY_AND_FACTORY_CLOUD_TESTS",
-        "mobile": "SUCCESS",
-        "prior_head": "cbfafa8f78bbe971efb1abc0430ae05a1a85e123",
-        "prior_quality_run": 33279181799,
-        "prior_quality": "FAILURE",
-        "classification": "RED_EXACT_HEAD_CAUSE_NOT_YET_PROVEN_DRAFT_NOT_CANONICAL"
-      },
-      "obrasignal_billing_probe": {
-        "pr": 828,
-        "head": "a69d553854423ce9cd5e2aa1c031061351849561",
-        "quality_run": 33279176454,
-        "quality": "FAILURE",
-        "python": "FAILURE_AT_REPOSITORY_TESTS",
-        "mobile": "SUCCESS",
-        "classification": "REPRODUCIBLE_RED_PROBE_ASSERTION_CAUSE_NOT_YET_LOG_PROVEN_DRAFT_NOT_CANONICAL"
-      },
       "scopeledger": {
-        "matching_head_prefix_scope": "NONE",
-        "classification": "SOURCE_IDENTITY_PARTIAL_PRODUCTION_LINEAGE_UNPROVEN"
+        "branch": "recovery/scopeledger-source-20260829",
+        "baton_head": "79450c800397c7cce873d6efbd6f7401df142625",
+        "verified_recovery_head": "05a41621806c9bf1ce142263782772b133cee053",
+        "workflow_run": 33224493149,
+        "workflow": "SUCCESS",
+        "archive_sha256": "2cde248ee3fc11fdd5c9c3a97d4f67a0b6d5fd1d22d042d0e9b0f38c51c7100f",
+        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"
+      },
+      "changeledger": {
+        "branch": "factory/changeledger-cumulative-delay-snapshot-20260828",
+        "head": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
+        "tests_recorded": "75/75 PASS + synthetic delivery dry-run PASS",
+        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_REPOSITORY_TRUTH_RECOVERED"
+      },
+      "recovery_radar": {
+        "matching_branch": "NONE",
+        "matching_code_search": "NONE",
+        "classification": "UNKNOWN_SOURCE_IDENTITY"
+      },
+      "sourcing_recovery": {
+        "matching_branch": "NONE",
+        "classification": "UNKNOWN_SOURCE_IDENTITY"
       }
     },
-    "active": "ScopeLedger: reconstruct the exact recoverable repository/BATON truth, verify any non-scope-named source identity before association, and execute only repository-safe work independent of unproven production lineage.",
-    "next": "After ScopeLedger, rotate immediately to ChangeLedger and onward. Independently inspect Industrial Claims #785 Python failure details and #828 failure details when exact assertion/log evidence is recoverable; do not weaken fail-closed recovery or server billing authority to make CI green.",
+    "active": "Product Market Access / Legal Product Checker: reconstruct exact repository/BATON identity using branch/commit/file evidence; if no canonical source is recoverable, preserve UNKNOWN and execute only research-safe/reversible work independent of missing history.",
+    "next": "After Product Market Access, rotate immediately to EU Cloud Switching, Aviation Lease Entitlement Recovery, Capacity Commitment and onward. Independently revisit ScopeLedger only when authorized live Railway/source fingerprint evidence becomes available; do not overbuild the recovery lane while production lineage is unresolved.",
     "wait": [
+      "ScopeLedger authorized live Railway/source fingerprint and production lineage comparison",
+      "ChangeLedger valid sender postal address, DGC clarification/list consultation, and explicit outbound authorization",
       "Industrial Claims #785 exact Python failing assertion/root cause",
       "#828 exact Python failing assertion/root cause before deterministic failing-before classification",
       "Shared Mobile/Expo owner repair for Product Strategy and Data Analytics heads",
@@ -50,17 +50,16 @@
       "Customer Decision shared-company fixture depends on noncanonical #821",
       "GTM real replies/WTP/payment require external evidence",
       "ComplianceLedger exact source identity remains UNKNOWN",
-      "ScopeLedger production lineage remains unproven",
       "Aviation source topology remains unbounded against main",
       "merge/adoption decisions"
     ]
   },
   "blocked": [
-    {"factory_id":"scopeledger","blocker":"Production lineage cannot be proved from recovered GitHub evidence; no heads/scope* branch currently resolves the canonical source identity.","global_stop":false},
-    {"factory_id":"changeledger","blocker":"No exact source/BATON identity recovered.","global_stop":false},
-    {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered.","global_stop":false},
-    {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity recovered.","global_stop":false},
-    {"factory_id":"product-market-access","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"scopeledger","blocker":"Recovered source identity is proven, but current live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
+    {"factory_id":"changeledger","blocker":"Repository/BATON identity recovered; outbound is blocked by postal-address/compliance/owner-authorization gates.","global_stop":false},
+    {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered from branch or code search.","global_stop":false},
+    {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity recovered from branch search.","global_stop":false},
+    {"factory_id":"product-market-access","blocker":"No exact source/BATON identity yet recovered in this pass.","global_stop":false},
     {"factory_id":"capacity-commitment","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"longlead","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"No exact source/BATON identity recovered.","global_stop":false},
