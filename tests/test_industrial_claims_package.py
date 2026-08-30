@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -11,6 +12,15 @@ def _documents():
         commercial_basis_content="signed supply agreement and purchase order terms",
         event_evidence_content="documented cancellation or reduction event",
         cost_evidence_content="invoice and cost ledger supporting the exposure",
+    )
+
+
+def _package_result(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "package-identity.sqlite3")
+    return service.analyze(
+        tenant_id="alpha", actor_id="analyst", customer_ref="oem-1", program_ref="program-1", event_ref="cancel-1",
+        claim_family="TOOLING", commercial_basis_ref="po-1", cost_evidence_ref="invoice-1", currency="EUR",
+        gross_cost="50000", notice_deadline_not_applicable=True, **_documents(),
     )
 
 
@@ -61,12 +71,7 @@ def test_claim_package_is_evidence_indexed_and_never_overclaims(tmp_path):
 
 
 def test_package_rejects_labels_that_do_not_match_immutable_recovery_identity(tmp_path):
-    service = IndustrialClaimsService(tmp_path / "mislabeled-package.sqlite3")
-    result = service.analyze(
-        tenant_id="alpha", actor_id="analyst", customer_ref="oem-1", program_ref="program-1", event_ref="cancel-1",
-        claim_family="TOOLING", commercial_basis_ref="po-1", cost_evidence_ref="invoice-1", currency="EUR",
-        gross_cost="50000", notice_deadline_not_applicable=True, **_documents(),
-    )
+    result = _package_result(tmp_path)
 
     for overrides in (
         {"customer_ref": "oem-2", "program_ref": "program-1", "event_ref": "cancel-1"},
@@ -75,6 +80,23 @@ def test_package_rejects_labels_that_do_not_match_immutable_recovery_identity(tm
     ):
         with pytest.raises(ValueError, match="labels do not match immutable case identity"):
             build_claim_package(result, **overrides, as_of_date=date(2026, 8, 29))
+
+
+def test_package_rejects_hybrid_tenant_vertical_or_claim_family_identity(tmp_path):
+    result = _package_result(tmp_path)
+    labels = {"customer_ref": "oem-1", "program_ref": "program-1", "event_ref": "cancel-1", "as_of_date": date(2026, 8, 29)}
+
+    wrong_tenant = replace(result, tenant_id="beta")
+    with pytest.raises(ValueError, match="tenant identity does not match"):
+        build_claim_package(wrong_tenant, **labels)
+
+    wrong_vertical = replace(result, fingerprint=replace(result.fingerprint, vertical="contractcredit"))
+    with pytest.raises(ValueError, match="fingerprint vertical is invalid"):
+        build_claim_package(wrong_vertical, **labels)
+
+    wrong_family = replace(result, claim_family="WIP")
+    with pytest.raises(ValueError, match="claim family does not match"):
+        build_claim_package(wrong_family, **labels)
 
 
 def test_expired_declared_date_in_package_is_risk_not_nonrecoverability(tmp_path):
