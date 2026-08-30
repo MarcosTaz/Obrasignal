@@ -24,6 +24,7 @@ from factory_cloud.recovery_primitives import EntitlementBasis, RecoveryFingerpr
 from factory_cloud.shared_platform import AuditEvent, NotificationEvent, TenantContext, assert_tenant_context
 from vertical_apps.industrial_claims.case_store import IndustrialCaseMetadata, IndustrialClaimsCaseStore
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
+from vertical_apps.industrial_claims.revision_store import IndustrialCaseRevision, IndustrialClaimsRevisionStore
 
 
 ALLOWED_CLAIM_FAMILIES = {
@@ -91,6 +92,7 @@ class IndustrialClaimsService:
         self.store = AssuranceStore(database)
         self.index = RecoveryIndex(database)
         self.case_store = IndustrialClaimsCaseStore(database)
+        self.revision_store = IndustrialClaimsRevisionStore(database)
         self.read_model = IndustrialClaimsReadModel(database)
         self.ops = AssuranceOperations(self.store)
 
@@ -245,22 +247,6 @@ class IndustrialClaimsService:
             raise AssuranceKernelError("claim currency must be a three-letter ASCII code")
         return code
 
-    def _existing_finding(self, *, tenant_id: str, finding_id: str) -> FindingRecord:
-        with sqlite3.connect(self.store.path) as conn:
-            conn.row_factory = sqlite3.Row
-            row = conn.execute("SELECT * FROM findings WHERE tenant_id=? AND finding_id=?", (tenant_id, finding_id)).fetchone()
-        if row is None:
-            raise AssuranceStoreError("registered recovery fingerprint has no persisted finding")
-        try:
-            evidence_ids = tuple(json.loads(row["evidence_ids_json"]))
-            calculation_ids = tuple(json.loads(row["calculation_ids_json"]))
-        except (TypeError, ValueError) as exc:
-            raise AssuranceStoreError("persisted finding lineage is invalid") from exc
-        return FindingRecord(
-            finding_id=row["finding_id"], tenant_id=row["tenant_id"], finding_type=row["finding_type"], state=row["state"],
-            evidence_ids=evidence_ids, calculation_ids=calculation_ids, reviewer=row["reviewer"], decision_reason=row["decision_reason"],
-        )
-
     def _creator_actor(self, *, tenant_id: str, finding_id: str) -> str:
         with sqlite3.connect(self.store.path) as conn:
             conn.row_factory = sqlite3.Row
@@ -275,6 +261,7 @@ class IndustrialClaimsService:
         return str(row["actor_id"])
 
     def _assert_dossier_integrity(self, *, tenant_id: str, finding_id: str) -> None:
+        self.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
         self.read_model.get_finding(tenant_id=tenant_id, finding_id=finding_id)
 
     def _validate_replay_without_state_change(
@@ -489,13 +476,25 @@ class IndustrialClaimsService:
             notice_deadline_state=notice_deadline_state,
             missing_evidence=tuple(sorted(effective_missing)),
         )
+        initial_revision = IndustrialCaseRevision(
+            finding_id=finding.finding_id,
+            tenant_id=tenant,
+            recovery_fingerprint=fingerprint.fingerprint,
+            revision=1,
+            supersedes_finding_id=None,
+            is_current=True,
+        )
 
         with self.store.transaction() as conn:
             is_new = self.index.persist_case_index(entitlement, fingerprint, connection=conn)
             self.case_store.put(case_metadata, connection=conn)
             if is_new:
+                self.revision_store.register_initial(initial_revision, connection=conn)
                 self.store.persist_case(evidence=evidence, calculation=calculation, deadline=deadline, finding=finding, audit=audit, notification=notification, connection=conn)
         if not is_new:
+            current_revision = self.revision_store.current_for_fingerprint(tenant_id=tenant, recovery_fingerprint=fingerprint.fingerprint)
+            if current_revision.finding_id != finding.finding_id:
+                raise AssuranceStoreError("recovery fingerprint has a newer current revision; use the current finding")
             finding = self._validate_replay_without_state_change(evidence=evidence, calculation=calculation, deadline=deadline, finding=finding, audit=audit, notification=notification)
         return IndustrialClaimResult(tenant_id=tenant, claim_family=family, evidence=evidence, entitlement=entitlement, fingerprint=fingerprint, calculation=calculation, deadline=deadline, notice_deadline_state=notice_deadline_state, finding=finding, audit=audit, notification=notification, missing_evidence=tuple(sorted(effective_missing)), is_new_recovery=is_new)
 
