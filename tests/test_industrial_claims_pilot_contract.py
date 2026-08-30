@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 13
+    assert pilot["schema_version"] == 14
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -86,6 +86,23 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "late_conflict_rolls_back_partial_repair": True,
         "replay_does_not_downgrade_lifecycle_state": True,
         "replay_conflict_fails_closed": True,
+    }
+
+    amendment = pilot["amendment_policy"]
+    assert amendment == {
+        "one_logical_recovery_fingerprint_across_revisions": True,
+        "current_revision_only_transitionable": True,
+        "historical_revisions_remain_readable": True,
+        "identity_fields_immutable": ["customer_ref", "program_ref", "event_ref", "claim_family", "commercial_basis_ref"],
+        "amendable_states": ["UNRESOLVED_EVIDENCE", "READY_FOR_REVIEW", "APPROVED", "REJECTED"],
+        "amendment_after_action_or_final_outcome_forbidden": True,
+        "amendment_requires_fresh_independent_review": True,
+        "amendment_role": "analyst",
+        "amendment_and_supersession_persist_atomically": True,
+        "superseded_revision_replay_blocked": True,
+        "revision_lineage_backup_restore_required": True,
+        "raw_documents_reloaded_from_storage": False,
+        "full_corrected_documentary_reconstruction_required": True,
     }
 
     bounds = pilot["input_bounds"]
@@ -182,6 +199,11 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "ambiguous_contract_reference",
         "case_id_collision_across_distinct_contracts",
         "evidence_id_collision_across_distinct_contracts",
+        "amendment_identity_change",
+        "amendment_of_superseded_revision",
+        "amendment_after_action_or_final_outcome",
+        "partial_amendment_or_supersession_persistence",
+        "revision_lineage_loss_on_restore",
         "oversized_tenant_identifier",
         "oversized_case_or_outcome_reference",
         "oversized_finding_identifier",
@@ -211,6 +233,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert operator_console["html_injection_renderer_forbidden"] is True
     assert operator_console["tenant_scoped_role_queue"] is True
     assert operator_console["final_cumulative_outcome_confirmation_required"] is True
+    assert operator_console["amendment_mode_requires_full_corrected_intake"] is True
 
     required_exit = {
         "canonical_source_green",
@@ -230,6 +253,10 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "dossier_lineage_green",
         "transition_integrity_preflight_green",
         "atomic_replay_validation_green",
+        "amendment_revision_lineage_green",
+        "amendment_http_authorization_green",
+        "amendment_console_green",
+        "revision_backup_restore_green",
         "bounded_input_surface_green",
         "role_authorization_green",
         "four_eyes_green",
