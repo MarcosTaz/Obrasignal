@@ -5,20 +5,29 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 0,
-  "last_factory_id": "complianceledger",
-  "last_run_at": "2026-08-30T06:38:26Z",
+  "cursor": 1,
+  "last_factory_id": "factory-cloud",
+  "last_run_at": "2026-08-30T07:40:43Z",
   "last_material_change": {
-    "kind": "EU_SWITCHING_EXACT_HEAD_GREEN_COMPLIANCE_IDENTITY_STILL_UNKNOWN",
-    "factory_id": "complianceledger",
-    "summary": "EU Switching Evidence Pack successor PR #818 remains OPEN/DRAFT/NOT CANONICAL at cloud-switching/evidence-pack-rn-compat-repair-20260829@f9ffcf82f2eebbfdeb400de76f562cb185ec5adf. Exact-head Cloud Switching Quality 33271664101 and ObraSignal Quality 33271664096 are SUCCESS; the bounded change is only react-native 0.86.2 -> 0.86.3 and does not prove migration/customer outcomes, WTP, payment, deployment or canonical adoption. ComplianceLedger was re-searched by exact target/Documentary Billing terms and no PR identity was recovered; it remains UNKNOWN_SOURCE_IDENTITY rather than being associated speculatively. Rotation wrapped to Factory Cloud. No merge, deployment, production/customer-data mutation, source activation, payment or outbound was performed.",
+    "kind": "FACTORY_CLOUD_EXACT_HEAD_GREEN_PR_METADATA_SYNCHRONIZED",
+    "factory_id": "factory-cloud",
+    "summary": "Factory Cloud control-plane branch exact head 0ea168bc04c1e2f08675783222311ebad932fcee is verified by ObraSignal Quality run 33297402265 = SUCCESS. PR #652 metadata was stale at an older head/run and has been synchronized to the current exact head, current 33-Factory fleet registry/state, and the invariant that blocked/WAIT/UNKNOWN Factories remain in rotation. PR remains OPEN/NOT MERGED. No deployment, production/customer-data mutation, source activation, payment, secrets/provider/config change or outbound was performed.",
     "evidence": {
-      "eu_switching_evidence_pack": {"pr":818,"branch":"cloud-switching/evidence-pack-rn-compat-repair-20260829","head":"f9ffcf82f2eebbfdeb400de76f562cb185ec5adf","cloud_switching_quality_run":33271664101,"cloud_switching_quality":"SUCCESS","obrasignal_quality_run":33271664096,"obrasignal_quality":"SUCCESS","classification":"EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_REAL_OUTCOMES_UNPROVEN"},
-      "complianceledger": {"classification":"UNKNOWN_SOURCE_IDENTITY","pr_search":"NO_EXACT_MATCH"}
+      "factory_cloud": {
+        "pr": 652,
+        "branch": "factory-cloud/app-development-control-plane",
+        "head": "0ea168bc04c1e2f08675783222311ebad932fcee",
+        "quality_run": 33297402265,
+        "quality": "SUCCESS",
+        "registry_count": 33,
+        "pr_state": "OPEN_NOT_MERGED",
+        "classification": "EXACT_HEAD_GREEN_METADATA_SYNCHRONIZED_REVIEW_CANDIDATE"
+      }
     },
-    "active": "Factory Cloud / Control Tower: re-read persistent truth, verify fleet-runner adoption/drift and continue full-registry rotation including blocked/UNKNOWN lanes.",
-    "next": "Factory Cloud -> ObraSignal -> Industrial Claims -> ScopeLedger -> ChangeLedger -> all remaining registry entries; revisit blockers as local state, never as permanent exclusion.",
+    "active": "ObraSignal: reconstruct current canonical/main and highest-impact open exact-head evidence; advance only repository-safe reversible work.",
+    "next": "ObraSignal -> Industrial Claims -> ScopeLedger -> ChangeLedger -> all remaining registry entries; revisit blockers as local state, never as permanent exclusion.",
     "wait": [
+      "Factory Cloud external isolated runtime hosting is owner-authorized in PR #652 history but is not exercised by this repository-safe fleet run; no deployment/runtime activation claim",
       "EU Switching real migration/customer outcome evidence, WTP/payment and canonical adoption remain external/unproven",
       "ComplianceLedger exact source/BATON/branch/PR/code identity",
       "GTM real workflow-qualified problem confirmation, first/repeat value, WTP/payment and retention require external evidence; prepared outbound remains NOT SENT without explicit authorization",
