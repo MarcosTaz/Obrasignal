@@ -16,9 +16,9 @@ Required to advance: workflow-qualified prospects must confirm the problem from 
 
 **Status: STRONG INTEGRATED CANDIDATE / NOT CANONICAL RELEASE**
 
-The current integration lineage covers authentication, password recovery, expired-token write recovery, tenant-private state, server-authoritative billing gates, authenticated account export/deletion controls, deletion-lifecycle preflight, device-private purge/session locking, retry after a failed deletion state, a single authenticated privacy lifecycle owner outside billing, opportunity discovery and explanations, workflow, saving/watchlist access, notifications, persistence/recovery, deterministic pagination, large-organization saved/workflow scale, and decision-history lookup performance.
+The current integration lineage covers authentication, password recovery, expired-token write recovery, tenant-private state, server-authoritative billing gates, authenticated account export/deletion controls, deletion-lifecycle preflight, device-private purge/session locking, retry after `FAILED` and recoverable `UNKNOWN` deletion states, a single authenticated privacy lifecycle owner outside billing, opportunity discovery and explanations, workflow, saving/watchlist access, notifications, persistence/recovery, deterministic pagination, large-organization saved/workflow scale, and decision-history lookup performance.
 
-Latest exact-green engineering head in this composition lineage: `656d4e99d81a899b4480137470240648193dad39`, Quality #4289, **1041 passed / 2 skipped**, Mobile GREEN.
+Latest exact-green engineering head in this composition lineage: `c411b7e14834ebf417e46ebcedefc3a25760f0e1`, Quality #4292, **1042 passed / 2 skipped**, Mobile GREEN.
 
 No merge to main or production deployment is authorized by this status.
 
@@ -26,7 +26,7 @@ No merge to main or production deployment is authorized by this status.
 
 **Status: SYNTHETICALLY STRONG / REAL JOURNEY OPEN**
 
-Synthetic account/profile → opportunity → explanation → workflow/save → watchlist → persistence paths are covered. Password recovery is covered. Account export and deletion-status/request controls are exposed to authenticated customers outside the billing entitlement gate. Billing no longer carries a second destructive privacy path. Expired-token protected writes attempt one authenticated session refresh before failing. Before an authenticated private shell is exposed, deletion lifecycle state is checked; non-`NONE` deletion states lock the private shell. After product-private server deletion is accepted, hydrated private UI is hidden, tenant-private device cache purge is attempted and the authenticated session is ended or remains visibly locked if session termination cannot be confirmed. A `FAILED` deletion remains private-shell locked but can be retried only with the exact destructive confirmation, matching backend retry semantics. Real first value by a workflow-qualified customer has not been observed.
+Synthetic account/profile → opportunity → explanation → workflow/save → watchlist → persistence paths are covered. Password recovery is covered. Account export and deletion-status/request controls are exposed to authenticated customers outside the billing entitlement gate. Billing carries no second destructive privacy path. Expired-token protected writes attempt one authenticated session refresh before failing. Before an authenticated private shell is exposed, deletion lifecycle state is checked; non-`NONE` deletion states lock the private shell. After product-private server deletion is accepted, hydrated private UI is hidden, tenant-private device cache purge is attempted and the authenticated session is ended or remains visibly locked if session termination cannot be confirmed. `FAILED` and recoverable `UNKNOWN` states remain private-shell locked but may repeat the deletion request only with the exact destructive confirmation; `UNKNOWN` retry is explicitly a recovery attempt and never proof that deletion completed. Real first value by a workflow-qualified customer has not been observed.
 
 ## Gate D — Data / truth
 
@@ -38,13 +38,13 @@ Source provenance, lifecycle/currentness, stale-decision suppression, source-hea
 
 **Status: STRONG CANDIDATE / CONTINUOUS GATE**
 
-Cross-tenant guessed-ID and hostile-tenant paths are covered by adversarial synthetic tests; tenant-private workflow, watchlist, notification and account/privacy paths remain fail-closed. Account export is tenant-scoped. Destructive account deletion requires explicit exact confirmation and does not overclaim completion while external revocation remains unproved. Stale local private data is not deliberately exposed while deletion lifecycle authority is unknown or non-active; accepted product deletion locks the hydrated shell before asynchronous local cleanup. A failed deletion state does not reopen private data simply because retry is allowed. Billing cannot independently invoke export/deletion and therefore cannot bypass the canonical privacy lifecycle owner. Any real tenant/security report is provisionally P0 until disproved.
+Cross-tenant guessed-ID and hostile-tenant paths are covered by adversarial synthetic tests; tenant-private workflow, watchlist, notification and account/privacy paths remain fail-closed. Account export is tenant-scoped. Destructive account deletion requires explicit exact confirmation and does not overclaim completion while external revocation remains unproved. Stale local private data is not deliberately exposed while deletion lifecycle authority is unknown or non-active; accepted product deletion locks the hydrated shell before asynchronous local cleanup. Failed or unknown deletion state recovery does not reopen private data simply because retry is allowed. Billing cannot independently invoke export/deletion and therefore cannot bypass the canonical privacy lifecycle owner. Any real tenant/security report is provisionally P0 until disproved.
 
 ## Gate F — Billing
 
 **Status: TECHNICALLY TESTED / PRODUCTION + COMMERCIAL OPEN**
 
-Trial/unpaid/active/cancelled, stale/duplicate provider state and provider-unavailable paths are sandbox-tested. Server projection remains access authority; store/provider state is purchase UX metadata and does not become an access fallback. Account/privacy rights are outside billing entitlement and destructive privacy operations are no longer duplicated inside BillingGate. Real payment instruments are not used. Production billing credentials/activation remain owner-controlled. Willingness-to-pay is unproved.
+Trial/unpaid/active/cancelled, stale/duplicate provider state and provider-unavailable paths are sandbox-tested. Server projection remains access authority; store/provider state is purchase UX metadata and does not become an access fallback. Account/privacy rights are outside billing entitlement and destructive privacy operations are not duplicated inside BillingGate. Real payment instruments are not used. Production billing credentials/activation remain owner-controlled. Willingness-to-pay is unproved.
 
 ## Gate G — Support
 
@@ -92,7 +92,7 @@ CAC, LTV, gross margin, retention and payback remain unknown/not measurable from
 
 **Status: STRONG INTEGRATED CANDIDATE / NOT FINAL RELEASE**
 
-Release-gate evidence includes exact-head CI, composition, E2E fixtures, tenant/auth, password recovery, expired-session protected-write recovery, persistence, backup/restore, concurrent first start, historical/partial schema, idempotency, failure handling, account/privacy customer controls, deletion lifecycle preflight/local privacy locking and purge, failed-deletion retry semantics, single privacy lifecycle ownership outside billing, mobile/web build smoke, synthetic business cases, adversarial tests, and no known regression on the latest exact-green engineering parent.
+Release-gate evidence includes exact-head CI, composition, E2E fixtures, tenant/auth, password recovery, expired-session protected-write recovery, persistence, backup/restore, concurrent first start, historical/partial schema, idempotency, failure handling, account/privacy customer controls, deletion lifecycle preflight/local privacy locking and purge, FAILED/UNKNOWN deletion recovery semantics, single privacy lifecycle ownership outside billing, mobile/web build smoke, synthetic business cases, adversarial tests, and no known regression on the latest exact-green engineering parent.
 
 Remaining release truth includes exact-head validation of any later composition, final controlled release review, and any real-browser/production verification explicitly required before activation. A draft integration stack is not canonical merely because CI is green.
 
