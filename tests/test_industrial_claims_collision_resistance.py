@@ -11,6 +11,7 @@ def _analyze(
     basis_ref="basis",
     cost_ref=None,
     basis_content="signed tooling agreement",
+    event_content="documented cancellation event",
     cost_content="cost ledger supporting tooling exposure",
 ):
     return service.analyze(
@@ -25,7 +26,7 @@ def _analyze(
         gross_cost="10000",
         currency="EUR",
         commercial_basis_content=basis_content,
-        event_evidence_content="documented cancellation event",
+        event_evidence_content=event_content,
         cost_evidence_content=cost_content,
         notice_deadline_not_applicable=True,
     )
@@ -123,6 +124,44 @@ def test_fingerprint_derived_case_ids_allow_same_event_and_family_across_distinc
     assert replay.is_new_recovery is False
     assert replay.finding.finding_id == first.finding.finding_id
     assert replay.fingerprint.fingerprint == first.fingerprint.fingerprint
+    assert service.store.count("findings", "alpha") == 2
+
+
+def test_case_scoped_evidence_ids_allow_reused_human_refs_across_distinct_contracts(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "reused-evidence-refs.sqlite3")
+
+    first = _analyze(
+        service,
+        tenant_id="alpha",
+        event_ref="shared-event-ref",
+        customer_ref="oem-a",
+        program_ref="program-a",
+        basis_ref="shared-basis-ref",
+        cost_ref="shared-cost-ref",
+        basis_content="agreement content for contract A",
+        event_content="event evidence for contract A",
+        cost_content="cost evidence for contract A",
+    )
+    second = _analyze(
+        service,
+        tenant_id="alpha",
+        event_ref="shared-event-ref",
+        customer_ref="oem-b",
+        program_ref="program-b",
+        basis_ref="shared-basis-ref",
+        cost_ref="shared-cost-ref",
+        basis_content="different agreement content for contract B",
+        event_content="different event evidence for contract B",
+        cost_content="different cost evidence for contract B",
+    )
+
+    assert first.fingerprint.fingerprint != second.fingerprint.fingerprint
+    assert {item.source_ref for item in first.evidence} == {"shared-basis-ref", "shared-event-ref", "shared-cost-ref"}
+    assert {item.source_ref for item in second.evidence} == {"shared-basis-ref", "shared-event-ref", "shared-cost-ref"}
+    assert set(first.finding.evidence_ids).isdisjoint(set(second.finding.evidence_ids))
+    assert all(first.fingerprint.fingerprint in evidence_id for evidence_id in first.finding.evidence_ids)
+    assert all(second.fingerprint.fingerprint in evidence_id for evidence_id in second.finding.evidence_ids)
+    assert service.store.count("evidence", "alpha") == 6
     assert service.store.count("findings", "alpha") == 2
 
 
