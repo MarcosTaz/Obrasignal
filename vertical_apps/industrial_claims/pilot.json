@@ -1,5 +1,5 @@
 {
-  "schema_version": 11,
+  "schema_version": 12,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
@@ -65,6 +65,12 @@
     "resolve_requires_valid_dossier_preflight": true,
     "corrupt_dossier_blocks_state_mutation": true,
     "corrupt_dossier_blocks_outcome_evidence_persistence": true
+  },
+  "replay_integrity_policy": {
+    "validation_is_atomic": true,
+    "late_conflict_rolls_back_partial_repair": true,
+    "replay_does_not_downgrade_lifecycle_state": true,
+    "replay_conflict_fails_closed": true
   },
   "input_bounds": {
     "tenant_id_max_chars": 64,
@@ -147,6 +153,7 @@
     "missing_final_cumulative_confirmation",
     "installment_outcome_misuse",
     "corrupt_dossier_before_transition",
+    "partial_replay_validation_persistence",
     "missing_claim_currency",
     "invalid_claim_currency",
     "recovery_currency_mismatch",
@@ -214,6 +221,7 @@
     "final_cumulative_outcome_gate_green",
     "dossier_lineage_green",
     "transition_integrity_preflight_green",
+    "atomic_replay_validation_green",
     "bounded_input_surface_green",
     "tenant_isolation_green",
     "role_authorization_green",
