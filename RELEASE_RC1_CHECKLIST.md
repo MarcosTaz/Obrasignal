@@ -24,17 +24,21 @@ Run this checklist against an EAS development/preview build installed on a physi
 16. Open `Conta e privacidade` while authenticated and confirm account export can be prepared without claiming a device file was created.
 17. Confirm exported server-owned account data contains only the authenticated tenant and does not include shared public procurement data as private account data.
 18. Confirm destructive deletion cannot be submitted without the exact phrase `DELETE_MY_OBRASIGNAL_DATA`.
-19. On a disposable test account, submit deletion and verify the UI reports `PENDING` while external identity/session/device/billing revocation is not proven; do not classify the account as fully deleted from product evidence alone.
-20. Verify privacy controls remain reachable even when normal paid product access is billing-gated.
-21. Verify pilot entitlement is present for a new account where the controlled pilot policy requires it.
-22. In Google Play Internal Testing, purchase `obrasignal_pro_monthly` using only a designated test instrument/account.
-23. Verify RevenueCat reports the `pro` entitlement.
-24. Verify ObraSignal backend reflects `pro` and unlocks paid functionality.
-25. Restore purchases and confirm access remains.
-26. Cancel the subscription and confirm access remains until the paid period ends.
-27. Verify expiration removes paid access without deleting company/opportunity data or hiding account/privacy rights.
-28. Verify push notification permission and one real opportunity alert.
-29. Terminate the session and confirm tenant-private local state is no longer readable before another account is allowed to hydrate.
+19. On a disposable test account, submit deletion and verify the hydrated private product shell is hidden immediately when product-private server deletion is accepted.
+20. Verify tenant-private local profile/opportunity/watchlist/notification cache cannot be read after accepted product-private deletion.
+21. Verify the authenticated product session ends; if provider sign-out cannot be confirmed, verify the private product shell remains locked rather than rendering stale cached data.
+22. Restart/re-enter with a still-valid external identity/session scenario and verify deletion lifecycle status is checked before any private shell is exposed; every non-`NONE` deletion state must remain locked.
+23. Verify the UI reports `PENDING` while external identity/session/device/billing revocation is not proven; do not classify the account as fully deleted from product evidence alone.
+24. Verify privacy controls remain reachable even when normal paid product access is billing-gated.
+25. Verify pilot entitlement is present for a new account where the controlled pilot policy requires it.
+26. In Google Play Internal Testing, purchase `obrasignal_pro_monthly` using only a designated test instrument/account.
+27. Verify RevenueCat reports the `pro` entitlement.
+28. Verify ObraSignal backend reflects `pro` and unlocks paid functionality.
+29. Restore purchases and confirm access remains.
+30. Cancel the subscription and confirm access remains until the paid period ends.
+31. Verify expiration removes paid access without deleting company/opportunity data or hiding account/privacy rights.
+32. Verify push notification permission and one real opportunity alert.
+33. Terminate an ordinary non-deletion session and confirm tenant-private local state is no longer readable before another account is allowed to hydrate.
 
 ## Evidence record
 

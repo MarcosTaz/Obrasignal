@@ -16,9 +16,9 @@ Required to advance: workflow-qualified prospects must confirm the problem from 
 
 **Status: STRONG INTEGRATED CANDIDATE / NOT CANONICAL RELEASE**
 
-The current integration lineage covers authentication, password recovery, expired-token write recovery, tenant-private state, billing gates, authenticated account export/deletion controls, opportunity discovery and explanations, workflow, saving/watchlist access, notifications, persistence/recovery, deterministic pagination, large-organization saved/workflow scale, and decision-history lookup performance.
+The current integration lineage covers authentication, password recovery, expired-token write recovery, tenant-private state, billing gates, authenticated account export/deletion controls, deletion-lifecycle preflight and device-private purge/session locking, opportunity discovery and explanations, workflow, saving/watchlist access, notifications, persistence/recovery, deterministic pagination, large-organization saved/workflow scale, and decision-history lookup performance.
 
-Latest exact-green engineering head in this composition lineage: `de581341b0b6bbd309012cceff218d755aa62b88`, Quality #4258, **1030 passed / 2 skipped**, Mobile GREEN.
+Latest exact-green engineering head in this composition lineage: `2aec3b9cb03beef9cf7f7f446de30b108f9e9383`, Quality #4279, **1036 passed / 2 skipped**, Mobile GREEN.
 
 No merge to main or production deployment is authorized by this status.
 
@@ -26,7 +26,7 @@ No merge to main or production deployment is authorized by this status.
 
 **Status: SYNTHETICALLY STRONG / REAL JOURNEY OPEN**
 
-Synthetic account/profile → opportunity → explanation → workflow/save → watchlist → persistence paths are covered. Password recovery is covered. Account export and deletion-status/request controls are now exposed to authenticated customers outside the billing entitlement gate. Expired-token protected writes now attempt one authenticated session refresh before failing. Real first value by a workflow-qualified customer has not been observed.
+Synthetic account/profile → opportunity → explanation → workflow/save → watchlist → persistence paths are covered. Password recovery is covered. Account export and deletion-status/request controls are exposed to authenticated customers outside the billing entitlement gate. Expired-token protected writes attempt one authenticated session refresh before failing. Before an authenticated private shell is exposed, deletion lifecycle state is checked; non-`NONE` deletion states lock the private shell. After product-private server deletion is accepted, hydrated private UI is hidden, tenant-private device cache purge is attempted and the authenticated session is ended or remains visibly locked if session termination cannot be confirmed. Real first value by a workflow-qualified customer has not been observed.
 
 ## Gate D — Data / truth
 
@@ -38,7 +38,7 @@ Source provenance, lifecycle/currentness, stale-decision suppression, source-hea
 
 **Status: STRONG CANDIDATE / CONTINUOUS GATE**
 
-Cross-tenant guessed-ID and hostile-tenant paths are covered by adversarial synthetic tests; tenant-private workflow, watchlist, notification and account/privacy paths remain fail-closed. Account export is tenant-scoped. Destructive account deletion requires explicit exact confirmation and does not overclaim completion while external revocation remains unproved. Any real tenant/security report is provisionally P0 until disproved.
+Cross-tenant guessed-ID and hostile-tenant paths are covered by adversarial synthetic tests; tenant-private workflow, watchlist, notification and account/privacy paths remain fail-closed. Account export is tenant-scoped. Destructive account deletion requires explicit exact confirmation and does not overclaim completion while external revocation remains unproved. Stale local private data is not deliberately exposed while deletion lifecycle authority is unknown or non-active; accepted product deletion locks the hydrated shell before asynchronous local cleanup. Any real tenant/security report is provisionally P0 until disproved.
 
 ## Gate F — Billing
 
@@ -50,13 +50,13 @@ Trial/unpaid/active/cancelled, stale/duplicate provider state and provider-unava
 
 **Status: ASSISTED-PILOT PROCESS PREPARED**
 
-The support operating model defines P0–P3, intake, containment, repair, verification, customer communication, data-correction and safe billing support. This does not claim 24/7 support.
+The support operating model defines P0–P3, intake, containment, repair, verification, customer communication, auth/recovery, account/privacy, data-correction and safe billing support. This does not claim 24/7 support.
 
 ## Gate H — Operations / observability
 
 **Status: PARTIAL**
 
-Source-health, latency-health and exact-build smoke owners exist, plus an assisted-pilot operations runbook. Broader centralized alerting, external uptime/SLO monitoring, complete client error aggregation and 24/7 human on-call are not claimed.
+Source-health, latency-health and exact-build smoke owners exist, plus an assisted-pilot operations runbook aligned with auth/privacy lifecycle states. Broader centralized alerting, external uptime/SLO monitoring, complete client error aggregation, automated recovery/deletion-state alerting and 24/7 human on-call are not claimed.
 
 ## Gate I — Market exposure
 
@@ -92,7 +92,7 @@ CAC, LTV, gross margin, retention and payback remain unknown/not measurable from
 
 **Status: STRONG INTEGRATED CANDIDATE / NOT FINAL RELEASE**
 
-Release-gate evidence includes exact-head CI, composition, E2E fixtures, tenant/auth, password recovery, expired-session protected-write recovery, persistence, backup/restore, concurrent first start, historical/partial schema, idempotency, failure handling, account/privacy customer controls, mobile/web build smoke, synthetic business cases, adversarial tests, and no known regression on the latest exact-green engineering parent.
+Release-gate evidence includes exact-head CI, composition, E2E fixtures, tenant/auth, password recovery, expired-session protected-write recovery, persistence, backup/restore, concurrent first start, historical/partial schema, idempotency, failure handling, account/privacy customer controls, deletion lifecycle preflight/local privacy locking and purge, mobile/web build smoke, synthetic business cases, adversarial tests, and no known regression on the latest exact-green engineering parent.
 
 Remaining release truth includes exact-head validation of any later composition, final controlled release review, and any real-browser/production verification explicitly required before activation. A draft integration stack is not canonical merely because CI is green.
 
@@ -108,7 +108,7 @@ Owner-controlled or irreversible actions remain:
 - deploy/promote production;
 - authorize a real controlled pilot after the activation checklist is satisfied.
 
-External account-deletion completion also remains unproved until identity/session/device/billing-provider revocation boundaries have executable owner evidence; the product does not classify a pending cleanup as fully completed.
+External account-deletion completion remains unproved until identity/session/device/billing-provider revocation boundaries have executable owner evidence; local product/device protections do not convert that external pending state into completion.
 
 ## Completion decision
 
