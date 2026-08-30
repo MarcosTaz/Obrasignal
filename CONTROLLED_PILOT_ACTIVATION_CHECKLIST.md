@@ -53,6 +53,10 @@ Before invitation:
 - [ ] an expired authenticated session can recover one protected write without duplicate mutation, or the pilot is explicitly blocked until re-authentication behavior is verified;
 - [ ] notification path, if enabled, is clearly classified as provider-accepted/scheduled rather than falsely “delivered”;
 - [ ] account/privacy controls are reachable independently of paid product entitlement;
+- [ ] authenticated app entry checks account-deletion lifecycle authority before any tenant-private shell is exposed;
+- [ ] any non-`NONE` deletion lifecycle state keeps tenant-private UI locked rather than rendering cached profile/opportunity/workflow data;
+- [ ] after accepted product-private deletion, hydrated private UI is hidden before asynchronous local cleanup, tenant-private device storage is purged through its owner contract, and session termination is attempted;
+- [ ] if device cleanup or session termination cannot be confirmed, private UI remains locked and the customer-visible state stays explicit rather than implying completion;
 - [ ] error/degraded states are truthful;
 - [ ] no test-only fixture path is exposed in production.
 
@@ -66,6 +70,7 @@ Before invitation:
 - [ ] Account export is not presented as a complete device/provider export when only current canonical server-owned account data is included.
 - [ ] Destructive deletion requires the exact explicit confirmation expected by the backend.
 - [ ] Product-private deletion is not presented as fully completed while external identity/session/device/billing revocation is unproved.
+- [ ] A still-valid external identity/session cannot re-expose stale tenant-private local data while the backend account is in a deletion lifecycle state.
 - [ ] No secrets appear in client-visible configuration/logging.
 
 ## 6. Support gate
@@ -85,6 +90,7 @@ Before invitation:
 - [ ] Applicable privacy/terms owner/legal requirements are resolved enough for the specific pilot or explicitly gated.
 - [ ] Account export/deletion wording shown to the pilot is consistent with the actual implemented data boundaries.
 - [ ] Any external deletion/revocation obligation that cannot yet be executed is explicitly tracked rather than silently marked complete.
+- [ ] Local device cleanup evidence is kept distinct from external identity/session/device/billing-provider revocation evidence.
 - [ ] No unverified legal-compliance statement is made.
 
 ## 8. Billing gate
