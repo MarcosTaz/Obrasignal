@@ -6,42 +6,36 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 8,
-  "last_factory_id": "eu-cloud-switching",
-  "last_run_at": "2026-08-30T18:46:30Z",
+  "cursor": 15,
+  "last_factory_id": "warrantyguard",
+  "last_run_at": "2026-08-30T19:40:00Z",
   "last_material_change": {
-    "kind": "CAPACITY_EXACT_HEAD_GREEN_PRODUCT_MARKET_ACCESS_WEDGE_NARROWED_ROTATED_TO_EU_CLOUD_SWITCHING",
-    "summary": "Capacity Commitment PR #729 deterministic restore-schema test-contract repair is now exact-head GREEN: branch factory/capacity-commitment-t2-market@0b156218ce427284d40583d4b7eb317622d95376, ObraSignal Quality run 33328905676 SUCCESS. Product Market Access research then falsified a generic cosmetics PIF/CPSR/CPNP generator as the first wedge: public providers already sell done-for-you compliance and dedicated PIF/manufacturing software at low-to-mid hundreds per product or tens-to-hundreds per month. The surviving research hypothesis is cross-SKU evidence-gap orchestration for sellers/importers/manufacturers, with explicit UNKNOWN/NEEDS_HUMAN_REVIEW boundaries and specialist handoff rather than legal certification. Evidence note updated at control-plane commit b20b34c6d7251e911aaee24cd1a33026d6723201. Recovery Radar and Sourcing Recovery remained UNKNOWN and were not guessed. Rotation advanced to EU Cloud Switching. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "EU_CLOUD_SWITCHING_NEGATIVE_CONTROL_ADDED_AVIATION_REVERIFIED_WARRANTYGUARD_REVERIFIED_ROTATED_TO_PAPER_LAMINATE",
+    "summary": "EU Cloud Switching August public-trigger sample was tightened with a fresh Estonian VMware ESXi award as a negative control: 15 distinct decision events sampled, 6 challengeable, 9 excluded; awarded/closed incumbent purchases cannot remain in the live-prospect numerator. The research artifact was updated on PR #802 successor branch at commit 020efc82e0b2a6509548fa7ef38f1593ca457afa. Aviation PR #787 remains exact-head GREEN at a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32 / ObraSignal Quality 33307110367 SUCCESS; it remains synthetic-only and does not prove entitlement, recovery or WTP. LongLead and MachineRelease Safety still have no exact-name PR identity. K3 search surfaced only shared/control-plane references, not canonical K3 source authority, so canonical source identity remains UNKNOWN. WarrantyGuard repair f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870 remains exact-head GREEN in focused run 33323378379 and global quality run 33323378385. ObraSignal privacy PR #845 was inspected: the blocker remains architectural because App.js was reduced to a wrapper around AppBase.js, violating canonical App.js static/smoke invariants; safe repair requires in-place integration of AccountPrivacyControls into canonical App.js and cannot be performed with partial-file mutation tooling without risking source loss. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
-      "capacity_commitment": {
-        "pr": 729,
-        "branch": "factory/capacity-commitment-t2-market",
-        "head": "0b156218ce427284d40583d4b7eb317622d95376",
-        "modified_file": "test_capacity_commitment_repository.py",
-        "quality_run": 33328905676,
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_T3_COMMERCIAL_PROOF_EXTERNAL",
-        "next_exact_action": "Do not overbuild technically while T3 commercial proof dominates; re-open engineering only on a correctness defect or new buyer/compliance signal."
+      "eu_cloud_switching": {
+        "pr": 802,
+        "branch": "cloud-switching/t2-consent-trigger-dedup-20260829",
+        "previous_head": "3a96fcccd8ad278f22303cda16eefab55a6ec18e",
+        "new_commit": "020efc82e0b2a6509548fa7ef38f1593ca457afa",
+        "modified_file": "docs/cloud-switching/TRIGGER_VOLUME_SAMPLE_2026-08.md",
+        "sample": {"distinct_events": 15, "challengeable": 6, "excluded": 9},
+        "classification": "PUBLIC_TRIGGER_CHANNEL_ALIVE_NOT_PROVEN_SUFFICIENT_NO_WTP_PROOF",
+        "next_exact_action": "Verify exact-head CI after the sample-doc mutation; then continue the 60-90 day deduplicated public-event census and build a top-10 live research-priority shortlist only from open evidence-backed decision events."
       },
-      "product_market_access": {
-        "research_file": "factory_cloud/research/product_market_access_2026-08-30.md",
-        "research_commit": "b20b34c6d7251e911aaee24cd1a33026d6723201",
-        "classification": "PUBLIC_EVIDENCE_SIGNAL_COSMETICS_GENERIC_WEDGE_REJECTED_NO_WTP_PROOF",
-        "rejected": "Generic cosmetics PIF/CPSR/CPNP generator/dashboard as first wedge.",
-        "surviving_hypothesis": "Cross-SKU evidence-gap orchestration and specialist-ready handoff with fail-closed applicability states.",
-        "next_exact_action": "Collect 20 public workload signals from multi-SKU seller/importer/manufacturer compliance operations and reject the wedge if incumbent systems/services already absorb the recurring exception workflow."
+      "aviation": {
+        "pr": 787,
+        "branch": "aviation/evidence-backed-pilot-intake-v2-20260829",
+        "head": "a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32",
+        "quality_run": 33307110367,
+        "classification": "EXACT_HEAD_GREEN_SYNTHETIC_ONLY_DRAFT_NOT_CANONICAL",
+        "next_exact_action": "Do not infer entitlement/recovery/WTP; re-enter only for a correctness defect or new evidence/customer signal."
       },
-      "changeledger": {
-        "canonical_snapshot_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
-        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT"
-      },
-      "recovery_radar": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
-      },
-      "sourcing_recovery": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
-      },
+      "longlead": {"classification": "UNKNOWN_SOURCE_IDENTITY"},
+      "machine_release_safety": {"classification": "UNKNOWN_SOURCE_IDENTITY"},
+      "k3_fatality": {"classification": "UNKNOWN_CANONICAL_SOURCE_AUTHORITY"},
       "warrantyguard": {
-        "repair_head": "f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870",
+        "head": "f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870",
         "focused_run": 33323378379,
         "quality_run": 33323378385,
         "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL"
@@ -50,39 +44,44 @@
         "pr": 845,
         "head": "e44b46a4fc4bdd7f8afd735c15fa75588ff3891a",
         "classification": "EXACT_HEAD_RED_INTEGRATION_ARCHITECTURE",
-        "next_exact_action": "Restore canonical App.js in-place and integrate AccountPrivacyControls directly into its existing Profile/root composition; remove wrapper/AppBase indirection; rerun full exact-head quality."
+        "next_exact_action": "Restore canonical mobile/App.js in-place and integrate AccountPrivacyControls directly into the existing root/Profile composition; remove AppBase wrapper indirection; rerun exact-head quality."
+      },
+      "capacity_commitment": {
+        "head": "0b156218ce427284d40583d4b7eb317622d95376",
+        "quality_run": 33328905676,
+        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_T3_COMMERCIAL_PROOF_EXTERNAL"
       },
       "scopeledger": {
         "branch": "recovery/scopeledger-source-20260829",
         "head": "79450c800397c7cce873d6efbd6f7401df142625",
         "recovery_gate_run": 33262936383,
         "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"
+      },
+      "changeledger": {
+        "canonical_snapshot_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
+        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT"
       }
     },
-    "active": "EU Cloud Switching: reconstruct latest exact branch/PR/evidence truth and pursue the next repository/research-safe milestone tied to outcome/WTP proof without fabricating customer validation.",
-    "next": "EU Cloud Switching -> Aviation -> LongLead -> MachineRelease Safety -> K3 Fatality -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> remaining registry; Capacity only needs re-entry on correctness regression or material T3 signal.",
+    "active": "Paper-Laminate Works: reconstruct exact current source/BATON truth; if identity remains UNKNOWN after repository/PR search, mark UNKNOWN and immediately rotate to Documentary Billing.",
+    "next": "Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> remaining registry; recheck EU Cloud Switching exact-head CI after commit 020efc82e0b2a6509548fa7ef38f1593ca457afa.",
     "wait": [
       "ChangeLedger commercial outbound requires valid physical postal address selection, DGC/current-list clarification and explicit owner authorization.",
-      "Capacity Commitment technical branch is exact-head GREEN; T3 buyer response/qualification/WTP remains external.",
-      "Product Market Access has public spend/crowding evidence but no buyer/WTP proof; exact historical source identity remains UNKNOWN.",
-      "ObraSignal #845 requires in-place App.js integration; wrapper/AppBase architecture remains RED.",
+      "Capacity Commitment repository branch is exact-head GREEN; T3 buyer response/qualification/WTP remains external.",
+      "EU Cloud Switching public-event sample is still non-exhaustive and does not prove ~10 challengeable events/month or WTP.",
+      "ObraSignal #845 needs deterministic in-place App.js integration; wrapper/AppBase architecture remains RED.",
       "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
-      "Recovery Radar and Sourcing Recovery exact canonical source identities remain UNKNOWN.",
-      "Several later registry entries retain UNKNOWN exact source identity and must be reconstructed rather than guessed.",
+      "LongLead, MachineRelease Safety, K3 Fatality and several later registry entries retain UNKNOWN exact source identity and must be reconstructed rather than guessed.",
       "Real customer/WTP/payment/recovery/outcome evidence remains unproven wherever not explicitly evidenced."
     ]
   },
   "blocked": [
     {"factory_id":"obrasignal","blocker":"Privacy #845 exact-head RED because wrapper relocation violates canonical App.js truth/smoke contracts; deterministic in-place integration required.","global_stop":false},
-    {"factory_id":"capacity-commitment","blocker":"Repository exact-head GREEN at 0b156218ce427284d40583d4b7eb317622d95376 / run 33328905676; T3 commercial proof remains external.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Outbound gated by valid postal address selection, DGC/list clarification and explicit owner authorization.","global_stop":false},
-    {"factory_id":"recovery-radar","blocker":"Exact source/BATON identity UNKNOWN; unrelated Radar PRs must not be conflated.","global_stop":false},
-    {"factory_id":"sourcing-recovery","blocker":"Exact source/BATON identity UNKNOWN; exact-name PR search returned zero results.","global_stop":false},
     {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"k3-fatality","blocker":"Canonical repository/source identity UNKNOWN.","global_stop":false},
-    {"factory_id":"paper-laminate-works","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
+    {"factory_id":"k3-fatality","blocker":"Canonical repository/source authority UNKNOWN; shared/control-plane references are not sufficient authority.","global_stop":false},
+    {"factory_id":"paper-laminate-works","blocker":"Exact source/BATON identity UNKNOWN pending this rotation.","global_stop":false},
     {"factory_id":"documentary-billing","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"recoverable-money","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
