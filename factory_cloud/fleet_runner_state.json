@@ -5,13 +5,13 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 24,
-  "last_factory_id": "obrasignal-customer-journey",
-  "last_run_at": "2026-08-30T04:39:52Z",
+  "cursor": 25,
+  "last_factory_id": "obrasignal-global-market-entry",
+  "last_run_at": "2026-08-30T04:43:00Z",
   "last_material_change": {
-    "kind": "FLEET_STARVATION_REPAIR_FULLY_VERIFIED_PLUS_CUSTOMER_JOURNEY_REVALIDATED",
+    "kind": "FLEET_STARVATION_REPAIR_FULLY_VERIFIED_AND_MARKET_ENTRY_REVALIDATED",
     "factory_id": "factory-cloud",
-    "summary": "Factory Cloud starvation repair is now fully exact-head verified: ObraSignal Quality run 33290876312 for d9108d4e83deae8033e8af275697bfee849a911b completed SUCCESS, closing the prior IN_PROGRESS uncertainty and proving blocked/UNKNOWN factories remain eligible for future rotation. OS SIDE FACTORY exact PR search again returned no identity and remains UNKNOWN rather than fabricated. Customer Journey PR #821 remains OPEN/DRAFT/NOT CANONICAL at b9c637071b9f29fc7b84d6b017e7234cf5d6240b with exact-head Python and Mobile SUCCESS. Its shared-company tenancy seam remains proven while persisted per-mutation actor attribution and complete endpoint role enforcement remain open; no completion claim was made. Attempts to add a bounded actor-attribution acceptance artifact were rejected by repository-write safety checks, so no unverified file change is claimed. No merge, deployment, production mutation, source activation, customer-data mutation or outbound was performed.",
+    "summary": "Factory Cloud starvation repair is fully exact-head verified: ObraSignal Quality run 33290876312 for d9108d4e83deae8033e8af275697bfee849a911b completed SUCCESS, closing the prior IN_PROGRESS uncertainty and proving blocked/UNKNOWN factories remain eligible for future rotation. OS SIDE FACTORY exact PR search returned no identity and remains UNKNOWN. Customer Journey PR #821 remains OPEN/DRAFT/NOT CANONICAL at b9c637071b9f29fc7b84d6b017e7234cf5d6240b with exact-head Python and Mobile SUCCESS; persisted per-mutation actor attribution and complete endpoint role enforcement remain open. Global Market Entry PR #519 remains OPEN/DRAFT at exact head 93131df867eea723df59e6734ca71af4a4e6f124 with Python and Mobile SUCCESS. Its Portugal/Spain/UK/France/Italy first wave remains research-priority only; ICP, pricing and channel are hypotheses and upstream country-specific blockers remain fail-closed. No merge, deployment, production mutation, source activation, customer-data mutation or outbound was performed.",
     "evidence": {
       "factory_cloud": {
         "branch": "factory-cloud/app-development-control-plane",
@@ -33,10 +33,18 @@
         "python": "SUCCESS",
         "mobile": "SUCCESS",
         "classification": "SHARED_COMPANY_MEMBERSHIP_GREEN_NOT_CANONICAL_ACTOR_AUDIT_STILL_OPEN"
+      },
+      "global_market_entry": {
+        "pr": 519,
+        "branch": "factory/country-launch-registry-v1",
+        "head": "93131df867eea723df59e6734ca71af4a4e6f124",
+        "python": "SUCCESS",
+        "mobile": "SUCCESS",
+        "classification": "LAUNCH_RESEARCH_CANDIDATE_GREEN_NOT_CANONICAL_NOT_MARKET_PROOF"
       }
     },
-    "active": "Global Market Entry, Localization & Country Launch Automation: reconstruct exact current candidate and advance only evidence-safe localization/readiness work without treating hypotheses as market proof.",
-    "next": "Continue through Global Market Entry, GTM, Customer Decision, Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger, then wrap to Factory Cloud and continue full-registry rotation.",
+    "active": "ObraSignal GTM / First Revenue: reconstruct the current GTM branch/BATON, preserve NOT_SENT and response/payment truth, and advance only reversible proof infrastructure without sending external messages.",
+    "next": "Continue through GTM, Customer Decision, Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger, then wrap to Factory Cloud and continue full-registry rotation.",
     "wait": [
       "WarrantyGuard exact failure behind workflow 33273980619; real replies/WTP/customer/payment/recovery remain unproven",
       "Capacity Commitment current exact-head Python failing assertion/root cause; commercial T3 still requires real buyer behavior",
