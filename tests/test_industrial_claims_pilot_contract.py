@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 11
+    assert pilot["schema_version"] == 12
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -75,6 +75,14 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "resolve_requires_valid_dossier_preflight": True,
         "corrupt_dossier_blocks_state_mutation": True,
         "corrupt_dossier_blocks_outcome_evidence_persistence": True,
+    }
+
+    replay = pilot["replay_integrity_policy"]
+    assert replay == {
+        "validation_is_atomic": True,
+        "late_conflict_rolls_back_partial_repair": True,
+        "replay_does_not_downgrade_lifecycle_state": True,
+        "replay_conflict_fails_closed": True,
     }
 
     bounds = pilot["input_bounds"]
@@ -152,6 +160,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "missing_final_cumulative_confirmation",
         "installment_outcome_misuse",
         "corrupt_dossier_before_transition",
+        "partial_replay_validation_persistence",
         "missing_claim_currency",
         "invalid_claim_currency",
         "recovery_currency_mismatch",
@@ -205,6 +214,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "final_cumulative_outcome_gate_green",
         "dossier_lineage_green",
         "transition_integrity_preflight_green",
+        "atomic_replay_validation_green",
         "bounded_input_surface_green",
         "role_authorization_green",
         "four_eyes_green",
