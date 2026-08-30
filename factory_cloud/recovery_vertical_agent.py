@@ -31,6 +31,7 @@ INDUSTRIAL_TESTS = COMMON_TESTS + (
     "tests/test_industrial_claims_amendment_web.py",
     "tests/test_industrial_claims_revision_lineage_integrity.py",
     "tests/test_industrial_claims_revision_end_to_end.py",
+    "tests/test_industrial_claims_assisted_dossier.py",
     "tests/test_industrial_claims_outcome_atomicity.py",
     "tests/test_industrial_claims_document_privacy.py",
     "tests/test_industrial_claims_input_bounds.py",
