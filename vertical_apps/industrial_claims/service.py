@@ -416,12 +416,6 @@ class IndustrialClaimsService:
         if net_potential < 0:
             raise AssuranceKernelError("mitigation/recovery cannot exceed gross cost without review")
 
-        basis = EvidenceEnvelope.create(evidence_id=self._id(tenant, f"{basis_ref}:commercial-basis"), tenant_id=tenant, source_type="commercial_basis", source_ref=basis_ref, content=basis_content, metadata=basis_metadata)
-        event = EvidenceEnvelope.create(evidence_id=self._id(tenant, f"{event_key}:event"), tenant_id=tenant, source_type="industrial_commercial_event", source_ref=event_key, content=event_content, metadata=event_metadata)
-        cost = EvidenceEnvelope.create(evidence_id=self._id(tenant, f"{cost_ref}:cost"), tenant_id=tenant, source_type="cost_evidence", source_ref=cost_ref, content=cost_content, metadata=cost_metadata)
-        evidence = (basis, event, cost)
-
-        documentary_complete = not effective_missing
         fingerprint = RecoveryFingerprint.create(
             tenant_id=tenant,
             vertical=self.vertical,
@@ -430,6 +424,21 @@ class IndustrialClaimsService:
             remedy_type=family.lower(),
         )
         case_token = fingerprint.fingerprint
+        basis = EvidenceEnvelope.create(
+            evidence_id=self._id(tenant, f"case:{case_token}:commercial-basis"), tenant_id=tenant,
+            source_type="commercial_basis", source_ref=basis_ref, content=basis_content, metadata=basis_metadata,
+        )
+        event = EvidenceEnvelope.create(
+            evidence_id=self._id(tenant, f"case:{case_token}:event"), tenant_id=tenant,
+            source_type="industrial_commercial_event", source_ref=event_key, content=event_content, metadata=event_metadata,
+        )
+        cost = EvidenceEnvelope.create(
+            evidence_id=self._id(tenant, f"case:{case_token}:cost"), tenant_id=tenant,
+            source_type="cost_evidence", source_ref=cost_ref, content=cost_content, metadata=cost_metadata,
+        )
+        evidence = (basis, event, cost)
+
+        documentary_complete = not effective_missing
         entitlement = EntitlementBasis.create(
             entitlement_id=self._id(tenant, f"case:{case_token}:basis"),
             tenant_id=tenant,
