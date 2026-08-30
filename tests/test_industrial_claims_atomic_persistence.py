@@ -23,7 +23,7 @@ def _case(service):
     )
 
 
-def test_case_failure_rolls_back_index_and_case_rows(tmp_path, monkeypatch):
+def test_case_failure_rolls_back_index_revision_and_case_rows(tmp_path, monkeypatch):
     service = IndustrialClaimsService(tmp_path / "industrial.sqlite3")
     original = service.store._persist_case
 
@@ -36,6 +36,8 @@ def test_case_failure_rolls_back_index_and_case_rows(tmp_path, monkeypatch):
 
     assert service.index.count_entitlements("alpha") == 0
     assert service.index.count_fingerprints("alpha") == 0
+    assert service.case_store.count("alpha") == 0
+    assert service.revision_store.count("alpha") == 0
     assert service.store.count("evidence", "alpha") == 0
     assert service.store.count("calculations", "alpha") == 0
     assert service.store.count("findings", "alpha") == 0
@@ -48,5 +50,16 @@ def test_case_failure_rolls_back_index_and_case_rows(tmp_path, monkeypatch):
     assert result.calculation.output_unit == "EUR"
     assert service.index.count_entitlements("alpha") == 1
     assert service.index.count_fingerprints("alpha") == 1
+    assert service.case_store.count("alpha") == 1
+    assert service.revision_store.count("alpha") == 1
+    revision = service.revision_store.require_current(tenant_id="alpha", finding_id=result.finding.finding_id)
+    assert revision.revision == 1
+    assert revision.recovery_fingerprint == result.fingerprint.fingerprint
     assert service.store.count("evidence", "alpha") == 3
     assert service.store.count("findings", "alpha") == 1
+
+    replay = _case(service)
+    assert replay.is_new_recovery is False
+    assert replay.finding.finding_id == result.finding.finding_id
+    assert service.revision_store.count("alpha") == 1
+    assert service.revision_store.require_current(tenant_id="alpha", finding_id=result.finding.finding_id).revision == 1
