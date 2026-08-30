@@ -6,37 +6,39 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 7,
-  "last_factory_id": "product-market-access",
-  "last_run_at": "2026-08-30T18:45:30Z",
+  "cursor": 8,
+  "last_factory_id": "eu-cloud-switching",
+  "last_run_at": "2026-08-30T18:46:30Z",
   "last_material_change": {
-    "kind": "CAPACITY_SINGLE_TEST_CONTRACT_REPAIRED_CHANGELEDGER_EXTERNAL_WAIT_UNKNOWN_LANES_ROTATED_TO_PRODUCT_MARKET_ACCESS",
-    "summary": "ChangeLedger was revalidated from canonical snapshot commit e93efa9358d94e0f4e093e8a70358627c4a7cd83: 75/75 PASS plus synthetic dry-run PASS remain historical verified truth, while outbound is still externally gated by postal-address selection, DGC/current-list clarification and explicit owner authorization. No safe high-value repository change was justified there. Capacity Commitment PR #729 had one deterministic Python test-contract RED: the implementation correctly fails closed on an incomplete restore schema with the explicit message 'restore source capacity schema schema lacks required columns', while the test still expected the stale wording 'required capacity columns'. The expectation was aligned without weakening rejection at new exact branch HEAD 0b156218ce427284d40583d4b7eb317622d95376; ObraSignal Quality run 33328905676 started and was IN_PROGRESS when observed, so no GREEN claim is made. Recovery Radar search produced only unrelated Radar/customer-value PRs and no canonical Recovery Radar identity; Sourcing Recovery exact-name PR search returned zero results. Both remain UNKNOWN rather than guessed. Rotation advanced to Product Market Access. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "CAPACITY_EXACT_HEAD_GREEN_PRODUCT_MARKET_ACCESS_WEDGE_NARROWED_ROTATED_TO_EU_CLOUD_SWITCHING",
+    "summary": "Capacity Commitment PR #729 deterministic restore-schema test-contract repair is now exact-head GREEN: branch factory/capacity-commitment-t2-market@0b156218ce427284d40583d4b7eb317622d95376, ObraSignal Quality run 33328905676 SUCCESS. Product Market Access research then falsified a generic cosmetics PIF/CPSR/CPNP generator as the first wedge: public providers already sell done-for-you compliance and dedicated PIF/manufacturing software at low-to-mid hundreds per product or tens-to-hundreds per month. The surviving research hypothesis is cross-SKU evidence-gap orchestration for sellers/importers/manufacturers, with explicit UNKNOWN/NEEDS_HUMAN_REVIEW boundaries and specialist handoff rather than legal certification. Evidence note updated at control-plane commit b20b34c6d7251e911aaee24cd1a33026d6723201. Recovery Radar and Sourcing Recovery remained UNKNOWN and were not guessed. Rotation advanced to EU Cloud Switching. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
-      "changeledger": {
-        "canonical_snapshot_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
-        "test_truth": "75/75 PASS plus synthetic dry-run PASS",
-        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT",
-        "next_exact_action": "Do not send outbound until valid postal address, DGC/current-list clarification and explicit owner authorization gates pass."
-      },
       "capacity_commitment": {
         "pr": 729,
         "branch": "factory/capacity-commitment-t2-market",
-        "previous_red_head": "ab89fe5a76cf22fa7da245bb1462838b0a1aaac4",
-        "repair_head": "0b156218ce427284d40583d4b7eb317622d95376",
+        "head": "0b156218ce427284d40583d4b7eb317622d95376",
         "modified_file": "test_capacity_commitment_repository.py",
-        "change": "Align stale restore-schema exception expectation to explicit fail-closed implementation message; no implementation weakening.",
         "quality_run": 33328905676,
-        "classification": "DETERMINISTIC_TEST_CONTRACT_REPAIR_COMMITTED_CI_IN_PROGRESS",
-        "next_exact_action": "Recheck exact-head run 33328905676; require Python and Mobile SUCCESS before any exact-head GREEN claim."
+        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_T3_COMMERCIAL_PROOF_EXTERNAL",
+        "next_exact_action": "Do not overbuild technically while T3 commercial proof dominates; re-open engineering only on a correctness defect or new buyer/compliance signal."
+      },
+      "product_market_access": {
+        "research_file": "factory_cloud/research/product_market_access_2026-08-30.md",
+        "research_commit": "b20b34c6d7251e911aaee24cd1a33026d6723201",
+        "classification": "PUBLIC_EVIDENCE_SIGNAL_COSMETICS_GENERIC_WEDGE_REJECTED_NO_WTP_PROOF",
+        "rejected": "Generic cosmetics PIF/CPSR/CPNP generator/dashboard as first wedge.",
+        "surviving_hypothesis": "Cross-SKU evidence-gap orchestration and specialist-ready handoff with fail-closed applicability states.",
+        "next_exact_action": "Collect 20 public workload signals from multi-SKU seller/importer/manufacturer compliance operations and reject the wedge if incumbent systems/services already absorb the recurring exception workflow."
+      },
+      "changeledger": {
+        "canonical_snapshot_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
+        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT"
       },
       "recovery_radar": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY",
-        "reconstruction": "Exact-name search did not identify a canonical Recovery Radar Factory source; returned Radar/customer-value PRs are not treated as the Factory by inference."
+        "classification": "UNKNOWN_SOURCE_IDENTITY"
       },
       "sourcing_recovery": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY",
-        "reconstruction": "Exact-name PR search returned zero results; no source identity invented."
+        "classification": "UNKNOWN_SOURCE_IDENTITY"
       },
       "warrantyguard": {
         "repair_head": "f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870",
@@ -57,11 +59,12 @@
         "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"
       }
     },
-    "active": "Product Market Access: reconstruct current repository/research truth and execute the highest-value reversible milestone that strengthens SKU-level compliance/evidence-readiness without claiming market validation.",
-    "next": "Product Market Access -> EU Cloud Switching -> Aviation -> Capacity exact-head CI recheck -> LongLead -> MachineRelease Safety -> K3 Fatality -> WarrantyGuard -> remaining registry; preempt only for deterministic higher-impact safe repairs.",
+    "active": "EU Cloud Switching: reconstruct latest exact branch/PR/evidence truth and pursue the next repository/research-safe milestone tied to outcome/WTP proof without fabricating customer validation.",
+    "next": "EU Cloud Switching -> Aviation -> LongLead -> MachineRelease Safety -> K3 Fatality -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> remaining registry; Capacity only needs re-entry on correctness regression or material T3 signal.",
     "wait": [
       "ChangeLedger commercial outbound requires valid physical postal address selection, DGC/current-list clarification and explicit owner authorization.",
-      "Capacity Commitment exact-head run 33328905676 was IN_PROGRESS at observation; T3 commercial proof remains external.",
+      "Capacity Commitment technical branch is exact-head GREEN; T3 buyer response/qualification/WTP remains external.",
+      "Product Market Access has public spend/crowding evidence but no buyer/WTP proof; exact historical source identity remains UNKNOWN.",
       "ObraSignal #845 requires in-place App.js integration; wrapper/AppBase architecture remains RED.",
       "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
       "Recovery Radar and Sourcing Recovery exact canonical source identities remain UNKNOWN.",
@@ -71,7 +74,7 @@
   },
   "blocked": [
     {"factory_id":"obrasignal","blocker":"Privacy #845 exact-head RED because wrapper relocation violates canonical App.js truth/smoke contracts; deterministic in-place integration required.","global_stop":false},
-    {"factory_id":"capacity-commitment","blocker":"Deterministic stale Python test expectation repaired at 0b156218ce427284d40583d4b7eb317622d95376; exact-head CI 33328905676 pending; T3 commercial proof external.","global_stop":false},
+    {"factory_id":"capacity-commitment","blocker":"Repository exact-head GREEN at 0b156218ce427284d40583d4b7eb317622d95376 / run 33328905676; T3 commercial proof remains external.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Outbound gated by valid postal address selection, DGC/list clarification and explicit owner authorization.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Exact source/BATON identity UNKNOWN; unrelated Radar PRs must not be conflated.","global_stop":false},
