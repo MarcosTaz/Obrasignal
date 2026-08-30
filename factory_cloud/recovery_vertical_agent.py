@@ -37,6 +37,7 @@ INDUSTRIAL_TESTS = COMMON_TESTS + (
     "tests/test_industrial_claims_package.py",
     "tests/test_industrial_claims_pilot_contract.py",
     "tests/test_industrial_claims_backup_restore.py",
+    "tests/test_industrial_claims_revision_backup_restore.py",
     "tests/test_industrial_claims_web.py",
     "tests/test_industrial_claims_http_intake.py",
     "tests/test_industrial_claims_console.py",
