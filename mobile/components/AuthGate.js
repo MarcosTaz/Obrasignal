@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import AuthScreen from './AuthScreen'
 import PasswordRecoveryScreen from './PasswordRecoveryScreen'
 import BillingGate from './BillingGate'
+import AccountPrivacyControls from './AccountPrivacyControls'
 import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
 import { storage } from '../src/storage'
@@ -68,10 +69,13 @@ export default function AuthGate({ children }) {
   if (authState.status !== 'signed-in') return <AuthScreen />
   if (authState.event === 'PASSWORD_RECOVERY') return <PasswordRecoveryScreen />
 
-  // Supabase remains the authentication source of truth. This gate only binds
-  // local private state to the authenticated identity before hydration.
+  // Privacy rights remain reachable for every authenticated identity, including
+  // evaluation/expired billing states. Billing may gate paid product access, but
+  // it must never gate account export, deletion status or deletion requests.
   const accountId = authState.session?.user?.id
-  return <BillingGate key={accountId}>{children}</BillingGate>
+  return <AccountPrivacyControls key={`privacy:${accountId}`}>
+    <BillingGate key={accountId}>{children}</BillingGate>
+  </AccountPrivacyControls>
 }
 
 const styles = StyleSheet.create({
