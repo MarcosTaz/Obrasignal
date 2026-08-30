@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 14
+    assert pilot["schema_version"] == 15
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -93,6 +93,10 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "one_logical_recovery_fingerprint_across_revisions": True,
         "current_revision_only_transitionable": True,
         "historical_revisions_remain_readable": True,
+        "historical_revision_exposes_direct_successor": True,
+        "every_revision_exposes_current_finding": True,
+        "complete_predecessor_chain_validated": True,
+        "ambiguous_successor_fails_closed": True,
         "identity_fields_immutable": ["customer_ref", "program_ref", "event_ref", "claim_family", "commercial_basis_ref"],
         "amendable_states": ["UNRESOLVED_EVIDENCE", "READY_FOR_REVIEW", "APPROVED", "REJECTED"],
         "amendment_after_action_or_final_outcome_forbidden": True,
@@ -103,6 +107,16 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "revision_lineage_backup_restore_required": True,
         "raw_documents_reloaded_from_storage": False,
         "full_corrected_documentary_reconstruction_required": True,
+    }
+
+    package_policy = pilot["package_policy"]
+    assert package_policy == {
+        "schema_version": 7,
+        "durable_current_revision_required": True,
+        "superseded_result_export_rejected": True,
+        "revision_lineage_included": True,
+        "package_establishes_recoverability": False,
+        "package_authorizes_external_action": False,
     }
 
     bounds = pilot["input_bounds"]
@@ -147,6 +161,9 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert dossier["creation_audit_must_be_unique"] is True
     assert dossier["queue_creation_audit_must_be_unique"] is True
     assert dossier["outcome_evidence_type_must_match"] is True
+    assert dossier["revision_predecessor_chain_must_be_complete"] is True
+    assert dossier["revision_predecessor_fingerprint_must_match"] is True
+    assert dossier["revision_successor_must_be_unambiguous"] is True
     assert dossier["corrupt_or_ambiguous_lineage_fails_closed"] is True
 
     backup = pilot["backup_restore_policy"]
@@ -204,6 +221,11 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "amendment_after_action_or_final_outcome",
         "partial_amendment_or_supersession_persistence",
         "revision_lineage_loss_on_restore",
+        "revision_predecessor_missing",
+        "revision_predecessor_fingerprint_mismatch",
+        "revision_predecessor_chronology_mismatch",
+        "ambiguous_revision_successor",
+        "stale_revision_package_export",
         "oversized_tenant_identifier",
         "oversized_case_or_outcome_reference",
         "oversized_finding_identifier",
@@ -254,6 +276,9 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "transition_integrity_preflight_green",
         "atomic_replay_validation_green",
         "amendment_revision_lineage_green",
+        "revision_navigation_green",
+        "revision_lineage_red_team_green",
+        "current_revision_package_green",
         "amendment_http_authorization_green",
         "amendment_console_green",
         "revision_backup_restore_green",
