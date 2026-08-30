@@ -3,7 +3,7 @@ from factory_cloud.pilot_contract import load_pilot_contract
 
 def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 12
+    assert pilot["schema_version"] == 13
     assert pilot["vertical"] == "industrial-claims"
     assert pilot["production_authority"] is False
     assert pilot["pricing"]["status"] == "HYPOTHESIS"
@@ -18,6 +18,9 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
     assert evidence["individual_document_content_limit_bytes"] == 1_000_000
     assert evidence["recovered_or_closed_outcome_requires_document_content"] is True
     assert evidence["outcome_document_and_state_persist_atomically"] is True
+    assert evidence["case_evidence_internal_ids_derived_from_recovery_fingerprint"] is True
+    assert evidence["human_evidence_references_preserved_as_source_refs"] is True
+    assert evidence["human_evidence_references_may_repeat_across_distinct_contracts"] is True
 
     pre_review = pilot["pre_review_entitlement_policy"]
     assert pre_review == {
@@ -100,6 +103,10 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "amount_integer_digits_max": 36,
         "amount_decimal_places_max": 18,
         "amount_absolute_exponent_max": 36,
+        "identifier_c0_and_del_controls_forbidden": True,
+        "missing_evidence_control_characters_forbidden": True,
+        "review_reason_multiline_tab_lf_cr_allowed": True,
+        "review_reason_other_control_characters_forbidden": True,
     }
 
     collision = pilot["identity_collision_policy"]
@@ -108,7 +115,9 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "contract_reference_is_structured_not_delimiter_concatenated": True,
         "shared_store_outcome_id_is_tenant_scoped": True,
         "case_internal_ids_derived_from_recovery_fingerprint": True,
+        "case_evidence_internal_ids_derived_from_recovery_fingerprint": True,
         "same_event_and_family_can_coexist_across_distinct_contracts": True,
+        "same_human_evidence_refs_can_coexist_across_distinct_contracts": True,
         "human_source_references_preserved_in_dossier": True,
     }
 
@@ -161,6 +170,9 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "installment_outcome_misuse",
         "corrupt_dossier_before_transition",
         "partial_replay_validation_persistence",
+        "identifier_control_characters",
+        "case_metadata_control_characters",
+        "missing_evidence_control_characters",
         "missing_claim_currency",
         "invalid_claim_currency",
         "recovery_currency_mismatch",
@@ -169,6 +181,7 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "cross_tenant_outcome_id_collision",
         "ambiguous_contract_reference",
         "case_id_collision_across_distinct_contracts",
+        "evidence_id_collision_across_distinct_contracts",
         "oversized_tenant_identifier",
         "oversized_case_or_outcome_reference",
         "oversized_finding_identifier",
@@ -208,8 +221,10 @@ def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unprov
         "deadline_timing_risk_green",
         "currency_lineage_green",
         "numeric_capacity_green",
+        "identifier_control_character_green",
         "identity_collision_resistance_green",
         "fingerprint_case_identity_green",
+        "case_scoped_evidence_identity_green",
         "outcome_evidence_lineage_green",
         "final_cumulative_outcome_gate_green",
         "dossier_lineage_green",
