@@ -67,12 +67,12 @@ def test_backup_restore_preserves_revision_supersession_and_current_pointer(tmp_
     historical_detail = read_model.get_finding(tenant_id="alpha", finding_id=first.finding.finding_id)
     current_detail = read_model.get_finding(tenant_id="alpha", finding_id=second.finding.finding_id)
     assert historical_detail["revision"] == {
-        "revision": 1,
+        "number": 1,
         "is_current": False,
         "supersedes_finding_id": None,
     }
     assert current_detail["revision"] == {
-        "revision": 2,
+        "number": 2,
         "is_current": True,
         "supersedes_finding_id": first.finding.finding_id,
     }
