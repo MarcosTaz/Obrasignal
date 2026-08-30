@@ -43,12 +43,16 @@ No auto-merge/deploy is authorized by this checklist.
 
 Before invitation:
 - [ ] signup/auth path known working for intended environment;
+- [ ] email-confirmation return path works where confirmation is enabled;
+- [ ] password-recovery link and new-password path are verified on the intended build;
 - [ ] profile/setup works;
 - [ ] Radar/opportunity path works;
 - [ ] source/relevance explanation is present;
 - [ ] save/workflow state persists;
 - [ ] logout/login/return preserves tenant-private truth;
+- [ ] an expired authenticated session can recover one protected write without duplicate mutation, or the pilot is explicitly blocked until re-authentication behavior is verified;
 - [ ] notification path, if enabled, is clearly classified as provider-accepted/scheduled rather than falsely “delivered”;
+- [ ] account/privacy controls are reachable independently of paid product entitlement;
 - [ ] error/degraded states are truthful;
 - [ ] no test-only fixture path is exposed in production.
 
@@ -59,6 +63,9 @@ Before invitation:
 - [ ] Guessed/copy-pasted IDs cannot expose another tenant's private workflow/profile.
 - [ ] Stale/invalid auth fails closed.
 - [ ] Export/deletion privacy boundaries remain scoped to authenticated tenant.
+- [ ] Account export is not presented as a complete device/provider export when only current canonical server-owned account data is included.
+- [ ] Destructive deletion requires the exact explicit confirmation expected by the backend.
+- [ ] Product-private deletion is not presented as fully completed while external identity/session/device/billing revocation is unproved.
 - [ ] No secrets appear in client-visible configuration/logging.
 
 ## 6. Support gate
@@ -76,6 +83,8 @@ Before invitation:
 - [ ] Only necessary customer data is requested.
 - [ ] No unnecessary secrets/payment details are requested.
 - [ ] Applicable privacy/terms owner/legal requirements are resolved enough for the specific pilot or explicitly gated.
+- [ ] Account export/deletion wording shown to the pilot is consistent with the actual implemented data boundaries.
+- [ ] Any external deletion/revocation obligation that cannot yet be executed is explicitly tracked rather than silently marked complete.
 - [ ] No unverified legal-compliance statement is made.
 
 ## 8. Billing gate
