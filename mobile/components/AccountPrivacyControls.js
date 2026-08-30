@@ -5,7 +5,7 @@ import { storage } from '../src/storage'
 import { supabase } from '../lib/supabase'
 
 const DELETE_CONFIRMATION = 'DELETE_MY_OBRASIGNAL_DATA'
-const EXPORT_COMPLETENESS = 'CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY'
+const EXPORT_COMPLEENESS = 'CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY'
 
 function stateCopy(state) {
   if (!state || state.state === 'NONE') return 'Não existe um pedido de eliminação em curso.'
@@ -14,7 +14,7 @@ function stateCopy(state) {
     return 'O pedido de eliminação está pendente. A remoção dos dados privados do produto ainda não está confirmada.'
   }
   if (state.state === 'FAILED') return 'O pedido anterior falhou de forma fechada. Os dados privados continuam bloqueados, mas podes repetir o pedido com a confirmação explícita.'
-  if (state.state === 'UNKNOWN') return 'O estado final não pode ser provado com a evidência disponível. A conclusão da eliminação não é assumida.'
+  if (state.state === 'UNKNOWN') return 'O estado final não pode ser provado. Os dados privados continuam bloqueados; podes repetir o pedido para tentar converter este estado num resultado conhecido sem assumir conclusão.'
   if (state.state === 'NOT_FOUND') return 'A conta não foi encontrada no armazenamento do produto.'
   return `Estado da eliminação: ${String(state.state)}`
 }
@@ -34,10 +34,10 @@ export default function AccountPrivacyControls({ children }) {
   const [deleteError, setDeleteError] = useState('')
 
   const exportText = useMemo(() => exportData ? JSON.stringify(exportData, null, 2) : '', [exportData])
-  // PENDING/UNKNOWN/NOT_FOUND cannot safely start a new destructive operation.
-  // FAILED is intentionally retryable: the backend deletion owner supports
-  // re-entering a prior deletion_failed state while the private shell stays locked.
-  const deletionBlocked = status?.state === 'PENDING' || status?.state === 'UNKNOWN' || status?.state === 'NOT_FOUND'
+  // PENDING/NOT_FOUND cannot safely start a new destructive operation.
+  // FAILED and UNKNOWN are intentionally retryable: server recovery owns both
+  // transitions while the private shell remains locked until known-safe state.
+  const deletionBlocked = status?.state === 'PENDING' || status?.state === 'NOT_FOUND'
 
   const refreshStatus = async ({ initial = false } = {}) => {
     setStatusLoading(true)
@@ -152,7 +152,7 @@ export default function AccountPrivacyControls({ children }) {
           <View style={styles.card}>
             <Text style={styles.heading}>Exportar os meus dados</Text>
             <Text style={styles.body}>A exportação inclui apenas os dados canónicos atuais do servidor pertencentes à conta. Não inclui dados públicos partilhados de contratação, identidade do fornecedor de autenticação, registos-fonte do fornecedor de faturação nem cache privada local do dispositivo.</Text>
-            <Text style={styles.scope}>Escopo esperado: {EXPORT_COMPLETENESS}</Text>
+            <Text style={styles.scope}>Escopo esperado: {EXPORT_COMPLEENESS}</Text>
             <Pressable disabled={exportLoading || deletionBlocked} onPress={prepareExport} style={[styles.primary,(exportLoading || deletionBlocked)&&styles.disabled]}><Text style={styles.primaryText}>{exportLoading?'A preparar…':'Exportar os meus dados'}</Text></Pressable>
             {exportError ? <Text accessibilityRole="alert" style={styles.error}>{exportError}</Text> : null}
             {exportData ? <View style={styles.exportBox}>
@@ -166,6 +166,7 @@ export default function AccountPrivacyControls({ children }) {
             <Text style={styles.dangerHeading}>Eliminar dados privados da conta</Text>
             <Text style={styles.body}>Esta ação elimina os dados privados canónicos do produto quando as pré-condições são provadas. Não elimina os dados públicos de contratação. Mesmo após a limpeza do produto, a revogação externa de identidade, sessões, dispositivo e reconciliação de faturação pode continuar pendente.</Text>
             {status?.state === 'FAILED' ? <Text style={styles.warning}>O pedido anterior falhou. Os dados privados continuam bloqueados; podes repetir o pedido abaixo.</Text> : null}
+            {status?.state === 'UNKNOWN' ? <Text style={styles.warning}>O estado final anterior não pode ser provado. Os dados privados permanecem bloqueados; repetir o pedido tenta recuperar para um estado conhecido sem assumir que a eliminação terminou.</Text> : null}
             <Text style={styles.warning}>Para pedir a eliminação, escreve exatamente:</Text>
             <Text selectable style={styles.confirmation}>{DELETE_CONFIRMATION}</Text>
             <TextInput
@@ -178,7 +179,7 @@ export default function AccountPrivacyControls({ children }) {
               placeholderTextColor="#9BA8C0"
               style={styles.input}
             />
-            <Pressable disabled={deleteLoading || deletionBlocked || confirmation !== DELETE_CONFIRMATION} onPress={requestDeletion} style={[styles.deleteButton,(deleteLoading || deletionBlocked || confirmation !== DELETE_CONFIRMATION)&&styles.disabled]}><Text style={styles.deleteText}>{deleteLoading?'A processar…':status?.state==='FAILED'?'Repetir pedido de eliminação':'Pedir eliminação dos dados privados'}</Text></Pressable>
+            <Pressable disabled={deleteLoading || deletionBlocked || confirmation !== DELETE_CONFIRMATION} onPress={requestDeletion} style={[styles.deleteButton,(deleteLoading || deletionBlocked || confirmation !== DELETE_CONFIRMATION)&&styles.disabled]}><Text style={styles.deleteText}>{deleteLoading?'A processar…':status?.state==='FAILED'||status?.state==='UNKNOWN'?'Repetir pedido de eliminação':'Pedir eliminação dos dados privados'}</Text></Pressable>
             {deleteError ? <Text accessibilityRole="alert" style={styles.error}>{deleteError}</Text> : null}
             {status?.state === 'PENDING' ? <Text style={styles.pending}>PENDING — a conta não é apresentada como totalmente eliminada enquanto a revogação externa não estiver provada.</Text> : null}
           </View>
