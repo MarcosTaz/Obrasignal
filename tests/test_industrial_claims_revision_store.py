@@ -3,6 +3,7 @@ import sqlite3
 import pytest
 
 from factory_cloud.assurance_store import AssuranceStoreError
+from vertical_apps.industrial_claims.case_store import IndustrialCaseMetadata, IndustrialClaimsCaseStore
 from vertical_apps.industrial_claims.revision_store import IndustrialCaseRevision, IndustrialClaimsRevisionStore
 
 
@@ -14,6 +15,22 @@ def _initial(finding_id="alpha:finding-1", tenant_id="alpha", fingerprint="fp-1"
         revision=1,
         supersedes_finding_id=None,
         is_current=True,
+    )
+
+
+def _legacy_case(finding_id="alpha:finding-1", tenant_id="alpha", fingerprint="fp-1"):
+    return IndustrialCaseMetadata(
+        finding_id=finding_id,
+        tenant_id=tenant_id,
+        claim_family="TOOLING",
+        customer_ref="oem-1",
+        program_ref="program-1",
+        event_ref="event-1",
+        entitlement_id=f"{tenant_id}:basis-1",
+        deadline_id=f"{tenant_id}:deadline-1",
+        recovery_fingerprint=fingerprint,
+        notice_deadline_state="DECLARED_NONE_FOR_REVIEW",
+        missing_evidence=(),
     )
 
 
@@ -29,6 +46,29 @@ def test_revision_store_registers_idempotent_initial_and_one_current_revision(tm
     with pytest.raises(AssuranceStoreError, match="already has a current revision"):
         store.register_initial(_initial(finding_id="alpha:other-finding"))
     assert store.count("alpha") == 1
+
+
+def test_revision_store_backfills_one_legacy_case_as_revision_one(tmp_path):
+    database = tmp_path / "revision-backfill.sqlite3"
+    cases = IndustrialClaimsCaseStore(database)
+    cases.put(_legacy_case())
+
+    revisions = IndustrialClaimsRevisionStore(database)
+    record = revisions.require_current(tenant_id="alpha", finding_id="alpha:finding-1")
+    assert record.revision == 1
+    assert record.recovery_fingerprint == "fp-1"
+    assert record.supersedes_finding_id is None
+    assert revisions.count("alpha") == 1
+
+
+def test_revision_store_refuses_ambiguous_legacy_backfill(tmp_path):
+    database = tmp_path / "revision-backfill-ambiguous.sqlite3"
+    cases = IndustrialClaimsCaseStore(database)
+    cases.put(_legacy_case())
+    cases.put(_legacy_case(finding_id="alpha:finding-2"))
+
+    with pytest.raises(AssuranceStoreError, match="ambiguous pre-revision industrial case lineage"):
+        IndustrialClaimsRevisionStore(database)
 
 
 def test_revision_store_supersedes_current_and_blocks_historical_current_use(tmp_path):
