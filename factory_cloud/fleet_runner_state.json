@@ -5,43 +5,31 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 10,
-  "last_factory_id": "aviation-lease-entitlement-recovery",
-  "last_run_at": "2026-08-30T01:38:36Z",
+  "cursor": 11,
+  "last_factory_id": "capacity-commitment",
+  "last_run_at": "2026-08-30T02:39:19Z",
   "last_material_change": {
-    "kind": "AVIATION_CURRENT_GREEN_BASE_EXACT_HEAD_CANDIDATE_CONFIRMED",
-    "factory_id": "aviation-lease-entitlement-recovery",
-    "summary": "Product Market Access remains UNKNOWN_SOURCE_IDENTITY after targeted branch/code search. EU Cloud Switching exact-head GREEN draft evidence remains preserved for PR #802 and #818. Aviation was reconstructed on its current app base: open draft PR #787 reapplies the evidence-backed assisted pilot admission boundary on apps/aviation-lease-entitlement-recovery base 0d1759832a06b3177b67b35a4c53ee0c69db459e. Exact head be9dbca3a430e4ee9ebf3f4fa30980a55911d146 has both observed checks SUCCESS (python and mobile). The candidate requires immutable SHA-256 evidence identity, provenance and explicit evidence-use permission; positive arithmetic remains CANDIDATE_READY_FOR_HUMAN_REVIEW while entitlement stays UNKNOWN and recovery NOT_ESTABLISHED. It is DRAFT/NOT CANONICAL/NO REAL AIRLINE DATA and proves no deployment, payment, entitlement, recovery or customer outcome.",
+    "kind": "CAPACITY_COMMITMENT_SOURCE_AND_EXACT_HEAD_TRUTH_RECOVERED",
+    "factory_id": "capacity-commitment",
+    "summary": "Capacity Commitment source identity is no longer UNKNOWN. Branch factory/capacity-commitment-t2-market backs open draft PR #729. Current exact head is 98b277c4711fb80628d8cadcef72db68470daf99, whose latest commit adds PERIOD_ID as explicit evidence fact. PR body remains stale at older head b58af7b and therefore its exact-head success paragraph must not be applied to the current head. Workflow 33276228632 completed FAILURE on current exact head: mobile fails at expo-doctor, and python fails at repository tests. Mobile cause is isolated to the shared Expo dependency drift already known; the exact Python assertion/root cause is not yet proven from structured job metadata. Commercial truth remains T2 MARKET EXPOSED achieved / T3 COMMERCIAL PROOF active-not-achieved according to the PR record, with no real reply, WTP, paid pilot, payment, verified recovery or repeatable revenue proven by repository evidence. No merge or external action performed.",
     "evidence": {
-      "product_market_access": {
-        "matching_branch": "NONE_EXACT",
-        "matching_code_search": "NONE",
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
-      },
-      "eu_cloud_switching_t2": {
-        "pr": 802,
-        "head": "f27fd53b64b33cf2af49f28008e7d7e5473edd90",
-        "checks": "3/3 SUCCESS",
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NO_EXTERNAL_PROOF"
-      },
-      "eu_cloud_switching_evidence_pack_repair": {
-        "pr": 818,
-        "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
-        "checks": "3/3 SUCCESS",
-        "classification": "EXACT_HEAD_GREEN_BOUNDED_COMPAT_REPAIR_DRAFT_NOT_CANONICAL"
-      },
-      "aviation": {
-        "pr": 787,
-        "branch": "aviation/evidence-backed-pilot-intake-v2-20260829",
-        "head": "be9dbca3a430e4ee9ebf3f4fa30980a55911d146",
-        "base": "apps/aviation-lease-entitlement-recovery@0d1759832a06b3177b67b35a4c53ee0c69db459e",
-        "checks": "2/2 SUCCESS: python + mobile",
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_ENTITLEMENT_UNKNOWN_RECOVERY_NOT_ESTABLISHED"
+      "capacity_commitment": {
+        "pr": 729,
+        "branch": "factory/capacity-commitment-t2-market",
+        "head": "98b277c4711fb80628d8cadcef72db68470daf99",
+        "base": "factory/capacity-commitment-t1@bb272fbab05217000d0093812e609a07212cbb19",
+        "latest_commit": "capacity commitment: add explicit period evidence fact",
+        "latest_changed_file": "factories/capacity_commitment/evidence.py",
+        "workflow_run": 33276228632,
+        "python": "FAILURE at repository tests; exact assertion/root cause UNKNOWN",
+        "mobile": "FAILURE at expo-doctor; downstream wiring/bundle skipped",
+        "classification": "SOURCE_IDENTITY_RECOVERED_CURRENT_EXACT_HEAD_RED_DRAFT_NOT_CANONICAL_T3_UNPROVEN"
       }
     },
-    "active": "Capacity Commitment: reconstruct exact current source/BATON/PR/head and execute the highest-value safe milestone. Preserve commercial proof as UNKNOWN unless external evidence exists.",
-    "next": "After Capacity Commitment, rotate to LongLead, MachineRelease Safety, K3 Fatality, WarrantyGuard and onward. Aviation next safe milestone is a synthetic end-to-end evidence identity -> arithmetic -> human review -> outcome/no-recovery fixture or equivalent proof on the current green base, without real airline data.",
+    "active": "LongLead: reconstruct exact current source/BATON/PR/head and execute the highest-value safe repository/research milestone. If identity remains unproven, preserve UNKNOWN and rotate immediately.",
+    "next": "After LongLead, rotate to MachineRelease Safety, K3 Fatality, WarrantyGuard and onward. Capacity Commitment next safe action is recover the exact Python failing assertion/root cause for head 98b277c4711fb80628d8cadcef72db68470daf99; do not call the head green until that failure is repaired and re-proven exact-head.",
     "wait": [
+      "Capacity Commitment current exact-head Python failing assertion/root cause; commercial T3 still requires real buyer behavior",
       "Product Market Access exact source/BATON identity",
       "EU Cloud Switching canonical adoption and any real WTP/pilot/payment/outcome evidence",
       "Aviation canonical adoption, bounded source topology against main, and any real entitlement/recovery/customer evidence",
@@ -65,8 +53,8 @@
     {"factory_id":"product-market-access","blocker":"No exact canonical source/BATON identity recovered from targeted branch/code search.","global_stop":false},
     {"factory_id":"eu-cloud-switching","blocker":"Exact-head GREEN draft candidates exist, but canonical adoption and real external WTP/pilot/payment/outcome evidence remain unproven.","global_stop":false},
     {"factory_id":"aviation-lease-entitlement-recovery","blocker":"Exact-head GREEN draft exists on current app base, but canonical adoption/source topology and real entitlement/recovery evidence remain unproven.","global_stop":false},
-    {"factory_id":"capacity-commitment","blocker":"No exact source/BATON identity recovered in prior pass.","global_stop":false},
-    {"factory_id":"longlead","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"capacity-commitment","blocker":"Source identity recovered at PR #729/current head 98b277c4711fb80628d8cadcef72db68470daf99. Exact-head workflow is RED: mobile expo-doctor drift plus Python repository-test failure whose exact assertion/root cause remains unproven. T3 commercial proof also remains unproven.","global_stop":false},
+    {"factory_id":"longlead","blocker":"No exact source/BATON identity recovered in prior pass.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"k3-fatality","blocker":"Runtime verified but canonical repository/source unresolved.","global_stop":false},
     {"factory_id":"warrantyguard","blocker":"No exact source/BATON identity recovered.","global_stop":false},
