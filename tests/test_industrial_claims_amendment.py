@@ -80,8 +80,20 @@ def test_amendment_preserves_fingerprint_creates_revision_two_and_resets_review(
     read_model = IndustrialClaimsReadModel(database)
     old_detail = read_model.get_finding(tenant_id="alpha", finding_id=first.finding.finding_id)
     new_detail = read_model.get_finding(tenant_id="alpha", finding_id=second.finding.finding_id)
-    assert old_detail["revision"] == {"number": 1, "is_current": False, "supersedes_finding_id": None}
-    assert new_detail["revision"] == {"number": 2, "is_current": True, "supersedes_finding_id": first.finding.finding_id}
+    assert old_detail["revision"] == {
+        "number": 1,
+        "is_current": False,
+        "supersedes_finding_id": None,
+        "superseded_by_finding_id": second.finding.finding_id,
+        "current_finding_id": second.finding.finding_id,
+    }
+    assert new_detail["revision"] == {
+        "number": 2,
+        "is_current": True,
+        "supersedes_finding_id": first.finding.finding_id,
+        "superseded_by_finding_id": None,
+        "current_finding_id": second.finding.finding_id,
+    }
     assert old_detail["calculation"]["net_potential"] == "10000"
     assert new_detail["calculation"]["net_potential"] == "12000"
 
