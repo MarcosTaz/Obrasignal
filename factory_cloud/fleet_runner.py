@@ -46,18 +46,14 @@ def select_next_factory(switchboard: dict[str, Any], state: dict[str, Any]) -> t
     if not factories:
         raise FleetRunnerError("factory registry is empty")
 
-    blocked = _blocked_factory_ids(state)
-    start = state["cursor"] % len(factories)
-    for offset in range(len(factories)):
-        index = (start + offset) % len(factories)
-        factory = factories[index]
-        if str(factory.get("id")) not in blocked:
-            return factory, index
-
-    # A blocker is not a global stop. If every registered Factory is currently
-    # marked blocked, retry from the rotating cursor instead of terminating the
-    # fleet. The dispatch itself still makes no execution/success claim.
-    return factories[start], start
+    # A blocker is local state, not a reason to remove a Factory from future
+    # fleet consideration. Skipping blocked IDs here caused starvation: a lane
+    # marked UNKNOWN/WAIT could be skipped forever while any other lane remained
+    # unblocked, so changed evidence was never revisited. Rotate every registry
+    # entry deterministically; the executor decides whether the current blocker
+    # still applies and, if so, records it and moves on without a success claim.
+    index = state["cursor"] % len(factories)
+    return factories[index], index
 
 
 def build_dispatch(
