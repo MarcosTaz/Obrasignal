@@ -64,6 +64,66 @@ def _current_revision(service: IndustrialClaimsService, result: IndustrialClaimR
     return revision
 
 
+def _verify_durable_snapshot(service: IndustrialClaimsService, result: IndustrialClaimResult) -> None:
+    try:
+        detail = service.read_model.get_finding(
+            tenant_id=result.tenant_id,
+            finding_id=result.finding.finding_id,
+        )
+    except AssuranceStoreError as exc:
+        raise ValueError("industrial package durable dossier validation failed") from exc
+
+    case = detail["case"]
+    finding = detail["finding"]
+    calculation = detail["calculation"]
+    entitlement = detail["entitlement"]
+    if case["recovery_fingerprint"] != result.fingerprint.fingerprint:
+        raise ValueError("industrial package durable recovery fingerprint does not match result")
+    if case["claim_family"] != result.claim_family:
+        raise ValueError("industrial package durable claim family does not match result")
+    if tuple(case["missing_evidence"]) != tuple(result.missing_evidence):
+        raise ValueError("industrial package durable missing-evidence state does not match result")
+    if case["notice_deadline_state"] != result.notice_deadline_state:
+        raise ValueError("industrial package durable notice truth does not match result")
+    if finding["state"] != result.finding.state:
+        raise ValueError("industrial package result lifecycle state is stale relative to durable dossier")
+    if (
+        calculation["formula_id"] != result.calculation.formula_id
+        or calculation["formula_version"] != result.calculation.formula_version
+        or calculation["net_potential"] != result.calculation.output_value
+        or calculation["currency"] != result.calculation.output_unit
+        or calculation["reproducibility_hash"] != result.calculation.reproducibility_hash
+    ):
+        raise ValueError("industrial package durable calculation does not match result")
+    if (
+        entitlement["rule_ref"] != result.entitlement.rule_ref
+        or entitlement["confidence"] != result.entitlement.confidence
+        or entitlement["basis_hash"] != result.entitlement.basis_hash
+    ):
+        raise ValueError("industrial package durable entitlement does not match result")
+
+    durable_evidence = {
+        item["evidence_id"]: (
+            item["source_type"],
+            item["source_ref"],
+            item["content_hash"],
+            item["verification_state"],
+        )
+        for item in detail["evidence_index"]
+    }
+    result_evidence = {
+        item.evidence_id: (
+            item.source_type,
+            item.source_ref,
+            item.content_hash,
+            item.metadata.get("verification_state", "UNKNOWN"),
+        )
+        for item in result.evidence
+    }
+    if durable_evidence != result_evidence:
+        raise ValueError("industrial package durable evidence index does not match result")
+
+
 def build_claim_package(
     service: IndustrialClaimsService,
     result: IndustrialClaimResult,
@@ -73,14 +133,15 @@ def build_claim_package(
     event_ref: str,
     as_of_date: date | None = None,
 ) -> dict[str, Any]:
-    """Build a current-revision review package without upgrading legal truth.
+    """Build a current durable review package without upgrading legal truth.
 
-    The durable revision store is authoritative for export currentness. A stale
-    in-memory result from a superseded revision is rejected instead of being
-    rendered as though it were the current reconstruction.
+    The revision store and read model are authoritative for export currentness
+    and lifecycle/economic/evidence truth. A stale in-memory result is rejected
+    instead of being rendered as though it still matched the durable dossier.
     """
     immutable_customer, immutable_program, immutable_event = _immutable_case_labels(result)
     revision = _current_revision(service, result)
+    _verify_durable_snapshot(service, result)
     supplied = (str(customer_ref), str(program_ref), str(event_ref))
     immutable = (immutable_customer, immutable_program, immutable_event)
     if supplied != immutable:
