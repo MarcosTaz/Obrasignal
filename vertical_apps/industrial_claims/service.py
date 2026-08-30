@@ -273,16 +273,35 @@ class IndustrialClaimsService:
         audit: AuditEvent,
         notification: NotificationEvent,
     ) -> FindingRecord:
-        for item in evidence:
-            self.store.put_evidence(item)
-        self.store.put_calculation(calculation)
-        self.store.put_deadline(deadline)
-        self.store.append_audit(audit)
-        self.store.enqueue_notification(notification)
-        existing = self._existing_finding(tenant_id=finding.tenant_id, finding_id=finding.finding_id)
-        if existing.finding_type != finding.finding_type or existing.evidence_ids != finding.evidence_ids or existing.calculation_ids != finding.calculation_ids:
-            raise AssuranceStoreError("duplicate finding lineage does not match persisted case")
-        return existing
+        with self.store.transaction() as conn:
+            for item in evidence:
+                self.store._put_evidence(conn, item)
+            self.store._put_calculation(conn, calculation)
+            self.store._put_deadline(conn, deadline)
+            self.store._append_audit(conn, audit)
+            self.store._enqueue_notification(conn, notification)
+            row = conn.execute(
+                "SELECT * FROM findings WHERE tenant_id=? AND finding_id=?",
+                (finding.tenant_id, finding.finding_id),
+            ).fetchone()
+            if row is None:
+                raise AssuranceStoreError("registered recovery fingerprint has no persisted finding")
+            try:
+                persisted_evidence = json.loads(row["evidence_ids_json"])
+                persisted_calculations = json.loads(row["calculation_ids_json"])
+            except (TypeError, ValueError) as exc:
+                raise AssuranceStoreError("persisted finding lineage is invalid") from exc
+            if not isinstance(persisted_evidence, list) or not isinstance(persisted_calculations, list):
+                raise AssuranceStoreError("persisted finding lineage is invalid")
+            existing = FindingRecord(
+                finding_id=row["finding_id"], tenant_id=row["tenant_id"], finding_type=row["finding_type"], state=row["state"],
+                evidence_ids=tuple(str(item) for item in persisted_evidence),
+                calculation_ids=tuple(str(item) for item in persisted_calculations),
+                reviewer=row["reviewer"], decision_reason=row["decision_reason"],
+            )
+            if existing.finding_type != finding.finding_type or existing.evidence_ids != finding.evidence_ids or existing.calculation_ids != finding.calculation_ids:
+                raise AssuranceStoreError("duplicate finding lineage does not match persisted case")
+            return existing
 
     def _reviewed_net_potential(self, *, tenant_id: str, finding_id: str) -> tuple[Decimal, str]:
         with sqlite3.connect(self.store.path) as conn:
