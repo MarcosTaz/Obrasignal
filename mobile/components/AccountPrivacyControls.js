@@ -5,7 +5,7 @@ import { storage } from '../src/storage'
 import { supabase } from '../lib/supabase'
 
 const DELETE_CONFIRMATION = 'DELETE_MY_OBRASIGNAL_DATA'
-const EXPORT_COMPLEENESS = 'CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY'
+const EXPORT_COMPLETENESS = 'CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY'
 
 function stateCopy(state) {
   if (!state || state.state === 'NONE') return 'Não existe um pedido de eliminação em curso.'
@@ -87,6 +87,10 @@ export default function AccountPrivacyControls({ children }) {
     if (deleteLoading || confirmation !== DELETE_CONFIRMATION) return
     setDeleteLoading(true)
     setDeleteError('')
+    // The server can commit this destructive request even if its response is lost.
+    // Hide hydrated private state before the network side effect; only an
+    // authoritative status refresh proving NONE may reopen it afterwards.
+    setPrivacyLocked(true)
     try {
       const next = await api.requestAccountDeletion(confirmation)
       setStatus(next || null)
@@ -94,7 +98,6 @@ export default function AccountPrivacyControls({ children }) {
       setConfirmation('')
 
       if (next?.product_private_db_deleted === true) {
-        setPrivacyLocked(true)
         let localCleanupProven = false
         try {
           await storage.bindPrivateTenant(null)
@@ -109,11 +112,13 @@ export default function AccountPrivacyControls({ children }) {
             if (localCleanupProven) setDeleteError('Os dados privados locais foram limpos, mas não foi possível confirmar o fim da sessão neste dispositivo. A revogação externa continua pendente.')
           }
         }
-      } else if (next?.state && next.state !== 'NONE') {
-        setPrivacyLocked(true)
+      } else if (next?.state === 'NONE') {
+        setPrivacyLocked(false)
       }
     } catch (_) {
       setDeleteError('Não foi possível concluir o pedido de eliminação. O ObraSignal não assume que os dados foram eliminados.')
+      // refreshStatus is the only authority allowed to reopen the shell. If this
+      // second read also fails, the pre-request lock remains in force.
       await refreshStatus()
     } finally {
       setDeleteLoading(false)
@@ -152,7 +157,7 @@ export default function AccountPrivacyControls({ children }) {
           <View style={styles.card}>
             <Text style={styles.heading}>Exportar os meus dados</Text>
             <Text style={styles.body}>A exportação inclui apenas os dados canónicos atuais do servidor pertencentes à conta. Não inclui dados públicos partilhados de contratação, identidade do fornecedor de autenticação, registos-fonte do fornecedor de faturação nem cache privada local do dispositivo.</Text>
-            <Text style={styles.scope}>Escopo esperado: {EXPORT_COMPLEENESS}</Text>
+            <Text style={styles.scope}>Escopo esperado: {EXPORT_COMPLETENESS}</Text>
             <Pressable disabled={exportLoading || deletionBlocked} onPress={prepareExport} style={[styles.primary,(exportLoading || deletionBlocked)&&styles.disabled]}><Text style={styles.primaryText}>{exportLoading?'A preparar…':'Exportar os meus dados'}</Text></Pressable>
             {exportError ? <Text accessibilityRole="alert" style={styles.error}>{exportError}</Text> : null}
             {exportData ? <View style={styles.exportBox}>
