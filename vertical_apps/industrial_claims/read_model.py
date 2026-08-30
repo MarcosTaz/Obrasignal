@@ -195,8 +195,38 @@ class IndustrialClaimsReadModel:
         revision = self.revision_store.get(tenant_id=tenant, finding_id=finding_key)
         if revision.recovery_fingerprint != metadata.recovery_fingerprint:
             raise AssuranceStoreError("industrial revision fingerprint does not match case metadata")
+        current_revision = self.revision_store.current_for_fingerprint(
+            tenant_id=tenant,
+            recovery_fingerprint=metadata.recovery_fingerprint,
+        )
+        if current_revision.revision < revision.revision:
+            raise AssuranceStoreError("industrial revision chronology is invalid")
+        if revision.is_current and current_revision.finding_id != finding_key:
+            raise AssuranceStoreError("industrial current revision pointer is inconsistent")
 
         with self._connect() as conn:
+            successor_rows = conn.execute(
+                """SELECT finding_id,recovery_fingerprint,revision
+                   FROM industrial_claim_revisions
+                   WHERE tenant_id=? AND supersedes_finding_id=?
+                   ORDER BY revision,finding_id""",
+                (tenant, finding_key),
+            ).fetchall()
+            if len(successor_rows) > 1:
+                raise AssuranceStoreError("industrial revision has ambiguous direct successor")
+            superseded_by_finding_id = None
+            if successor_rows:
+                successor = successor_rows[0]
+                if str(successor["recovery_fingerprint"]) != metadata.recovery_fingerprint:
+                    raise AssuranceStoreError("industrial revision successor fingerprint is inconsistent")
+                if int(successor["revision"]) != revision.revision + 1:
+                    raise AssuranceStoreError("industrial revision successor chronology is invalid")
+                superseded_by_finding_id = str(successor["finding_id"])
+            if revision.is_current and superseded_by_finding_id is not None:
+                raise AssuranceStoreError("industrial current revision cannot have a successor")
+            if not revision.is_current and superseded_by_finding_id is None:
+                raise AssuranceStoreError("industrial historical revision successor is missing")
+
             finding = conn.execute(
                 "SELECT * FROM findings WHERE tenant_id=? AND finding_id=? AND finding_type='industrial_recovery_candidate'",
                 (tenant, finding_key),
@@ -307,6 +337,8 @@ class IndustrialClaimsReadModel:
                 "number": revision.revision,
                 "is_current": revision.is_current,
                 "supersedes_finding_id": revision.supersedes_finding_id,
+                "superseded_by_finding_id": superseded_by_finding_id,
+                "current_finding_id": current_revision.finding_id,
             },
             "finding": {"state": str(finding["state"]), "reviewer": finding["reviewer"], "decision_reason": finding["decision_reason"]},
             "calculation": {"formula_id": str(calculation["formula_id"]), "formula_version": str(calculation["formula_version"]), "net_potential": str(calculation["output_value"]), "currency": calculation["output_unit"], "reproducibility_hash": str(calculation["reproducibility_hash"])},
