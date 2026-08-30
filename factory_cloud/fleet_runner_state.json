@@ -5,13 +5,13 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 11,
-  "last_factory_id": "capacity-commitment",
-  "last_run_at": "2026-08-30T10:42:30Z",
+  "cursor": 12,
+  "last_factory_id": "longlead",
+  "last_run_at": "2026-08-30T10:44:10Z",
   "last_material_change": {
-    "kind": "EU_SWITCHING_TRIGGER_SAMPLE_ADVANCED_AND_AVIATION_SYNTHETIC_OUTCOME_PATH_ADDED",
-    "factory_id": "aviation-lease-entitlement-recovery",
-    "summary": "EU Cloud Switching August public-trigger sample advanced from 13/5 to 14 distinct/6 conservatively challengeable events after adding the still-open National Health Fund Poland VMware-or-equivalent procurement; focused Cloud Switching Quality is SUCCESS on new head 3a96fcccd8ad278f22303cda16eefab55a6ec18e while global ObraSignal Quality was still in progress at observation. Aviation gained synthetic end-to-end tests from evidence-backed intake through explicit human approval, action and durable RECOVERED outcome plus an independent CLOSED_NO_RECOVERY zero-outcome path on head a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32; exact-head ObraSignal Quality was still in progress at observation, so no GREEN claim is made. Capacity Commitment remains exact-head RED at 98b277c4711fb80628d8cadcef72db68470daf99: mobile fails at expo-doctor and Python fails at repository tests; job metadata still does not expose the failing Python assertion. No customer/WTP/payment/recovery claim, merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "EU_SWITCHING_TRIGGER_SAMPLE_ADVANCED_AVIATION_SYNTHETIC_OUTCOME_PATH_ADDED_LONGLEAD_RECHECKED_UNKNOWN",
+    "factory_id": "longlead",
+    "summary": "EU Cloud Switching August public-trigger sample advanced from 13/5 to 14 distinct/6 conservatively challengeable events after adding the still-open National Health Fund Poland VMware-or-equivalent procurement; focused Cloud Switching Quality is SUCCESS on new head 3a96fcccd8ad278f22303cda16eefab55a6ec18e while global ObraSignal Quality was still in progress at observation. Aviation gained synthetic end-to-end tests from evidence-backed intake through explicit human approval, action and durable RECOVERED outcome plus an independent CLOSED_NO_RECOVERY zero-outcome path on head a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32; exact-head ObraSignal Quality was still in progress at observation, so no GREEN claim is made. Capacity Commitment remains exact-head RED at 98b277c4711fb80628d8cadcef72db68470daf99: mobile fails at expo-doctor and Python fails at repository tests; job metadata still does not expose the failing Python assertion. LongLead was freshly reconstructed by repository code search plus Git matching-ref lookup for heads/long; both returned no exact identity, so it remains UNKNOWN_SOURCE_IDENTITY and is not attributed to a generic branch. No customer/WTP/payment/recovery claim, merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
       "eu_cloud_switching": {
         "branch": "cloud-switching/t2-consent-trigger-dedup-20260829",
@@ -32,15 +32,20 @@
         "head": "98b277c4711fb80628d8cadcef72db68470daf99",
         "classification": "EXACT_HEAD_RED_MOBILE_EXPO_DOCTOR_AND_PYTHON_REPOSITORY_TEST_FAILURE_ASSERTION_UNKNOWN",
         "workflow_run": 33276228632
+      },
+      "longlead": {
+        "classification": "UNKNOWN_SOURCE_IDENTITY_AFTER_FRESH_CODE_AND_REF_RECHECK",
+        "matching_ref_prefix": "heads/long",
+        "matching_ref_count": 0
       }
     },
-    "active": "LongLead: recover exact source/BATON/PR identity if possible; if identity remains UNKNOWN, persist that truth and immediately move to MachineRelease Safety without speculative branch attribution.",
-    "next": "LongLead -> MachineRelease Safety -> K3 Fatality -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> remaining registry entries; recheck pending EU/Aviation exact-head CI on next encounter.",
+    "active": "MachineRelease Safety: recover exact source/BATON/PR identity if possible; generic state-machine branches are insufficient. If exact identity remains UNKNOWN, persist that and move immediately to K3 Fatality.",
+    "next": "MachineRelease Safety -> K3 Fatality -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> remaining registry entries; recheck pending EU/Aviation exact-head CI on next encounter.",
     "wait": [
       "EU Switching real migration/customer outcome evidence, WTP/payment and canonical adoption remain external/unproven",
       "Aviation exact-head CI for a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32 is pending; canonical adoption and real entitlement/recovery/customer evidence remain unproven",
       "Capacity Commitment Python repository-test assertion/root cause remains unavailable from job metadata; mobile expo-doctor failure is proven",
-      "LongLead exact source/BATON identity",
+      "LongLead exact source/BATON identity remains UNKNOWN after fresh code/ref recheck",
       "MachineRelease Safety exact source/BATON identity",
       "K3 Fatality canonical repository/source identity",
       "WarrantyGuard exact failure behind workflow 33273980619; real replies/WTP/customer/payment/recovery remain unproven",
@@ -74,7 +79,7 @@
     {"factory_id":"eu-cloud-switching","blocker":"Focused exact-head CI is GREEN at 3a96fcccd8ad278f22303cda16eefab55a6ec18e; global CI was in progress. Canonical adoption and real WTP/pilot/payment/outcome evidence remain unproven.","global_stop":false},
     {"factory_id":"aviation-lease-entitlement-recovery","blocker":"Synthetic reviewed recovery and no-recovery paths now exist at a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32; exact-head CI was in progress. Canonical adoption and real entitlement/recovery evidence remain unproven.","global_stop":false},
     {"factory_id":"capacity-commitment","blocker":"Source identity recovered at PR #729/head 98b277c4711fb80628d8cadcef72db68470daf99. Exact-head workflow is RED: mobile expo-doctor plus Python repository-test failure whose exact assertion remains unavailable. T3 commercial proof remains unproven.","global_stop":false},
-    {"factory_id":"longlead","blocker":"No exact source/BATON/PR/code identity recovered from prior targeted search; scheduled for fresh reconstruction now.","global_stop":false},
+    {"factory_id":"longlead","blocker":"No exact source/BATON/PR/code identity recovered after fresh code search and heads/long matching-ref lookup.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"No exact source/BATON identity recovered; generic state-machine branches are insufficient identity evidence.","global_stop":false},
     {"factory_id":"k3-fatality","blocker":"Runtime verified but canonical repository/source unresolved.","global_stop":false},
     {"factory_id":"warrantyguard","blocker":"Source identity recovered at draft PR #805/head 213db9f27cfde4992b6d9d87e793efa2f68657de. ObraSignal Quality SUCCESS but WarrantyGuard-specific workflow RED; exact root cause remains unproven. T3/WTP/customer/revenue remain unproven.","global_stop":false},
