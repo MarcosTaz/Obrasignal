@@ -6,31 +6,37 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 4,
-  "last_factory_id": "changeledger",
-  "last_run_at": "2026-08-30T17:37:37Z",
+  "cursor": 7,
+  "last_factory_id": "product-market-access",
+  "last_run_at": "2026-08-30T18:45:30Z",
   "last_material_change": {
-    "kind": "INDUSTRIAL_BATON_CORRECTED_SCOPELEDGER_EXACT_RECOVERY_RECONFIRMED_ROTATED_TO_CHANGELEDGER",
-    "summary": "Industrial Claims canonical BATON was corrected at 69edbb7859de34afd64d6e5c5d5356bab9400aaf because atomic replay rollback was already implemented and exact-source GREEN at c6de16e5a23483bb27ef33f6abf329752bde45bb / run 33287246832. ScopeLedger was then reconstructed exactly: recovery/scopeledger-source-20260829 still resolves to 79450c800397c7cce873d6efbd6f7401df142625 and ScopeLedger Recovery Gate run 33262936383 is SUCCESS. Its canonical BATON explicitly classifies production/source lineage as unproven and instructs the runner not to overbuild the recovery lane without an authorized live Railway fingerprint, so this remains external WAIT rather than global stop. Rotation advanced to ChangeLedger. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "CAPACITY_SINGLE_TEST_CONTRACT_REPAIRED_CHANGELEDGER_EXTERNAL_WAIT_UNKNOWN_LANES_ROTATED_TO_PRODUCT_MARKET_ACCESS",
+    "summary": "ChangeLedger was revalidated from canonical snapshot commit e93efa9358d94e0f4e093e8a70358627c4a7cd83: 75/75 PASS plus synthetic dry-run PASS remain historical verified truth, while outbound is still externally gated by postal-address selection, DGC/current-list clarification and explicit owner authorization. No safe high-value repository change was justified there. Capacity Commitment PR #729 had one deterministic Python test-contract RED: the implementation correctly fails closed on an incomplete restore schema with the explicit message 'restore source capacity schema schema lacks required columns', while the test still expected the stale wording 'required capacity columns'. The expectation was aligned without weakening rejection at new exact branch HEAD 0b156218ce427284d40583d4b7eb317622d95376; ObraSignal Quality run 33328905676 started and was IN_PROGRESS when observed, so no GREEN claim is made. Recovery Radar search produced only unrelated Radar/customer-value PRs and no canonical Recovery Radar identity; Sourcing Recovery exact-name PR search returned zero results. Both remain UNKNOWN rather than guessed. Rotation advanced to Product Market Access. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
-      "industrial_claims": {
-        "branch": "apps/industrial-claims",
-        "exact_green_source": "c6de16e5a23483bb27ef33f6abf329752bde45bb",
-        "quality_run": 33287246832,
-        "baton_commit": "69edbb7859de34afd64d6e5c5d5356bab9400aaf",
-        "classification": "SOURCE_EXACT_HEAD_GREEN_BATON_SUCCESSOR_CI_PENDING"
-      },
-      "scopeledger": {
-        "branch": "recovery/scopeledger-source-20260829",
-        "head": "79450c800397c7cce873d6efbd6f7401df142625",
-        "recovery_gate_run": 33262936383,
-        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE",
-        "next_exact_action": "Obtain an authorized live Railway/source fingerprint and compare it with the recovered candidate; until then do not overbuild the recovery lane."
-      },
       "changeledger": {
-        "known_baton_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
-        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_RECONSTRUCTION_ACTIVE",
-        "known_truth": "Canonical snapshot BATON states 75/75 PASS plus synthetic dry-run PASS, but outbound remains gated by valid postal address selection, DGC clarification/current-list consultation and explicit owner authorization."
+        "canonical_snapshot_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
+        "test_truth": "75/75 PASS plus synthetic dry-run PASS",
+        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT",
+        "next_exact_action": "Do not send outbound until valid postal address, DGC/current-list clarification and explicit owner authorization gates pass."
+      },
+      "capacity_commitment": {
+        "pr": 729,
+        "branch": "factory/capacity-commitment-t2-market",
+        "previous_red_head": "ab89fe5a76cf22fa7da245bb1462838b0a1aaac4",
+        "repair_head": "0b156218ce427284d40583d4b7eb317622d95376",
+        "modified_file": "test_capacity_commitment_repository.py",
+        "change": "Align stale restore-schema exception expectation to explicit fail-closed implementation message; no implementation weakening.",
+        "quality_run": 33328905676,
+        "classification": "DETERMINISTIC_TEST_CONTRACT_REPAIR_COMMITTED_CI_IN_PROGRESS",
+        "next_exact_action": "Recheck exact-head run 33328905676; require Python and Mobile SUCCESS before any exact-head GREEN claim."
+      },
+      "recovery_radar": {
+        "classification": "UNKNOWN_SOURCE_IDENTITY",
+        "reconstruction": "Exact-name search did not identify a canonical Recovery Radar Factory source; returned Radar/customer-value PRs are not treated as the Factory by inference."
+      },
+      "sourcing_recovery": {
+        "classification": "UNKNOWN_SOURCE_IDENTITY",
+        "reconstruction": "Exact-name PR search returned zero results; no source identity invented."
       },
       "warrantyguard": {
         "repair_head": "f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870",
@@ -42,35 +48,34 @@
         "pr": 845,
         "head": "e44b46a4fc4bdd7f8afd735c15fa75588ff3891a",
         "classification": "EXACT_HEAD_RED_INTEGRATION_ARCHITECTURE",
-        "next_exact_action": "Restore canonical App.js in-place and integrate AccountPrivacyControls directly into its existing Profile/root composition; delete wrapper/AppBase indirection; rerun full exact-head quality."
+        "next_exact_action": "Restore canonical App.js in-place and integrate AccountPrivacyControls directly into its existing Profile/root composition; remove wrapper/AppBase indirection; rerun full exact-head quality."
       },
-      "capacity_commitment": {
-        "pr": 729,
-        "head": "ab89fe5a76cf22fa7da245bb1462838b0a1aaac4",
-        "quality_run": 33323428508,
-        "classification": "MOBILE_GREEN_PYTHON_SINGLE_TEST_CONTRACT_RED",
-        "next_exact_action": "Align the stale test expectation with the explicit fail-closed restore error without weakening missing-schema rejection, then rerun exact-head quality."
+      "scopeledger": {
+        "branch": "recovery/scopeledger-source-20260829",
+        "head": "79450c800397c7cce873d6efbd6f7401df142625",
+        "recovery_gate_run": 33262936383,
+        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"
       }
     },
-    "active": "ChangeLedger: reconstruct the exact current snapshot/BATON identity and pursue only repository/research-safe work that does not bypass postal-address, DGC/list or explicit outbound authorization gates.",
-    "next": "ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity recheck -> LongLead -> remaining registry; preempt only for deterministic higher-impact safe repairs.",
+    "active": "Product Market Access: reconstruct current repository/research truth and execute the highest-value reversible milestone that strengthens SKU-level compliance/evidence-readiness without claiming market validation.",
+    "next": "Product Market Access -> EU Cloud Switching -> Aviation -> Capacity exact-head CI recheck -> LongLead -> MachineRelease Safety -> K3 Fatality -> WarrantyGuard -> remaining registry; preempt only for deterministic higher-impact safe repairs.",
     "wait": [
-      "Industrial Claims external runtime, real identity authority, production, customer, legal and WTP proof remain WAIT; atomic replay is no longer an unfinished repository blocker.",
-      "ScopeLedger live Railway/source fingerprint and production lineage remain external; recovered source is exact-head GREEN but not production authority.",
-      "ChangeLedger commercial outbound requires valid physical postal address selection, DGC clarification/current-list consultation and explicit owner authorization.",
-      "ObraSignal #845 requires in-place App.js integration; first wrapper implementation is deliberately not classified complete.",
-      "Capacity Commitment has one remaining deterministic Python test-contract RED; commercial T3 proof remains external.",
-      "Several registry entries retain UNKNOWN exact source identity and must be reconstructed rather than guessed.",
+      "ChangeLedger commercial outbound requires valid physical postal address selection, DGC/current-list clarification and explicit owner authorization.",
+      "Capacity Commitment exact-head run 33328905676 was IN_PROGRESS at observation; T3 commercial proof remains external.",
+      "ObraSignal #845 requires in-place App.js integration; wrapper/AppBase architecture remains RED.",
+      "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
+      "Recovery Radar and Sourcing Recovery exact canonical source identities remain UNKNOWN.",
+      "Several later registry entries retain UNKNOWN exact source identity and must be reconstructed rather than guessed.",
       "Real customer/WTP/payment/recovery/outcome evidence remains unproven wherever not explicitly evidenced."
     ]
   },
   "blocked": [
     {"factory_id":"obrasignal","blocker":"Privacy #845 exact-head RED because wrapper relocation violates canonical App.js truth/smoke contracts; deterministic in-place integration required.","global_stop":false},
-    {"factory_id":"capacity-commitment","blocker":"Mobile exact-head SUCCESS; Python has one stale exception-message test-contract failure; T3 commercial proof external.","global_stop":false},
+    {"factory_id":"capacity-commitment","blocker":"Deterministic stale Python test expectation repaired at 0b156218ce427284d40583d4b7eb317622d95376; exact-head CI 33328905676 pending; T3 commercial proof external.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Outbound gated by valid postal address selection, DGC/list clarification and explicit owner authorization.","global_stop":false},
-    {"factory_id":"recovery-radar","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"sourcing-recovery","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
+    {"factory_id":"recovery-radar","blocker":"Exact source/BATON identity UNKNOWN; unrelated Radar PRs must not be conflated.","global_stop":false},
+    {"factory_id":"sourcing-recovery","blocker":"Exact source/BATON identity UNKNOWN; exact-name PR search returned zero results.","global_stop":false},
     {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"k3-fatality","blocker":"Canonical repository/source identity UNKNOWN.","global_stop":false},
