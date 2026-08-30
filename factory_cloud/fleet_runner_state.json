@@ -5,47 +5,32 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 3,
-  "last_factory_id": "industrial-claims",
-  "last_run_at": "2026-08-30T08:41:43Z",
+  "cursor": 8,
+  "last_factory_id": "product-market-access",
+  "last_run_at": "2026-08-30T09:39:03Z",
   "last_material_change": {
-    "kind": "FACTORY_CLOUD_EXACT_HEAD_GREEN_OBRASIGNAL_PRIVACY_FAILING_BEFORE_INDUSTRIAL_CLAIMS_CURRENT_HEAD_GREEN",
-    "factory_id": "industrial-claims",
-    "summary": "Factory Cloud state successor 967cb112b233b859e1fc559e336989b044e809ea is exact-head GREEN via ObraSignal Quality 33299862243. ObraSignal PR #845 exact head 1f8b30061f8aca32a533c29f5f71491257d5d1da is a deterministic customer-privacy-surface failing-before: Mobile is GREEN while Python repository tests fail after adding only the new privacy-surface probe. Industrial Claims stale RED blocker was corrected: branch apps/industrial-claims current exact head c6de16e5a23483bb27ef33f6abf329752bde45bb is ObraSignal Quality SUCCESS via run 33287246832. No merge, deploy, production/customer-data mutation, source activation, payment, secrets/provider/config change or outbound was performed.",
+    "kind": "PRODUCT_MARKET_ACCESS_CURRENT_PUBLIC_EVIDENCE_SIGNAL_AND_WEDGE_NARROWING",
+    "factory_id": "product-market-access",
+    "summary": "ScopeLedger recovered-source BATON was revalidated at recovery/scopeledger-source-20260829@79450c800397c7cce873d6efbd6f7401df142625 and remains production-lineage blocked; ChangeLedger exact head e93efa9358d94e0f4e093e8a70358627c4a7cd83 remains externally outbound/compliance blocked; Recovery Radar and Sourcing Recovery still lack exact source identity after targeted rechecks. Product Market Access gained a repository-persisted current public-evidence note: 2025 EU Safety Gate reached 4,671 alerts (+13% YoY) and 5,794 follow-up actions (+35%); the Commission already operates eSurveillance for detecting Safety-Gate-listed products online; 2026 DPP Registry implementation work strengthens structured compliance-data demand. The naive generic legal/Safety-Gate checker wedge is downgraded; next test is a narrow B2B SKU evidence-readiness/obligation-gap workflow. No customer, WTP, legal conclusion, merge, deploy, production/customer-data mutation, payment, config/secret/provider change or outbound was performed.",
     "evidence": {
-      "factory_cloud": {
-        "pr": 652,
-        "branch": "factory-cloud/app-development-control-plane",
-        "head": "967cb112b233b859e1fc559e336989b044e809ea",
-        "quality_run": 33299862243,
-        "quality": "SUCCESS",
-        "registry_count": 33,
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_MERGED"
+      "scopeledger": {
+        "branch": "recovery/scopeledger-source-20260829",
+        "head": "79450c800397c7cce873d6efbd6f7401df142625",
+        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN"
       },
-      "obrasignal": {
-        "pr": 845,
-        "branch": "integration/account-privacy-customer-surface-probe-20260830",
-        "base": "a3e523b216131e9021545826cd01abaf0a473183",
-        "head": "1f8b30061f8aca32a533c29f5f71491257d5d1da",
-        "quality_run": 33288287008,
-        "python_job": 99195297946,
-        "python": "FAILURE",
-        "mobile_job": 99195297916,
-        "mobile": "SUCCESS",
-        "changed_files": ["tests/test_mobile_account_privacy_surface_probe.py"],
-        "classification": "DETERMINISTIC_FAILING_BEFORE_CUSTOMER_PRIVACY_SURFACE_DRAFT_NOT_CANONICAL"
+      "changeledger": {
+        "branch": "factory/changeledger-cumulative-delay-snapshot-20260828",
+        "head": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
+        "classification": "REPOSITORY_IDENTITY_CONFIRMED_OUTBOUND_COMPLIANCE_BLOCKED"
       },
-      "industrial_claims": {
-        "pr": 785,
-        "branch": "apps/industrial-claims",
-        "head": "c6de16e5a23483bb27ef33f6abf329752bde45bb",
-        "quality_run": 33287246832,
-        "quality": "SUCCESS",
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL"
+      "product_market_access": {
+        "artifact": "factory_cloud/research/product_market_access_2026-08-30.md",
+        "artifact_commit": "55cc7587f11196e0488dfa67cff1b882c2327fb3",
+        "classification": "PUBLIC_EVIDENCE_SIGNAL_PRODUCT_SCOPE_STILL_UNPROVEN_NO_CUSTOMER_OR_WTP_PROOF"
       }
     },
-    "active": "ScopeLedger: re-read recovered-source BATON/current branch and execute the highest-value repository-safe milestone that does not require live Railway production identity.",
-    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> all remaining registry entries; revisit blockers as local state, never as permanent exclusion.",
+    "active": "EU Cloud Switching: revalidate current exact-head candidates and execute the highest-value repository-safe or research-safe milestone that improves path to real migration outcome/WTP proof without external outreach.",
+    "next": "EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 Fatality -> WarrantyGuard -> remaining registry entries; revisit all blockers as local state, never permanent exclusion.",
     "wait": [
       "ObraSignal #845 privacy customer-surface failing-before needs a passing-after implementation/composition; current connector write surface does not safely support partial editing of the large compressed mobile/App.js without replacing the complete file, so do not fabricate a repair",
       "Factory Cloud external isolated runtime hosting is owner-authorized in PR #652 history but is not exercised by this repository-safe fleet run; no deployment/runtime activation claim",
@@ -67,7 +52,7 @@
       "Private Freight exact source/BATON identity",
       "Autonomous Revenue Recovery exact source/BATON identity",
       "ObraSignal Data Runner exact source/BATON identity",
-      "Product Market Access exact source/BATON identity",
+      "Product Market Access exact source/BATON identity and any customer/WTP proof; research note only narrows the wedge",
       "Aviation canonical adoption, bounded source topology against main, and any real entitlement/recovery/customer evidence",
       "ScopeLedger authorized live Railway/source fingerprint and production lineage comparison",
       "ChangeLedger valid sender postal address, DGC clarification/list consultation, and explicit outbound authorization",
@@ -79,9 +64,9 @@
   "blocked": [
     {"factory_id":"scopeledger","blocker":"Recovered source identity is proven, but current live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Repository/BATON identity recovered; outbound is blocked by postal-address/compliance/owner-authorization gates.","global_stop":false},
-    {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered from branch or code search.","global_stop":false},
+    {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered from branch or code search; current radar-named branches are ObraSignal Radar work and are insufficient identity evidence for this separate Factory.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity recovered from branch search.","global_stop":false},
-    {"factory_id":"product-market-access","blocker":"No exact canonical source/BATON identity recovered from targeted branch/code search.","global_stop":false},
+    {"factory_id":"product-market-access","blocker":"No exact canonical source/BATON identity recovered. Current public evidence was persisted at factory_cloud/research/product_market_access_2026-08-30.md; product scope/customer/WTP remain unproven.","global_stop":false},
     {"factory_id":"eu-cloud-switching","blocker":"Exact-head GREEN draft candidates exist, but canonical adoption and real external WTP/pilot/payment/outcome evidence remain unproven.","global_stop":false},
     {"factory_id":"aviation-lease-entitlement-recovery","blocker":"Exact-head GREEN draft exists on current app base, but canonical adoption/source topology and real entitlement/recovery evidence remain unproven.","global_stop":false},
     {"factory_id":"capacity-commitment","blocker":"Source identity recovered at PR #729/current head 98b277c4711fb80628d8cadcef72db68470daf99. Exact-head workflow is RED: mobile expo-doctor drift plus Python repository-test failure whose exact assertion/root cause remains unproven. T3 commercial proof also remains unproven.","global_stop":false},
