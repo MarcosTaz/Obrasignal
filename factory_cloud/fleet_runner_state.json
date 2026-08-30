@@ -7,80 +7,68 @@
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
   "cursor": 2,
-  "last_factory_id": "capacity-commitment",
-  "last_run_at": "2026-08-30T16:45:00Z",
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-08-30T16:49:00Z",
   "last_material_change": {
-    "kind": "MULTI_FACTORY_REPAIR_AND_ROOT_CAUSE_PROOF",
-    "summary": "ObraSignal privacy #845 progressed from failing-before to a first customer-surface implementation, but exact-head CI rejected the wrapper architecture because existing static/mobile truth tests require the canonical App.js implementation in-place; Expo doctor itself passed. WarrantyGuard clean-warranty RED was deterministically traced to COST_ELIGIBILITY_UNKNOWN because the document extractor did not classify plural 'costs'; extractor repair f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870 is exact-head SUCCESS in both WarrantyGuard Factory and ObraSignal Quality. Capacity Commitment mobile dependency drift was repaired and exact-head mobile is SUCCESS; Python RED is now narrowed to two concrete repository/runtime test-contract mismatches, and the runtime construction seam was repaired in ab89fe5a76cf22fa7da245bb1462838b0a1aaac4 with successor CI in progress. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "WARRANTYGUARD_GREEN_PRIVACY_ARCHITECTURE_RED_CAPACITY_ONE_RED",
+    "summary": "WarrantyGuard clean-warranty root cause was proved as COST_ELIGIBILITY_UNKNOWN from plural-cost clause extraction and repaired at f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870; focused WarrantyGuard Factory and global ObraSignal Quality are both exact-head SUCCESS. ObraSignal privacy #845 first customer-surface implementation at e44b46a4fc4bdd7f8afd735c15fa75588ff3891a is exact-head RED because moving canonical App.js behind a wrapper breaks existing static and smoke truth contracts; Expo doctor itself passes, so next repair must integrate controls in-place without moving existing App wiring or weakening tests. Capacity Commitment mobile dependency drift is repaired; ab89fe5a76cf22fa7da245bb1462838b0a1aaac4 has mobile SUCCESS and Python exactly 1 failure / 1029 passed / 2 skipped, the sole failure being a stale exception-message regex while restore itself correctly fails closed on missing schema. Industrial Claims current app branch remains apps/industrial-claims@c6de16e5a23483bb27ef33f6abf329752bde45bb with exact-head ObraSignal Quality SUCCESS. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
-      "obrasignal_privacy": {
-        "pr": 845,
-        "failing_before_head": "1f8b30061f8aca32a533c29f5f71491257d5d1da",
-        "implementation_head": "e44b46a4fc4bdd7f8afd735c15fa75588ff3891a",
-        "quality_run": 33323165182,
-        "classification": "IMPLEMENTATION_EXACT_HEAD_RED_ARCHITECTURE_REJECTED_BY_EXISTING_APP_TRUTH_TESTS",
-        "proof": "python 14 failed / 1015 passed / 2 skipped; mobile expo-doctor 21/21 passed but smoke-detail rejected wrapper because canonical App.js wiring moved out of place",
-        "next_exact_action": "Restore canonical App.js implementation in-place and integrate AccountPrivacyControls into that file without relocating existing truth-bearing wiring; then rerun exact-head Python and mobile quality."
-      },
       "warrantyguard": {
         "branch": "factory/warrantyguard-debitproof-v084",
         "diagnostic_head": "3d24bde7710790ae73c98fba091621016e46c47b",
-        "diagnostic_run": 33323230319,
-        "diagnostic_result": "COST_ELIGIBILITY_UNKNOWN; contractRules contained warrantyEligible=true but no costEligible",
-        "root_cause": "document COST keyword matcher recognized singular cost but not plural costs used by the clean clause",
+        "diagnostic_result": "UNKNOWN / COST_ELIGIBILITY_UNKNOWN; contract rules had warrantyEligible=true and no costEligible",
         "repair_head": "f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870",
         "focused_run": 33323378379,
         "quality_run": 33323378385,
-        "classification": "EXACT_HEAD_GREEN_REPAIR_DRAFT_NOT_CANONICAL",
-        "tests": "WarrantyGuard Factory SUCCESS; ObraSignal Quality SUCCESS"
+        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL"
+      },
+      "obrasignal_privacy": {
+        "pr": 845,
+        "head": "e44b46a4fc4bdd7f8afd735c15fa75588ff3891a",
+        "quality_run": 33323165182,
+        "python": "14 failed / 1015 passed / 2 skipped",
+        "mobile": "expo-doctor 21/21 PASS; smoke-detail FAIL after App.js wrapper relocation",
+        "classification": "EXACT_HEAD_RED_INTEGRATION_ARCHITECTURE",
+        "next_exact_action": "Restore canonical App.js in-place and integrate AccountPrivacyControls directly into its existing Profile/root composition; delete wrapper/AppBase indirection; rerun full exact-head quality."
       },
       "capacity_commitment": {
         "pr": 729,
-        "mobile_repair_head": "ae296b5d50bca2b7bcb027cca06a6bf3ad4fe053",
-        "quality_run": 33323257161,
-        "mobile": "SUCCESS including expo-doctor, critical detail wiring and Expo bundle",
-        "python": "2 failed / 1028 passed / 2 skipped",
-        "python_failures": [
-          "restore schema error wording test expected 'required capacity columns' while implementation emits 'restore source capacity schema schema lacks required columns'",
-          "provider runtime test expected monkeypatch seam runtime.create_app while implementation called create_completion_app directly"
-        ],
-        "runtime_seam_repair_head": "ab89fe5a76cf22fa7da245bb1462838b0a1aaac4",
-        "successor_quality_run": 33323428508,
-        "classification": "MOBILE_FIXED_PYTHON_ROOT_CAUSE_NARROWED_SUCCESSOR_CI_IN_PROGRESS",
-        "next_exact_action": "Classify successor CI; if only schema-message expectation remains RED, align the stale assertion to the fail-closed implementation wording without weakening restore validation."
+        "head": "ab89fe5a76cf22fa7da245bb1462838b0a1aaac4",
+        "quality_run": 33323428508,
+        "mobile": "SUCCESS",
+        "python": "1 failed / 1029 passed / 2 skipped",
+        "remaining_failure": "test_repository_restore_rejects_missing_required_schema_before_live_mutation expects regex 'required capacity columns'; fail-closed implementation emits 'restore source capacity schema schema lacks required columns'",
+        "classification": "MOBILE_GREEN_PYTHON_SINGLE_TEST_CONTRACT_RED",
+        "next_exact_action": "Align the stale test expectation with the explicit fail-closed restore error without weakening missing-schema rejection, then rerun exact-head quality."
+      },
+      "industrial_claims": {
+        "branch": "apps/industrial-claims",
+        "head": "c6de16e5a23483bb27ef33f6abf329752bde45bb",
+        "quality_run": 33287246832,
+        "classification": "EXACT_HEAD_GREEN_CURRENT_APP_BRANCH"
       }
     },
-    "active": "Industrial Claims: reconstruct current exact head/CI/BATON and execute the highest-value repository-safe milestone unless a higher-impact cross-factory regression becomes executable first.",
-    "next": "Industrial Claims -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity recheck -> LongLead -> remaining registry. Re-enter ObraSignal privacy #845 as soon as canonical App.js in-place integration is executable; reclassify Capacity successor CI and keep WarrantyGuard exact-head green evidence.",
+    "active": "Industrial Claims: inspect exact current branch/BATON and execute the next repository-safe customer/revenue or risk-reduction milestone beyond revision-aware queue/detail proof.",
+    "next": "Industrial Claims -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity recheck -> LongLead -> remaining registry; preempt rotation only for a deterministic higher-impact cross-factory repair such as privacy #845 in-place integration.",
     "wait": [
-      "ObraSignal #845 privacy customer surface: first implementation is exact-head RED because wrapper relocation violated existing canonical App.js static/smoke truth contracts; repair must integrate in-place, not weaken tests.",
-      "Capacity Commitment successor CI for ab89fe5a76cf22fa7da245bb1462838b0a1aaac4; one remaining known schema-message test mismatch may persist.",
-      "ScopeLedger authorized live Railway/source fingerprint and production lineage comparison.",
-      "ChangeLedger postal-address/compliance/outbound authorization gates.",
-      "EU Switching real migration/customer outcome evidence, WTP/payment and canonical adoption remain external/unproven.",
-      "Aviation canonical adoption and real entitlement/recovery/customer evidence remain unproven despite synthetic-path CI success.",
-      "LongLead, MachineRelease Safety, K3 Fatality, Paper-Laminate Works, Documentary Billing, Recoverable Money, Private Freight, Autonomous Revenue Recovery, ObraSignal Data Runner, OS Side Factory and ComplianceLedger exact source/BATON identities remain UNKNOWN.",
-      "Recovery Radar and Sourcing Recovery exact source/BATON identities.",
-      "Product Market Access exact canonical source/BATON identity and customer/WTP proof.",
-      "GTM first/repeat value, WTP/payment and retention remain external; prepared outbound remains NOT SENT.",
-      "Release Safety merge/deploy/release authorization remains external.",
-      "Support Ops real staffing/SLO/SLA/customer-restoration evidence remains external.",
-      "merge/adoption decisions"
+      "ObraSignal #845 requires in-place App.js integration; first wrapper implementation is deliberately not classified complete.",
+      "Capacity Commitment has one remaining deterministic Python test-contract RED; commercial T3 proof remains external.",
+      "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
+      "ChangeLedger compliance/postal/outbound authorization remains external.",
+      "Several registry entries retain UNKNOWN exact source identity and must be reconstructed rather than guessed.",
+      "Real customer/WTP/payment/recovery/outcome evidence remains unproven wherever not explicitly evidenced."
     ]
   },
   "blocked": [
-    {"factory_id":"scopeledger","blocker":"Recovered source identity proven; live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
-    {"factory_id":"changeledger","blocker":"Repository/BATON recovered; outbound blocked by postal-address/compliance/owner-authorization gates.","global_stop":false},
+    {"factory_id":"obrasignal","blocker":"Privacy #845 exact-head RED because wrapper relocation violates canonical App.js truth/smoke contracts; deterministic in-place integration required.","global_stop":false},
+    {"factory_id":"capacity-commitment","blocker":"Mobile exact-head SUCCESS; Python has one stale exception-message test-contract failure; T3 commercial proof external.","global_stop":false},
+    {"factory_id":"scopeledger","blocker":"Live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
+    {"factory_id":"changeledger","blocker":"Outbound gated by postal-address/compliance/owner authorization.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"product-market-access","blocker":"Exact canonical source/BATON identity and customer/WTP proof UNKNOWN.","global_stop":false},
-    {"factory_id":"eu-cloud-switching","blocker":"Exact-head CI GREEN; canonical adoption and real WTP/pilot/payment/outcome evidence unproven.","global_stop":false},
-    {"factory_id":"aviation-lease-entitlement-recovery","blocker":"Synthetic paths exact-head GREEN; canonical adoption and real entitlement/recovery evidence unproven.","global_stop":false},
-    {"factory_id":"capacity-commitment","blocker":"Mobile repaired and exact-head SUCCESS; Python narrowed to concrete test-contract mismatches, successor runtime-seam repair CI pending.","global_stop":false},
     {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"k3-fatality","blocker":"Canonical repository/source identity UNKNOWN.","global_stop":false},
-    {"factory_id":"warrantyguard","blocker":"No current technical blocker: clean-warranty lexical root cause repaired and exact-head focused/global CI SUCCESS; real buyer/WTP/recovery proof remains external.","global_stop":false},
     {"factory_id":"paper-laminate-works","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"documentary-billing","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"recoverable-money","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
@@ -88,10 +76,6 @@
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"obrasignal-customer-journey","blocker":"#821 exact-head GREEN draft; per-mutation actor audit and full endpoint role enforcement remain open.","global_stop":false},
-    {"factory_id":"obrasignal-release-safety","blocker":"#345 exact-head GREEN and clean/mergeable; merge/deploy/release authorization remains external and rollback target remains UNPROVEN.","global_stop":false},
-    {"factory_id":"obrasignal-support-ops","blocker":"Candidate contract exists; real staffing/SLO/SLA/customer incident/service restoration/customer verification evidence remains external.","global_stop":false},
-    {"factory_id":"eu-switching-evidence-pack","blocker":"#818 exact-head focused/global CI GREEN; real verified migration outcome, customer adoption and WTP remain external/unproven.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN.","global_stop":false}
   ],
   "rules": {
