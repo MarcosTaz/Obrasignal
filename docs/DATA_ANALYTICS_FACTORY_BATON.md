@@ -4,23 +4,27 @@ STATUS: ACTIVE / REPOSITORY_ONLY / NOT_CANONICAL
 
 MISSION: measure product, operational and commercial learning without converting missing evidence into zeros, rejection, success, or false precision.
 
-VERSION / HEAD BEFORE BATON: 37b52f855b88a08e796375f717f3eff2187ed4ad
+VERSION / HEAD BEFORE BATON: de1509f3bae21cdcc6763e676df45407c220849c
 BRANCH: analytics/measurement-truth-registry
+PR: #344 (OPEN / DRAFT / NOT MERGED)
 
 CURRENT TRUTH
 - Commercial funnel logic explicitly keeps missing or partial owner evidence UNKNOWN.
-- Adjacent OBSERVABLE owner counts may compute progression/dropoff rates.
-- PARTIAL/UNKNOWN evidence cannot publish a numeric count.
-- Zero denominator cannot manufacture a rate.
-- Non-monotonic owner counts are exposed as inconsistent.
-- Unknown commercial stages fail closed.
-- Exact-head ObraSignal Quality runs 32891212362 and 32890049116 are SUCCESS.
+- Adjacent OBSERVABLE owner counts may compute progression/dropoff rates; zero or missing authority cannot manufacture rates.
+- docs/DATA_ANALYTICS_CROSS_FACTORY_MEASUREMENT_v0.1.json exists and codifies missing-is-UNKNOWN, synthetic-is-not-external-proof, owner/timestamp authority and negative cases.
+- Exact-head ObraSignal Quality for de1509f3bae21cdcc6763e676df45407c220849c is SUCCESS (run 33317537026).
+- Real replies, WTP, payment, retention, decision quality and outcome quality remain unproven unless supplied by their owning evidence source.
+
+DONE
+- Added cross-factory synthetic measurement handoff covering owner evidence, freshness, non-monotonic counts, unknown outcomes and synthetic-only evidence.
+- Repaired mobile Expo/RN dependency drift on this branch.
+- Verified exact-head Quality SUCCESS at the current source head before this metadata-only BATON refresh.
 
 ACTIVE
-Create a cross-factory measurement handoff that can consume GTM and Customer Decision evidence without inferring replies, interest, payment, retention, decision quality or outcome quality from absence of records.
+Reconcile Analytics measurement contracts against current GTM and Customer Decision evidence ownership so cross-factory metrics cannot silently promote stale or noncanonical evidence.
 
 NEXT
-Add a synthetic measurement contract for evidence ownership, observation timestamp, quality, numerator/denominator authority and canonical status. Include negative cases for missing owner evidence, stale observation, non-monotonic counts, unknown outcome and synthetic-only evidence.
+Inspect the current GTM and Customer Decision evidence contracts and add only owner-backed measurement mappings that preserve UNKNOWN for missing external outcomes.
 
 WAIT
 - Real GTM replies/WTP/payment/retention evidence.
@@ -28,16 +32,17 @@ WAIT
 - Canonical adoption / merge decision.
 
 BLOCKERS
-None for repository-safe synthetic measurement work.
+None for repository-safe synthetic measurement reconciliation.
 
 EVIDENCE
-- analytics/measurement-truth-registry@37b52f855b88a08e796375f717f3eff2187ed4ad.
-- ObraSignal Quality 32891212362 SUCCESS.
-- ObraSignal Quality 32890049116 SUCCESS.
+- analytics/measurement-truth-registry@de1509f3bae21cdcc6763e676df45407c220849c before this BATON-only refresh.
+- ObraSignal Quality run 33317537026: SUCCESS at that exact head.
+- docs/DATA_ANALYTICS_CROSS_FACTORY_MEASUREMENT_v0.1.json on branch.
 
 ASSUMPTIONS
 - Missing evidence remains UNKNOWN.
 - Synthetic fixtures never become external or customer proof.
+- A metadata-only BATON update does not itself prove CI GREEN for the successor commit.
 
 EXACT NEXT EXECUTABLE ACTION
-Add docs/DATA_ANALYTICS_CROSS_FACTORY_MEASUREMENT_v0.1.json and keep all absent external outcomes UNKNOWN; then classify the exact new HEAD from CI if CI exists.
+Open GTM and Customer Decision owner evidence artifacts, map only evidence-backed observable fields into the Analytics contract, keep absent outcomes UNKNOWN, validate the updated JSON/Python tests, and classify the resulting exact-head CI.
