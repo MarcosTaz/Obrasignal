@@ -1,5 +1,5 @@
 {
-  "schema_version": 12,
+  "schema_version": 13,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
@@ -18,7 +18,10 @@
     "raw_document_content_persisted_by_service": false,
     "individual_document_content_limit_bytes": 1000000,
     "recovered_or_closed_outcome_requires_document_content": true,
-    "outcome_document_and_state_persist_atomically": true
+    "outcome_document_and_state_persist_atomically": true,
+    "case_evidence_internal_ids_derived_from_recovery_fingerprint": true,
+    "human_evidence_references_preserved_as_source_refs": true,
+    "human_evidence_references_may_repeat_across_distinct_contracts": true
   },
   "pre_review_entitlement_policy": {
     "documentary_complete_confidence": "PARTIAL",
@@ -85,14 +88,20 @@
     "amount_significant_digits_max": 50,
     "amount_integer_digits_max": 36,
     "amount_decimal_places_max": 18,
-    "amount_absolute_exponent_max": 36
+    "amount_absolute_exponent_max": 36,
+    "identifier_c0_and_del_controls_forbidden": true,
+    "missing_evidence_control_characters_forbidden": true,
+    "review_reason_multiline_tab_lf_cr_allowed": true,
+    "review_reason_other_control_characters_forbidden": true
   },
   "identity_collision_policy": {
     "tenant_matches_provider_account_contract": true,
     "contract_reference_is_structured_not_delimiter_concatenated": true,
     "shared_store_outcome_id_is_tenant_scoped": true,
     "case_internal_ids_derived_from_recovery_fingerprint": true,
+    "case_evidence_internal_ids_derived_from_recovery_fingerprint": true,
     "same_event_and_family_can_coexist_across_distinct_contracts": true,
+    "same_human_evidence_refs_can_coexist_across_distinct_contracts": true,
     "human_source_references_preserved_in_dossier": true
   },
   "dossier_lineage": {
@@ -154,6 +163,9 @@
     "installment_outcome_misuse",
     "corrupt_dossier_before_transition",
     "partial_replay_validation_persistence",
+    "identifier_control_characters",
+    "case_metadata_control_characters",
+    "missing_evidence_control_characters",
     "missing_claim_currency",
     "invalid_claim_currency",
     "recovery_currency_mismatch",
@@ -162,6 +174,7 @@
     "cross_tenant_outcome_id_collision",
     "ambiguous_contract_reference",
     "case_id_collision_across_distinct_contracts",
+    "evidence_id_collision_across_distinct_contracts",
     "oversized_tenant_identifier",
     "oversized_case_or_outcome_reference",
     "oversized_finding_identifier",
@@ -215,8 +228,10 @@
     "deadline_timing_risk_green",
     "currency_lineage_green",
     "numeric_capacity_green",
+    "identifier_control_character_green",
     "identity_collision_resistance_green",
     "fingerprint_case_identity_green",
+    "case_scoped_evidence_identity_green",
     "outcome_evidence_lineage_green",
     "final_cumulative_outcome_gate_green",
     "dossier_lineage_green",
