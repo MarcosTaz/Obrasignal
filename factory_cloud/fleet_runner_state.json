@@ -6,37 +6,39 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 0,
-  "last_factory_id": "complianceledger",
-  "last_run_at": "2026-08-30T22:41:20Z",
+  "cursor": 3,
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-08-30T23:40:04Z",
   "last_material_change": {
-    "kind": "COMPLIANCELEDGER_AUTHORITY_STILL_UNKNOWN_CAUSLEDGER_V16_GREEN_RECONSTRUCTED",
-    "summary": "ComplianceLedger exact-name PR search, code search and compliance-prefixed branch-ref search returned no canonical authority, so identity remains UNKNOWN and rotation continued. CausLedger/Industrial Claims current branch truth was reconstructed: apps/industrial-claims is at state commit 1d821b9cd271a561c3fbffc199beb0b1d4a012a6, which repins Factory Cloud recovery runtime provisioning to application source 5b11e3ff00aa22688a4b3e2c8c77e3b509537e02. That source locks pilot schema v16 around the frozen business-first NRE/customer-directed engineering-change recovery wedge, assisted audit-grade dossier delivery, NO_CLAIM_OR_NEEDS_REVIEW fail-closed disposition, and production_authority=false. Exact source 5b11e3ff has python and mobile checks SUCCESS in workflow run 33334861936. Gmail inbound watch found no new material prospect, CEFAMOL, AFIA or DGC reply; Portugal and Spain outbound holds remain active.",
+    "kind": "CAUSLEDGER_PRIVATE_SECURE_INTAKE_READY",
+    "summary": "CausLedger private commercial operating truth was advanced without public customer data or outbound. Gmail watch found no new material prospect, CEFAMOL, AFIA or DGC inbound. The private Drive operating log now contains a bounded secure-intake envelope, rapid-scan acceptance gate, audit-grade dossier truth gate, commercial handoff/cost-to-serve measurement rule, and corrected DGC route. Real confidential documents remain prohibited over ordinary email and public GitHub. Portugal and Spain outbound holds remain active. Rotation continues to ScopeLedger.",
     "evidence": {
-      "complianceledger": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY",
-        "exact_name_pr_search": 0,
-        "code_search": 0,
-        "compliance_branch_refs": 0
-      },
       "industrial_claims": {
         "branch": "apps/industrial-claims",
         "branch_head": "1d821b9cd271a561c3fbffc199beb0b1d4a012a6",
-        "branch_head_role": "FACTORY_CLOUD_RUNTIME_PROVISIONING_STATE",
         "runtime_pinned_source": "5b11e3ff00aa22688a4b3e2c8c77e3b509537e02",
-        "source_change": "test(industrial-claims): lock business-first pilot contract",
         "pilot_schema_version": 16,
         "wedge": "supplier-side customer-caused engineering/change cost recovery (NRE / change-driven incremental cost)",
         "initial_paid_product": "AUDIT_GRADE_RECOVERY_DOSSIER",
         "insufficient_evidence_disposition": "NO_CLAIM_OR_NEEDS_REVIEW",
         "production_authority": false,
         "quality_run": 33334861936,
-        "python": "SUCCESS",
-        "mobile": "SUCCESS",
         "classification": "PINNED_SOURCE_EXACT_HEAD_GREEN_ASSISTED_BUSINESS_FIRST_COMMERCIAL_SUCCESS_UNPROVEN"
+      },
+      "causledger_private_ops": {
+        "drive_document_id": "1UuK5mTHFNHV9WotGRBK-O1grUgt2RerAh_PP-JM_rhs",
+        "revision_id": "AIroW36SU1oy8S6BjiyFL89d9ASLHo06r-etj-UdyobJvu2JG_BefZi495aNhTNnut1WLEFfolzPJjsTBzB-yf4k01WJlc93AQ6o6XB_RmU",
+        "secure_intake": "READY_FOR_INBOUND_DISCOVERY_AND_BOUNDED_SECURE_SAMPLE_AFTER_CHANNEL_AGREEMENT",
+        "rapid_scan_outcomes": ["DOCUMENTED_CANDIDATE", "NO_CLAIM", "NEEDS_REVIEW"],
+        "human_review_required_before_external_use": true,
+        "ordinary_email_confidential_document_intake": false,
+        "public_github_customer_document_storage": false
       },
       "causledger_inbound": {
         "new_material_replies": 0,
+        "latest_watch_date": "2026-08-31",
+        "dgc_current_route": "dgc@dgconsumidor.gov.pt",
+        "latest_verified_dgc_send_message_id": "1a0549bca2cf54b6",
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
@@ -45,6 +47,16 @@
         "head": "e44b46a4fc4bdd7f8afd735c15fa75588ff3891a",
         "classification": "EXACT_HEAD_RED_INTEGRATION_ARCHITECTURE",
         "next_exact_action": "Restore canonical mobile/App.js in-place and integrate AccountPrivacyControls directly into existing Profile/root composition; remove AppBase wrapper indirection; rerun exact-head quality."
+      },
+      "scopeledger": {
+        "branch": "recovery/scopeledger-source-20260829",
+        "head": "79450c800397c7cce873d6efbd6f7401df142625",
+        "recovery_gate_run": 33262936383,
+        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"
+      },
+      "changeledger": {
+        "canonical_snapshot_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
+        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT"
       },
       "eu_cloud_switching": {
         "head": "020efc82e0b2a6509548fa7ef38f1593ca457afa",
@@ -61,32 +73,23 @@
         "focused_run": 33323378379,
         "quality_run": 33323378385,
         "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL"
-      },
-      "scopeledger": {
-        "branch": "recovery/scopeledger-source-20260829",
-        "head": "79450c800397c7cce873d6efbd6f7401df142625",
-        "recovery_gate_run": 33262936383,
-        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"
-      },
-      "changeledger": {
-        "canonical_snapshot_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
-        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT"
       }
     },
-    "active": "Factory Cloud: verify control-plane truth and then rotate to ObraSignal; preempt for CausLedger only on material inbound/compliance change or highest-value business-first delivery work.",
-    "next": "Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger; recheck Gmail/DGC and privacy #845 when deterministic.",
+    "active": "ScopeLedger: revalidate exact recovered source and only advance work independent of unproved live Railway lineage.",
+    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
-      "No new material prospect/CEFAMOL/AFIA/DGC reply observed this run.",
+      "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
       "CausLedger pilot source is technically GREEN but real customer revenue, real incremental recovery, WTP and external outcome remain UNPROVEN.",
+      "Real confidential customer documents require an agreed authorized secure transfer path before intake.",
       "Privacy #845 requires in-place canonical App.js integration; wrapper/AppBase architecture remains RED.",
       "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
-      "ComplianceLedger and other registry entries previously marked UNKNOWN retain UNKNOWN exact source identity until canonical authority is recovered."
+      "ComplianceLedger and registry entries previously marked UNKNOWN retain UNKNOWN exact source identity until canonical authority is recovered."
     ]
   },
   "blocked": [
-    {"factory_id":"industrial-claims","blocker":"Portugal outbound held pending current DGC corporate opt-out list/procedure and recipient checks; Spain unsolicited commercial outbound held absent consent/exception. Inbound/referral/association and assisted-delivery preparation remain executable.","global_stop":false},
+    {"factory_id":"industrial-claims","blocker":"Portugal outbound held pending current DGC corporate opt-out list/procedure and recipient checks; Spain unsolicited commercial outbound held absent consent/exception. Inbound/referral/association, secure-intake preparation and assisted delivery remain executable.","global_stop":false},
     {"factory_id":"obrasignal","blocker":"Privacy #845 exact-head RED because wrapper relocation violates canonical App.js truth/smoke contracts; deterministic in-place integration required.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Outbound gated by DGC/current-list clarification, applicable recipient checks and any separately required authorization.","global_stop":false},
