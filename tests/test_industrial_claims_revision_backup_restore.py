@@ -70,11 +70,15 @@ def test_backup_restore_preserves_revision_supersession_and_current_pointer(tmp_
         "number": 1,
         "is_current": False,
         "supersedes_finding_id": None,
+        "superseded_by_finding_id": second.finding.finding_id,
+        "current_finding_id": second.finding.finding_id,
     }
     assert current_detail["revision"] == {
         "number": 2,
         "is_current": True,
         "supersedes_finding_id": first.finding.finding_id,
+        "superseded_by_finding_id": None,
+        "current_finding_id": second.finding.finding_id,
     }
     assert current_detail["raw_document_content_included"] is False
 
