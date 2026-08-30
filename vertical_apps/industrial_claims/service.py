@@ -123,24 +123,26 @@ class IndustrialClaimsService:
 
     @classmethod
     def _bounded_text(cls, value: object, *, label: str, max_chars: int, allow_multiline: bool = False) -> str:
-        text = str(value or "").strip()
+        raw = str(value or "")
+        if cls._has_forbidden_controls(raw, allow_multiline=allow_multiline):
+            raise AssuranceKernelError(f"{label} contains forbidden control characters")
+        text = raw.strip()
         if not text:
             raise AssuranceKernelError(f"{label} is required")
         if len(text) > max_chars:
             raise AssuranceKernelError(f"{label} exceeds {max_chars} characters")
-        if cls._has_forbidden_controls(text, allow_multiline=allow_multiline):
-            raise AssuranceKernelError(f"{label} contains forbidden control characters")
         return text
 
     @classmethod
     def _bounded_operation_text(cls, value: object, *, label: str, max_chars: int, allow_multiline: bool = False) -> str:
-        text = str(value or "").strip()
+        raw = str(value or "")
+        if cls._has_forbidden_controls(raw, allow_multiline=allow_multiline):
+            raise AssuranceOperationError(f"{label} contains forbidden control characters")
+        text = raw.strip()
         if not text:
             raise AssuranceOperationError(f"{label} is required")
         if len(text) > max_chars:
             raise AssuranceOperationError(f"{label} exceeds {max_chars} characters")
-        if cls._has_forbidden_controls(text, allow_multiline=allow_multiline):
-            raise AssuranceOperationError(f"{label} contains forbidden control characters")
         return text
 
     @classmethod
@@ -152,13 +154,14 @@ class IndustrialClaimsService:
             raise AssuranceKernelError(f"missing_evidence exceeds {MAX_MISSING_EVIDENCE_ITEMS} items")
         normalized: set[str] = set()
         for item in items:
-            text = str(item).strip()
+            raw = str(item)
+            if cls._has_forbidden_controls(raw):
+                raise AssuranceKernelError("missing evidence key contains forbidden control characters")
+            text = raw.strip()
             if not text:
                 continue
             if len(text) > MAX_MISSING_EVIDENCE_CHARS:
                 raise AssuranceKernelError(f"missing evidence key exceeds {MAX_MISSING_EVIDENCE_CHARS} characters")
-            if cls._has_forbidden_controls(text):
-                raise AssuranceKernelError("missing evidence key contains forbidden control characters")
             normalized.add(text)
         return normalized
 
