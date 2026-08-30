@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "classification": "SYNTHETIC_REPOSITORY_ONLY_NOT_CANONICAL",
+  "invariants": {
+    "missing_is_unknown": true,
+    "synthetic_is_not_external_proof": true,
+    "owner_required_for_observable_count": true,
+    "observation_time_required_for_freshness_claim": true,
+    "rate_requires_authoritative_adjacent_counts": true,
+    "absence_is_not_rejection": true,
+    "absence_is_not_zero": true,
+    "audit_event_is_not_customer_outcome": true
+  },
+  "cases": [
+    {
+      "id": "missing_reply_owner_evidence",
+      "input": {"outreach": {"quality": "OBSERVABLE", "count": 4, "source_owner": "GTM"}, "reply": null},
+      "expected": {"reply_quality": "UNKNOWN", "reply_count": null, "reply_rate": null}
+    },
+    {
+      "id": "stale_observation_cannot_claim_current",
+      "input": {"quality": "OBSERVABLE", "count": 2, "observed_at_authority": "STALE"},
+      "expected": {"currentness": "UNKNOWN", "current_rate_publishable": false}
+    },
+    {
+      "id": "non_monotonic_counts",
+      "input": {"outreach_count": 3, "reply_count": 4, "same_owner": true},
+      "expected": {"progression_rate": null, "classification": "INCONSISTENT"}
+    },
+    {
+      "id": "unknown_customer_outcome",
+      "input": {"decision_record_exists": true, "outcome_evidence": null},
+      "expected": {"outcome": "UNKNOWN", "decision_quality": "UNKNOWN"}
+    },
+    {
+      "id": "synthetic_decision_fixture",
+      "input": {"evidence_class": "SYNTHETIC", "decision_case_passed": true},
+      "expected": {"external_customer_proof": "UNKNOWN", "market_validation": "UNKNOWN"}
+    },
+    {
+      "id": "audit_without_review",
+      "input": {"audit_event_exists": true, "customer_review_event": null},
+      "expected": {"customer_review": "UNKNOWN", "review_rate": null}
+    }
+  ]
+}
