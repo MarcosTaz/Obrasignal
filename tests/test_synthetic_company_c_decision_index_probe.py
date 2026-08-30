@@ -3,7 +3,8 @@ import sqlite3
 from decision_log import ensure_decision_table
 
 
-INDEX_NAME = 'idx_opportunity_decisions_account_source_external_id'
+EXACT_INDEX = 'idx_opportunity_decisions_account_source_external_id'
+PAGE_INDEX = 'idx_opportunity_decisions_account_external_source_id'
 
 
 def test_company_c_latest_decision_query_has_tenant_scoped_covering_index():
@@ -12,7 +13,8 @@ def test_company_c_latest_decision_query_has_tenant_scoped_covering_index():
     ensure_decision_table(conn)
 
     indexes = {row['name'] for row in conn.execute("PRAGMA index_list('opportunity_decisions')").fetchall()}
-    assert INDEX_NAME in indexes
+    assert EXACT_INDEX in indexes
+    assert PAGE_INDEX in indexes
 
     rows = []
     for account in ('tenant-a', 'tenant-b'):
@@ -37,5 +39,6 @@ def test_company_c_latest_decision_query_has_tenant_scoped_covering_index():
         ('tenant-a', 'C-00010', 'C-00500', 'C-00999'),
     ).fetchall()
     detail = ' | '.join(str(row['detail']) for row in plan)
-    assert INDEX_NAME in detail
+    assert 'USING COVERING INDEX' in detail
     assert 'SCAN opportunity_decisions' not in detail
+    assert 'account_id=?' in detail

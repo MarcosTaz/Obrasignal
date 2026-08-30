@@ -18,6 +18,7 @@ SCHEMA = '''CREATE TABLE IF NOT EXISTS opportunity_decisions (
 )'''
 
 DECISION_LOOKUP_INDEX = 'idx_opportunity_decisions_account_source_external_id'
+DECISION_PAGE_LOOKUP_INDEX = 'idx_opportunity_decisions_account_external_source_id'
 RULE_VERSION = 'commercial-v1'
 _NO_PERSISTED_PROFILE = 'profile:none'
 _NO_CANONICAL_OPPORTUNITY = 'opportunity:none'
@@ -62,12 +63,17 @@ def _ensure_opportunity_fingerprint_column(conn):
 
 
 def _ensure_decision_lookup_index(conn):
-    # Latest-decision reads are tenant first, then opportunity identity, ordered
-    # by monotonically increasing decision id. This index is additive and safe
-    # for historical databases because all referenced columns are ensured first.
+    # Exact source+external-id currentness lookups and funnel scans.
     conn.execute(
         f'''CREATE INDEX IF NOT EXISTS {DECISION_LOOKUP_INDEX}
             ON opportunity_decisions(account_id, source, external_id, id DESC)'''
+    )
+    # Opportunity-page lookup receives a bounded list of external ids before
+    # source identity is joined back. Keep external_id adjacent to account_id
+    # so a large tenant does not need its whole decision history scanned.
+    conn.execute(
+        f'''CREATE INDEX IF NOT EXISTS {DECISION_PAGE_LOOKUP_INDEX}
+            ON opportunity_decisions(account_id, external_id, source, id DESC)'''
     )
 
 
