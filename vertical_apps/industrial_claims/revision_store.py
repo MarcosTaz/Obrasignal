@@ -54,6 +54,7 @@ class IndustrialClaimsRevisionStore:
                     WHERE is_current=1;
                 """
             )
+            self._backfill_existing_cases(conn)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)
@@ -111,6 +112,40 @@ class IndustrialClaimsRevisionStore:
             supersedes_finding_id=str(row["supersedes_finding_id"]) if row["supersedes_finding_id"] is not None else None,
             is_current=bool(row["is_current"]),
         )
+
+    def _backfill_existing_cases(self, conn: sqlite3.Connection) -> None:
+        table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='industrial_claim_cases'"
+        ).fetchone()
+        if table is None:
+            return
+        rows = conn.execute(
+            """SELECT finding_id,tenant_id,recovery_fingerprint
+               FROM industrial_claim_cases
+               ORDER BY tenant_id,recovery_fingerprint,finding_id"""
+        ).fetchall()
+        grouped: dict[tuple[str, str], list[sqlite3.Row]] = {}
+        for row in rows:
+            key = (str(row["tenant_id"]), str(row["recovery_fingerprint"]))
+            grouped.setdefault(key, []).append(row)
+        for (tenant, fingerprint), cases in grouped.items():
+            existing = conn.execute(
+                "SELECT COUNT(*) AS n FROM industrial_claim_revisions WHERE tenant_id=? AND recovery_fingerprint=?",
+                (tenant, fingerprint),
+            ).fetchone()
+            if int(existing["n"]) > 0:
+                continue
+            if len(cases) != 1:
+                raise AssuranceStoreError("ambiguous pre-revision industrial case lineage")
+            initial = IndustrialCaseRevision(
+                finding_id=str(cases[0]["finding_id"]),
+                tenant_id=tenant,
+                recovery_fingerprint=fingerprint,
+                revision=1,
+                supersedes_finding_id=None,
+                is_current=True,
+            )
+            self._register_initial(conn, self._validated(initial))
 
     def register_initial(self, item: IndustrialCaseRevision, *, connection: sqlite3.Connection | None = None) -> IndustrialCaseRevision:
         valid = self._validated(item)
