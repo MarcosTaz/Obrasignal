@@ -180,3 +180,108 @@ def build_assisted_dossier(
         "recoverability_established": False,
         "raw_document_content_included": False,
     }
+
+
+def _md(value: object) -> str:
+    return str(value if value is not None else "UNKNOWN").replace("|", "\\|").replace("\r", " ").replace("\n", " ").strip()
+
+
+def render_dossier_markdown(dossier: dict[str, Any]) -> str:
+    """Render a customer-reviewable Markdown dossier without embedding raw evidence."""
+    if dossier.get("deliverable") != "CAUSLEDGER_ASSISTED_RECOVERY_DOSSIER":
+        raise ValueError("unsupported dossier deliverable")
+    if dossier.get("raw_document_content_included") is not False:
+        raise ValueError("dossier rendering refuses raw document content")
+
+    case = dossier["case"]
+    sheet = dossier["executive_case_sheet"]
+    causation = dossier["causation"]
+    responsibility = dossier["customer_responsibility"]
+    prior = dossier["prior_recovery_check"]
+    notice = dossier["notice_deadline"]
+    calc = dossier["cost_reconstruction"]
+    gaps = dossier["evidence_gaps"]
+
+    evidence_rows = [
+        f"| {_md(item.get('source_type'))} | {_md(item.get('source_ref'))} | `{_md(item.get('content_hash'))}` | {_md(item.get('verification_state'))} |"
+        for item in dossier["documentary_index"]
+    ]
+    gap_lines = [f"- {_md(item)}" for item in gaps] or ["- None recorded in the durable case metadata."]
+    outcome_lines = [
+        f"- {_md(item.get('state'))}: {_md(item.get('recovered_amount'))} {_md(item.get('currency'))} — evidence ref {_md(item.get('evidence', {}).get('source_ref'))}"
+        for item in dossier.get("outcomes", [])
+    ] or ["- No documented final outcome recorded."]
+
+    return "\n".join([
+        "# CausLedger — Assisted Recovery Dossier",
+        "",
+        "> Evidence-first commercial review. Candidate value is not automatically money owed and this dossier is not a legal conclusion.",
+        "",
+        "## Executive case sheet",
+        f"- Finding: `{_md(case.get('finding_id'))}`",
+        f"- Revision: {_md(case.get('revision', {}).get('number'))} (current: {_md(case.get('revision', {}).get('is_current'))})",
+        f"- Customer / program / event: {_md(case.get('customer_ref'))} / {_md(case.get('program_ref'))} / {_md(case.get('event_ref'))}",
+        f"- Claim family: {_md(case.get('claim_family'))}",
+        f"- Workflow state: {_md(case.get('workflow_state'))}",
+        f"- Net potential: {_md(sheet.get('net_potential'))} {_md(sheet.get('currency'))}",
+        f"- Confidence: {_md(sheet.get('confidence'))}",
+        f"- Disposition: **{_md(sheet.get('disposition'))}**",
+        f"- Notice timing: {_md(sheet.get('notice_timing_state'))}",
+        f"- Next action: {_md(sheet.get('next_action'))}",
+        "",
+        "## Documentary index",
+        "| Type | Source reference | Content hash | Provenance state |",
+        "| --- | --- | --- | --- |",
+        *evidence_rows,
+        "",
+        "## Contract / PO / change truth",
+        _md(dossier["contract_po_change_truth"]),
+        "",
+        "## Event chronology",
+        _md(dossier["event_chronology"]),
+        "",
+        "## Causation assessment",
+        f"**State:** {_md(causation.get('state'))}",
+        "",
+        _md(causation.get("summary")),
+        "",
+        "## Customer responsibility assessment",
+        f"**State:** {_md(responsibility.get('state'))}",
+        "",
+        _md(responsibility.get("summary")),
+        "",
+        "**Legal conclusion:** none asserted by this dossier.",
+        "",
+        "## Cost reconstruction",
+        f"- Formula: {_md(calc.get('formula_id'))} v{_md(calc.get('formula_version'))}",
+        f"- Net potential: {_md(calc.get('net_potential'))} {_md(calc.get('currency'))}",
+        f"- Reproducibility hash: `{_md(calc.get('reproducibility_hash'))}`",
+        "",
+        "## Prior recovery check",
+        f"**State:** {_md(prior.get('state'))}",
+        "",
+        _md(prior.get("summary")),
+        "",
+        "## Notice / deadline",
+        f"- Truth state: {_md(notice.get('truth_state'))}",
+        f"- Due date: {_md(notice.get('due_date'))}",
+        f"- Timing state: {_md(notice.get('timing_state'))}",
+        f"- Expiry establishes non-recoverability: {_md(notice.get('expired_establishes_nonrecoverability'))}",
+        "",
+        "## Evidence gaps / attack list",
+        *gap_lines,
+        "",
+        "## Documented outcome",
+        *outcome_lines,
+        "",
+        "## Release controls",
+        f"- Reviewer: {_md(dossier.get('review', {}).get('reviewer'))}",
+        f"- Customer action authorized: {_md(dossier.get('customer_action_authorized'))}",
+        f"- External claim submission authorized: {_md(dossier.get('external_claim_submission_authorized'))}",
+        f"- Recoverability established by software: {_md(dossier.get('recoverability_established'))}",
+        f"- Raw document content included: {_md(dossier.get('raw_document_content_included'))}",
+        "",
+        "## Next action",
+        _md(dossier["next_action"]),
+        "",
+    ])
