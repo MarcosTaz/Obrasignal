@@ -125,6 +125,48 @@ def test_case_store_rejects_tenant_outside_verified_provider_contract(tmp_path):
     assert service.case_store.count("alpha") == 1
 
 
+def test_case_store_rejects_control_characters_in_direct_metadata_writes_and_reads(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "case-metadata-controls.sqlite3")
+    result = service.analyze(**_payload())
+    persisted = service.case_store.get(tenant_id="alpha", finding_id=result.finding.finding_id)
+
+    bad_ref = IndustrialCaseMetadata(
+        finding_id=persisted.finding_id,
+        tenant_id=persisted.tenant_id,
+        claim_family=persisted.claim_family,
+        customer_ref="oem\x00hidden",
+        program_ref=persisted.program_ref,
+        event_ref=persisted.event_ref,
+        entitlement_id=persisted.entitlement_id,
+        deadline_id=persisted.deadline_id,
+        recovery_fingerprint=persisted.recovery_fingerprint,
+        notice_deadline_state=persisted.notice_deadline_state,
+        missing_evidence=persisted.missing_evidence,
+    )
+    with pytest.raises(AssuranceStoreError, match="customer_ref is invalid"):
+        service.case_store.put(bad_ref)
+
+    bad_missing = IndustrialCaseMetadata(
+        finding_id="alpha:another-finding",
+        tenant_id=persisted.tenant_id,
+        claim_family=persisted.claim_family,
+        customer_ref=persisted.customer_ref,
+        program_ref=persisted.program_ref,
+        event_ref=persisted.event_ref,
+        entitlement_id=persisted.entitlement_id,
+        deadline_id=persisted.deadline_id,
+        recovery_fingerprint=persisted.recovery_fingerprint,
+        notice_deadline_state=persisted.notice_deadline_state,
+        missing_evidence=("ownership\x1bhidden",),
+    )
+    with pytest.raises(AssuranceStoreError, match="missing-evidence lineage is invalid"):
+        service.case_store.put(bad_missing)
+
+    with pytest.raises(AssuranceStoreError, match="finding_id is invalid"):
+        service.case_store.get(tenant_id="alpha", finding_id=result.finding.finding_id + "\n")
+    assert service.case_store.count("alpha") == 1
+
+
 def test_case_store_still_rejects_same_internal_id_with_different_metadata(tmp_path):
     service = IndustrialClaimsService(tmp_path / "case-metadata-immutable.sqlite3")
     result = service.analyze(**_payload())
