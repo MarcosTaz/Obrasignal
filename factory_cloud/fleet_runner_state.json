@@ -5,21 +5,23 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 31,
-  "last_factory_id": "obrasignal-support-ops",
-  "last_run_at": "2026-08-30T15:37:35Z",
+  "cursor": 0,
+  "last_factory_id": "complianceledger",
+  "last_run_at": "2026-08-30T15:41:00Z",
   "last_material_change": {
-    "kind": "SHARED_MOBILE_REPAIRS_EXACT_HEAD_GREEN_RELEASE_MERGEABILITY_RESOLVED",
-    "factory_id": "obrasignal-support-ops",
-    "summary": "Product Strategy #521 repair head 6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8 is now exact-head ObraSignal Quality SUCCESS (run 33317486925). Data Analytics #344 repair head de1509f3bae21cdcc6763e676df45407c220849c is now exact-head ObraSignal Quality SUCCESS (run 33317537026; shared branch also serves integration-lab PR #367). Release Safety #345 metadata inconsistency is resolved: current GitHub PR metadata reports mergeable=true, rebaseable=true, mergeable_state=clean, while direct compare against canonical main 66d43f6fd51cf9cea08016dad335aaa04b711a24 reports status=ahead, ahead_by=10, behind_by=0 and merge-base equal to main. Candidate remains OPEN/NOT MERGED and mergeability/CI are not release authorization. Support Ops #355 remains OPEN at exact head 3aacd6cf08bca752e3023bdef61855f99fb07771 with its existing evidence-gated support contract; no real staffing/SLO/SLA/customer incident recovery is inferred. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "FLEET_TAIL_REVALIDATED_AND_CURSOR_WRAPPED",
+    "factory_id": "complianceledger",
+    "summary": "Product Strategy #521 repair head 6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8 and Data Analytics #344 repair head de1509f3bae21cdcc6763e676df45407c220849c are now exact-head ObraSignal Quality SUCCESS. Release Safety #345 metadata inconsistency is resolved: current PR metadata reports mergeable=true/rebaseable=true/mergeable_state=clean and direct compare to canonical main reports ahead_by=10, behind_by=0 with merge-base equal to main; candidate remains NOT MERGED and release authorization is still external. Support Ops #355 remains an OPEN evidence-gated candidate with no real staffing/SLO/SLA/customer-recovery claim. EU Switching Evidence Pack #818 remains exact head f9ffcf82f2eebbfdeb400de76f562cb185ec5adf with both Cloud Switching Quality 33271664101 and ObraSignal Quality 33271664096 SUCCESS; this proves the bounded RN compatibility repair only, not real migration outcome/WTP/adoption. ComplianceLedger exact PR search returned zero results, so identity remains UNKNOWN rather than guessed. Fleet tail rotation completed and cursor wrapped to Factory Cloud. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
       "obrasignal_product_strategy": {"pr":521,"head":"6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8","workflow_run":33317486925,"classification":"EXACT_HEAD_QUALITY_SUCCESS_DRAFT_NOT_CANONICAL"},
       "obrasignal_data_analytics": {"pr":344,"head":"de1509f3bae21cdcc6763e676df45407c220849c","workflow_run":33317537026,"classification":"EXACT_HEAD_QUALITY_SUCCESS_DRAFT_NOT_CANONICAL"},
       "obrasignal_release_safety": {"pr":345,"head":"672e535f0b04f27d967ae3c174bd871fc0a56893","base":"66d43f6fd51cf9cea08016dad335aaa04b711a24","mergeable":true,"rebaseable":true,"mergeable_state":"clean","compare_status":"ahead","ahead_by":10,"behind_by":0,"classification":"EXACT_HEAD_GREEN_MERGEABLE_NOT_AUTHORIZED_NOT_MERGED"},
-      "obrasignal_support_ops": {"pr":355,"head":"3aacd6cf08bca752e3023bdef61855f99fb07771","classification":"OPEN_CANDIDATE_REAL_SERVICE_PROOF_EXTERNAL"}
+      "obrasignal_support_ops": {"pr":355,"head":"3aacd6cf08bca752e3023bdef61855f99fb07771","classification":"OPEN_CANDIDATE_REAL_SERVICE_PROOF_EXTERNAL"},
+      "eu_switching_evidence_pack": {"pr":818,"head":"f9ffcf82f2eebbfdeb400de76f562cb185ec5adf","cloud_switching_quality_run":33271664101,"quality_run":33271664096,"classification":"EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_REAL_OUTCOME_UNPROVEN"},
+      "complianceledger": {"exact_pr_search_results":0,"classification":"UNKNOWN_SOURCE_IDENTITY"}
     },
-    "active": "EU Switching Evidence Pack / Verified Migration Outcomes: revalidate current exact head and advance only repository/research-safe evidence toward real migration outcome proof without fabricating adoption or WTP.",
-    "next": "EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims -> ScopeLedger -> ChangeLedger -> remaining registry rotation; revisit WarrantyGuard semantic RED with deterministic unresolvedReason evidence before any repair.",
+    "active": "Factory Cloud / Control Tower: re-read current registry/state exact head, verify no registry drift, then rank the highest-value safe next action across all 33 registered Factories.",
+    "next": "Factory Cloud -> ObraSignal -> Industrial Claims -> ScopeLedger -> ChangeLedger -> remaining registry rotation; prioritize WarrantyGuard deterministic unresolvedReason evidence and ObraSignal #845 privacy customer-surface passing-after when safe and repository-derived.",
     "wait": [
       "WarrantyGuard focused workflow remains RED: document_redteam clean-warranty expected SUPPORTED but got UNKNOWN; determine exact unresolvedReason before repair",
       "EU Switching real migration/customer outcome evidence, WTP/payment and canonical adoption remain external/unproven",
@@ -59,9 +61,10 @@
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"obrasignal-customer-journey","blocker":"#821 exact-head GREEN draft; per-mutation actor audit and full endpoint role enforcement remain open.","global_stop":false},
-    {"factory_id":"obrasignal-release-safety","blocker":"#345 is exact-head GREEN and currently clean/mergeable; merge/deploy/release authorization remains external and rollback target remains UNPROVEN.","global_stop":false},
+    {"factory_id":"obrasignal-release-safety","blocker":"#345 exact-head GREEN and currently clean/mergeable; merge/deploy/release authorization remains external and rollback target remains UNPROVEN.","global_stop":false},
     {"factory_id":"obrasignal-support-ops","blocker":"Candidate contract exists; real staffing/SLO/SLA/customer incident/service restoration/customer verification evidence remains external.","global_stop":false},
-    {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN.","global_stop":false}
+    {"factory_id":"eu-switching-evidence-pack","blocker":"#818 exact-head focused/global CI GREEN; real verified migration outcome, customer adoption and WTP remain external/unproven.","global_stop":false},
+    {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN after exact ComplianceLedger PR search returned zero results.","global_stop":false}
   ],
   "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
 }
