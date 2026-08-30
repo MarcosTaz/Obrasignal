@@ -17,6 +17,7 @@ SCHEMA = '''CREATE TABLE IF NOT EXISTS opportunity_decisions (
     decided_at TEXT NOT NULL
 )'''
 
+DECISION_LOOKUP_INDEX = 'idx_opportunity_decisions_account_source_external_id'
 RULE_VERSION = 'commercial-v1'
 _NO_PERSISTED_PROFILE = 'profile:none'
 _NO_CANONICAL_OPPORTUNITY = 'opportunity:none'
@@ -49,8 +50,6 @@ def _ensure_account_column(conn):
 def _ensure_profile_fingerprint_column(conn):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_decisions)").fetchall()}
     if "profile_fingerprint" not in cols:
-        # Historical rows are intentionally left NULL. A decision that was not
-        # bound to the profile that produced it is not current-authority proof.
         conn.execute("ALTER TABLE opportunity_decisions ADD COLUMN profile_fingerprint TEXT")
         conn.commit()
 
@@ -58,10 +57,18 @@ def _ensure_profile_fingerprint_column(conn):
 def _ensure_opportunity_fingerprint_column(conn):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_decisions)").fetchall()}
     if "opportunity_fingerprint" not in cols:
-        # Historical rows are intentionally left NULL. Once canonical signal
-        # truth exists, an unbound historical decision cannot prove currentness.
         conn.execute("ALTER TABLE opportunity_decisions ADD COLUMN opportunity_fingerprint TEXT")
         conn.commit()
+
+
+def _ensure_decision_lookup_index(conn):
+    # Latest-decision reads are tenant first, then opportunity identity, ordered
+    # by monotonically increasing decision id. This index is additive and safe
+    # for historical databases because all referenced columns are ensured first.
+    conn.execute(
+        f'''CREATE INDEX IF NOT EXISTS {DECISION_LOOKUP_INDEX}
+            ON opportunity_decisions(account_id, source, external_id, id DESC)'''
+    )
 
 
 def ensure_decision_table(conn):
@@ -71,6 +78,7 @@ def ensure_decision_table(conn):
     _ensure_account_column(conn)
     _ensure_profile_fingerprint_column(conn)
     _ensure_opportunity_fingerprint_column(conn)
+    _ensure_decision_lookup_index(conn)
     conn.commit()
 
 
@@ -118,27 +126,13 @@ def opportunity_fingerprint(record):
     """
     if not isinstance(record, dict):
         return None
-    snapshot = {
-        field: record.get(field)
-        for field in _DECISION_RELEVANT_OPPORTUNITY_FIELDS
-    }
-    canonical = json.dumps(
-        snapshot,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(',', ':'),
-        default=str,
-    )
+    snapshot = {field: record.get(field) for field in _DECISION_RELEVANT_OPPORTUNITY_FIELDS}
+    canonical = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(',', ':'), default=str)
     return 'sha256:' + hashlib.sha256(canonical.encode('utf-8')).hexdigest()
 
 
 def current_opportunity_fingerprint(conn, source, external_id):
-    """Return the current canonical decision-relevant opportunity revision.
-
-    Absence of canonical signal truth is represented explicitly so legacy-only
-    decision paths keep deterministic semantics. Malformed canonical truth is
-    different: currentness cannot be proven and therefore fails closed.
-    """
+    """Return the current canonical decision-relevant opportunity revision."""
     table = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='signal_records'"
     ).fetchone()
@@ -198,21 +192,15 @@ def latest_decision(conn, source, external_id, account_id='default'):
 
 
 def decision_opportunity_is_current(conn, decision):
-    """Prove only the canonical opportunity-revision edge for a decision."""
     if not decision:
         return False
-    current_opportunity = current_opportunity_fingerprint(
-        conn,
-        decision.get('source'),
-        decision.get('external_id'),
-    )
+    current_opportunity = current_opportunity_fingerprint(conn, decision.get('source'), decision.get('external_id'))
     if current_opportunity is None:
         return False
     return decision.get('opportunity_fingerprint') == current_opportunity
 
 
 def latest_opportunity_current_decision(conn, source, external_id, account_id='default'):
-    """Preserve legacy presentation semantics but never show a stale revision."""
     decision = latest_decision(conn, source, external_id, account_id=account_id)
     if not decision_opportunity_is_current(conn, decision):
         return None
@@ -220,7 +208,6 @@ def latest_opportunity_current_decision(conn, source, external_id, account_id='d
 
 
 def decision_is_current(conn, decision, *, account_id='default', expected_rule_version):
-    """Prove whether the latest stored decision still has current authority."""
     if not decision:
         return False
     account = str(account_id or 'default')
@@ -235,18 +222,8 @@ def decision_is_current(conn, decision, *, account_id='default', expected_rule_v
 
 
 def latest_current_decision(conn, source, external_id, *, account_id='default', expected_rule_version):
-    """Return the latest decision only when every owned freshness gate is current.
-
-    Never search backwards for an older matching row: a stale latest decision
-    must degrade to unknown rather than resurrect historical authority.
-    """
     decision = latest_decision(conn, source, external_id, account_id=account_id)
-    if not decision_is_current(
-        conn,
-        decision,
-        account_id=account_id,
-        expected_rule_version=expected_rule_version,
-    ):
+    if not decision_is_current(conn, decision, account_id=account_id, expected_rule_version=expected_rule_version):
         return None
     return decision
 
@@ -268,4 +245,3 @@ def funnel_counts(conn, account_id='default'):
         (str(account_id or 'default'), str(account_id or 'default')),
     ).fetchall()
     return {row['decision']: row['count'] for row in rows}
-    ensure_decision_table(conn)
