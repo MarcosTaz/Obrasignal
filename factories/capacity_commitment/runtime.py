@@ -6,6 +6,10 @@ from .application import create_completion_app
 from .auth import provider_tenant_resolver
 from .repository import CapacityRepository
 
+# Stable seam for provider-runtime construction and test injection. The completion
+# app remains the implementation; the alias avoids coupling callers to its name.
+create_app = create_completion_app
+
 
 def create_provider_app(*, db_path: str | None = None):
     """Create the provider-authenticated Capacity Commitment application.
@@ -18,4 +22,4 @@ def create_provider_app(*, db_path: str | None = None):
     if not resolved:
         raise RuntimeError("CAPACITY_COMMITMENT_DB_PATH is required")
     repository = CapacityRepository(resolved)
-    return create_completion_app(repository, provider_tenant_resolver)
+    return create_app(repository, provider_tenant_resolver)
