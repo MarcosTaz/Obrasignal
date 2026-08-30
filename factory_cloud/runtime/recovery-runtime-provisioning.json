@@ -27,7 +27,7 @@
       "app_id": "industrial-claims",
       "repository": "MarcosTaz/Obrasignal",
       "branch": "apps/industrial-claims",
-      "head": "6e59d0f9ac440b9fd16d758bb81697e487796fe5",
+      "head": "fccd959ab92fad297970bc7481ce92b90672c2ad",
       "workspace": "/srv/factory-cloud/apps/industrial-claims",
       "agent": "/opt/factory-cloud/current/factory_cloud/recovery_vertical_agent.py",
       "adapter_config": "factory_cloud/runtime/industrial-claims-adapter.json",
