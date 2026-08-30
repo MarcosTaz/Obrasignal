@@ -11,11 +11,20 @@ def test_accepted_product_private_deletion_purges_device_private_tenant_state():
     assert 'await storage.bindPrivateTenant(null)' in source
 
 
+def test_accepted_deletion_immediately_hides_hydrated_private_shell():
+    source = SURFACE.read_text(encoding='utf-8')
+
+    assert 'const [privacyLocked, setPrivacyLocked] = useState(false)' in source
+    assert 'setPrivacyLocked(true)' in source
+    assert "privacyLocked ? <View style={styles.locked}" in source
+
+
 def test_accepted_deletion_ends_authenticated_product_session_after_local_purge_attempt():
     source = SURFACE.read_text(encoding='utf-8')
 
     assert "import { supabase } from '../lib/supabase'" in source
     assert 'await supabase.auth.signOut()' in source
+    assert 'if (signOutError) throw signOutError' in source
     assert 'finally' in source
 
 
