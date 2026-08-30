@@ -5,13 +5,13 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 9,
-  "last_factory_id": "eu-cloud-switching",
+  "cursor": 10,
+  "last_factory_id": "aviation-lease-entitlement-recovery",
   "last_run_at": "2026-08-30T01:38:36Z",
   "last_material_change": {
-    "kind": "EU_CLOUD_SWITCHING_EXACT_HEAD_GREEN_SUCCESSORS_CONFIRMED",
-    "factory_id": "eu-cloud-switching",
-    "summary": "Product Market Access / Legal Product Checker was re-searched by exact target terms, legal/product branch names and repository code search; no canonical source/BATON identity was recovered, so it remains UNKNOWN_SOURCE_IDENTITY and no history was fabricated. EU Cloud Switching was reconstructed from exact open draft PR evidence. PR #802 at f27fd53b64b33cf2af49f28008e7d7e5473edd90 is DRAFT/NOT CANONICAL/NO OUTREACH and exact-head checks are all SUCCESS (mobile plus both python checks), proving the bounded T2 consent, benchmark eligibility, trigger deduplication and fail-closed WTP-state work at that candidate head. Separately PR #818 at f9ffcf82f2eebbfdeb400de76f562cb185ec5adf is DRAFT/NOT CANONICAL and exact-head checks are all SUCCESS, proving the bounded React Native 0.86.3 compatibility repair for the evidence-pack lane. Neither candidate establishes real WTP, pilot acceptance, payment, production deployment, canonical adoption or external outcome evidence.",
+    "kind": "AVIATION_CURRENT_GREEN_BASE_EXACT_HEAD_CANDIDATE_CONFIRMED",
+    "factory_id": "aviation-lease-entitlement-recovery",
+    "summary": "Product Market Access remains UNKNOWN_SOURCE_IDENTITY after targeted branch/code search. EU Cloud Switching exact-head GREEN draft evidence remains preserved for PR #802 and #818. Aviation was reconstructed on its current app base: open draft PR #787 reapplies the evidence-backed assisted pilot admission boundary on apps/aviation-lease-entitlement-recovery base 0d1759832a06b3177b67b35a4c53ee0c69db459e. Exact head be9dbca3a430e4ee9ebf3f4fa30980a55911d146 has both observed checks SUCCESS (python and mobile). The candidate requires immutable SHA-256 evidence identity, provenance and explicit evidence-use permission; positive arithmetic remains CANDIDATE_READY_FOR_HUMAN_REVIEW while entitlement stays UNKNOWN and recovery NOT_ESTABLISHED. It is DRAFT/NOT CANONICAL/NO REAL AIRLINE DATA and proves no deployment, payment, entitlement, recovery or customer outcome.",
     "evidence": {
       "product_market_access": {
         "matching_branch": "NONE_EXACT",
@@ -20,26 +20,31 @@
       },
       "eu_cloud_switching_t2": {
         "pr": 802,
-        "branch": "cloud-switching/t2-consent-trigger-dedup-20260829",
         "head": "f27fd53b64b33cf2af49f28008e7d7e5473edd90",
-        "base": "factory/eu-cloud-switching-migration-capital@60694599b42d705b22a5ceb4f51dda24b0636d42",
-        "checks": "3/3 SUCCESS: mobile + python + python",
+        "checks": "3/3 SUCCESS",
         "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NO_EXTERNAL_PROOF"
       },
       "eu_cloud_switching_evidence_pack_repair": {
         "pr": 818,
-        "branch": "cloud-switching/evidence-pack-rn-compat-repair-20260829",
         "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
-        "base": "factory/eu-cloud-switching-migration-capital@60694599b42d705b22a5ceb4f51dda24b0636d42",
-        "checks": "3/3 SUCCESS: mobile + python + python",
+        "checks": "3/3 SUCCESS",
         "classification": "EXACT_HEAD_GREEN_BOUNDED_COMPAT_REPAIR_DRAFT_NOT_CANONICAL"
+      },
+      "aviation": {
+        "pr": 787,
+        "branch": "aviation/evidence-backed-pilot-intake-v2-20260829",
+        "head": "be9dbca3a430e4ee9ebf3f4fa30980a55911d146",
+        "base": "apps/aviation-lease-entitlement-recovery@0d1759832a06b3177b67b35a4c53ee0c69db459e",
+        "checks": "2/2 SUCCESS: python + mobile",
+        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_ENTITLEMENT_UNKNOWN_RECOVERY_NOT_ESTABLISHED"
       }
     },
-    "active": "Aviation Lease Entitlement Recovery: reconstruct current exact branch/PR/BATON/head and advance the highest-value repository-safe milestone without promoting entitlement or recovery beyond evidence.",
-    "next": "After Aviation, rotate immediately to Capacity Commitment, LongLead, MachineRelease Safety and onward. Revisit Product Market Access only when exact source identity or an independent research-safe milestone is available. Keep EU Cloud Switching T2 and evidence-pack repair candidates noncanonical until owner/adoption evidence exists.",
+    "active": "Capacity Commitment: reconstruct exact current source/BATON/PR/head and execute the highest-value safe milestone. Preserve commercial proof as UNKNOWN unless external evidence exists.",
+    "next": "After Capacity Commitment, rotate to LongLead, MachineRelease Safety, K3 Fatality, WarrantyGuard and onward. Aviation next safe milestone is a synthetic end-to-end evidence identity -> arithmetic -> human review -> outcome/no-recovery fixture or equivalent proof on the current green base, without real airline data.",
     "wait": [
       "Product Market Access exact source/BATON identity",
       "EU Cloud Switching canonical adoption and any real WTP/pilot/payment/outcome evidence",
+      "Aviation canonical adoption, bounded source topology against main, and any real entitlement/recovery/customer evidence",
       "ScopeLedger authorized live Railway/source fingerprint and production lineage comparison",
       "ChangeLedger valid sender postal address, DGC clarification/list consultation, and explicit outbound authorization",
       "Industrial Claims #785 exact Python failing assertion/root cause",
@@ -49,7 +54,6 @@
       "Customer Decision shared-company fixture depends on noncanonical #821",
       "GTM real replies/WTP/payment require external evidence",
       "ComplianceLedger exact source identity remains UNKNOWN",
-      "Aviation source topology remains unbounded against main",
       "merge/adoption decisions"
     ]
   },
@@ -60,7 +64,8 @@
     {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity recovered from branch search.","global_stop":false},
     {"factory_id":"product-market-access","blocker":"No exact canonical source/BATON identity recovered from targeted branch/code search.","global_stop":false},
     {"factory_id":"eu-cloud-switching","blocker":"Exact-head GREEN draft candidates exist, but canonical adoption and real external WTP/pilot/payment/outcome evidence remain unproven.","global_stop":false},
-    {"factory_id":"capacity-commitment","blocker":"No exact source/BATON identity recovered.","global_stop":false},
+    {"factory_id":"aviation-lease-entitlement-recovery","blocker":"Exact-head GREEN draft exists on current app base, but canonical adoption/source topology and real entitlement/recovery evidence remain unproven.","global_stop":false},
+    {"factory_id":"capacity-commitment","blocker":"No exact source/BATON identity recovered in prior pass.","global_stop":false},
     {"factory_id":"longlead","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"k3-fatality","blocker":"Runtime verified but canonical repository/source unresolved.","global_stop":false},
@@ -73,7 +78,6 @@
     {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"obrasignal-customer-journey","blocker":"#821 GREEN draft; #762 still lacks full endpoint role enforcement and persisted actor audit attribution.","global_stop":false},
-    {"factory_id":"aviation-lease-entitlement-recovery","blocker":"Candidate source topology is not bounded against main.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"No exact source/BATON/branch/PR/code identity recovered.","global_stop":false}
   ],
   "rules": {
