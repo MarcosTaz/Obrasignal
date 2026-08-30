@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { api } from '../src/api'
+import { storage } from '../src/storage'
+import { supabase } from '../lib/supabase'
 
 const DELETE_CONFIRMATION = 'DELETE_MY_OBRASIGNAL_DATA'
 const EXPORT_COMPLETENESS = 'CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY'
@@ -73,6 +75,26 @@ export default function AccountPrivacyControls({ children }) {
       setStatus(next || null)
       setExportData(null)
       setConfirmation('')
+
+      if (next?.product_private_db_deleted === true) {
+        let localCleanupProven = false
+        try {
+          // Binding null clears the in-memory tenant immediately, purges every
+          // tenant-private cache kind and removes the durable active-tenant key.
+          await storage.bindPrivateTenant(null)
+          localCleanupProven = true
+        } catch (_) {
+          setDeleteError('Não foi possível confirmar a limpeza privada local deste dispositivo. A revogação externa continua pendente.')
+        } finally {
+          // End the authenticated product session even when physical local purge
+          // encounters an error. AuthGate then remains fail-closed for private data.
+          try {
+            await supabase.auth.signOut()
+          } catch (_) {
+            if (localCleanupProven) setDeleteError('Os dados privados locais foram limpos, mas não foi possível confirmar o fim da sessão neste dispositivo. A revogação externa continua pendente.')
+          }
+        }
+      }
     } catch (_) {
       setDeleteError('Não foi possível concluir o pedido de eliminação. O ObraSignal não assume que os dados foram eliminados.')
       await refreshStatus()
