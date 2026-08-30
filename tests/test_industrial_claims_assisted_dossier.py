@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from vertical_apps.industrial_claims.amendment import amend_case
-from vertical_apps.industrial_claims.dossier import AssistedRecoveryAssessment, build_assisted_dossier
+from vertical_apps.industrial_claims.dossier import AssistedRecoveryAssessment, build_assisted_dossier, render_dossier_markdown
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
@@ -100,3 +100,41 @@ def test_assisted_dossier_rejects_superseded_revision(tmp_path):
     assert build_assisted_dossier(
         service, tenant_id="alpha", finding_id=second.finding.finding_id, assessment=assessment
     )["case"]["revision"]["number"] == 2
+
+
+def test_markdown_renderer_is_customer_reviewable_and_never_embeds_raw_documents(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "markdown-dossier.sqlite3")
+    result = service.analyze(
+        tenant_id="alpha", actor_id="analyst", customer_ref="oem", program_ref="program", event_ref="ecn-2",
+        claim_family="NRE", commercial_basis_ref="po-2", cost_evidence_ref="ledger-2", gross_cost="15000", currency="EUR",
+        commercial_basis_content="SECRET RAW PO CONTENT", event_evidence_content="SECRET RAW CHANGE CONTENT",
+        cost_evidence_content="SECRET RAW LEDGER CONTENT", notice_deadline_not_applicable=True,
+    )
+    case = {
+        "id": "NRE-RENDER",
+        "scenario": "signed customer change with traceable incremental engineering cost",
+        "missing_evidence": [],
+        "causation": "SUPPORTED",
+        "responsibility": "SUPPORTED",
+        "prior_recovery": "VERIFIED_NONE",
+        "confidence": "HIGH",
+    }
+    dossier = build_assisted_dossier(
+        service, tenant_id="alpha", finding_id=result.finding.finding_id, assessment=_assessment(case)
+    )
+    markdown = render_dossier_markdown(dossier)
+
+    assert "# CausLedger — Assisted Recovery Dossier" in markdown
+    assert "## Documentary index" in markdown
+    assert "## Contract / PO / change truth" in markdown
+    assert "## Causation assessment" in markdown
+    assert "## Customer responsibility assessment" in markdown
+    assert "## Cost reconstruction" in markdown
+    assert "## Prior recovery check" in markdown
+    assert "## Notice / deadline" in markdown
+    assert "## Evidence gaps / attack list" in markdown
+    assert "Candidate value is not automatically money owed" in markdown
+    assert "SECRET RAW PO CONTENT" not in markdown
+    assert "SECRET RAW CHANGE CONTENT" not in markdown
+    assert "SECRET RAW LEDGER CONTENT" not in markdown
+    assert "External claim submission authorized: False" in markdown
