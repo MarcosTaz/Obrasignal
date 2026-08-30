@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 
 from factory_cloud.assurance_store import AssuranceStoreError
@@ -43,6 +45,31 @@ def test_duplicate_analysis_cannot_rewrite_currency(tmp_path):
     with pytest.raises(AssuranceStoreError, match="immutable calculation id collision"):
         _analyze(service, currency="USD")
     assert service.ops.get_state(tenant_id="alpha", finding_id=first.finding.finding_id) == "READY_FOR_REVIEW"
+
+
+def test_replay_validation_rolls_back_partial_repairs_on_late_conflict(tmp_path):
+    database = tmp_path / "replay-atomic.sqlite3"
+    service = IndustrialClaimsService(database)
+    first = _analyze(service)
+    missing_evidence_id = first.evidence[-1].evidence_id
+
+    with sqlite3.connect(database) as conn:
+        conn.execute("DELETE FROM evidence WHERE tenant_id=? AND evidence_id=?", ("alpha", missing_evidence_id))
+        conn.execute(
+            "UPDATE audit_events SET actor_id='tampered-actor' WHERE tenant_id=? AND event_id=?",
+            ("alpha", first.audit.event_id),
+        )
+
+    assert service.store.count("evidence", "alpha") == 2
+    with pytest.raises(AssuranceStoreError, match="immutable audit event id collision"):
+        _analyze(service)
+
+    # The replay attempted to restore the missing evidence before discovering the
+    # late audit collision. Atomic replay validation must roll that repair back.
+    assert service.store.count("evidence", "alpha") == 2
+    with sqlite3.connect(database) as conn:
+        row = conn.execute("SELECT 1 FROM evidence WHERE tenant_id=? AND evidence_id=?", ("alpha", missing_evidence_id)).fetchone()
+    assert row is None
 
 
 def test_duplicate_outcome_cannot_rewrite_settlement_evidence(tmp_path):
