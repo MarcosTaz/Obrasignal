@@ -5,52 +5,24 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 15,
-  "last_factory_id": "paper-laminate-works",
+  "cursor": 17,
+  "last_factory_id": "documentary-billing",
   "last_run_at": "2026-08-30T11:40:49Z",
   "last_material_change": {
-    "kind": "WARRANTYGUARD_VERIFIER_REPAIR_AVIATION_AND_EU_SWITCHING_EXACT_HEAD_GREEN_MACHINE_K3_PAPER_RECHECKED",
-    "factory_id": "paper-laminate-works",
-    "summary": "MachineRelease Safety remains UNKNOWN_SOURCE_IDENTITY after exact PR and heads/machine checks. K3 Fatality still has no exact branch identity in this repository; K3 references in shared billing/control-plane evidence are insufficient to establish canonical source. WarrantyGuard workflow 33273980619 was root-caused to a stale completion verifier: the monitoring slice added 8 tests while scripts/verify.mjs still required exactly 132; the verifier now requires lib/monitoring.mjs, tests/monitoring.test.mjs and 140/140 tests on repair commit 0af90f166d4196ffe7a108ff0ce47248793c3004. Connector-authored commit did not yet produce a new exact-head workflow run, so no GREEN claim is made for the repair. Aviation prior pending run 33307110367 completed SUCCESS at a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32. EU Cloud Switching exact head 3a96fcccd8ad278f22303cda16eefab55a6ec18e now has both focused Cloud Switching Quality 33307082296 SUCCESS and global ObraSignal Quality 33307082301 SUCCESS. Paper-Laminate Works exact PR search remains empty. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "WARRANTYGUARD_VERIFIER_REPAIR_AVIATION_AND_EU_SWITCHING_EXACT_HEAD_GREEN_IDENTITY_RECHECKS",
+    "factory_id": "documentary-billing",
+    "summary": "MachineRelease Safety remains UNKNOWN_SOURCE_IDENTITY after exact PR and heads/machine checks. K3 Fatality still has no exact branch identity in this repository; K3 references in shared billing/control-plane evidence are insufficient to establish canonical source. WarrantyGuard workflow 33273980619 was root-caused to a stale completion verifier: the monitoring slice added 8 tests while scripts/verify.mjs still required exactly 132; the verifier now requires lib/monitoring.mjs, tests/monitoring.test.mjs and 140/140 tests on repair commit 0af90f166d4196ffe7a108ff0ce47248793c3004. Connector-authored commit did not yet produce a new exact-head workflow run, so no GREEN claim is made for the repair. Aviation prior pending run 33307110367 completed SUCCESS at a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32. EU Cloud Switching exact head 3a96fcccd8ad278f22303cda16eefab55a6ec18e now has both focused Cloud Switching Quality 33307082296 SUCCESS and global ObraSignal Quality 33307082301 SUCCESS. Paper-Laminate Works and Documentary Billing exact PR rechecks remain empty, so both stay UNKNOWN_SOURCE_IDENTITY. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
-      "machine_release_safety": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY_AFTER_EXACT_PR_AND_BRANCH_PREFIX_RECHECK",
-        "matching_ref_prefix": "heads/machine",
-        "matching_ref_count": 0
-      },
-      "k3_fatality": {
-        "classification": "RUNTIME_AND_SHARED_REFERENCES_EXIST_CANONICAL_SOURCE_IDENTITY_UNRESOLVED",
-        "matching_ref_prefix": "heads/k3",
-        "matching_ref_count": 0
-      },
-      "warrantyguard": {
-        "branch": "factory/warrantyguard-debitproof-v084",
-        "previous_head": "213db9f27cfde4992b6d9d87e793efa2f68657de",
-        "repair_head": "0af90f166d4196ffe7a108ff0ce47248793c3004",
-        "modified_files": ["factories/warrantyguard/scripts/verify.mjs"],
-        "root_cause": "MONITORING_SLICE_ADDED_8_TESTS_BUT_COMPLETION_VERIFIER_REMAINED_PINNED_TO_132",
-        "classification": "REPAIR_COMMITTED_EXACT_HEAD_CI_NOT_YET_OBSERVED",
-        "previous_failed_workflow": 33273980619
-      },
-      "aviation": {
-        "branch": "aviation/evidence-backed-pilot-intake-v2-20260829",
-        "head": "a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32",
-        "classification": "EXACT_HEAD_QUALITY_SUCCESS_SYNTHETIC_RECOVERED_AND_CLOSED_NO_RECOVERY_PATHS_NOT_CANONICAL_NO_REAL_RECOVERY_CLAIM",
-        "workflow_run": 33307110367
-      },
-      "eu_cloud_switching": {
-        "branch": "cloud-switching/t2-consent-trigger-dedup-20260829",
-        "head": "3a96fcccd8ad278f22303cda16eefab55a6ec18e",
-        "classification": "FOCUSED_AND_GLOBAL_EXACT_HEAD_CI_SUCCESS_NO_COMMERCIAL_PROOF",
-        "focused_workflow_run": 33307082296,
-        "global_workflow_run": 33307082301
-      },
-      "paper_laminate_works": {
-        "classification": "UNKNOWN_SOURCE_IDENTITY_AFTER_FRESH_EXACT_PR_RECHECK"
-      }
+      "machine_release_safety": {"classification":"UNKNOWN_SOURCE_IDENTITY_AFTER_EXACT_PR_AND_BRANCH_PREFIX_RECHECK","matching_ref_prefix":"heads/machine","matching_ref_count":0},
+      "k3_fatality": {"classification":"RUNTIME_AND_SHARED_REFERENCES_EXIST_CANONICAL_SOURCE_IDENTITY_UNRESOLVED","matching_ref_prefix":"heads/k3","matching_ref_count":0},
+      "warrantyguard": {"branch":"factory/warrantyguard-debitproof-v084","previous_head":"213db9f27cfde4992b6d9d87e793efa2f68657de","repair_head":"0af90f166d4196ffe7a108ff0ce47248793c3004","modified_files":["factories/warrantyguard/scripts/verify.mjs"],"root_cause":"MONITORING_SLICE_ADDED_8_TESTS_BUT_COMPLETION_VERIFIER_REMAINED_PINNED_TO_132","classification":"REPAIR_COMMITTED_EXACT_HEAD_CI_NOT_YET_OBSERVED","previous_failed_workflow":33273980619},
+      "aviation": {"branch":"aviation/evidence-backed-pilot-intake-v2-20260829","head":"a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32","classification":"EXACT_HEAD_QUALITY_SUCCESS_SYNTHETIC_RECOVERED_AND_CLOSED_NO_RECOVERY_PATHS_NOT_CANONICAL_NO_REAL_RECOVERY_CLAIM","workflow_run":33307110367},
+      "eu_cloud_switching": {"branch":"cloud-switching/t2-consent-trigger-dedup-20260829","head":"3a96fcccd8ad278f22303cda16eefab55a6ec18e","classification":"FOCUSED_AND_GLOBAL_EXACT_HEAD_CI_SUCCESS_NO_COMMERCIAL_PROOF","focused_workflow_run":33307082296,"global_workflow_run":33307082301},
+      "paper_laminate_works": {"classification":"UNKNOWN_SOURCE_IDENTITY_AFTER_FRESH_EXACT_PR_RECHECK"},
+      "documentary_billing": {"classification":"UNKNOWN_SOURCE_IDENTITY_AFTER_FRESH_EXACT_PR_RECHECK"}
     },
-    "active": "Paper-Laminate Works remains source-identity UNKNOWN after fresh exact PR recheck; continue immediately to Documentary Billing and the remaining registry while WarrantyGuard repair CI is rechecked on next encounter.",
-    "next": "Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side Factory -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> remaining registry rotation.",
+    "active": "Recoverable Money Business Discovery: recover exact source/BATON/PR/code identity if possible; if still UNKNOWN, persist the result and rotate immediately to Private Freight Orchestration.",
+    "next": "Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side Factory -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> remaining registry rotation.",
     "wait": [
       "WarrantyGuard repair head 0af90f166d4196ffe7a108ff0ce47248793c3004 needs exact-head CI observation; real replies/WTP/customer/payment/recovery remain unproven",
       "EU Switching real migration/customer outcome evidence, WTP/payment and canonical adoption remain external/unproven",
@@ -60,7 +32,7 @@
       "MachineRelease Safety exact source/BATON identity remains UNKNOWN",
       "K3 Fatality canonical repository/source identity remains unresolved",
       "Paper-Laminate Works exact source/BATON identity remains UNKNOWN",
-      "Documentary Billing exact source/BATON identity",
+      "Documentary Billing exact source/BATON identity remains UNKNOWN",
       "Recoverable Money exact source/BATON identity",
       "Private Freight exact source/BATON identity",
       "Autonomous Revenue Recovery exact source/BATON identity",
@@ -94,7 +66,7 @@
     {"factory_id":"k3-fatality","blocker":"Runtime/shared billing references exist, but no exact heads/k3 branch and canonical repository/source identity remains unresolved.","global_stop":false},
     {"factory_id":"warrantyguard","blocker":"Verifier root cause repaired on 0af90f166d4196ffe7a108ff0ce47248793c3004; exact-head CI has not yet been observed. T3/WTP/customer/revenue remain unproven.","global_stop":false},
     {"factory_id":"paper-laminate-works","blocker":"No exact source/BATON identity recovered after fresh exact PR recheck.","global_stop":false},
-    {"factory_id":"documentary-billing","blocker":"No exact source/BATON identity recovered after exact PR recheck.","global_stop":false},
+    {"factory_id":"documentary-billing","blocker":"No exact source/BATON identity recovered after fresh exact PR recheck.","global_stop":false},
     {"factory_id":"recoverable-money","blocker":"No exact source/BATON identity recovered after exact PR recheck.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"No exact source/BATON identity recovered after exact PR recheck.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"No exact source/BATON identity recovered after exact PR recheck.","global_stop":false},
@@ -103,13 +75,5 @@
     {"factory_id":"obrasignal-customer-journey","blocker":"#821 exact-head Python+Mobile GREEN draft; #762 still lacks full endpoint role enforcement and persisted actor audit attribution.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"No exact source/BATON/branch/PR/code identity recovered after exact target/Documentary Billing recheck.","global_stop":false}
   ],
-  "rules": {
-    "technical_window_is_not_stop": true,
-    "other_owner_is_not_stop": true,
-    "wait_is_not_global_stop": true,
-    "no_false_progress": true,
-    "no_automatic_merge": true,
-    "move_to_next_factory_when_blocked": true,
-    "persist_exact_baton_before_switch": true
-  }
+  "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
 }
