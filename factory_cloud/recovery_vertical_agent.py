@@ -28,6 +28,7 @@ INDUSTRIAL_TESTS = COMMON_TESTS + (
     "tests/test_industrial_claims_case_metadata_atomicity.py",
     "tests/test_industrial_claims_revision_store.py",
     "tests/test_industrial_claims_amendment.py",
+    "tests/test_industrial_claims_amendment_web.py",
     "tests/test_industrial_claims_outcome_atomicity.py",
     "tests/test_industrial_claims_document_privacy.py",
     "tests/test_industrial_claims_input_bounds.py",
