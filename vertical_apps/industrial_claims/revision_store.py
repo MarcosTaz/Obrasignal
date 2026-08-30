@@ -113,6 +113,33 @@ class IndustrialClaimsRevisionStore:
             is_current=bool(row["is_current"]),
         )
 
+    def _validate_lineage(self, conn: sqlite3.Connection, item: IndustrialCaseRevision) -> IndustrialCaseRevision:
+        record = self._validated(item)
+        original = record
+        visited = {record.finding_id}
+        while record.revision > 1:
+            predecessor_id = record.supersedes_finding_id
+            if predecessor_id is None:
+                raise AssuranceStoreError("industrial revision predecessor is missing")
+            predecessor_row = conn.execute(
+                "SELECT * FROM industrial_claim_revisions WHERE tenant_id=? AND finding_id=?",
+                (record.tenant_id, predecessor_id),
+            ).fetchone()
+            if predecessor_row is None:
+                raise AssuranceStoreError("industrial revision predecessor is missing")
+            predecessor = self._validated(self._from_row(predecessor_row))
+            if predecessor.finding_id in visited:
+                raise AssuranceStoreError("industrial revision lineage contains a cycle")
+            visited.add(predecessor.finding_id)
+            if predecessor.recovery_fingerprint != original.recovery_fingerprint:
+                raise AssuranceStoreError("industrial revision predecessor fingerprint is inconsistent")
+            if predecessor.revision != record.revision - 1:
+                raise AssuranceStoreError("industrial revision predecessor chronology is invalid")
+            if predecessor.is_current:
+                raise AssuranceStoreError("industrial revision predecessor cannot be current")
+            record = predecessor
+        return original
+
     def _backfill_existing_cases(self, conn: sqlite3.Connection) -> None:
         table = conn.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='industrial_claim_cases'"
@@ -205,7 +232,7 @@ class IndustrialClaimsRevisionStore:
         ).fetchone()
         if current is None:
             raise AssuranceStoreError("current industrial revision not found")
-        current_record = self._validated(self._from_row(current))
+        current_record = self._validate_lineage(conn, self._from_row(current))
         if current_record.finding_id != current_key:
             raise AssuranceStoreError("industrial amendment target is not the current revision")
         existing_new = conn.execute("SELECT * FROM industrial_claim_revisions WHERE finding_id=?", (new_key,)).fetchone()
@@ -227,9 +254,9 @@ class IndustrialClaimsRevisionStore:
                 "SELECT * FROM industrial_claim_revisions WHERE tenant_id=? AND finding_id=?",
                 (tenant, finding),
             ).fetchone()
-        if row is None:
-            raise AssuranceStoreError("tenant-scoped industrial revision not found")
-        return self._validated(self._from_row(row))
+            if row is None:
+                raise AssuranceStoreError("tenant-scoped industrial revision not found")
+            return self._validate_lineage(conn, self._from_row(row))
 
     def require_current(self, *, tenant_id: str, finding_id: str) -> IndustrialCaseRevision:
         record = self.get(tenant_id=tenant_id, finding_id=finding_id)
@@ -241,13 +268,13 @@ class IndustrialClaimsRevisionStore:
         tenant = self._tenant(tenant_id)
         fingerprint = self._required(recovery_fingerprint, label="recovery_fingerprint", max_chars=MAX_FINGERPRINT_CHARS)
         with self._connect() as conn:
-            row = conn.execute(
+            rows = conn.execute(
                 "SELECT * FROM industrial_claim_revisions WHERE tenant_id=? AND recovery_fingerprint=? AND is_current=1",
                 (tenant, fingerprint),
-            ).fetchone()
-        if row is None:
-            raise AssuranceStoreError("current industrial revision not found")
-        return self._validated(self._from_row(row))
+            ).fetchall()
+            if len(rows) != 1:
+                raise AssuranceStoreError("industrial recovery fingerprint must have exactly one current revision")
+            return self._validate_lineage(conn, self._from_row(rows[0]))
 
     def count(self, tenant_id: str) -> int:
         tenant = self._tenant(tenant_id)
