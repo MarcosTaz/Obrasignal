@@ -6,17 +6,22 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 2,
-  "last_factory_id": "industrial-claims",
-  "last_run_at": "2026-08-30T16:49:00Z",
+  "cursor": 3,
+  "last_factory_id": "scopeledger",
+  "last_run_at": "2026-08-30T17:37:37Z",
   "last_material_change": {
-    "kind": "WARRANTYGUARD_GREEN_PRIVACY_ARCHITECTURE_RED_CAPACITY_ONE_RED",
-    "summary": "WarrantyGuard clean-warranty root cause was proved as COST_ELIGIBILITY_UNKNOWN from plural-cost clause extraction and repaired at f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870; focused WarrantyGuard Factory and global ObraSignal Quality are both exact-head SUCCESS. ObraSignal privacy #845 first customer-surface implementation at e44b46a4fc4bdd7f8afd735c15fa75588ff3891a is exact-head RED because moving canonical App.js behind a wrapper breaks existing static and smoke truth contracts; Expo doctor itself passes, so next repair must integrate controls in-place without moving existing App wiring or weakening tests. Capacity Commitment mobile dependency drift is repaired; ab89fe5a76cf22fa7da245bb1462838b0a1aaac4 has mobile SUCCESS and Python exactly 1 failure / 1029 passed / 2 skipped, the sole failure being a stale exception-message regex while restore itself correctly fails closed on missing schema. Industrial Claims current app branch remains apps/industrial-claims@c6de16e5a23483bb27ef33f6abf329752bde45bb with exact-head ObraSignal Quality SUCCESS. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "INDUSTRIAL_CLAIMS_BATON_CAUGHT_UP_ATOMIC_REPLAY_MILESTONE_COMPLETE",
+    "summary": "Industrial Claims canonical FACTORY_STATE was stale: it still described atomic duplicate/replay rollback as ACTIVE even though apps/industrial-claims@c6de16e5a23483bb27ef33f6abf329752bde45bb already contains the deterministic rollback regression and has exact-head ObraSignal Quality SUCCESS run 33287246832. The BATON was corrected at metadata commit 69edbb7859de34afd64d6e5c5d5356bab9400aaf so atomic replay and revision-aware queue/detail are DONE, while the next repository-only action is the remaining P0/P1 scan. This metadata successor is not called GREEN until its own exact-head CI is observed. Fleet rotation advanced to ScopeLedger. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
+      "industrial_claims": {
+        "branch": "apps/industrial-claims",
+        "exact_green_source": "c6de16e5a23483bb27ef33f6abf329752bde45bb",
+        "quality_run": 33287246832,
+        "baton_commit": "69edbb7859de34afd64d6e5c5d5356bab9400aaf",
+        "atomic_replay_regression": "tests/test_industrial_claims_replay_integrity.py::test_replay_validation_rolls_back_partial_repairs_on_late_conflict",
+        "classification": "SOURCE_EXACT_HEAD_GREEN_BATON_SUCCESSOR_CI_PENDING"
+      },
       "warrantyguard": {
-        "branch": "factory/warrantyguard-debitproof-v084",
-        "diagnostic_head": "3d24bde7710790ae73c98fba091621016e46c47b",
-        "diagnostic_result": "UNKNOWN / COST_ELIGIBILITY_UNKNOWN; contract rules had warrantyEligible=true and no costEligible",
         "repair_head": "f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870",
         "focused_run": 33323378379,
         "quality_run": 33323378385,
@@ -25,9 +30,6 @@
       "obrasignal_privacy": {
         "pr": 845,
         "head": "e44b46a4fc4bdd7f8afd735c15fa75588ff3891a",
-        "quality_run": 33323165182,
-        "python": "14 failed / 1015 passed / 2 skipped",
-        "mobile": "expo-doctor 21/21 PASS; smoke-detail FAIL after App.js wrapper relocation",
         "classification": "EXACT_HEAD_RED_INTEGRATION_ARCHITECTURE",
         "next_exact_action": "Restore canonical App.js in-place and integrate AccountPrivacyControls directly into its existing Profile/root composition; delete wrapper/AppBase indirection; rerun full exact-head quality."
       },
@@ -35,22 +37,14 @@
         "pr": 729,
         "head": "ab89fe5a76cf22fa7da245bb1462838b0a1aaac4",
         "quality_run": 33323428508,
-        "mobile": "SUCCESS",
-        "python": "1 failed / 1029 passed / 2 skipped",
-        "remaining_failure": "test_repository_restore_rejects_missing_required_schema_before_live_mutation expects regex 'required capacity columns'; fail-closed implementation emits 'restore source capacity schema schema lacks required columns'",
         "classification": "MOBILE_GREEN_PYTHON_SINGLE_TEST_CONTRACT_RED",
         "next_exact_action": "Align the stale test expectation with the explicit fail-closed restore error without weakening missing-schema rejection, then rerun exact-head quality."
-      },
-      "industrial_claims": {
-        "branch": "apps/industrial-claims",
-        "head": "c6de16e5a23483bb27ef33f6abf329752bde45bb",
-        "quality_run": 33287246832,
-        "classification": "EXACT_HEAD_GREEN_CURRENT_APP_BRANCH"
       }
     },
-    "active": "Industrial Claims: inspect exact current branch/BATON and execute the next repository-safe customer/revenue or risk-reduction milestone beyond revision-aware queue/detail proof.",
-    "next": "Industrial Claims -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity recheck -> LongLead -> remaining registry; preempt rotation only for a deterministic higher-impact cross-factory repair such as privacy #845 in-place integration.",
+    "active": "ScopeLedger: reconstruct exact current source/BATON truth and execute the next repository-safe milestone that does not depend on unproved Railway production lineage.",
+    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity recheck -> LongLead -> remaining registry; preempt rotation only for deterministic higher-impact cross-factory repairs such as privacy #845 in-place integration.",
     "wait": [
+      "Industrial Claims external runtime, real identity authority, production, customer, legal and WTP proof remain WAIT; atomic replay is no longer an unfinished repository blocker.",
       "ObraSignal #845 requires in-place App.js integration; first wrapper implementation is deliberately not classified complete.",
       "Capacity Commitment has one remaining deterministic Python test-contract RED; commercial T3 proof remains external.",
       "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
