@@ -9,24 +9,26 @@
   "last_factory_id": "factory-cloud",
   "last_run_at": "2026-08-30T07:40:43Z",
   "last_material_change": {
-    "kind": "FACTORY_CLOUD_EXACT_HEAD_GREEN_PR_METADATA_SYNCHRONIZED",
+    "kind": "FACTORY_CLOUD_PR_METADATA_SYNCHRONIZED_STATE_SUCCESSOR_PENDING_CI",
     "factory_id": "factory-cloud",
-    "summary": "Factory Cloud control-plane branch exact head 0ea168bc04c1e2f08675783222311ebad932fcee is verified by ObraSignal Quality run 33297402265 = SUCCESS. PR #652 metadata was stale at an older head/run and has been synchronized to the current exact head, current 33-Factory fleet registry/state, and the invariant that blocked/WAIT/UNKNOWN Factories remain in rotation. PR remains OPEN/NOT MERGED. No deployment, production/customer-data mutation, source activation, payment, secrets/provider/config change or outbound was performed.",
+    "summary": "Verified predecessor 0ea168bc04c1e2f08675783222311ebad932fcee has ObraSignal Quality run 33297402265 = SUCCESS. PR #652 metadata was synchronized to current fleet semantics and then fleet state was persisted, creating a state-only successor whose exact-head CI must be classified separately before any GREEN claim. PR remains OPEN/NOT MERGED. No deployment, production/customer-data mutation, source activation, payment, secrets/provider/config change or outbound was performed.",
     "evidence": {
       "factory_cloud": {
         "pr": 652,
         "branch": "factory-cloud/app-development-control-plane",
-        "head": "0ea168bc04c1e2f08675783222311ebad932fcee",
-        "quality_run": 33297402265,
-        "quality": "SUCCESS",
+        "verified_predecessor": "0ea168bc04c1e2f08675783222311ebad932fcee",
+        "verified_predecessor_quality_run": 33297402265,
+        "verified_predecessor_quality": "SUCCESS",
+        "state_successor_quality": "PENDING_EXACT_HEAD_CLASSIFICATION",
         "registry_count": 33,
         "pr_state": "OPEN_NOT_MERGED",
-        "classification": "EXACT_HEAD_GREEN_METADATA_SYNCHRONIZED_REVIEW_CANDIDATE"
+        "classification": "STATE_ONLY_SUCCESSOR_PENDING_EXACT_HEAD_CI"
       }
     },
     "active": "ObraSignal: reconstruct current canonical/main and highest-impact open exact-head evidence; advance only repository-safe reversible work.",
     "next": "ObraSignal -> Industrial Claims -> ScopeLedger -> ChangeLedger -> all remaining registry entries; revisit blockers as local state, never as permanent exclusion.",
     "wait": [
+      "Factory Cloud state-only successor exact-head CI classification",
       "Factory Cloud external isolated runtime hosting is owner-authorized in PR #652 history but is not exercised by this repository-safe fleet run; no deployment/runtime activation claim",
       "EU Switching real migration/customer outcome evidence, WTP/payment and canonical adoption remain external/unproven",
       "ComplianceLedger exact source/BATON/branch/PR/code identity",
