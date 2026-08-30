@@ -6,20 +6,31 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 3,
-  "last_factory_id": "scopeledger",
+  "cursor": 4,
+  "last_factory_id": "changeledger",
   "last_run_at": "2026-08-30T17:37:37Z",
   "last_material_change": {
-    "kind": "INDUSTRIAL_CLAIMS_BATON_CAUGHT_UP_ATOMIC_REPLAY_MILESTONE_COMPLETE",
-    "summary": "Industrial Claims canonical FACTORY_STATE was stale: it still described atomic duplicate/replay rollback as ACTIVE even though apps/industrial-claims@c6de16e5a23483bb27ef33f6abf329752bde45bb already contains the deterministic rollback regression and has exact-head ObraSignal Quality SUCCESS run 33287246832. The BATON was corrected at metadata commit 69edbb7859de34afd64d6e5c5d5356bab9400aaf so atomic replay and revision-aware queue/detail are DONE, while the next repository-only action is the remaining P0/P1 scan. This metadata successor is not called GREEN until its own exact-head CI is observed. Fleet rotation advanced to ScopeLedger. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "INDUSTRIAL_BATON_CORRECTED_SCOPELEDGER_EXACT_RECOVERY_RECONFIRMED_ROTATED_TO_CHANGELEDGER",
+    "summary": "Industrial Claims canonical BATON was corrected at 69edbb7859de34afd64d6e5c5d5356bab9400aaf because atomic replay rollback was already implemented and exact-source GREEN at c6de16e5a23483bb27ef33f6abf329752bde45bb / run 33287246832. ScopeLedger was then reconstructed exactly: recovery/scopeledger-source-20260829 still resolves to 79450c800397c7cce873d6efbd6f7401df142625 and ScopeLedger Recovery Gate run 33262936383 is SUCCESS. Its canonical BATON explicitly classifies production/source lineage as unproven and instructs the runner not to overbuild the recovery lane without an authorized live Railway fingerprint, so this remains external WAIT rather than global stop. Rotation advanced to ChangeLedger. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
       "industrial_claims": {
         "branch": "apps/industrial-claims",
         "exact_green_source": "c6de16e5a23483bb27ef33f6abf329752bde45bb",
         "quality_run": 33287246832,
         "baton_commit": "69edbb7859de34afd64d6e5c5d5356bab9400aaf",
-        "atomic_replay_regression": "tests/test_industrial_claims_replay_integrity.py::test_replay_validation_rolls_back_partial_repairs_on_late_conflict",
         "classification": "SOURCE_EXACT_HEAD_GREEN_BATON_SUCCESSOR_CI_PENDING"
+      },
+      "scopeledger": {
+        "branch": "recovery/scopeledger-source-20260829",
+        "head": "79450c800397c7cce873d6efbd6f7401df142625",
+        "recovery_gate_run": 33262936383,
+        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE",
+        "next_exact_action": "Obtain an authorized live Railway/source fingerprint and compare it with the recovered candidate; until then do not overbuild the recovery lane."
+      },
+      "changeledger": {
+        "known_baton_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
+        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_RECONSTRUCTION_ACTIVE",
+        "known_truth": "Canonical snapshot BATON states 75/75 PASS plus synthetic dry-run PASS, but outbound remains gated by valid postal address selection, DGC clarification/current-list consultation and explicit owner authorization."
       },
       "warrantyguard": {
         "repair_head": "f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870",
@@ -41,14 +52,14 @@
         "next_exact_action": "Align the stale test expectation with the explicit fail-closed restore error without weakening missing-schema rejection, then rerun exact-head quality."
       }
     },
-    "active": "ScopeLedger: reconstruct exact current source/BATON truth and execute the next repository-safe milestone that does not depend on unproved Railway production lineage.",
-    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity recheck -> LongLead -> remaining registry; preempt rotation only for deterministic higher-impact cross-factory repairs such as privacy #845 in-place integration.",
+    "active": "ChangeLedger: reconstruct the exact current snapshot/BATON identity and pursue only repository/research-safe work that does not bypass postal-address, DGC/list or explicit outbound authorization gates.",
+    "next": "ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity recheck -> LongLead -> remaining registry; preempt only for deterministic higher-impact safe repairs.",
     "wait": [
       "Industrial Claims external runtime, real identity authority, production, customer, legal and WTP proof remain WAIT; atomic replay is no longer an unfinished repository blocker.",
+      "ScopeLedger live Railway/source fingerprint and production lineage remain external; recovered source is exact-head GREEN but not production authority.",
+      "ChangeLedger commercial outbound requires valid physical postal address selection, DGC clarification/current-list consultation and explicit owner authorization.",
       "ObraSignal #845 requires in-place App.js integration; first wrapper implementation is deliberately not classified complete.",
       "Capacity Commitment has one remaining deterministic Python test-contract RED; commercial T3 proof remains external.",
-      "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
-      "ChangeLedger compliance/postal/outbound authorization remains external.",
       "Several registry entries retain UNKNOWN exact source identity and must be reconstructed rather than guessed.",
       "Real customer/WTP/payment/recovery/outcome evidence remains unproven wherever not explicitly evidenced."
     ]
@@ -57,7 +68,7 @@
     {"factory_id":"obrasignal","blocker":"Privacy #845 exact-head RED because wrapper relocation violates canonical App.js truth/smoke contracts; deterministic in-place integration required.","global_stop":false},
     {"factory_id":"capacity-commitment","blocker":"Mobile exact-head SUCCESS; Python has one stale exception-message test-contract failure; T3 commercial proof external.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
-    {"factory_id":"changeledger","blocker":"Outbound gated by postal-address/compliance/owner authorization.","global_stop":false},
+    {"factory_id":"changeledger","blocker":"Outbound gated by valid postal address selection, DGC/list clarification and explicit owner authorization.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
