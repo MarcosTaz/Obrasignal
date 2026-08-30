@@ -6,12 +6,12 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 3,
-  "last_factory_id": "industrial-claims",
+  "cursor": 4,
+  "last_factory_id": "scopeledger",
   "last_run_at": "2026-08-30T23:40:04Z",
   "last_material_change": {
-    "kind": "CAUSLEDGER_PRIVATE_SECURE_INTAKE_READY",
-    "summary": "CausLedger private commercial operating truth was advanced without public customer data or outbound. Gmail watch found no new material prospect, CEFAMOL, AFIA or DGC inbound. The private Drive operating log now contains a bounded secure-intake envelope, rapid-scan acceptance gate, audit-grade dossier truth gate, commercial handoff/cost-to-serve measurement rule, and corrected DGC route. Real confidential documents remain prohibited over ordinary email and public GitHub. Portugal and Spain outbound holds remain active. Rotation continues to ScopeLedger.",
+    "kind": "CAUSLEDGER_PRIVATE_SECURE_INTAKE_READY_SCOPELEDGER_REVALIDATED_ROTATED",
+    "summary": "CausLedger private operating truth now includes a bounded secure-intake envelope, rapid-scan acceptance gate, audit-grade dossier truth gate, commercial handoff/cost-to-serve rule, and corrected DGC route. Gmail watch found no new material prospect, CEFAMOL, AFIA or DGC inbound; Portugal and Spain outbound holds remain active. ScopeLedger recovered branch was revalidated unchanged at 79450c800397c7cce873d6efbd6f7401df142625; live Railway/source lineage remains externally unproved, so the fleet rotated to ChangeLedger rather than stopping.",
     "evidence": {
       "industrial_claims": {
         "branch": "apps/industrial-claims",
@@ -42,21 +42,22 @@
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
-      "obrasignal_privacy": {
-        "pr": 845,
-        "head": "e44b46a4fc4bdd7f8afd735c15fa75588ff3891a",
-        "classification": "EXACT_HEAD_RED_INTEGRATION_ARCHITECTURE",
-        "next_exact_action": "Restore canonical mobile/App.js in-place and integrate AccountPrivacyControls directly into existing Profile/root composition; remove AppBase wrapper indirection; rerun exact-head quality."
-      },
       "scopeledger": {
         "branch": "recovery/scopeledger-source-20260829",
         "head": "79450c800397c7cce873d6efbd6f7401df142625",
+        "head_revalidated": true,
         "recovery_gate_run": 33262936383,
         "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"
       },
       "changeledger": {
         "canonical_snapshot_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
         "classification": "OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT"
+      },
+      "obrasignal_privacy": {
+        "pr": 845,
+        "head": "e44b46a4fc4bdd7f8afd735c15fa75588ff3891a",
+        "classification": "EXACT_HEAD_RED_INTEGRATION_ARCHITECTURE",
+        "next_exact_action": "Restore canonical mobile/App.js in-place and integrate AccountPrivacyControls directly into existing Profile/root composition; remove AppBase wrapper indirection; rerun exact-head quality."
       },
       "eu_cloud_switching": {
         "head": "020efc82e0b2a6509548fa7ef38f1593ca457afa",
@@ -75,8 +76,8 @@
         "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL"
       }
     },
-    "active": "ScopeLedger: revalidate exact recovered source and only advance work independent of unproved live Railway lineage.",
-    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger.",
+    "active": "ChangeLedger: preserve outbound compliance hold; execute only non-outbound work independent of DGC/current-list clarification.",
+    "next": "ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
