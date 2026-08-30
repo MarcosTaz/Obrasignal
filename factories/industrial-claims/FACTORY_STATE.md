@@ -7,8 +7,8 @@ Build an evidence-first supplier-side industrial commercial recovery product tha
 - Repository: `MarcosTaz/Obrasignal`
 - Application branch: `apps/industrial-claims`
 - Draft PR: `#785`
-- Last exact application-source GREEN: `3bd6120e0f70fb54c707868c963938fe7c22fcd9`
-- Verification evidence: `ObraSignal Quality #4167`, run `33280573537`; Python SUCCESS; Mobile SUCCESS.
+- Last exact application-source GREEN: `6e59d0f9ac440b9fd16d758bb81697e487796fe5`
+- Verification evidence: `ObraSignal Quality #4179`, run `33286344803`; Python SUCCESS; Mobile SUCCESS.
 - Factory Cloud source/provisioning pointers intentionally reference that exact GREEN source snapshot.
 - Metadata/state commits after the source snapshot do not upgrade the application source and require their own exact-head CI before the branch itself is described as GREEN.
 
@@ -37,7 +37,8 @@ Build an evidence-first supplier-side industrial commercial recovery product tha
 - Tenant-scoped reviewer/operator queue and tenant-safe detailed dossier endpoint.
 - Console supports selected dossier inspection before workflow decision, safe DOM rendering, no `innerHTML`, CSP, no-store, nosniff, no-referrer, restrictive permissions.
 - HTTP intake rejects non-object JSON, malformed JSON, oversized requests, invalid identities, invalid roles, invalid bounds, and unsafe economic inputs deterministically.
-- Claim package schema preserves pre-review/non-authority/timing truth and excludes raw documents.
+- Claim package schema v6 preserves pre-review/non-authority/timing truth, excludes raw documents, validates caller labels against immutable recovery identity, and fails closed on hybrid tenant/vertical/claim-family identity.
+- Recovery-app registration tests validate registry ↔ provisioning synchronization rather than freezing stale historical SHAs.
 - Pilot contract schema v11 encodes the current evidence, entitlement, review, timing, outcome, transition, collision, backup, security and commercial truth constraints.
 
 ## PRODUCT TRUTH
@@ -61,19 +62,21 @@ Build an evidence-first supplier-side industrial commercial recovery product tha
 - This Factory is NOT `MARKET_VALIDATED`, NOT `PILOT_VALIDATED`, NOT `PILOT_CAPABLE`, NOT `COMMERCIAL_READY`, and NOT production ready.
 
 ## TEST / EVIDENCE STATE
-- Exact application-source GREEN: `3bd6120e0f70fb54c707868c963938fe7c22fcd9`.
-- CI: ObraSignal Quality #4167 / run 33280573537.
+- Exact application-source GREEN: `6e59d0f9ac440b9fd16d758bb81697e487796fe5`.
+- CI: ObraSignal Quality #4179 / run 33286344803.
 - Industrial allowlisted suite includes service, recovery cap, replay, atomic persistence, case metadata atomicity, outcome atomicity, document privacy, input bounds, collision resistance, synthetic oracle, package, pilot contract, backup/restore, web, HTTP intake, console, queue, finding detail and dossier integrity tests, plus shared recovery contracts.
 - Known code regressions at source snapshot: none.
 
 ## ACTIVE
-Verify the exact branch HEAD after Factory Cloud pointer + provisioning + state metadata commits. If any Python/Mobile/contract regression exists, repair it before any further status upgrade.
+Continue repository-only P0/P1 hardening from the exact GREEN source snapshot. Current focus: make duplicate/replay validation transactionally atomic so a later replay conflict cannot leave partial repair/orphan rows if durable state was already incomplete or externally corrupted.
 
 ## NEXT
-1. Exact-head CI for metadata/state head.
-2. Final Industrial P0/P1 scan: identity/tenant leakage, raw-content leakage, truth-language overclaim, deadline semantics, outcome semantics, queue/detail dead ends, unsafe HTTP failures, replay/atomicity, pricing/commercial overclaim.
-3. Repair every executable finding and re-run exact-head CI.
-4. Keep runtime/provisioning and external authority items in WAIT; do not fake completion.
+1. Add replay rollback regression and atomic replay validation.
+2. Exact-head CI after the replay hardening.
+3. Repin Factory Cloud source/provisioning only after the new exact source snapshot is GREEN.
+4. Final Industrial P0/P1 scan: identity/tenant leakage, raw-content leakage, truth-language overclaim, deadline semantics, outcome semantics, queue/detail dead ends, unsafe HTTP failures, replay/atomicity, pricing/commercial overclaim.
+5. Repair every executable finding and re-run exact-head CI.
+6. Keep runtime/provisioning and external authority items in WAIT; do not fake completion.
 
 ## WAIT / OWNER-ONLY / EXTERNAL DEPENDENCIES
 - Runtime workspace provisioning at `/srv/factory-cloud/apps/industrial-claims` and supervised worker.
@@ -91,4 +94,4 @@ Verify the exact branch HEAD after Factory Cloud pointer + provisioning + state 
 No repository-only blocker is accepted as a stop condition. Runtime, market, legal, customer and production authority dependencies remain external WAIT and must not be bypassed by fabrication.
 
 ## RESUME_AT
-Re-read `apps/industrial-claims` exact HEAD, fetch its exact ObraSignal Quality run, repair any failure immediately, then continue the final P0/P1 scan. Never reset to an older plan or treat a GREEN milestone as Factory completion.
+Read `apps/industrial-claims` exact HEAD, complete atomic replay validation + rollback regression, fetch the exact ObraSignal Quality run, repair any failure immediately, then continue the P0/P1 scan. Never reset to an older plan or treat a GREEN milestone as Factory completion.
