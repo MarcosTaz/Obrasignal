@@ -68,8 +68,15 @@ class IndustrialClaimsCaseStore:
         return conn
 
     @staticmethod
-    def _required(value: object, *, label: str, max_chars: int) -> str:
-        text = str(value or "").strip()
+    def _has_forbidden_controls(text: str) -> bool:
+        return any(ord(char) < 32 or ord(char) == 127 for char in text)
+
+    @classmethod
+    def _required(cls, value: object, *, label: str, max_chars: int) -> str:
+        raw = str(value or "")
+        if cls._has_forbidden_controls(raw):
+            raise AssuranceStoreError(f"industrial case {label} is invalid")
+        text = raw.strip()
         if not text or len(text) > max_chars:
             raise AssuranceStoreError(f"industrial case {label} is invalid")
         return text
@@ -83,7 +90,15 @@ class IndustrialClaimsCaseStore:
 
     @classmethod
     def _validate(cls, item: IndustrialCaseMetadata) -> IndustrialCaseMetadata:
-        missing = tuple(str(value).strip() for value in item.missing_evidence if str(value).strip())
+        missing_items: list[str] = []
+        for value in item.missing_evidence:
+            raw = str(value)
+            if cls._has_forbidden_controls(raw):
+                raise AssuranceStoreError("industrial case missing-evidence lineage is invalid")
+            text = raw.strip()
+            if text:
+                missing_items.append(text)
+        missing = tuple(missing_items)
         if len(missing) > MAX_MISSING_EVIDENCE_ITEMS or any(len(value) > MAX_MISSING_EVIDENCE_CHARS for value in missing):
             raise AssuranceStoreError("industrial case missing-evidence lineage is invalid")
         notice_state = str(item.notice_deadline_state).strip()
