@@ -23,12 +23,13 @@ This is a directional public-source sample, not an exhaustive TED/HILMA/national
 | 12 | Poland — framework agreement for VMware **or equivalent** software for common courts | 2026-08-24 | 2026-09-24 | TED 585332-2026 / public tender listing | equivalent software explicitly admitted | YES — platform competition observable |
 | 13 | Germany — procurement described as virtualization platform replacing existing VMware licence infrastructure | 2026-08-13 | 2026-09-02 | public tender index snapshot 2026-08-13 | replacement of VMware explicitly stated | YES — direct switching decision |
 | 14 | National Health Fund Headquarters, Poland — temporary VMware **or equivalent** licences + service/support | 2026-08-10 | 2026-09-09 | notice 2026/S 152-552320; Polish procurement summary | equivalent software explicitly admissible and decision window remains open at snapshot | YES — competing platform decision observable |
+| 15 | Riigiside Sihtasutus, Estonia — VMware ESXi licences 2026 | 2026-08-14 | award recorded 2026-08-27 | Estonian procurement register mirror, reference `313933` | VMware ESXi licence purchase; awarded to Atea; no public switching/alternative language recovered | NO — incumbent purchase and decision already closed |
 
 ## De-duplication / classification result
 
-- Distinct buyer decision events sampled: **14**.
+- Distinct buyer decision events sampled: **15**.
 - Clearly challengeable under a conservative text-only rule: **6**.
-- Incumbent/renewal/infrastructure events not counted as challengeable without stronger evidence: **8**.
+- Incumbent/renewal/infrastructure/closed events not counted as challengeable without stronger evidence: **9**.
 - Raw-event volume must therefore **not** be represented as switching-opportunity volume.
 
 The 6 challengeable events are:
@@ -49,11 +50,12 @@ It does prove that:
 - public procurement produces frequent VMware/virtualization events;
 - naive keyword counting would materially overstate acquisition volume;
 - replacement, migration, `or equivalent`, and pre-tender market-dialogue language are materially stronger acquisition triggers than ordinary renewals;
-- at least six distinct August decision events in this non-exhaustive sample have text supporting a real competitive/replacement decision.
+- at least six distinct August decision events in this non-exhaustive sample have text supporting a real competitive/replacement decision;
+- an awarded VMware licence event is a useful negative control: once the decision is closed, it must not remain in the live-prospect numerator merely because it is fresh in search results.
 
 Because this was not a near-exhaustive EU census, `6` is neither a monthly market-size estimate nor a hard upper bound. The correct next test is broader rolling collection with the same decision-event de-duplication rule across TED + national portals, followed by detection-latency measurement from actual collection timestamps.
 
-The National Health Fund event is the strongest newly added research-priority candidate in this update because the public summary explicitly permits VMware or equivalent and the submission deadline remains open at the 2026-08-30 snapshot. This is a **research-priority prospect signal only**: it does not establish buyer interest in this product, contactability, authorization to approach, WTP, a meeting, pilot acceptance, or revenue.
+The National Health Fund event remains the strongest research-priority candidate in this snapshot because the public summary explicitly permits VMware or equivalent and the submission deadline remains open at the 2026-08-30 snapshot. This is a **research-priority prospect signal only**: it does not establish buyer interest in this product, contactability, authorization to approach, WTP, a meeting, pilot acceptance, or revenue.
 
 ## Fail-closed acquisition rule
 
@@ -71,7 +73,7 @@ Do not count:
 - support renewal;
 - hardware procurement merely mentioning VMware;
 - multiple revisions/sources of the same buyer decision;
-- an event after its practical decision window has already closed;
+- an event after its practical decision window has already closed or an award has been recorded;
 - aggregator duplicates without a separable decision-event identity.
 
 ## Source URLs used for this snapshot
@@ -91,3 +93,4 @@ Do not count:
 - TED 585332-2026 / public tender listing for Polish common-courts VMware-or-equivalent framework, published 2026-08-24
 - public tender index snapshot for German replacement of existing VMware licence infrastructure, published 2026-08-13
 - public notice 2026/S 152-552320 (National Health Fund Headquarters, Poland), published 2026-08-10, deadline 2026-09-09
+- https://riigihanked.eu/tenders/9004789c-a75a-4a5e-9870-0eafbef91f02-vmware-litsentsid-2026-riigiside-sihtasutus-90006101
