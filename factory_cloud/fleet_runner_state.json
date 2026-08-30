@@ -5,22 +5,24 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 28,
-  "last_factory_id": "obrasignal-product-strategy",
-  "last_run_at": "2026-08-30T14:38:50Z",
+  "cursor": 29,
+  "last_factory_id": "obrasignal-data-analytics",
+  "last_run_at": "2026-08-30T14:42:00Z",
   "last_material_change": {
-    "kind": "GLOBAL_MARKET_GTM_REVALIDATED_PRODUCT_STRATEGY_MOBILE_DRIFT_REPAIRED_PENDING_CI",
-    "factory_id": "obrasignal-product-strategy",
-    "summary": "Global Market Entry #519 remains OPEN/DRAFT/NOT CANONICAL at 93131df867eea723df59e6734ca71af4a4e6f124 with exact-head ObraSignal Quality 32989101224 SUCCESS; launch-now/research country states remain research priority only and ICP/pricing/channel/customer proof remain hypotheses. GTM/company composition #844 remains OPEN/DRAFT/NOT CANONICAL at a3e523b216131e9021545826cd01abaf0a473183 with exact-head Quality SUCCESS and commercial truth still zero revenue/zero paid customer/no outbound. Product Strategy #521 exact head 131073cbb095c9a87fd66a1d3b466d3b254d3175 was classified precisely: Python SUCCESS, Mobile FAILURE only at npx expo-doctor. Compared with exact-head Mobile-GREEN company composition, the RED branch was stale at expo ~57.0.1/react-native 0.86.2 versus green ~57.0.18/0.86.3. Repository-safe repair committed on Product Strategy branch as 6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8, changing only those dependency versions; no exact-head workflow was observable immediately after commit, so classification is REPAIR_COMMITTED_CI_NOT_YET_OBSERVED, not GREEN. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
+    "kind": "PRODUCT_STRATEGY_AND_ANALYTICS_SHARED_MOBILE_DRIFT_REPAIRED_PENDING_CI",
+    "factory_id": "obrasignal-data-analytics",
+    "summary": "Global Market Entry #519 was revalidated exact-head GREEN but remains research-only/draft/not canonical; GTM #844 remains exact-head GREEN with commercial validation open and no outbound. Product Strategy #521 exact head 131073cbb095c9a87fd66a1d3b466d3b254d3175 had Python SUCCESS and Mobile failure solely at npx expo-doctor. Comparison against exact-head Mobile-GREEN company composition proved stale mobile dependency versions: expo ~57.0.1/react-native 0.86.2 versus green ~57.0.18/0.86.3. A repository-safe dependency-only repair was committed at 6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8; exact-head CI not yet observed. Data Analytics #344 at 303fce7fc69284ef2b7a7fd5d117addd1e53f110 had the identical stale mobile/package.json versions and prior known Mobile expo-doctor failure pattern, so the same dependency-only alignment was committed at de1509f3bae21cdcc6763e676df45407c220849c. No exact-head workflow was observable immediately after that commit; classification remains REPAIR_COMMITTED_CI_NOT_YET_OBSERVED, not GREEN. No merge, deploy, production/customer-data mutation, payment, secret/config/provider change or outbound was performed.",
     "evidence": {
       "global_market_entry": {"pr":519,"branch":"factory/country-launch-registry-v1","head":"93131df867eea723df59e6734ca71af4a4e6f124","workflow_run":32989101224,"classification":"EXACT_HEAD_QUALITY_SUCCESS_DRAFT_NOT_CANONICAL_RESEARCH_ONLY"},
       "obrasignal_gtm": {"pr":844,"branch":"integration/company-truth-composition-20260830","head":"a3e523b216131e9021545826cd01abaf0a473183","classification":"EXACT_HEAD_GREEN_COMMERCIAL_VALIDATION_OPEN_PROJECT_COMPLETE_FALSE_DRAFT_NOT_CANONICAL"},
-      "obrasignal_product_strategy": {"pr":521,"branch":"strategy/contractor-decision-superiority-v1","previous_head":"131073cbb095c9a87fd66a1d3b466d3b254d3175","failed_workflow_run":33276689483,"python_job":99164534537,"mobile_job":99164534536,"failed_step":"Run npx expo-doctor","repair_head":"6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8","repair":"expo ~57.0.1 -> ~57.0.18; react-native 0.86.2 -> 0.86.3","classification":"REPAIR_COMMITTED_CI_NOT_YET_OBSERVED"}
+      "obrasignal_product_strategy": {"pr":521,"branch":"strategy/contractor-decision-superiority-v1","previous_head":"131073cbb095c9a87fd66a1d3b466d3b254d3175","failed_workflow_run":33276689483,"python_job":99164534537,"mobile_job":99164534536,"failed_step":"Run npx expo-doctor","repair_head":"6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8","repair":"expo ~57.0.1 -> ~57.0.18; react-native 0.86.2 -> 0.86.3","classification":"REPAIR_COMMITTED_CI_NOT_YET_OBSERVED"},
+      "obrasignal_data_analytics": {"pr":344,"branch":"analytics/measurement-truth-registry","previous_head":"303fce7fc69284ef2b7a7fd5d117addd1e53f110","stale_mobile_package":"expo ~57.0.1; react-native 0.86.2","repair_head":"de1509f3bae21cdcc6763e676df45407c220849c","repair":"expo ~57.0.1 -> ~57.0.18; react-native 0.86.2 -> 0.86.3","classification":"REPAIR_COMMITTED_CI_NOT_YET_OBSERVED"}
     },
-    "active": "Data, Analytics & Learning System Factory: reconstruct exact current candidate, reclassify shared Mobile expo-doctor drift against the proven green baseline, and make only deterministic repository-safe repairs.",
-    "next": "Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims -> ScopeLedger -> ChangeLedger -> remaining registry rotation; recheck Product Strategy repair CI on next pass.",
+    "active": "Release, Deployment & Change Safety Factory: recheck PR #345 mergeability metadata against direct compare/current branch truth and advance only repository-safe safety evidence.",
+    "next": "Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims -> ScopeLedger -> ChangeLedger -> remaining registry rotation; recheck Product Strategy and Analytics repair CI on next pass.",
     "wait": [
       "Product Strategy repair head 6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8 has no exact-head workflow observed yet; do not call GREEN until CI proves it",
+      "Data Analytics repair head de1509f3bae21cdcc6763e676df45407c220849c has no exact-head workflow observed yet; do not call GREEN until CI proves it",
       "WarrantyGuard focused workflow is RED on 0af90f166d4196ffe7a108ff0ce47248793c3004: exact failure is document_redteam clean-warranty actual UNKNOWN vs expected SUPPORTED; root semantic reason inside analyzeDebit result still requires deterministic instrumentation before safe repair",
       "EU Switching real migration/customer outcome evidence, WTP/payment and canonical adoption remain external/unproven",
       "Aviation canonical adoption and real entitlement/recovery/customer evidence remain unproven despite exact-head synthetic-path CI SUCCESS",
@@ -42,7 +44,7 @@
       "Product Market Access exact source/BATON identity and customer/WTP proof",
       "ObraSignal #845 privacy customer-surface failing-before still needs a safe passing-after implementation",
       "GTM real workflow-qualified problem confirmation, first/repeat value, WTP/payment and retention require external evidence; prepared outbound remains NOT SENT without explicit authorization",
-      "Customer Decision and Data Analytics legacy branches show shared Mobile expo-doctor drift; canonical adoption remains open",
+      "Customer Decision legacy branch still shows shared Mobile expo-doctor drift; canonical adoption remains open",
       "Release Safety mergeability metadata inconsistency requires recheck",
       "Support Ops real staffing/SLO/SLA/customer-incident/service-restoration/customer-verification evidence remains external and UNKNOWN",
       "merge/adoption decisions"
@@ -69,7 +71,8 @@
     {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity recovered after exact branch/PR recheck.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"No exact source/BATON identity recovered after exact PR recheck.","global_stop":false},
     {"factory_id":"obrasignal-customer-journey","blocker":"#821 exact-head Quality GREEN draft; persisted per-mutation actor audit attribution and full endpoint role enforcement remain open.","global_stop":false},
-    {"factory_id":"obrasignal-product-strategy","blocker":"#521 previous exact head 131073cbb095c9a87fd66a1d3b466d3b254d3175 had Python SUCCESS and Mobile expo-doctor FAILURE. Deterministic dependency alignment repair committed at 6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8; exact-head CI not yet observed.","global_stop":false},
+    {"factory_id":"obrasignal-product-strategy","blocker":"#521 previous exact head 131073cbb095c9a87fd66a1d3b466d3b254d3175 had Python SUCCESS and Mobile expo-doctor FAILURE. Dependency alignment repair committed at 6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8; exact-head CI not yet observed.","global_stop":false},
+    {"factory_id":"obrasignal-data-analytics","blocker":"#344 previous head 303fce7fc69284ef2b7a7fd5d117addd1e53f110 carried same stale Expo/RN versions as other expo-doctor-red lanes. Dependency alignment repair committed at de1509f3bae21cdcc6763e676df45407c220849c; exact-head CI not yet observed.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"No exact source/BATON/branch/PR/code identity recovered after exact target/Documentary Billing recheck.","global_stop":false}
   ],
   "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
