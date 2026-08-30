@@ -1,97 +1,128 @@
 # INDUSTRIAL SUPPLIER CLAIMS & MARGIN RECOVERY / CAUSLEDGER — FACTORY STATE
 
 ## MISSION
-Build an evidence-first supplier-side industrial commercial recovery product that reconstructs documented recovery candidates, preserves uncertainty, requires independent human review, supports auditable correction/supersession of pre-action reconstructions, records only documented final cumulative outcomes, and never invents entitlement, legal recoverability, external authority, or recovered cash.
+Operate CausLedger as a **real assisted supplier-side recovery business that is rapidly automating itself**. The first product is an evidence-first professional dossier, not a completed dashboard. Commercial execution and product hardening run in parallel.
+
+## FROZEN INITIAL WEDGE
+Until real commercial proof exists, concentrate the critical path on **supplier-side customer-caused cost / margin recovery**.
+
+First case type to close completely: **customer-directed engineering/change cost (NRE / change-driven incremental cost)**.
+
+Secondary categories remain subordinate until the first case type has real paid-case capability: premium freight/expedite, dedicated tooling/investment, customer-caused disruption, contractually supported volume shortfall and clearly supported material/cost adjustments.
 
 ## SOURCE TRUTH
 - Repository: `MarcosTaz/Obrasignal`
-- Application branch: `apps/industrial-claims`
+- Branch: `apps/industrial-claims`
 - Draft PR: `#785`
-- Last exact application-source GREEN: `fccd959ab92fad297970bc7481ce92b90672c2ad`
-- Verification evidence: `ObraSignal Quality #4314`, run `33329594415`; exact-head SUCCESS.
-- Factory Cloud registry and runtime-provisioning contract point to that exact GREEN application snapshot.
-- Pointer/state metadata commits after that source snapshot require their own exact-head CI before the branch HEAD itself is described as GREEN.
+- Last exact application-source GREEN observed before the business-first execution commits: `1f54e0818ab8197e08847ea433158c279abbcaa1`
+- Verification evidence: ObraSignal Quality `#4332`, run `33330416261`, SUCCESS.
+- Current branch includes later business-first dossier/GTM/test commits and is `NOT_FULLY_VERIFIED` until exact-head CI completes.
 
-## DONE
-- Tenant-safe verified-provider identity boundary; raw tenant/actor headers are assertions only.
-- Role separation: analyst / reviewer / operator / admin with four-eyes self-review prohibition.
-- Evidence-first intake: references alone remain unresolved; supplied documentary contents are hashed; raw source/outcome contents are not persisted.
-- Explicit currency lineage with no implicit conversion.
-- Numeric finite/non-negative/capacity validation and exact Decimal working precision.
-- Immutable reviewed net-potential recovery cap.
-- Structured recovery fingerprint and fingerprint-scoped internal case/evidence IDs prevent delimiter and reused-human-reference collisions.
-- Durable case metadata, recovery index, revision lineage and shared case persistence are transactionally protected.
-- Replay integrity prevents economic/currency/evidence/metadata rewrite, lifecycle downgrade and partial replay repair on late conflict.
-- Pre-review entitlement truth remains non-actionable: documentary-complete = PARTIAL; missing evidence = UNRESOLVED.
-- Notice truth is analyst-declared (`DECLARED_DATE_FOR_REVIEW` / `DECLARED_NONE_FOR_REVIEW`) or UNKNOWN; deadline timing OPEN / DUE_TODAY / EXPIRED is operational risk only.
-- Dossier read model fails closed on corrupt/ambiguous evidence, calculation, deadline, entitlement, fingerprint, audit and outcome lineage.
-- Review/action/resolve require a valid current revision before mutation.
-- `APPROVED` and `ACTIONED` are internal workflow states only and confer no customer/external authority.
-- Resolve requires explicit final-cumulative confirmation, matching reviewed currency, documentary outcome evidence and reviewed-value cap.
-- Tenant-scoped reviewer/operator queue exposes only current revisions; historical revisions remain readable through detail.
-- Amendment/revision workflow implemented: one logical recovery fingerprint across revisions; immutable identity fields; analyst-only correction; fresh independent review; superseded revisions remain historical and transition-ineligible; amendment blocked after ACTIONED/final outcome; supersession persists atomically; old-revision replay fails closed.
-- Amendment HTTP boundary is tenant-scoped and role-gated.
-- Console provides safe amendment mode using full corrected intake; raw documents are never reloaded from storage.
-- Backup/restore preserves revision history, current pointer, full dossier lineage, tenant isolation and raw-content absence.
-- Browser shell uses CSP/no-store/nosniff/no-referrer/restrictive permissions and safe DOM APIs; no `innerHTML`.
-- Input bounds and control-character defenses cover tenant/refs/IDs/actors/reasons/missing-evidence and pathological decimals.
-- Factory Cloud Industrial allowlist includes revision-store, amendment domain, amendment HTTP, revision backup/restore and console-amendment regressions.
-- Pilot contract schema v14 explicitly encodes amendment, supersession, fresh-review, backup, evidence, transition, security and commercial-truth constraints.
+## DELIVERY MODEL
+Default early model: **software + human review + evidence traceability + professional dossier**.
+
+Manual steps are allowed when controlled, recorded and independently reviewable. They are not blockers. Repeated manual steps become automation backlog only after delivery proves they repeat and matter economically.
+
+The dossier chain is:
+DOCUMENTS → CONTRACT/PO/CHANGE TRUTH → EVENT → CAUSATION → CUSTOMER RESPONSIBILITY BASIS → COST → CALCULATION → PRIOR RECOVERY CHECK → EVIDENCE → CONFIDENCE → NOTICE/DEADLINE → DOSSIER → NEXT ACTION.
+
+If evidence is insufficient: **NO CLAIM / NEEDS REVIEW**.
+
+## DONE — PRODUCT / DELIVERY
+- Existing tenant-safe identity, roles, four-eyes review, documentary hashing, raw-content non-persistence, currency lineage, numeric safety, recovery cap, replay/atomicity, revision/supersession, backup/restore, tenant-safe queue/detail, secure console and final cumulative outcome controls remain in force.
+- Current revision/successor navigation and revision-lineage integrity are hardened; stale/superseded revisions cannot transition.
+- Package export requires current durable truth and rejects stale lifecycle/economic/evidence snapshots.
+- Corrected recovery journey is covered end-to-end through amendment, fresh review, action, final outcome and restore.
+- `COMMERCIAL_OPERATING_MODEL.md` freezes the business-first wedge and metrics.
+- `DOSSIER_STANDARD.md` defines the audit-grade paid deliverable.
+- `ASSISTED_DELIVERY_SOP.md` defines qualification → intake → rapid scan → forensic reconstruction → human review → dossier → outcome → commercial close → automation learning.
+- `PRICING_AND_QUALIFICATION.md` defines initial pricing hypotheses and ICP/disqualifiers.
+- `dossier.py` builds an assisted dossier from durable case truth plus explicit human causation/responsibility/prior-recovery assessment without upgrading legal truth.
+- 24 adversarial customer-directed engineering/change/NRE scenarios are codified in `fixtures/nre_adversarial_cases.json`.
+- `test_industrial_claims_assisted_dossier.py` tests those 24 scenarios and requires fail-closed NO CLAIM / NEEDS REVIEW / candidate dispositions.
+- Industrial Factory Cloud allowlist includes corrected-journey E2E and assisted-dossier red-team.
+
+## DONE — GTM / BUSINESS
+Initial prospect pipeline exists with 8 fit hypotheses. No prospect is represented as having a claim merely because its operating model fits the ICP.
+
+Real outreach sent on 2026-08-30:
+1. GLN Molds — `sales@gln.pt` — Gmail message/thread `1a05446720f4ad28`.
+2. TJ Moldes — `depcom@tj-moldes.pt` — Gmail message/thread `1a054469f921f60e`.
+3. Moldetipo Group — `moldetipo@moldetipo.pt` — Gmail message/thread `1a05446c0d5da924`.
+
+Offer tested: short discovery + bounded historical-case rapid scan. Positioning explicitly says unsupported evidence may produce NO CLAIM and no recovery promise is made.
 
 ## PRODUCT TRUTH
-- `READY_FOR_REVIEW` = documentary candidate ready for independent human review only.
-- `CONTENT_HASHED` = content supplied and hash provenance recorded; not authenticity, legal sufficiency or contractual support.
-- `PARTIAL` pre-review entitlement confidence is not an approved entitlement.
-- `APPROVED` = internal workflow approval only.
-- `ACTIONED` = internal workflow state only; no customer action is performed by this repository flow.
-- An amendment is a correction/supersession of the same logical recovery, not a new recovery and not customer/external action.
-- Every amendment requires a new full corrected documentary reconstruction and fresh independent review; raw documents are not rehydrated from storage.
-- Superseded revisions remain audit-readable but cannot be reviewed, actioned or resolved.
-- `RECOVERED` / `CLOSED_NO_RECOVERY` records a documented final cumulative outcome under the current single-close model.
+- `READY_FOR_REVIEW` = documentary candidate only.
+- Human causation/customer-responsibility assessment is required for the assisted dossier; cost alone never establishes responsibility.
+- `CONTENT_HASHED` proves supplied-content hash provenance, not authenticity/legal sufficiency.
+- `APPROVED` / `ACTIONED` remain internal workflow states only.
+- External customer action/claim submission is never automatic.
+- Final recorded outcome requires documentary evidence and remains final-cumulative, not installment accounting.
+- Raw documentary content is not persisted by the Industrial service.
 - No currency conversion is implemented.
-- Expired declared notice timing is an urgency signal requiring human exception/waiver analysis, not a recoverability conclusion.
 
-## BUSINESS TRUTH
-- Pricing status: `HYPOTHESIS`.
-- Commercial success: `UNPROVEN`.
-- Real incremental recovery: not proven.
-- Real customer revenue: not proven.
-- Market validation: not proven.
-- Production authority: false.
-- This Factory is NOT `MARKET_VALIDATED`, NOT `PILOT_VALIDATED`, NOT `PILOT_CAPABLE`, NOT `COMMERCIAL_READY`, and NOT production ready.
+## BUSINESS TRUTH / METRICS
+- prospects identified: 8
+- prospects contacted: 3
+- replies observed: 0 at initial send time
+- qualified discovery calls: 0
+- real customer document samples received: 0
+- real rapid scans completed: 0
+- real pilots: 0
+- paid audits: 0
+- real customer dossiers delivered: 0
+- verified recovery value: €0 proven
+- customer payments: €0 proven
+- pricing: HYPOTHESIS
+- willingness to pay: UNPROVEN
+- market validation: UNPROVEN
+- production authority: false
 
-## TEST / EVIDENCE STATE
-- Exact application-source GREEN: `fccd959ab92fad297970bc7481ce92b90672c2ad`.
-- CI: ObraSignal Quality #4314 / run `33329594415` SUCCESS.
-- Preceding regression CI #4310 failed only on revision-detail field naming; 1010 tests passed and Mobile passed. Tests were aligned to the established `revision.number` contract and exact-head #4314 passed.
-- Industrial allowlisted suite includes shared recovery contracts plus service, recovery cap, replay, atomic persistence, case metadata, revision store, amendment, amendment HTTP, outcome atomicity, document privacy, input bounds, collision resistance, synthetic oracle, package, pilot contract, full backup/restore, revision backup/restore, web, HTTP intake, console, console amendment, queue, detail and dossier-integrity tests.
-- Known code regressions at exact GREEN source snapshot: none.
+This Factory is not MARKET_VALIDATED, PILOT_VALIDATED, COMMERCIAL_READY or PROJECT_COMPLETE.
 
 ## ACTIVE
-Continue repository-only P0/P1 scan from exact GREEN source `fccd959ab92fad297970bc7481ce92b90672c2ad`. Current highest-value candidate: revision resumability — historical detail should expose the current/successor finding so a stale client can recover after supersession without guessing.
+Run the business and product critical path together:
+1. verify current exact-head CI and repair regressions immediately;
+2. monitor/reply to Wave-1 outreach and convert any positive response into discovery;
+3. obtain one bounded historical case/document sample only through an authorized secure handling path;
+4. perform assisted rapid scan and produce the first audit-grade real dossier or documented NO CLAIM;
+5. quote/test a paid single-case audit if the rapid scan supports further work;
+6. measure delivery hours/cost and customer response;
+7. automate only repeated manual work that materially affects delivery economics.
 
 ## NEXT
-1. Prove the revision-resumability gap with a failing-before regression.
-2. Expose tenant-safe current/successor revision navigation without changing recovery identity or making amendment implicitly idempotent.
-3. Run exact-head CI; repair any regression immediately.
-4. Repin Factory Cloud only to a newer exact-head GREEN source snapshot if source code changes.
-5. Continue final P0/P1 scan for tenant/raw-content leakage, truth-language overclaim, lifecycle dead ends, collision semantics, unsafe HTTP failures, replay/atomicity and commercial overclaim.
-6. Keep runtime, provider, market, legal, customer and production authority items in WAIT.
+- Exact-head GREEN for current business-first implementation.
+- Persist first-case NRE dossier output format in a customer-deliverable rendering without exposing raw documents.
+- Build a bounded real-document intake checklist and customer data-handling agreement/process for the assisted pilot.
+- Prepare discovery script and document-request pack for any reply.
+- Follow up Wave 1 if no response after an appropriate interval; adjust offer rather than widening product taxonomy.
+- Expand Wave 2 only after Wave-1 signal or deliberate message test.
+- Continue security hardening required to handle a real external case safely.
 
-## WAIT / OWNER-ONLY / EXTERNAL DEPENDENCIES
-- Runtime workspace provisioning at `/srv/factory-cloud/apps/industrial-claims` and supervised worker.
-- Verified real upstream provider/JWT tenant + organization + role mapping in the target runtime.
+## WAIT / EXTERNAL DEPENDENCIES
+These are not Factory stop conditions; other executable work continues.
+- Await replies from the first three prospects.
+- Real customer documents require an authorized secure intake/data-handling path before being ingested into the unprovisioned product runtime.
+- Runtime workspace provisioning/supervised worker.
+- Verified real upstream provider/JWT tenant/org/role mapping.
 - Real browser authentication/session binding and authorized external runtime exposure.
-- Production deploy, secrets/config activation, provider activation or other production mutation.
-- Real customer data/use until authorized.
-- Customer outreach or market exposure.
-- Pricing/WTP validation.
-- Legal/recoverability review for real claims.
-- Real recovered cash and real customer revenue evidence.
+- Production deploy/secrets/provider activation.
+- Legal/recoverability specialist review where a real case requires it.
+- Real payment/recovery evidence can only exist after customer action.
 - Merge approval for draft PR #785.
 
-## BLOCKERS
-No repository-only blocker is accepted as a stop condition. Runtime, market, legal, customer and production authority dependencies remain external WAIT and must not be bypassed by fabrication.
+Customer outreach is **no longer WAIT**: it is authorized for this business-first execution and has begun. External claim submission on behalf of a customer remains authority-gated.
+
+## COMPLETION GATE
+PROJECT COMPLETE requires all of:
+- secure reliable customer case E2E;
+- complete audit/recovery dossier delivery;
+- safe real external pilot handling;
+- legitimate willingness-to-pay test and paid path;
+- support/monitoring/incident handling;
+- understood cost to serve and revenue;
+- credible repeat case/continuous-monitoring mechanism.
 
 ## RESUME_AT
-Read `apps/industrial-claims` exact HEAD and exact-head CI. Resume revision-resumability P1 first. If the branch moved or CI failed, repair the exact current regression before further work. Never reset to an older plan or treat a GREEN milestone as Factory completion.
+Read exact `apps/industrial-claims` HEAD and CI. Repair any failure. Then continue ACTIVE in business order: replies/discovery/document sample/rapid scan/dossier/paid-audit test while finishing only the software/security required to deliver those cases safely. Do not return to broad infrastructure or taxonomy work unless a real delivery need creates it.
