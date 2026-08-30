@@ -52,12 +52,42 @@ def test_oversized_case_reference_fails_before_any_case_persistence(tmp_path):
     assert service.store.count("findings", "alpha") == 0
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("customer_ref", "oem\x00evil"),
+        ("program_ref", "program\x7fevil"),
+        ("event_ref", "event\nother"),
+        ("commercial_basis_ref", "basis\revil"),
+        ("cost_evidence_ref", "cost\tevil"),
+        ("actor_id", "analyst\x1bevil"),
+    ],
+)
+def test_control_characters_in_case_identifiers_fail_before_persistence(tmp_path, field, value):
+    service = IndustrialClaimsService(tmp_path / f"control-{field}.sqlite3")
+    with pytest.raises(AssuranceKernelError, match="forbidden control characters"):
+        _analyze(service, **{field: value})
+    assert service.index.count_fingerprints("alpha") == 0
+    assert service.case_store.count("alpha") == 0
+    assert service.store.count("evidence", "alpha") == 0
+    assert service.store.count("findings", "alpha") == 0
+
+
 def test_missing_evidence_collection_and_keys_are_bounded_before_persistence(tmp_path):
     service = IndustrialClaimsService(tmp_path / "missing-bounds.sqlite3")
     with pytest.raises(AssuranceKernelError, match="missing_evidence exceeds"):
         _analyze(service, missing_evidence=tuple(f"key-{i}" for i in range(MAX_MISSING_EVIDENCE_ITEMS + 1)))
     with pytest.raises(AssuranceKernelError, match="missing evidence key exceeds"):
         _analyze(service, event_ref="event-2", missing_evidence=("x" * (MAX_MISSING_EVIDENCE_CHARS + 1),))
+    assert service.index.count_fingerprints("alpha") == 0
+    assert service.case_store.count("alpha") == 0
+    assert service.store.count("findings", "alpha") == 0
+
+
+def test_missing_evidence_key_rejects_control_characters_before_persistence(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "missing-control.sqlite3")
+    with pytest.raises(AssuranceKernelError, match="missing evidence key contains forbidden control characters"):
+        _analyze(service, missing_evidence=("customer\x1bauthorization",))
     assert service.index.count_fingerprints("alpha") == 0
     assert service.case_store.count("alpha") == 0
     assert service.store.count("findings", "alpha") == 0
@@ -91,6 +121,42 @@ def test_review_reason_is_bounded_without_mutating_finding_state(tmp_path):
     assert service.store.count("audit_events", "alpha") == 1
 
 
+def test_review_reason_allows_multiline_text_but_rejects_other_controls(tmp_path):
+    valid = IndustrialClaimsService(tmp_path / "review-multiline.sqlite3")
+    valid_result = _analyze(valid)
+    state = valid.review(
+        tenant_id="alpha",
+        finding_id=valid_result.finding.finding_id,
+        reviewer="reviewer",
+        approved=True,
+        reason="Commercial basis reviewed\nCost lineage reviewed\tindependently",
+    )
+    assert state == "APPROVED"
+
+    invalid = IndustrialClaimsService(tmp_path / "review-control.sqlite3")
+    invalid_result = _analyze(invalid)
+    with pytest.raises(AssuranceOperationError, match="review reason contains forbidden control characters"):
+        invalid.review(
+            tenant_id="alpha",
+            finding_id=invalid_result.finding.finding_id,
+            reviewer="reviewer",
+            approved=True,
+            reason="reviewed\x00hidden",
+        )
+    assert invalid.ops.get_state(tenant_id="alpha", finding_id=invalid_result.finding.finding_id) == "READY_FOR_REVIEW"
+    assert invalid.store.count("audit_events", "alpha") == 1
+
+
+def test_reviewer_and_finding_identifiers_reject_controls_without_state_change(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "review-id-controls.sqlite3")
+    result = _analyze(service)
+    with pytest.raises(AssuranceOperationError, match="reviewer contains forbidden control characters"):
+        service.review(tenant_id="alpha", finding_id=result.finding.finding_id, reviewer="reviewer\x00evil", approved=True, reason="reviewed")
+    with pytest.raises(AssuranceOperationError, match="finding_id contains forbidden control characters"):
+        service.review(tenant_id="alpha", finding_id=result.finding.finding_id + "\n", reviewer="reviewer", approved=True, reason="reviewed")
+    assert service.ops.get_state(tenant_id="alpha", finding_id=result.finding.finding_id) == "READY_FOR_REVIEW"
+
+
 def test_oversized_resolution_identifiers_and_amounts_fail_before_outcome_evidence_persistence(tmp_path):
     service = IndustrialClaimsService(tmp_path / "resolution-bounds.sqlite3")
     result = _analyze(service)
@@ -102,6 +168,37 @@ def test_oversized_resolution_identifiers_and_amounts_fail_before_outcome_eviden
     with pytest.raises(AssuranceOperationError, match="numeric input capacity"):
         service.resolve(tenant_id="alpha", finding_id=result.finding.finding_id, outcome_id="outcome-2", recovered_amount="1e999999", currency="EUR", evidence_ref="bank-2", evidence_content="bank settlement evidence", actor_id="operator")
 
+    assert service.ops.get_state(tenant_id="alpha", finding_id=result.finding.finding_id) == "ACTIONED"
+    assert service.ops.outcomes(tenant_id="alpha") == ()
+    assert service.store.count("evidence", "alpha") == 3
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("outcome_id", "settlement\n1", "outcome_id contains forbidden control characters"),
+        ("evidence_ref", "bank\x00ref", "outcome evidence ref contains forbidden control characters"),
+        ("actor_id", "operator\x7f", "resolution actor contains forbidden control characters"),
+    ],
+)
+def test_resolution_identifiers_reject_controls_before_outcome_persistence(tmp_path, field, value, message):
+    service = IndustrialClaimsService(tmp_path / f"resolution-control-{field}.sqlite3")
+    result = _analyze(service)
+    service.review(tenant_id="alpha", finding_id=result.finding.finding_id, reviewer="reviewer", approved=True, reason="reviewed")
+    service.action(tenant_id="alpha", finding_id=result.finding.finding_id, actor_id="operator")
+    kwargs = dict(
+        tenant_id="alpha",
+        finding_id=result.finding.finding_id,
+        outcome_id="settlement-1",
+        recovered_amount="1000",
+        currency="EUR",
+        evidence_ref="bank-1",
+        evidence_content="bank settlement evidence",
+        actor_id="operator",
+    )
+    kwargs[field] = value
+    with pytest.raises(AssuranceOperationError, match=message):
+        service.resolve(**kwargs)
     assert service.ops.get_state(tenant_id="alpha", finding_id=result.finding.finding_id) == "ACTIONED"
     assert service.ops.outcomes(tenant_id="alpha") == ()
     assert service.store.count("evidence", "alpha") == 3
