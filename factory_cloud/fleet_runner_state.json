@@ -5,30 +5,49 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 1,
-  "last_factory_id": "factory-cloud",
-  "last_run_at": "2026-08-30T07:40:43Z",
+  "cursor": 3,
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-08-30T08:41:43Z",
   "last_material_change": {
-    "kind": "FACTORY_CLOUD_PR_METADATA_SYNCHRONIZED_STATE_SUCCESSOR_PENDING_CI",
-    "factory_id": "factory-cloud",
-    "summary": "Verified predecessor 0ea168bc04c1e2f08675783222311ebad932fcee has ObraSignal Quality run 33297402265 = SUCCESS. PR #652 metadata was synchronized to current fleet semantics and then fleet state was persisted, creating a state-only successor whose exact-head CI must be classified separately before any GREEN claim. PR remains OPEN/NOT MERGED. No deployment, production/customer-data mutation, source activation, payment, secrets/provider/config change or outbound was performed.",
+    "kind": "FACTORY_CLOUD_EXACT_HEAD_GREEN_OBRASIGNAL_PRIVACY_FAILING_BEFORE_INDUSTRIAL_CLAIMS_CURRENT_HEAD_GREEN",
+    "factory_id": "industrial-claims",
+    "summary": "Factory Cloud state successor 967cb112b233b859e1fc559e336989b044e809ea is exact-head GREEN via ObraSignal Quality 33299862243. ObraSignal PR #845 exact head 1f8b30061f8aca32a533c29f5f71491257d5d1da is a deterministic customer-privacy-surface failing-before: Mobile is GREEN while Python repository tests fail after adding only the new privacy-surface probe. Industrial Claims stale RED blocker was corrected: branch apps/industrial-claims current exact head c6de16e5a23483bb27ef33f6abf329752bde45bb is ObraSignal Quality SUCCESS via run 33287246832. No merge, deploy, production/customer-data mutation, source activation, payment, secrets/provider/config change or outbound was performed.",
     "evidence": {
       "factory_cloud": {
         "pr": 652,
         "branch": "factory-cloud/app-development-control-plane",
-        "verified_predecessor": "0ea168bc04c1e2f08675783222311ebad932fcee",
-        "verified_predecessor_quality_run": 33297402265,
-        "verified_predecessor_quality": "SUCCESS",
-        "state_successor_quality": "PENDING_EXACT_HEAD_CLASSIFICATION",
+        "head": "967cb112b233b859e1fc559e336989b044e809ea",
+        "quality_run": 33299862243,
+        "quality": "SUCCESS",
         "registry_count": 33,
-        "pr_state": "OPEN_NOT_MERGED",
-        "classification": "STATE_ONLY_SUCCESSOR_PENDING_EXACT_HEAD_CI"
+        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_MERGED"
+      },
+      "obrasignal": {
+        "pr": 845,
+        "branch": "integration/account-privacy-customer-surface-probe-20260830",
+        "base": "a3e523b216131e9021545826cd01abaf0a473183",
+        "head": "1f8b30061f8aca32a533c29f5f71491257d5d1da",
+        "quality_run": 33288287008,
+        "python_job": 99195297946,
+        "python": "FAILURE",
+        "mobile_job": 99195297916,
+        "mobile": "SUCCESS",
+        "changed_files": ["tests/test_mobile_account_privacy_surface_probe.py"],
+        "classification": "DETERMINISTIC_FAILING_BEFORE_CUSTOMER_PRIVACY_SURFACE_DRAFT_NOT_CANONICAL"
+      },
+      "industrial_claims": {
+        "pr": 785,
+        "branch": "apps/industrial-claims",
+        "head": "c6de16e5a23483bb27ef33f6abf329752bde45bb",
+        "quality_run": 33287246832,
+        "quality": "SUCCESS",
+        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL"
       }
     },
-    "active": "ObraSignal: reconstruct current canonical/main and highest-impact open exact-head evidence; advance only repository-safe reversible work.",
-    "next": "ObraSignal -> Industrial Claims -> ScopeLedger -> ChangeLedger -> all remaining registry entries; revisit blockers as local state, never as permanent exclusion.",
+    "active": "ScopeLedger: re-read recovered-source BATON/current branch and execute the highest-value repository-safe milestone that does not require live Railway production identity.",
+    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> all remaining registry entries; revisit blockers as local state, never as permanent exclusion.",
     "wait": [
-      "Factory Cloud state-only successor exact-head CI classification",
+      "ObraSignal #845 privacy customer-surface failing-before needs a passing-after implementation/composition; current connector write surface does not safely support partial editing of the large compressed mobile/App.js without replacing the complete file, so do not fabricate a repair",
       "Factory Cloud external isolated runtime hosting is owner-authorized in PR #652 history but is not exercised by this repository-safe fleet run; no deployment/runtime activation claim",
       "EU Switching real migration/customer outcome evidence, WTP/payment and canonical adoption remain external/unproven",
       "ComplianceLedger exact source/BATON/branch/PR/code identity",
@@ -52,8 +71,6 @@
       "Aviation canonical adoption, bounded source topology against main, and any real entitlement/recovery/customer evidence",
       "ScopeLedger authorized live Railway/source fingerprint and production lineage comparison",
       "ChangeLedger valid sender postal address, DGC clarification/list consultation, and explicit outbound authorization",
-      "Industrial Claims #785 exact Python failing assertion/root cause",
-      "#828 exact Python failing assertion/root cause before deterministic failing-before classification",
       "Customer Journey #762 still lacks complete endpoint role enforcement and persisted actor audit attribution",
       "Customer Decision shared-company fixture depends on noncanonical #821",
       "merge/adoption decisions"
