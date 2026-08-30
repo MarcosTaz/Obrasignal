@@ -3,6 +3,24 @@ from pathlib import Path
 SURFACE = Path('mobile/components/AccountPrivacyControls.js')
 
 
+def test_account_deletion_lifecycle_is_checked_before_private_shell_is_exposed():
+    source = SURFACE.read_text(encoding='utf-8')
+
+    assert 'const [lifecycleReady, setLifecycleReady] = useState(false)' in source
+    assert 'refreshStatus({ initial: true })' in source
+    assert "if (!lifecycleReady)" in source
+    assert 'A confirmar o estado privado da conta…' in source
+    assert 'Não foi possível confirmar o estado privado da conta.' in source
+
+
+def test_non_active_deletion_states_lock_hydrated_private_shell():
+    source = SURFACE.read_text(encoding='utf-8')
+
+    assert "next?.state !== 'NONE'" in source
+    assert 'setPrivacyLocked(shouldLock)' in source
+    assert "privacyLocked ? <View style={styles.locked}" in source
+
+
 def test_accepted_product_private_deletion_purges_device_private_tenant_state():
     source = SURFACE.read_text(encoding='utf-8')
 
