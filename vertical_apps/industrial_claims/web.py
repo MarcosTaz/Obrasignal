@@ -15,6 +15,7 @@ from factory_cloud.assurance_ops import AssuranceOperationError
 from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.recovery_index import RecoveryIndexError
 from factory_cloud.shared_platform import SharedPlatformError
+from vertical_apps.industrial_claims.amendment import amend_case
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
@@ -96,6 +97,20 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
         if not isinstance(payload, dict):
             raise ValueError("JSON body must be an object")
         return payload
+
+    def candidate_payload(payload: dict) -> tuple[list, object, bool]:
+        missing = payload.get("missing_evidence") or []
+        if not isinstance(missing, list):
+            raise ValueError("missing_evidence must be a list")
+        for field in ("commercial_basis_content", "event_evidence_content", "cost_evidence_content"):
+            value = payload.get(field)
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"{field} must be text when supplied")
+        notice_raw = payload.get("notice_due")
+        no_notice_deadline = payload.get("notice_deadline_not_applicable", False)
+        if not isinstance(no_notice_deadline, bool):
+            raise ValueError("notice_deadline_not_applicable must be boolean")
+        return missing, notice_raw, no_notice_deadline
 
     @app.after_request
     def security_headers(response):
@@ -185,21 +200,51 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
         try:
             tenant_id, actor_id = identity("analyst")
             payload = json_object()
-            missing = payload.get("missing_evidence") or []
-            if not isinstance(missing, list):
-                raise ValueError("missing_evidence must be a list")
-            for field in ("commercial_basis_content", "event_evidence_content", "cost_evidence_content"):
-                value = payload.get(field)
-                if value is not None and not isinstance(value, str):
-                    raise ValueError(f"{field} must be text when supplied")
-            notice_raw = payload.get("notice_due")
-            no_notice_deadline = payload.get("notice_deadline_not_applicable", False)
-            if not isinstance(no_notice_deadline, bool):
-                raise ValueError("notice_deadline_not_applicable must be boolean")
+            missing, notice_raw, no_notice_deadline = candidate_payload(payload)
             result = service.analyze(
                 tenant_id=tenant_id, actor_id=actor_id, customer_ref=str(payload["customer_ref"]), program_ref=str(payload["program_ref"]), event_ref=str(payload["event_ref"]), claim_family=str(payload["claim_family"]), commercial_basis_ref=str(payload["commercial_basis_ref"]), cost_evidence_ref=str(payload["cost_evidence_ref"]), gross_cost=str(payload["gross_cost"]), currency=str(payload.get("currency", "")), commercial_basis_content=payload.get("commercial_basis_content"), event_evidence_content=payload.get("event_evidence_content"), cost_evidence_content=payload.get("cost_evidence_content"), avoided_cost=str(payload.get("avoided_cost", "0")), resale_reuse=str(payload.get("resale_reuse", "0")), third_party_recovery=str(payload.get("third_party_recovery", "0")), prior_payment=str(payload.get("prior_payment", "0")), other_mitigation=str(payload.get("other_mitigation", "0")), notice_due=date.fromisoformat(str(notice_raw)) if notice_raw else None, notice_deadline_not_applicable=no_notice_deadline, missing_evidence=tuple(str(item) for item in missing),
             )
-            return jsonify({"finding_id": result.finding.finding_id, "state": result.finding.state, "claim_family": result.claim_family, "net_potential": result.calculation.output_value, "currency": result.calculation.output_unit, "calculation_hash": result.calculation.reproducibility_hash, "notice_deadline_state": result.notice_deadline_state, "evidence_states": {item.source_type: item.metadata.get("verification_state", "UNKNOWN") for item in result.evidence}, "missing_evidence": list(result.missing_evidence), "is_new_recovery": result.is_new_recovery}), 201
+            return jsonify({"finding_id": result.finding.finding_id, "state": result.finding.state, "claim_family": result.claim_family, "net_potential": result.calculation.output_value, "currency": result.calculation.output_unit, "calculation_hash": result.calculation.reproducibility_hash, "notice_deadline_state": result.notice_deadline_state, "evidence_states": {item.source_type: item.metadata.get("verification_state", "UNKNOWN") for item in result.evidence}, "missing_evidence": list(result.missing_evidence), "is_new_recovery": result.is_new_recovery, "revision": 1}), 201
+        except API_ERRORS as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @app.post("/findings/<path:finding_id>/amend")
+    def amend_finding(finding_id: str):
+        try:
+            tenant_id, actor_id = identity("analyst")
+            payload = json_object()
+            missing, notice_raw, no_notice_deadline = candidate_payload(payload)
+            result = amend_case(
+                service,
+                tenant_id=tenant_id, finding_id=finding_id, actor_id=actor_id,
+                customer_ref=str(payload["customer_ref"]), program_ref=str(payload["program_ref"]), event_ref=str(payload["event_ref"]),
+                claim_family=str(payload["claim_family"]), commercial_basis_ref=str(payload["commercial_basis_ref"]),
+                cost_evidence_ref=str(payload["cost_evidence_ref"]), gross_cost=str(payload["gross_cost"]),
+                currency=str(payload.get("currency", "")), commercial_basis_content=payload.get("commercial_basis_content"),
+                event_evidence_content=payload.get("event_evidence_content"), cost_evidence_content=payload.get("cost_evidence_content"),
+                avoided_cost=str(payload.get("avoided_cost", "0")), resale_reuse=str(payload.get("resale_reuse", "0")),
+                third_party_recovery=str(payload.get("third_party_recovery", "0")), prior_payment=str(payload.get("prior_payment", "0")),
+                other_mitigation=str(payload.get("other_mitigation", "0")),
+                notice_due=date.fromisoformat(str(notice_raw)) if notice_raw else None,
+                notice_deadline_not_applicable=no_notice_deadline, missing_evidence=tuple(str(item) for item in missing),
+            )
+            revision = service.revision_store.require_current(tenant_id=tenant_id, finding_id=result.finding.finding_id)
+            return jsonify({
+                "finding_id": result.finding.finding_id,
+                "supersedes_finding_id": finding_id,
+                "revision": revision.revision,
+                "state": result.finding.state,
+                "claim_family": result.claim_family,
+                "net_potential": result.calculation.output_value,
+                "currency": result.calculation.output_unit,
+                "calculation_hash": result.calculation.reproducibility_hash,
+                "notice_deadline_state": result.notice_deadline_state,
+                "missing_evidence": list(result.missing_evidence),
+                "is_new_recovery": False,
+                "requires_fresh_review": True,
+                "customer_contact_authorized": False,
+                "external_claim_submission_authorized": False,
+            }), 201
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
