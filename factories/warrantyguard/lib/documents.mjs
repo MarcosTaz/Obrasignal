@@ -8,7 +8,7 @@ const KEYWORDS={
   DEADLINE:/\b(within|no later than|not later than|before|deadline|days?|months?|years?)\b/i,
   NOTICE:/\b(notice|notify|notification|written notice|claim submission|submit(?:ted)?)\b/i,
   LIABILITY:/\b(liab(?:le|ility)|responsib(?:le|ility)|attribut(?:e|ion)|fault)\b/i,
-  COST:/\b(cost|charge|debit|credit|reimburse|reimbursement|expense|amount)\b/i,
+  COST:/\b(costs?|charges?|debits?|credits?|reimburs(?:e|ed|es|ing|able|ement)|expenses?|amounts?)\b/i,
   PARTY:/\b(supplier|customer|buyer|seller|oem|manufacturer|party|parties)\b/i
 };
 
