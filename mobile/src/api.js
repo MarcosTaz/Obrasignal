@@ -40,7 +40,7 @@ async function request(path, options={}) {
       const text=await response.text();
       let data=null; try{data=text?JSON.parse(text):null;}catch(_){}
       if(!response.ok){
-        if(response.status===401 && method==='GET' && !skipAuth && authRefreshes===0){
+        if(response.status===401 && !skipAuth && authRefreshes===0){
           authRefreshes+=1;
           let refreshedToken=null;
           try{refreshedToken=await authSession.refresh();}catch(_){}
