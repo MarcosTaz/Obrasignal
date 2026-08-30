@@ -88,6 +88,28 @@ function jsonRequest(payload) {
   return {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)};
 }
 
+function installAmendmentControl() {
+  const grid = document.querySelector("#analyze-form .form-grid");
+  if (!grid || document.getElementById("amend_finding_id")) return;
+  const field = document.createElement("div");
+  field.className = "field full";
+  const label = document.createElement("label");
+  label.htmlFor = "amend_finding_id";
+  label.textContent = "Current finding ID to amend — optional";
+  const input = document.createElement("input");
+  input.id = "amend_finding_id";
+  input.name = "amend_finding_id";
+  input.maxLength = 2048;
+  input.autocomplete = "off";
+  input.placeholder = "Leave blank for a new recovery; enter the current finding ID for a corrected revision.";
+  const note = document.createElement("small");
+  note.textContent = "An amendment keeps the same recovery identity, creates a new revision and requires fresh independent review. Supply the full corrected documentary reconstruction because raw documents are not reloaded from storage.";
+  field.append(label, input, note);
+  grid.prepend(field);
+}
+
+installAmendmentControl();
+
 document.getElementById("refresh-queue").addEventListener("click", loadQueue);
 document.getElementById("notice_due").addEventListener("change", (event) => {
   if (event.target.value) document.getElementById("notice_deadline_not_applicable").checked = false;
@@ -99,12 +121,15 @@ document.getElementById("notice_deadline_not_applicable").addEventListener("chan
 document.getElementById("analyze-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const amendFindingId = String(payload.amend_finding_id || "").trim();
+  delete payload.amend_finding_id;
   ["avoided_cost", "resale_reuse", "third_party_recovery", "prior_payment", "other_mitigation"].forEach((key) => { payload[key] = payload[key] || "0"; });
   payload.currency = String(payload.currency || "").trim().toUpperCase();
   payload.notice_deadline_not_applicable = document.getElementById("notice_deadline_not_applicable").checked;
   if (!payload.notice_due) delete payload.notice_due;
   payload.missing_evidence = (payload.missing_evidence || "").split(",").map((value) => value.trim()).filter(Boolean);
-  const result = await send("/analyze", jsonRequest(payload), "analyze-result");
+  const path = amendFindingId ? `/findings/${encodeURIComponent(amendFindingId)}/amend` : "/analyze";
+  const result = await send(path, jsonRequest(payload), "analyze-result");
   if (result && result.response.ok) {
     setFinding(result.body.finding_id, result.body.currency);
     await loadDetail(result.body.finding_id);
