@@ -1,7 +1,9 @@
 from datetime import date
 
 from auth_context import RequestIdentity
+from vertical_apps.industrial_claims.amendment import amend_case
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
+from vertical_apps.industrial_claims.service import IndustrialClaimsService
 from vertical_apps.industrial_claims.web import create_app
 
 
@@ -106,3 +108,41 @@ def test_path_finding_ids_reach_bounded_handler_instead_of_route_404(tmp_path):
     body = response.get_json()
     assert body["error"]
     assert "not found" in body["message"].lower()
+
+
+def test_historical_revision_detail_exposes_direct_successor_and_current_finding(tmp_path):
+    database = tmp_path / "revision-navigation.sqlite3"
+    service = IndustrialClaimsService(database)
+    first = service.analyze(
+        tenant_id="alpha", actor_id="analyst-1", customer_ref="oem-1", program_ref="program-1",
+        event_ref="cancel-1", claim_family="TOOLING", commercial_basis_ref="basis-1", cost_evidence_ref="cost-1",
+        gross_cost="10000", currency="EUR", commercial_basis_content="signed tooling agreement",
+        event_evidence_content="documented cancellation event", cost_evidence_content="cost ledger v1",
+        notice_deadline_not_applicable=True,
+    )
+    second = amend_case(
+        service, tenant_id="alpha", finding_id=first.finding.finding_id, actor_id="analyst-2",
+        customer_ref="oem-1", program_ref="program-1", event_ref="cancel-1", claim_family="TOOLING",
+        commercial_basis_ref="basis-1", cost_evidence_ref="cost-2", gross_cost="12000", currency="EUR",
+        commercial_basis_content="signed tooling agreement", event_evidence_content="documented cancellation event",
+        cost_evidence_content="cost ledger v2", notice_deadline_not_applicable=True,
+    )
+    third = amend_case(
+        service, tenant_id="alpha", finding_id=second.finding.finding_id, actor_id="analyst-3",
+        customer_ref="oem-1", program_ref="program-1", event_ref="cancel-1", claim_family="TOOLING",
+        commercial_basis_ref="basis-1", cost_evidence_ref="cost-3", gross_cost="13000", currency="EUR",
+        commercial_basis_content="signed tooling agreement", event_evidence_content="documented cancellation event",
+        cost_evidence_content="cost ledger v3", notice_deadline_not_applicable=True,
+    )
+
+    read_model = IndustrialClaimsReadModel(database)
+    first_detail = read_model.get_finding(tenant_id="alpha", finding_id=first.finding.finding_id)
+    second_detail = read_model.get_finding(tenant_id="alpha", finding_id=second.finding.finding_id)
+    third_detail = read_model.get_finding(tenant_id="alpha", finding_id=third.finding.finding_id)
+
+    assert first_detail["revision"]["superseded_by_finding_id"] == second.finding.finding_id
+    assert first_detail["revision"]["current_finding_id"] == third.finding.finding_id
+    assert second_detail["revision"]["superseded_by_finding_id"] == third.finding.finding_id
+    assert second_detail["revision"]["current_finding_id"] == third.finding.finding_id
+    assert third_detail["revision"]["superseded_by_finding_id"] is None
+    assert third_detail["revision"]["current_finding_id"] == third.finding.finding_id
