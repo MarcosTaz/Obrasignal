@@ -5,26 +5,23 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 31,
-  "last_factory_id": "obrasignal-support-ops",
-  "last_run_at": "2026-08-30T05:37:52Z",
+  "cursor": 0,
+  "last_factory_id": "complianceledger",
+  "last_run_at": "2026-08-30T06:38:26Z",
   "last_material_change": {
-    "kind": "GTM_SUCCESSOR_SHARED_EXPO_DRIFT_RELEASE_SAFETY_AND_SUPPORT_REVALIDATED",
-    "factory_id": "obrasignal-support-ops",
-    "summary": "GTM successor remains draft PR #844 / integration/company-truth-composition-20260830@a3e523b216131e9021545826cd01abaf0a473183 with exact-head Quality 33288175464 SUCCESS, 1025 passed / 2 skipped and Mobile GREEN; commercial truth remains one inbound reply, zero positive replies, zero qualified conversations, zero meetings, zero pilots, zero paying customers and EUR 0 revenue, and prepared Cohort 2/Tier-A outreach remains NOT SENT. A direct GTM BATON-file write was blocked by repository-write safety checks, so no branch mutation is claimed; fleet state persists the exact reconstructed truth. Customer Decision PR #376@15b8bdd2e4e981a88ce3b70e2c4b7507b5c23d5f and Data Analytics PR #344@303fce7fc69284ef2b7a7fd5d117addd1e53f110 both have Python repository tests SUCCESS while Mobile fails specifically at npx expo-doctor, isolating shared Mobile/Expo drift. Product Strategy PR #521@131073cbb095c9a87fd66a1d3b466d3b254d3175 remains workflow RED pending job-level cause classification. Release Safety PR #345@672e535f0b04f27d967ae3c174bd871fc0a56893 remains an older exact-head GREEN candidate; PR mergeable metadata currently conflicts with a direct compare showing 10 ahead / 0 behind and merge-base equal to main, so no conflict is inferred. Support Ops PR #355 is exactly recovered at support/incident-operations-v1@3aacd6cf08bca752e3023bdef61855f99fb07771 and has exact-head ObraSignal Quality 32892620792 SUCCESS plus CodeQL 32892620579 SUCCESS. Support remains a non-runtime candidate: no 24/7 staffing, SLO/SLA, customer incident resolution, service restoration, customer verification or root-cause closure is claimed without evidence. No merge, deployment, production mutation, source activation, customer-data mutation or outbound was performed.",
+    "kind": "EU_SWITCHING_EXACT_HEAD_GREEN_COMPLIANCE_IDENTITY_STILL_UNKNOWN",
+    "factory_id": "complianceledger",
+    "summary": "EU Switching Evidence Pack successor PR #818 remains OPEN/DRAFT/NOT CANONICAL at cloud-switching/evidence-pack-rn-compat-repair-20260829@f9ffcf82f2eebbfdeb400de76f562cb185ec5adf. Exact-head Cloud Switching Quality 33271664101 and ObraSignal Quality 33271664096 are SUCCESS; the bounded change is only react-native 0.86.2 -> 0.86.3 and does not prove migration/customer outcomes, WTP, payment, deployment or canonical adoption. ComplianceLedger was re-searched by exact target/Documentary Billing terms and no PR identity was recovered; it remains UNKNOWN_SOURCE_IDENTITY rather than being associated speculatively. Rotation wrapped to Factory Cloud. No merge, deployment, production/customer-data mutation, source activation, payment or outbound was performed.",
     "evidence": {
-      "gtm": {"pr":844,"head":"a3e523b216131e9021545826cd01abaf0a473183","quality_run":33288175464,"classification":"GREEN_NOT_CANONICAL_COMMERCIAL_VALIDATION_OPEN"},
-      "customer_decision": {"pr":376,"head":"15b8bdd2e4e981a88ce3b70e2c4b7507b5c23d5f","quality_run":33274301331,"python":"SUCCESS","mobile":"FAILURE_AT_EXPO_DOCTOR"},
-      "product_strategy": {"pr":521,"head":"131073cbb095c9a87fd66a1d3b466d3b254d3175","quality_run":33276689483,"conclusion":"FAILURE"},
-      "data_analytics": {"pr":344,"head":"303fce7fc69284ef2b7a7fd5d117addd1e53f110","quality_run":33276709834,"python":"SUCCESS","mobile":"FAILURE_AT_EXPO_DOCTOR"},
-      "release_safety": {"pr":345,"head":"672e535f0b04f27d967ae3c174bd871fc0a56893","historical_quality_run":32900014033,"pr_mergeable_metadata":false,"compare_to_main":"ahead_by=10 behind_by=0 merge_base=main","classification":"MERGEABILITY_METADATA_INCONSISTENT_RECHECK"},
-      "support_ops": {"pr":355,"branch":"support/incident-operations-v1","head":"3aacd6cf08bca752e3023bdef61855f99fb07771","quality_run":32892620792,"quality":"SUCCESS","codeql_run":32892620579,"codeql":"SUCCESS","classification":"EXACT_HEAD_GREEN_SUPPORT_CANDIDATE_NOT_CANONICAL_NOT_RUNTIME"}
+      "eu_switching_evidence_pack": {"pr":818,"branch":"cloud-switching/evidence-pack-rn-compat-repair-20260829","head":"f9ffcf82f2eebbfdeb400de76f562cb185ec5adf","cloud_switching_quality_run":33271664101,"cloud_switching_quality":"SUCCESS","obrasignal_quality_run":33271664096,"obrasignal_quality":"SUCCESS","classification":"EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_REAL_OUTCOMES_UNPROVEN"},
+      "complianceledger": {"classification":"UNKNOWN_SOURCE_IDENTITY","pr_search":"NO_EXACT_MATCH"}
     },
-    "active": "EU Switching Evidence Pack / Verified Migration Outcomes: reconstruct exact current successor and advance only reversible evidence-pack/outcome-verification work; do not promote synthetic or repository evidence into real migration/customer outcome proof.",
-    "next": "Continue through EU Switching Evidence Pack and ComplianceLedger, then wrap to Factory Cloud and continue full-registry rotation including UNKNOWN/blocked factories.",
+    "active": "Factory Cloud / Control Tower: re-read persistent truth, verify fleet-runner adoption/drift and continue full-registry rotation including blocked/UNKNOWN lanes.",
+    "next": "Factory Cloud -> ObraSignal -> Industrial Claims -> ScopeLedger -> ChangeLedger -> all remaining registry entries; revisit blockers as local state, never as permanent exclusion.",
     "wait": [
+      "EU Switching real migration/customer outcome evidence, WTP/payment and canonical adoption remain external/unproven",
+      "ComplianceLedger exact source/BATON/branch/PR/code identity",
       "GTM real workflow-qualified problem confirmation, first/repeat value, WTP/payment and retention require external evidence; prepared outbound remains NOT SENT without explicit authorization",
-      "GTM branch BATON-file write was blocked by repository-write safety checks; fleet state persists reconstructed exact truth instead",
       "Customer Decision and Data Analytics have Python GREEN but shared Mobile expo-doctor failure; canonical adoption remains open",
       "Product Strategy exact-head workflow 33276689483 is RED; exact job-level cause should be classified before repair/green claim",
       "Release Safety PR #345 mergeable metadata is inconsistent with direct 10-ahead/0-behind compare; recheck before any conflict or readiness claim",
@@ -41,7 +38,6 @@
       "Autonomous Revenue Recovery exact source/BATON identity",
       "ObraSignal Data Runner exact source/BATON identity",
       "Product Market Access exact source/BATON identity",
-      "EU Cloud Switching canonical adoption and any real WTP/pilot/payment/outcome evidence",
       "Aviation canonical adoption, bounded source topology against main, and any real entitlement/recovery/customer evidence",
       "ScopeLedger authorized live Railway/source fingerprint and production lineage comparison",
       "ChangeLedger valid sender postal address, DGC clarification/list consultation, and explicit outbound authorization",
@@ -49,7 +45,6 @@
       "#828 exact Python failing assertion/root cause before deterministic failing-before classification",
       "Customer Journey #762 still lacks complete endpoint role enforcement and persisted actor audit attribution",
       "Customer Decision shared-company fixture depends on noncanonical #821",
-      "ComplianceLedger exact source identity remains UNKNOWN",
       "merge/adoption decisions"
     ]
   },
@@ -74,7 +69,7 @@
     {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity recovered after exact branch/PR recheck.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"No exact source/BATON identity recovered after exact PR recheck.","global_stop":false},
     {"factory_id":"obrasignal-customer-journey","blocker":"#821 exact-head Python+Mobile GREEN draft; #762 still lacks full endpoint role enforcement and persisted actor audit attribution.","global_stop":false},
-    {"factory_id":"complianceledger","blocker":"No exact source/BATON/branch/PR/code identity recovered.","global_stop":false}
+    {"factory_id":"complianceledger","blocker":"No exact source/BATON/branch/PR/code identity recovered after exact target/Documentary Billing recheck.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
