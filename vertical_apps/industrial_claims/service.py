@@ -117,21 +117,30 @@ class IndustrialClaimsService:
         return tenant
 
     @staticmethod
-    def _bounded_text(value: object, *, label: str, max_chars: int) -> str:
+    def _has_forbidden_controls(text: str, *, allow_multiline: bool = False) -> bool:
+        allowed = {"\t", "\n", "\r"} if allow_multiline else set()
+        return any((ord(char) < 32 or ord(char) == 127) and char not in allowed for char in text)
+
+    @classmethod
+    def _bounded_text(cls, value: object, *, label: str, max_chars: int, allow_multiline: bool = False) -> str:
         text = str(value or "").strip()
         if not text:
             raise AssuranceKernelError(f"{label} is required")
         if len(text) > max_chars:
             raise AssuranceKernelError(f"{label} exceeds {max_chars} characters")
+        if cls._has_forbidden_controls(text, allow_multiline=allow_multiline):
+            raise AssuranceKernelError(f"{label} contains forbidden control characters")
         return text
 
-    @staticmethod
-    def _bounded_operation_text(value: object, *, label: str, max_chars: int) -> str:
+    @classmethod
+    def _bounded_operation_text(cls, value: object, *, label: str, max_chars: int, allow_multiline: bool = False) -> str:
         text = str(value or "").strip()
         if not text:
             raise AssuranceOperationError(f"{label} is required")
         if len(text) > max_chars:
             raise AssuranceOperationError(f"{label} exceeds {max_chars} characters")
+        if cls._has_forbidden_controls(text, allow_multiline=allow_multiline):
+            raise AssuranceOperationError(f"{label} contains forbidden control characters")
         return text
 
     @classmethod
@@ -148,6 +157,8 @@ class IndustrialClaimsService:
                 continue
             if len(text) > MAX_MISSING_EVIDENCE_CHARS:
                 raise AssuranceKernelError(f"missing evidence key exceeds {MAX_MISSING_EVIDENCE_CHARS} characters")
+            if cls._has_forbidden_controls(text):
+                raise AssuranceKernelError("missing evidence key contains forbidden control characters")
             normalized.add(text)
         return normalized
 
@@ -480,7 +491,7 @@ class IndustrialClaimsService:
         tenant = self._operation_tenant_id(tenant_id)
         finding_key = self._bounded_operation_text(finding_id, label="finding_id", max_chars=MAX_FINDING_ID_CHARS)
         reviewer_id = self._bounded_operation_text(reviewer, label="reviewer", max_chars=MAX_ACTOR_CHARS)
-        decision_reason = self._bounded_operation_text(reason, label="review reason", max_chars=MAX_REASON_CHARS)
+        decision_reason = self._bounded_operation_text(reason, label="review reason", max_chars=MAX_REASON_CHARS, allow_multiline=True)
         self._assert_dossier_integrity(tenant_id=tenant, finding_id=finding_key)
         creator = self._creator_actor(tenant_id=tenant, finding_id=finding_key)
         if creator == reviewer_id:
