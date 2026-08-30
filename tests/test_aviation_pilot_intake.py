@@ -72,3 +72,79 @@ def test_zero_unreimbursed_balance_stays_unresolved_even_with_verified_documents
     assert result["pilot_state"] == "EVIDENCE_OR_ECONOMICS_UNRESOLVED"
     assert result["entitlement_state"] == "UNKNOWN"
     assert result["recovery_state"] == "NOT_ESTABLISHED"
+
+
+def test_synthetic_candidate_requires_human_review_before_action_and_durable_recovery_outcome(tmp_path):
+    service = AviationPilotIntakeService(tmp_path / "aviation.sqlite3")
+    result = service.analyze(
+        tenant_id="synthetic-airline",
+        actor_id="synthetic-analyst",
+        lease_contract=_evidence("synthetic-lease.pdf", "e"),
+        maintenance_event=_evidence("synthetic-shop-visit.pdf", "f"),
+        eligible_cost="125000",
+        reimbursed_amount="25000",
+        notice_due=date(2026, 10, 15),
+    )
+
+    finding_id = result["finding_id"]
+    assert result["pilot_state"] == "CANDIDATE_READY_FOR_HUMAN_REVIEW"
+    assert result["entitlement_state"] == "UNKNOWN"
+    assert result["recovery_state"] == "NOT_ESTABLISHED"
+
+    assert service.review(
+        tenant_id="synthetic-airline",
+        finding_id=finding_id,
+        reviewer="synthetic-human-reviewer",
+        approved=True,
+        reason="synthetic fixture: evidence and arithmetic accepted for workflow testing only",
+    ) == "APPROVED"
+    assert service.action(tenant_id="synthetic-airline", finding_id=finding_id) == "ACTIONED"
+
+    outcome = service.resolve(
+        tenant_id="synthetic-airline",
+        finding_id=finding_id,
+        outcome_id="synthetic-outcome-recovered",
+        recovered_amount="40000",
+        currency="USD",
+        evidence_ref="synthetic-settlement-proof@sha256:" + "1" * 64,
+    )
+    assert outcome.state == "RECOVERED"
+    assert outcome.recovered_amount == "40000"
+    assert service.service.ops.get_state(tenant_id="synthetic-airline", finding_id=finding_id) == "RECOVERED"
+
+
+def test_synthetic_action_can_close_with_zero_recovery_without_fabricating_value(tmp_path):
+    service = AviationPilotIntakeService(tmp_path / "aviation-no-recovery.sqlite3")
+    result = service.analyze(
+        tenant_id="synthetic-airline-no-recovery",
+        actor_id="synthetic-analyst",
+        lease_contract=_evidence("synthetic-lease-no-recovery.pdf", "2"),
+        maintenance_event=_evidence("synthetic-event-no-recovery.pdf", "3"),
+        eligible_cost="90000",
+        reimbursed_amount="10000",
+        notice_due=date(2026, 10, 15),
+    )
+    finding_id = result["finding_id"]
+
+    service.review(
+        tenant_id="synthetic-airline-no-recovery",
+        finding_id=finding_id,
+        reviewer="synthetic-human-reviewer",
+        approved=True,
+        reason="synthetic fixture: allow action-path test without asserting entitlement",
+    )
+    service.action(tenant_id="synthetic-airline-no-recovery", finding_id=finding_id)
+    outcome = service.resolve(
+        tenant_id="synthetic-airline-no-recovery",
+        finding_id=finding_id,
+        outcome_id="synthetic-outcome-zero",
+        recovered_amount="0",
+        currency="USD",
+        evidence_ref="synthetic-no-recovery-proof@sha256:" + "4" * 64,
+    )
+
+    assert outcome.state == "CLOSED_NO_RECOVERY"
+    assert outcome.recovered_amount == "0"
+    assert service.service.ops.get_state(
+        tenant_id="synthetic-airline-no-recovery", finding_id=finding_id
+    ) == "CLOSED_NO_RECOVERY"
