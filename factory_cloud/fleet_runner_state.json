@@ -5,13 +5,13 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 20,
-  "last_factory_id": "autonomous-revenue-recovery",
-  "last_run_at": "2026-08-30T03:44:00Z",
+  "cursor": 22,
+  "last_factory_id": "obrasignal-data-truth",
+  "last_run_at": "2026-08-30T03:46:00Z",
   "last_material_change": {
-    "kind": "FLEET_BLOCKER_STARVATION_REMOVED_AND_UNKNOWN_LANES_RECHECKED",
+    "kind": "FLEET_STARVATION_REPAIR_PLUS_DATA_TRUTH_EXACT_IDENTITY_RECOVERED",
     "factory_id": "factory-cloud",
-    "summary": "A control-plane defect was found and repaired: select_next_factory previously skipped every factory present in state.blocked whenever any unblocked factory existed, which could starve UNKNOWN/WAIT lanes forever and violate full-registry rotation. The runner now rotates every registry entry deterministically; blocker state remains local evidence for the executor rather than removal from future consideration. tests/test_factory_cloud_fleet_runner.py now proves a blocked factory at the cursor is still selected and that all-blocked rotation remains non-terminal. Exact-head CI for d9108d4e83deae8033e8af275697bfee849a911b was queued at persistence time, so the change is NOT_FULLY_VERIFIED. Paper-Laminate Works was re-searched by exact branch/code/PR identity with no match; Documentary Billing, Recoverable Money, Private Freight and Autonomous Revenue Recovery were re-searched by exact PR identity with no match and remain UNKNOWN_SOURCE_IDENTITY. No merge, deployment, production mutation, customer-data mutation or outbound was performed.",
+    "summary": "The fleet runner starvation defect is repaired on factory-cloud/app-development-control-plane: blocked/UNKNOWN factories are no longer removed from future rotation. A regression test proves a blocked factory at the cursor remains dispatchable, preserving full-registry revisit semantics. Exact-head d9108d4 Python check is SUCCESS; Mobile was still IN_PROGRESS at this persistence point, therefore the repair remains NOT_FULLY_VERIFIED. Paper-Laminate Works, Documentary Billing, Recoverable Money, Private Freight, Autonomous Revenue Recovery and ObraSignal Data Runner were rechecked without exact source identity and remain UNKNOWN rather than omitted. ObraSignal Data Truth exact identity was reconstructed at draft PR #742 / codex/data-truth-source-health-repeated-failure-recovery-20260829 / 12c2677e5cbdbcef58c75f202590b2c66821605b. All four exact-head checks there are SUCCESS. The candidate proves repeated source-health failures can move current health to unavailable/stale and a represented success can recover healthy/current while retaining durable failure history; it remains DRAFT / NOT CANONICAL. No merge, deployment, production mutation, source activation, customer-data mutation or outbound was performed.",
     "evidence": {
       "factory_cloud": {
         "branch": "factory-cloud/app-development-control-plane",
@@ -19,36 +19,30 @@
         "test_commit": "d9108d4e83deae8033e8af275697bfee849a911b",
         "pr": 652,
         "ci_run": 33290876312,
-        "ci_state_at_persist": "QUEUED",
+        "python": "SUCCESS",
+        "mobile": "IN_PROGRESS_AT_PERSIST",
         "classification": "STARVATION_REPAIR_IMPLEMENTED_NOT_FULLY_VERIFIED"
       },
-      "paper_laminate_works": {
-        "branch_search": "NONE_EXACT",
-        "code_search": "NONE_EXACT",
-        "pr_search": "NONE_EXACT",
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
+      "obrasignal_data_truth": {
+        "pr": 742,
+        "branch": "codex/data-truth-source-health-repeated-failure-recovery-20260829",
+        "head": "12c2677e5cbdbcef58c75f202590b2c66821605b",
+        "checks": "4_OF_4_SUCCESS",
+        "classification": "REPEATED_SOURCE_HEALTH_FAILURE_RECOVERY_CONVERGENCE_PASSING_AFTER_PROVEN_NOT_CANONICAL"
       },
-      "documentary_billing": {
-        "pr_search": "NONE_EXACT",
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
-      },
-      "recoverable_money": {
-        "pr_search": "NONE_EXACT",
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
-      },
-      "private_freight_orchestration": {
-        "pr_search": "NONE_EXACT",
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
-      },
-      "autonomous_revenue_recovery": {
-        "pr_search": "NONE_EXACT",
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
-      }
+      "unknown_rechecked": [
+        "paper-laminate-works",
+        "documentary-billing",
+        "recoverable-money",
+        "private-freight-orchestration",
+        "autonomous-revenue-recovery",
+        "obrasignal-data-runner"
+      ]
     },
-    "active": "ObraSignal Data Runner: reconstruct exact source/BATON identity and execute the highest-value repository-safe milestone; independently classify d9108d4 exact-head CI when available without treating CI wait as a fleet stop.",
-    "next": "Continue registry rotation through ObraSignal Data Truth, OS SIDE, Customer Journey, Global Market Entry, GTM, Customer Decision, Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger; then wrap to Factory Cloud and continue. Revisit every blocked/UNKNOWN factory because blocked state no longer removes it from rotation.",
+    "active": "OS SIDE FACTORY — RECOVERY SUCCESSOR: reconstruct exact source/BATON identity; if still UNKNOWN, preserve that truth and rotate immediately to Customer Journey.",
+    "next": "Continue through Customer Journey, Global Market Entry, GTM, Customer Decision, Product Strategy, Data Analytics, Release Safety, Support Ops, EU Switching Evidence Pack and ComplianceLedger, then wrap to Factory Cloud. Also classify Factory Cloud d9108d4 Mobile when available without waiting globally.",
     "wait": [
-      "Factory Cloud d9108d4 exact-head CI conclusion",
+      "Factory Cloud d9108d4 exact-head Mobile conclusion",
       "WarrantyGuard exact failure behind workflow 33273980619; real replies/WTP/customer/payment/recovery remain unproven",
       "Capacity Commitment current exact-head Python failing assertion/root cause; commercial T3 still requires real buyer behavior",
       "LongLead exact source/BATON identity",
@@ -59,6 +53,7 @@
       "Recoverable Money exact source/BATON identity",
       "Private Freight exact source/BATON identity",
       "Autonomous Revenue Recovery exact source/BATON identity",
+      "ObraSignal Data Runner exact source/BATON identity",
       "Product Market Access exact source/BATON identity",
       "EU Cloud Switching canonical adoption and any real WTP/pilot/payment/outcome evidence",
       "Aviation canonical adoption, bounded source topology against main, and any real entitlement/recovery/customer evidence",
@@ -92,7 +87,7 @@
     {"factory_id":"recoverable-money","blocker":"No exact source/BATON identity recovered after exact PR recheck.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"No exact source/BATON identity recovered after exact PR recheck.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"No exact source/BATON identity recovered after exact PR recheck.","global_stop":false},
-    {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity recovered in prior pass.","global_stop":false},
+    {"factory_id":"obrasignal-data-runner","blocker":"No exact source/BATON identity recovered after exact branch/PR recheck.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"obrasignal-customer-journey","blocker":"#821 GREEN draft; #762 still lacks full endpoint role enforcement and persisted actor audit attribution.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"No exact source/BATON/branch/PR/code identity recovered.","global_stop":false}
