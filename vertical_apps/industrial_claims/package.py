@@ -5,7 +5,8 @@ from dataclasses import asdict
 from datetime import date
 from typing import Any
 
-from vertical_apps.industrial_claims.service import IndustrialClaimResult
+from factory_cloud.assurance_store import AssuranceStoreError
+from vertical_apps.industrial_claims.service import IndustrialClaimResult, IndustrialClaimsService
 
 
 def _notice_package(result: IndustrialClaimResult, *, as_of_date: date) -> dict[str, Any]:
@@ -50,7 +51,21 @@ def _immutable_case_labels(result: IndustrialClaimResult) -> tuple[str, str, str
     return customer_ref, program_ref, event_ref
 
 
+def _current_revision(service: IndustrialClaimsService, result: IndustrialClaimResult):
+    try:
+        revision = service.revision_store.require_current(
+            tenant_id=result.tenant_id,
+            finding_id=result.finding.finding_id,
+        )
+    except AssuranceStoreError as exc:
+        raise ValueError("industrial package requires the current non-superseded finding revision") from exc
+    if revision.recovery_fingerprint != result.fingerprint.fingerprint:
+        raise ValueError("industrial package revision fingerprint does not match result")
+    return revision
+
+
 def build_claim_package(
+    service: IndustrialClaimsService,
     result: IndustrialClaimResult,
     *,
     customer_ref: str,
@@ -58,13 +73,14 @@ def build_claim_package(
     event_ref: str,
     as_of_date: date | None = None,
 ) -> dict[str, Any]:
-    """Build a review package without upgrading economic/legal truth state.
+    """Build a current-revision review package without upgrading legal truth.
 
-    Human-readable case labels and the result's tenant/vertical/claim family must
-    match the immutable recovery fingerprint. This prevents a valid calculation
-    or evidence lineage from being exported under another case identity.
+    The durable revision store is authoritative for export currentness. A stale
+    in-memory result from a superseded revision is rejected instead of being
+    rendered as though it were the current reconstruction.
     """
     immutable_customer, immutable_program, immutable_event = _immutable_case_labels(result)
+    revision = _current_revision(service, result)
     supplied = (str(customer_ref), str(program_ref), str(event_ref))
     immutable = (immutable_customer, immutable_program, immutable_event)
     if supplied != immutable:
@@ -74,13 +90,18 @@ def build_claim_package(
     currency = result.calculation.output_unit
     verified_currency = currency if currency and currency != "UNKNOWN" else None
     return {
-        "schema_version": 6,
+        "schema_version": 7,
         "vertical": "industrial-claims",
         "tenant_id": result.tenant_id,
         "customer_ref": immutable_customer,
         "program_ref": immutable_program,
         "event_ref": immutable_event,
         "claim_family": result.claim_family,
+        "revision": {
+            "number": revision.revision,
+            "is_current": True,
+            "supersedes_finding_id": revision.supersedes_finding_id,
+        },
         "economic_truth_state": "DOCUMENTED_CANDIDATE_FOR_REVIEW" if result.finding.state == "READY_FOR_REVIEW" else "POTENTIAL_ENTITLEMENT",
         "net_potential": result.calculation.output_value,
         "currency": verified_currency,
