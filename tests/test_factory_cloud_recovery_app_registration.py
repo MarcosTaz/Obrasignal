@@ -1,3 +1,4 @@
+import json
 from copy import deepcopy
 from pathlib import Path
 
@@ -6,42 +7,48 @@ import pytest
 from factory_cloud.control_plane import RegistryError, load_registry, validate_registry
 from factory_cloud.process_adapter import ProcessAdapterConfig
 
-SHARED_RECOVERY_HEAD = "0d1759832a06b3177b67b35a4c53ee0c69db459e"
-INDUSTRIAL_CLAIMS_HEAD = "c05684e5ac99f5e4ca3b3a22dab6300523e6c244"
+
+PROVISIONING_PATH = Path("factory_cloud/runtime/recovery-runtime-provisioning.json")
+
+
+def _provisioning_by_app() -> dict[str, dict]:
+    document = json.loads(PROVISIONING_PATH.read_text(encoding="utf-8"))
+    return {item["app_id"]: item for item in document["applications"]}
 
 
 def test_recovery_apps_are_source_registered_but_runtime_fail_closed():
     registry = load_registry()
     apps = {app["app_id"]: app for app in registry["applications"]}
+    provisioning = _provisioning_by_app()
     expected = (
         (
             "aviation-lease-entitlement-recovery",
             "apps/aviation-lease-entitlement-recovery",
-            SHARED_RECOVERY_HEAD,
             "PILOT_CAPABLE_ASSISTED_RUNTIME_PROVISIONING_WAIT",
         ),
         (
             "contractcredit",
             "apps/contractcredit",
-            SHARED_RECOVERY_HEAD,
             "PILOT_CAPABLE_ASSISTED_RUNTIME_PROVISIONING_WAIT",
         ),
         (
             "industrial-claims",
             "apps/industrial-claims",
-            INDUSTRIAL_CLAIMS_HEAD,
             "ASSISTED_RUNTIME_PROVISIONING_WAIT",
         ),
     )
-    for app_id, branch, head, development_state in expected:
+    for app_id, branch, development_state in expected:
         app = apps[app_id]
+        provisioned = provisioning[app_id]
+        expected_head = provisioned["head"]
         assert app["activation"]["enabled"] is False
         assert app["activation"]["mode"] == "runtime_provisioning_wait"
         assert app["development_state"] == development_state
         assert app["baton"]["active"] == "runtime:provision"
         assert app["source_truth"]["canonical_branch"] == branch
-        assert app["source_truth"]["canonical_head"] == head
-        assert app["execution_source"]["head"] == head
+        assert provisioned["branch"] == branch
+        assert app["source_truth"]["canonical_head"] == expected_head
+        assert app["execution_source"]["head"] == expected_head
         assert app["execution_source"]["classification"] == "SOURCE_REGISTERED_APPLICATION_BRANCH_GREEN"
         assert app["execution_adapter"]["repository_mutation_capability"] is False
         assert set(app["execution_adapter"]["allowlisted_tasks"]) == {"verify:service", "verify:shared-contracts"}
