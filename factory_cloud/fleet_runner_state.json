@@ -5,42 +5,41 @@
   "mode": "GLOBAL_FACTORY_FLEET",
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
-  "cursor": 7,
-  "last_factory_id": "sourcing-recovery",
-  "last_run_at": "2026-08-30T00:37:41Z",
+  "cursor": 9,
+  "last_factory_id": "eu-cloud-switching",
+  "last_run_at": "2026-08-30T01:38:36Z",
   "last_material_change": {
-    "kind": "SCOPELEDGER_SOURCE_IDENTITY_RECOVERED_AND_CHANGELEDGER_IDENTITY_CONFIRMED",
-    "factory_id": "scopeledger",
-    "summary": "ScopeLedger source identity is no longer UNKNOWN: recovery/scopeledger-source-20260829 exists at 79450c800397c7cce873d6efbd6f7401df142625 and carries an exact recovery BATON. Its independently verified predecessor 05a41621806c9bf1ce142263782772b133cee053 is recorded GREEN via workflow 33224493149 with recovered-source-integrity PASS and deterministic archive SHA verification. Product truth remains recovery-candidate only; Railway/live production lineage is still unproven and is an external boundary, so no production mutation is authorized. ChangeLedger identity is also confirmed at factory/changeledger-cumulative-delay-snapshot-20260828@e93efa9358d94e0f4e093e8a70358627c4a7cd83 with 75/75 PASS and synthetic dry-run PASS recorded in its BATON, but outbound remains compliance/owner blocked. Recovery Radar and Sourcing Recovery still have no exact recoverable branch/source identity from GitHub branch/code search and remain UNKNOWN rather than inferred absent.",
+    "kind": "EU_CLOUD_SWITCHING_EXACT_HEAD_GREEN_SUCCESSORS_CONFIRMED",
+    "factory_id": "eu-cloud-switching",
+    "summary": "Product Market Access / Legal Product Checker was re-searched by exact target terms, legal/product branch names and repository code search; no canonical source/BATON identity was recovered, so it remains UNKNOWN_SOURCE_IDENTITY and no history was fabricated. EU Cloud Switching was reconstructed from exact open draft PR evidence. PR #802 at f27fd53b64b33cf2af49f28008e7d7e5473edd90 is DRAFT/NOT CANONICAL/NO OUTREACH and exact-head checks are all SUCCESS (mobile plus both python checks), proving the bounded T2 consent, benchmark eligibility, trigger deduplication and fail-closed WTP-state work at that candidate head. Separately PR #818 at f9ffcf82f2eebbfdeb400de76f562cb185ec5adf is DRAFT/NOT CANONICAL and exact-head checks are all SUCCESS, proving the bounded React Native 0.86.3 compatibility repair for the evidence-pack lane. Neither candidate establishes real WTP, pilot acceptance, payment, production deployment, canonical adoption or external outcome evidence.",
     "evidence": {
-      "scopeledger": {
-        "branch": "recovery/scopeledger-source-20260829",
-        "baton_head": "79450c800397c7cce873d6efbd6f7401df142625",
-        "verified_recovery_head": "05a41621806c9bf1ce142263782772b133cee053",
-        "workflow_run": 33224493149,
-        "workflow": "SUCCESS",
-        "archive_sha256": "2cde248ee3fc11fdd5c9c3a97d4f67a0b6d5fd1d22d042d0e9b0f38c51c7100f",
-        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"
-      },
-      "changeledger": {
-        "branch": "factory/changeledger-cumulative-delay-snapshot-20260828",
-        "head": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
-        "tests_recorded": "75/75 PASS + synthetic delivery dry-run PASS",
-        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_REPOSITORY_TRUTH_RECOVERED"
-      },
-      "recovery_radar": {
-        "matching_branch": "NONE",
+      "product_market_access": {
+        "matching_branch": "NONE_EXACT",
         "matching_code_search": "NONE",
         "classification": "UNKNOWN_SOURCE_IDENTITY"
       },
-      "sourcing_recovery": {
-        "matching_branch": "NONE",
-        "classification": "UNKNOWN_SOURCE_IDENTITY"
+      "eu_cloud_switching_t2": {
+        "pr": 802,
+        "branch": "cloud-switching/t2-consent-trigger-dedup-20260829",
+        "head": "f27fd53b64b33cf2af49f28008e7d7e5473edd90",
+        "base": "factory/eu-cloud-switching-migration-capital@60694599b42d705b22a5ceb4f51dda24b0636d42",
+        "checks": "3/3 SUCCESS: mobile + python + python",
+        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NO_EXTERNAL_PROOF"
+      },
+      "eu_cloud_switching_evidence_pack_repair": {
+        "pr": 818,
+        "branch": "cloud-switching/evidence-pack-rn-compat-repair-20260829",
+        "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
+        "base": "factory/eu-cloud-switching-migration-capital@60694599b42d705b22a5ceb4f51dda24b0636d42",
+        "checks": "3/3 SUCCESS: mobile + python + python",
+        "classification": "EXACT_HEAD_GREEN_BOUNDED_COMPAT_REPAIR_DRAFT_NOT_CANONICAL"
       }
     },
-    "active": "Product Market Access / Legal Product Checker: reconstruct exact repository/BATON identity using branch/commit/file evidence; if no canonical source is recoverable, preserve UNKNOWN and execute only research-safe/reversible work independent of missing history.",
-    "next": "After Product Market Access, rotate immediately to EU Cloud Switching, Aviation Lease Entitlement Recovery, Capacity Commitment and onward. Independently revisit ScopeLedger only when authorized live Railway/source fingerprint evidence becomes available; do not overbuild the recovery lane while production lineage is unresolved.",
+    "active": "Aviation Lease Entitlement Recovery: reconstruct current exact branch/PR/BATON/head and advance the highest-value repository-safe milestone without promoting entitlement or recovery beyond evidence.",
+    "next": "After Aviation, rotate immediately to Capacity Commitment, LongLead, MachineRelease Safety and onward. Revisit Product Market Access only when exact source identity or an independent research-safe milestone is available. Keep EU Cloud Switching T2 and evidence-pack repair candidates noncanonical until owner/adoption evidence exists.",
     "wait": [
+      "Product Market Access exact source/BATON identity",
+      "EU Cloud Switching canonical adoption and any real WTP/pilot/payment/outcome evidence",
       "ScopeLedger authorized live Railway/source fingerprint and production lineage comparison",
       "ChangeLedger valid sender postal address, DGC clarification/list consultation, and explicit outbound authorization",
       "Industrial Claims #785 exact Python failing assertion/root cause",
@@ -59,7 +58,8 @@
     {"factory_id":"changeledger","blocker":"Repository/BATON identity recovered; outbound is blocked by postal-address/compliance/owner-authorization gates.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"No exact source/BATON identity recovered from branch or code search.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"No exact source/BATON identity recovered from branch search.","global_stop":false},
-    {"factory_id":"product-market-access","blocker":"No exact source/BATON identity yet recovered in this pass.","global_stop":false},
+    {"factory_id":"product-market-access","blocker":"No exact canonical source/BATON identity recovered from targeted branch/code search.","global_stop":false},
+    {"factory_id":"eu-cloud-switching","blocker":"Exact-head GREEN draft candidates exist, but canonical adoption and real external WTP/pilot/payment/outcome evidence remain unproven.","global_stop":false},
     {"factory_id":"capacity-commitment","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"longlead","blocker":"No exact source/BATON identity recovered.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"No exact source/BATON identity recovered.","global_stop":false},
