@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -9,6 +10,7 @@ from typing import Any
 
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.case_store import IndustrialClaimsCaseStore
+from vertical_apps.industrial_claims.revision_store import IndustrialClaimsRevisionStore
 
 
 ALLOWED_FINDING_STATES = {
@@ -23,6 +25,7 @@ ALLOWED_FINDING_STATES = {
 EXPECTED_CASE_EVIDENCE_TYPES = {"commercial_basis", "industrial_commercial_event", "cost_evidence"}
 MAX_TENANT_CHARS = 64
 MAX_FINDING_ID_CHARS = 2_048
+_TENANT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,7 @@ class IndustrialClaimsReadModel:
     def __init__(self, database: str | Path):
         self.path = Path(database)
         self.case_store = IndustrialClaimsCaseStore(database)
+        self.revision_store = IndustrialClaimsRevisionStore(database)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)
@@ -53,12 +57,21 @@ class IndustrialClaimsReadModel:
         return conn
 
     @staticmethod
-    def _bounded_key(value: object, *, label: str, max_chars: int) -> str:
-        text = str(value or "").strip()
+    def _has_forbidden_controls(text: str) -> bool:
+        return any(ord(char) < 32 or ord(char) == 127 for char in text)
+
+    @classmethod
+    def _bounded_key(cls, value: object, *, label: str, max_chars: int) -> str:
+        raw = str(value or "")
+        if cls._has_forbidden_controls(raw):
+            raise AssuranceStoreError(f"{label} contains forbidden control characters")
+        text = raw.strip()
         if not text:
             raise AssuranceStoreError(f"{label} is required")
         if len(text) > max_chars:
             raise AssuranceStoreError(f"{label} exceeds {max_chars} characters")
+        if label == "tenant_id" and not _TENANT_RE.fullmatch(text):
+            raise AssuranceStoreError("tenant_id does not match verified account-id contract")
         return text
 
     @staticmethod
@@ -139,6 +152,8 @@ class IndustrialClaimsReadModel:
                          WHERE a.tenant_id=f.tenant_id AND a.subject_ref=f.finding_id
                            AND a.event_type='industrial_finding_created') AS creation_audit_count
                     FROM findings f
+                    JOIN industrial_claim_revisions r
+                      ON r.tenant_id=f.tenant_id AND r.finding_id=f.finding_id AND r.is_current=1
                     WHERE f.tenant_id=? AND f.finding_type='industrial_recovery_candidate'
                       AND f.state IN ({placeholders})
                     ORDER BY created_at DESC, f.finding_id DESC LIMIT ?""",
@@ -177,6 +192,9 @@ class IndustrialClaimsReadModel:
         if not isinstance(as_of, date):
             raise AssuranceStoreError("as_of_date must be a date")
         metadata = self.case_store.get(tenant_id=tenant, finding_id=finding_key)
+        revision = self.revision_store.get(tenant_id=tenant, finding_id=finding_key)
+        if revision.recovery_fingerprint != metadata.recovery_fingerprint:
+            raise AssuranceStoreError("industrial revision fingerprint does not match case metadata")
 
         with self._connect() as conn:
             finding = conn.execute(
@@ -284,6 +302,11 @@ class IndustrialClaimsReadModel:
                 "customer_ref": metadata.customer_ref, "program_ref": metadata.program_ref, "event_ref": metadata.event_ref,
                 "notice_deadline_state": metadata.notice_deadline_state, "missing_evidence": list(metadata.missing_evidence),
                 "recovery_fingerprint": metadata.recovery_fingerprint,
+            },
+            "revision": {
+                "number": revision.revision,
+                "is_current": revision.is_current,
+                "supersedes_finding_id": revision.supersedes_finding_id,
             },
             "finding": {"state": str(finding["state"]), "reviewer": finding["reviewer"], "decision_reason": finding["decision_reason"]},
             "calculation": {"formula_id": str(calculation["formula_id"]), "formula_version": str(calculation["formula_version"]), "net_potential": str(calculation["output_value"]), "currency": calculation["output_unit"], "reproducibility_hash": str(calculation["reproducibility_hash"])},
