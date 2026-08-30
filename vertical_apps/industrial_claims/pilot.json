@@ -1,5 +1,5 @@
 {
-  "schema_version": 13,
+  "schema_version": 14,
   "vertical": "industrial-claims",
   "mode": "assisted",
   "wedge": "supplier-side recovery after material industrial or commercial events",
@@ -75,6 +75,21 @@
     "replay_does_not_downgrade_lifecycle_state": true,
     "replay_conflict_fails_closed": true
   },
+  "amendment_policy": {
+    "one_logical_recovery_fingerprint_across_revisions": true,
+    "current_revision_only_transitionable": true,
+    "historical_revisions_remain_readable": true,
+    "identity_fields_immutable": ["customer_ref", "program_ref", "event_ref", "claim_family", "commercial_basis_ref"],
+    "amendable_states": ["UNRESOLVED_EVIDENCE", "READY_FOR_REVIEW", "APPROVED", "REJECTED"],
+    "amendment_after_action_or_final_outcome_forbidden": true,
+    "amendment_requires_fresh_independent_review": true,
+    "amendment_role": "analyst",
+    "amendment_and_supersession_persist_atomically": true,
+    "superseded_revision_replay_blocked": true,
+    "revision_lineage_backup_restore_required": true,
+    "raw_documents_reloaded_from_storage": false,
+    "full_corrected_documentary_reconstruction_required": true
+  },
   "input_bounds": {
     "tenant_id_max_chars": 64,
     "case_and_outcome_reference_max_chars": 512,
@@ -146,6 +161,7 @@
     "notice_deadline_truth_and_timing_risk",
     "missing_evidence",
     "reviewable_finding",
+    "revision_and_supersession_lineage",
     "actor_audit_lineage",
     "final_cumulative_outcome_record_with_hashed_evidence_lineage"
   ],
@@ -175,6 +191,11 @@
     "ambiguous_contract_reference",
     "case_id_collision_across_distinct_contracts",
     "evidence_id_collision_across_distinct_contracts",
+    "amendment_identity_change",
+    "amendment_of_superseded_revision",
+    "amendment_after_action_or_final_outcome",
+    "partial_amendment_or_supersession_persistence",
+    "revision_lineage_loss_on_restore",
     "oversized_tenant_identifier",
     "oversized_case_or_outcome_reference",
     "oversized_finding_identifier",
@@ -207,7 +228,8 @@
     "html_injection_renderer_forbidden": true,
     "cache_case_responses": false,
     "tenant_scoped_role_queue": true,
-    "final_cumulative_outcome_confirmation_required": true
+    "final_cumulative_outcome_confirmation_required": true,
+    "amendment_mode_requires_full_corrected_intake": true
   },
   "pricing": {
     "status": "HYPOTHESIS",
@@ -237,6 +259,10 @@
     "dossier_lineage_green",
     "transition_integrity_preflight_green",
     "atomic_replay_validation_green",
+    "amendment_revision_lineage_green",
+    "amendment_http_authorization_green",
+    "amendment_console_green",
+    "revision_backup_restore_green",
     "bounded_input_surface_green",
     "tenant_isolation_green",
     "role_authorization_green",
