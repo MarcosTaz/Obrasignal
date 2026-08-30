@@ -221,7 +221,7 @@ def test_repository_restore_rejects_missing_required_schema_before_live_mutation
             """
         )
 
-    with pytest.raises(ValueError, match="required capacity columns"):
+    with pytest.raises(ValueError, match="schema lacks required columns"):
         repo.restore_from(str(backup_path))
 
     assert repo.load(tenant_id="tenant-a", case_id="case-original") == original
