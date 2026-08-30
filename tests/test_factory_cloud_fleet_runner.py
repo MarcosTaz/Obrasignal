@@ -35,13 +35,13 @@ def test_select_next_factory_rotates_from_cursor():
     assert index == 1
 
 
-def test_select_next_factory_skips_blocked_and_wraps():
+def test_select_next_factory_does_not_starve_blocked_factory():
     factory, index = select_next_factory(
         _switchboard(),
         _state(cursor=2, blocked=[{"factory_id": "gamma"}, "alpha"]),
     )
-    assert factory["id"] == "factory-cloud"
-    assert index == 1
+    assert factory["id"] == "gamma"
+    assert index == 2
 
 
 def test_select_next_factory_retries_from_cursor_when_all_are_blocked():
