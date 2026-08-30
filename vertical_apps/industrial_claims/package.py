@@ -30,14 +30,21 @@ def _notice_package(result: IndustrialClaimResult, *, as_of_date: date) -> dict[
 
 
 def _immutable_case_labels(result: IndustrialClaimResult) -> tuple[str, str, str]:
+    fingerprint = result.fingerprint
+    if fingerprint.tenant_id != result.tenant_id:
+        raise ValueError("industrial package tenant identity does not match recovery fingerprint")
+    if fingerprint.vertical != "industrial-claims":
+        raise ValueError("industrial package recovery fingerprint vertical is invalid")
+    if fingerprint.remedy_type != result.claim_family.lower():
+        raise ValueError("industrial package claim family does not match recovery fingerprint")
     try:
-        contract_parts = json.loads(result.fingerprint.contract_ref)
+        contract_parts = json.loads(fingerprint.contract_ref)
     except (TypeError, ValueError) as exc:
         raise ValueError("industrial package contract identity is invalid") from exc
     if not isinstance(contract_parts, list) or len(contract_parts) != 3:
         raise ValueError("industrial package contract identity is invalid")
     customer_ref, program_ref, _commercial_basis_ref = (str(value) for value in contract_parts)
-    event_ref = str(result.fingerprint.event_ref)
+    event_ref = str(fingerprint.event_ref)
     if not customer_ref or not program_ref or not event_ref:
         raise ValueError("industrial package case identity is incomplete")
     return customer_ref, program_ref, event_ref
@@ -53,9 +60,9 @@ def build_claim_package(
 ) -> dict[str, Any]:
     """Build a review package without upgrading economic/legal truth state.
 
-    Human-readable case labels supplied by the caller must match the immutable
-    recovery fingerprint. This prevents a valid calculation/evidence lineage
-    from being exported under another customer, program, or event label.
+    Human-readable case labels and the result's tenant/vertical/claim family must
+    match the immutable recovery fingerprint. This prevents a valid calculation
+    or evidence lineage from being exported under another case identity.
     """
     immutable_customer, immutable_program, immutable_event = _immutable_case_labels(result)
     supplied = (str(customer_ref), str(program_ref), str(event_ref))
