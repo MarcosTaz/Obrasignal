@@ -6,60 +6,28 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 30,
-  "last_factory_id": "obrasignal-release-safety",
+  "cursor": 32,
+  "last_factory_id": "eu-switching-evidence-pack",
   "last_run_at": "2026-08-30T21:37:34Z",
   "last_material_change": {
-    "kind": "DGC_ROUTE_REPAIRED_PRODUCT_STRATEGY_ANALYTICS_BATONS_REFRESHED_RELEASE_SAFETY_REVALIDATED",
-    "summary": "CausLedger inbound/compliance watch found no new prospect or association replies, but detected that the DGC opt-out-list request bounced because dgconsumer.gov.pt did not resolve. Current official gov.pt contact updated 2026-06-16 identifies dgc@dgconsumidor.gov.pt; the same non-commercial procedural request was resent to that official address. Portugal outbound hold remains in force until the current list/procedure is obtained and consulted; Spain unsolicited-commercial hold remains unchanged. Product Strategy #521 was revalidated exact-head GREEN at 6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8 / run 33317486925 and its stale BATON was refreshed at successor commit 74c23f15eed1b55dfff0742d9388c8f36230c49c without claiming successor CI. Analytics #344 was revalidated exact-head GREEN at de1509f3bae21cdcc6763e676df45407c220849c / run 33317537026 and its stale BATON was refreshed at successor commit a331cc882f52ced98b5cb2e8da8a781b1c845a30 without claiming successor CI. Release Safety #345 remains OPEN, unmerged, mergeable at 672e535f0b04f27d967ae3c174bd871fc0a56893 with its existing explicit-release/UNKNOWN-rollback boundaries; no merge or deploy was performed.",
+    "kind": "DGC_ROUTE_REPAIRED_STRATEGY_ANALYTICS_BATONS_REFRESHED_SUPPORT_OPS_UNKNOWN_EU_EVIDENCE_REVALIDATED",
+    "summary": "CausLedger inbound/compliance watch found no new prospect or association replies, but detected that the DGC opt-out-list request bounced because dgconsumer.gov.pt did not resolve. Current official gov.pt contact updated 2026-06-16 identifies dgc@dgconsumidor.gov.pt; the same non-commercial procedural request was resent to that official address. Portugal outbound hold remains in force until the current list/procedure is obtained and consulted; Spain unsolicited-commercial hold remains unchanged. Product Strategy #521 was revalidated exact-head GREEN at 6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8 / run 33317486925 and its stale BATON was refreshed at successor commit 74c23f15eed1b55dfff0742d9388c8f36230c49c without claiming successor CI. Analytics #344 was revalidated exact-head GREEN at de1509f3bae21cdcc6763e676df45407c220849c / run 33317537026 and its stale BATON was refreshed at successor commit a331cc882f52ced98b5cb2e8da8a781b1c845a30 without claiming successor CI. Release Safety #345 remains OPEN, unmerged, mergeable at 672e535f0b04f27d967ae3c174bd871fc0a56893. Support Ops exact-name PR and code search returned no canonical source, so it is UNKNOWN_SOURCE_IDENTITY and did not stop rotation. EU Switching Evidence Pack #818 remains OPEN/DRAFT at f9ffcf82f2eebbfdeb400de76f562cb185ec5adf with Cloud Switching Quality 33271664101 SUCCESS and ObraSignal Quality 33271664096 SUCCESS; no real migration/WTP/outcome is inferred.",
     "evidence": {
-      "causledger_compliance": {
-        "inbound_new_material_replies": 0,
-        "dgc_original_request": "BOUNCED_DOMAIN_NOT_FOUND",
-        "official_dgc_contact": "dgc@dgconsumidor.gov.pt",
-        "official_contact_source": "gov.pt Direcao-Geral do Consumidor, updated 2026-06-16",
-        "corrected_request_sent": true,
-        "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
-        "spain_unsolicited_commercial_hold": "ACTIVE"
-      },
-      "obrasignal_product_strategy": {
-        "pr": 521,
-        "verified_source_head": "6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8",
-        "quality_run": 33317486925,
-        "quality_conclusion": "SUCCESS",
-        "baton_refresh_commit": "74c23f15eed1b55dfff0742d9388c8f36230c49c",
-        "classification": "SOURCE_EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_SUCCESSOR_METADATA_CI_UNOBSERVED"
-      },
-      "obrasignal_data_analytics": {
-        "pr": 344,
-        "verified_source_head": "de1509f3bae21cdcc6763e676df45407c220849c",
-        "quality_run": 33317537026,
-        "quality_conclusion": "SUCCESS",
-        "baton_refresh_commit": "a331cc882f52ced98b5cb2e8da8a781b1c845a30",
-        "classification": "SOURCE_EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_SUCCESSOR_METADATA_CI_UNOBSERVED"
-      },
-      "obrasignal_release_safety": {
-        "pr": 345,
-        "head": "672e535f0b04f27d967ae3c174bd871fc0a56893",
-        "state": "OPEN",
-        "mergeable": true,
-        "merged": false,
-        "classification": "RELEASE_CONTROL_CANDIDATE_NOT_DEPLOY_AUTHORIZED_ROLLBACK_UNPROVEN"
-      },
-      "obrasignal_privacy": {
-        "pr": 845,
-        "head": "e44b46a4fc4bdd7f8afd735c15fa75588ff3891a",
-        "classification": "EXACT_HEAD_RED_INTEGRATION_ARCHITECTURE",
-        "next_exact_action": "Restore canonical mobile/App.js in-place and integrate AccountPrivacyControls directly into existing Profile/root composition; remove AppBase wrapper indirection; rerun exact-head quality."
-      },
+      "causledger_compliance": {"inbound_new_material_replies":0,"dgc_original_request":"BOUNCED_DOMAIN_NOT_FOUND","official_dgc_contact":"dgc@dgconsumidor.gov.pt","official_contact_source":"gov.pt Direcao-Geral do Consumidor, updated 2026-06-16","corrected_request_sent":true,"portugal_outbound_hold":"ACTIVE_PENDING_CURRENT_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK","spain_unsolicited_commercial_hold":"ACTIVE"},
+      "obrasignal_product_strategy": {"pr":521,"verified_source_head":"6e008b88b98615e9ee08a1d2a18d1d10f2ea41e8","quality_run":33317486925,"quality_conclusion":"SUCCESS","baton_refresh_commit":"74c23f15eed1b55dfff0742d9388c8f36230c49c","classification":"SOURCE_EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_SUCCESSOR_METADATA_CI_UNOBSERVED"},
+      "obrasignal_data_analytics": {"pr":344,"verified_source_head":"de1509f3bae21cdcc6763e676df45407c220849c","quality_run":33317537026,"quality_conclusion":"SUCCESS","baton_refresh_commit":"a331cc882f52ced98b5cb2e8da8a781b1c845a30","classification":"SOURCE_EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_SUCCESSOR_METADATA_CI_UNOBSERVED"},
+      "obrasignal_release_safety": {"pr":345,"head":"672e535f0b04f27d967ae3c174bd871fc0a56893","state":"OPEN","mergeable":true,"merged":false,"classification":"RELEASE_CONTROL_CANDIDATE_NOT_DEPLOY_AUTHORIZED_ROLLBACK_UNPROVEN"},
+      "obrasignal_support_ops": {"classification":"UNKNOWN_SOURCE_IDENTITY","exact_name_pr_search":0,"code_search":0},
+      "eu_switching_evidence_pack": {"pr":818,"head":"f9ffcf82f2eebbfdeb400de76f562cb185ec5adf","cloud_switching_quality_run":33271664101,"obrasignal_quality_run":33271664096,"classification":"EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NO_REAL_MIGRATION_OR_WTP_PROOF"},
+      "obrasignal_privacy": {"pr":845,"head":"e44b46a4fc4bdd7f8afd735c15fa75588ff3891a","classification":"EXACT_HEAD_RED_INTEGRATION_ARCHITECTURE","next_exact_action":"Restore canonical mobile/App.js in-place and integrate AccountPrivacyControls directly into existing Profile/root composition; remove AppBase wrapper indirection; rerun exact-head quality."},
       "eu_cloud_switching": {"head":"020efc82e0b2a6509548fa7ef38f1593ca457afa","sample":{"distinct_events":15,"challengeable":6,"excluded":9},"classification":"PUBLIC_TRIGGER_CHANNEL_ALIVE_NOT_PROVEN_SUFFICIENT_NO_WTP_PROOF"},
       "capacity_commitment": {"head":"0b156218ce427284d40583d4b7eb317622d95376","quality_run":33328905676,"classification":"EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_T3_COMMERCIAL_PROOF_EXTERNAL"},
       "warrantyguard": {"head":"f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870","focused_run":33323378379,"quality_run":33323378385,"classification":"EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL"},
       "scopeledger": {"branch":"recovery/scopeledger-source-20260829","head":"79450c800397c7cce873d6efbd6f7401df142625","recovery_gate_run":33262936383,"classification":"RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"},
       "changeledger": {"canonical_snapshot_commit":"e93efa9358d94e0f4e093e8a70358627c4a7cd83","classification":"OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT"}
     },
-    "active": "Customer Support, Incident & Service Operations Factory: reconstruct exact source/PR/BATON truth and execute the highest-value safe service-operations gap; rotate immediately if source identity or next work is externally blocked.",
-    "next": "Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety; recheck DGC reply, Product Strategy/Analytics successor exact-head CI, France DECP CI and privacy #845 when deterministic.",
+    "active": "ComplianceLedger: reconstruct exact source/PR/BATON truth; if exact authority remains unavailable, preserve UNKNOWN and rotate to Factory Cloud without guessing.",
+    "next": "ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack; recheck DGC reply, Product Strategy/Analytics successor exact-head CI, France DECP CI and privacy #845 when deterministic.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
@@ -70,7 +38,7 @@
       "Capacity Commitment repository branch is exact-head GREEN; T3 buyer response/qualification/WTP remains external.",
       "EU Cloud Switching public-event sample remains non-exhaustive and does not prove ~10 challengeable events/month or WTP.",
       "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
-      "Data Runner, OS Side, LongLead, MachineRelease Safety, K3 Fatality, Paper-Laminate Works, Documentary Billing, Recoverable Money, Private Freight, Autonomous Revenue Recovery and ComplianceLedger retain UNKNOWN exact source identity wherever no exact authority has been recovered.",
+      "Data Runner, OS Side, Support Ops, LongLead, MachineRelease Safety, K3 Fatality, Paper-Laminate Works, Documentary Billing, Recoverable Money, Private Freight, Autonomous Revenue Recovery and ComplianceLedger retain UNKNOWN exact source identity wherever no exact authority has been recovered.",
       "Real customer/WTP/payment/recovery/outcome evidence remains unproven wherever not explicitly evidenced."
     ]
   },
@@ -79,6 +47,7 @@
     {"factory_id":"obrasignal","blocker":"Privacy #845 exact-head RED because wrapper relocation violates canonical App.js truth/smoke contracts; deterministic in-place integration required.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Outbound gated by DGC/current-list clarification, applicable recipient checks and any separately required authorization.","global_stop":false},
+    {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact-name PR and code search.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity remains UNKNOWN after branch/code search.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity remains UNKNOWN after exact-name PR search.","global_stop":false},
     {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
