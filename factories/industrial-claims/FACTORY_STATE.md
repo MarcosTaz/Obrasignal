@@ -7,10 +7,10 @@ Build an evidence-first supplier-side industrial commercial recovery product tha
 - Repository: `MarcosTaz/Obrasignal`
 - Application branch: `apps/industrial-claims`
 - Draft PR: `#785`
-- Last exact application-source GREEN: `6e59d0f9ac440b9fd16d758bb81697e487796fe5`
-- Verification evidence: `ObraSignal Quality #4179`, run `33286344803`; Python SUCCESS; Mobile SUCCESS.
-- Factory Cloud source/provisioning pointers intentionally reference that exact GREEN source snapshot.
-- Metadata/state commits after the source snapshot do not upgrade the application source and require their own exact-head CI before the branch itself is described as GREEN.
+- Last exact application-source GREEN: `c6de16e5a23483bb27ef33f6abf329752bde45bb`
+- Verification evidence: ObraSignal Quality run `33287246832`; exact-head SUCCESS.
+- Current source milestone includes revision-aware queue/detail proof and atomic replay rollback protection.
+- This BATON update is metadata/state only; the new branch HEAD created by this edit requires its own CI before the branch HEAD itself is described as GREEN.
 
 ## DONE
 - Tenant-safe provider identity boundary; raw tenant/actor headers are assertions only, not authority.
@@ -24,6 +24,7 @@ Build an evidence-first supplier-side industrial commercial recovery product tha
 - Shared-store outcome IDs are tenant-scoped.
 - Durable Industrial case metadata is atomic with recovery index/shared case persistence.
 - Replay integrity prevents economic, currency, evidence, and metadata rewrites.
+- Duplicate/replay validation is transactionally atomic: a late immutable audit collision cannot leave an earlier replay repair committed; regression coverage proves missing evidence remains missing after rollback.
 - Pre-review entitlement truth is deliberately non-actionable: documentary-complete = PARTIAL; missing evidence = UNRESOLVED.
 - Notice values are analyst declarations (`DECLARED_DATE_FOR_REVIEW` / `DECLARED_NONE_FOR_REVIEW`) or UNKNOWN, never software-verified contractual conclusions.
 - Deadline timing exposes OPEN / DUE_TODAY / EXPIRED as operational risk only; expiry does not establish non-recoverability.
@@ -34,7 +35,7 @@ Build an evidence-first supplier-side industrial commercial recovery product tha
 - HTTP `resolve` requires explicit `final_cumulative=true`; outcome is a final cumulative close, not installment accounting.
 - Outcome evidence is content-hashed and persisted atomically with final state; raw content is not persisted.
 - Full multi-tenant dossier backup/restore coverage includes metadata, recovery index, findings, audits, outcomes, and raw-content absence.
-- Tenant-scoped reviewer/operator queue and tenant-safe detailed dossier endpoint.
+- Tenant-scoped reviewer/operator queue and tenant-safe detailed dossier endpoint are revision-aware and fail closed on inconsistent durable lineage.
 - Console supports selected dossier inspection before workflow decision, safe DOM rendering, no `innerHTML`, CSP, no-store, nosniff, no-referrer, restrictive permissions.
 - HTTP intake rejects non-object JSON, malformed JSON, oversized requests, invalid identities, invalid roles, invalid bounds, and unsafe economic inputs deterministically.
 - Claim package schema v6 preserves pre-review/non-authority/timing truth, excludes raw documents, validates caller labels against immutable recovery identity, and fails closed on hybrid tenant/vertical/claim-family identity.
@@ -62,20 +63,21 @@ Build an evidence-first supplier-side industrial commercial recovery product tha
 - This Factory is NOT `MARKET_VALIDATED`, NOT `PILOT_VALIDATED`, NOT `PILOT_CAPABLE`, NOT `COMMERCIAL_READY`, and NOT production ready.
 
 ## TEST / EVIDENCE STATE
-- Exact application-source GREEN: `6e59d0f9ac440b9fd16d758bb81697e487796fe5`.
-- CI: ObraSignal Quality #4179 / run 33286344803.
+- Exact application-source GREEN: `c6de16e5a23483bb27ef33f6abf329752bde45bb`.
+- CI: ObraSignal Quality run `33287246832` SUCCESS.
+- Atomic replay evidence: `tests/test_industrial_claims_replay_integrity.py::test_replay_validation_rolls_back_partial_repairs_on_late_conflict` corrupts durable state, induces a late immutable audit collision, and proves the attempted earlier evidence repair is rolled back.
 - Industrial allowlisted suite includes service, recovery cap, replay, atomic persistence, case metadata atomicity, outcome atomicity, document privacy, input bounds, collision resistance, synthetic oracle, package, pilot contract, backup/restore, web, HTTP intake, console, queue, finding detail and dossier integrity tests, plus shared recovery contracts.
-- Known code regressions at source snapshot: none.
+- Known code regressions at exact GREEN source snapshot: none.
 
 ## ACTIVE
-Continue repository-only P0/P1 hardening from the exact GREEN source snapshot. Current focus: make duplicate/replay validation transactionally atomic so a later replay conflict cannot leave partial repair/orphan rows if durable state was already incomplete or externally corrupted.
+Continue the final repository-only P0/P1 scan from exact GREEN source `c6de16e5a23483bb27ef33f6abf329752bde45bb`. Prioritize identity/tenant leakage, raw-content leakage, truth-language overclaim, deadline semantics, outcome semantics, queue/detail dead ends, unsafe HTTP failures, replay/atomicity and pricing/commercial overclaim. Do not re-open atomic replay as unfinished unless new evidence disproves the current regression.
 
 ## NEXT
-1. Add replay rollback regression and atomic replay validation.
-2. Exact-head CI after the replay hardening.
-3. Repin Factory Cloud source/provisioning only after the new exact source snapshot is GREEN.
-4. Final Industrial P0/P1 scan: identity/tenant leakage, raw-content leakage, truth-language overclaim, deadline semantics, outcome semantics, queue/detail dead ends, unsafe HTTP failures, replay/atomicity, pricing/commercial overclaim.
-5. Repair every executable finding and re-run exact-head CI.
+1. Inspect current exact source for one executable P0/P1 defect beyond the completed atomic-replay/revision-aware queue-detail milestones.
+2. Add a failing-before regression for the highest-impact real defect found; if no executable defect is found, record the scan evidence rather than inventing one.
+3. Repair only after the failing-before proves the defect.
+4. Run exact-head CI and preserve failures literally.
+5. Repin Factory Cloud source/provisioning only after a new source snapshot is exact-head GREEN and the pin itself is authorized by repository-safe policy.
 6. Keep runtime/provisioning and external authority items in WAIT; do not fake completion.
 
 ## WAIT / OWNER-ONLY / EXTERNAL DEPENDENCIES
@@ -94,4 +96,4 @@ Continue repository-only P0/P1 hardening from the exact GREEN source snapshot. C
 No repository-only blocker is accepted as a stop condition. Runtime, market, legal, customer and production authority dependencies remain external WAIT and must not be bypassed by fabrication.
 
 ## RESUME_AT
-Read `apps/industrial-claims` exact HEAD, complete atomic replay validation + rollback regression, fetch the exact ObraSignal Quality run, repair any failure immediately, then continue the P0/P1 scan. Never reset to an older plan or treat a GREEN milestone as Factory completion.
+Read `apps/industrial-claims` exact HEAD and the most recent exact-head CI. Continue the P0/P1 scan beyond the already-completed atomic replay and revision-aware queue/detail milestones. If a real executable defect is found, prove it failing-before, repair it, and rerun exact-head quality; otherwise persist scan evidence and rotate. Never reset to an older plan or treat a GREEN milestone as Factory completion.
