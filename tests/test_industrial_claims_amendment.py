@@ -3,6 +3,7 @@ import pytest
 from factory_cloud.assurance_ops import AssuranceOperationError
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.amendment import amend_case
+from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
@@ -48,7 +49,8 @@ def _amend(service: IndustrialClaimsService, finding_id: str, **overrides):
 
 
 def test_amendment_preserves_fingerprint_creates_revision_two_and_resets_review(tmp_path):
-    service = IndustrialClaimsService(tmp_path / "amend.sqlite3")
+    database = tmp_path / "amend.sqlite3"
+    service = IndustrialClaimsService(database)
     first = _initial(service)
     service.review(
         tenant_id="alpha",
@@ -74,6 +76,17 @@ def test_amendment_preserves_fingerprint_creates_revision_two_and_resets_review(
     assert old_revision.is_current is False
     assert new_revision.revision == 2
     assert new_revision.supersedes_finding_id == first.finding.finding_id
+
+    read_model = IndustrialClaimsReadModel(database)
+    old_detail = read_model.get_finding(tenant_id="alpha", finding_id=first.finding.finding_id)
+    new_detail = read_model.get_finding(tenant_id="alpha", finding_id=second.finding.finding_id)
+    assert old_detail["revision"] == {"number": 1, "is_current": False, "supersedes_finding_id": None}
+    assert new_detail["revision"] == {"number": 2, "is_current": True, "supersedes_finding_id": first.finding.finding_id}
+    assert old_detail["calculation"]["net_potential"] == "10000"
+    assert new_detail["calculation"]["net_potential"] == "12000"
+
+    reviewer_queue = read_model.list_findings(tenant_id="alpha", states=("READY_FOR_REVIEW", "APPROVED"), limit=10)
+    assert [item.finding_id for item in reviewer_queue] == [second.finding.finding_id]
 
     with pytest.raises(AssuranceStoreError, match="superseded"):
         service.action(tenant_id="alpha", finding_id=first.finding.finding_id, actor_id="operator")
