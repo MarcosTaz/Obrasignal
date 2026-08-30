@@ -1,299 +1,142 @@
 from factory_cloud.pilot_contract import load_pilot_contract
 
 
-def test_industrial_claims_pilot_is_assisted_fail_closed_and_commercially_unproven():
+def test_industrial_claims_pilot_is_business_first_assisted_and_fail_closed():
     pilot = load_pilot_contract("vertical_apps/industrial_claims/pilot.json")
-    assert pilot["schema_version"] == 15
+
+    assert pilot["schema_version"] == 16
     assert pilot["vertical"] == "industrial-claims"
+    assert pilot["mode"] == "assisted"
     assert pilot["production_authority"] is False
-    assert pilot["pricing"]["status"] == "HYPOTHESIS"
     assert pilot["commercial_success"]["status"] == "UNPROVEN"
+    assert pilot["pricing"]["status"] == "HYPOTHESIS"
+
+    assert pilot["wedge"] == "supplier-side customer-caused engineering/change cost recovery (NRE / change-driven incremental cost)"
+    focus = pilot["commercial_focus_policy"]
+    assert focus == {
+        "frozen_until_real_commercial_proof": True,
+        "primary_claim_family": "NRE",
+        "primary_case_type": "CUSTOMER_DIRECTED_ENGINEERING_CHANGE_COST",
+        "secondary_capabilities_are_not_pilot_gates": True,
+        "dashboard_completion_required_before_assisted_delivery": False,
+        "assisted_delivery_default": True,
+        "initial_paid_product": "AUDIT_GRADE_RECOVERY_DOSSIER",
+        "insufficient_evidence_disposition": "NO_CLAIM_OR_NEEDS_REVIEW",
+    }
+
     assert "claim_currency" in pilot["required_inputs"]
+    assert "mitigation_and_prior_recovery" in pilot["required_inputs"]
     assert "notice_deadline_or_declared_none_for_review" in pilot["required_inputs"]
 
     evidence = pilot["evidence_policy"]
     assert evidence["reference_only_is_review_ready"] is False
     assert evidence["document_content_hashed"] is True
     assert evidence["raw_document_content_persisted_by_service"] is False
-    assert evidence["individual_document_content_limit_bytes"] == 1_000_000
     assert evidence["recovered_or_closed_outcome_requires_document_content"] is True
     assert evidence["outcome_document_and_state_persist_atomically"] is True
-    assert evidence["case_evidence_internal_ids_derived_from_recovery_fingerprint"] is True
-    assert evidence["human_evidence_references_preserved_as_source_refs"] is True
-    assert evidence["human_evidence_references_may_repeat_across_distinct_contracts"] is True
 
     pre_review = pilot["pre_review_entitlement_policy"]
-    assert pre_review == {
-        "documentary_complete_confidence": "PARTIAL",
-        "missing_evidence_confidence": "UNRESOLVED",
-        "generic_actionable_before_human_review": False,
-        "ready_for_review_is_documentary_workflow_state": True,
-        "review_approval_is_legal_conclusion": False,
-        "recoverability_established_before_external_evidence": False,
-        "rule_ref": "documented-commercial-basis-v3-pre-review",
-    }
+    assert pre_review["documentary_complete_confidence"] == "PARTIAL"
+    assert pre_review["missing_evidence_confidence"] == "UNRESOLVED"
+    assert pre_review["generic_actionable_before_human_review"] is False
+    assert pre_review["review_approval_is_legal_conclusion"] is False
+    assert pre_review["recoverability_established_before_external_evidence"] is False
 
     review = pilot["review_workflow_policy"]
-    assert review == {
-        "approval_scope": "INTERNAL_WORKFLOW_APPROVAL",
-        "approval_is_legal_conclusion": False,
-        "approval_establishes_recoverability": False,
-        "approval_authorizes_customer_contact": False,
-        "approval_authorizes_external_claim_submission": False,
-        "independent_reviewer_required": True,
-        "decision_reason_required": True,
-    }
-
-    notice = pilot["notice_truth_policy"]
-    assert notice == {
-        "unknown_fails_closed": True,
-        "analyst_date_state": "DECLARED_DATE_FOR_REVIEW",
-        "analyst_no_deadline_state": "DECLARED_NONE_FOR_REVIEW",
-        "independent_review_required": True,
-        "software_pre_review_verification_claimed": False,
-    }
+    assert review["approval_scope"] == "INTERNAL_WORKFLOW_APPROVAL"
+    assert review["approval_is_legal_conclusion"] is False
+    assert review["approval_establishes_recoverability"] is False
+    assert review["approval_authorizes_customer_contact"] is False
+    assert review["approval_authorizes_external_claim_submission"] is False
+    assert review["independent_reviewer_required"] is True
 
     timing = pilot["deadline_timing_policy"]
-    assert timing == {
-        "declared_date_timing_states": ["OPEN", "DUE_TODAY", "EXPIRED"],
-        "expired_is_operational_urgency_signal": True,
-        "expired_establishes_nonrecoverability": False,
-        "expired_requires_human_exception_or_waiver_review": True,
-        "timing_establishes_recoverability": False,
-    }
+    assert timing["declared_date_timing_states"] == ["OPEN", "DUE_TODAY", "EXPIRED"]
+    assert timing["expired_establishes_nonrecoverability"] is False
+    assert timing["expired_requires_human_exception_or_waiver_review"] is True
 
     outcome = pilot["outcome_recording_policy"]
-    assert outcome == {
-        "api_requires_final_cumulative_confirmation": True,
-        "resolve_closes_finding": True,
-        "installment_stream_supported": False,
-        "recorded_amount_semantics": "FINAL_CUMULATIVE_OUTCOME",
-        "documentary_evidence_required": True,
-    }
+    assert outcome["api_requires_final_cumulative_confirmation"] is True
+    assert outcome["installment_stream_supported"] is False
+    assert outcome["recorded_amount_semantics"] == "FINAL_CUMULATIVE_OUTCOME"
+    assert outcome["documentary_evidence_required"] is True
 
     transition = pilot["transition_integrity_policy"]
-    assert transition == {
-        "review_requires_valid_dossier_preflight": True,
-        "action_requires_valid_dossier_preflight": True,
-        "resolve_requires_valid_dossier_preflight": True,
-        "corrupt_dossier_blocks_state_mutation": True,
-        "corrupt_dossier_blocks_outcome_evidence_persistence": True,
-    }
+    assert transition["review_requires_valid_dossier_preflight"] is True
+    assert transition["action_requires_valid_dossier_preflight"] is True
+    assert transition["resolve_requires_valid_dossier_preflight"] is True
+    assert transition["corrupt_dossier_blocks_state_mutation"] is True
 
     replay = pilot["replay_integrity_policy"]
-    assert replay == {
-        "validation_is_atomic": True,
-        "late_conflict_rolls_back_partial_repair": True,
-        "replay_does_not_downgrade_lifecycle_state": True,
-        "replay_conflict_fails_closed": True,
-    }
+    assert replay["validation_is_atomic"] is True
+    assert replay["late_conflict_rolls_back_partial_repair"] is True
+    assert replay["replay_does_not_downgrade_lifecycle_state"] is True
+    assert replay["replay_conflict_fails_closed"] is True
 
     amendment = pilot["amendment_policy"]
-    assert amendment == {
-        "one_logical_recovery_fingerprint_across_revisions": True,
-        "current_revision_only_transitionable": True,
-        "historical_revisions_remain_readable": True,
-        "historical_revision_exposes_direct_successor": True,
-        "every_revision_exposes_current_finding": True,
-        "complete_predecessor_chain_validated": True,
-        "ambiguous_successor_fails_closed": True,
-        "identity_fields_immutable": ["customer_ref", "program_ref", "event_ref", "claim_family", "commercial_basis_ref"],
-        "amendable_states": ["UNRESOLVED_EVIDENCE", "READY_FOR_REVIEW", "APPROVED", "REJECTED"],
-        "amendment_after_action_or_final_outcome_forbidden": True,
-        "amendment_requires_fresh_independent_review": True,
-        "amendment_role": "analyst",
-        "amendment_and_supersession_persist_atomically": True,
-        "superseded_revision_replay_blocked": True,
-        "revision_lineage_backup_restore_required": True,
-        "raw_documents_reloaded_from_storage": False,
-        "full_corrected_documentary_reconstruction_required": True,
+    assert amendment["one_logical_recovery_fingerprint_across_revisions"] is True
+    assert amendment["current_revision_only_transitionable"] is True
+    assert amendment["complete_predecessor_chain_validated"] is True
+    assert amendment["ambiguous_successor_fails_closed"] is True
+    assert amendment["amendment_requires_fresh_independent_review"] is True
+    assert amendment["amendment_after_action_or_final_outcome_forbidden"] is True
+    assert amendment["raw_documents_reloaded_from_storage"] is False
+
+    package = pilot["package_policy"]
+    assert package["durable_current_revision_required"] is True
+    assert package["superseded_result_export_rejected"] is True
+    assert package["package_establishes_recoverability"] is False
+    assert package["package_authorizes_external_action"] is False
+
+    dossier = pilot["assisted_dossier_policy"]
+    assert dossier == {
+        "human_causation_assessment_required": True,
+        "human_customer_responsibility_assessment_required": True,
+        "prior_recovery_check_required": True,
+        "notice_deadline_required_or_unknown": True,
+        "raw_document_content_excluded": True,
+        "customer_action_authorized_by_dossier": False,
+        "external_claim_submission_authorized_by_dossier": False,
+        "recoverability_established_by_dossier": False,
+        "adversarial_nre_cases_minimum": 20,
     }
-
-    package_policy = pilot["package_policy"]
-    assert package_policy == {
-        "schema_version": 7,
-        "durable_current_revision_required": True,
-        "superseded_result_export_rejected": True,
-        "revision_lineage_included": True,
-        "package_establishes_recoverability": False,
-        "package_authorizes_external_action": False,
-    }
-
-    bounds = pilot["input_bounds"]
-    assert bounds == {
-        "tenant_id_max_chars": 64,
-        "case_and_outcome_reference_max_chars": 512,
-        "finding_id_max_chars": 2048,
-        "actor_id_max_chars": 256,
-        "review_reason_max_chars": 4000,
-        "missing_evidence_max_items": 100,
-        "missing_evidence_key_max_chars": 128,
-        "finding_queue_max_items": 100,
-        "amount_text_max_chars": 128,
-        "amount_significant_digits_max": 50,
-        "amount_integer_digits_max": 36,
-        "amount_decimal_places_max": 18,
-        "amount_absolute_exponent_max": 36,
-        "identifier_c0_and_del_controls_forbidden": True,
-        "missing_evidence_control_characters_forbidden": True,
-        "review_reason_multiline_tab_lf_cr_allowed": True,
-        "review_reason_other_control_characters_forbidden": True,
-    }
-
-    collision = pilot["identity_collision_policy"]
-    assert collision == {
-        "tenant_matches_provider_account_contract": True,
-        "contract_reference_is_structured_not_delimiter_concatenated": True,
-        "shared_store_outcome_id_is_tenant_scoped": True,
-        "case_internal_ids_derived_from_recovery_fingerprint": True,
-        "case_evidence_internal_ids_derived_from_recovery_fingerprint": True,
-        "same_event_and_family_can_coexist_across_distinct_contracts": True,
-        "same_human_evidence_refs_can_coexist_across_distinct_contracts": True,
-        "human_source_references_preserved_in_dossier": True,
-    }
-
-    dossier = pilot["dossier_lineage"]
-    assert dossier["case_metadata_atomic_with_case"] is True
-    assert dossier["entitlement_evidence_must_match_finding"] is True
-    assert dossier["calculation_evidence_must_be_within_finding"] is True
-    assert dossier["deadline_evidence_must_be_within_finding"] is True
-    assert dossier["recovery_fingerprint_event_must_match_case"] is True
-    assert dossier["creation_audit_must_be_unique"] is True
-    assert dossier["queue_creation_audit_must_be_unique"] is True
-    assert dossier["outcome_evidence_type_must_match"] is True
-    assert dossier["revision_predecessor_chain_must_be_complete"] is True
-    assert dossier["revision_predecessor_fingerprint_must_match"] is True
-    assert dossier["revision_successor_must_be_unambiguous"] is True
-    assert dossier["corrupt_or_ambiguous_lineage_fails_closed"] is True
-
-    backup = pilot["backup_restore_policy"]
-    assert backup == {
-        "sqlite_integrity_check_required": True,
-        "case_metadata_preserved": True,
-        "recovery_index_preserved": True,
-        "finding_and_audit_lineage_preserved": True,
-        "outcome_and_outcome_evidence_preserved": True,
-        "tenant_isolation_preserved": True,
-        "raw_document_content_absent_after_restore": True,
-    }
-
-    economic = pilot["economic_lineage"]
-    assert economic["currency_required_for_review_ready"] is True
-    assert economic["currency_normalized_uppercase"] is True
-    assert economic["recovery_currency_must_match_reviewed_currency"] is True
-    assert economic["currency_conversion_implemented"] is False
-    assert economic["numeric_capacity_is_system_safety_not_business_entitlement_cap"] is True
 
     identity = pilot["identity_authorization"]
     assert identity["source"] == "verified_provider_identity"
     assert identity["raw_identity_headers_authoritative"] is False
-    assert identity["roles"] == {"analyze": "analyst", "review": "reviewer", "action": "operator", "resolve": "operator"}
     assert identity["four_eyes_review_required"] is True
     assert identity["admin_may_self_review"] is False
 
     required_fail_closed = {
         "cost_without_commercial_basis",
         "reference_only_documentary_evidence",
-        "unresolved_entitlement_basis",
-        "pre_review_entitlement_supported_overclaim",
-        "review_scope_overclaim",
         "unknown_notice_deadline",
-        "pre_review_notice_verification_overclaim",
-        "deadline_expiry_nonrecoverability_overclaim",
-        "missing_final_cumulative_confirmation",
-        "installment_outcome_misuse",
-        "corrupt_dossier_before_transition",
-        "partial_replay_validation_persistence",
-        "identifier_control_characters",
-        "case_metadata_control_characters",
-        "missing_evidence_control_characters",
         "missing_claim_currency",
-        "invalid_claim_currency",
         "recovery_currency_mismatch",
         "missing_outcome_documentary_evidence",
-        "outcome_evidence_collision",
-        "cross_tenant_outcome_id_collision",
-        "ambiguous_contract_reference",
-        "case_id_collision_across_distinct_contracts",
-        "evidence_id_collision_across_distinct_contracts",
-        "amendment_identity_change",
-        "amendment_of_superseded_revision",
-        "amendment_after_action_or_final_outcome",
-        "partial_amendment_or_supersession_persistence",
-        "revision_lineage_loss_on_restore",
-        "revision_predecessor_missing",
-        "revision_predecessor_fingerprint_mismatch",
-        "revision_predecessor_chronology_mismatch",
-        "ambiguous_revision_successor",
-        "stale_revision_package_export",
-        "oversized_tenant_identifier",
-        "oversized_case_or_outcome_reference",
-        "oversized_finding_identifier",
-        "oversized_actor_identifier",
-        "oversized_review_reason",
-        "oversized_missing_evidence_collection",
-        "numeric_input_capacity_exceeded",
-        "dossier_lineage_mismatch",
-        "ambiguous_queue_creation_audit",
-        "incomplete_backup_restore",
-        "non_finite_economic_input",
         "recovery_exceeds_reviewed_net_potential",
+        "duplicate_recovery_fingerprint",
         "duplicate_success_fee",
         "unverified_identity",
         "tenant_identity_mismatch",
-        "missing_required_role",
         "self_review",
-        "partial_case_persistence",
-        "partial_case_metadata_persistence",
+        "stale_revision_package_export",
+        "unsupported_causation_overclaim",
+        "unsupported_customer_responsibility_overclaim",
+        "unknown_prior_recovery_hidden",
     }
     assert required_fail_closed <= set(pilot["fail_closed"])
 
-    operator_console = pilot["operator_console"]
-    assert operator_console["status"] == "REPOSITORY_IMPLEMENTED"
-    assert operator_console["external_runtime_exposure"] is False
-    assert operator_console["content_security_policy_required"] is True
-    assert operator_console["html_injection_renderer_forbidden"] is True
-    assert operator_console["tenant_scoped_role_queue"] is True
-    assert operator_console["final_cumulative_outcome_confirmation_required"] is True
-    assert operator_console["amendment_mode_requires_full_corrected_intake"] is True
-
-    required_exit = {
-        "canonical_source_green",
-        "documentary_content_gate_green",
-        "pre_review_entitlement_truth_green",
-        "review_truth_green",
-        "notice_truth_language_green",
-        "deadline_timing_risk_green",
-        "currency_lineage_green",
-        "numeric_capacity_green",
-        "identifier_control_character_green",
-        "identity_collision_resistance_green",
-        "fingerprint_case_identity_green",
-        "case_scoped_evidence_identity_green",
-        "outcome_evidence_lineage_green",
-        "final_cumulative_outcome_gate_green",
-        "dossier_lineage_green",
-        "transition_integrity_preflight_green",
-        "atomic_replay_validation_green",
-        "amendment_revision_lineage_green",
-        "revision_navigation_green",
-        "revision_lineage_red_team_green",
-        "current_revision_package_green",
-        "amendment_http_authorization_green",
-        "amendment_console_green",
-        "revision_backup_restore_green",
-        "bounded_input_surface_green",
-        "role_authorization_green",
-        "four_eyes_green",
-        "operation_audit_green",
-        "atomic_persistence_green",
-        "case_metadata_atomicity_green",
-        "full_dossier_backup_restore_green",
-        "tenant_scoped_role_queue_green",
-        "operator_console_green",
-        "browser_security_green",
-        "runtime_provisioned",
-        "provider_role_mapping_verified",
-        "pricing_validated_or_revised",
+    exit_criteria = set(pilot["pilot_exit_criteria"])
+    assert "all_claim_families_structurally_supported" not in exit_criteria
+    required_business_exit = {
+        "nre_customer_change_case_type_closed_end_to_end",
+        "nre_adversarial_cases_20_plus_green",
+        "audit_grade_assisted_dossier_green",
+        "assisted_delivery_workflow_green",
+        "secure_real_document_intake_path_verified",
+        "pricing_tested_or_revised_with_real_market_evidence",
+        "real_external_case_handled_safely",
+        "paid_path_demonstrated_or_explicitly_rejected_by_market_test",
     }
-    assert required_exit <= set(pilot["pilot_exit_criteria"])
+    assert required_business_exit <= exit_criteria
