@@ -1,55 +1,53 @@
 # INDUSTRIAL SUPPLIER CLAIMS & MARGIN RECOVERY / CAUSLEDGER — FACTORY STATE
 
 ## MISSION
-Build an evidence-first supplier-side industrial commercial recovery product that reconstructs documented recovery candidates, preserves uncertainty, requires independent human review, records only documented final cumulative outcomes, and never invents entitlement, legal recoverability, external authority, or recovered cash.
+Build an evidence-first supplier-side industrial commercial recovery product that reconstructs documented recovery candidates, preserves uncertainty, requires independent human review, supports auditable correction/supersession of pre-action reconstructions, records only documented final cumulative outcomes, and never invents entitlement, legal recoverability, external authority, or recovered cash.
 
 ## SOURCE TRUTH
 - Repository: `MarcosTaz/Obrasignal`
 - Application branch: `apps/industrial-claims`
 - Draft PR: `#785`
-- Last exact application-source GREEN: `c6de16e5a23483bb27ef33f6abf329752bde45bb`
-- Verification evidence: ObraSignal Quality run `33287246832`; exact-head SUCCESS.
-- Current source milestone includes revision-aware queue/detail proof and atomic replay rollback protection.
-- This BATON update is metadata/state only; the new branch HEAD created by this edit requires its own CI before the branch HEAD itself is described as GREEN.
+- Last exact application-source GREEN: `fccd959ab92fad297970bc7481ce92b90672c2ad`
+- Verification evidence: `ObraSignal Quality #4314`, run `33329594415`; exact-head SUCCESS.
+- Factory Cloud registry and runtime-provisioning contract point to that exact GREEN application snapshot.
+- Pointer/state metadata commits after that source snapshot require their own exact-head CI before the branch HEAD itself is described as GREEN.
 
 ## DONE
-- Tenant-safe provider identity boundary; raw tenant/actor headers are assertions only, not authority.
+- Tenant-safe verified-provider identity boundary; raw tenant/actor headers are assertions only.
 - Role separation: analyst / reviewer / operator / admin with four-eyes self-review prohibition.
-- Evidence-first intake: reference-only sources remain unresolved; supplied source contents are hashed; raw documentary contents are not persisted.
+- Evidence-first intake: references alone remain unresolved; supplied documentary contents are hashed; raw source/outcome contents are not persisted.
 - Explicit currency lineage with no implicit conversion.
 - Numeric finite/non-negative/capacity validation and exact Decimal working precision.
-- Immutable recovery cap against reviewed net potential.
-- Structured recovery fingerprint prevents delimiter collisions.
-- Internal case IDs derive from the recovery fingerprint so distinct contracts can share event/family references without collision.
-- Shared-store outcome IDs are tenant-scoped.
-- Durable Industrial case metadata is atomic with recovery index/shared case persistence.
-- Replay integrity prevents economic, currency, evidence, and metadata rewrites.
-- Duplicate/replay validation is transactionally atomic: a late immutable audit collision cannot leave an earlier replay repair committed; regression coverage proves missing evidence remains missing after rollback.
-- Pre-review entitlement truth is deliberately non-actionable: documentary-complete = PARTIAL; missing evidence = UNRESOLVED.
-- Notice values are analyst declarations (`DECLARED_DATE_FOR_REVIEW` / `DECLARED_NONE_FOR_REVIEW`) or UNKNOWN, never software-verified contractual conclusions.
-- Deadline timing exposes OPEN / DUE_TODAY / EXPIRED as operational risk only; expiry does not establish non-recoverability.
-- Reviewer/operator read model validates dossier lineage and fails closed on corruption or ambiguous creation audit lineage.
-- Review/action/resolve perform dossier-integrity preflight before state mutation.
-- `APPROVED` means internal workflow approval only; no legal conclusion, recoverability finding, customer-contact authority, or external-claim authority.
-- `action` changes internal state only.
-- HTTP `resolve` requires explicit `final_cumulative=true`; outcome is a final cumulative close, not installment accounting.
-- Outcome evidence is content-hashed and persisted atomically with final state; raw content is not persisted.
-- Full multi-tenant dossier backup/restore coverage includes metadata, recovery index, findings, audits, outcomes, and raw-content absence.
-- Tenant-scoped reviewer/operator queue and tenant-safe detailed dossier endpoint are revision-aware and fail closed on inconsistent durable lineage.
-- Console supports selected dossier inspection before workflow decision, safe DOM rendering, no `innerHTML`, CSP, no-store, nosniff, no-referrer, restrictive permissions.
-- HTTP intake rejects non-object JSON, malformed JSON, oversized requests, invalid identities, invalid roles, invalid bounds, and unsafe economic inputs deterministically.
-- Claim package schema v6 preserves pre-review/non-authority/timing truth, excludes raw documents, validates caller labels against immutable recovery identity, and fails closed on hybrid tenant/vertical/claim-family identity.
-- Recovery-app registration tests validate registry ↔ provisioning synchronization rather than freezing stale historical SHAs.
-- Pilot contract schema v11 encodes the current evidence, entitlement, review, timing, outcome, transition, collision, backup, security and commercial truth constraints.
+- Immutable reviewed net-potential recovery cap.
+- Structured recovery fingerprint and fingerprint-scoped internal case/evidence IDs prevent delimiter and reused-human-reference collisions.
+- Durable case metadata, recovery index, revision lineage and shared case persistence are transactionally protected.
+- Replay integrity prevents economic/currency/evidence/metadata rewrite, lifecycle downgrade and partial replay repair on late conflict.
+- Pre-review entitlement truth remains non-actionable: documentary-complete = PARTIAL; missing evidence = UNRESOLVED.
+- Notice truth is analyst-declared (`DECLARED_DATE_FOR_REVIEW` / `DECLARED_NONE_FOR_REVIEW`) or UNKNOWN; deadline timing OPEN / DUE_TODAY / EXPIRED is operational risk only.
+- Dossier read model fails closed on corrupt/ambiguous evidence, calculation, deadline, entitlement, fingerprint, audit and outcome lineage.
+- Review/action/resolve require a valid current revision before mutation.
+- `APPROVED` and `ACTIONED` are internal workflow states only and confer no customer/external authority.
+- Resolve requires explicit final-cumulative confirmation, matching reviewed currency, documentary outcome evidence and reviewed-value cap.
+- Tenant-scoped reviewer/operator queue exposes only current revisions; historical revisions remain readable through detail.
+- Amendment/revision workflow implemented: one logical recovery fingerprint across revisions; immutable identity fields; analyst-only correction; fresh independent review; superseded revisions remain historical and transition-ineligible; amendment blocked after ACTIONED/final outcome; supersession persists atomically; old-revision replay fails closed.
+- Amendment HTTP boundary is tenant-scoped and role-gated.
+- Console provides safe amendment mode using full corrected intake; raw documents are never reloaded from storage.
+- Backup/restore preserves revision history, current pointer, full dossier lineage, tenant isolation and raw-content absence.
+- Browser shell uses CSP/no-store/nosniff/no-referrer/restrictive permissions and safe DOM APIs; no `innerHTML`.
+- Input bounds and control-character defenses cover tenant/refs/IDs/actors/reasons/missing-evidence and pathological decimals.
+- Factory Cloud Industrial allowlist includes revision-store, amendment domain, amendment HTTP, revision backup/restore and console-amendment regressions.
+- Pilot contract schema v14 explicitly encodes amendment, supersession, fresh-review, backup, evidence, transition, security and commercial-truth constraints.
 
 ## PRODUCT TRUTH
 - `READY_FOR_REVIEW` = documentary candidate ready for independent human review only.
-- `CONTENT_HASHED` = content supplied and hash provenance recorded; not authenticity, legal sufficiency, or contractual support.
+- `CONTENT_HASHED` = content supplied and hash provenance recorded; not authenticity, legal sufficiency or contractual support.
 - `PARTIAL` pre-review entitlement confidence is not an approved entitlement.
 - `APPROVED` = internal workflow approval only.
 - `ACTIONED` = internal workflow state only; no customer action is performed by this repository flow.
+- An amendment is a correction/supersession of the same logical recovery, not a new recovery and not customer/external action.
+- Every amendment requires a new full corrected documentary reconstruction and fresh independent review; raw documents are not rehydrated from storage.
+- Superseded revisions remain audit-readable but cannot be reviewed, actioned or resolved.
 - `RECOVERED` / `CLOSED_NO_RECOVERY` records a documented final cumulative outcome under the current single-close model.
-- Raw documentary source/outcome content is not persisted by the Industrial service.
 - No currency conversion is implemented.
 - Expired declared notice timing is an urgency signal requiring human exception/waiver analysis, not a recoverability conclusion.
 
@@ -63,22 +61,22 @@ Build an evidence-first supplier-side industrial commercial recovery product tha
 - This Factory is NOT `MARKET_VALIDATED`, NOT `PILOT_VALIDATED`, NOT `PILOT_CAPABLE`, NOT `COMMERCIAL_READY`, and NOT production ready.
 
 ## TEST / EVIDENCE STATE
-- Exact application-source GREEN: `c6de16e5a23483bb27ef33f6abf329752bde45bb`.
-- CI: ObraSignal Quality run `33287246832` SUCCESS.
-- Atomic replay evidence: `tests/test_industrial_claims_replay_integrity.py::test_replay_validation_rolls_back_partial_repairs_on_late_conflict` corrupts durable state, induces a late immutable audit collision, and proves the attempted earlier evidence repair is rolled back.
-- Industrial allowlisted suite includes service, recovery cap, replay, atomic persistence, case metadata atomicity, outcome atomicity, document privacy, input bounds, collision resistance, synthetic oracle, package, pilot contract, backup/restore, web, HTTP intake, console, queue, finding detail and dossier integrity tests, plus shared recovery contracts.
+- Exact application-source GREEN: `fccd959ab92fad297970bc7481ce92b90672c2ad`.
+- CI: ObraSignal Quality #4314 / run `33329594415` SUCCESS.
+- Preceding regression CI #4310 failed only on revision-detail field naming; 1010 tests passed and Mobile passed. Tests were aligned to the established `revision.number` contract and exact-head #4314 passed.
+- Industrial allowlisted suite includes shared recovery contracts plus service, recovery cap, replay, atomic persistence, case metadata, revision store, amendment, amendment HTTP, outcome atomicity, document privacy, input bounds, collision resistance, synthetic oracle, package, pilot contract, full backup/restore, revision backup/restore, web, HTTP intake, console, console amendment, queue, detail and dossier-integrity tests.
 - Known code regressions at exact GREEN source snapshot: none.
 
 ## ACTIVE
-Continue the final repository-only P0/P1 scan from exact GREEN source `c6de16e5a23483bb27ef33f6abf329752bde45bb`. Prioritize identity/tenant leakage, raw-content leakage, truth-language overclaim, deadline semantics, outcome semantics, queue/detail dead ends, unsafe HTTP failures, replay/atomicity and pricing/commercial overclaim. Do not re-open atomic replay as unfinished unless new evidence disproves the current regression.
+Continue repository-only P0/P1 scan from exact GREEN source `fccd959ab92fad297970bc7481ce92b90672c2ad`. Current highest-value candidate: revision resumability — historical detail should expose the current/successor finding so a stale client can recover after supersession without guessing.
 
 ## NEXT
-1. Inspect current exact source for one executable P0/P1 defect beyond the completed atomic-replay/revision-aware queue-detail milestones.
-2. Add a failing-before regression for the highest-impact real defect found; if no executable defect is found, record the scan evidence rather than inventing one.
-3. Repair only after the failing-before proves the defect.
-4. Run exact-head CI and preserve failures literally.
-5. Repin Factory Cloud source/provisioning only after a new source snapshot is exact-head GREEN and the pin itself is authorized by repository-safe policy.
-6. Keep runtime/provisioning and external authority items in WAIT; do not fake completion.
+1. Prove the revision-resumability gap with a failing-before regression.
+2. Expose tenant-safe current/successor revision navigation without changing recovery identity or making amendment implicitly idempotent.
+3. Run exact-head CI; repair any regression immediately.
+4. Repin Factory Cloud only to a newer exact-head GREEN source snapshot if source code changes.
+5. Continue final P0/P1 scan for tenant/raw-content leakage, truth-language overclaim, lifecycle dead ends, collision semantics, unsafe HTTP failures, replay/atomicity and commercial overclaim.
+6. Keep runtime, provider, market, legal, customer and production authority items in WAIT.
 
 ## WAIT / OWNER-ONLY / EXTERNAL DEPENDENCIES
 - Runtime workspace provisioning at `/srv/factory-cloud/apps/industrial-claims` and supervised worker.
@@ -96,4 +94,4 @@ Continue the final repository-only P0/P1 scan from exact GREEN source `c6de16e5a
 No repository-only blocker is accepted as a stop condition. Runtime, market, legal, customer and production authority dependencies remain external WAIT and must not be bypassed by fabrication.
 
 ## RESUME_AT
-Read `apps/industrial-claims` exact HEAD and the most recent exact-head CI. Continue the P0/P1 scan beyond the already-completed atomic replay and revision-aware queue/detail milestones. If a real executable defect is found, prove it failing-before, repair it, and rerun exact-head quality; otherwise persist scan evidence and rotate. Never reset to an older plan or treat a GREEN milestone as Factory completion.
+Read `apps/industrial-claims` exact HEAD and exact-head CI. Resume revision-resumability P1 first. If the branch moved or CI failed, repair the exact current regression before further work. Never reset to an older plan or treat a GREEN milestone as Factory completion.
