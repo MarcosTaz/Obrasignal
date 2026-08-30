@@ -75,7 +75,7 @@ def test_http_amendment_is_analyst_only_and_requires_fresh_review(tmp_path):
     assert current.status_code == 200
     assert historical.get_json()["revision"]["is_current"] is False
     assert current.get_json()["revision"]["is_current"] is True
-    assert current.get_json()["revision"]["revision"] == 2
+    assert current.get_json()["revision"]["number"] == 2
 
 
 def test_http_amendment_is_tenant_scoped_and_identity_fields_are_immutable(tmp_path):
@@ -103,4 +103,4 @@ def test_http_amendment_is_tenant_scoped_and_identity_fields_are_immutable(tmp_p
     detail = alpha.get(f"/findings/{first_id}")
     assert detail.status_code == 200
     assert detail.get_json()["revision"]["is_current"] is True
-    assert detail.get_json()["revision"]["revision"] == 1
+    assert detail.get_json()["revision"]["number"] == 1
