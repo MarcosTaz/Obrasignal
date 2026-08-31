@@ -3,11 +3,16 @@ from decision_log import record_decision
 from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
 
-def persist_and_classify(conn, item, is_new, account_id='default'):
-    """Persist the canonical commercial decision with full account-scoped evidence."""
+def persist_and_classify(conn, item, is_new, account_id='default', profile=None):
+    """Persist the canonical commercial decision with full account-scoped evidence.
+
+    Callers evaluating a batch for one account may pass an already-loaded
+    profile.  This avoids reopening the profile database for every opportunity
+    while keeping the existing single-item API backwards compatible.
+    """
     enriched = dict(item)
-    profile = load_profile(account_id)
-    evaluation = evaluate_row(enriched, profile=profile)
+    effective_profile = profile if profile is not None else load_profile(account_id)
+    evaluation = evaluate_row(enriched, profile=effective_profile)
     enriched.update({
         "lot_score": evaluation["lot_score"],
         "lot_match": evaluation["match"],
