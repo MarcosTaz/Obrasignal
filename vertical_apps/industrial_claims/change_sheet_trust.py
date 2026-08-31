@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-import secrets
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, ChangeCaptureStore
+from vertical_apps.industrial_claims.change_capture import ChangeCaptureStore
 from vertical_apps.industrial_claims.proof import ExternalAttestation, canonical_json_bytes, sha256_hex
 from vertical_apps.industrial_claims.proof_providers import ProofProvider, ProofRequest
 
@@ -42,9 +41,8 @@ class ChangeSheetTrustService:
 
     Each attestation is immutable and digest-specific. If factual input changes the
     sheet, the former attestation remains historical and cannot raise the trust
-    state of the new snapshot. A qualified-time claim is fail-closed unless the
-    external receipt is bound to the exact subject, purpose and SHA-256 digest and
-    carries independent validation material.
+    state of the new snapshot. Stored receipts are cryptographically reconstructed
+    and revalidated on every trust read rather than trusting database state labels.
     """
 
     def __init__(
@@ -138,6 +136,50 @@ class ChangeSheetTrustService:
         if not str(attestation.validation_ref or "").strip():
             raise ChangeSheetTrustError("verified change sheet timestamp requires validation material")
 
+    def _row_attestation(self, row: sqlite3.Row) -> ExternalAttestation:
+        try:
+            details = json.loads(str(row["details_json"]))
+        except (TypeError, ValueError) as exc:
+            raise ChangeSheetTrustError("stored change sheet timestamp details are invalid") from exc
+        if not isinstance(details, dict):
+            raise ChangeSheetTrustError("stored change sheet timestamp details are invalid")
+        digest = _digest(row["sheet_sha256"])
+        sheet_id = _required(row["sheet_id"], label="sheet_id", max_chars=128)
+        expected_subject = self._subject_ref(sheet_id, digest)
+        if str(row["subject_ref"] or "").strip() != expected_subject:
+            raise ChangeSheetTrustError("stored change sheet timestamp subject binding is invalid")
+        attestation = ExternalAttestation(
+            kind=str(row["kind"]),
+            provider=str(row["provider"]),
+            state=str(row["state"]),
+            digest_algorithm=str(row["digest_algorithm"]),
+            digest=digest,
+            provider_ref=row["provider_ref"],
+            issued_at=row["issued_at"],
+            validation_ref=row["validation_ref"],
+            details=details,
+        )
+        self._validate_attestation(
+            attestation=attestation,
+            expected_digest=digest,
+            expected_subject_ref=expected_subject,
+        )
+        body = {
+            "tenant_id": str(row["tenant_id"]),
+            "finding_id": str(row["finding_id"]),
+            "sheet_id": sheet_id,
+            "sheet_sha256": digest,
+            "subject_ref": expected_subject,
+            "attestation": attestation.as_dict(),
+            "recorded_at": str(row["recorded_at"]),
+        }
+        if str(row["attestation_hash"]) != sha256_hex(body):
+            raise ChangeSheetTrustError("stored change sheet timestamp receipt hash is invalid")
+        expected_id = f"sheettsa_{str(row['attestation_hash'])[:24]}"
+        if str(row["attestation_id"]) != expected_id:
+            raise ChangeSheetTrustError("stored change sheet timestamp receipt identity is invalid")
+        return attestation
+
     def _verified_current_row(
         self,
         *,
@@ -146,13 +188,16 @@ class ChangeSheetTrustService:
         sheet_sha256: str,
     ) -> sqlite3.Row | None:
         with self._connect() as conn:
-            return conn.execute(
+            row = conn.execute(
                 """SELECT * FROM causledger_change_sheet_attestations
                    WHERE tenant_id=? AND finding_id=? AND sheet_sha256=?
                      AND kind='QUALIFIED_TIMESTAMP' AND state IN ('VERIFIED','VALID')
                    ORDER BY recorded_at DESC,attestation_id DESC LIMIT 1""",
                 (tenant_id, finding_id, sheet_sha256),
             ).fetchone()
+        if row is not None:
+            self._row_attestation(row)
+        return row
 
     @staticmethod
     def _public_attestation(row: sqlite3.Row) -> dict[str, Any]:
@@ -181,6 +226,20 @@ class ChangeSheetTrustService:
         if existing is not None:
             return self._public_attestation(existing)
 
+        provider_name = str(getattr(self.provider, "name", "") or "").strip()
+        if provider_name == "UNCONFIGURED":
+            with self._connect() as conn:
+                unavailable = conn.execute(
+                    """SELECT * FROM causledger_change_sheet_attestations
+                       WHERE tenant_id=? AND finding_id=? AND sheet_sha256=?
+                         AND kind='QUALIFIED_TIMESTAMP' AND provider='UNCONFIGURED' AND state='UNAVAILABLE'
+                       ORDER BY recorded_at DESC,attestation_id DESC LIMIT 1""",
+                    (tenant, finding, digest),
+                ).fetchone()
+            if unavailable is not None:
+                self._row_attestation(unavailable)
+                return self._public_attestation(unavailable)
+
         if str(getattr(self.provider, "kind", "") or "") != "QUALIFIED_TIMESTAMP":
             raise ChangeSheetTrustError("configured change sheet provider is not a qualified timestamp provider")
         request = ProofRequest(
@@ -203,6 +262,7 @@ class ChangeSheetTrustService:
             expected_digest=digest,
             expected_subject_ref=subject_ref,
         )
+        recorded_at = _utc_now()
         body = {
             "tenant_id": tenant,
             "finding_id": finding,
@@ -210,6 +270,7 @@ class ChangeSheetTrustService:
             "sheet_sha256": digest,
             "subject_ref": subject_ref,
             "attestation": attestation.as_dict(),
+            "recorded_at": recorded_at,
         }
         attestation_hash = sha256_hex(body)
         attestation_id = f"sheettsa_{attestation_hash[:24]}"
@@ -237,7 +298,7 @@ class ChangeSheetTrustService:
                     attestation.issued_at,
                     attestation.validation_ref,
                     details_json,
-                    _utc_now(),
+                    recorded_at,
                 ),
             )
             row = conn.execute(
@@ -246,6 +307,7 @@ class ChangeSheetTrustService:
             ).fetchone()
         if row is None:
             raise ChangeSheetTrustError("change sheet time attestation could not be persisted")
+        self._row_attestation(row)
         return self._public_attestation(row)
 
     def status(self, *, tenant_id: str, finding_id: str) -> dict[str, Any]:
@@ -260,6 +322,8 @@ class ChangeSheetTrustService:
                     (tenant, finding),
                 ).fetchall()
             )
+        for row in rows:
+            self._row_attestation(row)
         current = [row for row in rows if str(row["sheet_sha256"]) == digest]
         current_verified = [row for row in current if str(row["state"]).upper() in _VERIFIED_STATES]
         latest = current_verified[-1] if current_verified else (current[-1] if current else None)
@@ -272,6 +336,7 @@ class ChangeSheetTrustService:
             "current_snapshot_externally_timestamped": bool(current_verified),
             "historical_attested_snapshot_count": len(historical_digests),
             "stale_attestation_exists_for_older_snapshot": bool(historical_digests),
+            "timestamp_receipts_revalidated_on_read": True,
             "timestamp_is_digest_specific": True,
             "new_fact_requires_new_timestamp": True,
             "qualified_timestamp_claim_is_fail_closed": True,
