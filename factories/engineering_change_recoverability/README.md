@@ -1,8 +1,6 @@
-# Engineering Change Recoverability Assurance — assisted prototype
+# Engineering Change Recoverability Assurance
 
-This is the first tested product slice for the narrowed Engineering Change Exposure thesis.
-
-It is intentionally **not** a PLM, ERP, CPQ, program-management or profitability operating system. The wedge is an independent layer that reconciles:
+Independent recoverability assurance for engineering changes:
 
 `engineering change -> exact revision delta -> linked evidence -> causal cost -> mitigation/prior payment -> contractual basis -> notice/deadline -> recoverability -> commercial action package`
 
@@ -17,19 +15,23 @@ It is intentionally **not** a PLM, ERP, CPQ, program-management or profitability
 - Correct EUR 0 is a successful output.
 - Mixed currency, unverified revision/baseline, missing linked cost/causality evidence, ambiguous contract basis and unresolved notice conditions fail closed.
 
-## What exists
+## Verified code boundary
 
-- deterministic recoverability engine;
-- 26 synthetic companies/cases covering the complete mandatory scenario matrix with an independent oracle;
-- explicit recoverable / non-recoverable / unknown / mitigated / prior-payment buckets;
-- evidence objects + evidence graph + missing-evidence output;
-- append-only SQLite case and analysis history;
-- tenant-scoped storage with signed expiring bearer tokens;
-- concurrent version writes protected by `BEGIN IMMEDIATE`;
-- atomic case + analysis + commercial-package persistence;
-- backup, restore and SQLite integrity checks;
-- commercial action package with input SHA-256 audit fingerprint;
-- local web UI and JSON API.
+The assisted product now has a production-grade application boundary in code:
+
+- deterministic recoverability engine and 26-company independent oracle matrix;
+- tenant-scoped signed bearer principals with bounded lifetime, role and JTI;
+- authenticated real-record analysis and persistence; synthetic demo remains public;
+- explicit cross-tenant rejection;
+- append-only SQLite case/analysis version history with concurrent-write protection;
+- HMAC-SHA256 tamper-evident audit chain;
+- OWNER-only operational purge while retaining the minimal audit ledger;
+- retention purge for stale operational records;
+- AES-256-GCM encrypted backup/restore with wrong-key failure and integrity validation;
+- fail-closed `/readyz` requiring independent auth, audit and backup secrets in `ECE_ENV=production`;
+- bounded HTTP request bodies and security response headers;
+- no customer-file upload endpoint exists, so malware/file scanning is not an exposed surface in this slice;
+- commercial action package with input SHA-256 audit fingerprint.
 
 ## Tests
 
@@ -37,29 +39,34 @@ It is intentionally **not** a PLM, ERP, CPQ, program-management or profitability
 python -W error::ResourceWarning -m unittest -v
 ```
 
-Current tested slice: **38 tests passing**.
+Verified production-boundary suite: **45 tests passing**, plus an isolated production HTTP smoke gate that proves readiness, unauthenticated rejection, cross-tenant rejection, payload-size rejection, OWNER purge and security headers.
 
-The tests cover independent-oracle outcomes, mixed currency, missing evidence, notice risk, evidence self-assertion, token tampering/expiry, cross-tenant isolation, append-only history, concurrent writes, restart persistence, backup/restore and commercial-package truth including correct zero recovery.
+The GitHub workflow `Engineering Change Production Boundary` protects both the production-boundary branch and the canonical Factory branch.
 
-## Run assisted web prototype
+## Production configuration
 
-The real-record API fails closed without an authentication secret:
+Production startup fails closed unless all required secrets are present:
 
 ```bash
+export ECE_ENV=production
 export ECE_AUTH_SECRET='replace-with-at-least-32-random-bytes'
+export ECE_AUDIT_SECRET='different-at-least-32-random-bytes'
+export ECE_BACKUP_SECRET='different-at-least-32-random-bytes'
+export ECE_DB_PATH='/secure/persistent/ece.db'
+export ECE_MAX_BODY_BYTES='1048576'
 python app.py
 ```
 
-Then open `http://127.0.0.1:8765` for the synthetic demo. Real-record endpoints require a signed bearer token. Tokens are intended for an assisted pilot and are issued out-of-band with `auth.issue_token`.
+`GET /readyz` must return `ready: true` before receiving real records.
 
-## Current maturity
+## Current maturity truth
 
-- T0: **NARROW / SURVIVED**
-- T1: **PILOT CAPABLE — assisted local prototype**
+- T0 thesis: **NARROW / SURVIVED**
+- Assisted product: **PILOT CAPABLE**
+- Code production boundary: **CLOSED / VERIFIED**
+- Hosted production deployment for confidential customer data: **NOT YET VERIFIED**
 - Real customer data: **NONE**
 - Commercial proof: **NONE**
 - Market exposure: **NOT YET**
 
-T1 is promoted only for the assisted local prototype: identity, revision, cost, causality, mitigation, prior-payment, contract, notice/deadline and approval claims must match verified evidence assertions; zero balances also require reconciliation evidence. This is not production certification and not commercial proof.
-
-Do not expose this prototype as production truth.
+A green code boundary is not commercial validation and is not evidence of recovered cash. Do not label this Factory `PILOT_VALIDATED`, `MARKET_VALIDATED` or `COMMERCIAL_READY` until real external evidence exists.
