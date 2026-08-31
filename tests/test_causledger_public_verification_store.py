@@ -81,17 +81,29 @@ def test_supersession_is_append_only_and_cross_tenant_is_rejected(tmp_path):
     store.publish(tenant_id="tenant-a", subject_ref="f2", receipt=_receipt(new), actor_id="operator")
     store.publish(tenant_id="tenant-b", subject_ref="f3", receipt=_receipt(other), actor_id="operator")
 
+    with pytest.raises(PublicVerificationStoreError, match="does not belong"):
+        store.transition(
+            tenant_id="tenant-b",
+            verification_id=old,
+            event_id="event-owner",
+            event_type="WITHDRAWN",
+            reason="wrong tenant operator",
+            actor_id="operator-b",
+        )
+
     with pytest.raises(PublicVerificationStoreError, match="cross-tenant"):
         store.transition(
+            tenant_id="tenant-a",
             verification_id=old,
             event_id="event-cross",
             event_type="SUPERSEDED",
             successor_verification_id=other,
-            reason="wrong tenant",
+            reason="wrong tenant successor",
             actor_id="operator",
         )
 
     store.transition(
+        tenant_id="tenant-a",
         verification_id=old,
         event_id="event-1",
         event_type="SUPERSEDED",
@@ -105,6 +117,7 @@ def test_supersession_is_append_only_and_cross_tenant_is_rejected(tmp_path):
 
     with pytest.raises(PublicVerificationStoreError, match="terminal"):
         store.transition(
+            tenant_id="tenant-a",
             verification_id=old,
             event_id="event-2",
             event_type="WITHDRAWN",
