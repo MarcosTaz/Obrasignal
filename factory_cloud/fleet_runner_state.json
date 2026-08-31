@@ -6,12 +6,12 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 6,
-  "last_factory_id": "recovery-radar",
-  "last_run_at": "2026-08-31T15:45:36Z",
+  "cursor": 7,
+  "last_factory_id": "sourcing-recovery",
+  "last_run_at": "2026-08-31T16:43:19Z",
   "last_material_change": {
-    "kind": "RECOVERY_RADAR_EXACT_SOURCE_AUTHORITY_SEARCHED_AND_ROTATED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Recovery Radar exact-name PR search returned no dedicated Recovery Radar PR; exact code search for the phrase returned zero results. A broad recovery branch search returned recovery/scopeledger-source-20260829 plus unrelated recovery branches, but no explicit Recovery Radar branch, so none was assigned as authority. Recovery Radar therefore remains UNKNOWN_EXACT_SOURCE_IDENTITY rather than inheriting ObraSignal Radar/customer-journey artifacts. CausLedger Gmail watch since the prior BATON found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Fleet rotates to Sourcing Recovery.",
+    "kind": "SOURCING_RECOVERY_EXACT_SOURCE_AUTHORITY_SEARCHED_AND_ROTATED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Sourcing Recovery exact-name PR search returned no dedicated PR and repository code search returned no exact-name source artifact, so canonical source identity remains UNKNOWN rather than inheriting adjacent supplier/recovery artifacts. CausLedger Gmail watch since the prior BATON found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Fleet rotates to Product Market Access.",
     "evidence": {
       "portfolio_registry_count": 33,
       "causledger_inbound": {
@@ -20,16 +20,15 @@
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
-      "recovery_radar": {
+      "sourcing_recovery": {
         "exact_name_pr_search_dedicated_matches": 0,
         "exact_phrase_code_search_count": 0,
-        "explicit_recovery_radar_branch_recovered": false,
         "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "next_exact_action": "Require an explicit Recovery Radar branch/PR/runtime/BATON authority before assigning canonical implementation; do not infer it from ObraSignal Radar UI/customer-journey artifacts or ScopeLedger recovery lineage."
+        "next_exact_action": "Require an explicit Sourcing Recovery branch/PR/runtime/BATON authority before assigning canonical implementation; do not infer it from adjacent supplier/recovery artifacts."
       }
     },
-    "active": "Sourcing Recovery — reconstruct current exact source/PR/head truth and execute the highest-value repository-safe verification or repair; do not infer source authority from adjacent supplier/recovery artifacts.",
-    "next": "Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar.",
+    "active": "Product Market Access — reconstruct current exact source/PR/head truth and execute the highest-value repository-safe verification or research-safe milestone; do not promote public research into canonical product truth without source authority.",
+    "next": "Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
@@ -38,6 +37,7 @@
       "ScopeLedger PR #769 is historical/superseded and not live canonical authority; production lineage remains unproved.",
       "ChangeLedger exact canonical source identity remains UNKNOWN.",
       "Recovery Radar exact canonical source identity remains UNKNOWN after dedicated PR/code/branch authority search.",
+      "Sourcing Recovery exact canonical source identity remains UNKNOWN after dedicated PR/code search.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
       "Factory Cloud mutable branch truth must always be derived from live PR head plus matching exact-head CI; historical GREEN never rolls forward automatically.",
       "ObraSignal final composition PR #882 remains integration-blocked pending current-main reconciliation and fresh exact-head gates."
@@ -49,7 +49,7 @@
     {"factory_id":"scopeledger","blocker":"Only exact-name PR #769 was recovered and it is CLOSED/DRAFT/SUPERSEDED/NOT_MERGED with its patch promoted into Factory Cloud #652; no live heads/scope* ref exists. Live canonical implementation and Railway/production lineage remain unproved.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Exact canonical source identity remains UNKNOWN after exact-name PR/code search.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Dedicated exact-name PR search, exact phrase code search and recovery branch search recovered no explicit canonical Recovery Radar source authority; ObraSignal Radar artifacts are not assigned by inference.","global_stop":false},
-    {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
+    {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity remains UNKNOWN after exact-name PR/code search; adjacent supplier/recovery artifacts are not assigned by inference.","global_stop":false},
     {"factory_id":"product-market-access","blocker":"Exact canonical source identity UNKNOWN; public market research remains non-canonical.","global_stop":false},
     {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact-name PR search.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
