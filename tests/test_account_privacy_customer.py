@@ -1,8 +1,10 @@
 import json
 import sqlite3
+from types import SimpleNamespace
 
 import pytest
 
+import account_privacy as privacy
 from account_privacy import (
     AccountPrivacyContractError,
     account_data_inventory,
@@ -91,6 +93,17 @@ def _db():
     return conn
 
 
+class _NoCloseConnection:
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def close(self):
+        return None
+
+
 def test_inventory_classifies_every_account_scoped_table():
     conn = _db()
     inventory = account_data_inventory(conn)
@@ -118,6 +131,28 @@ def test_new_unclassified_private_table_makes_export_fail_closed():
     conn.execute("CREATE TABLE surprise_private(id INTEGER PRIMARY KEY, account_id TEXT NOT NULL, secret TEXT)")
     with pytest.raises(AccountPrivacyContractError, match="account_data_contract_incomplete"):
         export_account_data(conn, "acct-a")
+
+
+def test_privacy_boundary_bootstraps_new_authenticated_account(monkeypatch):
+    conn = _db()
+    conn.execute("DELETE FROM accounts WHERE account_id='acct-a'")
+    conn.commit()
+
+    monkeypatch.setattr(privacy, "_db", lambda: _NoCloseConnection(conn))
+    monkeypatch.setattr(
+        privacy,
+        "configured_identity",
+        lambda: SimpleNamespace(account_id="acct-a"),
+    )
+
+    identity, failure = privacy._identity_or_response()
+
+    assert failure is None
+    assert identity.account_id == "acct-a"
+    assert deletion_state(conn, "acct-a")["state"] == "NONE"
+    row = conn.execute("SELECT status FROM accounts WHERE account_id='acct-a'").fetchone()
+    assert row is not None
+    assert row["status"] == "active"
 
 
 def test_deletion_removes_only_target_private_rows_and_leaves_fail_closed_tombstone():
