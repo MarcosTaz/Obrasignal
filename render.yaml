@@ -25,17 +25,15 @@ services:
       # Supabase user access tokens use the authenticated audience.
       - key: OBRASIGNAL_JWT_AUDIENCE
         value: "authenticated"
-      # Native Supabase JWKS is derived from the canonicalized issuer. Keeping a
-      # second manually configured URL created a stale-key/configuration failure
-      # mode during asymmetric-key migration, so no Supabase JWKS override is
-      # declared by the production blueprint.
-      # Temporary live customer origin while obrasignal.com DNS/OVH activation is
-      # pending. Switch both values back to https://obrasignal.com atomically once
-      # public DNS resolves; never leave the application without a reachable UI.
+      # Native Supabase JWKS is derived from the canonicalized issuer.
+      # Official customer Web origin remains canonical even while DNS activation
+      # is pending. The GitHub Pages origin is a bounded temporary CORS fallback.
       - key: OBRASIGNAL_CORS_ORIGIN
+        value: "https://obrasignal.com"
+      - key: OBRASIGNAL_CORS_FALLBACK_ORIGIN
         value: "https://marcostaz.github.io"
       - key: OBRASIGNAL_WEB_ORIGIN
-        value: "https://marcostaz.github.io/Obrasignal"
+        value: "https://obrasignal.com"
       - key: OBRASIGNAL_DB
         value: "/var/data/obrasignal.db"
       - key: POLL_SECONDS
