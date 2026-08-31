@@ -8,6 +8,7 @@ from typing import Any, Sequence
 from factory_cloud.assurance_kernel import EvidenceEnvelope
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.proof import ExternalAttestation, build_proof_manifest, verify_proof_manifest
+from vertical_apps.industrial_claims.proof_binding import validate_evidence_attestation_bindings
 from vertical_apps.industrial_claims.proof_readiness import evaluate_proof_strength
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
@@ -110,6 +111,7 @@ def build_durable_claim_proof_pack(
                 "raw_content_persisted": metadata.get("raw_content_persisted", "unknown"),
             })
 
+    validate_evidence_attestation_bindings(tuple(envelopes), tuple(attestations))
     core_package = {
         "schema_version": 1,
         "deliverable": "CAUSLEDGER_DURABLE_PROOF_CORE",
