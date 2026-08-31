@@ -11,12 +11,31 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Bound extraction by candidate saturation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('ops/prospecting/build_active45_non_europe_prospects.py')
+          s=p.read_text()
+          for a,b in [
+            ('seen>=150000','seen>=60000'),
+            ('quota*6 and seen>=30000','quota*3 and seen>=15000'),
+            ('page<=350','page<=150'),
+            ('len(agg)<quota*3','len(agg)<quota*2'),
+            ('offset<250000','offset<100000'),
+            ('len(agg)<quota*4','len(agg)<quota*3'),
+            ('seen>=300000','seen>=120000'),
+            ('len(agg)>=quota*5','len(agg)>=quota*3'),
+          ]:
+            s=s.replace(a,b)
+          p.write_text(s)
+          PY
       - name: Build non-Europe active-market candidate universe
         env:
           OUT_DIR: active45_non_europe
@@ -24,7 +43,7 @@ jobs:
       - name: Validate coverage
         run: |
           python - <<'PY'
-          import csv, json
+          import csv
           from pathlib import Path
           p=Path('active45_non_europe/obrasignal_non_europe_active45_candidates.csv')
           rows=list(csv.DictReader(p.open(encoding='utf-8')))
