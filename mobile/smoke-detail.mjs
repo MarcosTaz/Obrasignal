@@ -73,6 +73,18 @@ requireMatch('auth gate handles password recovery event', authGate, /PASSWORD_RE
 requireMatch('auth gate renders isolated password recovery surface', authGate, /<PasswordRecovery/);
 requireMatch('password recovery updates authenticated user password', passwordRecovery, /supabase\.auth\.updateUser/);
 
+// Public legal/support controls remain visible and factually aligned with real architecture.
+requireMatch('signed-out Web shell exposes public legal bar', authGate, /<PublicLegalBar\s*\/>/);
+requireMatch('public privacy control exists', authGate, /accessibilityLabel="Privacidade"/);
+requireMatch('public terms control exists', authGate, /accessibilityLabel="Termos de utilização"/);
+requireMatch('public support control exists', authGate, /accessibilityLabel="Contactar suporte"/);
+requireMatch('public privacy names Supabase auth boundary', authGate, /A autenticação é prestada através de Supabase/);
+requireMatch('public privacy discloses conditional RevenueCat boundary', authGate, /faturação automática estiver configurada[\s\S]*RevenueCat/);
+requireMatch('public privacy discloses opt-in translator', authGate, /Google Translate só é carregado quando o utilizador ativa/);
+requireMatch('public terms preserve official-source authority', authGate, /devem ser confirmados na fonte oficial/);
+requireMatch('public terms preserve assisted billing truth', authGate, /checkout automático só é oferecido quando o canal de pagamento correto estiver efetivamente configurado/);
+forbidMatch('public legal must not invent a legal company number', authGate, /NIF|VAT ID|sociedade por quotas|Lda\./i);
+
 // Privacy rights are available independently of paid/evaluation product access.
 requireMatch('privacy controls wrap billing rather than sit inside it', authGate, /return <AccountPrivacyControls>[\s\S]*<BillingGate>/);
 requireMatch('privacy export uses authenticated API', privacyControls, /api\.accountExport\(\)/);
@@ -141,6 +153,7 @@ for (const name of [
   'Web + native Radar pagination',
   'persistent logout/date/time/translator',
   'password recovery return flow',
+  'public privacy/terms/support truth',
   'account export + deletion ownership',
   'server-authoritative exact-product billing',
   'authenticated write token refresh',
