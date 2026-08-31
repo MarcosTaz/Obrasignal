@@ -2,28 +2,47 @@
 import json
 import os
 from urllib.parse import urlsplit, urlunsplit
-from flask import jsonify, request
+from flask import jsonify, redirect, request
 
 from api import APP, bp as MOBILE_API_BP
 from account_privacy import bp as ACCOUNT_PRIVACY_BP, DELETION_LOCKED_STATUSES
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
+from traffic_analytics import bp as TRAFFIC_ANALYTICS_BP, ensure_traffic_schema
 
 # Register customer-facing authenticated API owners explicitly at the WSGI boundary.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
 if "account_privacy" not in APP.blueprints:
     APP.register_blueprint(ACCOUNT_PRIVACY_BP)
+if "traffic_analytics" not in APP.blueprints:
+    APP.register_blueprint(TRAFFIC_ANALYTICS_BP)
 
 
 def _origin():
-    value = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
+    value = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://obrasignal.com").strip()
     if value == "*":
         return value
     parsed = urlsplit(value)
     if not parsed.scheme or not parsed.netloc:
         return None
     return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
+
+
+def _official_web_url():
+    value = (os.getenv("OBRASIGNAL_WEB_ORIGIN") or "https://obrasignal.com").strip().rstrip("/")
+    return value or "https://obrasignal.com"
+
+
+def _canonical_root_redirect():
+    if request.path == "/":
+        return redirect(_official_web_url() + "/", code=302)
+    return None
+
+
+# api imports preload, whose legacy root hook predates the official domain. Put
+# the canonical redirect first without exposing infrastructure URLs to clients.
+APP.before_request_funcs.setdefault(None, []).insert(0, _canonical_root_redirect)
 
 
 def _cors(response):
@@ -64,11 +83,12 @@ def _lock_private_shell_during_account_deletion():
     """Prevent deleted/deleting accounts from resurrecting product-private data.
 
     Account privacy endpoints remain reachable so the customer can inspect the
-    lifecycle. Health and billing webhooks are not customer-private reads.
+    lifecycle. Health, analytics collection and billing webhooks are not
+    customer-private reads.
     """
     if not request.path.startswith("/api/v1/"):
         return None
-    if request.path.startswith("/api/v1/account/") or request.path in {"/api/v1/health", "/api/v1/billing/webhook"}:
+    if request.path.startswith("/api/v1/account/") or request.path in {"/api/v1/health", "/api/v1/billing/webhook", "/api/v1/analytics/event"}:
         return None
     try:
         identity = configured_identity()
@@ -142,6 +162,7 @@ _lifecycle_conn = db()
 try:
     ensure_evaluation_schema(_lifecycle_conn)
     ensure_lifecycle_table(_lifecycle_conn)
+    ensure_traffic_schema(_lifecycle_conn)
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
