@@ -62,12 +62,25 @@
         <span>{{ capture.download_count }} prior download{{ '' if capture.download_count == 1 else 's' }}</span>
       </div>
 
+      <section id="capture-trust" class="capture-trust" aria-label="Snapshot proof state">
+        <strong>Snapshot proof state</strong>
+        <p>Current sheet SHA-256: <code id="capture-sheet-digest">{{ capture.snapshot_time_trust.current_snapshot_sha256 }}</code></p>
+        {% if capture.snapshot_time_trust.current_snapshot_externally_timestamped %}
+          <p id="capture-time-trust" class="trust-verified">Independent timestamp: VERIFIED for this exact snapshot.</p>
+        {% else %}
+          <p id="capture-time-trust" class="trust-pending">Independent qualified timestamp: NOT VERIFIED for this exact snapshot. Downloading requests the configured timestamp provider; CausLedger does not label internal server time as qualified evidence.</p>
+        {% endif %}
+        {% if capture.snapshot_time_trust.stale_attestation_exists_for_older_snapshot %}
+          <p class="note">An older sheet version has time evidence. It does not transfer to this version because the digest changed.</p>
+        {% endif %}
+      </section>
+
       <section id="capture-closed" class="capture-closed closed-only" {% if capture.window_state == 'OPEN' %}hidden{% endif %}>
         <strong>Factual input is closed.</strong>
         <p>The existing sheet remains downloadable. New information must be recorded as a separate late supplement rather than rewriting the contemporaneous record.</p>
       </section>
 
-      <p class="note capture-boundary">This capture window is an internal evidence-preservation control, not a contractual or statutory notice deadline. Saving or downloading the sheet does not prove customer responsibility, legal entitlement, or recoverability.</p>
+      <p class="note capture-boundary">This capture window is an internal evidence-preservation control, not a contractual or statutory notice deadline. Saving or downloading the sheet does not prove customer responsibility, legal entitlement, or recoverability. Hash integrity and server timestamps are distinct from independent qualified trust-service evidence.</p>
     </section>
   </main>
 </body>
