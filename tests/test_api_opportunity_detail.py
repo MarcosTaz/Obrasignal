@@ -29,6 +29,17 @@ def _seed(monkeypatch, tmp_path):
            NULL,NULL,NULL,'2026-08-20','https://example.test/unknown',95,
            '2026-08-20','2026-08-20','PT')"""
     )
+    conn.executemany(
+        """INSERT INTO opportunity_decisions(
+           account_id, source, external_id, decision, reason, score,
+           features_json, rule_version, decided_at
+           ) VALUES (?,?,?,?,?,?,?,?,?)""",
+        [
+            ('customer-a','TED','OPEN-1','QUALIFIED','test account match',88,'{}','test-v1','2026-08-20T00:00:00Z'),
+            ('customer-a','BASE','CLOSED-1','REVIEW','historical test match',70,'{}','test-v1','2020-01-01T00:00:00Z'),
+            ('customer-a','TED','UNKNOWN-DEADLINE','QUALIFIED','test account match',95,'{}','test-v1','2026-08-20T00:00:00Z'),
+        ],
+    )
     conn.commit()
     open_id = conn.execute("SELECT id FROM tenders WHERE external_id='OPEN-1'").fetchone()[0]
     conn.close()

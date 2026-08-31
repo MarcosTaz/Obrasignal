@@ -296,7 +296,7 @@ def workflow_stats():
 def opportunities():
     identity = request.obrasignal_identity
     limit = max(1, min(100, int(request.args.get("limit", 20) or 20)))
-    market = (request.args.get("market") or "PT").upper()
+    market = (request.args.get("market") or "").upper().strip()
     country = (request.args.get("country") or "").upper().strip()
     q = (request.args.get("q") or "").strip().lower()
     source = (request.args.get("source") or "").strip().upper()
@@ -305,7 +305,10 @@ def opportunities():
     minscore = int(minscore) if minscore not in (None, "") else None
     c = _db()
     ensure_lifecycle_table(c)
-    where = [actionable_predicate("lc", "t")]
+    # The default Radar is the authenticated account's decision set across all
+    # active markets. The previous implicit PT market filter made /stats count
+    # European opportunities that /opportunities could never list.
+    where = [actionable_predicate("lc", "t"), "d.id IS NOT NULL"]
     params = []
     if market in ("PT", "EU"):
         where.append("(t.market=? OR (t.market IS NULL AND t.country=?))")
