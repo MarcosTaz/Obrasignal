@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, make_response, render_template, request
 from werkzeug.exceptions import BadRequest
 
 from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, ChangeCaptureStore
+from vertical_apps.industrial_claims.change_capture_reminder import ChangeCaptureReminderError, ChangeCaptureReminderService
 from vertical_apps.industrial_claims.change_sheet_trust import ChangeSheetTrustError, ChangeSheetTrustService
 from vertical_apps.industrial_claims.change_supplement import ChangeSupplementError, LateChangeSupplementStore
 from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
@@ -21,6 +22,7 @@ def create_change_capture_blueprint(
     capture_identity: IdentityResolver,
     trust_service: ChangeSheetTrustService | None = None,
     supplement_store: LateChangeSupplementStore | None = None,
+    reminder_service: ChangeCaptureReminderService | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("causledger_change_capture", __name__)
     active_trust = trust_service or ChangeSheetTrustService(
@@ -29,6 +31,10 @@ def create_change_capture_blueprint(
         qualified_timestamp_provider=ProofProviderBundle.fail_closed().qualified_timestamp,
     )
     supplements = supplement_store or LateChangeSupplementStore(
+        store.path,
+        capture_store=store,
+    )
+    reminders = reminder_service or ChangeCaptureReminderService(
         store.path,
         capture_store=store,
     )
@@ -47,6 +53,17 @@ def create_change_capture_blueprint(
             tenant_id=tenant_id,
             finding_id=finding_id,
         )
+        reminder = reminders.status(tenant_id=tenant_id, finding_id=finding_id)
+        capture["download_reminder"] = reminder
+        capture["download_prompt"] = {
+            **dict(capture.get("download_prompt") or {}),
+            "active": reminder["should_prompt"],
+            "message": reminder["message"],
+            "current_snapshot_exported": reminder["current_snapshot_exported"],
+            "current_sheet_sha256": reminder["current_sheet_sha256"],
+            "next_milestone": reminder["next_milestone"],
+            "stops_when_factual_window_closes": True,
+        }
         supplement_status = supplements.status(tenant_id=tenant_id, finding_id=finding_id)
         capture["late_supplements"] = {
             "available": supplement_status["available"],
@@ -63,7 +80,7 @@ def create_change_capture_blueprint(
             tenant_id, _actor_id = capture_identity()
             capture = capture_with_trust(tenant_id=tenant_id, finding_id=finding_id)
             return render_template("change_capture.html", capture=capture)
-        except (ChangeCaptureError, ChangeSheetTrustError, ChangeSupplementError) as exc:
+        except (ChangeCaptureError, ChangeCaptureReminderError, ChangeSheetTrustError, ChangeSupplementError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/change-capture")
@@ -71,7 +88,7 @@ def create_change_capture_blueprint(
         try:
             tenant_id, _actor_id = capture_identity()
             return jsonify(capture_with_trust(tenant_id=tenant_id, finding_id=finding_id))
-        except (ChangeCaptureError, ChangeSheetTrustError, ChangeSupplementError) as exc:
+        except (ChangeCaptureError, ChangeCaptureReminderError, ChangeSheetTrustError, ChangeSupplementError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/change-sheet/trust")
@@ -108,7 +125,7 @@ def create_change_capture_blueprint(
                 "capture": capture_with_trust(tenant_id=tenant_id, finding_id=finding_id),
                 "fact_entry_does_not_establish_recoverability": True,
             }), 201
-        except (BadRequest, KeyError, ValueError, ChangeCaptureError, ChangeSheetTrustError, ChangeSupplementError) as exc:
+        except (BadRequest, KeyError, ValueError, ChangeCaptureError, ChangeCaptureReminderError, ChangeSheetTrustError, ChangeSupplementError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/change-sheet")
@@ -143,8 +160,9 @@ def create_change_capture_blueprint(
             response.headers["X-CausLedger-Timestamp-State"] = str(timestamp["state"])
             response.headers["X-CausLedger-Timestamp-Provider"] = str(timestamp["provider"])
             response.headers["X-CausLedger-Timestamp-Attestation"] = str(timestamp["attestation_id"])
+            response.headers["X-CausLedger-Reminder-Satisfied-For-Snapshot"] = "true"
             return response
-        except (ChangeCaptureError, ChangeSheetTrustError) as exc:
+        except (ChangeCaptureError, ChangeCaptureReminderError, ChangeSheetTrustError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/late-supplements")
