@@ -75,7 +75,8 @@ jobs:
           from pathlib import Path
           p = Path('.smoke-dist/index.html')
           s = p.read_text(encoding='utf-8')
-          build = os.environ['GITHUB_SHA'][:7]
+          full_build = os.environ['GITHUB_SHA']
+          build = full_build[:7]
           marker = f'<meta name="obrasignal-build" content="{build}">'
           if '<meta name="obrasignal-build"' in s:
               s = re.sub(r'<meta name="obrasignal-build"[^>]*>', marker, s, count=1)
@@ -90,6 +91,7 @@ jobs:
               s = s.replace('</body>', beacon + '</body>', 1) if '</body>' in s else s + beacon
           p.write_text(s, encoding='utf-8')
           Path('.smoke-dist/CNAME').write_text('obrasignal.com\n', encoding='utf-8')
+          Path('.smoke-dist/release-source.txt').write_text(full_build + '\n', encoding='utf-8')
           PY
 
       - name: Verify generated web bundle
@@ -98,6 +100,7 @@ jobs:
           set -euo pipefail
           test -s .smoke-dist/index.html
           test "$(cat .smoke-dist/CNAME)" = "obrasignal.com"
+          test "$(cat .smoke-dist/release-source.txt)" = "$GITHUB_SHA"
           grep -q "ObraSignal" .smoke-dist/index.html
           grep -q "obrasignal-build" .smoke-dist/index.html
           grep -q "obrasignal-private-traffic" .smoke-dist/index.html
@@ -121,11 +124,12 @@ jobs:
           set -euo pipefail
           test -n "$PAGE_URL"
           for attempt in 1 2 3 4 5 6 7 8; do
-            if curl --fail --silent --show-error --location --max-time 20 "$PAGE_URL" | grep -q "${GITHUB_SHA:0:7}"; then
-              echo "Pages infrastructure is serving build ${GITHUB_SHA:0:7}."
+            marker="$(curl --fail --silent --show-error --location --max-time 20 "${PAGE_URL%/}/release-source.txt" || true)"
+            if [ "$marker" = "$GITHUB_SHA" ]; then
+              echo "Pages infrastructure is serving exact build $GITHUB_SHA."
               exit 0
             fi
-            echo "Waiting for Pages infrastructure build ${GITHUB_SHA:0:7} (attempt $attempt/8)…"
+            echo "Waiting for Pages infrastructure build $GITHUB_SHA (attempt $attempt/8)…"
             sleep 10
           done
           echo "Pages infrastructure is not serving the newly deployed build marker."
@@ -136,13 +140,14 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            body="$(curl --fail --silent --show-error --location --max-time 20 https://obrasignal.com/ || true)"
-            if printf '%s' "$body" | grep -q "${GITHUB_SHA:0:7}"; then
+            marker="$(curl --fail --silent --show-error --location --max-time 20 https://obrasignal.com/release-source.txt || true)"
+            if [ "$marker" = "$GITHUB_SHA" ]; then
+              body="$(curl --fail --silent --show-error --location --max-time 20 https://obrasignal.com/)"
               printf '%s' "$body" | grep -q 'obrasignal-private-traffic'
-              echo "obrasignal.com is serving exact build ${GITHUB_SHA:0:7} with private analytics enabled."
+              echo "obrasignal.com is serving exact build $GITHUB_SHA with private analytics enabled."
               exit 0
             fi
-            echo "Waiting for obrasignal.com exact build ${GITHUB_SHA:0:7} (attempt $attempt/12)…"
+            echo "Waiting for obrasignal.com exact build $GITHUB_SHA (attempt $attempt/12)…"
             sleep 10
           done
           echo "Official domain is not serving the exact deployed build."
