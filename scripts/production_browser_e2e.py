@@ -6,7 +6,11 @@ from urllib.parse import urljoin
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-PUBLIC_URL = os.environ.get("PUBLIC_URL", "https://marcostaz.github.io/Obrasignal/").rstrip("/") + "/"
+CANONICAL_PUBLIC_URL = os.environ.get("PUBLIC_URL", "https://obrasignal.com/").rstrip("/") + "/"
+FALLBACK_PUBLIC_URL = os.environ.get("FALLBACK_PUBLIC_URL", "").strip()
+if FALLBACK_PUBLIC_URL:
+    FALLBACK_PUBLIC_URL = FALLBACK_PUBLIC_URL.rstrip("/") + "/"
+ACTIVE_PUBLIC_URL = CANONICAL_PUBLIC_URL
 E2E_EMAIL = os.environ.get("E2E_EMAIL", "")
 E2E_PASSWORD = os.environ.get("E2E_PASSWORD", "")
 TARGET_BUILD = os.environ.get("TARGET_BUILD", "")
@@ -25,20 +29,53 @@ def fail(message):
     raise AssertionError(message)
 
 
+def _select_reachable_customer_origin(page):
+    """Prefer the canonical domain; use Pages only when canonical is unreachable.
+
+    The fallback does not redefine product truth. It keeps the production journey
+    testable while DNS/registrar activation is outside the application deploy.
+    """
+    global ACTIVE_PUBLIC_URL
+    marker = urljoin(CANONICAL_PUBLIC_URL, "release-source.txt")
+    try:
+        response = page.request.get(marker, timeout=12_000)
+        if response.ok:
+            ACTIVE_PUBLIC_URL = CANONICAL_PUBLIC_URL
+            return
+        canonical_failure = f"HTTP {response.status}"
+    except Exception as exc:
+        canonical_failure = str(exc)
+    if not FALLBACK_PUBLIC_URL:
+        fail(f"canonical customer origin is unreachable and no fallback is configured: {canonical_failure}")
+    fallback_marker = urljoin(FALLBACK_PUBLIC_URL, "release-source.txt")
+    try:
+        response = page.request.get(fallback_marker, timeout=12_000)
+    except Exception as exc:
+        fail(f"canonical origin unreachable ({canonical_failure}); fallback also unreachable: {exc}")
+    if not response.ok:
+        fail(f"canonical origin unreachable ({canonical_failure}); fallback returned HTTP {response.status}")
+    ACTIVE_PUBLIC_URL = FALLBACK_PUBLIC_URL
+    print(f"PROVIDER_BLOCKED canonical DNS/origin; exercising published fallback {ACTIVE_PUBLIC_URL}")
+
+
 def wait_for_exact_pages_build(page):
     if not TARGET_BUILD:
         fail("TARGET_BUILD is required")
-    marker_url = urljoin(PUBLIC_URL, "release-source.txt")
+    _select_reachable_customer_origin(page)
+    marker_url = urljoin(ACTIVE_PUBLIC_URL, "release-source.txt")
     deadline = time.time() + 180
     last = ""
     while time.time() < deadline:
-        response = page.request.get(marker_url, timeout=15_000)
-        if response.ok:
-            last = response.text().strip()
-            if last == TARGET_BUILD:
-                return
+        try:
+            response = page.request.get(marker_url, timeout=15_000)
+            if response.ok:
+                last = response.text().strip()
+                if last == TARGET_BUILD:
+                    return
+        except Exception as exc:
+            last = f"network-error:{exc}"
         time.sleep(5)
-    fail(f"GitHub Pages never served exact target build {TARGET_BUILD}; last marker={last!r}")
+    fail(f"published customer origin never served exact target build {TARGET_BUILD}; origin={ACTIVE_PUBLIC_URL!r}; last marker={last!r}")
 
 
 def attach_failure_collectors(page, label):
@@ -79,7 +116,7 @@ def assert_public_landing(page, browser_name, viewport_name, width, height):
     label = f"{browser_name}/{viewport_name}"
     page.set_viewport_size({"width": width, "height": height})
     failures = attach_failure_collectors(page, label)
-    response = page.goto(PUBLIC_URL, wait_until="domcontentloaded", timeout=45_000)
+    response = page.goto(ACTIVE_PUBLIC_URL, wait_until="domcontentloaded", timeout=45_000)
     if response is None or response.status >= 400:
         fail(f"{label} public landing HTTP failure: {getattr(response, 'status', None)}")
     page.get_by_text("Encontra os concursos que merecem o teu tempo.", exact=True).wait_for(timeout=30_000)
@@ -120,7 +157,7 @@ def authenticated_roundtrip(page, browser_name):
     label = f"{browser_name}/authenticated"
     page.set_viewport_size({"width": 1280, "height": 900})
     failures = attach_failure_collectors(page, label)
-    page.goto(PUBLIC_URL, wait_until="domcontentloaded", timeout=45_000)
+    page.goto(ACTIVE_PUBLIC_URL, wait_until="domcontentloaded", timeout=45_000)
     page.get_by_role("button", name="Entrar", exact=True).click()
     page.get_by_text("Bem-vindo de volta.", exact=True).wait_for(timeout=10_000)
     inputs = page.locator("input")
@@ -163,7 +200,7 @@ def main():
         probe_page = probe.new_page()
         try:
             wait_for_exact_pages_build(probe_page)
-            print(f"PASS exact Pages build {TARGET_BUILD}")
+            print(f"PASS exact published build {TARGET_BUILD} at {ACTIVE_PUBLIC_URL}")
         finally:
             probe.close()
 
