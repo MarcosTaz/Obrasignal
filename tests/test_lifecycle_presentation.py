@@ -122,7 +122,10 @@ def test_mobile_feed_and_stats_exclude_source_tombstone(monkeypatch, tmp_path):
     assert stats["total"] == 1
     assert stats["high"] == 1
     assert stats["open"] == 1
-    assert stats["new24"] == 1
+    # first_seen records ingestion time, not source publication freshness.
+    # This fixture is intentionally a historical 2026-08-24 publication that
+    # was inserted into the local DB now, so it must not be labelled new 24h.
+    assert stats["new24"] == 0
 
 
 def test_detail_preserves_closed_history_and_exposes_lifecycle(monkeypatch, tmp_path):
