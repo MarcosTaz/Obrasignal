@@ -6,39 +6,34 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 22,
-  "last_factory_id": "obrasignal-data-truth",
-  "last_run_at": "2026-08-31T06:46:30Z",
+  "cursor": 25,
+  "last_factory_id": "obrasignal-global-market-entry",
+  "last_run_at": "2026-08-31T07:41:30Z",
   "last_material_change": {
-    "kind": "FACTORY_CLOUD_PR_TRUTH_REPAIRED_AND_FLEET_ROTATED_TO_OS_SIDE",
-    "summary": "Registry and ACTIVE fleet state were re-read. Autonomous Revenue Recovery remained UNKNOWN_EXACT_SOURCE_IDENTITY after exact PR/code searches; ObraSignal Data Runner also remained without an exact matching PR identity, so neither was assigned fabricated source authority. Data Truth PR #774 was revalidated OPEN/DRAFT at exact head d1bae52475e688d7dcbfa69fa4eb6d98470a1294. Cross-factory inspection exposed stale Factory Cloud PR #652 prose that still referenced old head fede938... and queued CI. Current Factory Cloud exact head 10a4b690add9d248eab41712891654ca14b816dc has ObraSignal Quality run 33361549205 COMPLETED/SUCCESS; PR #652 body was repaired to exact-head GREEN while preserving OPEN/NOT MERGED/NOT CANONICAL and all production/secrets/customer-data/commercial boundaries. CausLedger Gmail watch found no new material prospect/CEFAMOL/AFIA/DGC inbound, so Portugal and Spain legal holds remain active.",
+    "kind": "CUSTOMER_JOURNEY_EXACT_HEAD_GREEN_TRUTH_REPAIRED_AND_ROTATED_TO_GTM",
+    "summary": "Registry and ACTIVE fleet state were re-read. OS SIDE remained UNKNOWN_EXACT_SOURCE_IDENTITY after an exact PR search returned zero and was bypassed without fabricated lineage. CausLedger Gmail watch found no new material prospect/CEFAMOL/AFIA/DGC inbound, so Portugal and Spain legal holds remain active. Customer Journey PR #821 was revalidated OPEN/DRAFT/NOT MERGED at exact head b9c637071b9f29fc7b84d6b017e7234cf5d6240b with ObraSignal Quality run 33272280807 COMPLETED/SUCCESS. Its stale prose still treated exact-head CI as an open gate; the PR body was repaired to state exact-head GREEN while preserving the remaining persisted per-mutation actor-attribution boundary and all non-production/non-commercial limitations. Global Market Entry PR #519 was then inspected at head 53b65b952acbf5ad100356f8aeb1800e5d6094a1; France completeness and first-wave commercial hypotheses remain open, so the fleet rotated onward without overclaiming.",
     "evidence": {
-      "factory_cloud": {
-        "pr": 652,
-        "head": "10a4b690add9d248eab41712891654ca14b816dc",
-        "quality_run": 33361549205,
+      "os_side": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "exact_pr_search_count": 0,
+        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
+      },
+      "obrasignal_customer_journey": {
+        "pr": 821,
+        "head": "b9c637071b9f29fc7b84d6b017e7234cf5d6240b",
+        "quality_run": 33272280807,
         "quality_status": "COMPLETED_SUCCESS",
-        "pr_state": "OPEN_NOT_MERGED_NOT_CANONICAL",
+        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
         "classification": "EXACT_HEAD_GREEN_PR_PROSE_REPAIRED",
-        "next_exact_action": "Continue fleet rotation; external persistent hosting and restart/takeover proof remain separate from repository GREEN."
+        "remaining_boundary": "Persisted audit-event writer must record authenticated subject on each mutation; production memberships and production migration remain unproved.",
+        "next_exact_action": "Implement or recover persisted per-mutation actor-attribution evidence on a repository-safe draft successor; do not infer production membership or customer outcome."
       },
-      "autonomous_revenue_recovery": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "exact_pr_search_count": 0,
-        "exact_code_search_count": 0,
-        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
-      },
-      "obrasignal_data_runner": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "exact_pr_search_count": 0,
-        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
-      },
-      "obrasignal_data_truth": {
-        "pr": 774,
-        "head": "d1bae52475e688d7dcbfa69fa4eb6d98470a1294",
+      "obrasignal_global_market_entry": {
+        "pr": 519,
+        "head": "53b65b952acbf5ad100356f8aeb1800e5d6094a1",
         "pr_state": "OPEN_DRAFT_NOT_MERGED",
-        "classification": "SOURCE_IDENTITY_REVALIDATED_NO_NEW_MUTATION",
-        "next_exact_action": "Preserve global active-source coverage authority semantics; do not infer production source activation from draft GREEN state."
+        "classification": "SOURCE_IDENTITY_REVALIDATED_OPEN_GATES_PRESERVED",
+        "next_exact_action": "Probe France DECP adapter compatibility against current opportunity/buyer/award models with synthetic or public data only; do not claim national completeness until proved."
       },
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -47,14 +42,15 @@
         "spain_unsolicited_commercial_hold": "ACTIVE"
       }
     },
-    "active": "OS SIDE FACTORY — recover exact source/BATON authority; if still unknown, rotate immediately to Customer Journey.",
-    "next": "OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth.",
+    "active": "ObraSignal GTM / First Revenue — reconstruct exact current commercial/repository truth and execute highest-value safe non-outbound work while legal holds remain respected.",
+    "next": "GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
-      "Factory Cloud exact-head GREEN does not prove external persistent hosting/restart takeover, production authority or commercial outcomes."
+      "Customer Journey exact-head GREEN does not prove persisted per-mutation actor attribution, production membership, customer use or commercial outcomes.",
+      "Global Market Entry France DECP evidence does not yet prove complete national coverage."
     ]
   },
   "blocked": [
