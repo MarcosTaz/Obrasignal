@@ -4,14 +4,16 @@ import { supabase } from '../lib/supabase';
 import { api } from '../src/api';
 import {
   activeEntitlement,
-  BILLING_PLATFORM_SUPPORTED,
   BILLING_RESTORE_SUPPORTED,
   billingConfigurationAvailable,
   configureBilling,
   getCurrentOffering,
+  packagePriceString,
   proPackage,
   purchasePro,
   restoreBilling,
+  webPurchaseLinkConfigurationAvailable,
+  webPurchaseUrl,
 } from '../src/billing';
 
 const COLORS = { bg: '#07111C', panel: '#0D1A29', panel2: '#101F31', line: '#22364F', text: '#F4F7FB', muted: '#9BAABD', blue: '#5F8DF7', green: '#72DFA1', amber: '#EFCB78', red: '#FF8B9A' };
@@ -19,7 +21,7 @@ const SUPPORT_EMAIL = 'obrasignal.pt@gmail.com';
 const SERVER_PLANS = new Set(['evaluation', 'pro', 'expired', 'pilot']);
 
 export default function BillingGate({ children }) {
-  const [billing, setBilling] = useState({ authority: 'loading', configured: false, pro: false, plan: null, expiresAt: null, managementUrl: null, evaluation: null, metrics: null });
+  const [billing, setBilling] = useState({ authority: 'loading', configured: false, appUserId: null, pro: false, plan: null, expiresAt: null, managementUrl: null, evaluation: null, metrics: null });
   const [modal, setModal] = useState(false);
   const [offering, setOffering] = useState(null);
   const [offeringLoading, setOfferingLoading] = useState(false);
@@ -48,10 +50,11 @@ export default function BillingGate({ children }) {
       setBilling({
         authority: 'ready',
         configured: result.configured,
+        appUserId: session.user.id,
         pro: server.plan === 'pro',
         plan: server.plan,
         expiresAt: server.expires_at || server.trial_ends_at || entitlement?.expirationDate || null,
-        managementUrl: info?.managementURL || null,
+        managementUrl: info?.managementURL || server.management_url || null,
         evaluation: server.evaluation || null,
         metrics: server.evaluation_metrics || null,
       });
@@ -74,9 +77,9 @@ export default function BillingGate({ children }) {
     try {
       const nextOffering = await getCurrentOffering();
       setOffering(nextOffering);
-      if (!proPackage(nextOffering)) setError('O plano ObraSignal Pro ainda não está publicado no checkout.');
+      if (!proPackage(nextOffering) && !webPurchaseLinkConfigurationAvailable()) setError('O plano ObraSignal Pro ainda não está publicado no checkout.');
     } catch (e) {
-      setError(e?.message || 'Não foi possível carregar o plano.');
+      if (!webPurchaseLinkConfigurationAvailable()) setError(e?.message || 'Não foi possível carregar o plano.');
     } finally {
       setOfferingLoading(false);
     }
@@ -86,6 +89,12 @@ export default function BillingGate({ children }) {
     setBusy(true);
     setError('');
     try {
+      const sdkPackage = proPackage(offering);
+      const hostedUrl = Platform.OS === 'web' ? webPurchaseUrl(billing.appUserId) : null;
+      if (Platform.OS === 'web' && !sdkPackage && hostedUrl) {
+        await Linking.openURL(hostedUrl);
+        return;
+      }
       await purchasePro();
       const server = await refresh();
       if (server?.plan === 'pro') setModal(false);
@@ -108,11 +117,14 @@ export default function BillingGate({ children }) {
   };
 
   const selectedPackage = proPackage(offering);
-  const packagePrice = selectedPackage?.product?.priceString || 'Preço apresentado no checkout';
   const web = Platform.OS === 'web';
-  const checkoutConfigured = billing.configured && billingConfigurationAvailable();
-  const checkoutReady = checkoutConfigured && Boolean(selectedPackage);
-  const billingChannel = web ? 'checkout Web seguro' : Platform.OS === 'android' ? 'Google Play' : 'App Store';
+  const hostedCheckoutReady = web && Boolean(webPurchaseUrl(billing.appUserId));
+  const sdkCheckoutConfigured = billing.configured && billingConfigurationAvailable();
+  const sdkCheckoutReady = sdkCheckoutConfigured && Boolean(selectedPackage);
+  const checkoutConfigured = sdkCheckoutConfigured || hostedCheckoutReady;
+  const checkoutReady = sdkCheckoutReady || hostedCheckoutReady;
+  const packagePrice = packagePriceString(selectedPackage) || (hostedCheckoutReady ? 'Preço apresentado no checkout seguro' : 'Preço apresentado no checkout');
+  const billingChannel = web ? 'checkout Web seguro (RevenueCat / Stripe)' : Platform.OS === 'android' ? 'Google Play' : 'App Store';
 
   if (billing.authority !== 'ready') {
     return <View style={styles.blocked}>
@@ -146,13 +158,13 @@ export default function BillingGate({ children }) {
         <Text style={styles.title}>O radar completo continua a trabalhar por ti.</Text>
         <Text style={styles.body}>A subscrição mantém o radar personalizado, scoring por empresa, alertas e workflow comercial.</Text>
         <View style={styles.priceBox}><Text style={styles.price}>{packagePrice}</Text><Text style={styles.priceNote}>Subscrição recorrente · cobrança através de {billingChannel}</Text></View>
-        <Text style={styles.terms}>{web ? 'Na Web, quando o checkout está disponível, a compra usa RevenueCat Web Billing e o mesmo utilizador da tua conta para manter o acesso sincronizado.' : 'A subscrição renova automaticamente até ser cancelada. O preço, período e condições apresentados pela loja aplicam-se à compra.'}</Text>
-        {offeringLoading
+        <Text style={styles.terms}>{web ? 'Na Web, o pagamento é iniciado apenas para o utilizador autenticado e a ativação continua a ser confirmada pelo servidor ObraSignal. O preço, período, impostos e renovação são mostrados no checkout antes da confirmação.' : 'A subscrição renova automaticamente até ser cancelada. O preço, período e condições apresentados pela loja aplicam-se à compra.'}</Text>
+        {offeringLoading && !hostedCheckoutReady
           ? <View style={styles.loadingCheckout}><ActivityIndicator color={COLORS.text}/><Text style={styles.loadingCheckoutText}>A carregar o checkout…</Text></View>
           : checkoutReady
-            ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.primaryText}>Subscrever</Text>}</Pressable>
+            ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.primaryText}>{hostedCheckoutReady && !sdkCheckoutReady ? 'Abrir checkout seguro' : 'Subscrever'}</Text>}</Pressable>
             : <View style={styles.setupBox}><Text style={styles.setupTitle}>{!checkoutConfigured ? 'Ativação assistida disponível' : 'Plano Pro ainda não publicado no checkout'}</Text><Text style={styles.setup}>{!checkoutConfigured ? 'O checkout automático ainda não está disponível neste canal. Durante a avaliação podes continuar a usar o produto; para ativação comercial, contacta a equipa ObraSignal.' : 'A configuração de pagamentos está ligada, mas o produto obrasignal_pro_monthly ainda não está disponível no offering atual. Nenhuma compra é permitida até o produto correto estar publicado.'}</Text><Pressable onPress={()=>Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Ativar%20ObraSignal%20Pro`)} style={styles.contact}><Text style={styles.contactText}>Pedir ativação →</Text></Pressable></View>}
-        {checkoutConfigured ? <Pressable disabled={busy} onPress={refresh} style={styles.secondary}><Text style={styles.secondaryText}>Atualizar estado</Text></Pressable> : null}
+        {checkoutReady ? <Pressable disabled={busy} onPress={refresh} style={styles.secondary}><Text style={styles.secondaryText}>Já paguei · atualizar estado</Text></Pressable> : null}
         {BILLING_RESTORE_SUPPORTED ? <Pressable disabled={busy} onPress={restore} style={styles.secondary}><Text style={styles.secondaryText}>Restaurar compra</Text></Pressable> : null}
         {billing.pro && billing.managementUrl ? <Pressable onPress={()=>Linking.openURL(billing.managementUrl)} style={styles.secondary}><Text style={styles.secondaryText}>Gerir subscrição</Text></Pressable> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
