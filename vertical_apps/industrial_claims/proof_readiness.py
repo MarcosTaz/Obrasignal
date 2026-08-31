@@ -17,7 +17,13 @@ _LEVELS = (
 
 
 def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
-    """Describe proof strength without assigning a misleading numeric confidence score."""
+    """Describe proof strength without assigning a misleading numeric confidence score.
+
+    Aggregate sealing cannot substitute for preservation of the originals. An
+    original-immutability level therefore requires every evidence item both to
+    remain re-verifiable from retained bytes and to carry its own supported
+    integrity-sealed dimension (for example an evidence-bound WORM receipt).
+    """
     evidence = list(manifest.get("evidence") or [])
     external = list(manifest.get("external_attestations") or [])
     verified = [item for item in external if str(item.get("state") or "").upper() in {"VALID", "VERIFIED"}]
@@ -29,7 +35,11 @@ def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
         (manifest.get("attestation_target") or {}).get("sha256")
     ) and bool((manifest.get("dual_hash_coverage") or {}).get("sha256"))
     originals = bool(evidence) and all(bool(item.get("raw_content_persisted")) for item in evidence)
-    immutability = originals and "WORM_LOCK" in kinds
+    every_original_integrity_sealed = bool(evidence) and all(
+        bool((item.get("assurance_dimensions") or {}).get("integrity_sealed"))
+        for item in evidence
+    )
+    immutability = originals and every_original_integrity_sealed
     independent_time = immutability and "QUALIFIED_TIMESTAMP" in kinds and independence["qualified_timestamp_complete"]
     qualified_origin = independent_time and bool({"QUALIFIED_SEAL", "QUALIFIED_SIGNATURE"} & kinds) and independence["qualified_origin_complete"]
     multi_witness = (
@@ -55,6 +65,7 @@ def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
     gates = {
         "internal_integrity": internal_integrity,
         "original_bytes_preserved": originals,
+        "every_original_individually_integrity_sealed": every_original_integrity_sealed,
         "worm_or_equivalent_immutability": immutability,
         "qualified_independent_timestamp": independent_time,
         "qualified_seal_or_signature": qualified_origin,
