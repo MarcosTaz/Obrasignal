@@ -91,7 +91,14 @@ async function writeWhenReady(path,options={}){
 }
 
 function normalizeOpportunity(item){if(!item||typeof item!=='object')return item;return {...item,decision_score:item.decision_score??item.account_score??null,decision_reason:item.decision_reason??item.account_reason??null};}
-function unwrapProfile(data){return data?.profile||data||null;}
+function unwrapProfile(data){
+  if(data===null||data===undefined)return null;
+  if(typeof data!=='object'||Array.isArray(data)||!Object.prototype.hasOwnProperty.call(data,'profile'))throw new Error('API /profile: contrato de resposta inválido.');
+  const profile=data.profile;
+  if(profile===null)return null;
+  if(typeof profile!=='object'||Array.isArray(profile))throw new Error('API /profile: perfil inválido.');
+  return profile;
+}
 
 export const api={
   health:()=>ensureBackendReady(),
