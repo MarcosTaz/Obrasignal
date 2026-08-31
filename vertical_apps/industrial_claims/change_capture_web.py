@@ -117,14 +117,22 @@ def create_change_capture_blueprint(
             tenant_id, actor_id = capture_identity()
             status = store.status(tenant_id=tenant_id, finding_id=finding_id)
             sheet, digest = store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
-            timestamp = active_trust.attest_current(tenant_id=tenant_id, finding_id=finding_id)
+            payload = sheet.encode("utf-8")
+            timestamp = active_trust.attest_snapshot(
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                sheet_id=str(status["sheet_id"]),
+                payload=payload,
+                sheet_sha256=digest,
+                factual_window_closes_at=str(status["factual_window_closes_at"]),
+            )
             export = store.record_download(
                 tenant_id=tenant_id,
                 finding_id=finding_id,
                 actor_id=actor_id,
                 sheet_sha256=digest,
             )
-            response = make_response(sheet)
+            response = make_response(payload)
             response.headers["Content-Type"] = "text/plain; charset=utf-8"
             response.headers["Content-Disposition"] = (
                 f'attachment; filename="CausLedger-change-{status["sheet_id"]}.txt"'
