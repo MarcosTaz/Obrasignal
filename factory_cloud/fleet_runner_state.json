@@ -6,61 +6,40 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 9,
-  "last_factory_id": "eu-cloud-switching",
-  "last_run_at": "2026-08-31T19:39:47Z",
+  "cursor": 10,
+  "last_factory_id": "aviation-lease-entitlement-recovery",
+  "last_run_at": "2026-08-31T20:42:22Z",
   "last_material_change": {
-    "kind": "EU_CLOUD_SWITCHING_EXACT_HEAD_GREEN_REVALIDATED_AND_ROTATED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. EU Cloud Switching canonical candidate PR #802 is OPEN/DRAFT/NOT_MERGED at exact head 020efc82e0b2a6509548fa7ef38f1593ca457afa. Both exact-head gates are completed SUCCESS: Cloud Switching Quality run 33331574557 and ObraSignal Quality run 33331574562. This proves repository-level consent/trigger-dedup/WTP-state mechanics on that head only; no real prospect, migration outcome, WTP, payment or revenue is proven. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Fleet rotates to Aviation.",
+    "kind": "AVIATION_EXACT_HEAD_GREEN_REVALIDATED_AND_ROTATED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Aviation canonical candidate PR #787 is OPEN/DRAFT/NOT_MERGED and mergeable at exact head a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32. ObraSignal Quality run 33307110367 is COMPLETED/SUCCESS on that exact head. The evidence-backed assisted pilot intake requires immutable SHA-256 identity, provenance and explicit permission and preserves entitlement=UNKNOWN and recovery=NOT_ESTABLISHED before human review. This is repository evidence only; no real airline/customer data, entitlement, recovery, payment or revenue is proven. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Fleet rotates to Capacity Commitment.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "causledger_inbound": {
-        "new_material_replies": 0,
-        "latest_watch_date": "2026-08-31",
-        "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
-        "spain_unsolicited_commercial_hold": "ACTIVE"
-      },
-      "eu_cloud_switching": {
-        "pr": 802,
-        "head_sha": "020efc82e0b2a6509548fa7ef38f1593ca457afa",
-        "state": "OPEN_DRAFT_NOT_MERGED",
-        "cloud_switching_quality_run": 33331574557,
-        "cloud_switching_quality_conclusion": "SUCCESS",
-        "obrasignal_quality_run": 33331574562,
-        "obrasignal_quality_conclusion": "SUCCESS",
-        "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY",
-        "not_proven": ["real prospect", "migration outcome", "WTP", "payment", "revenue"]
-      }
+      "causledger_inbound": {"new_material_replies": 0, "latest_watch_date": "2026-08-31", "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK", "spain_unsolicited_commercial_hold": "ACTIVE"},
+      "aviation": {"pr": 787, "head_sha": "a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32", "state": "OPEN_DRAFT_NOT_MERGED", "mergeable": true, "obrasignal_quality_run": 33307110367, "obrasignal_quality_conclusion": "SUCCESS", "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY", "not_proven": ["real airline/customer data", "entitlement", "recovery", "payment", "revenue"]}
     },
-    "active": "Aviation — reconstruct current exact source/PR/head truth and execute the highest-value repository-safe verification or research-safe milestone.",
-    "next": "Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching.",
+    "active": "Capacity Commitment — exact source recovered as PR #729; continue T3 commercial-proof truth reconstruction and safe verification.",
+    "next": "Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
-      "Industrial Claims/CausLedger PR #785 exact head 1d821b9cd271a561c3fbffc199beb0b1d4a012a6 remains RED in Python repository/Factory Cloud tests; the precise failing assertion/log must be recovered before repair.",
-      "ScopeLedger PR #769 is historical/superseded and not live canonical authority; production lineage remains unproved.",
-      "ChangeLedger exact canonical source identity remains UNKNOWN.",
-      "Recovery Radar exact canonical source identity remains UNKNOWN after dedicated PR/code/branch authority search.",
-      "Sourcing Recovery exact canonical source identity remains UNKNOWN after dedicated PR/code search.",
-      "Product Market Access exact canonical source identity remains UNKNOWN after dedicated PR/code/branch authority search.",
-      "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
-      "Factory Cloud mutable branch truth must always be derived from live PR head plus matching exact-head CI; historical GREEN never rolls forward automatically.",
+      "Industrial Claims/CausLedger PR #785 remains RED in Python repository/Factory Cloud tests pending exact failure recovery.",
+      "ScopeLedger live canonical authority remains unproved; ChangeLedger, Recovery Radar, Sourcing Recovery and Product Market Access exact canonical source identities remain UNKNOWN.",
       "ObraSignal final composition PR #882 remains integration-blocked pending current-main reconciliation and fresh exact-head gates."
     ]
   },
   "blocked": [
-    {"factory_id":"industrial-claims","blocker":"Portugal outbound held pending current DGC corporate opt-out list/procedure and recipient checks; Spain unsolicited commercial outbound held absent consent/exception. Inbound/referral/association, secure-intake preparation and assisted delivery remain executable. PR #785 exact head 1d821b9cd271a561c3fbffc199beb0b1d4a012a6 is additionally RED in Python repository/Factory Cloud tests; exact failing assertion/log must be recovered before repair.","global_stop":false},
-    {"factory_id":"obrasignal","blocker":"Final composition PR #882 is integration-blocked; current-main overlap/conflict truth must be reconciled and fresh gates must pass before integration readiness.","global_stop":false},
-    {"factory_id":"scopeledger","blocker":"Only exact-name PR #769 was recovered and it is CLOSED/DRAFT/SUPERSEDED/NOT_MERGED with its patch promoted into Factory Cloud #652; no live heads/scope* ref exists. Live canonical implementation and Railway/production lineage remain unproved.","global_stop":false},
-    {"factory_id":"changeledger","blocker":"Exact canonical source identity remains UNKNOWN after exact-name PR/code search.","global_stop":false},
-    {"factory_id":"recovery-radar","blocker":"Dedicated exact-name PR search, exact phrase code search and recovery branch search recovered no explicit canonical Recovery Radar source authority; ObraSignal Radar artifacts are not assigned by inference.","global_stop":false},
-    {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity remains UNKNOWN after exact-name PR/code search; adjacent supplier/recovery artifacts are not assigned by inference.","global_stop":false},
-    {"factory_id":"product-market-access","blocker":"Exact canonical source identity remains UNKNOWN after exact-name PR/code/branch authority search; public market research remains non-canonical.","global_stop":false},
-    {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact-name PR search.","global_stop":false},
+    {"factory_id":"industrial-claims","blocker":"Outbound legal holds remain; PR #785 Python/Factory Cloud test failure needs exact failure recovery.","global_stop":false},
+    {"factory_id":"obrasignal","blocker":"Final composition PR #882 integration-blocked pending reconciliation and fresh gates.","global_stop":false},
+    {"factory_id":"scopeledger","blocker":"Live canonical implementation/production lineage unproved.","global_stop":false},
+    {"factory_id":"changeledger","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
+    {"factory_id":"recovery-radar","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
+    {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
+    {"factory_id":"product-market-access","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
+    {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact searches.","global_stop":false},
+    {"factory_id":"longlead","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"k3-fatality","blocker":"Canonical repository/source authority UNKNOWN.","global_stop":false},
     {"factory_id":"paper-laminate-works","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
@@ -68,16 +47,8 @@
     {"factory_id":"recoverable-money","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN after exact-name PR search.","global_stop":false},
-    {"factory_id":"obrasignal-release-safety","blocker":"PR #350 exact-head Quality is GREEN but GitHub currently reports mergeable=false; current-main composition/conflict truth must be reconstructed before safe repair.","global_stop":false}
+    {"factory_id":"complianceledger","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
+    {"factory_id":"obrasignal-release-safety","blocker":"PR #350 exact-head Quality GREEN but mergeable=false; composition truth required.","global_stop":false}
   ],
-  "rules": {
-    "technical_window_is_not_stop": true,
-    "other_owner_is_not_stop": true,
-    "wait_is_not_global_stop": true,
-    "no_false_progress": true,
-    "no_automatic_merge": true,
-    "move_to_next_factory_when_blocked": true,
-    "persist_exact_baton_before_switch": true
-  }
+  "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
 }
