@@ -8,6 +8,7 @@ from typing import Any, Sequence
 from factory_cloud.assurance_kernel import EvidenceEnvelope
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.proof import ExternalAttestation, build_proof_manifest, verify_proof_manifest
+from vertical_apps.industrial_claims.proof_readiness import evaluate_proof_strength
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
@@ -156,6 +157,7 @@ def build_durable_claim_proof_pack(
         "brand": "CausLedger",
         "core_package": core_package,
         "proof_manifest": manifest,
+        "proof_strength": evaluate_proof_strength(manifest),
         "self_verification": verification,
         "external_verification_required": any(manifest["required_external_gates"].values()),
     }
