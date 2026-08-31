@@ -2,7 +2,14 @@ from datetime import datetime, timedelta, timezone
 import sqlite3
 import pytest
 
-from account_registry import ensure_account, get_account, subscription_state, update_subscription
+from account_registry import (
+    _sync_account_from_webhook,
+    billing_provider_readiness,
+    ensure_account,
+    get_account,
+    subscription_state,
+    update_subscription,
+)
 from evaluation_policy import (
     DEFAULT_EVALUATION_DAYS, ENTERPRISE_PILOT_DAYS, MAX_VALUE_EXTENSION_DAYS,
     configure_enterprise_pilot, evaluation_metrics, grant_evaluation_extension,
@@ -93,3 +100,39 @@ def test_revenuecat_paid_precedence_over_unexpired_evaluation_and_metrics_are_au
     assert metrics['VALUE_EXPOSURE_RATE']==1
     assert metrics['measured_value_event_count']==0
     assert metrics['estimated_value_event_count']==0
+
+
+def test_commercial_provider_readiness_requires_sync_and_hmac(monkeypatch):
+    monkeypatch.delenv('REVENUECAT_SECRET_API_KEY', raising=False)
+    monkeypatch.delenv('REVENUECAT_WEBHOOK_SECRET', raising=False)
+    assert billing_provider_readiness() == {
+        'subscriber_sync_configured': False,
+        'webhook_hmac_configured': False,
+        'commercial_ready': False,
+    }
+    monkeypatch.setenv('REVENUECAT_SECRET_API_KEY', 'secret')
+    assert billing_provider_readiness()['commercial_ready'] is False
+    monkeypatch.setenv('REVENUECAT_WEBHOOK_SECRET', 'hmac')
+    assert billing_provider_readiness() == {
+        'subscriber_sync_configured': True,
+        'webhook_hmac_configured': True,
+        'commercial_ready': True,
+    }
+
+
+def test_paused_revenuecat_subscription_stays_authorized_until_expiry():
+    conn=db()
+    expires_at=datetime.now(timezone.utc)+timedelta(days=3)
+    _sync_account_from_webhook(conn, {
+        'type': 'SUBSCRIPTION_PAUSED',
+        'app_user_id': 'acct-paused',
+        'expiration_at_ms': int(expires_at.timestamp()*1000),
+        'store': 'stripe',
+        'product_id': 'obrasignal_pro_monthly',
+        'transaction_id': 'tx-pause',
+    })
+    account=get_account(conn,'acct-paused')
+    assert account['plan']=='pro'
+    assert account['subscription_status']=='paused'
+    state=subscription_state(account)
+    assert state['active'] is True and state['plan']=='pro'
