@@ -5,6 +5,7 @@ on:
     branches: [ops/prospect-universe-50k]
     paths:
       - 'ops/prospecting/build_uk_contracts_finder_daily_csv.py'
+      - 'ops/prospecting/run_uk_contracts_finder_month.py'
       - '.github/workflows/prospect-universe-uk-cf-daily.yml'
   workflow_dispatch:
 
@@ -17,14 +18,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Extract recent UK supplier universe
+      - name: Extract August UK supplier universe
         env:
-          CF_START_DATE: '2026-08-29'
-          CF_END_DATE: '2026-08-29'
           OUT_DIR: uk_cf_daily_output
-        run: python ops/prospecting/build_uk_contracts_finder_daily_csv.py
+        run: |
+          cd ops/prospecting
+          python run_uk_contracts_finder_month.py
       - uses: actions/upload-artifact@v4
         with:
           name: obrasignal-uk-contracts-finder-recent
-          path: uk_cf_daily_output/*
+          path: ops/prospecting/uk_cf_daily_output/*
+          if-no-files-found: error
           retention-days: 30
