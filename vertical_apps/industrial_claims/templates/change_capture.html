@@ -31,9 +31,13 @@
         <div><span>Time remaining</span><strong id="capture-countdown">Calculating…</strong></div>
       </div>
 
-      <section id="capture-reminder" class="capture-reminder open-only" {% if capture.window_state != 'OPEN' %}hidden{% endif %}>
+      <section id="capture-reminder" class="capture-reminder open-only" {% if capture.window_state != 'OPEN' or not capture.download_reminder.should_prompt %}hidden{% endif %}>
         <strong>Do this before the factual window closes</strong>
-        <p>Describe the requested change in one sentence, save it, then download the change sheet. The reminder ends automatically when factual input closes.</p>
+        <p id="capture-reminder-message">{{ capture.download_reminder.message }}</p>
+      </section>
+      <section id="capture-reminder-satisfied" class="capture-reminder-satisfied open-only" {% if capture.window_state != 'OPEN' or capture.download_reminder.should_prompt %}hidden{% endif %}>
+        <strong>Current sheet version exported</strong>
+        <p>The SHA-256 currently shown below has an export receipt. If you add another factual entry, the sheet changes and the download reminder becomes active again.</p>
       </section>
 
       <form id="change-summary-form" class="capture-form open-only" {% if capture.window_state != 'OPEN' %}hidden{% endif %}>
@@ -59,7 +63,7 @@
 
       <div class="capture-download">
         <a id="change-sheet-download" class="capture-button" href="{{ capture.download_prompt.download_path }}">Download change sheet</a>
-        <span>{{ capture.download_count }} prior export{{ '' if capture.download_count == 1 else 's' }} generated</span>
+        <span id="capture-export-count">{{ capture.download_count }} prior export{{ '' if capture.download_count == 1 else 's' }} generated</span>
       </div>
 
       <section id="capture-trust" class="capture-trust" aria-label="Snapshot proof state">
