@@ -8,8 +8,10 @@ saved and emits high-match events for the same account.
 from __future__ import annotations
 
 from app import db
+from company_profile import load_profile
+from decision_log import ensure_decision_table
 from funnel_integration import persist_and_classify
-from opportunity_lifecycle import ensure_lifecycle_table
+from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 
 MAX_BOOTSTRAP_ROWS = 250
 
@@ -17,7 +19,7 @@ MAX_BOOTSTRAP_ROWS = 250
 def _emit_bootstrap_events(conn, account_id: str) -> int:
     ensure_lifecycle_table(conn)
     rows = conn.execute(
-        """SELECT t.*, d.score AS account_score
+        f"""SELECT t.*, d.score AS account_score
            FROM tenders t
            JOIN (
                SELECT od.source, od.external_id, MAX(od.id) AS max_id
@@ -29,9 +31,8 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
            LEFT JOIN opportunity_lifecycle lc
              ON lc.source=t.source AND lc.external_id=t.external_id
            WHERE d.score >= 75
-             AND COALESCE(lc.is_actionable,1)=1
-             AND (t.deadline IS NULL OR t.deadline='' OR datetime(t.deadline) >= datetime('now'))
-           ORDER BY d.score DESC, COALESCE(t.publication_date, t.first_seen) DESC
+             AND {actionable_predicate('lc', 't')}
+           ORDER BY d.score DESC, COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC
            LIMIT ?""",
         (account_id, MAX_BOOTSTRAP_ROWS),
     ).fetchall()
@@ -51,30 +52,43 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
 
 
 def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
-    """Classify recent/open, currently actionable tenders for one account."""
+    """Classify a bounded recent/actionable sample for one account quickly.
+
+    The profile and decision schema are prepared once and all decision rows are
+    committed atomically. This keeps profile-save latency bounded even with a
+    large tender corpus.
+    """
     account_id = str(account_id or "").strip()
     if not account_id:
         return 0
     conn = db()
     try:
         ensure_lifecycle_table(conn)
+        ensure_decision_table(conn)
+        profile = load_profile(account_id)
         rows = conn.execute(
-            """SELECT t.*
+            f"""SELECT t.*
                FROM tenders t
                LEFT JOIN opportunity_lifecycle lc
                  ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE COALESCE(lc.is_actionable,1)=1
-                 AND (t.deadline IS NULL
-                      OR t.deadline=''
-                      OR datetime(t.deadline) >= datetime('now'))
-               ORDER BY COALESCE(t.publication_date, t.first_seen) DESC
+               WHERE {actionable_predicate('lc', 't')}
+               ORDER BY COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC
                LIMIT ?""",
             (max(1, min(int(limit), MAX_BOOTSTRAP_ROWS)),),
         ).fetchall()
         evaluated = 0
         for row in rows:
-            persist_and_classify(conn, dict(row), False, account_id=account_id)
+            persist_and_classify(
+                conn,
+                dict(row),
+                False,
+                account_id=account_id,
+                profile=profile,
+                commit=False,
+                ensure=False,
+            )
             evaluated += 1
+        conn.commit()
         _emit_bootstrap_events(conn, account_id)
         return evaluated
     finally:
