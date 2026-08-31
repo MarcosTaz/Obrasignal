@@ -7,8 +7,12 @@ from typing import Any, Sequence
 
 from factory_cloud.assurance_kernel import EvidenceEnvelope
 from factory_cloud.assurance_store import AssuranceStoreError
+from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, ChangeCaptureStore
+from vertical_apps.industrial_claims.change_sheet_trust import ChangeSheetTrustError, ChangeSheetTrustService
+from vertical_apps.industrial_claims.change_supplement import ChangeSupplementError, LateChangeSupplementStore
 from vertical_apps.industrial_claims.proof import ExternalAttestation, build_proof_manifest, verify_proof_manifest
 from vertical_apps.industrial_claims.proof_binding import validate_evidence_attestation_bindings
+from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
 from vertical_apps.industrial_claims.proof_readiness import evaluate_proof_strength
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
@@ -21,6 +25,83 @@ def _json_list(value: object, *, label: str) -> list[Any]:
     if not isinstance(parsed, list):
         raise AssuranceStoreError(f"{label} is invalid")
     return parsed
+
+
+def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (name,),
+    ).fetchone() is not None
+
+
+def _durable_change_chronology(
+    *,
+    database: str,
+    tenant_id: str,
+    finding_id: str,
+) -> dict[str, Any]:
+    with sqlite3.connect(database) as conn:
+        if not _table_exists(conn, "causledger_change_capture_windows"):
+            return {
+                "state": "NOT_CAPTURED",
+                "change_capture_available": False,
+                "absence_does_not_establish_no_change": True,
+            }
+        window = conn.execute(
+            """SELECT sheet_id FROM causledger_change_capture_windows
+               WHERE tenant_id=? AND finding_id=?""",
+            (tenant_id, finding_id),
+        ).fetchone()
+        if window is None:
+            return {
+                "state": "NOT_CAPTURED",
+                "change_capture_available": False,
+                "absence_does_not_establish_no_change": True,
+            }
+
+    capture = ChangeCaptureStore(database)
+    try:
+        capture_status = capture.status(tenant_id=tenant_id, finding_id=finding_id)
+        _sheet, current_digest = capture.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
+        trust = ChangeSheetTrustService(
+            database,
+            capture_store=capture,
+            qualified_timestamp_provider=ProofProviderBundle.fail_closed().qualified_timestamp,
+        ).status(tenant_id=tenant_id, finding_id=finding_id)
+        supplements = LateChangeSupplementStore(
+            database,
+            capture_store=capture,
+        ).status(tenant_id=tenant_id, finding_id=finding_id)
+    except (ChangeCaptureError, ChangeSheetTrustError, ChangeSupplementError) as exc:
+        raise AssuranceStoreError("durable change chronology integrity verification failed") from exc
+
+    return {
+        "state": "CAPTURED",
+        "change_capture_available": True,
+        "sheet_id": capture_status["sheet_id"],
+        "event_ref": capture_status["event_ref"],
+        "requested_change": capture_status["requested_change"],
+        "requested_change_source": capture_status["requested_change_source"],
+        "declared_change_requested_at": capture_status["declared_change_requested_at"],
+        "declared_change_requested_at_is_externally_verified": False,
+        "causledger_first_recorded_at": capture_status["recorded_at"],
+        "factual_window_closes_at": capture_status["factual_window_closes_at"],
+        "factual_window_hours": capture_status["factual_window_hours"],
+        "window_state_at_pack_generation": capture_status["window_state"],
+        "fact_count": capture_status["fact_count"],
+        "fact_chain_head_sha256": capture_status["fact_chain_head_sha256"],
+        "current_sheet_sha256": current_digest,
+        "export_generation_count": capture_status["download_count"],
+        "current_snapshot_time_trust": trust,
+        "late_supplements": supplements,
+        "chronology_truth_boundaries": {
+            "operational_capture_window_is_not_contractual_notice_deadline": True,
+            "declared_event_time_is_not_backdated_server_time": True,
+            "late_supplement_does_not_rewrite_contemporaneous_sheet": True,
+            "change_capture_does_not_establish_customer_responsibility": True,
+            "change_capture_does_not_establish_legal_recoverability": True,
+        },
+    }
 
 
 def build_durable_claim_proof_pack(
@@ -112,8 +193,13 @@ def build_durable_claim_proof_pack(
             })
 
     validate_evidence_attestation_bindings(tuple(envelopes), tuple(attestations))
+    change_chronology = _durable_change_chronology(
+        database=str(service.store.path),
+        tenant_id=tenant_id,
+        finding_id=finding_id,
+    )
     core_package = {
-        "schema_version": 1,
+        "schema_version": 2,
         "deliverable": "CAUSLEDGER_DURABLE_PROOF_CORE",
         "vertical": "industrial-claims",
         "tenant_id": tenant_id,
@@ -133,6 +219,7 @@ def build_durable_claim_proof_pack(
         "entitlement": detail["entitlement"],
         "notice": detail["notice"],
         "evidence_index": evidence_index,
+        "change_chronology": change_chronology,
         "outcomes": detail["outcomes"],
         "audit_events": detail["audit_events"],
         "truth_boundaries": {
@@ -141,6 +228,7 @@ def build_durable_claim_proof_pack(
             "external_claim_submission_authorized": False,
             "recoverability_established": False,
             "legal_conclusion": None,
+            "change_capture_is_evidence_preservation_not_entitlement": True,
         },
     }
     manifest = build_proof_manifest(
@@ -155,7 +243,7 @@ def build_durable_claim_proof_pack(
     if not verification["valid"]:
         raise AssuranceStoreError("durable CausLedger Proof Pack failed self-verification")
     return {
-        "proof_pack_schema_version": 2,
+        "proof_pack_schema_version": 3,
         "brand": "CausLedger",
         "core_package": core_package,
         "proof_manifest": manifest,
