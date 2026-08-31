@@ -11,16 +11,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Extract UK FTS suppliers and role contacts
+      - name: Extract recent UK FTS suppliers and role contacts
         env:
-          FTS_START: '2021-01-01T00:00:00'
+          FTS_START: '2025-01-01T00:00:00'
           FTS_END: '2026-08-31T23:59:59'
+          FTS_MAX_PAGES: '500'
           OUT_DIR: uk_fts_output
         run: python ops/prospecting/build_uk_find_tender_prospects.py
       - uses: actions/upload-artifact@v4
