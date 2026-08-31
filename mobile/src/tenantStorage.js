@@ -7,7 +7,7 @@ export const LEGACY_PRIVATE_KEYS = [
   '@obrasignal/v1/profile',
 ];
 
-const PRIVATE_KINDS = ['saved', 'settings', 'opportunities-cache', 'profile'];
+const PRIVATE_KINDS = ['saved', 'settings', 'opportunities-cache', 'profile', 'push-binding', 'local-notification-scheduled'];
 
 function normalizeIdentity(identity) {
   const value = String(identity || '').trim();
@@ -37,6 +37,9 @@ export function createTenantStorage(adapter, now = () => new Date().toISOString(
       const raw = await adapter.getItem(key);
       if (!raw) return fallback;
       const envelope = JSON.parse(raw);
+      // Identity validation belongs to the local session/cache boundary. Do not
+      // infer or duplicate backend account-membership semantics from payload
+      // fields such as account_id.
       if (!envelope || envelope.identity !== tenant || envelope.kind !== kind || !Object.prototype.hasOwnProperty.call(envelope, 'value')) {
         await adapter.removeItem(key);
         return fallback;
@@ -50,14 +53,19 @@ export function createTenantStorage(adapter, now = () => new Date().toISOString(
 
   async function writePrivate(identity, kind, value) {
     const tenant = normalizeIdentity(identity);
-    await adapter.setItem(privateStorageKey(tenant, kind), JSON.stringify({ identity: tenant, kind, value, cachedAt: now() }));
+    const envelope = { identity: tenant, kind, value, cachedAt: now() };
+    await adapter.setItem(privateStorageKey(tenant, kind), JSON.stringify(envelope));
   }
 
   async function bindTenant(identity) {
     const next = identity == null ? null : normalizeIdentity(identity);
     const previousRaw = await adapter.getItem(ACTIVE_PRIVATE_TENANT_KEY);
     const previous = previousRaw ? String(previousRaw).trim() : null;
+
+    // Pre-v2 global keys may contain another account's private state. They are
+    // never read by this implementation and are purged at every identity bind.
     await Promise.all(LEGACY_PRIVATE_KEYS.map((key) => adapter.removeItem(key)));
+
     if (previous && previous !== next) await purgeTenant(previous);
     if (!next) {
       if (previous) await purgeTenant(previous);
@@ -79,5 +87,10 @@ export function createTenantStorage(adapter, now = () => new Date().toISOString(
     setCache: (identity, payload) => writePrivate(identity, 'opportunities-cache', payload),
     getProfile: (identity) => readPrivate(identity, 'profile', null),
     setProfile: (identity, profile) => writePrivate(identity, 'profile', profile),
+    getPushBinding: (identity) => readPrivate(identity, 'push-binding', null),
+    setPushBinding: (identity, binding) => writePrivate(identity, 'push-binding', binding),
+    clearPushBinding: (identity) => purgeKind(adapter, identity, 'push-binding'),
+    getLocalNotificationScheduled: (identity) => readPrivate(identity, 'local-notification-scheduled', []),
+    setLocalNotificationScheduled: (identity, eventIds) => writePrivate(identity, 'local-notification-scheduled', eventIds),
   };
 }

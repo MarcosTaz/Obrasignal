@@ -1,12 +1,12 @@
 export function createSessionCoordinator(auth) {
-  let state = { status: 'loading', session: null };
+  let state = { status: 'loading', session: null, event: null };
   let startPromise = null;
   let subscription = null;
   let authEvents = 0;
   const listeners = new Set();
 
-  const publish = (session) => {
-    state = { status: session?.access_token ? 'signed-in' : 'signed-out', session: session || null };
+  const publish = (session, event = null) => {
+    state = { status: session?.access_token ? 'signed-in' : 'signed-out', session: session || null, event };
     listeners.forEach((listener) => listener(state));
   };
 
@@ -14,10 +14,11 @@ export function createSessionCoordinator(auth) {
     if (startPromise) return startPromise;
 
     // Subscribe before reading storage so a login/logout cannot fall into the
-    // gap between getSession() and onAuthStateChange().
-    const { data } = auth.onAuthStateChange((_, session) => {
+    // gap between getSession() and onAuthStateChange(). Preserve the auth event
+    // because PASSWORD_RECOVERY is an authenticated-but-not-normal app state.
+    const { data } = auth.onAuthStateChange((event, session) => {
       authEvents += 1;
-      publish(session);
+      publish(session, event || null);
     });
     subscription = data?.subscription || null;
     const eventsBeforeRead = authEvents;
@@ -43,6 +44,11 @@ export function createSessionCoordinator(auth) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    acknowledgeEvent() {
+      if (state.event == null) return state;
+      publish(state.session, null);
+      return state;
+    },
     async accessToken() {
       if (state.status === 'loading') await start();
       // Supabase remains the source of truth; no token is persisted separately.
@@ -55,7 +61,7 @@ export function createSessionCoordinator(auth) {
     async refresh() {
       const { data, error } = await auth.refreshSession();
       if (error) throw error;
-      publish(data?.session || null);
+      publish(data?.session || null, 'TOKEN_REFRESHED');
       return state.session?.access_token || null;
     },
     stop() {

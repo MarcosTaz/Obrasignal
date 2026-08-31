@@ -8,8 +8,27 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 @pytest.fixture()
 def clear_auth_env(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
+    monkeypatch.delenv("OBRASIGNAL_ACCOUNT_ID", raising=False)
+
+
+def test_missing_auth_mode_fails_closed(monkeypatch):
     monkeypatch.delenv("OBRASIGNAL_AUTH_MODE", raising=False)
     monkeypatch.delenv("OBRASIGNAL_ACCOUNT_ID", raising=False)
+
+    from auth_context import configured_identity
+
+    with pytest.raises(RuntimeError, match="Invalid OBRASIGNAL_AUTH_MODE"):
+        configured_identity()
+
+
+def test_empty_auth_mode_fails_closed(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "   ")
+
+    from auth_context import configured_identity
+
+    with pytest.raises(RuntimeError, match="Invalid OBRASIGNAL_AUTH_MODE"):
+        configured_identity()
 
 
 def test_development_identity_is_not_authenticated(clear_auth_env):

@@ -2,6 +2,7 @@
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+from decision_log import record_decision
 from notification_events import ensure_event_table, record_new_opportunities
 
 
@@ -21,12 +22,22 @@ def test_event_feed_is_idempotent_and_has_delivery_state():
                 'https://example.invalid/1','2099-01-01','perfil: pavilhões',
                 94,94,?)""", (recent,))
     ensure_event_table(conn)
+    record_decision(
+        conn,
+        "TED",
+        "2026/S-1",
+        "QUALIFIED",
+        "account-specific high match",
+        score=94,
+        account_id="default",
+    )
     first = record_new_opportunities(conn, min_score=75)
     second = record_new_opportunities(conn, min_score=75)
     assert len(first) == 1
+    assert first[0]["score"] == 94
     assert len(second) == 0
-    event = conn.execute("SELECT delivered_at FROM opportunity_events WHERE tender_id=1").fetchone()
-    assert event[0] is None
+    event = conn.execute("SELECT delivered_at,score FROM opportunity_events WHERE tender_id=1").fetchone()
+    assert tuple(event) == (None, 94)
     conn.execute("UPDATE opportunity_events SET delivered_at='2026-08-18T17:01:00+00:00' WHERE tender_id=1")
     assert conn.execute("SELECT delivered_at FROM opportunity_events WHERE tender_id=1").fetchone()[0] is not None
     conn.close()

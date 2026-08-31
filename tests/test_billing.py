@@ -50,8 +50,10 @@ def test_paid_entitlement_is_not_overwritten_by_request_initialization():
     assert get_account(conn,'acct-paid')['evaluation_status']=='PAID'
 
 def test_expired_evaluation_is_blocked():
-    conn=db(); ensure_account(conn,'acct-expired'); activate(conn,'acct-expired')
-    past=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat()
+    conn=db(); ensure_account(conn,'acct-expired')
+    now=datetime.now(timezone.utc)
+    activate(conn,'acct-expired',base=now-timedelta(days=2))
+    past=(now-timedelta(seconds=1)).isoformat()
     conn.execute('UPDATE accounts SET evaluation_ends_at=? WHERE account_id=?',(past,'acct-expired')); conn.commit()
     state=subscription_state(get_account(conn,'acct-expired'))
     assert state['active'] is False and state['plan']=='expired'

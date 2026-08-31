@@ -5,6 +5,7 @@ export const BILLING_ENTITLEMENT = 'pro';
 export const BILLING_PRODUCT = 'obrasignal_pro_monthly';
 export const BILLING_PLATFORM_SUPPORTED = Platform.OS === 'android' || Platform.OS === 'ios' || Platform.OS === 'web';
 export const BILLING_RESTORE_SUPPORTED = Platform.OS === 'android' || Platform.OS === 'ios';
+export const BILLING_SUPPORTED = BILLING_PLATFORM_SUPPORTED;
 
 let configuredUserId = null;
 
@@ -50,9 +51,7 @@ export async function getCurrentOffering() {
 export async function purchasePro() {
   if (!billingConfigurationAvailable()) throw new Error('billing_not_configured');
   const offering = await getCurrentOffering();
-  const pkg = offering?.availablePackages?.find(p =>
-    p?.product?.identifier === BILLING_PRODUCT || p?.packageType === 'MONTHLY'
-  ) || offering?.availablePackages?.[0];
+  const pkg = offering?.availablePackages?.find(p => p?.product?.identifier === BILLING_PRODUCT || p?.packageType === 'MONTHLY') || offering?.availablePackages?.[0];
   if (!pkg) throw new Error('subscription_not_configured');
   const result = await Purchases.purchasePackage(pkg);
   return result?.customerInfo || null;

@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import AuthScreen from './AuthScreen'
+import PasswordRecoveryScreen from './PasswordRecoveryScreen'
 import BillingGate from './BillingGate'
+import AccountPrivacyControls from './AccountPrivacyControls'
 import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
 import { storage } from '../src/storage'
@@ -23,11 +25,7 @@ function WebTranslator() {
       const TranslateElement = window.google?.translate?.TranslateElement
       if (!host || !TranslateElement || host.querySelector('.goog-te-combo')) return
       try {
-        new TranslateElement({
-          pageLanguage: 'pt',
-          autoDisplay: false,
-          multilanguagePage: true,
-        }, TRANSLATE_ELEMENT_ID)
+        new TranslateElement({ pageLanguage: 'pt', autoDisplay: false, multilanguagePage: true }, TRANSLATE_ELEMENT_ID)
         setAvailable(true)
       } catch (_) {
         setAvailable(false)
@@ -51,47 +49,17 @@ function WebTranslator() {
 
   return <View style={styles.translateArea} accessibilityLabel="Tradutor da página">
     {!enabled
-      ? <Pressable accessibilityRole="button" accessibilityLabel="Ativar tradutor" onPress={() => setEnabled(true)} style={({pressed}) => [styles.translateButton, pressed && styles.translatePressed]}>
-          <Text style={styles.translateButtonText}>Traduzir ▾</Text>
-        </Pressable>
-      : <>
-          <Text style={styles.translateLabel}>Tradutor</Text>
-          {available
-            ? <View nativeID={TRANSLATE_ELEMENT_ID} style={styles.translateWidget}/>
-            : <Text style={styles.translateUnavailable}>indisponível</Text>}
-        </>}
+      ? <Pressable accessibilityRole="button" accessibilityLabel="Ativar tradutor" onPress={() => setEnabled(true)} style={({pressed}) => [styles.translateButton, pressed && styles.translatePressed]}><Text style={styles.translateButtonText}>Traduzir ▾</Text></Pressable>
+      : <><Text style={styles.translateLabel}>Tradutor</Text>{available ? <View nativeID={TRANSLATE_ELEMENT_ID} style={styles.translateWidget}/> : <Text style={styles.translateUnavailable}>indisponível</Text>}</>}
   </View>
 }
 
 function WebSessionBar() {
   const [now, setNow] = useState(() => new Date())
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const date = useMemo(() => new Intl.DateTimeFormat('pt-PT', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(now), [now.getFullYear(), now.getMonth(), now.getDate()])
-
-  const time = new Intl.DateTimeFormat('pt-PT', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(now)
-
-  return <View style={styles.sessionBar} accessibilityLabel="Data, hora e tradutor">
-    <View style={styles.dateTime}>
-      <Text style={styles.date}>{date}</Text>
-      <View style={styles.timePill}><Text style={styles.time}>{time}</Text></View>
-      <WebTranslator/>
-    </View>
-  </View>
+  useEffect(() => { const timer = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(timer) }, [])
+  const date = useMemo(() => new Intl.DateTimeFormat('pt-PT', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).format(now), [now.getFullYear(), now.getMonth(), now.getDate()])
+  const time = new Intl.DateTimeFormat('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(now)
+  return <View style={styles.sessionBar} accessibilityLabel="Data, hora e tradutor"><View style={styles.dateTime}><Text style={styles.date}>{date}</Text><View style={styles.timePill}><Text style={styles.time}>{time}</Text></View><WebTranslator/></View></View>
 }
 
 export default function AuthGate({ children }) {
@@ -107,87 +75,45 @@ export default function AuthGate({ children }) {
       if (!active) return
       const currentGeneration = ++generation
       setTenantStatus('loading')
-
-      bindingQueue = bindingQueue
-        .catch(() => {})
-        .then(async () => {
-          const signedIn = nextState.status === 'signed-in'
-          const accountId = signedIn ? nextState.session?.user?.id : null
-          if (signedIn && !accountId) throw new Error('Authenticated session is missing user.id')
-
-          await storage.bindPrivateTenant(accountId)
-          if (!active || currentGeneration !== generation) return
-
-          setAuthState(nextState)
-          setTenantStatus('ready')
-          if (signedIn) ensureBackendReady().catch(() => {})
-        })
-        .catch(() => {
-          if (!active || currentGeneration !== generation) return
-          if (nextState.status !== 'signed-in') {
-            setAuthState(nextState)
-            setTenantStatus('ready')
-            return
-          }
-          setTenantStatus('error')
-        })
+      bindingQueue = bindingQueue.catch(() => {}).then(async () => {
+        const signedIn = nextState.status === 'signed-in'
+        const accountId = signedIn ? nextState.session?.user?.id : null
+        if (signedIn && !accountId) throw new Error('Authenticated session is missing user.id')
+        await storage.bindPrivateTenant(accountId)
+        if (!active || currentGeneration !== generation) return
+        setAuthState(nextState)
+        setTenantStatus('ready')
+        if (signedIn && nextState.event !== 'PASSWORD_RECOVERY') ensureBackendReady().catch(() => {})
+      }).catch(() => {
+        if (!active || currentGeneration !== generation) return
+        if (nextState.status !== 'signed-in') { setAuthState(nextState); setTenantStatus('ready'); return }
+        setTenantStatus('error')
+      })
     }
 
     const unsubscribe = authSession.subscribe(update)
-    authSession.start().then(update).catch(() => update({ status: 'signed-out', session: null }))
+    authSession.start().then(update).catch(() => update({ status: 'signed-out', session: null, event: null }))
     return () => { active = false; generation += 1; unsubscribe() }
   }, [])
 
-  if (authState.status === 'loading' || tenantStatus === 'loading') {
-    return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><ActivityIndicator size="small" color="#5F8DF7" /><Text style={styles.message}>A recuperar a sessão…</Text></View>
-  }
-
-  if (tenantStatus === 'error') {
-    return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
-  }
-
+  if (authState.status === 'loading' || tenantStatus === 'loading') return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><ActivityIndicator size="small" color="#5F8DF7" /><Text style={styles.message}>A recuperar a sessão…</Text></View>
+  if (tenantStatus === 'error') return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
   if (authState.status !== 'signed-in') return <AuthScreen />
+  if (authState.event === 'PASSWORD_RECOVERY') return <PasswordRecoveryScreen />
 
-  // The authenticated shell only mounts after tenant-private storage has been
-  // bound to the exact Supabase user id. Profile, billing and API availability
-  // remain background concerns, but cross-account local state never is.
-  return <BillingGate>
-    {Platform.OS === 'web'
-      ? <View style={styles.webShell}><WebSessionBar/><View style={styles.webContent}>{children}</View></View>
-      : children}
-  </BillingGate>
+  const accountId = authState.session?.user?.id
+  return <AccountPrivacyControls key={`privacy:${accountId}`}>
+    <BillingGate key={`billing:${accountId}`}>
+      {Platform.OS === 'web' ? <View style={styles.webShell}><WebSessionBar/><View style={styles.webContent}>{children}</View></View> : children}
+    </BillingGate>
+  </AccountPrivacyControls>
 }
 
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: '#07111C' },
-  brand: { fontSize: 25, fontWeight: '800', letterSpacing: -0.8, color: '#F4F7FB' },
-  blue: { color: '#7FA2FF' },
-  message: { color: '#9BAABD', fontSize: 12 },
-  error: { color: '#FF8998', fontSize: 12, textAlign: 'center', paddingHorizontal: 24 },
-  webShell: { flex: 1, minHeight: 0, backgroundColor: '#07111C' },
-  webContent: { flex: 1, minHeight: 0 },
-  sessionBar: {
-    minHeight: 42,
-    paddingHorizontal: 18,
-    paddingVertical: 7,
-    borderBottomWidth: 1,
-    borderBottomColor: '#182A3E',
-    backgroundColor: '#091522',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 8,
-  },
-  dateTime: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
-  date: { color: '#8497AD', fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  timePill: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-  time: { color: '#C7D2E1', fontSize: 10, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  translateArea: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: 7, borderLeftWidth: 1, borderLeftColor: '#263B56', paddingLeft: 10 },
-  translateButton: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  translatePressed: { opacity: 0.75 },
-  translateButtonText: { color: '#C7D2E1', fontSize: 10, fontWeight: '800' },
-  translateLabel: { color: '#8497AD', fontSize: 10, fontWeight: '800' },
-  translateWidget: { minWidth: 128, minHeight: 24, justifyContent: 'center' },
-  translateUnavailable: { color: '#8497AD', fontSize: 10, fontWeight: '700' },
+  brand: { fontSize: 25, fontWeight: '800', letterSpacing: -0.8, color: '#F4F7FB' }, blue: { color: '#7FA2FF' }, message: { color: '#9BAABD', fontSize: 12 }, error: { color: '#FF8998', fontSize: 12, textAlign: 'center', paddingHorizontal: 24 },
+  webShell: { flex: 1, minHeight: 0, backgroundColor: '#07111C' }, webContent: { flex: 1, minHeight: 0 },
+  sessionBar: { minHeight: 42, paddingHorizontal: 18, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#182A3E', backgroundColor: '#091522', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-start', gap: 8 },
+  dateTime: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 }, date: { color: '#8497AD', fontSize: 10, fontWeight: '700', textTransform: 'capitalize' }, timePill: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }, time: { color: '#C7D2E1', fontSize: 10, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  translateArea: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: 7, borderLeftWidth: 1, borderLeftColor: '#263B56', paddingLeft: 10 }, translateButton: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }, translatePressed: { opacity: 0.75 }, translateButtonText: { color: '#C7D2E1', fontSize: 10, fontWeight: '800' }, translateLabel: { color: '#8497AD', fontSize: 10, fontWeight: '800' }, translateWidget: { minWidth: 128, minHeight: 24, justifyContent: 'center' }, translateUnavailable: { color: '#8497AD', fontSize: 10, fontWeight: '700' },
 })
