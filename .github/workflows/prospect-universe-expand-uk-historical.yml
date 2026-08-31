@@ -1,0 +1,31 @@
+name: ObraSignal historical UK expansion
+
+on:
+  push:
+    branches: [ops/prospect-universe-300k]
+    paths:
+      - 'ops/prospecting/build_uk_historical_expansion.py'
+      - '.github/workflows/prospect-universe-expand-uk-historical.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Extract UK historical supplier candidates
+        env:
+          TARGET: '40000'
+          OUT_DIR: uk_historical_output
+        run: python ops/prospecting/build_uk_historical_expansion.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-uk-historical-expansion
+          path: |
+            uk_historical_output/obrasignal_uk_historical_candidates.csv
+            uk_historical_output/summary.json
+          retention-days: 30
