@@ -36,6 +36,12 @@ services:
         value: "https://obrasignal.com"
       - key: OBRASIGNAL_DB
         value: "/var/data/obrasignal.db"
+      # Backend-only RevenueCat credentials. Values must be entered in Render;
+      # never commit them. Both are required before automatic checkout is exposed.
+      - key: REVENUECAT_SECRET_API_KEY
+        sync: false
+      - key: REVENUECAT_WEBHOOK_SECRET
+        sync: false
       - key: POLL_SECONDS
         value: "60"
       - key: TED_DAYS
