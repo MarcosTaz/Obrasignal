@@ -15,7 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PUBLIC_URL: https://obrasignal.com/
+  # obrasignal.com remains the canonical target, but its OVH/DNS activation is
+  # provider-blocked. Exercise the actually reachable customer deployment until
+  # DNS resolves, rather than failing before a browser can touch the product.
+  PUBLIC_URL: https://marcostaz.github.io/Obrasignal/
   E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
   E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
   TARGET_BUILD: ${{ github.sha }}
