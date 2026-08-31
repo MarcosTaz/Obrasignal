@@ -8,6 +8,7 @@ from werkzeug.exceptions import BadRequest
 
 from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, ChangeCaptureStore
 from vertical_apps.industrial_claims.change_sheet_trust import ChangeSheetTrustError, ChangeSheetTrustService
+from vertical_apps.industrial_claims.change_supplement import ChangeSupplementError, LateChangeSupplementStore
 from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
 
 
@@ -19,12 +20,17 @@ def create_change_capture_blueprint(
     store: ChangeCaptureStore,
     capture_identity: IdentityResolver,
     trust_service: ChangeSheetTrustService | None = None,
+    supplement_store: LateChangeSupplementStore | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("causledger_change_capture", __name__)
     active_trust = trust_service or ChangeSheetTrustService(
         store.path,
         capture_store=store,
         qualified_timestamp_provider=ProofProviderBundle.fail_closed().qualified_timestamp,
+    )
+    supplements = supplement_store or LateChangeSupplementStore(
+        store.path,
+        capture_store=store,
     )
 
     def json_object() -> dict[str, Any]:
@@ -41,6 +47,14 @@ def create_change_capture_blueprint(
             tenant_id=tenant_id,
             finding_id=finding_id,
         )
+        supplement_status = supplements.status(tenant_id=tenant_id, finding_id=finding_id)
+        capture["late_supplements"] = {
+            "available": supplement_status["available"],
+            "count": supplement_status["count"],
+            "late_supplement_does_not_reopen_contemporaneous_window": True,
+            "status_path": f"/findings/{finding_id}/late-supplements",
+            "sheet_path": f"/findings/{finding_id}/late-supplement-sheet",
+        }
         return capture
 
     @blueprint.get("/findings/<path:finding_id>/change-capture/view")
@@ -49,7 +63,7 @@ def create_change_capture_blueprint(
             tenant_id, _actor_id = capture_identity()
             capture = capture_with_trust(tenant_id=tenant_id, finding_id=finding_id)
             return render_template("change_capture.html", capture=capture)
-        except (ChangeCaptureError, ChangeSheetTrustError) as exc:
+        except (ChangeCaptureError, ChangeSheetTrustError, ChangeSupplementError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/change-capture")
@@ -57,7 +71,7 @@ def create_change_capture_blueprint(
         try:
             tenant_id, _actor_id = capture_identity()
             return jsonify(capture_with_trust(tenant_id=tenant_id, finding_id=finding_id))
-        except (ChangeCaptureError, ChangeSheetTrustError) as exc:
+        except (ChangeCaptureError, ChangeSheetTrustError, ChangeSupplementError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/change-sheet/trust")
@@ -94,7 +108,7 @@ def create_change_capture_blueprint(
                 "capture": capture_with_trust(tenant_id=tenant_id, finding_id=finding_id),
                 "fact_entry_does_not_establish_recoverability": True,
             }), 201
-        except (BadRequest, KeyError, ValueError, ChangeCaptureError, ChangeSheetTrustError) as exc:
+        except (BadRequest, KeyError, ValueError, ChangeCaptureError, ChangeSheetTrustError, ChangeSupplementError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/change-sheet")
@@ -123,6 +137,56 @@ def create_change_capture_blueprint(
             response.headers["X-CausLedger-Timestamp-Attestation"] = str(timestamp["attestation_id"])
             return response
         except (ChangeCaptureError, ChangeSheetTrustError) as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @blueprint.get("/findings/<path:finding_id>/late-supplements")
+    def late_supplement_status(finding_id: str):
+        try:
+            tenant_id, _actor_id = capture_identity()
+            return jsonify(supplements.status(tenant_id=tenant_id, finding_id=finding_id))
+        except (ChangeCaptureError, ChangeSupplementError) as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @blueprint.post("/findings/<path:finding_id>/late-supplements")
+    def add_late_supplement(finding_id: str):
+        try:
+            tenant_id, actor_id = capture_identity()
+            payload = json_object()
+            if payload.get("confirm_late_supplement") is not True:
+                raise ValueError("confirm_late_supplement must be true")
+            supplement = supplements.add(
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                actor_id=actor_id,
+                fact_text=str(payload["fact_text"]),
+                reason_for_late_entry=str(payload["reason_for_late_entry"]),
+                source_ref=None if payload.get("source_ref") is None else str(payload["source_ref"]),
+                declared_event_at=None if payload.get("declared_event_at") is None else str(payload["declared_event_at"]),
+            )
+            return jsonify({
+                "supplement": supplement,
+                "status": supplements.status(tenant_id=tenant_id, finding_id=finding_id),
+                "contemporaneous_sheet_rewritten": False,
+                "contemporaneous_window_reopened": False,
+            }), 201
+        except (BadRequest, KeyError, ValueError, ChangeCaptureError, ChangeSupplementError) as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @blueprint.get("/findings/<path:finding_id>/late-supplement-sheet")
+    def download_late_supplement_sheet(finding_id: str):
+        try:
+            tenant_id, _actor_id = capture_identity()
+            status = supplements.status(tenant_id=tenant_id, finding_id=finding_id)
+            if not status["available"]:
+                raise ChangeSupplementError("late supplement sheet is only available after factual capture closes")
+            sheet, digest = supplements.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
+            response = make_response(sheet)
+            response.headers["Content-Type"] = "text/plain; charset=utf-8"
+            response.headers["Content-Disposition"] = 'attachment; filename="CausLedger-late-change-supplement.txt"'
+            response.headers["X-CausLedger-Late-Supplement-SHA256"] = digest
+            response.headers["X-CausLedger-Conventional-Change-Sheet-Rewritten"] = "false"
+            return response
+        except (ChangeCaptureError, ChangeSupplementError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     return blueprint
