@@ -37,6 +37,22 @@ PROTECTED_PATHS = ('/api/v1/opportunities', '/api/v1/stats', '/api/v1/alerts', '
 PRO_ENTITLEMENT = 'pro'
 
 
+def billing_provider_readiness():
+    """Return capability flags only; never return billing secrets.
+
+    A customer checkout must not be exposed unless the server can independently
+    reconcile RevenueCat entitlement state. HMAC webhooks provide near-real-time
+    activation while subscriber API sync provides recovery/reconciliation.
+    """
+    subscriber_sync = bool((os.getenv('REVENUECAT_SECRET_API_KEY') or '').strip())
+    webhook_hmac = bool((os.getenv('REVENUECAT_WEBHOOK_SECRET') or '').strip())
+    return {
+        'subscriber_sync_configured': subscriber_sync,
+        'webhook_hmac_configured': webhook_hmac,
+        'commercial_ready': subscriber_sync and webhook_hmac,
+    }
+
+
 def ensure_account_table(conn):
     exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='accounts'").fetchone()
     if not exists:
@@ -166,7 +182,7 @@ def _sync_revenuecat_if_due(conn, account_id, force=False):
     if entitlement and entitlement.get('expires_date'):
         expires = entitlement.get('expires_date')
         active = _parse_iso(expires) > datetime.now(timezone.utc)
-        update_subscription(conn, account_id, plan='pro' if active else 'expired', subscription_status='active' if active else 'expired', entitlement_expires_at=expires, store=entitlement.get('store') or subscriber.get('store'), product_id=entitlement.get('product_identifier'), original_transaction_id=subscriber.get('original_app_user_id'))
+        update_subscription(conn, account_id, plan='pro' if active else 'expired', subscription_status='active' if active else 'expired', entitlement_expires_at=expires, store=entitlement.get('store') or subscriber.get('store'), product_id=entitlement.get('product_identifier'))
     elif entitlement and entitlement.get('is_active') is True:
         update_subscription(conn, account_id, plan='pro', subscription_status='active', entitlement_expires_at=None, store=entitlement.get('store'), product_id=entitlement.get('product_identifier'))
     else:
@@ -189,6 +205,8 @@ def _sync_account_from_webhook(conn, event):
     if event_type in active_events:
         status = 'trial' if event_type == 'TRIAL_STARTED' else 'active'
         update_subscription(conn, app_user_id, plan='pro', subscription_status=status, entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
+    elif event_type == 'SUBSCRIPTION_PAUSED':
+        update_subscription(conn, app_user_id, plan='pro', subscription_status='paused', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
     elif event_type == 'EXPIRATION':
         update_subscription(conn, app_user_id, plan='expired', subscription_status='expired', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
     elif event_type in {'CANCELLATION', 'BILLING_ISSUE'}:
@@ -248,6 +266,7 @@ def billing_status():
         return jsonify({**state, 'account_id': identity.account_id,
                         'trial_ends_at': account.get('trial_ends_at'),
                         'evaluation': evaluation, 'evaluation_metrics': metrics,
+                        'provider': billing_provider_readiness(),
                         'management_url': None})
     finally:
         conn.close()
