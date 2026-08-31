@@ -1,0 +1,42 @@
+name: ObraSignal Live Tenant Isolation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "11 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-tenant-isolation
+  cancel-in-progress: true
+
+env:
+  SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+  E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+  E2E_EMAIL_B: ${{ secrets.E2E_EMAIL_B }}
+  E2E_PASSWORD_B: ${{ secrets.E2E_PASSWORD_B }}
+  API_URL: https://obrasignal.onrender.com/api/v1
+  TARGET_BUILD: ${{ github.sha }}
+
+jobs:
+  adversarial-a-b:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate isolation probe syntax
+        run: python -m py_compile scripts/live_tenant_isolation_e2e.py
+
+      - name: Prove two-tenant production isolation
+        run: python scripts/live_tenant_isolation_e2e.py
