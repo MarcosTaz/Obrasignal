@@ -14,8 +14,46 @@ function publicKey() {
   return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY;
 }
 
+function productForPackage(pkg) {
+  return pkg?.product || pkg?.webBillingProduct || pkg?.storeProduct || null;
+}
+
+function productIdentifier(pkg) {
+  const product = productForPackage(pkg);
+  return product?.identifier || product?.productIdentifier || product?.productId || product?.id || null;
+}
+
+function productionWebPurchaseLink() {
+  if (Platform.OS !== 'web') return '';
+  const raw = String(process.env.EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' || url.hostname !== 'pay.rev.cat') return '';
+    if (url.pathname.toLowerCase().includes('/sandbox/')) return '';
+    const cleanPath = url.pathname.replace(/\/+$/, '');
+    if (!cleanPath || cleanPath === '/') return '';
+    return `${url.origin}${cleanPath}`;
+  } catch (_) {
+    return '';
+  }
+}
+
 export function billingConfigurationAvailable() {
   return BILLING_PLATFORM_SUPPORTED && Boolean(publicKey());
+}
+
+export function webPurchaseLinkConfigurationAvailable() {
+  return Boolean(productionWebPurchaseLink());
+}
+
+export function webPurchaseUrl(appUserId) {
+  const base = productionWebPurchaseLink();
+  if (!base || !appUserId) return null;
+  // RevenueCat Web Purchase Links identify a signed-in customer by appending
+  // the URL-encoded App User ID as a path segment. We deliberately do not put
+  // email or other personal data into the checkout URL.
+  return `${base}/${encodeURIComponent(String(appUserId))}`;
 }
 
 export async function configureBilling(appUserId) {
@@ -42,7 +80,12 @@ export function activeEntitlement(customerInfo) {
 }
 
 export function proPackage(offering) {
-  return offering?.availablePackages?.find(pkg => pkg?.product?.identifier === BILLING_PRODUCT) || null;
+  return offering?.availablePackages?.find(pkg => productIdentifier(pkg) === BILLING_PRODUCT) || null;
+}
+
+export function packagePriceString(pkg) {
+  const product = productForPackage(pkg);
+  return product?.priceString || product?.price?.formatted || product?.price?.formattedPrice || product?.currentPrice?.formatted || product?.currentPrice?.formattedPrice || null;
 }
 
 export async function getCurrentOffering() {
