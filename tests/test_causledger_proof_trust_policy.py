@@ -15,7 +15,7 @@ def _attestation(kind: str, provider: str, *, validation: bool = True):
     }
 
 
-def _manifest(external):
+def _manifest(external, *, original_integrity_sealed: bool = True):
     return {
         "manifest_hashes": {"sha256": "a" * 64},
         "attestation_target": {"sha256": "b" * 64},
@@ -23,7 +23,10 @@ def _manifest(external):
         "evidence": [
             {
                 "raw_content_persisted": True,
-                "assurance_dimensions": {"source_authenticated": True},
+                "assurance_dimensions": {
+                    "source_authenticated": True,
+                    "integrity_sealed": original_integrity_sealed,
+                },
             }
         ],
         "external_attestations": list(external),
@@ -42,6 +45,18 @@ def test_one_provider_cannot_create_independent_witness_strength():
     assert independence["public_anchor_independent_from_qualified_provider"] is False
     assert independence["provider_quorum_at_least_two"] is False
     assert evaluate_proof_strength(_manifest(external))["level"] == "QUALIFIED_ORIGIN_VERIFIED"
+
+
+def test_aggregate_worm_receipt_cannot_replace_per_original_integrity_lock():
+    external = [
+        _attestation("WORM_LOCK", "storage", validation=False),
+        _attestation("QUALIFIED_TIMESTAMP", "tsa"),
+    ]
+    strength = evaluate_proof_strength(_manifest(external, original_integrity_sealed=False))
+    assert strength["gates"]["original_bytes_preserved"] is True
+    assert strength["gates"]["every_original_individually_integrity_sealed"] is False
+    assert strength["gates"]["worm_or_equivalent_immutability"] is False
+    assert strength["level"] == "INTERNAL_INTEGRITY_VERIFIED"
 
 
 def test_qualified_receipt_without_validation_material_cannot_raise_qualified_level():
