@@ -6,33 +6,29 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 10,
-  "last_factory_id": "aviation-lease-entitlement-recovery",
-  "last_run_at": "2026-08-31T02:39:00Z",
+  "cursor": 11,
+  "last_factory_id": "capacity-commitment",
+  "last_run_at": "2026-08-31T03:40:28Z",
   "last_material_change": {
-    "kind": "ROTATION_VERIFICATION_NO_NEW_EXTERNAL_PROOF",
-    "summary": "EU Cloud Switching PR #802 remains OPEN/DRAFT at exact head 020efc82e0b2a6509548fa7ef38f1593ca457afa with all observed check-runs SUCCESS; fresh TED/public-trigger search did not yield a sufficiently recent unambiguous additional challengeable switching event, so the conservative 15-event sample was not inflated. Aviation PR #787 remains OPEN/DRAFT at exact head a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32 with Python and Mobile checks SUCCESS; entitlement/recovery/WTP remain unproven. Gmail watch found no new material prospect, CEFAMOL, AFIA or DGC inbound, so Portugal and Spain outbound holds remain active. Fleet rotated to Capacity Commitment.",
+    "kind": "CAPACITY_EXACT_HEAD_REVERIFIED_ROTATED_TO_LONGLEAD",
+    "summary": "Capacity Commitment PR #729 remains OPEN/DRAFT at exact head 0b156218ce427284d40583d4b7eb317622d95376. ObraSignal Quality run 33328905676 completed SUCCESS and both python and mobile jobs succeeded, including exact revision confirmation, repository tests, expo-doctor, critical wiring and Expo bundle smoke. The PR body still contains stale older-head/mobile-failure prose and should be corrected without changing commercial truth. T3 commercial proof remains unachieved: no buyer reply, qualified case, proprietary case data, pilot acceptance, payment, recovery or revenue is inferred. Gmail watch found no new material CausLedger prospect, CEFAMOL, AFIA or DGC inbound, so Portugal and Spain outbound holds remain active. LongLead exact PR/code searches returned no canonical identity, so LongLead remains UNKNOWN and the fleet should rotate onward after preserving that blocker.",
     "evidence": {
-      "eu_cloud_switching": {
-        "pr": 802,
-        "head": "020efc82e0b2a6509548fa7ef38f1593ca457afa",
+      "capacity_commitment": {
+        "pr": 729,
+        "head": "0b156218ce427284d40583d4b7eb317622d95376",
         "pr_state": "OPEN_DRAFT_NOT_CANONICAL_NOT_MERGED",
-        "check_runs_observed": 3,
-        "check_runs_success": 3,
-        "sample": {"distinct_events": 15, "challengeable": 6, "excluded": 9},
-        "fresh_public_search": "NO_ADDITIONAL_UNAMBIGUOUS_RECENT_CHALLENGEABLE_EVENT_ADMITTED",
-        "classification": "EXACT_HEAD_GREEN_PUBLIC_TRIGGER_CHANNEL_ALIVE_NOT_PROVEN_SUFFICIENT_NO_WTP_PROOF",
-        "next_exact_action": "Continue conservative T1/T2 trigger falsification; admit a new event only with exact source, timing and challengeability evidence."
-      },
-      "aviation": {
-        "pr": 787,
-        "head": "a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32",
-        "pr_state": "OPEN_DRAFT_NOT_CANONICAL_NOT_MERGED",
-        "quality_run": 33307110367,
+        "quality_run": 33328905676,
+        "quality_status": "COMPLETED_SUCCESS",
         "python_job": "SUCCESS",
         "mobile_job": "SUCCESS",
-        "classification": "EXACT_HEAD_GREEN_SYNTHETIC_ONLY_ENTITLEMENT_RECOVERY_WTP_UNPROVEN",
-        "next_exact_action": "Preserve assisted pilot admission boundary; do not infer entitlement or recovery without real permissioned evidence."
+        "classification": "EXACT_HEAD_GREEN_T3_COMMERCIAL_PROOF_UNACHIEVED_PR_BODY_STALE",
+        "next_exact_action": "Correct stale PR-body exact-head/mobile-failure prose to 0b156218ce427284d40583d4b7eb317622d95376 / run 33328905676 SUCCESS while preserving all commercial non-claims; then continue buyer-response/compliance monitoring without sending held outreach."
+      },
+      "longlead": {
+        "pr_search": "NO_EXACT_MATCH",
+        "code_search": "NO_EXACT_MATCH_IN_INCOMPLETE_CODE_SEARCH",
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "next_exact_action": "Search branch/ref/history/BATON authority for LongLead; do not fabricate source identity."
       },
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -48,13 +44,14 @@
         "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NOT_MERGED"
       }
     },
-    "active": "Capacity Commitment: reconstruct exact current PR/head/test truth and execute the highest-value safe successor milestone.",
-    "next": "Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation.",
+    "active": "LongLead: reconstruct exact source/BATON authority; if still unknown after branch/ref/history search, preserve UNKNOWN and rotate immediately to MachineRelease Safety.",
+    "next": "LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
       "CausLedger secure intake staging exists privately but customer transfer remains disabled until a bounded authorized secure channel is agreed.",
+      "Capacity Commitment exact head is GREEN, but T3 commercial proof remains dependent on real buyer behavior; PR body contains stale verification prose to correct safely.",
       "Privacy #845 is exact-head GREEN but remains DRAFT / NOT CANONICAL / NOT MERGED.",
       "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered."
@@ -70,7 +67,7 @@
     {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
+    {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact PR and code searches.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"k3-fatality","blocker":"Canonical repository/source authority UNKNOWN.","global_stop":false},
     {"factory_id":"paper-laminate-works","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
