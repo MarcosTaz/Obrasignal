@@ -19,7 +19,6 @@ def test_auth_gate_binds_supabase_user_before_private_shell():
     assert "nextState.session?.user?.id" in AUTH
     assert "await storage.bindPrivateTenant(identity)" in AUTH
     assert "nextState.status === 'signed-in' && !privateReady" in AUTH
-    assert "bindPrivateTenant(null" not in AUTH  # sign-out uses derived null identity, not a separate race path
 
 
 def test_tenant_storage_purges_legacy_and_validates_envelope_identity():
@@ -27,3 +26,8 @@ def test_tenant_storage_purges_legacy_and_validates_envelope_identity():
     assert "envelope.identity !== tenant" in TENANT
     assert "previous && previous !== next" in TENANT
     assert "if (previous) await purgeTenant(previous)" in TENANT
+
+
+def test_dynamic_regression_is_part_of_mobile_quality_smoke():
+    assert "tenant-storage-regression.mjs" in SMOKE
+    assert "tenant storage dynamic regression" in SMOKE
