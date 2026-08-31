@@ -6,6 +6,56 @@ import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
 import { storage } from '../src/storage'
 
+const TRANSLATE_ELEMENT_ID = 'obrasignal-google-translate'
+const TRANSLATE_SCRIPT_ID = 'obrasignal-google-translate-script'
+
+function WebTranslator() {
+  const [available, setAvailable] = useState(true)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined
+    let active = true
+
+    const mountTranslator = () => {
+      if (!active) return
+      const host = document.getElementById(TRANSLATE_ELEMENT_ID)
+      const TranslateElement = window.google?.translate?.TranslateElement
+      if (!host || !TranslateElement || host.querySelector('.goog-te-combo')) return
+      try {
+        new TranslateElement({
+          pageLanguage: 'pt',
+          autoDisplay: false,
+          multilanguagePage: true,
+        }, TRANSLATE_ELEMENT_ID)
+        setAvailable(true)
+      } catch (_) {
+        setAvailable(false)
+      }
+    }
+
+    window.obrasignalGoogleTranslateInit = mountTranslator
+    if (window.google?.translate?.TranslateElement) {
+      mountTranslator()
+    } else if (!document.getElementById(TRANSLATE_SCRIPT_ID)) {
+      const script = document.createElement('script')
+      script.id = TRANSLATE_SCRIPT_ID
+      script.async = true
+      script.src = 'https://translate.google.com/translate_a/element.js?cb=obrasignalGoogleTranslateInit'
+      script.onerror = () => { if (active) setAvailable(false) }
+      document.head.appendChild(script)
+    }
+
+    return () => { active = false }
+  }, [])
+
+  return <View style={styles.translateArea} accessibilityLabel="Tradutor da página">
+    <Text style={styles.translateLabel}>Tradutor</Text>
+    {available
+      ? <View nativeID={TRANSLATE_ELEMENT_ID} style={styles.translateWidget}/>
+      : <Text style={styles.translateUnavailable}>indisponível</Text>}
+  </View>
+}
+
 function WebSessionBar() {
   const [now, setNow] = useState(() => new Date())
 
@@ -28,10 +78,11 @@ function WebSessionBar() {
     hour12: false,
   }).format(now)
 
-  return <View style={styles.sessionBar} accessibilityLabel="Data e hora">
+  return <View style={styles.sessionBar} accessibilityLabel="Data, hora e tradutor">
     <View style={styles.dateTime}>
       <Text style={styles.date}>{date}</Text>
       <View style={styles.timePill}><Text style={styles.time}>{time}</Text></View>
+      <WebTranslator/>
     </View>
   </View>
 }
@@ -125,4 +176,8 @@ const styles = StyleSheet.create({
   date: { color: '#8497AD', fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
   timePill: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
   time: { color: '#C7D2E1', fontSize: 10, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  translateArea: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: 7, borderLeftWidth: 1, borderLeftColor: '#263B56', paddingLeft: 10 },
+  translateLabel: { color: '#8497AD', fontSize: 10, fontWeight: '800' },
+  translateWidget: { minWidth: 128, minHeight: 24, justifyContent: 'center' },
+  translateUnavailable: { color: '#8497AD', fontSize: 10, fontWeight: '700' },
 })
