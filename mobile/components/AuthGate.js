@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
 import { ensureBackendReady } from '../src/api'
@@ -10,10 +10,11 @@ const TRANSLATE_ELEMENT_ID = 'obrasignal-google-translate'
 const TRANSLATE_SCRIPT_ID = 'obrasignal-google-translate-script'
 
 function WebTranslator() {
+  const [enabled, setEnabled] = useState(false)
   const [available, setAvailable] = useState(true)
 
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined
+    if (!enabled || typeof window === 'undefined' || typeof document === 'undefined') return undefined
     let active = true
 
     const mountTranslator = () => {
@@ -46,13 +47,19 @@ function WebTranslator() {
     }
 
     return () => { active = false }
-  }, [])
+  }, [enabled])
 
   return <View style={styles.translateArea} accessibilityLabel="Tradutor da página">
-    <Text style={styles.translateLabel}>Tradutor</Text>
-    {available
-      ? <View nativeID={TRANSLATE_ELEMENT_ID} style={styles.translateWidget}/>
-      : <Text style={styles.translateUnavailable}>indisponível</Text>}
+    {!enabled
+      ? <Pressable accessibilityRole="button" accessibilityLabel="Ativar tradutor" onPress={() => setEnabled(true)} style={({pressed}) => [styles.translateButton, pressed && styles.translatePressed]}>
+          <Text style={styles.translateButtonText}>Traduzir ▾</Text>
+        </Pressable>
+      : <>
+          <Text style={styles.translateLabel}>Tradutor</Text>
+          {available
+            ? <View nativeID={TRANSLATE_ELEMENT_ID} style={styles.translateWidget}/>
+            : <Text style={styles.translateUnavailable}>indisponível</Text>}
+        </>}
   </View>
 }
 
@@ -177,6 +184,9 @@ const styles = StyleSheet.create({
   timePill: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
   time: { color: '#C7D2E1', fontSize: 10, fontWeight: '800', fontVariant: ['tabular-nums'] },
   translateArea: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: 7, borderLeftWidth: 1, borderLeftColor: '#263B56', paddingLeft: 10 },
+  translateButton: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  translatePressed: { opacity: 0.75 },
+  translateButtonText: { color: '#C7D2E1', fontSize: 10, fontWeight: '800' },
   translateLabel: { color: '#8497AD', fontSize: 10, fontWeight: '800' },
   translateWidget: { minWidth: 128, minHeight: 24, justifyContent: 'center' },
   translateUnavailable: { color: '#8497AD', fontSize: 10, fontWeight: '700' },
