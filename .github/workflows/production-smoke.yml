@@ -40,7 +40,7 @@ jobs:
           print('auth_health=' + json.dumps({name:auth.get(name) for name in ('mode','config_present','provider_status','provider_kind','provider_error')}, sort_keys=True, separators=(',', ':')))
           assert auth.get('mode') == 'provider'
           assert auth.get('config_present') is True
-          assert auth.get('provider_status') in {'uninitialized','ready'}
+          assert auth.get('provider_status') in {'uninitialized', 'ready'}
           PY
             then
               echo "Exact production build is healthy on attempt $attempt/18."
