@@ -40,8 +40,8 @@ def dual_digest(content: bytes | bytearray | memoryview | str) -> dict[str, Any]
     }
 
 
-def signed_semantic_diff_payload(*, before_ref: str, after_ref: str, before_text: str, after_text: str) -> dict[str, Any]:
-    """Create a deterministic diff payload that can later be externally signed/sealed."""
+def semantic_diff_payload(*, before_ref: str, after_ref: str, before_text: str, after_text: str) -> dict[str, Any]:
+    """Create a deterministic diff payload that may later be externally signed or sealed."""
     before_lines = before_text.splitlines()
     after_lines = after_text.splitlines()
     unified = list(difflib.unified_diff(before_lines, after_lines, fromfile=before_ref, tofile=after_ref, lineterm=""))
@@ -51,9 +51,20 @@ def signed_semantic_diff_payload(*, before_ref: str, after_ref: str, before_text
         "before_hashes": dual_digest(before_text),
         "after_hashes": dual_digest(after_text),
         "unified_diff": unified,
+        "signature_state": "NOT_SIGNED_BY_THIS_FUNCTION",
         "interpretation": "TEXTUAL_DIFF_ONLY_REQUIRES_HUMAN_OR_DOMAIN_REVIEW_FOR_COMMERCIAL_MEANING",
     }
     return {**body, "diff_sha256": sha256_hex(body), "diff_sha512": sha512_hex(body)}
+
+
+def signed_semantic_diff_payload(*, before_ref: str, after_ref: str, before_text: str, after_text: str) -> dict[str, Any]:
+    """Compatibility alias. The returned payload is NOT signed until an external attestation is attached."""
+    return semantic_diff_payload(
+        before_ref=before_ref,
+        after_ref=after_ref,
+        before_text=before_text,
+        after_text=after_text,
+    )
 
 
 def build_causal_graph(edges: Iterable[CausalEdge]) -> dict[str, Any]:
