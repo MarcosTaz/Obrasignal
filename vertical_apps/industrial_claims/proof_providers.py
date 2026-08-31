@@ -14,6 +14,7 @@ class ProofRequest:
     digest: str
     purpose: str
     metadata: Mapping[str, Any]
+    payload: bytes | None = None
 
 
 class ProofProvider(Protocol):
@@ -44,6 +45,7 @@ class UnavailableProofProvider:
                 "subject_ref": request.subject_ref,
                 "purpose": request.purpose,
                 "fail_closed": True,
+                "payload_supplied": request.payload is not None,
                 **dict(request.metadata),
             },
         )
