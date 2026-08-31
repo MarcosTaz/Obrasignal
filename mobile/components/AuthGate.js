@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import AccountPrivacyControls from './AccountPrivacyControls'
 import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
 import { supabase } from '../lib/supabase'
@@ -141,11 +142,15 @@ export default function AuthGate({ children }) {
   }
   if (authState.status !== 'signed-in') return <AuthScreen />
 
-  return <BillingGate>
-    {Platform.OS === 'web'
-      ? <View style={styles.webShell}><WebSessionBar/><View style={styles.webContent}>{children}</View></View>
-      : children}
-  </BillingGate>
+  // Privacy ownership deliberately sits outside billing: a customer can inspect,
+  // export or request deletion of account data even when evaluation access expires.
+  return <AccountPrivacyControls>
+    <BillingGate>
+      {Platform.OS === 'web'
+        ? <View style={styles.webShell}><WebSessionBar/><View style={styles.webContent}>{children}</View></View>
+        : children}
+    </BillingGate>
+  </AccountPrivacyControls>
 }
 
 const styles = StyleSheet.create({
