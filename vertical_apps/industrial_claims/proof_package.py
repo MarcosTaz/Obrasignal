@@ -47,7 +47,7 @@ def build_claim_proof_pack(
     if not verification["valid"]:
         raise ValueError("CausLedger proof manifest failed self-verification")
     return {
-        "proof_pack_schema_version": 1,
+        "proof_pack_schema_version": 2,
         "brand": "CausLedger",
         "core_package": core,
         "proof_manifest": manifest,
