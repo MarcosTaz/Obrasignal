@@ -34,14 +34,17 @@ def ensure_decision_table(conn):
 
 def record_decision(conn, source, external_id, decision, reason, score=None, features=None,
                     rule_version=RULE_VERSION, decided_at=None, account_id='default', *,
-                    commit=True, ensure=True):
-    """Persist one decision.
+                    commit=True, ensure=True, ensure_schema=None):
+    """Persist one account-scoped decision.
 
-    ``commit`` and ``ensure`` default to the historical safe single-write
-    behaviour. Bounded batch classifiers can disable both after ensuring the
-    schema once, then commit the batch atomically. This removes hundreds of
-    redundant PRAGMAs/commits from first-value profile bootstrap.
+    Defaults preserve the historical safe single-write behaviour. Bounded batch
+    classifiers can disable the schema check and commit after ensuring the table
+    once. ``ensure_schema`` is accepted as an explicit alias for compatibility
+    with the hardened background writer while existing ``ensure`` callers keep
+    working unchanged.
     """
+    if ensure_schema is not None:
+        ensure = bool(ensure_schema)
     if ensure:
         ensure_decision_table(conn)
     ts = decided_at or datetime.now(timezone.utc).isoformat()
