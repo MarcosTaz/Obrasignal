@@ -1,0 +1,90 @@
+name: ObraSignal active45 parallel market research
+
+on:
+  push:
+    branches: [ops/prospect-universe-50k]
+    paths:
+      - 'ops/prospecting/run_active45_market.py'
+      - '.github/workflows/prospect-active45-matrix.yml'
+  workflow_dispatch:
+
+jobs:
+  market:
+    strategy:
+      fail-fast: false
+      matrix:
+        market: [BR, CA, US, CO, CL, DO, EC, GT, HN, PY, PE, ZA, UY]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Bound extraction by candidate saturation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('ops/prospecting/build_active45_non_europe_prospects.py')
+          s=p.read_text()
+          for a,b in [
+            ('seen>=150000','seen>=45000'),
+            ('quota*6 and seen>=30000','quota*3 and seen>=12000'),
+            ('page<=350','page<=120'),
+            ('len(agg)<quota*3','len(agg)<quota*2'),
+            ('offset<250000','offset<100000'),
+            ('len(agg)<quota*4','len(agg)<quota*3'),
+            ('seen>=300000','seen>=100000'),
+            ('len(agg)>=quota*5','len(agg)>=quota*3'),
+          ]: s=s.replace(a,b)
+          p.write_text(s)
+          PY
+      - name: Research market
+        env:
+          MARKET: ${{ matrix.market }}
+          OUT_DIR: market_output
+        run: python ops/prospecting/run_active45_market.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: active45-${{ matrix.market }}
+          path: market_output/*
+          retention-days: 30
+
+  combine:
+    needs: market
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: active45-*
+          path: combined
+          merge-multiple: true
+      - name: Combine market candidates
+        run: |
+          python - <<'PY'
+          import csv,json,glob
+          from pathlib import Path
+          files=glob.glob('combined/obrasignal_candidates_*.csv')
+          rows=[]
+          for p in files:
+            with open(p,encoding='utf-8') as f: rows.extend(csv.DictReader(f))
+          countries=sorted({r['country'] for r in rows})
+          expected=sorted(['BR','CA','US','CO','CL','DO','EC','GT','HN','PY','PE','ZA','UY'])
+          print('files',len(files),'rows',len(rows),'countries',countries)
+          if countries!=expected: raise SystemExit(f'coverage incomplete: {countries}')
+          fields=['rank','company_name','country','company_id','id_scheme','city','fit_score','award_count','buyer_count','total_awarded','last_award_year','category','website','source','source_url']
+          rows.sort(key=lambda r:(float(r.get('fit_score') or 0),int(float(r.get('award_count') or 0)),float(r.get('total_awarded') or 0)),reverse=True)
+          out=Path('active45_combined');out.mkdir(exist_ok=True)
+          with (out/'obrasignal_active45_non_europe_candidates.csv').open('w',encoding='utf-8',newline='') as f:
+            w=csv.DictWriter(f,fieldnames=fields);w.writeheader()
+            for i,r in enumerate(rows,1):r['rank']=i;w.writerow({k:r.get(k,'') for k in fields})
+          summary={'selected':len(rows),'countries':{c:sum(1 for r in rows if r['country']==c) for c in expected}}
+          (out/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
+          if len(rows)<5000: raise SystemExit(f'too few candidates: {len(rows)}')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-active45-non-europe-combined
+          path: active45_combined/*
+          retention-days: 30
