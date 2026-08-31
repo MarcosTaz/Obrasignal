@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CausLedger — Change Capture</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='console.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='change_capture.css') }}">
+  <script src="{{ url_for('static', filename='change_capture.js') }}" defer></script>
+</head>
+<body class="capture-body">
+  <header class="capture-header">
+    <div class="eyebrow">Contemporaneous factual record</div>
+    <h1>CausLedger</h1>
+    <p>Record what was requested while the factual capture window is open, then keep a hashed change sheet with the project record.</p>
+  </header>
+
+  <main class="capture-shell" data-finding-id="{{ capture.finding_id }}" data-closes-at="{{ capture.factual_window_closes_at }}">
+    <section class="panel capture-card">
+      <div class="capture-heading-row">
+        <div>
+          <span class="badge">Change capture</span>
+          <h2>Change {{ capture.event_ref }}</h2>
+        </div>
+        <div id="capture-state" class="capture-state {{ 'open' if capture.window_state == 'OPEN' else 'closed' }}">{{ capture.window_state }}</div>
+      </div>
+
+      <div class="capture-timing">
+        <div><span>First recorded by CausLedger</span><strong>{{ capture.recorded_at }}</strong></div>
+        <div><span>Factual input closes</span><strong>{{ capture.factual_window_closes_at }}</strong></div>
+        <div><span>Time remaining</span><strong id="capture-countdown">Calculating…</strong></div>
+      </div>
+
+      <section id="capture-reminder" class="capture-reminder open-only" {% if capture.window_state != 'OPEN' %}hidden{% endif %}>
+        <strong>Do this before the factual window closes</strong>
+        <p>Describe the requested change in one sentence, save it, then download the change sheet. The reminder ends automatically when factual input closes.</p>
+      </section>
+
+      <form id="change-summary-form" class="capture-form open-only" {% if capture.window_state != 'OPEN' %}hidden{% endif %}>
+        <div class="field">
+          <label for="requested_change">What was requested? One sentence.</label>
+          <textarea id="requested_change" required maxlength="2000" placeholder="Example: Move the mounting holes 8 mm to clear the revised housing.">{% if capture.requested_change_source == 'DECLARED_FACT' %}{{ capture.requested_change }}{% endif %}</textarea>
+        </div>
+        <div class="form-grid capture-secondary-fields">
+          <div class="field">
+            <label for="declared_requested_at">Request date/time — optional</label>
+            <input id="declared_requested_at" maxlength="128" placeholder="2026-08-31T14:35:00+01:00" value="{{ capture.declared_change_requested_at or '' }}">
+            <small>Include the timezone. This remains a declared fact unless supported by external evidence.</small>
+          </div>
+          <div class="field">
+            <label for="source_ref">Source reference — optional</label>
+            <input id="source_ref" maxlength="512" placeholder="Email ID, ECO number, meeting note reference">
+          </div>
+        </div>
+        <div class="actions"><button type="submit">Save factual record</button></div>
+      </form>
+
+      <div id="capture-result" class="result" aria-live="polite">{% if capture.requested_change_source == 'DECLARED_FACT' %}Requested change already recorded. You can add a corrected statement; the prior entry remains in the append-only history.{% else %}No one-sentence requested-change statement recorded yet.{% endif %}</div>
+
+      <div class="capture-download">
+        <a id="change-sheet-download" class="capture-button" href="{{ capture.download_prompt.download_path }}">Download change sheet</a>
+        <span>{{ capture.download_count }} prior download{{ '' if capture.download_count == 1 else 's' }}</span>
+      </div>
+
+      <section id="capture-closed" class="capture-closed closed-only" {% if capture.window_state == 'OPEN' %}hidden{% endif %}>
+        <strong>Factual input is closed.</strong>
+        <p>The existing sheet remains downloadable. New information must be recorded as a separate late supplement rather than rewriting the contemporaneous record.</p>
+      </section>
+
+      <p class="note capture-boundary">This capture window is an internal evidence-preservation control, not a contractual or statutory notice deadline. Saving or downloading the sheet does not prove customer responsibility, legal entitlement, or recoverability.</p>
+    </section>
+  </main>
+</body>
+</html>
