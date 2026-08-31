@@ -6,106 +6,83 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 5,
-  "last_factory_id": "changeledger",
-  "last_run_at": "2026-08-31T00:42:00Z",
+  "cursor": 8,
+  "last_factory_id": "product-market-access",
+  "last_run_at": "2026-08-31T01:38:46Z",
   "last_material_change": {
-    "kind": "OBRASIGNAL_PRIVACY_REPAIR_EXACT_HEAD_GREEN_ROTATED",
-    "summary": "CausLedger inbound watch found no new material prospect, CEFAMOL, AFIA or DGC reply; Portugal and Spain outbound holds remain active. ChangeLedger remains outbound-compliance blocked and no outbound was attempted. ObraSignal privacy #845 was repaired by restoring the canonical mobile/App.js composition in-place and integrating AccountPrivacyControls inside Profile. Exact head f8a8e85f7052bb28ddc7e54d78d16a0f02153a46 completed ObraSignal Quality run 33345235128 SUCCESS: both python and mobile jobs passed, including expo-doctor, critical wiring and Expo bundle smoke. PR remains DRAFT / NOT CANONICAL / NOT MERGED. Fleet rotated to Recovery Radar.",
+    "kind": "CAUSLEDGER_SECURE_INTAKE_STAGING_AND_PRIVACY_DUPLICATE_REMOVAL",
+    "summary": "Recovery Radar and Sourcing Recovery exact repository identity searches remained UNKNOWN and were rotated without conflation. Product Market Access exact branch/code/PR/context identity also remained UNKNOWN. CausLedger private Drive gained an unshared Secure Intake Staging folder for future bounded customer samples after an authorized transfer path is agreed. Gmail watch found no new material prospect, CEFAMOL, AFIA or DGC inbound; Portugal and Spain outbound holds remain active. ObraSignal privacy #845 exact-head GREEN repair was cleaned by deleting obsolete mobile/AppBase.js from the DRAFT branch, removing duplicate application composition risk. New head b3f162f35c513f15b77c6fcc8ceff6835d5ace08 is NOT_FULLY_VERIFIED until exact-head CI appears.",
     "evidence": {
-      "industrial_claims": {
-        "branch": "apps/industrial-claims",
-        "branch_head": "1d821b9cd271a561c3fbffc199beb0b1d4a012a6",
-        "runtime_pinned_source": "5b11e3ff00aa22688a4b3e2c8c77e3b509537e02",
-        "pilot_schema_version": 16,
-        "wedge": "supplier-side customer-caused engineering/change cost recovery (NRE / change-driven incremental cost)",
-        "initial_paid_product": "AUDIT_GRADE_RECOVERY_DOSSIER",
-        "insufficient_evidence_disposition": "NO_CLAIM_OR_NEEDS_REVIEW",
-        "production_authority": false,
-        "quality_run": 33334861936,
-        "classification": "PINNED_SOURCE_EXACT_HEAD_GREEN_ASSISTED_BUSINESS_FIRST_COMMERCIAL_SUCCESS_UNPROVEN"
+      "recovery_radar": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "exact_code_search_results": 0,
+        "recovery_branch_search": "only unrelated/general recovery refs plus ScopeLedger; no canonical Recovery Radar identity",
+        "next_exact_action": "Retry canonical identity reconstruction only when new repository/context evidence exists; otherwise rotate."
+      },
+      "sourcing_recovery": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "exact_code_search_results": 0,
+        "branch_search_results": 0,
+        "next_exact_action": "Retry canonical identity reconstruction only when new repository/context evidence exists; otherwise rotate."
+      },
+      "product_market_access": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "exact_code_search_results": 0,
+        "branch_search_results": 0,
+        "exact_pr_search_results": 0,
+        "connected_context_exact_identity": "NOT_FOUND",
+        "next_exact_action": "Preserve prior public-market thesis evidence as non-canonical research only; do not write source-specific code until canonical authority is recovered."
       },
       "causledger_private_ops": {
-        "drive_document_id": "1UuK5mTHFNHV9WotGRBK-O1grUgt2RerAh_PP-JM_rhs",
-        "revision_id": "AIroW36SU1oy8S6BjiyFL89d9ASLHo06r-etj-UdyobJvu2JG_BefZi495aNhTNnut1WLEFfolzPJjsTBzB-yf4k01WJlc93AQ6o6XB_RmU",
-        "secure_intake": "READY_FOR_INBOUND_DISCOVERY_AND_BOUNDED_SECURE_SAMPLE_AFTER_CHANNEL_AGREEMENT",
-        "rapid_scan_outcomes": ["DOCUMENTED_CANDIDATE", "NO_CLAIM", "NEEDS_REVIEW"],
-        "human_review_required_before_external_use": true,
+        "parent_folder_id": "1QAA9uP0SsCFHiCWUl_Fe_WzOLtYsTfVo",
+        "secure_intake_staging_folder_id": "1nvr_AZwLOcdj6e4eM1VbF0JuCgtJC90g",
+        "secure_intake_staging_shared": false,
         "ordinary_email_confidential_document_intake": false,
-        "public_github_customer_document_storage": false
+        "public_github_customer_document_storage": false,
+        "classification": "PRIVATE_SECURE_INTAKE_STAGING_READY_NOT_CUSTOMER_TRANSFER_ENABLED"
       },
       "causledger_inbound": {
         "new_material_replies": 0,
         "latest_watch_date": "2026-08-31",
-        "dgc_current_route": "dgc@dgconsumidor.gov.pt",
-        "latest_verified_dgc_send_message_id": "1a0549bca2cf54b6",
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
-      "scopeledger": {
-        "branch": "recovery/scopeledger-source-20260829",
-        "head": "79450c800397c7cce873d6efbd6f7401df142625",
-        "recovery_gate_run": 33262936383,
-        "classification": "RECOVERED_SOURCE_EXACT_HEAD_GREEN_PRODUCTION_LINEAGE_UNPROVEN_WAIT_EXTERNAL_LINEAGE"
-      },
-      "changeledger": {
-        "canonical_snapshot_commit": "e93efa9358d94e0f4e093e8a70358627c4a7cd83",
-        "test_state": "75/75 PASS + synthetic delivery dry-run PASS",
-        "classification": "OUTBOUND_COMPLIANCE_BLOCKED_EXTERNAL_WAIT",
-        "outbound_attempted_this_run": false
-      },
-      "recovery_radar": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "github_exact_code_search_results": 0,
-        "matching_recovery_refs": ["recovery/scopeledger-source-20260829"],
-        "next_exact_action": "Continue canonical identity reconstruction without conflating ScopeLedger or generic recovery artifacts; if identity remains unknown, rotate immediately."
-      },
       "obrasignal_privacy": {
         "pr": 845,
-        "head": "f8a8e85f7052bb28ddc7e54d78d16a0f02153a46",
-        "modified_files_this_repair": ["mobile/App.js"],
-        "repair": "RESTORE_CANONICAL_APP_IN_PLACE_AND_MOUNT_ACCOUNT_PRIVACY_CONTROLS_INSIDE_PROFILE",
-        "quality_run": 33345235128,
-        "quality_status": "COMPLETED_SUCCESS",
-        "python_job": "SUCCESS",
-        "mobile_job": "SUCCESS",
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NOT_MERGED",
-        "next_exact_action": "Keep PR draft/unmerged; on ObraSignal rotation, reconcile stale PR body/BATON wording with exact-head GREEN and continue the next real privacy/customer milestone without production mutation."
+        "previous_green_head": "f8a8e85f7052bb28ddc7e54d78d16a0f02153a46",
+        "previous_quality_run": 33345235128,
+        "new_head": "b3f162f35c513f15b77c6fcc8ceff6835d5ace08",
+        "modified_files_this_step": ["mobile/AppBase.js DELETE"],
+        "reason": "remove obsolete duplicate application composition after App.js was restored canonical in-place",
+        "exact_head_workflow_runs_seen": 0,
+        "classification": "DRAFT_NOT_CANONICAL_NOT_MERGED_NOT_FULLY_VERIFIED_AFTER_SAFE_CLEANUP",
+        "next_exact_action": "Check exact-head workflow result for b3f162f35c513f15b77c6fcc8ceff6835d5ace08; if SUCCESS, update PR/BATON to GREEN cleanup; if RED, repair without weakening privacy or canonical App.js invariants."
       },
       "eu_cloud_switching": {
         "head": "020efc82e0b2a6509548fa7ef38f1593ca457afa",
         "sample": {"distinct_events": 15, "challengeable": 6, "excluded": 9},
         "classification": "PUBLIC_TRIGGER_CHANNEL_ALIVE_NOT_PROVEN_SUFFICIENT_NO_WTP_PROOF"
-      },
-      "capacity_commitment": {
-        "head": "0b156218ce427284d40583d4b7eb317622d95376",
-        "quality_run": 33328905676,
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_T3_COMMERCIAL_PROOF_EXTERNAL"
-      },
-      "warrantyguard": {
-        "head": "f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870",
-        "focused_run": 33323378379,
-        "quality_run": 33323378385,
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL"
       }
     },
-    "active": "Recovery Radar: reconstruct canonical source identity using exact repository evidence; do not conflate generic recovery artifacts; rotate if still UNKNOWN.",
-    "next": "Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger.",
+    "active": "EU Cloud Switching: continue conservative T1/T2 public-trigger falsification or exact-head verification; do not infer WTP or migration outcome.",
+    "next": "EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
-      "CausLedger pilot source is technically GREEN but real customer revenue, real incremental recovery, WTP and external outcome remain UNPROVEN.",
-      "Real confidential customer documents require an agreed authorized secure transfer path before intake.",
-      "Privacy #845 is exact-head GREEN at f8a8e85f7052bb28ddc7e54d78d16a0f02153a46 but remains DRAFT / NOT CANONICAL / NOT MERGED.",
+      "CausLedger secure intake staging exists privately but customer transfer remains disabled until a bounded authorized secure channel is agreed.",
+      "Privacy #845 new cleanup head b3f162f35c513f15b77c6fcc8ceff6835d5ace08 is NOT_FULLY_VERIFIED until exact-head CI appears.",
       "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
-      "ComplianceLedger and registry entries previously marked UNKNOWN retain UNKNOWN exact source identity until canonical authority is recovered."
+      "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered."
     ]
   },
   "blocked": [
     {"factory_id":"industrial-claims","blocker":"Portugal outbound held pending current DGC corporate opt-out list/procedure and recipient checks; Spain unsolicited commercial outbound held absent consent/exception. Inbound/referral/association, secure-intake preparation and assisted delivery remain executable.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Outbound gated by DGC/current-list clarification, applicable recipient checks and any separately required authorization.","global_stop":false},
+    {"factory_id":"recovery-radar","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
+    {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
+    {"factory_id":"product-market-access","blocker":"Exact canonical source identity UNKNOWN; public market research remains non-canonical.","global_stop":false},
     {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
