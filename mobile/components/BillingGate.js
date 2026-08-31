@@ -9,6 +9,7 @@ import {
   billingConfigurationAvailable,
   configureBilling,
   getCurrentOffering,
+  proPackage,
   purchasePro,
   restoreBilling,
 } from '../src/billing';
@@ -21,6 +22,7 @@ export default function BillingGate({ children }) {
   const [billing, setBilling] = useState({ authority: 'loading', configured: false, pro: false, plan: null, expiresAt: null, managementUrl: null, evaluation: null, metrics: null });
   const [modal, setModal] = useState(false);
   const [offering, setOffering] = useState(null);
+  const [offeringLoading, setOfferingLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,7 +37,7 @@ export default function BillingGate({ children }) {
     }
     try {
       // The server projection is the only access authority. RevenueCat/store
-      // state below is purchase UX metadata and never an access fallback.
+      // state is purchase UX metadata and never an access fallback.
       const server = await api.billingStatus();
       if (!server?.plan || !SERVER_PLANS.has(server.plan)) throw new Error('invalid_server_billing_state');
 
@@ -65,9 +67,19 @@ export default function BillingGate({ children }) {
 
   const openPaywall = async () => {
     setError('');
+    setOffering(null);
     setModal(true);
     if (!billing.configured || !billingConfigurationAvailable()) return;
-    try { setOffering(await getCurrentOffering()); } catch (e) { setError(e?.message || 'Não foi possível carregar o plano.'); }
+    setOfferingLoading(true);
+    try {
+      const nextOffering = await getCurrentOffering();
+      setOffering(nextOffering);
+      if (!proPackage(nextOffering)) setError('O plano ObraSignal Pro ainda não está publicado no checkout.');
+    } catch (e) {
+      setError(e?.message || 'Não foi possível carregar o plano.');
+    } finally {
+      setOfferingLoading(false);
+    }
   };
 
   const buy = async () => {
@@ -95,11 +107,11 @@ export default function BillingGate({ children }) {
     } finally { setBusy(false); }
   };
 
-  const packagePrice = offering?.availablePackages?.find(p => p?.product?.identifier === 'obrasignal_pro_monthly')?.product?.priceString
-    || offering?.availablePackages?.[0]?.product?.priceString
-    || 'Preço apresentado no checkout';
+  const selectedPackage = proPackage(offering);
+  const packagePrice = selectedPackage?.product?.priceString || 'Preço apresentado no checkout';
   const web = Platform.OS === 'web';
-  const checkoutReady = billing.configured && billingConfigurationAvailable();
+  const checkoutConfigured = billing.configured && billingConfigurationAvailable();
+  const checkoutReady = checkoutConfigured && Boolean(selectedPackage);
   const billingChannel = web ? 'checkout Web seguro' : Platform.OS === 'android' ? 'Google Play' : 'App Store';
 
   if (billing.authority !== 'ready') {
@@ -135,13 +147,15 @@ export default function BillingGate({ children }) {
         <Text style={styles.body}>A subscrição mantém o radar personalizado, scoring por empresa, alertas e workflow comercial.</Text>
         <View style={styles.priceBox}><Text style={styles.price}>{packagePrice}</Text><Text style={styles.priceNote}>Subscrição recorrente · cobrança através de {billingChannel}</Text></View>
         <Text style={styles.terms}>{web ? 'Na Web, quando o checkout está disponível, a compra usa RevenueCat Web Billing e o mesmo utilizador da tua conta para manter o acesso sincronizado.' : 'A subscrição renova automaticamente até ser cancelada. O preço, período e condições apresentados pela loja aplicam-se à compra.'}</Text>
-        {checkoutReady
-          ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.primaryText}>Subscrever</Text>}</Pressable>
-          : <View style={styles.setupBox}><Text style={styles.setupTitle}>Ativação assistida disponível</Text><Text style={styles.setup}>O checkout automático ainda não está disponível neste canal. Durante a avaliação podes continuar a usar o produto; para ativação comercial, contacta a equipa ObraSignal.</Text><Pressable onPress={()=>Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Ativar%20ObraSignal%20Pro`)} style={styles.contact}><Text style={styles.contactText}>Pedir ativação →</Text></Pressable></View>}
-        {checkoutReady ? <Pressable disabled={busy} onPress={refresh} style={styles.secondary}><Text style={styles.secondaryText}>Atualizar estado</Text></Pressable> : null}
+        {offeringLoading
+          ? <View style={styles.loadingCheckout}><ActivityIndicator color={COLORS.text}/><Text style={styles.loadingCheckoutText}>A carregar o checkout…</Text></View>
+          : checkoutReady
+            ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.primaryText}>Subscrever</Text>}</Pressable>
+            : <View style={styles.setupBox}><Text style={styles.setupTitle}>{!checkoutConfigured ? 'Ativação assistida disponível' : 'Plano Pro ainda não publicado no checkout'}</Text><Text style={styles.setup}>{!checkoutConfigured ? 'O checkout automático ainda não está disponível neste canal. Durante a avaliação podes continuar a usar o produto; para ativação comercial, contacta a equipa ObraSignal.' : 'A configuração de pagamentos está ligada, mas o produto obrasignal_pro_monthly ainda não está disponível no offering atual. Nenhuma compra é permitida até o produto correto estar publicado.'}</Text><Pressable onPress={()=>Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Ativar%20ObraSignal%20Pro`)} style={styles.contact}><Text style={styles.contactText}>Pedir ativação →</Text></Pressable></View>}
+        {checkoutConfigured ? <Pressable disabled={busy} onPress={refresh} style={styles.secondary}><Text style={styles.secondaryText}>Atualizar estado</Text></Pressable> : null}
         {BILLING_RESTORE_SUPPORTED ? <Pressable disabled={busy} onPress={restore} style={styles.secondary}><Text style={styles.secondaryText}>Restaurar compra</Text></Pressable> : null}
         {billing.pro && billing.managementUrl ? <Pressable onPress={()=>Linking.openURL(billing.managementUrl)} style={styles.secondary}><Text style={styles.secondaryText}>Gerir subscrição</Text></Pressable> : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <Pressable disabled={busy} onPress={() => setModal(false)} style={styles.close}><Text style={styles.closeText}>Fechar</Text></Pressable>
       </View></View>
     </Modal>
@@ -160,6 +174,7 @@ const styles = StyleSheet.create({
   eyebrow:{fontSize:10,fontWeight:'900',letterSpacing:1.3,color:COLORS.blue},title:{fontSize:26,fontWeight:'900',lineHeight:32,color:COLORS.text,marginTop:7},body:{fontSize:13,lineHeight:20,color:COLORS.muted,marginTop:9,maxWidth:560},
   priceBox:{marginTop:18,padding:16,borderRadius:14,backgroundColor:COLORS.panel2,borderWidth:1,borderColor:'#2A476C'},price:{fontSize:25,fontWeight:'900',color:COLORS.text},priceNote:{fontSize:10,lineHeight:16,color:COLORS.muted,marginTop:4},terms:{fontSize:10,lineHeight:16,color:COLORS.muted,marginTop:12},
   primary:{marginTop:16,minHeight:48,borderRadius:11,backgroundColor:COLORS.text,alignItems:'center',justifyContent:'center',paddingHorizontal:16},primaryText:{fontSize:13,fontWeight:'900',color:COLORS.bg},secondary:{marginTop:8,minHeight:42,alignItems:'center',justifyContent:'center'},secondaryText:{fontSize:12,fontWeight:'800',color:'#91ACFF'},
+  loadingCheckout:{marginTop:16,minHeight:48,borderRadius:11,borderWidth:1,borderColor:COLORS.line,alignItems:'center',justifyContent:'center',flexDirection:'row',gap:9},loadingCheckoutText:{fontSize:12,fontWeight:'800',color:COLORS.text},
   setupBox:{marginTop:16,padding:14,borderRadius:12,backgroundColor:'#171D28',borderWidth:1,borderColor:'#51442A'},setupTitle:{fontSize:11,fontWeight:'900',color:COLORS.amber},setup:{fontSize:11,lineHeight:17,color:'#C8B989',marginTop:5},contact:{alignSelf:'flex-start',marginTop:10},contactText:{fontSize:11,fontWeight:'900',color:'#9DB4FF'},
   error:{fontSize:11,lineHeight:17,color:COLORS.red,marginTop:10},close:{marginTop:4,minHeight:38,alignItems:'center',justifyContent:'center'},closeText:{fontSize:12,fontWeight:'800',color:COLORS.muted},
 });
