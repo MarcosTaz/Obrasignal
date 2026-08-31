@@ -75,17 +75,29 @@ jobs:
           }
           echo "Canonical customer domain serves exact commercially configured release $EXPECTED_SHA."
 
-  api-health:
+  backend-billing:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Require production API health
+      - name: Require production API and billing reconciliation
         shell: bash
         run: |
           set -euo pipefail
-          body="$(curl --fail --silent --show-error --location --max-time 25 https://obrasignal.onrender.com/api/v1/health)"
-          printf '%s' "$body" | grep -q '"ok"' || {
+          health="$(curl --fail --silent --show-error --location --max-time 25 https://obrasignal.onrender.com/api/v1/health)"
+          printf '%s' "$health" | grep -q '"ok"' || {
             echo '::error::Production API health contract failed.'
             exit 1
           }
-          echo 'Production API is reachable.'
+
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            readiness="$(curl --fail --silent --show-error --location --max-time 25 https://obrasignal.onrender.com/api/v1/billing/readiness 2>/tmp/billing-readiness-error || true)"
+            if printf '%s' "$readiness" | grep -q '"commercial_ready":true'; then
+              echo 'Production backend can reconcile automatic subscriptions.'
+              exit 0
+            fi
+            echo "Waiting for production billing reconciliation readiness (attempt $attempt/12)…"
+            if [ -s /tmp/billing-readiness-error ]; then cat /tmp/billing-readiness-error; : > /tmp/billing-readiness-error; fi
+            sleep 15
+          done
+          echo '::error::COMMERCIAL_BLOCKED Production backend has not confirmed subscriber-sync + signed-webhook readiness.'
+          exit 1
