@@ -35,8 +35,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate isolation probe syntax
-        run: python -m py_compile scripts/live_tenant_isolation_e2e.py
+      - name: Validate isolation probes
+        run: python -m py_compile scripts/live_tenant_isolation_e2e.py scripts/live_tenant_isolation_runner.py scripts/provision_ephemeral_tenant.py
+
+      - name: Provision a real second provider identity when B secrets are absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${E2E_EMAIL_B:-}" ] && [ -n "${E2E_PASSWORD_B:-}" ]; then
+            echo "Using dedicated permanent tenant B credentials."
+          else
+            python scripts/provision_ephemeral_tenant.py
+          fi
 
       - name: Prove two-tenant production isolation
-        run: python scripts/live_tenant_isolation_e2e.py
+        run: python scripts/live_tenant_isolation_runner.py
