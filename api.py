@@ -280,12 +280,32 @@ def stats():
         WHERE d.account_id=? AND {actionable_predicate('lc', 't')}"""
     params = [identity.account_id, identity.account_id]
     total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
+    relevant60 = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 60", params).fetchone()[0]
     high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 75", params).fetchone()[0]
-    open_count = c.execute(f"SELECT COUNT(*) {base} AND t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')", params).fetchone()[0]
-    new24 = c.execute(f"SELECT COUNT(*) {base} AND julianday(t.first_seen)>=julianday('now','-1 day')", params).fetchone()[0]
+    very_high = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 90", params).fetchone()[0]
+    confirmed_open = """t.deadline IS NOT NULL AND TRIM(t.deadline)<>'' AND (
+        (LENGTH(TRIM(t.deadline))=10 AND date(t.deadline)>=date('now')) OR
+        (LENGTH(TRIM(t.deadline))<>10 AND datetime(t.deadline)>=datetime('now'))
+    )"""
+    open_count = c.execute(f"SELECT COUNT(*) {base} AND ({confirmed_open})", params).fetchone()[0]
+    source_time = "COALESCE(NULLIF(t.publication_date,''), NULLIF(t.published_at,''), t.first_seen)"
+    new24 = c.execute(
+        f"SELECT COUNT(*) {base} AND julianday({source_time})>=julianday('now','-1 day') "
+        f"AND julianday({source_time})<=julianday('now','+5 minutes')",
+        params,
+    ).fetchone()[0]
     last = c.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
     c.close()
-    return jsonify({"total": total, "high": high, "open": open_count, "new24": new24, "last_sync": last[0] if last else None, "account_id": identity.account_id})
+    return jsonify({
+        "total": total,
+        "relevant60": relevant60,
+        "high": high,
+        "very_high": very_high,
+        "open": open_count,
+        "new24": new24,
+        "last_sync": last[0] if last else None,
+        "account_id": identity.account_id,
+    })
 
 
 @bp.route("/workflow/stats", methods=["GET"])
