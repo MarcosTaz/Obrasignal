@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from flask import Blueprint, jsonify, make_response, request
+from flask import Blueprint, jsonify, make_response, render_template, request
 from werkzeug.exceptions import BadRequest
 
 from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, ChangeCaptureStore
@@ -26,6 +26,15 @@ def create_change_capture_blueprint(
         if not isinstance(payload, dict):
             raise ValueError("JSON body must be an object")
         return payload
+
+    @blueprint.get("/findings/<path:finding_id>/change-capture/view")
+    def change_capture_view(finding_id: str):
+        try:
+            tenant_id, _actor_id = capture_identity()
+            capture = store.status(tenant_id=tenant_id, finding_id=finding_id)
+            return render_template("change_capture.html", capture=capture)
+        except ChangeCaptureError as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/change-capture")
     def change_capture_status(finding_id: str):
