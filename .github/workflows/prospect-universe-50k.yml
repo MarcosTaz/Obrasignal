@@ -1,0 +1,48 @@
+name: ObraSignal 50k Prospect Universe
+
+on:
+  push:
+    branches:
+      - ops/prospect-universe-50k
+    paths:
+      - 'ops/prospecting/**'
+      - '.github/workflows/prospect-universe-50k.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-prospect-universe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build 50k evidence-first prospect universe
+        run: python ops/prospecting/build_50k_prospect_universe.py
+
+      - name: Validate exact output shape
+        run: |
+          python - <<'PY'
+          import csv, json
+          from pathlib import Path
+          p = Path('prospect_output/obrasignal_prospects_50000.csv')
+          with p.open(encoding='utf-8-sig', newline='') as f:
+              rows = list(csv.DictReader(f))
+          assert len(rows) >= 45000, len(rows)
+          assert len({(r['country'], r['company_name'], r['national_id']) for r in rows}) >= 44000
+          print('validated rows:', len(rows))
+          print(Path('prospect_output/obrasignal_prospects_50000_summary.json').read_text())
+          PY
+
+      - name: Upload prospect universe
+        uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-prospect-universe-50k
+          path: |
+            prospect_output/obrasignal_prospects_50000.csv
+            prospect_output/obrasignal_prospects_50000_summary.json
+          retention-days: 7
+          if-no-files-found: error
