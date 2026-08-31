@@ -6,12 +6,12 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 2,
-  "last_factory_id": "obrasignal",
-  "last_run_at": "2026-08-31T11:43:42Z",
+  "cursor": 3,
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-08-31T12:47:35Z",
   "last_material_change": {
-    "kind": "FACTORY_CLOUD_MUTABLE_HEAD_TRUTH_REPAIRED_OBRASIGNAL_FINAL_COMPOSITION_BLOCKER_EXACTLY_CLASSIFIED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Factory Cloud PR #652 was repaired so mutable live-head semantics are authoritative: current PR head plus matching exact-head CI must be checked live, and ancestor GREEN is historical only after BATON commits move the branch. ObraSignal current final-composition candidate PR #882 was recovered OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at head df830b4b93749145f87eab92f1bc1eb937928b9b. GitHub reports mergeable=false and zero exact-head PR workflow runs were found, so it is INTEGRATION_BLOCKED/NOT_FULLY_VERIFIED. Its PR body was updated to prevent inherited/sibling GREEN from being mistaken for current integration readiness. Fleet rotates to Industrial Claims/CausLedger rather than stopping on the ObraSignal integration blocker.",
+    "kind": "CAUSLEDGER_EXACT_HEAD_CI_REGRESSION_CLASSIFIED_AND_ROTATED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Industrial Claims/CausLedger canonical candidate PR #785 was recovered OPEN/DRAFT/NOT_MERGED on branch apps/industrial-claims at exact head 1d821b9cd271a561c3fbffc199beb0b1d4a012a6. Exact-head ObraSignal Quality run 33334982882 is RED: mobile is GREEN, while Python failed at repository/Factory Cloud tests. The head commit only repins factory_cloud/runtime/recovery-runtime-provisioning.json from industrial-claims provisioning head 3bfcf77... to 5b11e3f..., so no claim is made yet about the failing assertion or correct repair. Commercial truth remains unchanged and private; no customer evidence, recovery, WTP, payment or revenue is inferred. Fleet rotates to ScopeLedger while the regression is recorded for exact repair when failure detail is recoverable.",
     "evidence": {
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -19,38 +19,35 @@
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
-      "factory_cloud": {
-        "pr": 652,
-        "last_verified_historical_head": "a9a038114e1cfcf940de669d982a6d2b45371db9",
-        "last_verified_historical_quality_run": 33383431496,
-        "durable_truth_rule": "Use live PR head plus CI matching that exact head; after branch movement previous GREEN is historical only.",
-        "pr_state": "OPEN_NOT_MERGED_NOT_CANONICAL"
-      },
-      "obrasignal": {
-        "pr": 882,
-        "head": "df830b4b93749145f87eab92f1bc1eb937928b9b",
-        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "mergeable": false,
-        "exact_head_pr_workflow_runs": 0,
-        "classification": "INTEGRATION_BLOCKED_NOT_FULLY_VERIFIED",
-        "known_reconciliation_surface": ["server-authoritative billing","privacy shell","global decision-first pagination","web pagination/watchlist"],
-        "next_exact_action": "Reconstruct current-main conflict/overlap truth before any integration repair; then require fresh exact-head gates. Do not auto-merge."
+      "industrial_claims": {
+        "pr": 785,
+        "branch": "apps/industrial-claims",
+        "head": "1d821b9cd271a561c3fbffc199beb0b1d4a012a6",
+        "pr_state": "OPEN_DRAFT_NOT_MERGED",
+        "quality_run": 33334982882,
+        "quality_conclusion": "FAILURE",
+        "python": "FAILURE_AT_REPOSITORY_AND_FACTORY_CLOUD_TESTS",
+        "mobile": "SUCCESS",
+        "head_change": "factory_cloud/runtime/recovery-runtime-provisioning.json industrial-claims head repin 3bfcf77f80c351996a5c11c4438368ab807e6429 -> 5b11e3ff00aa22688a4b3e2c8c77e3b509537e02",
+        "classification": "EXACT_HEAD_RED_NOT_FULLY_VERIFIED",
+        "next_exact_action": "Recover the failing pytest assertion/log or reproduce the repository test failure against exact head before changing provisioning truth; repair only the proven cause, then require fresh exact-head CI."
       }
     },
-    "active": "Industrial Supplier Claims & Margin Recovery / CausLedger — continue business-first critical path through compliant inbound/referral/association channels and secure-intake/dossier readiness while outbound legal holds remain active.",
-    "next": "Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal.",
+    "active": "ScopeLedger — reconstruct current exact source/PR/head truth and execute the highest-value repository-safe verification or repair; do not infer production lineage from GitHub alone.",
+    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
+      "Industrial Claims/CausLedger PR #785 exact head is RED in Python repository/Factory Cloud tests; the precise failing assertion is not yet recovered, so no speculative code/provisioning repair is authorized.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
       "Factory Cloud mutable branch truth must always be derived from live PR head plus matching exact-head CI; historical GREEN never rolls forward automatically.",
-      "ObraSignal final composition PR #882 is mergeable=false with no exact-head PR workflow runs; current-main reconciliation and fresh CI are required before any GREEN/integration-readiness claim."
+      "ObraSignal final composition PR #882 remains integration-blocked pending current-main reconciliation and fresh exact-head gates."
     ]
   },
   "blocked": [
-    {"factory_id":"industrial-claims","blocker":"Portugal outbound held pending current DGC corporate opt-out list/procedure and recipient checks; Spain unsolicited commercial outbound held absent consent/exception. Inbound/referral/association, secure-intake preparation and assisted delivery remain executable.","global_stop":false},
-    {"factory_id":"obrasignal","blocker":"Final composition PR #882 at df830b4b93749145f87eab92f1bc1eb937928b9b is mergeable=false with zero exact-head PR workflow runs; current-main overlap/conflict truth must be reconciled and fresh gates must pass before integration readiness.","global_stop":false},
+    {"factory_id":"industrial-claims","blocker":"Portugal outbound held pending current DGC corporate opt-out list/procedure and recipient checks; Spain unsolicited commercial outbound held absent consent/exception. Inbound/referral/association, secure-intake preparation and assisted delivery remain executable. PR #785 exact head 1d821b9cd271a561c3fbffc199beb0b1d4a012a6 is additionally RED in Python repository/Factory Cloud tests; exact failing assertion/log must be recovered before repair.","global_stop":false},
+    {"factory_id":"obrasignal","blocker":"Final composition PR #882 is integration-blocked; current-main overlap/conflict truth must be reconciled and fresh gates must pass before integration readiness.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Live Railway/production lineage cannot be proved from GitHub evidence alone.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Outbound gated by DGC/current-list clarification, applicable recipient checks and any separately required authorization.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
