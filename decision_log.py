@@ -32,8 +32,18 @@ def ensure_decision_table(conn):
     conn.commit()
 
 
-def record_decision(conn, source, external_id, decision, reason, score=None, features=None, rule_version=RULE_VERSION, decided_at=None, account_id='default'):
-    ensure_decision_table(conn)
+def record_decision(conn, source, external_id, decision, reason, score=None, features=None,
+                    rule_version=RULE_VERSION, decided_at=None, account_id='default', *,
+                    commit=True, ensure=True):
+    """Persist one decision.
+
+    ``commit`` and ``ensure`` default to the historical safe single-write
+    behaviour. Bounded batch classifiers can disable both after ensuring the
+    schema once, then commit the batch atomically. This removes hundreds of
+    redundant PRAGMAs/commits from first-value profile bootstrap.
+    """
+    if ensure:
+        ensure_decision_table(conn)
     ts = decided_at or datetime.now(timezone.utc).isoformat()
     conn.execute(
         '''INSERT INTO opportunity_decisions
@@ -42,7 +52,8 @@ def record_decision(conn, source, external_id, decision, reason, score=None, fea
         (str(account_id or 'default'), source, external_id, decision, reason, score,
          json.dumps(features or {}, ensure_ascii=False, sort_keys=True), rule_version, ts),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def latest_decision(conn, source, external_id, account_id='default'):
@@ -77,4 +88,3 @@ def funnel_counts(conn, account_id='default'):
         (str(account_id or 'default'), str(account_id or 'default')),
     ).fetchall()
     return {row['decision']: row['count'] for row in rows}
-    ensure_decision_table(conn)
