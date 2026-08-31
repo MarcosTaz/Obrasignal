@@ -13,15 +13,17 @@ def test_bootstrap_reuses_profile_and_batches_decision_writes(monkeypatch):
             external_id TEXT,
             deadline TEXT,
             publication_date TEXT,
-            first_seen TEXT
+            first_seen TEXT,
+            score INTEGER,
+            country TEXT
         )"""
     )
     conn.executemany(
-        "INSERT INTO tenders VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO tenders VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
-            (1, "TEST", "a", "2099-01-01", "2098-12-03", "2098-12-03"),
-            (2, "TEST", "b", "2099-01-02", "2098-12-02", "2098-12-02"),
-            (3, "TEST", "c", "2099-01-03", "2098-12-01", "2098-12-01"),
+            (1, "TEST", "a", "2099-01-01", "2098-12-03", "2098-12-03", 90, "PRT"),
+            (2, "TEST", "b", "2099-01-02", "2098-12-02", "2098-12-02", 80, "PRT"),
+            (3, "TEST", "c", "2099-01-03", "2098-12-01", "2098-12-01", 70, "PRT"),
         ],
     )
     conn.commit()
