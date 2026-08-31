@@ -103,9 +103,7 @@ export default function AuthGate({ children }) {
 
   const accountId = authState.session?.user?.id
   return <AccountPrivacyControls key={`privacy:${accountId}`}>
-    <BillingGate key={`billing:${accountId}`}>
-      {Platform.OS === 'web' ? <View style={styles.webShell}><WebSessionBar/><View style={styles.webContent}>{children}</View></View> : children}
-    </BillingGate>
+    <BillingGate key={accountId}>{children && Platform.OS === 'web' ? <View style={styles.webShell}><WebSessionBar/><View style={styles.webContent}>{children}</View></View> : children}</BillingGate>
   </AccountPrivacyControls>
 }
 
