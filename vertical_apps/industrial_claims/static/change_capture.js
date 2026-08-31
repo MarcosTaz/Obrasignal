@@ -2,9 +2,11 @@
 
 const shell = document.querySelector(".capture-shell");
 const form = document.getElementById("change-summary-form");
+const lateForm = document.getElementById("late-supplement-form");
 const countdown = document.getElementById("capture-countdown");
 const stateNode = document.getElementById("capture-state");
 const resultNode = document.getElementById("capture-result");
+const lateResultNode = document.getElementById("late-supplement-result");
 const trustNode = document.getElementById("capture-time-trust");
 const digestNode = document.getElementById("capture-sheet-digest");
 const downloadNode = document.getElementById("change-sheet-download");
@@ -118,11 +120,45 @@ if (form) {
   });
 }
 
+if (lateForm) {
+  lateForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = lateForm.querySelector("button[type='submit']");
+    submit.disabled = true;
+    lateResultNode.className = "result";
+    lateResultNode.textContent = "Recording separate late supplement…";
+    const payload = {
+      confirm_late_supplement: true,
+      fact_text: document.getElementById("late_fact_text").value.trim(),
+      reason_for_late_entry: document.getElementById("late_reason").value.trim(),
+      declared_event_at: document.getElementById("late_declared_event_at").value.trim() || null,
+      source_ref: document.getElementById("late_source_ref").value.trim() || null,
+    };
+    try {
+      const response = await fetch(`/findings/${encodeURIComponent(findingId)}/late-supplements`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.message || body.error || "Late supplement could not be recorded.");
+      const item = body.supplement || {};
+      lateResultNode.textContent = `Recorded separately at ${item.recorded_at || "server time"}. Classification: LATE_SUPPLEMENT. The original change sheet was not rewritten.`;
+      lateForm.reset();
+    } catch (error) {
+      lateResultNode.className = "result error";
+      lateResultNode.textContent = error.message;
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
 if (downloadNode) {
   downloadNode.addEventListener("click", () => {
     if (trustNode) {
       trustNode.className = "trust-pending";
-      trustNode.textContent = "Requesting external timestamp status for the downloaded snapshot…";
+      trustNode.textContent = "Requesting external timestamp status for the exported snapshot…";
     }
     window.setTimeout(refreshTrust, 1200);
     window.setTimeout(refreshTrust, 3000);
