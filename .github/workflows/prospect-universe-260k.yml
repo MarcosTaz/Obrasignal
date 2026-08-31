@@ -1,0 +1,37 @@
+name: ObraSignal 260k European Prospect Expansion
+
+on:
+  push:
+    branches: [ops/prospect-universe-50k]
+    paths:
+      - '.github/workflows/prospect-universe-260k.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build expanded European universe
+        env:
+          TARGET: '260000'
+          OUT_DIR: prospect_output_260k
+        run: python ops/prospecting/build_200k_prospect_universe.py
+      - name: Validate expanded universe
+        run: |
+          python - <<'PY'
+          import csv, glob
+          p=glob.glob('prospect_output_260k/obrasignal_prospects_*.csv')[0]
+          n=sum(1 for _ in open(p,encoding='utf-8'))-1
+          print('rows',n,'file',p)
+          if n < 250000: raise SystemExit(f'too few prospects: {n}')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-europe-prospect-universe-260k
+          path: prospect_output_260k/*
+          retention-days: 30
