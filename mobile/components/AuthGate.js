@@ -1,15 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native'
 import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
 import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
 import { storage } from '../src/storage'
-import { supabase } from '../lib/supabase'
 
 function WebSessionBar() {
   const [now, setNow] = useState(() => new Date())
-  const [signingOut, setSigningOut] = useState(false)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000)
@@ -30,30 +28,11 @@ function WebSessionBar() {
     hour12: false,
   }).format(now)
 
-  const signOut = async () => {
-    if (signingOut) return
-    setSigningOut(true)
-    try {
-      await supabase.auth.signOut()
-    } finally {
-      setSigningOut(false)
-    }
-  }
-
-  return <View style={styles.sessionBar} accessibilityLabel="Sessão, data e hora">
+  return <View style={styles.sessionBar} accessibilityLabel="Data e hora">
     <View style={styles.dateTime}>
       <Text style={styles.date}>{date}</Text>
       <View style={styles.timePill}><Text style={styles.time}>{time}</Text></View>
     </View>
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Terminar sessão"
-      disabled={signingOut}
-      onPress={signOut}
-      style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed, signingOut && styles.signOutDisabled]}
-    >
-      <Text style={styles.signOutText}>{signingOut ? 'A sair…' : 'Terminar sessão'}</Text>
-    </Pressable>
   </View>
 }
 
@@ -139,15 +118,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     gap: 8,
   },
   dateTime: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   date: { color: '#8497AD', fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
   timePill: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
   time: { color: '#C7D2E1', fontSize: 10, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  signOut: { minHeight: 28, justifyContent: 'center', borderWidth: 1, borderColor: '#3A2A34', borderRadius: 8, paddingHorizontal: 10, backgroundColor: '#151018' },
-  signOutPressed: { backgroundColor: '#21151D', borderColor: '#69404B' },
-  signOutDisabled: { opacity: 0.55 },
-  signOutText: { color: '#E9A8B2', fontSize: 9, fontWeight: '800' },
 })

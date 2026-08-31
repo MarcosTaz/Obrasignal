@@ -8,6 +8,7 @@ const billingGate = fs.readFileSync(new URL('./components/BillingGate.js', impor
 const billing = fs.readFileSync(new URL('./src/billing.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
+const markets = fs.readFileSync(new URL('./src/markets.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 
 const checks = [
@@ -60,10 +61,16 @@ if (!/function WebMain/.test(webApp) || !/<ScrollView style=\{s\.pageScroll\}/.t
 if (/FlatList/.test(webApp)) uiFailures.push('web workspace must not trap the Radar in a nested FlatList scroll viewport');
 if (!/visible\.map\(item=>/.test(webApp)) uiFailures.push('web Radar cards must participate in the page scroll flow');
 if (!/Obra<Text style=\{s\.brandSignal\}>Signal/.test(webApp) || !/fontFamily:FONT/.test(webApp)) uiFailures.push('web brand typography must use the refined wordmark system');
+const europeanMarketCount = (markets.match(/^\s*\['[A-Z]{3}',/gm) || []).length;
+if (europeanMarketCount !== 32) uiFailures.push(`European market registry must expose 32 markets, found ${europeanMarketCount}`);
+if (!/EUROPE_MARKETS\.map/.test(webApp) || !/EUROPE_MARKETS\.map/.test(onboarding)) uiFailures.push('web profile and onboarding must use canonical European market registry');
+if (!/32 mercados europeus activos/.test(webApp) || !/32 mercados europeus activos/.test(onboarding)) uiFailures.push('web market coverage must state the active 32-market scope');
+if (/Terminar sessão/.test(authGate)) uiFailures.push('persistent session header must not advertise logout');
+if (!/Terminar sessão/.test(webApp)) uiFailures.push('logout must remain available at the bottom of Profile');
 if (uiFailures.length) {
   for (const name of uiFailures) console.error(`FAIL: ${name}`);
   process.exit(1);
 }
 
 for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
-for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing','single web page scroll','refined web wordmark']) console.log(`PASS: ${name}`);
+for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing','single web page scroll','refined web wordmark','32-market Europe scope','logout placement']) console.log(`PASS: ${name}`);
