@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api } from '../src/api';
+import { trackTraffic } from '../src/analytics';
 import { EUROPE_MARKETS } from '../src/markets';
 import { storage } from '../src/storage';
 
@@ -36,6 +37,7 @@ export default function ProfileOnboarding({initialProfile,onComplete}){
       const persisted=await api.profile();
       if(!sameCoreProfile(saved,persisted))throw new Error('O perfil não ficou persistido. Tenta guardar novamente.');
       await storage.setProfile(persisted);
+      trackTraffic('profile_completed').catch(()=>{});
       onComplete(persisted);
     }catch(err){setError(err?.responseBody?.message||err?.responseBody?.error||err?.message||'Não foi possível guardar o perfil.')}finally{setSaving(false)}
   };
