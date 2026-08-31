@@ -14,6 +14,7 @@ from flask import Blueprint, jsonify, request
 from jwt import InvalidTokenError
 
 from auth_context import configured_identity
+from account_registry import ensure_account
 
 bp = Blueprint("account_privacy", __name__, url_prefix="/api/v1/account")
 
@@ -279,9 +280,22 @@ def request_account_deletion(conn, account_id):
 
 def _identity_or_response():
     try:
-        return configured_identity(), None
+        identity = configured_identity()
     except (RuntimeError, InvalidTokenError):
         return None, (jsonify({"error": "authentication_required"}), 401)
+
+    # Account privacy is a separate Flask blueprint, so it does not inherit the
+    # mobile API blueprint's per-request account bootstrap. A newly authenticated
+    # Supabase identity can therefore reach this endpoint before any other API
+    # call has created its canonical account row. Bootstrap that row here too.
+    # Deletion tombstones are retained in `accounts`, and ensure_account never
+    # mutates an existing row, so this cannot reactivate a deletion-locked account.
+    conn = _db()
+    try:
+        ensure_account(conn, identity.account_id)
+    finally:
+        conn.close()
+    return identity, None
 
 
 @bp.get("/export")
