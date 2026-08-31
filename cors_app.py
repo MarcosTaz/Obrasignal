@@ -22,14 +22,20 @@ if "push_runtime" not in APP.blueprints:
     APP.register_blueprint(PUSH_RUNTIME_BP)
 
 
-def _origin():
-    value = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://obrasignal.com").strip()
+def _normalized_origin(value):
+    value = str(value or "").strip()
     if value == "*":
         return value
     parsed = urlsplit(value)
     if not parsed.scheme or not parsed.netloc:
         return None
     return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
+
+
+def _allowed_origins():
+    canonical = _normalized_origin(os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://obrasignal.com")
+    fallback = _normalized_origin(os.getenv("OBRASIGNAL_CORS_FALLBACK_ORIGIN") or "")
+    return tuple(origin for origin in (canonical, fallback) if origin)
 
 
 def _official_web_url():
@@ -47,9 +53,17 @@ APP.before_request_funcs.setdefault(None, []).insert(0, _canonical_root_redirect
 
 
 def _cors(response):
-    origin = _origin()
-    if origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
+    allowed = _allowed_origins()
+    requested = _normalized_origin(request.headers.get("Origin"))
+    if "*" in allowed:
+        response.headers["Access-Control-Allow-Origin"] = "*"
+    elif requested and requested in allowed:
+        response.headers["Access-Control-Allow-Origin"] = requested
+        response.headers["Vary"] = "Origin"
+    elif allowed:
+        # Non-browser responses have no Origin header. Keep the canonical origin
+        # visible for diagnostics without granting an unrequested fallback.
+        response.headers["Access-Control-Allow-Origin"] = allowed[0]
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
