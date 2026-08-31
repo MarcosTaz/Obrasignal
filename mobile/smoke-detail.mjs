@@ -106,11 +106,13 @@ forbidMatch('billing must not overlay authenticated content', billingGate, /posi
 forbidMatch('web billing copy must not claim web purchases are impossible', billingGate, /A versão Web permite consultar o estado do plano, mas não processa compras/);
 requireMatch('RevenueCat Web key remains wired', billing, /EXPO_PUBLIC_REVENUECAT_WEB_KEY/);
 requireMatch('billing declares canonical ObraSignal product', billing, /BILLING_PRODUCT = 'obrasignal_pro_monthly'/);
-requireMatch('billing selects canonical product by exact identifier', billing, /pkg\?\.product\?\.identifier === BILLING_PRODUCT/);
+requireMatch('billing selects canonical product by exact identifier', billing, /productIdentifier\(pkg\) === BILLING_PRODUCT/);
 forbidMatch('billing must never use monthly package fallback', billing, /packageType === 'MONTHLY'/);
 forbidMatch('billing must never use first package fallback', billing, /availablePackages\?\.\[0\]/);
 requireMatch('billing gate derives selected package through canonical helper', billingGate, /const selectedPackage = proPackage\(offering\)/);
-requireMatch('subscribe remains disabled until canonical product is present', billingGate, /checkoutConfigured && Boolean\(selectedPackage\)/);
+requireMatch('SDK subscribe remains disabled until canonical product is present', billingGate, /sdkCheckoutReady = sdkCheckoutConfigured && Boolean\(selectedPackage\)/);
+requireMatch('hosted Web checkout requires backend provider readiness', billingGate, /hostedCheckoutReady = billing\.providerReady && clientHostedConfigured/);
+requireMatch('automatic checkout is blocked without server reconciliation', billingGate, /if \(!billing\.providerReady\)/);
 
 // Expired authentication recovery must work for protected writes too.
 requireMatch('authenticated 401 refresh is one-shot', api, /response\.status===401 && !skipAuth && authRefreshes===0/);
