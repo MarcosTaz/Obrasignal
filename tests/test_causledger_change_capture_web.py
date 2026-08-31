@@ -83,7 +83,9 @@ def test_client_can_add_simple_request_description_and_download_hashed_sheet(tmp
     assert downloaded.status_code == 200
     assert downloaded.headers["Content-Disposition"].startswith('attachment; filename="CausLedger-change-chg_')
     assert len(downloaded.headers["X-CausLedger-Sheet-SHA256"]) == 64
-    assert downloaded.headers["X-CausLedger-Download-Receipt"].startswith("download_")
+    assert downloaded.headers["X-CausLedger-Export-Receipt"].startswith("download_")
+    assert downloaded.headers["X-CausLedger-Transfer-Completion-Proven"] == "false"
+    assert downloaded.headers["X-CausLedger-Timestamp-State"] == "UNAVAILABLE"
     text = downloaded.get_data(as_text=True)
     assert "CAUSLEDGER — CHANGE CAPTURE SHEET" in text
     assert "Move the mounting holes 8 mm" in text
