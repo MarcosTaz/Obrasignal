@@ -35,7 +35,7 @@ def test_billing_never_uses_provider_entitlement_as_product_access_authority():
     assert "server ainda não confirmou" in gate
 
 
-def test_company_truth_modules_and_registration_exist():
+def test_company_truth_modules_and_production_registration_exist():
     for path in (
         "account_privacy.py",
         "account_privacy_composition.py",
@@ -51,8 +51,11 @@ def test_company_truth_modules_and_registration_exist():
     ):
         assert (ROOT / path).is_file(), path
     cors = text("cors_app.py")
-    assert "register_account_privacy_routes" in cors
-    assert "register_opportunity_watchlist_routes" in cors
+    privacy = text("account_privacy.py")
+    watch = text("opportunity_watchlist_api.py")
+    assert "ACCOUNT_PRIVACY_BP" in cors and '"account_privacy" not in APP.blueprints' in cors
+    assert "register_watchlist_api()" in watch
+    assert "account_privacy" in privacy
 
 
 def test_release_workflow_is_manual_exact_sha_and_waits_for_evidence():
@@ -75,15 +78,15 @@ def test_commercial_web_and_europe_market_surface_remain_present():
     assert markets.count("code:") >= 30
 
 
-def test_backend_radar_contract_is_paginated_and_account_bounded():
-    api = text("api.py")
-    start = api.index('@bp.route("/opportunities", methods=["GET"])')
-    end = api.index('@bp.route("/opportunities/<int:opportunity_id>"', start)
-    block = api[start:end]
-    assert 'request.args.get("offset"' in block
-    assert '"page": page' in block
-    assert "FROM opportunity_decisions d" in block
-    assert "WHERE d.account_id=?" in block
-    assert "d.rule_version=?" in block
-    assert "d.profile_fingerprint=?" in block
-    assert 'request.args.get("market") or ""' in block
+def test_backend_radar_contract_is_paginated_account_bounded_and_production_wired():
+    radar = text("account_scoped_radar.py")
+    cors = text("cors_app.py")
+    assert 'request.args.get("offset"' in radar
+    assert '"page": page' in radar
+    assert "FROM opportunity_decisions d" in radar
+    assert "WHERE d.account_id=?" in radar
+    assert "d.rule_version=?" in radar
+    assert "d.profile_fingerprint=?" in radar
+    assert 'request.args.get("market") or ""' in radar
+    assert 'request.path == "/api/v1/opportunities"' in cors
+    assert "handle_account_scoped_opportunities()" in cors
