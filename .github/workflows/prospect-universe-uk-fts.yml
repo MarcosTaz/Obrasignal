@@ -1,0 +1,30 @@
+name: ObraSignal UK Find a Tender prospect extraction
+
+on:
+  push:
+    branches: [ops/prospect-universe-50k]
+    paths:
+      - 'ops/prospecting/build_uk_find_tender_prospects.py'
+      - '.github/workflows/prospect-universe-uk-fts.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Extract UK FTS suppliers and role contacts
+        env:
+          FTS_START: '2021-01-01T00:00:00'
+          FTS_END: '2026-08-31T23:59:59'
+          OUT_DIR: uk_fts_output
+        run: python ops/prospecting/build_uk_find_tender_prospects.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-uk-fts-prospects
+          path: uk_fts_output/*
+          retention-days: 30
