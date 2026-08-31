@@ -6,12 +6,12 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 28,
-  "last_factory_id": "obrasignal-product-strategy",
-  "last_run_at": "2026-08-31T08:44:00Z",
+  "cursor": 30,
+  "last_factory_id": "obrasignal-release-safety",
+  "last_run_at": "2026-08-31T09:38:45Z",
   "last_material_change": {
-    "kind": "CUSTOMER_DECISION_EXACT_HEAD_RED_TRUTH_REPAIRED_AND_ROTATED_TO_ANALYTICS",
-    "summary": "Registry and ACTIVE fleet state were re-read. CausLedger Gmail watch found no new material prospect/CEFAMOL/AFIA/DGC inbound, so Portugal and Spain legal holds remain active. ObraSignal GTM current company-composition candidate #844 remained OPEN/DRAFT/NOT_MERGED at exact head a3e523b216131e9021545826cd01abaf0a473183 with prior exact-head GREEN evidence and commercial validation still open; no outbound was sent. Customer Decision PR #376 had materially stale prose: its live head is 15b8bdd2e4e981a88ce3b70e2c4b7507b5c23d5f, not b3c211d..., and exact-head Quality run 33274301331 is FAILURE because Mobile fails at expo-doctor while Python succeeds. The PR body was repaired to classify the candidate PYTHON_GREEN/MOBILE_RED/NOT_FULLY_GREEN without weakening decision truth semantics or implying merge readiness. Product Strategy #521 was then revalidated OPEN/DRAFT/NOT_MERGED at exact head 74c23f15eed1b55dfff0742d9388c8f36230c49c with ObraSignal Quality run 33336993718 COMPLETED/SUCCESS; distribution, WTP and customer outcome proof remain unproven. Fleet rotates to Analytics.",
+    "kind": "ANALYTICS_EXACT_HEAD_GREEN_TRUTH_REPAIRED_RELEASE_SAFETY_NONMERGEABLE_SURFACED",
+    "summary": "Registry and ACTIVE fleet state were re-read with all 33 entries preserved. CausLedger Gmail watch after the prior baton found no new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Analytics PR #344 is OPEN/DRAFT/NOT_MERGED at exact head a331cc882f52ced98b5cb2e8da8a781b1c845a30; exact-head Quality runs 33337007434 and 33337005904 are COMPLETED/SUCCESS, so stale CI-pending prose was repaired while preserving UNKNOWN production telemetry/customer behavior/WTP/outcome/revenue. Release Safety exact-name search recovered #350 at head 2f772dbad537add44169c30e527627de64dbdeab with historical exact-head Quality 32890750011 GREEN, but GitHub currently reports mergeable=false. PR prose was repaired to state NOT_MERGEABLE and to forbid transporting GREEN into integration/release readiness. Fleet rotates to Support Ops.",
     "evidence": {
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -19,45 +19,35 @@
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
-      "obrasignal_gtm": {
-        "pr": 844,
-        "head": "a3e523b216131e9021545826cd01abaf0a473183",
-        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "classification": "COMMERCIAL_VALIDATION_OPEN",
-        "next_exact_action": "Continue non-outbound pilot/discovery preparation and process only compliant inbound/consent-based routes; do not infer WTP or revenue."
-      },
-      "obrasignal_customer_decision": {
-        "pr": 376,
-        "head": "15b8bdd2e4e981a88ce3b70e2c4b7507b5c23d5f",
-        "quality_run": 33274301331,
-        "quality_status": "COMPLETED_FAILURE",
-        "python_job": 99158212986,
-        "python_status": "SUCCESS",
-        "mobile_job": 99158213002,
-        "mobile_status": "FAILURE_AT_EXPO_DOCTOR",
-        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "classification": "PYTHON_GREEN_MOBILE_RED_NOT_FULLY_GREEN_PR_PROSE_REPAIRED",
-        "next_exact_action": "Recover or compose current Supply-Chain/Expo dependency authority before mutating owner semantics; then revalidate on an exact compatible tree."
-      },
-      "obrasignal_product_strategy": {
-        "pr": 521,
-        "head": "74c23f15eed1b55dfff0742d9388c8f36230c49c",
-        "quality_run": 33336993718,
+      "obrasignal_data_analytics": {
+        "pr": 344,
+        "head": "a331cc882f52ced98b5cb2e8da8a781b1c845a30",
+        "quality_runs": [33337007434,33337005904],
         "quality_status": "COMPLETED_SUCCESS",
         "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "classification": "EXACT_HEAD_GREEN_STRATEGY_ONLY",
-        "next_exact_action": "Preserve customer/distribution/WTP/outcome UNKNOWNs and rotate to measurable execution evidence rather than adding unsupported strategy claims."
+        "classification": "EXACT_HEAD_GREEN_MEASUREMENT_CONTRACT_ONLY",
+        "next_exact_action": "Consume authoritative product instrumentation seams before making funnel, retention, TTV or customer-behavior claims; missing remains UNKNOWN."
+      },
+      "obrasignal_release_safety": {
+        "pr": 350,
+        "head": "2f772dbad537add44169c30e527627de64dbdeab",
+        "quality_run": 32890750011,
+        "quality_status": "COMPLETED_SUCCESS",
+        "mergeable": false,
+        "pr_state": "OPEN_NOT_MERGED_NOT_CANONICAL_NOT_MERGEABLE",
+        "classification": "EXACT_HEAD_GREEN_BUT_INTEGRATION_BLOCKED",
+        "next_exact_action": "Reconstruct current-main conflict/composition truth before any branch repair; preserve single-manual-release-authority invariants and require new exact-head evidence after movement."
       }
     },
-    "active": "Data, Analytics & Learning System Factory — reconstruct exact current source/CI truth and execute highest-value repository-safe measurement integrity work.",
-    "next": "Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy.",
+    "active": "Customer Support, Incident & Service Operations Factory — recover exact source/CI truth and execute highest-value supportability integrity work.",
+    "next": "Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
-      "Customer Decision #376 exact head is NOT FULLY GREEN: Python succeeds but Mobile fails at expo-doctor; do not transport older GREEN evidence.",
-      "Product Strategy exact-head GREEN is strategy/repository evidence only and does not prove distribution, WTP, customer value, retention or revenue."
+      "Analytics exact-head GREEN proves repository measurement-contract integrity only; production telemetry, behavior, retention, WTP, outcomes and revenue remain unproven.",
+      "Release Safety #350 is currently NOT_MERGEABLE despite exact-head GREEN; any composition/rebase movement invalidates exact-head evidence and requires retest."
     ]
   },
   "blocked": [
@@ -67,7 +57,7 @@
     {"factory_id":"recovery-radar","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"product-market-access","blocker":"Exact canonical source identity UNKNOWN; public market research remains non-canonical.","global_stop":false},
-    {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
+    {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity must be revalidated from current repository evidence.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact searches.","global_stop":false},
@@ -78,7 +68,8 @@
     {"factory_id":"recoverable-money","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN.","global_stop":false}
+    {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN.","global_stop":false},
+    {"factory_id":"obrasignal-release-safety","blocker":"PR #350 exact-head Quality is GREEN but GitHub currently reports mergeable=false; current-main composition/conflict truth must be reconstructed before safe repair.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
