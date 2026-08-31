@@ -1,0 +1,64 @@
+import sqlite3
+
+
+def test_bootstrap_reuses_profile_and_batches_decision_writes(monkeypatch):
+    import account_onboarding as onboarding
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """CREATE TABLE tenders(
+            id INTEGER PRIMARY KEY,
+            source TEXT,
+            external_id TEXT,
+            deadline TEXT,
+            publication_date TEXT,
+            first_seen TEXT
+        )"""
+    )
+    conn.executemany(
+        "INSERT INTO tenders VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            (1, "TEST", "a", "2099-01-01", "2098-12-03", "2098-12-03"),
+            (2, "TEST", "b", "2099-01-02", "2098-12-02", "2098-12-02"),
+            (3, "TEST", "c", "2099-01-03", "2098-12-01", "2098-12-01"),
+        ],
+    )
+    conn.commit()
+
+    class NoClose:
+        def __getattr__(self, name):
+            return getattr(conn, name)
+
+        def close(self):
+            return None
+
+    profile = {"account_id": "acct-a", "name": "A", "activity": "Construção"}
+    profile_loads = []
+    calls = []
+
+    monkeypatch.setattr(onboarding, "db", lambda: NoClose())
+    monkeypatch.setattr(
+        onboarding,
+        "load_profile",
+        lambda account_id: profile_loads.append(account_id) or profile,
+    )
+    monkeypatch.setattr(onboarding, "_emit_bootstrap_events", lambda _conn, _account_id: 0)
+
+    def fake_persist(_conn, item, is_new, account_id="default", supplied_profile=None, **kwargs):
+        # Accept both the public keyword and kwargs so the assertion below
+        # documents the exact batch contract without coupling to call order.
+        effective_profile = kwargs.pop("profile", supplied_profile)
+        calls.append((item["external_id"], is_new, account_id, effective_profile, kwargs))
+        return "REVIEW", "ok"
+
+    monkeypatch.setattr(onboarding, "persist_and_classify", fake_persist)
+
+    assert onboarding.bootstrap_account("acct-a", limit=3) == 3
+    assert profile_loads == ["acct-a"]
+    assert [call[0] for call in calls] == ["a", "b", "c"]
+    assert all(call[2] == "acct-a" for call in calls)
+    assert all(call[3] is profile for call in calls)
+    assert all(call[4] == {"commit": False, "ensure": False} for call in calls)
+
+    conn.close()
