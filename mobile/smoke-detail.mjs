@@ -4,6 +4,7 @@ const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const webApp = fs.readFileSync(new URL('./App.web.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
 const authScreen = fs.readFileSync(new URL('./components/AuthScreen.tsx', import.meta.url), 'utf8');
+const passwordRecovery = fs.readFileSync(new URL('./components/PasswordRecovery.js', import.meta.url), 'utf8');
 const billingGate = fs.readFileSync(new URL('./components/BillingGate.js', import.meta.url), 'utf8');
 const privacyControls = fs.readFileSync(new URL('./components/AccountPrivacyControls.js', import.meta.url), 'utf8');
 const billing = fs.readFileSync(new URL('./src/billing.js', import.meta.url), 'utf8');
@@ -24,7 +25,10 @@ requireMatch('native official-source action is rendered', app, /Abrir fonte ofic
 requireMatch('native detail warns when official link is missing', app, /ligação à publicação oficial não está disponível/);
 requireMatch('onboarding asks for business interests', onboarding, /Que trabalhos ou contratos procuras/);
 requireMatch('CPV stays an advanced option', onboarding, /Opção avançada: rever códigos CPV/);
-requireMatch('onboarding keeps canonical server profile after save', onboarding, /onComplete\(result\)/);
+requireMatch('onboarding validates authoritative save', onboarding, /sameCoreProfile\(draft,saved\)/);
+requireMatch('onboarding verifies server readback', onboarding, /const persisted=await api\.profile\(\)/);
+requireMatch('onboarding caches only confirmed profile', onboarding, /await storage\.setProfile\(persisted\)/);
+requireMatch('onboarding completes with persisted profile', onboarding, /onComplete\(persisted\)/);
 forbidMatch('onboarding must not discard server-derived profile fields', onboarding, /onComplete\(result\.profile\|\|draft\)/);
 
 // Startup + notification wiring remains single-owner.
@@ -58,13 +62,16 @@ requireMatch('native deduplicates appended opportunity ids', app, /new Map\(\[\.
 requireMatch('native exposes load-more action', app, /Carregar mais oportunidades/);
 requireMatch('native separates draft search from applied search', app, /\[appliedSearch,setAppliedSearch\]/);
 
-// Session utilities are permanently reachable from the authenticated shell.
+// Session utilities and recovery are permanently reachable from the authenticated shell.
 requireMatch('persistent web session bar contains logout', authGate, /Terminar sessão/);
 requireMatch('persistent logout calls Supabase signOut', authGate, /supabase\.auth\.signOut\(\)/);
 requireMatch('web session bar exposes on-demand translator', authGate, /function WebTranslator/);
 requireMatch('translator is loaded only after activation', authGate, /if \(!enabled/);
 requireMatch('translator sits in session controls', authGate, /<WebTranslator\/>/);
 requireMatch('session clock uses 24-hour format', authGate, /hour12: false/);
+requireMatch('auth gate handles password recovery event', authGate, /PASSWORD_RECOVERY/);
+requireMatch('auth gate renders isolated password recovery surface', authGate, /<PasswordRecovery/);
+requireMatch('password recovery updates authenticated user password', passwordRecovery, /supabase\.auth\.updateUser/);
 
 // Privacy rights are available independently of paid/evaluation product access.
 requireMatch('privacy controls wrap billing rather than sit inside it', authGate, /return <AccountPrivacyControls>[\s\S]*<BillingGate>/);
@@ -78,7 +85,7 @@ requireMatch('API client exposes account export', api, /accountExport:/);
 requireMatch('API client exposes account deletion status', api, /accountDeletionStatus:/);
 requireMatch('API client exposes account deletion write', api, /requestAccountDeletion:/);
 
-// Billing access must be server-authoritative and fail closed.
+// Billing access must be server-authoritative, fail closed, and select only the canonical product.
 requireMatch('billing requires server billing status', billingGate, /await api\.billingStatus\(\)/);
 requireMatch('billing carries explicit server authority state', billingGate, /authority: 'loading'/);
 requireMatch('pro access derives from server plan', billingGate, /pro: server\.plan === 'pro'/);
@@ -86,10 +93,18 @@ requireMatch('billing unavailable state blocks private access', billingGate, /N�
 forbidMatch('billing must not overlay authenticated content', billingGate, /position:'absolute'/);
 forbidMatch('web billing copy must not claim web purchases are impossible', billingGate, /A versão Web permite consultar o estado do plano, mas não processa compras/);
 requireMatch('RevenueCat Web key remains wired', billing, /EXPO_PUBLIC_REVENUECAT_WEB_KEY/);
+requireMatch('billing declares canonical ObraSignal product', billing, /BILLING_PRODUCT = 'obrasignal_pro_monthly'/);
+requireMatch('billing selects canonical product by exact identifier', billing, /pkg\?\.product\?\.identifier === BILLING_PRODUCT/);
+forbidMatch('billing must never use monthly package fallback', billing, /packageType === 'MONTHLY'/);
+forbidMatch('billing must never use first package fallback', billing, /availablePackages\?\.\[0\]/);
+requireMatch('billing gate derives selected package through canonical helper', billingGate, /const selectedPackage = proPackage\(offering\)/);
+requireMatch('subscribe remains disabled until canonical product is present', billingGate, /checkoutConfigured && Boolean\(selectedPackage\)/);
 
 // Expired authentication recovery must work for protected writes too.
 requireMatch('authenticated 401 refresh is one-shot', api, /response\.status===401 && !skipAuth && authRefreshes===0/);
 forbidMatch('authenticated refresh must not be GET-only', api, /response\.status===401 && method==='GET'/);
+requireMatch('profile API requires canonical response envelope', api, /Object\.prototype\.hasOwnProperty\.call\(data,'profile'\)/);
+forbidMatch('profile API must not accept ambiguous fallback payload', api, /data\?\.profile\|\|data\|\|null/);
 
 // Branding + market coverage are consistent across public/authenticated/onboarding/native.
 requireMatch('authenticated web uses refined ObraSignal wordmark', webApp, /Obra<Text style=\{s\.brandSignal\}>Signal/);
@@ -119,13 +134,15 @@ if (failures.length) {
 
 for (const name of [
   'native detail/workflow',
+  'authoritative profile persistence',
   'tenant startup + alerts',
   'browser document scrolling',
   'web detail retry',
   'Web + native Radar pagination',
   'persistent logout/date/time/translator',
+  'password recovery return flow',
   'account export + deletion ownership',
-  'server-authoritative billing',
+  'server-authoritative exact-product billing',
   'authenticated write token refresh',
   'consistent branding + 32-market registry',
   'responsive public landing',
