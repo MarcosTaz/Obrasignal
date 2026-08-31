@@ -37,7 +37,6 @@ export default function BillingGate({ children }) {
     try {
       const server = await api.billingStatus();
       if (!server?.plan || !SERVER_PLANS.has(server.plan)) throw new Error('invalid_server_billing_state');
-
       let result = { configured: false, customerInfo: null };
       try { result = await configureBilling(session.user.id); } catch (_) {}
       const info = result.customerInfo;
@@ -70,10 +69,10 @@ export default function BillingGate({ children }) {
   };
 
   const waitForServerEntitlement = async () => {
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await sleep(1000 * (attempt + 1));
       const next = await refresh();
       if (next?.plan === 'pro') return true;
-      if (attempt < 3) await sleep(1000 * (attempt + 1));
     }
     return false;
   };
@@ -82,7 +81,8 @@ export default function BillingGate({ children }) {
     setBusy(true); setError('');
     try {
       await purchasePro();
-      const confirmed = await waitForServerEntitlement();
+      const firstProjection = await refresh();
+      const confirmed = firstProjection?.plan === 'pro' || await waitForServerEntitlement();
       if (!confirmed) {
         setError('A compra foi enviada, mas o servidor ainda não confirmou o acesso Pro. Mantemos o acesso protegido; tenta novamente dentro de instantes.');
         return;
@@ -97,7 +97,8 @@ export default function BillingGate({ children }) {
     setBusy(true); setError('');
     try {
       await restoreBilling();
-      const confirmed = await waitForServerEntitlement();
+      const firstProjection = await refresh();
+      const confirmed = firstProjection?.plan === 'pro' || await waitForServerEntitlement();
       if (!confirmed) setError('A compra foi restaurada no fornecedor, mas o servidor ainda não confirmou o acesso Pro.');
     } catch (e) { setError(e?.message || 'Não foi possível restaurar a subscrição.'); }
     finally { setBusy(false); }
