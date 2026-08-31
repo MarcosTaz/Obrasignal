@@ -9,6 +9,7 @@ from account_privacy import bp as ACCOUNT_PRIVACY_BP, DELETION_LOCKED_STATUSES
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
 from traffic_analytics import bp as TRAFFIC_ANALYTICS_BP, ensure_traffic_schema
+from push_runtime import bp as PUSH_RUNTIME_BP, ensure_push_schema, start_push_scheduler
 
 # Register customer-facing authenticated API owners explicitly at the WSGI boundary.
 if "mobile_api" not in APP.blueprints:
@@ -17,6 +18,8 @@ if "account_privacy" not in APP.blueprints:
     APP.register_blueprint(ACCOUNT_PRIVACY_BP)
 if "traffic_analytics" not in APP.blueprints:
     APP.register_blueprint(TRAFFIC_ANALYTICS_BP)
+if "push_runtime" not in APP.blueprints:
+    APP.register_blueprint(PUSH_RUNTIME_BP)
 
 
 def _origin():
@@ -40,8 +43,6 @@ def _canonical_root_redirect():
     return None
 
 
-# api imports preload, whose legacy root hook predates the official domain. Put
-# the canonical redirect first without exposing infrastructure URLs to clients.
 APP.before_request_funcs.setdefault(None, []).insert(0, _canonical_root_redirect)
 
 
@@ -51,7 +52,7 @@ def _cors(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
@@ -80,12 +81,6 @@ def _global_api_preflight():
 
 @APP.before_request
 def _lock_private_shell_during_account_deletion():
-    """Prevent deleted/deleting accounts from resurrecting product-private data.
-
-    Account privacy endpoints remain reachable so the customer can inspect the
-    lifecycle. Health, analytics collection and billing webhooks are not
-    customer-private reads.
-    """
     if not request.path.startswith("/api/v1/"):
         return None
     if request.path.startswith("/api/v1/account/") or request.path in {"/api/v1/health", "/api/v1/billing/webhook", "/api/v1/analytics/event"}:
@@ -137,7 +132,7 @@ def _global_api_cors(response):
 
 # Gunicorn imports this module before it starts accepting requests. Complete all
 # idempotent schema/read-model work and install additive global-source runtimes
-# before allowing the ingestion worker to run.
+# before allowing the ingestion and push workers to run.
 import app as _app
 from app import db, init_db, start_background_worker
 from evaluation_policy import ensure_evaluation_schema
@@ -163,6 +158,7 @@ try:
     ensure_evaluation_schema(_lifecycle_conn)
     ensure_lifecycle_table(_lifecycle_conn)
     ensure_traffic_schema(_lifecycle_conn)
+    ensure_push_schema(_lifecycle_conn)
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
@@ -184,3 +180,4 @@ install_canadabuys_runtime(
     record_blocked=_preload._record_blocked_global_source,
 )
 start_background_worker()
+start_push_scheduler()

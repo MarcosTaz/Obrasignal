@@ -23,9 +23,6 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package.json
 
-      # This repository intentionally does not commit a package-lock.json.
-      # npm ci therefore cannot work here; use npm install to resolve the
-      # declared Expo/RN dependency graph reproducibly enough for preflight.
       - run: npm install --no-audit --no-fund
 
       - name: Validate native release contract
@@ -43,9 +40,11 @@ jobs:
           if (app?.android?.package !== 'pt.obrasignal.app') failures.push('android.package');
           if (app?.ios?.bundleIdentifier !== 'pt.obrasignal.app') failures.push('ios.bundleIdentifier');
           if (!app?.extra?.eas?.projectId) failures.push('expo.extra.eas.projectId');
+          if (!app?.plugins?.includes('expo-notifications')) failures.push('expo-notifications plugin');
           if (!eas?.build?.production) failures.push('eas.build.production');
           if (pkg?.dependencies?.['react-native-purchases'] !== '10.7.0') failures.push('react-native-purchases');
-          if (pkg?.dependencies?.['expo-notifications'] !== '~57.0.6') failures.push('expo-notifications');
+          if (pkg?.dependencies?.['expo-notifications'] !== '~57.0.15') failures.push('expo-notifications');
+          if (pkg?.dependencies?.['expo-constants'] !== '~57.0.16') failures.push('expo-constants');
           for (const key of [
             'EXPO_PUBLIC_SUPABASE_URL',
             'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
