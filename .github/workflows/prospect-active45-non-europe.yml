@@ -1,0 +1,42 @@
+name: ObraSignal active45 non-Europe prospect extraction
+
+on:
+  push:
+    branches: [ops/prospect-universe-50k]
+    paths:
+      - 'ops/prospecting/build_active45_non_europe_prospects.py'
+      - '.github/workflows/prospect-active45-non-europe.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build non-Europe active-market candidate universe
+        env:
+          OUT_DIR: active45_non_europe
+        run: python ops/prospecting/build_active45_non_europe_prospects.py
+      - name: Validate coverage
+        run: |
+          python - <<'PY'
+          import csv, json
+          from pathlib import Path
+          p=Path('active45_non_europe/obrasignal_non_europe_active45_candidates.csv')
+          rows=list(csv.DictReader(p.open(encoding='utf-8')))
+          countries={r['country'] for r in rows}
+          expected={'BR','CA','US','CO','CL','DO','EC','GT','HN','PY','PE','ZA','UY'}
+          print('rows',len(rows),'countries',sorted(countries))
+          missing=expected-countries
+          if missing: raise SystemExit(f'missing markets: {sorted(missing)}')
+          if len(rows)<8000: raise SystemExit(f'too few non-Europe candidates: {len(rows)}')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-active45-non-europe-candidates
+          path: active45_non_europe/*
+          retention-days: 30
