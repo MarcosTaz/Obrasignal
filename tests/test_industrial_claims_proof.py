@@ -57,10 +57,61 @@ def test_manifest_self_verifies_and_detects_package_tampering():
     assert manifest["dual_hash_coverage"] == {"sha256": True, "sha512": True}
     assert manifest["assurance_summary"]["weakest_evidence_state"] == "UNVERIFIED"
     assert manifest["required_external_gates"]["qualified_timestamp"] is True
+    assert verified["attestation_target_sha256"] == manifest["attestation_target"]["sha256"]
 
     tampered = dict(core)
     tampered["net_potential"] = "101"
     assert verify_proof_manifest(tampered, manifest)["valid"] is False
+
+
+def test_verified_external_attestation_must_bind_to_stable_target():
+    evidence = (_evidence("tenant:e1", b"original"),)
+    core = {"tenant_id": "tenant", "finding": {"finding_id": "tenant:f1"}}
+    initial = build_proof_manifest(
+        core_package=core,
+        evidence=evidence,
+        revision_number=1,
+        supersedes_finding_id=None,
+        generated_at="2026-08-31T20:10:00+00:00",
+    )
+    target = initial["attestation_target"]["sha256"]
+    timestamp = ExternalAttestation(
+        kind="QUALIFIED_TIMESTAMP",
+        provider="qualified-tsa",
+        state="VERIFIED",
+        digest_algorithm="SHA-256",
+        digest=target,
+        provider_ref="tsa:receipt:1",
+        issued_at="2026-08-31T20:10:01+00:00",
+    )
+    sealed = build_proof_manifest(
+        core_package=core,
+        evidence=evidence,
+        revision_number=1,
+        supersedes_finding_id=None,
+        attestations=(timestamp,),
+        generated_at="2026-08-31T20:10:02+00:00",
+    )
+    assert sealed["attestation_target"]["sha256"] == target
+    assert sealed["required_external_gates"]["qualified_timestamp"] is False
+    assert verify_proof_manifest(core, sealed)["valid"] is True
+
+    wrong = ExternalAttestation(
+        kind="QUALIFIED_TIMESTAMP",
+        provider="qualified-tsa",
+        state="VERIFIED",
+        digest_algorithm="SHA-256",
+        digest="b" * 64,
+        provider_ref="tsa:receipt:wrong",
+    )
+    with pytest.raises(ValueError, match="stable CausLedger proof target"):
+        build_proof_manifest(
+            core_package=core,
+            evidence=evidence,
+            revision_number=1,
+            supersedes_finding_id=None,
+            attestations=(wrong,),
+        )
 
 
 def test_external_attestation_cannot_be_marked_verified_without_provider_reference():
