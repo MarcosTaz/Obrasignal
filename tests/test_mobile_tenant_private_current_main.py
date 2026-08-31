@@ -18,7 +18,7 @@ def test_current_main_private_state_is_not_global_asyncstorage():
 def test_auth_gate_binds_supabase_user_before_private_shell():
     assert "nextState.session?.user?.id" in AUTH
     assert "await storage.bindPrivateTenant(identity)" in AUTH
-    assert "nextState.status === 'signed-in' && !privateReady" in AUTH
+    assert "authState.status === 'signed-in' && !privateReady" in AUTH
 
 
 def test_tenant_storage_purges_legacy_and_validates_envelope_identity():
