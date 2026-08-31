@@ -20,73 +20,88 @@ jobs:
     timeout-minutes: 10
     env:
       TARGET_BUILD: ${{ github.sha }}
+      OFFICIAL_ORIGIN: https://obrasignal.com
     steps:
       - name: Wake and check exact API deployment health
         run: |
           set -euo pipefail
-          # Render services can cold-start or still be replacing the previous
-          # instance. A smoke run is green only for the exact revision under test.
           for attempt in $(seq 1 18); do
             if curl --fail --silent --show-error --max-time 30 \
               https://obrasignal.onrender.com/api/v1/health > /tmp/health.json \
               && python - <<'PY'
           import json
           import os
-
           with open('/tmp/health.json', encoding='utf-8') as stream:
               health=json.load(stream)
           assert health.get('ok') is True
           assert health.get('service') == 'obrasignal-api'
           assert health.get('build') == os.environ['TARGET_BUILD']
           auth=health.get('auth') or {}
-          # These fields are deliberately bounded by the API contract: no provider
-          # URL, issuer, token, JWK material, credentials or exception strings.
-          safe_auth={name: auth.get(name) for name in (
-              'mode', 'config_present', 'provider_status', 'provider_kind', 'provider_error'
-          )}
-          print('auth_health=' + json.dumps(safe_auth, sort_keys=True, separators=(',', ':')))
+          print('auth_health=' + json.dumps({name:auth.get(name) for name in ('mode','config_present','provider_status','provider_kind','provider_error')}, sort_keys=True, separators=(',', ':')))
           assert auth.get('mode') == 'provider'
           assert auth.get('config_present') is True
-          assert auth.get('provider_status') in {'uninitialized', 'ready'}
-          print('production_build=' + str(health.get('build')))
-          print('auth_provider_status=' + str(auth.get('provider_status')))
+          assert auth.get('provider_status') in {'uninitialized','ready'}
           PY
             then
-              echo "Exact production build and auth configuration are healthy on attempt $attempt/18."
+              echo "Exact production build is healthy on attempt $attempt/18."
               break
             fi
             if [ "$attempt" = 18 ]; then
-              echo "Production never served a healthy target build ${TARGET_BUILD:0:7}."
+              echo "Production never served healthy target build ${TARGET_BUILD:0:7}."
               exit 1
             fi
-            echo "Waiting for healthy target production build ${TARGET_BUILD:0:7} (attempt $attempt/18)…"
             sleep 10
           done
 
       - name: Check protected API boundary
         run: |
           set -euo pipefail
-          status="$(curl --silent --output /tmp/body --write-out '%{http_code}' --max-time 30 \
-            https://obrasignal.onrender.com/api/v1/profile)"
+          status="$(curl --silent --output /tmp/body --write-out '%{http_code}' --max-time 30 https://obrasignal.onrender.com/api/v1/profile)"
           test "$status" = "401"
           grep -q 'authentication_required' /tmp/body
 
-      - name: Check browser CORS preflight
+      - name: Check official browser CORS preflight
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 30 \
             -X OPTIONS \
-            -H 'Origin: https://marcostaz.github.io' \
+            -H "Origin: $OFFICIAL_ORIGIN" \
             -H 'Access-Control-Request-Method: GET' \
             -H 'Access-Control-Request-Headers: Authorization' \
             -D /tmp/headers -o /dev/null \
             https://obrasignal.onrender.com/api/v1/profile
-          grep -qi '^Access-Control-Allow-Origin: https://marcostaz.github.io' /tmp/headers
+          grep -qi "^Access-Control-Allow-Origin: $OFFICIAL_ORIGIN" /tmp/headers
           grep -qi '^Access-Control-Allow-Headers: .*Authorization' /tmp/headers
 
-      - name: Check deployed Web shell
+      - name: Check private traffic collector boundary
+        run: |
+          set -euo pipefail
+          payload='{"event":"page_view","path":"/production-smoke","utm_source":"ci","utm_medium":"synthetic","utm_campaign":"production-smoke","timezone":"UTC","language":"en","device":"desktop","build_id":"'"$TARGET_BUILD"'"}'
+          status="$(curl --silent --output /tmp/analytics-body --write-out '%{http_code}' --max-time 30 \
+            -X POST \
+            -H "Origin: $OFFICIAL_ORIGIN" \
+            -H 'Content-Type: application/json' \
+            -H 'X-ObraSignal-Synthetic: 1' \
+            --data "$payload" \
+            https://obrasignal.onrender.com/api/v1/analytics/event)"
+          test "$status" = "204"
+          bad="$(curl --silent --output /tmp/analytics-bad --write-out '%{http_code}' --max-time 30 \
+            -X POST \
+            -H 'Origin: https://attacker.invalid' \
+            -H 'Content-Type: application/json' \
+            --data "$payload" \
+            https://obrasignal.onrender.com/api/v1/analytics/event)"
+          test "$bad" = "403"
+
+      - name: Check backend canonical redirect
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --max-time 30 -D /tmp/root-headers -o /dev/null https://obrasignal.onrender.com/
+          grep -qi '^Location: https://obrasignal.com/' /tmp/root-headers
+
+      - name: Check official customer Web shell
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --location --max-time 30 \
-            https://marcostaz.github.io/Obrasignal/ \
+            https://obrasignal.com/ \
             | grep -q 'ObraSignal'
