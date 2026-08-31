@@ -11,8 +11,12 @@ on:
 
 jobs:
   production-build:
-    name: EAS production build
+    name: EAS production build (${{ matrix.platform }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [android, ios]
     defaults:
       run:
         working-directory: mobile
@@ -34,5 +38,5 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Build production binaries
-        run: eas build --platform all --profile production --non-interactive --no-wait
+      - name: Build production binary
+        run: eas build --platform ${{ matrix.platform }} --profile production --non-interactive --no-wait
