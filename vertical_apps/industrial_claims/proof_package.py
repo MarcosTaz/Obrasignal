@@ -5,6 +5,7 @@ from typing import Any, Sequence
 
 from vertical_apps.industrial_claims.package import build_claim_package
 from vertical_apps.industrial_claims.proof import ExternalAttestation, build_proof_manifest, verify_proof_manifest
+from vertical_apps.industrial_claims.proof_readiness import evaluate_proof_strength
 from vertical_apps.industrial_claims.service import IndustrialClaimResult, IndustrialClaimsService
 
 
@@ -51,6 +52,7 @@ def build_claim_proof_pack(
         "brand": "CausLedger",
         "core_package": core,
         "proof_manifest": manifest,
+        "proof_strength": evaluate_proof_strength(manifest),
         "self_verification": verification,
         "external_verification_required": any(manifest["required_external_gates"].values()),
     }
