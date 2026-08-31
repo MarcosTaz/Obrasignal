@@ -1,0 +1,46 @@
+name: ObraSignal prospect universe 200k
+
+on:
+  push:
+    branches: [ops/prospect-universe-50k]
+    paths:
+      - 'ops/prospecting/build_200k_prospect_universe.py'
+      - '.github/workflows/prospect-universe-200k.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build all-market universe
+        env:
+          TARGET: '200000'
+          OUT_DIR: prospect_output_200k
+        run: python ops/prospecting/build_200k_prospect_universe.py
+      - name: Validate output
+        run: |
+          python - <<'PY'
+          import csv, glob, json
+          files=glob.glob('prospect_output_200k/obrasignal_prospects_*.csv')
+          assert files, 'CSV missing'
+          with open(files[0], encoding='utf-8') as f:
+              rows=list(csv.DictReader(f))
+          assert len(rows) >= 150000, len(rows)
+          assert len({(r['country'], r['national_id'] or r['normalized_name'], r['town']) for r in rows}) == len(rows)
+          countries={r['country'] for r in rows}
+          summary=json.load(open('prospect_output_200k/obrasignal_prospects_200k_summary.json'))
+          assert countries == {c for c,n in summary['countries'].items() if n>0}
+          print('rows',len(rows),'countries',len(countries))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-prospect-universe-200k
+          path: |
+            prospect_output_200k/obrasignal_prospects_*.csv
+            prospect_output_200k/obrasignal_prospects_200k_summary.json
+          retention-days: 30
