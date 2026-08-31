@@ -3,12 +3,12 @@ from decision_log import record_decision
 from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
 
-def persist_and_classify(conn, item, is_new, account_id='default', profile=None):
+def persist_and_classify(conn, item, is_new, account_id='default', profile=None, *, commit=True, ensure=True):
     """Persist the canonical commercial decision with full account-scoped evidence.
 
     Callers evaluating a batch for one account may pass an already-loaded
-    profile.  This avoids reopening the profile database for every opportunity
-    while keeping the existing single-item API backwards compatible.
+    profile and disable per-row schema checks/commits after preparing the batch.
+    Defaults preserve the historical safe single-item behaviour.
     """
     enriched = dict(item)
     effective_profile = profile if profile is not None else load_profile(account_id)
@@ -48,5 +48,7 @@ def persist_and_classify(conn, item, is_new, account_id='default', profile=None)
         features=features,
         rule_version=RULE_VERSION,
         account_id=account_id,
+        commit=commit,
+        ensure=ensure,
     )
     return evaluation["decision"], evaluation["reason"]
