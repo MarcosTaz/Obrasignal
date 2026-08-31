@@ -6,66 +6,57 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 15,
-  "last_factory_id": "warrantyguard",
-  "last_run_at": "2026-08-31T04:42:00Z",
+  "cursor": 19,
+  "last_factory_id": "private-freight-orchestration",
+  "last_run_at": "2026-08-31T05:43:30Z",
   "last_material_change": {
-    "kind": "WARRANTYGUARD_VERIFICATION_TRUTH_REPAIRED_ROTATED_TO_PAPER_LAMINATE",
-    "summary": "Fleet reconstructed from the 33-entry registry and ACTIVE persistent state. LongLead, MachineRelease Safety and K3 Fatality still have no exact matching branch ref under their names, so their source authority remains UNKNOWN rather than fabricated. WarrantyGuard PR #805 was recovered exactly at f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870. Exact-head GitHub checks are GREEN: ObraSignal Quality 33323378385 python/mobile SUCCESS and focused WarrantyGuard verify 33323378379 SUCCESS. The PR body was stale because it said GitHub CI had not executed; that prose was corrected to the exact current verification truth while preserving T3 NOT REACHED, WTP unproven, zero customers/paid pilots/verified recovery/revenue and DRAFT/NOT MERGED safety boundaries. Gmail watch found no new material CausLedger prospect, CEFAMOL, AFIA or DGC inbound, so Portugal and Spain outbound holds remain active. Fleet rotates to Paper-Laminate Works.",
+    "kind": "CAPACITY_PR_TRUTH_REPAIRED_AND_UNKNOWN_FACTORIES_ROTATED",
+    "summary": "Registry and ACTIVE fleet state were re-read. CausLedger Gmail watch found no new material prospect/CEFAMOL/AFIA/DGC inbound, so Portugal and Spain legal holds remain active. Paper-Laminate Works remained without exact canonical source evidence in exact code search. Documentary Billing, Recoverable Money, Private Freight and Autonomous Revenue Recovery produced no exact matching PRs in fleet reconstruction; UNKNOWN is preserved rather than fabricating source authority. Capacity Commitment PR #729 had stale exact-head verification prose; PR body was repaired to current exact head 0b156218ce427284d40583d4b7eb317622d95376 and GitHub ObraSignal Quality run 33328905676 COMPLETED/SUCCESS, while retaining DRAFT/NOT CANONICAL/NOT MERGED and T3 NOT ACHIEVED business truth.",
     "evidence": {
-      "longlead": {
-        "matching_branch_ref": "NONE_FOR_HEADS_LONG",
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "next_exact_action": "Continue history/BATON authority reconstruction when a canonical pointer appears; do not fabricate source identity."
-      },
-      "machine_release_safety": {
-        "matching_branch_ref": "NONE_FOR_HEADS_MACHINE",
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "next_exact_action": "Continue history/BATON authority reconstruction when a canonical pointer appears; do not fabricate source identity."
-      },
-      "k3_fatality": {
-        "matching_branch_ref": "NONE_FOR_HEADS_K3",
-        "classification": "UNKNOWN_CANONICAL_SOURCE_AUTHORITY",
-        "next_exact_action": "Recover canonical repository/source authority before source-specific mutation."
-      },
-      "warrantyguard": {
-        "pr": 805,
-        "head": "f678ed4bc6bfb0013eb685eb3a63e8fe59eb5870",
+      "capacity_commitment": {
+        "pr": 729,
+        "head": "0b156218ce427284d40583d4b7eb317622d95376",
+        "quality_run": 33328905676,
+        "quality_status": "COMPLETED_SUCCESS",
         "pr_state": "OPEN_DRAFT_NOT_MERGED",
-        "quality_run": 33323378385,
-        "quality_python": "SUCCESS",
-        "quality_mobile": "SUCCESS",
-        "focused_verify_run": 33323378379,
-        "focused_verify": "SUCCESS",
-        "classification": "EXACT_HEAD_GREEN_T3_NOT_REACHED_PR_VERIFICATION_PROSE_REPAIRED",
-        "business_truth": "T1_PASSED_T2_REACHED_T3_NOT_REACHED_WTP_UNPROVEN_ZERO_CUSTOMERS_ZERO_PAID_PILOTS_ZERO_VERIFIED_RECOVERY_ZERO_REVENUE",
-        "next_exact_action": "Monitor for genuine inbound/T3 evidence without held unsolicited outreach; if real bounded sample becomes available, use assisted-local evidence-first workflow and preserve UNKNOWN/NO_CLAIM semantics."
+        "classification": "EXACT_HEAD_GREEN_T3_NOT_ACHIEVED_PR_PROSE_REPAIRED",
+        "next_exact_action": "Watch for genuine buyer/compliance evidence; do not infer WTP, proprietary case data, recovery, payment or revenue from GREEN."
+      },
+      "paper_laminate_works": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
+      },
+      "documentary_billing": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
+      },
+      "recoverable_money": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
+      },
+      "private_freight_orchestration": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
+      },
+      "autonomous_revenue_recovery": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
       },
       "causledger_inbound": {
         "new_material_replies": 0,
         "latest_watch_date": "2026-08-31",
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
-      },
-      "obrasignal_privacy": {
-        "pr": 845,
-        "head": "b3f162f35c513f15b77c6fcc8ceff6835d5ace08",
-        "quality_run": 33348287239,
-        "quality_status": "COMPLETED_SUCCESS",
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NOT_MERGED"
       }
     },
-    "active": "Paper-Laminate Works: reconstruct exact source/BATON authority; if still unknown after exact PR/code/ref/history search, preserve UNKNOWN and rotate immediately to Documentary Billing.",
-    "next": "Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard.",
+    "active": "Autonomous Revenue Recovery: complete exact source/BATON authority check; if still unknown, rotate immediately to ObraSignal Data Runner.",
+    "next": "Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
-      "CausLedger secure intake staging exists privately but customer transfer remains disabled until a bounded authorized secure channel is agreed.",
-      "Capacity Commitment exact head is GREEN, but T3 commercial proof remains dependent on real buyer behavior; PR body contains stale verification prose to correct safely.",
-      "Privacy #845 is exact-head GREEN but remains DRAFT / NOT CANONICAL / NOT MERGED.",
-      "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
-      "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered."
+      "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
+      "Capacity Commitment T3 commercial proof remains dependent on real buyer behavior; exact-head GREEN is not commercial proof."
     ]
   },
   "blocked": [
@@ -78,15 +69,15 @@
     {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity UNKNOWN.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact PR/code/ref searches.","global_stop":false},
-    {"factory_id":"machine-release-safety","blocker":"Exact source/BATON identity UNKNOWN after exact branch-ref search.","global_stop":false},
-    {"factory_id":"k3-fatality","blocker":"Canonical repository/source authority UNKNOWN after exact branch-ref search.","global_stop":false},
+    {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact searches.","global_stop":false},
+    {"factory_id":"machine-release-safety","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
+    {"factory_id":"k3-fatality","blocker":"Canonical repository/source authority UNKNOWN.","global_stop":false},
     {"factory_id":"paper-laminate-works","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"documentary-billing","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"recoverable-money","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN after exact PR/code/ref searches.","global_stop":false}
+    {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
