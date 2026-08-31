@@ -30,6 +30,7 @@ Wraps the current durable claim package without changing its documentary/economi
 
 - unchanged `core_package`;
 - `proof_manifest`;
+- explicit proof-strength gates;
 - internal self-verification result;
 - explicit flag when external verification gates remain unsatisfied.
 
@@ -48,8 +49,10 @@ Implemented:
 - evidence assurance state machine;
 - external-attestation model;
 - fail-closed external proof gates;
+- stable external attestation target that excludes the attestation receipts themselves and therefore avoids recursive/self-changing signature targets;
+- rejection of a VERIFIED external attestation if its digest does not match the stable target;
 - manifest SHA-256 and SHA-512;
-- independent manifest/package/Merkle self-verification;
+- independent package/Merkle/target/manifest verification;
 - truth-boundary declarations.
 
 Evidence states are strictly progressive and cannot be upgraded merely because a hash exists:
@@ -96,7 +99,7 @@ The default provider bundle is deliberately `UNAVAILABLE`/fail-closed. No extern
 
 `vertical_apps/industrial_claims/proof_verifier.py`
 
-A third party can verify a JSON Proof Pack without relying on the CausLedger web application for package/Merkle/manifest integrity. External qualified signatures/timestamps require the corresponding trust-chain validation material/provider verification path.
+A third party can verify a JSON Proof Pack without relying on the CausLedger web application for package/Merkle/attestation-target/manifest integrity. External qualified signatures/timestamps require the corresponding trust-chain validation material/provider verification path.
 
 ### 6. Evidence certificates and forensic extensions
 
@@ -105,12 +108,98 @@ A third party can verify a JSON Proof Pack without relying on the CausLedger web
 Implemented building blocks:
 
 - dual SHA-256/SHA-512 digest at capture time;
-- deterministic textual semantic-diff payload;
+- deterministic textual semantic-diff payload explicitly marked unsigned until a real external signature/seal is attached;
 - causal graph with evidence on every edge;
 - adverse/contradictory evidence register;
 - calculation provenance;
 - software/build/ruleset provenance;
 - per-evidence CausLedger Evidence Certificate.
+
+### 7. Durable Proof Pack reconstruction and authenticated export
+
+`vertical_apps/industrial_claims/durable_proof.py`
+
+`vertical_apps/industrial_claims/web.py`
+
+Implemented:
+
+- reconstructs the Proof Pack from tenant-scoped persisted case truth rather than transient in-memory analysis state;
+- requires the current revision;
+- cross-checks durable finding/evidence/calculation lineage;
+- preserves original persisted evidence `received_at`, hashes and metadata;
+- exports calculation inputs so the economic result remains independently reproducible;
+- exposes authenticated `GET /findings/<finding_id>/proof-pack` to analyst/reviewer/operator roles;
+- preserves tenant/actor identity scope checks;
+- never claims that current historical digest-only evidence has an immutable raw original when it does not.
+
+### 8. Secure original-evidence capture contract
+
+`vertical_apps/industrial_claims/proof_storage.py`
+
+`vertical_apps/industrial_claims/secure_capture.py`
+
+Implemented:
+
+- provider/object/version/receipt identity contract for immutable originals;
+- SHA-256 + SHA-512 + byte-length receipt validation;
+- retention mode / legal hold metadata;
+- fail-closed unconfigured original store;
+- server-controlled first-seen time;
+- separately declared effective time;
+- delayed-evidence flag when effective time predates first-seen time;
+- capture actor/subject/session/device/request provenance;
+- authentication-method (`amr`) capture with explicit strong-authentication classification;
+- source-authentication receipt contract;
+- secure capture refuses a storage receipt whose hashes do not reproduce the captured bytes.
+
+The repository contains the contract and verification logic. A real immutable object-store provider still must be configured before WORM can be claimed live.
+
+### 9. Email forensic provenance
+
+`vertical_apps/industrial_claims/email_forensics.py`
+
+Implemented:
+
+- hashes the original RFC822 `.eml` bytes with SHA-256/SHA-512;
+- preserves Message-ID, Date, From/To/Cc/Reply-To, In-Reply-To and References;
+- preserves Received, DKIM-Signature and Authentication-Results headers;
+- hashes decoded attachments independently with SHA-256/SHA-512 and byte length;
+- explicitly treats merely present DKIM headers as `DKIM_PRESENT_UNVERIFIED`;
+- only upgrades source authentication when an external/cryptographic authentication receipt exists.
+
+### 10. Proof-strength gate model
+
+`vertical_apps/industrial_claims/proof_readiness.py`
+
+Implemented without numeric confidence theatre. Possible infrastructure levels are:
+
+- `UNVERIFIED`;
+- `INTERNAL_INTEGRITY_VERIFIED`;
+- `ORIGINAL_IMMUTABILITY_VERIFIED`;
+- `INDEPENDENT_TIME_VERIFIED`;
+- `QUALIFIED_ORIGIN_VERIFIED`;
+- `MULTI_WITNESS_VERIFIED`;
+- `MAXIMUM_INFRASTRUCTURE_VERIFIED`.
+
+`MAXIMUM_INFRASTRUCTURE_VERIFIED` requires, among other gates, original-byte preservation, WORM, qualified timestamp, qualified seal/signature, independent provider quorum, public anchor, source authentication for all evidence, dual-hash coverage and evidence escrow. Counterparty acknowledgement is reported separately because it is materially powerful but cannot always be obtained.
+
+### 11. Privacy-preserving transparency batches
+
+`vertical_apps/industrial_claims/transparency.py`
+
+Implemented:
+
+- per-subject salted commitment;
+- Merkle aggregation of case-chain commitments;
+- private local batch manifest;
+- public anchor payload containing only batch ID, leaf count and Merkle root;
+- no tenant/customer/finding identity in the public anchor payload.
+
+A real external transparency-log/anchor provider is still required before the root is independently witnessed.
+
+### 12. Factory Cloud wait-state integrity
+
+The CausLedger application remains disabled for production runtime while business-side assisted progress continues. The control plane now explicitly validates `assisted_business_runtime_wait` rather than silently skipping its disabled state. It enforces the `business:real-case` baton and preserves the runtime-provisioning gate.
 
 ## Mandatory production target
 
@@ -141,7 +230,7 @@ The maximum-strength production configuration is:
 23. immutable supersession rather than deletion;
 24. final Evidence Certificate + Proof Pack;
 25. QR/verification identifier in human-facing dossier;
-26. public verification portal that exposes only non-confidential verification material;
+26. privacy-minimal public verification service;
 27. offline/open-format verifier so verification does not depend on CausLedger continuing to exist.
 
 ## Source capture requirements
@@ -263,20 +352,21 @@ Only the first four can be mechanically strengthened by proof infrastructure. Th
 
 ## Production gates still requiring real external infrastructure
 
-The following are intentionally NOT claimed as live merely because interfaces now exist:
+The following are intentionally NOT claimed as live merely because interfaces/contracts now exist:
 
 - qualified eIDAS timestamp provider;
 - qualified electronic seal/signature provider;
 - HSM-backed production keys;
-- WORM/Object Lock storage;
-- independent public/transparency anchor;
+- real WORM/Object Lock provider/retention policy;
+- independent public/transparency anchor provider;
 - independent evidence escrow;
-- secure original-document store;
-- counterparty acknowledgement workflow;
-- public verification portal/QR endpoint;
+- secure original-document object store configured with actual production retention;
+- cryptographic DKIM/signature validation service for source authentication;
+- counterparty acknowledgement workflow with verified external identity/signature where required;
+- privacy-minimal public verification/QR service;
 - certificate revocation/trust-chain validation service.
 
-Until each is configured, exercised end-to-end and evidenced, its state remains unsatisfied in the Proof Pack.
+Until each is configured, exercised end-to-end and evidenced, its state remains unsatisfied. The Proof Pack and proof-strength evaluator must expose that absence instead of pretending that an interface is proof.
 
 ## Non-negotiable truth rule
 
