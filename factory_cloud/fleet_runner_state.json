@@ -6,12 +6,12 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 32,
-  "last_factory_id": "eu-switching-evidence-pack",
-  "last_run_at": "2026-08-31T10:39:30Z",
+  "cursor": 1,
+  "last_factory_id": "factory-cloud",
+  "last_run_at": "2026-08-31T11:41:42Z",
   "last_material_change": {
-    "kind": "SUPPORT_OPS_SOURCE_UNKNOWN_BYPASSED_EU_SWITCHING_EXACT_HEAD_GREEN_TRUTH_REPAIRED",
-    "summary": "Registry and ACTIVE fleet state were re-read with all 33 entries preserved. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Support Ops exact-name PR search returned zero, so exact source authority remains UNKNOWN and the fleet rotated rather than fabricating lineage. EU Switching Evidence Pack successor PR #818 was recovered OPEN/DRAFT/NOT_MERGED at exact head f9ffcf82f2eebbfdeb400de76f562cb185ec5adf. Cloud Switching Quality 33271664101 and ObraSignal Quality 33271664096 are COMPLETED/SUCCESS on that exact head; stale acceptance-pending PR prose was repaired to exact-head GREEN while preserving NOT_CANONICAL and UNKNOWN live migration/customer/outcome/WTP/payment/revenue truth. ComplianceLedger exact-name PR search returned no result, so it remains UNKNOWN and the fleet rotates onward.",
+    "kind": "FACTORY_CLOUD_LIVE_HEAD_TRUTH_RECONSTRUCTED_AND_STALE_PINNING_REPAIR_PREPARED",
+    "summary": "Registry and ACTIVE fleet state were re-read with all 33 entries preserved. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Factory Cloud PR #652 is OPEN/NOT_MERGED/NOT_CANONICAL. Its branch head before this BATON persistence was a9a038114e1cfcf940de669d982a6d2b45371db9 and ObraSignal Quality run 33383431496 completed SUCCESS on that exact head. The PR description was found structurally stale because it pinned an older head/run while fleet BATON commits intentionally move the branch. Durable repair is to make live PR head plus matching exact-head CI authoritative instead of a prose-pinned SHA. This BATON commit advances the fleet to ObraSignal without claiming the newly moved head is CI-green until matching evidence exists.",
     "evidence": {
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -19,37 +19,26 @@
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
-      "obrasignal_support_ops": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "exact_name_pr_results": 0,
-        "next_exact_action": "Recover canonical source/BATON/PR/code authority from repository evidence before source-specific mutation."
-      },
-      "eu_switching_evidence_pack": {
-        "pr": 818,
-        "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
-        "cloud_switching_quality_run": 33271664101,
-        "obrasignal_quality_run": 33271664096,
-        "quality_status": "COMPLETED_SUCCESS",
-        "mergeable": true,
-        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "classification": "EXACT_HEAD_GREEN_REPOSITORY_REPAIR_ONLY",
-        "next_exact_action": "Do not infer canonical integration or live migration outcome; advance only with authoritative integration/customer evidence."
-      },
-      "complianceledger": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "exact_name_pr_results": 0
+      "factory_cloud": {
+        "pr": 652,
+        "pre_baton_head": "a9a038114e1cfcf940de669d982a6d2b45371db9",
+        "pre_baton_quality_run": 33383431496,
+        "pre_baton_quality_status": "COMPLETED_SUCCESS",
+        "pr_state": "OPEN_NOT_MERGED_NOT_CANONICAL",
+        "truth_defect": "PR_BODY_PINNED_OLDER_SHA_AND_RUN_ON_MUTABLE_FLEET_BRANCH",
+        "durable_truth_rule": "PR live head and CI matching that exact head are authoritative; prose-pinned SHA is historical evidence only.",
+        "next_exact_action": "After this BATON commit, repair PR #652 prose so mutable live-head semantics are explicit; do not claim the new head green until matching CI completes."
       }
     },
-    "active": "Factory Cloud / Control Tower — continue global rotation and reconstruct exact source/CI truth for the next highest-value executable Factory.",
-    "next": "Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger.",
+    "active": "ObraSignal — reconstruct current canonical branch/PR/CI truth and execute the highest-value repository-safe repair without inferring production or customer outcomes.",
+    "next": "ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
-      "Support Ops exact source identity remains UNKNOWN after exact-name PR search.",
-      "EU Switching Evidence Pack #818 exact-head GREEN proves repository repair only; canonical integration, live migration, customer outcome, WTP, payment and revenue remain unproven.",
-      "ComplianceLedger exact source identity remains UNKNOWN after exact-name PR search."
+      "Factory Cloud exact-head GREEN evidence for a9a038114e1cfcf940de669d982a6d2b45371db9 is historical after this BATON commit; the new live head requires its own matching CI before GREEN can be claimed.",
+      "Factory Cloud PR prose must treat the live PR head plus matching CI as authority rather than pinning a mutable fleet-state SHA."
     ]
   },
   "blocked": [
