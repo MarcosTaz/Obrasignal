@@ -3,20 +3,24 @@ import Purchases from 'react-native-purchases';
 
 export const BILLING_ENTITLEMENT = 'pro';
 export const BILLING_PRODUCT = 'obrasignal_pro_monthly';
-export const BILLING_SUPPORTED = Platform.OS === 'android' || Platform.OS === 'ios';
+export const BILLING_PLATFORM_SUPPORTED = Platform.OS === 'android' || Platform.OS === 'ios' || Platform.OS === 'web';
+export const BILLING_RESTORE_SUPPORTED = Platform.OS === 'android' || Platform.OS === 'ios';
 
 let configuredUserId = null;
 
 function publicKey() {
-  return Platform.OS === 'ios'
-    ? process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY
-    : process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY;
+  if (Platform.OS === 'web') return process.env.EXPO_PUBLIC_REVENUECAT_WEB_KEY;
+  if (Platform.OS === 'ios') return process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY;
+  return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY;
+}
+
+export function billingConfigurationAvailable() {
+  return BILLING_PLATFORM_SUPPORTED && Boolean(publicKey());
 }
 
 export async function configureBilling(appUserId) {
-  if (!BILLING_SUPPORTED) return { configured: false, customerInfo: null };
+  if (!billingConfigurationAvailable() || !appUserId) return { configured: false, customerInfo: null };
   const key = publicKey();
-  if (!key || !appUserId) return { configured: false, customerInfo: null };
   const userId = String(appUserId);
   if (!configuredUserId) {
     await Purchases.configure({ apiKey: key, appUserID: userId });
@@ -38,13 +42,13 @@ export function activeEntitlement(customerInfo) {
 }
 
 export async function getCurrentOffering() {
-  if (!BILLING_SUPPORTED) return null;
+  if (!billingConfigurationAvailable()) return null;
   const offerings = await Purchases.getOfferings();
   return offerings?.current || null;
 }
 
 export async function purchasePro() {
-  if (!BILLING_SUPPORTED) throw new Error('billing_not_available_on_web');
+  if (!billingConfigurationAvailable()) throw new Error('billing_not_configured');
   const offering = await getCurrentOffering();
   const pkg = offering?.availablePackages?.find(p =>
     p?.product?.identifier === BILLING_PRODUCT || p?.packageType === 'MONTHLY'
@@ -55,11 +59,11 @@ export async function purchasePro() {
 }
 
 export async function restoreBilling() {
-  if (!BILLING_SUPPORTED) throw new Error('billing_not_available_on_web');
+  if (!BILLING_RESTORE_SUPPORTED) throw new Error('restore_not_supported_on_web');
   return Purchases.restorePurchases();
 }
 
 export async function refreshBilling() {
-  if (!BILLING_SUPPORTED) return null;
+  if (!billingConfigurationAvailable()) return null;
   return Purchases.getCustomerInfo();
 }
