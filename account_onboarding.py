@@ -1,9 +1,10 @@
 """First-value bootstrap for newly configured accounts.
 
 A new account should not have to wait for the next source poll before the
-Radar can show matches. This module performs a bounded, account-scoped
-classification pass over recent/open tenders after the company profile is
-saved and emits high-match events for the same account.
+Radar can show matches. This module performs a deliberately small,
+account-scoped classification pass after the company profile is saved.
+The normal ingestion/decision pipeline continues coverage afterwards; profile
+writes must never be held hostage by a full-corpus reclassification.
 """
 from __future__ import annotations
 
@@ -13,7 +14,9 @@ from decision_log import ensure_decision_table
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 
-MAX_BOOTSTRAP_ROWS = 250
+# This runs inside POST /profile. Keep it a first-value sample, not a batch job.
+# 250 rows exceeded the real 30 s production contract even after batching.
+MAX_BOOTSTRAP_ROWS = 50
 
 
 def _emit_bootstrap_events(conn, account_id: str) -> int:
@@ -52,11 +55,13 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
 
 
 def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
-    """Classify a bounded recent/actionable sample for one account quickly.
+    """Classify a bounded first-value sample for one account quickly.
 
     The profile and decision schema are prepared once and all decision rows are
-    committed atomically. This keeps profile-save latency bounded even with a
-    large tender corpus.
+    committed atomically. Candidate selection prefers the account's configured
+    countries, then the strongest legacy source score and freshest source date.
+    Legacy score is used only to choose which rows to evaluate first; the score
+    shown to customers is always recalculated by the canonical account model.
     """
     account_id = str(account_id or "").strip()
     if not account_id:
@@ -66,15 +71,24 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
         ensure_lifecycle_table(conn)
         ensure_decision_table(conn)
         profile = load_profile(account_id)
+        countries = [str(value).strip().upper() for value in (profile.get("countries") or []) if str(value).strip()]
+        where = [actionable_predicate('lc', 't')]
+        params = []
+        if countries:
+            placeholders = ",".join("?" for _ in countries)
+            where.append(f"UPPER(COALESCE(t.country,'')) IN ({placeholders})")
+            params.extend(countries)
+        params.append(max(1, min(int(limit), MAX_BOOTSTRAP_ROWS)))
         rows = conn.execute(
             f"""SELECT t.*
                FROM tenders t
                LEFT JOIN opportunity_lifecycle lc
                  ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE {actionable_predicate('lc', 't')}
-               ORDER BY COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC
+               WHERE {' AND '.join(where)}
+               ORDER BY COALESCE(t.score,0) DESC,
+                        COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC
                LIMIT ?""",
-            (max(1, min(int(limit), MAX_BOOTSTRAP_ROWS)),),
+            params,
         ).fetchall()
         evaluated = 0
         for row in rows:
