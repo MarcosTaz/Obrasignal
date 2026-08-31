@@ -6,51 +6,58 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 25,
-  "last_factory_id": "obrasignal-global-market-entry",
-  "last_run_at": "2026-08-31T07:41:30Z",
+  "cursor": 28,
+  "last_factory_id": "obrasignal-product-strategy",
+  "last_run_at": "2026-08-31T08:44:00Z",
   "last_material_change": {
-    "kind": "CUSTOMER_JOURNEY_EXACT_HEAD_GREEN_TRUTH_REPAIRED_AND_ROTATED_TO_GTM",
-    "summary": "Registry and ACTIVE fleet state were re-read. OS SIDE remained UNKNOWN_EXACT_SOURCE_IDENTITY after an exact PR search returned zero and was bypassed without fabricated lineage. CausLedger Gmail watch found no new material prospect/CEFAMOL/AFIA/DGC inbound, so Portugal and Spain legal holds remain active. Customer Journey PR #821 was revalidated OPEN/DRAFT/NOT MERGED at exact head b9c637071b9f29fc7b84d6b017e7234cf5d6240b with ObraSignal Quality run 33272280807 COMPLETED/SUCCESS. Its stale prose still treated exact-head CI as an open gate; the PR body was repaired to state exact-head GREEN while preserving the remaining persisted per-mutation actor-attribution boundary and all non-production/non-commercial limitations. Global Market Entry PR #519 was then inspected at head 53b65b952acbf5ad100356f8aeb1800e5d6094a1; France completeness and first-wave commercial hypotheses remain open, so the fleet rotated onward without overclaiming.",
+    "kind": "CUSTOMER_DECISION_EXACT_HEAD_RED_TRUTH_REPAIRED_AND_ROTATED_TO_ANALYTICS",
+    "summary": "Registry and ACTIVE fleet state were re-read. CausLedger Gmail watch found no new material prospect/CEFAMOL/AFIA/DGC inbound, so Portugal and Spain legal holds remain active. ObraSignal GTM current company-composition candidate #844 remained OPEN/DRAFT/NOT_MERGED at exact head a3e523b216131e9021545826cd01abaf0a473183 with prior exact-head GREEN evidence and commercial validation still open; no outbound was sent. Customer Decision PR #376 had materially stale prose: its live head is 15b8bdd2e4e981a88ce3b70e2c4b7507b5c23d5f, not b3c211d..., and exact-head Quality run 33274301331 is FAILURE because Mobile fails at expo-doctor while Python succeeds. The PR body was repaired to classify the candidate PYTHON_GREEN/MOBILE_RED/NOT_FULLY_GREEN without weakening decision truth semantics or implying merge readiness. Product Strategy #521 was then revalidated OPEN/DRAFT/NOT_MERGED at exact head 74c23f15eed1b55dfff0742d9388c8f36230c49c with ObraSignal Quality run 33336993718 COMPLETED/SUCCESS; distribution, WTP and customer outcome proof remain unproven. Fleet rotates to Analytics.",
     "evidence": {
-      "os_side": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "exact_pr_search_count": 0,
-        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
-      },
-      "obrasignal_customer_journey": {
-        "pr": 821,
-        "head": "b9c637071b9f29fc7b84d6b017e7234cf5d6240b",
-        "quality_run": 33272280807,
-        "quality_status": "COMPLETED_SUCCESS",
-        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "classification": "EXACT_HEAD_GREEN_PR_PROSE_REPAIRED",
-        "remaining_boundary": "Persisted audit-event writer must record authenticated subject on each mutation; production memberships and production migration remain unproved.",
-        "next_exact_action": "Implement or recover persisted per-mutation actor-attribution evidence on a repository-safe draft successor; do not infer production membership or customer outcome."
-      },
-      "obrasignal_global_market_entry": {
-        "pr": 519,
-        "head": "53b65b952acbf5ad100356f8aeb1800e5d6094a1",
-        "pr_state": "OPEN_DRAFT_NOT_MERGED",
-        "classification": "SOURCE_IDENTITY_REVALIDATED_OPEN_GATES_PRESERVED",
-        "next_exact_action": "Probe France DECP adapter compatibility against current opportunity/buyer/award models with synthetic or public data only; do not claim national completeness until proved."
-      },
       "causledger_inbound": {
         "new_material_replies": 0,
         "latest_watch_date": "2026-08-31",
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
+      },
+      "obrasignal_gtm": {
+        "pr": 844,
+        "head": "a3e523b216131e9021545826cd01abaf0a473183",
+        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+        "classification": "COMMERCIAL_VALIDATION_OPEN",
+        "next_exact_action": "Continue non-outbound pilot/discovery preparation and process only compliant inbound/consent-based routes; do not infer WTP or revenue."
+      },
+      "obrasignal_customer_decision": {
+        "pr": 376,
+        "head": "15b8bdd2e4e981a88ce3b70e2c4b7507b5c23d5f",
+        "quality_run": 33274301331,
+        "quality_status": "COMPLETED_FAILURE",
+        "python_job": 99158212986,
+        "python_status": "SUCCESS",
+        "mobile_job": 99158213002,
+        "mobile_status": "FAILURE_AT_EXPO_DOCTOR",
+        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+        "classification": "PYTHON_GREEN_MOBILE_RED_NOT_FULLY_GREEN_PR_PROSE_REPAIRED",
+        "next_exact_action": "Recover or compose current Supply-Chain/Expo dependency authority before mutating owner semantics; then revalidate on an exact compatible tree."
+      },
+      "obrasignal_product_strategy": {
+        "pr": 521,
+        "head": "74c23f15eed1b55dfff0742d9388c8f36230c49c",
+        "quality_run": 33336993718,
+        "quality_status": "COMPLETED_SUCCESS",
+        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+        "classification": "EXACT_HEAD_GREEN_STRATEGY_ONLY",
+        "next_exact_action": "Preserve customer/distribution/WTP/outcome UNKNOWNs and rotate to measurable execution evidence rather than adding unsupported strategy claims."
       }
     },
-    "active": "ObraSignal GTM / First Revenue — reconstruct exact current commercial/repository truth and execute highest-value safe non-outbound work while legal holds remain respected.",
-    "next": "GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry.",
+    "active": "Data, Analytics & Learning System Factory — reconstruct exact current source/CI truth and execute highest-value repository-safe measurement integrity work.",
+    "next": "Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
-      "Customer Journey exact-head GREEN does not prove persisted per-mutation actor attribution, production membership, customer use or commercial outcomes.",
-      "Global Market Entry France DECP evidence does not yet prove complete national coverage."
+      "Customer Decision #376 exact head is NOT FULLY GREEN: Python succeeds but Mobile fails at expo-doctor; do not transport older GREEN evidence.",
+      "Product Strategy exact-head GREEN is strategy/repository evidence only and does not prove distribution, WTP, customer value, retention or revenue."
     ]
   },
   "blocked": [
