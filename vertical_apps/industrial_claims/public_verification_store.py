@@ -148,6 +148,7 @@ class PublicVerificationStore:
     def transition(
         self,
         *,
+        tenant_id: str,
         verification_id: str,
         event_id: str,
         event_type: str,
@@ -155,6 +156,7 @@ class PublicVerificationStore:
         actor_id: str,
         successor_verification_id: str | None = None,
     ) -> None:
+        tenant = _required(tenant_id, label="tenant_id", max_chars=128)
         token_hash = _token_hash(verification_id)
         event_key = _required(event_id, label="event_id")
         transition = _required(event_type, label="event_type", max_chars=64).upper()
@@ -180,6 +182,8 @@ class PublicVerificationStore:
             ).fetchone()
             if current is None:
                 raise PublicVerificationStoreError("public verification receipt not found")
+            if str(current["tenant_id"]) != tenant:
+                raise PublicVerificationStoreError("public verification receipt does not belong to authenticated tenant")
             if successor_hash is not None:
                 successor = conn.execute(
                     "SELECT tenant_id FROM causledger_public_receipts WHERE token_hash=?",
@@ -187,7 +191,7 @@ class PublicVerificationStore:
                 ).fetchone()
                 if successor is None:
                     raise PublicVerificationStoreError("successor public verification receipt not found")
-                if successor["tenant_id"] != current["tenant_id"]:
+                if successor["tenant_id"] != tenant:
                     raise PublicVerificationStoreError("cross-tenant public receipt supersession rejected")
             rows = self._events(conn, token_hash)
             valid, previous, errors = self._verify_event_chain(rows)
