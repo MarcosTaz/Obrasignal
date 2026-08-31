@@ -4,7 +4,9 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     # Global WSGI boundary guarantees browser preflight/CORS before auth hooks.
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 cors_app:APP
+    # production_entrypoint keeps schema migration at startup and removes DDL
+    # from live push request/scheduler hot paths after startup completes.
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 production_entrypoint:APP
     healthCheckPath: /api/v1/health
     # SQLite is currently the application's datastore. Keep it on a Render
     # persistent disk so authenticated profiles and opportunity state survive
@@ -27,11 +29,13 @@ services:
       # second manually configured URL created a stale-key/configuration failure
       # mode during asymmetric-key migration, so no Supabase JWKS override is
       # declared by the production blueprint.
-      # Official customer Web origin. Infrastructure URLs are not customer truth.
+      # Temporary live customer origin while obrasignal.com DNS/OVH activation is
+      # pending. Switch both values back to https://obrasignal.com atomically once
+      # public DNS resolves; never leave the application without a reachable UI.
       - key: OBRASIGNAL_CORS_ORIGIN
-        value: "https://obrasignal.com"
+        value: "https://marcostaz.github.io"
       - key: OBRASIGNAL_WEB_ORIGIN
-        value: "https://obrasignal.com"
+        value: "https://marcostaz.github.io/Obrasignal"
       - key: OBRASIGNAL_DB
         value: "/var/data/obrasignal.db"
       - key: POLL_SECONDS
