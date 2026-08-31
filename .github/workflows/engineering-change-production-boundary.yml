@@ -1,0 +1,84 @@
+name: Engineering Change Production Boundary
+
+on:
+  push:
+    branches:
+      - factory/engineering-change-production-boundary-20260831
+      - factory/engineering-change-recoverability
+    paths:
+      - 'factories/engineering_change_recoverability/**'
+      - '.github/workflows/engineering-change-production-boundary.yml'
+      - 'requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Compile factory
+        working-directory: factories/engineering_change_recoverability
+        run: python -m py_compile *.py
+      - name: Run complete factory suite
+        working-directory: factories/engineering_change_recoverability
+        run: python -W error::ResourceWarning -m unittest -v
+      - name: Production HTTP fail-closed smoke
+        working-directory: factories/engineering_change_recoverability
+        env:
+          ECE_ENV: production
+          ECE_AUTH_SECRET: ci-auth-secret-0123456789abcdef-0123456789
+          ECE_AUDIT_SECRET: ci-audit-secret-0123456789abcdef-012345678
+          ECE_BACKUP_SECRET: ci-backup-secret-0123456789abcdef-01234567
+          ECE_DB_PATH: /tmp/ece-ci.db
+          ECE_MAX_BODY_BYTES: '1024'
+        run: |
+          set -euo pipefail
+          python app.py >/tmp/ece-app.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:8765/readyz >/tmp/ready.json; then break; fi
+            sleep 0.25
+          done
+          python - <<'PY'
+          import json
+          payload=json.load(open('/tmp/ready.json'))
+          assert payload['ready'] is True, payload
+          assert payload['audit_enabled'] is True
+          assert payload['database_integrity'] is True
+          PY
+          status=$(curl --silent --output /tmp/unauth.json --write-out '%{http_code}' -X POST \
+            -H 'Content-Type: application/json' --data '{"tenant_id":"TENANT-A"}' \
+            http://127.0.0.1:8765/api/analyze)
+          test "$status" = 401
+          TOKEN=$(python - <<'PY'
+          from auth import issue_token
+          print(issue_token('TENANT-A', role='OWNER'))
+          PY
+          )
+          status=$(curl --silent --output /tmp/cross.json --write-out '%{http_code}' -X POST \
+            -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+            --data '{"tenant_id":"OTHER"}' http://127.0.0.1:8765/api/analyze)
+          test "$status" = 403
+          python - <<'PY' >/tmp/oversize.json
+          import json
+          print(json.dumps({'tenant_id':'TENANT-A','padding':'x'*1200}))
+          PY
+          status=$(curl --silent --output /tmp/oversize-response.json --write-out '%{http_code}' -X POST \
+            -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/oversize.json http://127.0.0.1:8765/api/analyze)
+          test "$status" = 413
+          status=$(curl --silent --output /tmp/purge.json --write-out '%{http_code}' -X DELETE \
+            -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8765/api/records/DOES-NOT-EXIST)
+          test "$status" = 200
+          curl --silent -D /tmp/headers.txt -o /tmp/health.json http://127.0.0.1:8765/health
+          grep -qi '^X-Content-Type-Options: nosniff' /tmp/headers.txt
+          grep -qi '^Content-Security-Policy:' /tmp/headers.txt
