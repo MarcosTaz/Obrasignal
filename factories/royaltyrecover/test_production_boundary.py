@@ -64,7 +64,7 @@ class ProductionBoundaryTests(unittest.TestCase):
     def test_audit_chain_is_tamper_evident(self):
         self.assertTrue(self.repo.verify_audit_chain())
         with sqlite3.connect(self.db) as conn:
-            conn.execute("UPDATE audit_events SET payload_json='{}' WHERE rowid=2")
+            conn.execute("UPDATE audit_events SET payload_json='{""tampered"":true}' WHERE rowid=2")
         self.assertFalse(self.repo.verify_audit_chain())
 
     def test_encrypted_backup_restore_roundtrip_and_wrong_key_failure(self):
