@@ -6,41 +6,39 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 19,
-  "last_factory_id": "private-freight-orchestration",
-  "last_run_at": "2026-08-31T05:43:30Z",
+  "cursor": 22,
+  "last_factory_id": "obrasignal-data-truth",
+  "last_run_at": "2026-08-31T06:46:30Z",
   "last_material_change": {
-    "kind": "CAPACITY_PR_TRUTH_REPAIRED_AND_UNKNOWN_FACTORIES_ROTATED",
-    "summary": "Registry and ACTIVE fleet state were re-read. CausLedger Gmail watch found no new material prospect/CEFAMOL/AFIA/DGC inbound, so Portugal and Spain legal holds remain active. Paper-Laminate Works remained without exact canonical source evidence in exact code search. Documentary Billing, Recoverable Money, Private Freight and Autonomous Revenue Recovery produced no exact matching PRs in fleet reconstruction; UNKNOWN is preserved rather than fabricating source authority. Capacity Commitment PR #729 had stale exact-head verification prose; PR body was repaired to current exact head 0b156218ce427284d40583d4b7eb317622d95376 and GitHub ObraSignal Quality run 33328905676 COMPLETED/SUCCESS, while retaining DRAFT/NOT CANONICAL/NOT MERGED and T3 NOT ACHIEVED business truth.",
+    "kind": "FACTORY_CLOUD_PR_TRUTH_REPAIRED_AND_FLEET_ROTATED_TO_OS_SIDE",
+    "summary": "Registry and ACTIVE fleet state were re-read. Autonomous Revenue Recovery remained UNKNOWN_EXACT_SOURCE_IDENTITY after exact PR/code searches; ObraSignal Data Runner also remained without an exact matching PR identity, so neither was assigned fabricated source authority. Data Truth PR #774 was revalidated OPEN/DRAFT at exact head d1bae52475e688d7dcbfa69fa4eb6d98470a1294. Cross-factory inspection exposed stale Factory Cloud PR #652 prose that still referenced old head fede938... and queued CI. Current Factory Cloud exact head 10a4b690add9d248eab41712891654ca14b816dc has ObraSignal Quality run 33361549205 COMPLETED/SUCCESS; PR #652 body was repaired to exact-head GREEN while preserving OPEN/NOT MERGED/NOT CANONICAL and all production/secrets/customer-data/commercial boundaries. CausLedger Gmail watch found no new material prospect/CEFAMOL/AFIA/DGC inbound, so Portugal and Spain legal holds remain active.",
     "evidence": {
-      "capacity_commitment": {
-        "pr": 729,
-        "head": "0b156218ce427284d40583d4b7eb317622d95376",
-        "quality_run": 33328905676,
+      "factory_cloud": {
+        "pr": 652,
+        "head": "10a4b690add9d248eab41712891654ca14b816dc",
+        "quality_run": 33361549205,
         "quality_status": "COMPLETED_SUCCESS",
-        "pr_state": "OPEN_DRAFT_NOT_MERGED",
-        "classification": "EXACT_HEAD_GREEN_T3_NOT_ACHIEVED_PR_PROSE_REPAIRED",
-        "next_exact_action": "Watch for genuine buyer/compliance evidence; do not infer WTP, proprietary case data, recovery, payment or revenue from GREEN."
-      },
-      "paper_laminate_works": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
-      },
-      "documentary_billing": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
-      },
-      "recoverable_money": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
-      },
-      "private_freight_orchestration": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
+        "pr_state": "OPEN_NOT_MERGED_NOT_CANONICAL",
+        "classification": "EXACT_HEAD_GREEN_PR_PROSE_REPAIRED",
+        "next_exact_action": "Continue fleet rotation; external persistent hosting and restart/takeover proof remain separate from repository GREEN."
       },
       "autonomous_revenue_recovery": {
         "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "exact_pr_search_count": 0,
+        "exact_code_search_count": 0,
         "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
+      },
+      "obrasignal_data_runner": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "exact_pr_search_count": 0,
+        "next_exact_action": "Recover canonical source/BATON authority before source-specific mutation."
+      },
+      "obrasignal_data_truth": {
+        "pr": 774,
+        "head": "d1bae52475e688d7dcbfa69fa4eb6d98470a1294",
+        "pr_state": "OPEN_DRAFT_NOT_MERGED",
+        "classification": "SOURCE_IDENTITY_REVALIDATED_NO_NEW_MUTATION",
+        "next_exact_action": "Preserve global active-source coverage authority semantics; do not infer production source activation from draft GREEN state."
       },
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -49,14 +47,14 @@
         "spain_unsolicited_commercial_hold": "ACTIVE"
       }
     },
-    "active": "Autonomous Revenue Recovery: complete exact source/BATON authority check; if still unknown, rotate immediately to ObraSignal Data Runner.",
-    "next": "Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight.",
+    "active": "OS SIDE FACTORY — recover exact source/BATON authority; if still unknown, rotate immediately to Customer Journey.",
+    "next": "OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
-      "Capacity Commitment T3 commercial proof remains dependent on real buyer behavior; exact-head GREEN is not commercial proof."
+      "Factory Cloud exact-head GREEN does not prove external persistent hosting/restart takeover, production authority or commercial outcomes."
     ]
   },
   "blocked": [
