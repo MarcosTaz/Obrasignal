@@ -30,20 +30,21 @@ def test_canonical_real_login_workflows_do_not_treat_publishable_key_as_bearer_t
         assert "Authorization: Bearer $SUPABASE_KEY" not in workflow
 
 
-def test_authenticated_e2e_failure_reports_only_bounded_provider_health_fields():
+def test_authenticated_e2e_auth_failure_diagnostics_remain_bounded():
     workflow = (WORKFLOWS / "authenticated-e2e.yml").read_text(encoding="utf-8")
 
-    assert "API_AUTH_HEALTH=" in workflow
-    assert "API_AUTH_HEALTH_UNAVAILABLE" in workflow
-    assert "for key in ('mode','config_present','provider_status','provider_kind','provider_error')" in workflow
+    # The consolidated production-contract step may report only the bounded
+    # Supabase error fields below. It must never dump credentials, JWT issuer
+    # configuration, exception strings or tracebacks into CI logs.
+    assert "safe={k: payload.get(k) for k in ('error','error_code','msg','message') if payload.get(k)}" in workflow
     assert "OBRASIGNAL_JWT_ISSUER" not in workflow
     assert "OBRASIGNAL_JWKS_URL" not in workflow
-    # Parsing failures may be caught with `except Exception`, but raw exception
-    # objects/strings must never be emitted by the production E2E diagnostics.
     assert "print(exc" not in workflow
     assert "print(str(exc" not in workflow
     assert "repr(exc" not in workflow
     assert "traceback" not in workflow.lower()
+    assert "password_sha256" not in workflow
+    assert "password_byte_length" not in workflow
 
 
 def test_release_gates_and_manual_diagnostic_remain_separate():
