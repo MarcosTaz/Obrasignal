@@ -14,28 +14,20 @@ const TRANSLATE_SCRIPT_ID = 'obrasignal-google-translate-script'
 function WebTranslator() {
   const [enabled, setEnabled] = useState(false)
   const [available, setAvailable] = useState(true)
-
   useEffect(() => {
     if (!enabled || typeof window === 'undefined' || typeof document === 'undefined') return undefined
     let active = true
-
     const mountTranslator = () => {
       if (!active) return
       const host = document.getElementById(TRANSLATE_ELEMENT_ID)
       const TranslateElement = window.google?.translate?.TranslateElement
       if (!host || !TranslateElement || host.querySelector('.goog-te-combo')) return
-      try {
-        new TranslateElement({ pageLanguage: 'pt', autoDisplay: false, multilanguagePage: true }, TRANSLATE_ELEMENT_ID)
-        setAvailable(true)
-      } catch (_) {
-        setAvailable(false)
-      }
+      try { new TranslateElement({ pageLanguage: 'pt', autoDisplay: false, multilanguagePage: true }, TRANSLATE_ELEMENT_ID); setAvailable(true) }
+      catch (_) { setAvailable(false) }
     }
-
     window.obrasignalGoogleTranslateInit = mountTranslator
-    if (window.google?.translate?.TranslateElement) {
-      mountTranslator()
-    } else if (!document.getElementById(TRANSLATE_SCRIPT_ID)) {
+    if (window.google?.translate?.TranslateElement) mountTranslator()
+    else if (!document.getElementById(TRANSLATE_SCRIPT_ID)) {
       const script = document.createElement('script')
       script.id = TRANSLATE_SCRIPT_ID
       script.async = true
@@ -43,13 +35,10 @@ function WebTranslator() {
       script.onerror = () => { if (active) setAvailable(false) }
       document.head.appendChild(script)
     }
-
     return () => { active = false }
   }, [enabled])
-
   return <View style={styles.translateArea} accessibilityLabel="Tradutor da página">
-    {!enabled
-      ? <Pressable accessibilityRole="button" accessibilityLabel="Ativar tradutor" onPress={() => setEnabled(true)} style={({pressed}) => [styles.translateButton, pressed && styles.translatePressed]}><Text style={styles.translateButtonText}>Traduzir ▾</Text></Pressable>
+    {!enabled ? <Pressable accessibilityRole="button" accessibilityLabel="Ativar tradutor" onPress={() => setEnabled(true)} style={({pressed}) => [styles.translateButton, pressed && styles.translatePressed]}><Text style={styles.translateButtonText}>Traduzir ▾</Text></Pressable>
       : <><Text style={styles.translateLabel}>Tradutor</Text>{available ? <View nativeID={TRANSLATE_ELEMENT_ID} style={styles.translateWidget}/> : <Text style={styles.translateUnavailable}>indisponível</Text>}</>}
   </View>
 }
@@ -65,12 +54,10 @@ function WebSessionBar() {
 export default function AuthGate({ children }) {
   const [authState, setAuthState] = useState(authSession.getState())
   const [tenantStatus, setTenantStatus] = useState('loading')
-
   useEffect(() => {
     let active = true
     let generation = 0
     let bindingQueue = Promise.resolve()
-
     const update = (nextState) => {
       if (!active) return
       const currentGeneration = ++generation
@@ -90,7 +77,6 @@ export default function AuthGate({ children }) {
         setTenantStatus('error')
       })
     }
-
     const unsubscribe = authSession.subscribe(update)
     authSession.start().then(update).catch(() => update({ status: 'signed-out', session: null, event: null }))
     return () => { active = false; generation += 1; unsubscribe() }
@@ -102,8 +88,9 @@ export default function AuthGate({ children }) {
   if (authState.event === 'PASSWORD_RECOVERY') return <PasswordRecoveryScreen />
 
   const accountId = authState.session?.user?.id
+  const gated = <BillingGate key={accountId}>{children}</BillingGate>
   return <AccountPrivacyControls key={`privacy:${accountId}`}>
-    <BillingGate key={accountId}>{children && Platform.OS === 'web' ? <View style={styles.webShell}><WebSessionBar/><View style={styles.webContent}>{children}</View></View> : children}</BillingGate>
+    {Platform.OS === 'web' ? <View style={styles.webShell}><WebSessionBar/><View style={styles.webContent}>{gated}</View></View> : gated}
   </AccountPrivacyControls>
 }
 
