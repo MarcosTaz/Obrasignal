@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import AccountPrivacyControls from './AccountPrivacyControls'
 import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
+import PasswordRecovery from './PasswordRecovery'
 import { supabase } from '../lib/supabase'
 import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
@@ -93,9 +94,15 @@ function WebSessionBar() {
   </View>
 }
 
+function clearRecoveryUrl() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof document === 'undefined') return
+  try { window.history.replaceState({}, document.title, window.location.pathname) } catch (_) {}
+}
+
 export default function AuthGate({ children }) {
   const [authState, setAuthState] = useState(authSession.getState())
   const [tenantStatus, setTenantStatus] = useState('loading')
+  const [passwordRecovery, setPasswordRecovery] = useState(() => Platform.OS === 'web' && typeof window !== 'undefined' && /(?:[?#&])type=recovery(?:[&#]|$)/.test(window.location.href))
 
   useEffect(() => {
     let active = true
@@ -134,6 +141,16 @@ export default function AuthGate({ children }) {
     return () => { active = false; generation += 1; unsubscribe() }
   }, [])
 
+  useEffect(() => {
+    // Supabase emits PASSWORD_RECOVERY after exchanging a valid recovery link.
+    // Keep this listener independent from the generic session coordinator so a
+    // temporary recovery session never falls through into private product data.
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true)
+    })
+    return () => data?.subscription?.unsubscribe()
+  }, [])
+
   if (authState.status === 'loading' || tenantStatus === 'loading') {
     return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><ActivityIndicator size="small" color="#5F8DF7"/><Text style={styles.message}>A recuperar a sessão…</Text></View>
   }
@@ -141,6 +158,13 @@ export default function AuthGate({ children }) {
     return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
   }
   if (authState.status !== 'signed-in') return <AuthScreen />
+
+  if (passwordRecovery) {
+    return <PasswordRecovery
+      onComplete={() => { clearRecoveryUrl(); setPasswordRecovery(false) }}
+      onCancel={() => { clearRecoveryUrl(); setPasswordRecovery(false) }}
+    />
+  }
 
   // Privacy ownership deliberately sits outside billing: a customer can inspect,
   // export or request deletion of account data even when evaluation access expires.
