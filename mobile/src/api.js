@@ -16,7 +16,7 @@ function reportTiming(path, startedAt, status) {
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new CustomEvent('obrasignal:api-timing', { detail: { path, durationMs, status } }));
 }
 function isRetryableNetworkError(error) { if (!error) return false; if (error.name === 'AbortError') return true; if (typeof error.status === 'number') return [502,503,504].includes(error.status); return !error.status; }
-function describeNetworkError(error, path) { const name=error?.name||'NetworkError'; const message=error?.message||String(error||'unknown error'); const hint=/load failed|failed to fetch|networkerror/i.test(message)?'O navegador não recebeu uma resposta HTTP. Verifica CORS, TLS, DNS ou se o endpoint está acessível.':message; const diagnostic=new Error(`API ${path}: ${hint} [${name}]`); diagnostic.code='API_NETWORK_ERROR'; diagnostic.causeMessage=message; diagnostic.path=path; diagnostic.apiBase=API_BASE; return diagnostic; }
+function describeNetworkError(error, path) { const name=error?.name||'NetworkError'; const message=error?.message||String(error||'unknown error'); const hint=/load failed|failed to fetch|networkerror/i.test(message)?'O navegador não recebeu uma resposta HTTP. Verifica a ligação e tenta novamente.':message; const diagnostic=new Error(`API ${path}: ${hint} [${name}]`); diagnostic.code='API_NETWORK_ERROR'; diagnostic.causeMessage=message; diagnostic.path=path; diagnostic.apiBase=API_BASE; return diagnostic; }
 
 async function request(path, options={}) {
   const timeout=options.timeout??DEFAULT_TIMEOUT;
@@ -39,16 +39,16 @@ async function request(path, options={}) {
       const text=await response.text();
       let data=null; try{data=text?JSON.parse(text):null;}catch(_){}
       if(!response.ok){
-        if(response.status===401 && method==='GET' && !skipAuth && authRefreshes===0){
+        // A protected 401 means the application operation was not accepted.
+        // Refresh exactly once and replay with the newly issued token for GETs
+        // and writes alike; skipAuth requests never enter this recovery path.
+        if(response.status===401 && !skipAuth && authRefreshes===0){
           authRefreshes+=1;
           let refreshedToken=null;
           try{refreshedToken=await authSession.refresh();}catch(_){}
-          // A token refresh is authentication recovery, not a network retry.
-          // Repeat this attempt so MAX_ATTEMPTS=1 still sends the request with
-          // the newly issued access token.
           if(refreshedToken){ attempt-=1; continue; }
         }
-        const error=new Error(data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;
+        const error=new Error(data?.message||data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;
       }
       reportTiming(path,startedAt,response.status);
       return data;
@@ -56,7 +56,7 @@ async function request(path, options={}) {
       lastError=isRetryableNetworkError(error)?describeNetworkError(error,path):error;
       if(!isRetryableNetworkError(error)||attempt>=maxAttempts){
         reportTiming(path,startedAt,error?.name==='AbortError'?'timeout':(error?.status||'network-error'));
-        if(error?.name==='AbortError')throw new Error(`API ${path}: o servidor demorou demasiado tempo a responder. O Render pode estar a acordar.`);
+        if(error?.name==='AbortError')throw new Error(`API ${path}: o servidor demorou demasiado tempo a responder. Tenta novamente.`);
         throw lastError;
       }
       await sleep(1500*attempt);
@@ -65,11 +65,8 @@ async function request(path, options={}) {
   throw lastError||new Error(`API ${path}: não foi possível concluir o pedido.`);
 }
 
-
 // One health probe is shared by every caller. It has a deliberately separate
 // cold-start budget, while normal business requests keep their 20 s budget.
-// A completed probe is cleared so only an in-flight warm-up is shared. A later
-// recoverable GET can therefore wake the backend again if it has gone to sleep.
 export function ensureBackendReady(){
   if(backendReadyPromise)return backendReadyPromise;
   const warmup=request('/health',{timeout:BACKEND_READY_TIMEOUT,skipAuth:true})
@@ -99,17 +96,18 @@ function unwrapProfile(data){return data?.profile||data||null;}
 export const api={
   health:()=>ensureBackendReady(),
   profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
-  // POST is intentionally single-attempt: retrying an authenticated write can
-  // duplicate work and makes a stuck Save button look like a UI failure.
   saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
   billingStatus:()=>readWhenReady('/billing/status'),
   stats:()=>readWhenReady('/stats'),
   workflowStats:()=>readWhenReady('/workflow/stats'),
   alerts:({limit=20,unreadOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit)});if(unreadOnly)p.set('unread','1');return readWhenReady(`/alerts?${p.toString()}`);},
   markAlertDelivered:(eventId)=>writeWhenReady(`/alerts/${encodeURIComponent(eventId)}/delivered`,{method:'POST',body:JSON.stringify({})}),
-  opportunities:async({q='',minscore=0,source='',limit=60,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await readWhenReady(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
+  opportunities:async({q='',minscore=0,source='',limit=60,offset=0,openOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit),offset:String(offset),minscore:String(minscore)});if(q.trim())p.set('q',q.trim());if(source)p.set('source',source);if(openOnly)p.set('open','1');const data=await readWhenReady(`/opportunities?${p.toString()}`);return data?{...data,items:(data.items||[]).map(normalizeOpportunity)}:data;},
   opportunity:async(id)=>normalizeOpportunity(await readWhenReady(`/opportunities/${encodeURIComponent(id)}`)),
   workflow:(id)=>readWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`),
-  setWorkflow:(id,status,note)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})})
+  setWorkflow:(id,status,note)=>writeWhenReady(`/opportunities/${encodeURIComponent(id)}/workflow`,{method:'POST',body:JSON.stringify({status,note:note||null})}),
+  accountExport:()=>readWhenReady('/account/export',{timeout:30000}),
+  accountDeletionStatus:()=>readWhenReady('/account/deletion'),
+  requestAccountDeletion:(confirmation)=>writeWhenReady('/account/deletion',{method:'POST',body:JSON.stringify({confirmation}),timeout:30000}),
 };
 export { API_BASE };
