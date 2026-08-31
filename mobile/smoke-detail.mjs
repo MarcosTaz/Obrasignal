@@ -60,10 +60,13 @@ if (!/function WebMain/.test(webApp) || !/<ScrollView style=\{s\.pageScroll\}/.t
 if (/FlatList/.test(webApp)) uiFailures.push('web workspace must not trap the Radar in a nested FlatList scroll viewport');
 if (!/visible\.map\(item=>/.test(webApp)) uiFailures.push('web Radar cards must participate in the page scroll flow');
 if (!/Obra<Text style=\{s\.brandSignal\}>Signal/.test(webApp) || !/fontFamily:FONT/.test(webApp)) uiFailures.push('web brand typography must use the refined wordmark system');
+if (/Terminar sessão/.test(authGate)) uiFailures.push('web session header must not advertise logout');
+if (!/Terminar sessão/.test(webApp) || !/style=\{s\.signOut\}/.test(webApp)) uiFailures.push('logout must remain available discreetly at the bottom of the profile');
+if (!/Intl\.DateTimeFormat\('pt-PT'/.test(authGate) || !/second:\s*'2-digit'/.test(authGate)) uiFailures.push('web session header must keep Portuguese date and live clock');
 if (uiFailures.length) {
   for (const name of uiFailures) console.error(`FAIL: ${name}`);
   process.exit(1);
 }
 
 for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
-for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing','single web page scroll','refined web wordmark']) console.log(`PASS: ${name}`);
+for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing','single web page scroll','refined web wordmark','discreet profile logout','web date and clock']) console.log(`PASS: ${name}`);
