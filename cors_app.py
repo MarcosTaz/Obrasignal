@@ -120,6 +120,7 @@ def _global_api_cors(response):
 # before allowing the ingestion worker to run.
 import app as _app
 from app import db, init_db, start_background_worker
+from evaluation_policy import ensure_evaluation_schema
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
 from latvia_runtime import install as install_latvia_runtime
@@ -139,6 +140,7 @@ import preload as _preload
 init_db()
 _lifecycle_conn = db()
 try:
+    ensure_evaluation_schema(_lifecycle_conn)
     ensure_lifecycle_table(_lifecycle_conn)
     _lifecycle_conn.commit()
 finally:
