@@ -5,6 +5,7 @@ from typing import Any, Sequence
 
 from vertical_apps.industrial_claims.package import build_claim_package
 from vertical_apps.industrial_claims.proof import ExternalAttestation, build_proof_manifest, verify_proof_manifest
+from vertical_apps.industrial_claims.proof_binding import validate_evidence_attestation_bindings
 from vertical_apps.industrial_claims.proof_readiness import evaluate_proof_strength
 from vertical_apps.industrial_claims.service import IndustrialClaimResult, IndustrialClaimsService
 
@@ -27,6 +28,7 @@ def build_claim_proof_pack(
     any external proof gates that are not yet satisfied. It never upgrades legal
     recoverability or factual truth by itself.
     """
+    validate_evidence_attestation_bindings(result.evidence, tuple(attestations))
     core = build_claim_package(
         service,
         result,
