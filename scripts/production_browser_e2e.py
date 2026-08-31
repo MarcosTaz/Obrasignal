@@ -85,8 +85,21 @@ def assert_public_landing(page, browser_name, viewport_name, width, height):
     page.get_by_text("Encontra os concursos que merecem o teu tempo.", exact=True).wait_for(timeout=30_000)
     page.get_by_role("button", name="Entrar", exact=True).wait_for(timeout=10_000)
     page.get_by_role("button", name="Criar conta", exact=True).wait_for(timeout=10_000)
-    page.get_by_text("obrasignal.pt@gmail.com", exact=True).wait_for(timeout=10_000)
+    page.get_by_text("obrasignal.pt@gmail.com", exact=True).first.wait_for(timeout=10_000)
+    page.get_by_role("button", name="Privacidade", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Termos de utilização", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Contactar suporte", exact=True).wait_for(timeout=10_000)
     assert_no_horizontal_overflow(page, label)
+
+    page.get_by_role("button", name="Privacidade", exact=True).click()
+    page.get_by_text("Que dados tratamos", exact=True).wait_for(timeout=10_000)
+    page.get_by_text("Fornecedores e fronteiras externas", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Fechar informação legal", exact=True).click()
+
+    page.get_by_role("button", name="Termos de utilização", exact=True).click()
+    page.get_by_text("Fonte oficial e decisões", exact=True).wait_for(timeout=10_000)
+    page.get_by_text("Avaliação, plano e faturação", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Fechar informação legal", exact=True).click()
 
     page.get_by_role("button", name="Criar conta", exact=True).click()
     page.get_by_text("Cria o teu radar.", exact=True).wait_for(timeout=10_000)
@@ -136,6 +149,7 @@ def authenticated_roundtrip(page, browser_name):
 
     page.get_by_role("button", name="Terminar sessão", exact=True).click()
     page.get_by_text("Encontra os concursos que merecem o teu tempo.", exact=True).wait_for(timeout=30_000)
+    page.get_by_role("button", name="Privacidade", exact=True).wait_for(timeout=10_000)
 
     if failures:
         fail("\n".join(failures))
