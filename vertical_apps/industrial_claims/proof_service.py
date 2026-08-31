@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Iterable
+from typing import Any
 
 from vertical_apps.industrial_claims.proof import ExternalAttestation
 from vertical_apps.industrial_claims.proof_package import build_claim_proof_pack
@@ -26,18 +26,19 @@ class CausLedgerProofService:
         self.proof_store = IndustrialProofStore(database)
         self.providers = providers or ProofProviderBundle.fail_closed()
 
-    def _request_attestations(self, *, tenant_id: str, finding_id: str, manifest_sha256: str) -> tuple[ExternalAttestation, ...]:
+    def _request_attestations(self, *, tenant_id: str, finding_id: str, target_sha256: str) -> tuple[ExternalAttestation, ...]:
         request = ProofRequest(
             tenant_id=tenant_id,
             subject_ref=finding_id,
             digest_algorithm="SHA-256",
-            digest=manifest_sha256,
-            purpose="CAUSLEDGER_PROOF_MANIFEST",
-            metadata={},
+            digest=target_sha256,
+            purpose="CAUSLEDGER_STABLE_PROOF_TARGET",
+            metadata={"target_kind": "CAUSLEDGER_PROOF_TARGET_V1"},
         )
         providers = (
             self.providers.qualified_timestamp,
             self.providers.qualified_seal,
+            self.providers.qualified_signature,
             self.providers.worm_lock,
             self.providers.public_anchor,
             self.providers.evidence_escrow,
@@ -65,13 +66,13 @@ class CausLedgerProofService:
             as_of_date=as_of_date,
             generated_at=generated_at,
         )
-        manifest_hash = initial["proof_manifest"]["manifest_hashes"]["sha256"]
+        target_sha256 = initial["proof_manifest"]["attestation_target"]["sha256"]
         attestations: tuple[ExternalAttestation, ...] = ()
         if request_external_attestations:
             attestations = self._request_attestations(
                 tenant_id=result.tenant_id,
                 finding_id=result.finding.finding_id,
-                manifest_sha256=manifest_hash,
+                target_sha256=target_sha256,
             )
             final_pack = build_claim_proof_pack(
                 self.claims,
@@ -87,6 +88,8 @@ class CausLedgerProofService:
             final_pack = initial
 
         manifest = final_pack["proof_manifest"]
+        if manifest["attestation_target"]["sha256"] != target_sha256:
+            raise ValueError("CausLedger stable proof target changed while adding attestations")
         event = self.proof_store.append_event(
             event_id=f"{result.finding.finding_id}:proof:{manifest['manifest_hashes']['sha256']}",
             tenant_id=result.tenant_id,
@@ -96,6 +99,8 @@ class CausLedgerProofService:
             payload={
                 "manifest_sha256": manifest["manifest_hashes"]["sha256"],
                 "manifest_sha512": manifest["manifest_hashes"]["sha512"],
+                "attestation_target_sha256": manifest["attestation_target"]["sha256"],
+                "attestation_target_sha512": manifest["attestation_target"]["sha512"],
                 "package_sha256": manifest["package_hashes"]["sha256"],
                 "evidence_merkle_root": manifest["evidence_merkle"]["root"],
                 "external_gates": manifest["required_external_gates"],
