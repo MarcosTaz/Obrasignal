@@ -8,15 +8,15 @@
   "registry_entry_count": 33,
   "cursor": 8,
   "last_factory_id": "product-market-access",
-  "last_run_at": "2026-08-31T01:38:46Z",
+  "last_run_at": "2026-08-31T01:41:15Z",
   "last_material_change": {
-    "kind": "CAUSLEDGER_SECURE_INTAKE_STAGING_AND_PRIVACY_DUPLICATE_REMOVAL",
-    "summary": "Recovery Radar and Sourcing Recovery exact repository identity searches remained UNKNOWN and were rotated without conflation. Product Market Access exact branch/code/PR/context identity also remained UNKNOWN. CausLedger private Drive gained an unshared Secure Intake Staging folder for future bounded customer samples after an authorized transfer path is agreed. Gmail watch found no new material prospect, CEFAMOL, AFIA or DGC inbound; Portugal and Spain outbound holds remain active. ObraSignal privacy #845 exact-head GREEN repair was cleaned by deleting obsolete mobile/AppBase.js from the DRAFT branch, removing duplicate application composition risk. New head b3f162f35c513f15b77c6fcc8ceff6835d5ace08 is NOT_FULLY_VERIFIED until exact-head CI appears.",
+    "kind": "CAUSLEDGER_SECURE_INTAKE_STAGING_AND_PRIVACY_CLEANUP_EXACT_HEAD_GREEN",
+    "summary": "Recovery Radar and Sourcing Recovery exact repository identity searches remained UNKNOWN and were rotated without conflation. Product Market Access exact branch/code/PR/context identity also remained UNKNOWN. CausLedger private Drive gained an unshared Secure Intake Staging folder for future bounded customer samples after an authorized transfer path is agreed. Gmail watch found no new material prospect, CEFAMOL, AFIA or DGC inbound; Portugal and Spain outbound holds remain active. ObraSignal privacy #845 was cleaned by deleting obsolete mobile/AppBase.js after restoring canonical App.js. Exact head b3f162f35c513f15b77c6fcc8ceff6835d5ace08 completed ObraSignal Quality run 33348287239 SUCCESS; PR remains DRAFT / NOT CANONICAL / NOT MERGED.",
     "evidence": {
       "recovery_radar": {
         "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
         "exact_code_search_results": 0,
-        "recovery_branch_search": "only unrelated/general recovery refs plus ScopeLedger; no canonical Recovery Radar identity",
+        "recovery_branch_search": "no canonical Recovery Radar identity",
         "next_exact_action": "Retry canonical identity reconstruction only when new repository/context evidence exists; otherwise rotate."
       },
       "sourcing_recovery": {
@@ -49,14 +49,15 @@
       },
       "obrasignal_privacy": {
         "pr": 845,
-        "previous_green_head": "f8a8e85f7052bb28ddc7e54d78d16a0f02153a46",
-        "previous_quality_run": 33345235128,
-        "new_head": "b3f162f35c513f15b77c6fcc8ceff6835d5ace08",
+        "head": "b3f162f35c513f15b77c6fcc8ceff6835d5ace08",
         "modified_files_this_step": ["mobile/AppBase.js DELETE"],
         "reason": "remove obsolete duplicate application composition after App.js was restored canonical in-place",
-        "exact_head_workflow_runs_seen": 0,
-        "classification": "DRAFT_NOT_CANONICAL_NOT_MERGED_NOT_FULLY_VERIFIED_AFTER_SAFE_CLEANUP",
-        "next_exact_action": "Check exact-head workflow result for b3f162f35c513f15b77c6fcc8ceff6835d5ace08; if SUCCESS, update PR/BATON to GREEN cleanup; if RED, repair without weakening privacy or canonical App.js invariants."
+        "quality_run": 33348287239,
+        "quality_status": "COMPLETED_SUCCESS",
+        "python_job": "SUCCESS",
+        "mobile_job": "SUCCESS",
+        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NOT_MERGED",
+        "next_exact_action": "Keep PR draft/unmerged; continue next real account/privacy customer milestone without production mutation."
       },
       "eu_cloud_switching": {
         "head": "020efc82e0b2a6509548fa7ef38f1593ca457afa",
@@ -71,7 +72,7 @@
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
       "CausLedger secure intake staging exists privately but customer transfer remains disabled until a bounded authorized secure channel is agreed.",
-      "Privacy #845 new cleanup head b3f162f35c513f15b77c6fcc8ceff6835d5ace08 is NOT_FULLY_VERIFIED until exact-head CI appears.",
+      "Privacy #845 is exact-head GREEN but remains DRAFT / NOT CANONICAL / NOT MERGED.",
       "ScopeLedger live Railway/source fingerprint and production lineage remain external.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered."
     ]
