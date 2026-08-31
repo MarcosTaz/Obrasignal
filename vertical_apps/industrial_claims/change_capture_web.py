@@ -8,6 +8,7 @@ from werkzeug.exceptions import BadRequest
 
 from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, ChangeCaptureStore
 from vertical_apps.industrial_claims.change_sheet_trust import ChangeSheetTrustError, ChangeSheetTrustService
+from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
 
 
 IdentityResolver = Callable[[], tuple[str, str]]
@@ -20,6 +21,11 @@ def create_change_capture_blueprint(
     trust_service: ChangeSheetTrustService | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("causledger_change_capture", __name__)
+    active_trust = trust_service or ChangeSheetTrustService(
+        store.path,
+        capture_store=store,
+        qualified_timestamp_provider=ProofProviderBundle.fail_closed().qualified_timestamp,
+    )
 
     def json_object() -> dict[str, Any]:
         payload = request.get_json(force=True)
@@ -31,17 +37,10 @@ def create_change_capture_blueprint(
 
     def capture_with_trust(*, tenant_id: str, finding_id: str) -> dict[str, Any]:
         capture = store.status(tenant_id=tenant_id, finding_id=finding_id)
-        if trust_service is not None:
-            capture["snapshot_time_trust"] = trust_service.status(
-                tenant_id=tenant_id,
-                finding_id=finding_id,
-            )
-        else:
-            capture["snapshot_time_trust"] = {
-                "current_snapshot_externally_timestamped": False,
-                "qualified_timestamp_claim_is_fail_closed": True,
-                "provider_wiring_state": "NOT_CONFIGURED",
-            }
+        capture["snapshot_time_trust"] = active_trust.status(
+            tenant_id=tenant_id,
+            finding_id=finding_id,
+        )
         return capture
 
     @blueprint.get("/findings/<path:finding_id>/change-capture/view")
@@ -65,13 +64,7 @@ def create_change_capture_blueprint(
     def change_sheet_trust(finding_id: str):
         try:
             tenant_id, _actor_id = capture_identity()
-            if trust_service is None:
-                return jsonify({
-                    "current_snapshot_externally_timestamped": False,
-                    "qualified_timestamp_claim_is_fail_closed": True,
-                    "provider_wiring_state": "NOT_CONFIGURED",
-                })
-            return jsonify(trust_service.status(tenant_id=tenant_id, finding_id=finding_id))
+            return jsonify(active_trust.status(tenant_id=tenant_id, finding_id=finding_id))
         except (ChangeCaptureError, ChangeSheetTrustError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -116,9 +109,7 @@ def create_change_capture_blueprint(
                 actor_id=actor_id,
                 sheet_sha256=digest,
             )
-            timestamp = None
-            if trust_service is not None:
-                timestamp = trust_service.attest_current(tenant_id=tenant_id, finding_id=finding_id)
+            timestamp = active_trust.attest_current(tenant_id=tenant_id, finding_id=finding_id)
             response = make_response(sheet)
             response.headers["Content-Type"] = "text/plain; charset=utf-8"
             response.headers["Content-Disposition"] = (
@@ -126,10 +117,9 @@ def create_change_capture_blueprint(
             )
             response.headers["X-CausLedger-Sheet-SHA256"] = digest
             response.headers["X-CausLedger-Download-Receipt"] = download["download_id"]
-            if timestamp is not None:
-                response.headers["X-CausLedger-Timestamp-State"] = str(timestamp["state"])
-                response.headers["X-CausLedger-Timestamp-Provider"] = str(timestamp["provider"])
-                response.headers["X-CausLedger-Timestamp-Attestation"] = str(timestamp["attestation_id"])
+            response.headers["X-CausLedger-Timestamp-State"] = str(timestamp["state"])
+            response.headers["X-CausLedger-Timestamp-Provider"] = str(timestamp["provider"])
+            response.headers["X-CausLedger-Timestamp-Attestation"] = str(timestamp["attestation_id"])
             return response
         except (ChangeCaptureError, ChangeSheetTrustError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
