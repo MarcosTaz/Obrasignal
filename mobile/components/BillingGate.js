@@ -21,7 +21,7 @@ const SUPPORT_EMAIL = 'obrasignal.pt@gmail.com';
 const SERVER_PLANS = new Set(['evaluation', 'pro', 'expired', 'pilot']);
 
 export default function BillingGate({ children }) {
-  const [billing, setBilling] = useState({ authority: 'loading', configured: false, appUserId: null, pro: false, plan: null, expiresAt: null, managementUrl: null, evaluation: null, metrics: null });
+  const [billing, setBilling] = useState({ authority: 'loading', configured: false, providerReady: false, appUserId: null, pro: false, plan: null, expiresAt: null, managementUrl: null, evaluation: null, metrics: null });
   const [modal, setModal] = useState(false);
   const [offering, setOffering] = useState(null);
   const [offeringLoading, setOfferingLoading] = useState(false);
@@ -50,6 +50,7 @@ export default function BillingGate({ children }) {
       setBilling({
         authority: 'ready',
         configured: result.configured,
+        providerReady: server?.provider?.commercial_ready === true,
         appUserId: session.user.id,
         pro: server.plan === 'pro',
         plan: server.plan,
@@ -60,7 +61,7 @@ export default function BillingGate({ children }) {
       });
       return server;
     } catch (_) {
-      setBilling(current => ({ ...current, authority: 'unavailable', pro: false, plan: null }));
+      setBilling(current => ({ ...current, authority: 'unavailable', pro: false, plan: null, providerReady: false }));
       setError('Não foi possível validar o estado atual do plano. O acesso fica protegido até o servidor responder.');
       return null;
     }
@@ -72,6 +73,7 @@ export default function BillingGate({ children }) {
     setError('');
     setOffering(null);
     setModal(true);
+    if (!billing.providerReady) return;
     if (!billing.configured || !billingConfigurationAvailable()) return;
     setOfferingLoading(true);
     try {
@@ -86,6 +88,10 @@ export default function BillingGate({ children }) {
   };
 
   const buy = async () => {
+    if (!billing.providerReady) {
+      setError('A sincronização segura da subscrição ainda não está disponível. Nenhum pagamento foi iniciado.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -118,11 +124,14 @@ export default function BillingGate({ children }) {
 
   const selectedPackage = proPackage(offering);
   const web = Platform.OS === 'web';
-  const hostedCheckoutReady = web && Boolean(webPurchaseUrl(billing.appUserId));
-  const sdkCheckoutConfigured = billing.configured && billingConfigurationAvailable();
+  const clientHostedConfigured = web && Boolean(webPurchaseUrl(billing.appUserId));
+  const clientSdkConfigured = billing.configured && billingConfigurationAvailable();
+  const hostedCheckoutReady = billing.providerReady && clientHostedConfigured;
+  const sdkCheckoutConfigured = billing.providerReady && clientSdkConfigured;
   const sdkCheckoutReady = sdkCheckoutConfigured && Boolean(selectedPackage);
   const checkoutConfigured = sdkCheckoutConfigured || hostedCheckoutReady;
   const checkoutReady = sdkCheckoutReady || hostedCheckoutReady;
+  const clientCheckoutConfigured = clientSdkConfigured || clientHostedConfigured;
   const packagePrice = packagePriceString(selectedPackage) || (hostedCheckoutReady ? 'Preço apresentado no checkout seguro' : 'Preço apresentado no checkout');
   const billingChannel = web ? 'checkout Web seguro (RevenueCat / Stripe)' : Platform.OS === 'android' ? 'Google Play' : 'App Store';
 
@@ -163,7 +172,11 @@ export default function BillingGate({ children }) {
           ? <View style={styles.loadingCheckout}><ActivityIndicator color={COLORS.text}/><Text style={styles.loadingCheckoutText}>A carregar o checkout…</Text></View>
           : checkoutReady
             ? <Pressable disabled={busy} style={styles.primary} onPress={buy}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.primaryText}>{hostedCheckoutReady && !sdkCheckoutReady ? 'Abrir checkout seguro' : 'Subscrever'}</Text>}</Pressable>
-            : <View style={styles.setupBox}><Text style={styles.setupTitle}>{!checkoutConfigured ? 'Ativação assistida disponível' : 'Plano Pro ainda não publicado no checkout'}</Text><Text style={styles.setup}>{!checkoutConfigured ? 'O checkout automático ainda não está disponível neste canal. Durante a avaliação podes continuar a usar o produto; para ativação comercial, contacta a equipa ObraSignal.' : 'A configuração de pagamentos está ligada, mas o produto obrasignal_pro_monthly ainda não está disponível no offering atual. Nenhuma compra é permitida até o produto correto estar publicado.'}</Text><Pressable onPress={()=>Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Ativar%20ObraSignal%20Pro`)} style={styles.contact}><Text style={styles.contactText}>Pedir ativação →</Text></Pressable></View>}
+            : <View style={styles.setupBox}>
+                <Text style={styles.setupTitle}>{clientCheckoutConfigured && !billing.providerReady ? 'Pagamentos ainda protegidos' : !checkoutConfigured ? 'Ativação assistida disponível' : 'Plano Pro ainda não publicado no checkout'}</Text>
+                <Text style={styles.setup}>{clientCheckoutConfigured && !billing.providerReady ? 'O checkout existe, mas o servidor ainda não confirmou que consegue sincronizar e verificar subscrições. Por segurança, nenhum pagamento automático é iniciado até essa reconciliação estar pronta.' : !checkoutConfigured ? 'O checkout automático ainda não está disponível neste canal. Durante a avaliação podes continuar a usar o produto; para ativação comercial, contacta a equipa ObraSignal.' : 'A configuração de pagamentos está ligada, mas o produto obrasignal_pro_monthly ainda não está disponível no offering atual. Nenhuma compra é permitida até o produto correto estar publicado.'}</Text>
+                <Pressable onPress={()=>Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Ativar%20ObraSignal%20Pro`)} style={styles.contact}><Text style={styles.contactText}>Pedir ativação →</Text></Pressable>
+              </View>}
         {checkoutReady ? <Pressable disabled={busy} onPress={refresh} style={styles.secondary}><Text style={styles.secondaryText}>Já paguei · atualizar estado</Text></Pressable> : null}
         {BILLING_RESTORE_SUPPORTED ? <Pressable disabled={busy} onPress={restore} style={styles.secondary}><Text style={styles.secondaryText}>Restaurar compra</Text></Pressable> : null}
         {billing.pro && billing.managementUrl ? <Pressable onPress={()=>Linking.openURL(billing.managementUrl)} style={styles.secondary}><Text style={styles.secondaryText}>Gerir subscrição</Text></Pressable> : null}
