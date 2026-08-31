@@ -16,6 +16,8 @@ from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.recovery_index import RecoveryIndexError
 from factory_cloud.shared_platform import SharedPlatformError
 from vertical_apps.industrial_claims.amendment import amend_case
+from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, ChangeCaptureStore
+from vertical_apps.industrial_claims.change_capture_web import create_change_capture_blueprint
 from vertical_apps.industrial_claims.durable_proof import build_durable_claim_proof_pack
 from vertical_apps.industrial_claims.public_verification_store import PublicVerificationStore
 from vertical_apps.industrial_claims.public_verification_web import create_public_verification_blueprint
@@ -31,6 +33,7 @@ API_ERRORS = (
     AssuranceStoreError,
     RecoveryIndexError,
     SharedPlatformError,
+    ChangeCaptureError,
 )
 REVIEWER_QUEUE_STATES = {"READY_FOR_REVIEW"}
 OPERATOR_QUEUE_STATES = {"APPROVED", "ACTIONED"}
@@ -54,6 +57,7 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     service = IndustrialClaimsService(database)
     read_model = IndustrialClaimsReadModel(database)
     public_verification_store = PublicVerificationStore(database)
+    change_capture_store = ChangeCaptureStore(database)
     resolve_identity = identity_resolver or configured_identity
 
     def identity_any(*required_roles: str) -> tuple[str, str, frozenset[str]]:
@@ -92,6 +96,10 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
 
     def identity(required_role: str) -> tuple[str, str]:
         tenant_id, actor_id, _roles = identity_any(required_role)
+        return tenant_id, actor_id
+
+    def change_capture_identity() -> tuple[str, str]:
+        tenant_id, actor_id, _roles = identity_any("client", "analyst", "operator")
         return tenant_id, actor_id
 
     def json_object() -> dict:
@@ -151,6 +159,12 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
             service=service,
             store=public_verification_store,
             publication_identity=lambda: identity("operator"),
+        )
+    )
+    app.register_blueprint(
+        create_change_capture_blueprint(
+            store=change_capture_store,
+            capture_identity=change_capture_identity,
         )
     )
 
@@ -229,7 +243,24 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
             result = service.analyze(
                 tenant_id=tenant_id, actor_id=actor_id, customer_ref=str(payload["customer_ref"]), program_ref=str(payload["program_ref"]), event_ref=str(payload["event_ref"]), claim_family=str(payload["claim_family"]), commercial_basis_ref=str(payload["commercial_basis_ref"]), cost_evidence_ref=str(payload["cost_evidence_ref"]), gross_cost=str(payload["gross_cost"]), currency=str(payload.get("currency", "")), commercial_basis_content=payload.get("commercial_basis_content"), event_evidence_content=payload.get("event_evidence_content"), cost_evidence_content=payload.get("cost_evidence_content"), avoided_cost=str(payload.get("avoided_cost", "0")), resale_reuse=str(payload.get("resale_reuse", "0")), third_party_recovery=str(payload.get("third_party_recovery", "0")), prior_payment=str(payload.get("prior_payment", "0")), other_mitigation=str(payload.get("other_mitigation", "0")), notice_due=date.fromisoformat(str(notice_raw)) if notice_raw else None, notice_deadline_not_applicable=no_notice_deadline, missing_evidence=tuple(str(item) for item in missing),
             )
-            return jsonify({"finding_id": result.finding.finding_id, "state": result.finding.state, "claim_family": result.claim_family, "net_potential": result.calculation.output_value, "currency": result.calculation.output_unit, "calculation_hash": result.calculation.reproducibility_hash, "notice_deadline_state": result.notice_deadline_state, "evidence_states": {item.source_type: item.metadata.get("verification_state", "UNKNOWN") for item in result.evidence}, "missing_evidence": list(result.missing_evidence), "is_new_recovery": result.is_new_recovery, "revision": 1}), 201
+            change_capture = change_capture_store.status(
+                tenant_id=tenant_id,
+                finding_id=result.finding.finding_id,
+            )
+            return jsonify({
+                "finding_id": result.finding.finding_id,
+                "state": result.finding.state,
+                "claim_family": result.claim_family,
+                "net_potential": result.calculation.output_value,
+                "currency": result.calculation.output_unit,
+                "calculation_hash": result.calculation.reproducibility_hash,
+                "notice_deadline_state": result.notice_deadline_state,
+                "evidence_states": {item.source_type: item.metadata.get("verification_state", "UNKNOWN") for item in result.evidence},
+                "missing_evidence": list(result.missing_evidence),
+                "is_new_recovery": result.is_new_recovery,
+                "revision": 1,
+                "change_capture": change_capture,
+            }), 201
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -254,6 +285,10 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
                 notice_deadline_not_applicable=no_notice_deadline, missing_evidence=tuple(str(item) for item in missing),
             )
             revision = service.revision_store.require_current(tenant_id=tenant_id, finding_id=result.finding.finding_id)
+            change_capture = change_capture_store.status(
+                tenant_id=tenant_id,
+                finding_id=result.finding.finding_id,
+            )
             return jsonify({
                 "finding_id": result.finding.finding_id,
                 "supersedes_finding_id": finding_id,
@@ -269,6 +304,7 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
                 "requires_fresh_review": True,
                 "customer_contact_authorized": False,
                 "external_claim_submission_authorized": False,
+                "change_capture": change_capture,
             }), 201
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
