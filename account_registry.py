@@ -87,8 +87,6 @@ def ensure_account(conn, account_id, status='active', plan='evaluation'):
     now = datetime.now(timezone.utc)
     existing = conn.execute("SELECT account_id FROM accounts WHERE account_id=?", (account_id,)).fetchone()
     if existing:
-        # Authentication establishes identity; it must not mutate lifecycle or
-        # billing state, nor acquire a writer lock, on every request.
         return
     conn.execute(
         """INSERT INTO accounts(account_id, status, plan, created_at, subscription_status,
@@ -138,8 +136,6 @@ def subscription_state(account):
     evaluation = evaluation_access_state(account, now=now)
     if evaluation is not None:
         return evaluation
-    # Backward compatibility: accounts created before Trial Policy v0.1 keep
-    # their original fixed legacy pilot window until an explicit migration.
     if account.get("plan") == "pilot":
         expires = account.get("trial_ends_at")
         if expires and _parse_iso(expires) > now:
@@ -247,6 +243,13 @@ def _billing_guard():
     if not state['active']:
         return jsonify({'error': 'subscription_required', 'plan': state['plan'], 'message': 'A avaliação terminou. Ativa o ObraSignal Pro para continuar.'}), 402
     return None
+
+
+@APP.get('/api/v1/billing/readiness')
+def billing_readiness():
+    # Public release probe with no tenant/customer data and no secret detail.
+    # It answers only whether automatic checkout reconciliation is safe to expose.
+    return jsonify({'commercial_ready': billing_provider_readiness()['commercial_ready']})
 
 
 @APP.get('/api/v1/billing/status')
