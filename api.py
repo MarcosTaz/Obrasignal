@@ -36,6 +36,19 @@ def _identity():
     return configured_identity()
 
 
+def _bounded_query_int(name, default, minimum, maximum, *, optional=False):
+    raw = request.args.get(name)
+    if raw in (None, ""):
+        return None if optional else default
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(name) from exc
+    if value < minimum or value > maximum:
+        raise ValueError(name)
+    return value
+
+
 def _cors_origin():
     origin = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
@@ -100,9 +113,6 @@ def _deadline_state(value):
             if days < 0:
                 return {"state": "closed", "label": "Terminado", "days_remaining": days}
             if days == 0:
-                # Date-only publisher evidence proves the calendar day, not an
-                # exact closing instant or timezone. Do not invent midnight or
-                # 23:59 and do not claim definitely open/closed on that day.
                 return {"state": "unknown", "label": "Prazo hoje — hora não indicada", "days_remaining": 0}
             if days <= 2:
                 return {"state": "urgent", "label": "Urgente", "days_remaining": days}
@@ -207,11 +217,6 @@ def profile():
     except ValueError as exc:
         detail = exc.args[0] if exc.args else {"code": "INVALID_COMPANY_PROFILE"}
         return jsonify({"error": "invalid_profile", "detail": detail}), 400
-
-    # A successful save means both durable profile persistence and a Radar
-    # classified from that exact profile. Returning before this bounded pass
-    # completed created a race in which the immediate refresh served decisions
-    # made with the previous criteria.
     recalculated = bootstrap_account(identity.account_id)
     return jsonify({"ok": True, "profile": saved, "radar_recalculated": recalculated, "account_id": identity.account_id, "authenticated": identity.authenticated, "generated_at": _iso_now()})
 
@@ -295,24 +300,24 @@ def workflow_stats():
 @bp.route("/opportunities", methods=["GET"])
 def opportunities():
     identity = request.obrasignal_identity
-    limit = max(1, min(100, int(request.args.get("limit", 20) or 20)))
+    try:
+        limit = _bounded_query_int("limit", 20, 1, 100)
+        offset = _bounded_query_int("offset", 0, 0, 100000)
+        minscore = _bounded_query_int("minscore", None, 0, 100, optional=True)
+    except ValueError as exc:
+        return jsonify({"error": "invalid_query", "message": f"Parâmetro inválido: {exc.args[0]}"}), 400
     market = (request.args.get("market") or "").upper().strip()
     country = (request.args.get("country") or "").upper().strip()
     q = (request.args.get("q") or "").strip().lower()
     source = (request.args.get("source") or "").strip().upper()
     open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
-    minscore = request.args.get("minscore")
-    minscore = int(minscore) if minscore not in (None, "") else None
     c = _db()
     ensure_lifecycle_table(c)
-    # Start with the authenticated account's latest decisions, then join the
-    # canonical tenders. This keeps the Europe-wide Radar bounded by the small
-    # account decision set instead of scanning every tender before filtering.
     where = [actionable_predicate("lc", "t")]
     params = []
     if market in ("PT", "EU"):
         where.append("(t.market=? OR (t.market IS NULL AND t.country=?))")
-        params.extend([market, "PRT" if market == "PT" else "PRT"])
+        params.extend([market, "PRT"])
     if country:
         where.append("t.country=?")
         params.append(country)
@@ -327,7 +332,7 @@ def opportunities():
     if minscore is not None:
         where.append("COALESCE(d.score,t.score)>=?")
         params.append(minscore)
-    rows = c.execute(
+    fetched = c.execute(
         f"""SELECT t.*, {actionable_predicate('lc', 't')} AS is_actionable,
                    lc.lifecycle_status, lc.lifecycle_reason,
                    lc.source_updated_at AS lifecycle_source_updated_at,
@@ -339,18 +344,21 @@ def opportunities():
             JOIN tenders t ON t.source=d.source AND t.external_id=d.external_id
             LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
             WHERE d.account_id=? AND {' AND '.join(where)}
-            ORDER BY COALESCE(d.score,t.score) DESC, t.deadline ASC LIMIT ?""",
-        (identity.account_id, identity.account_id, *params, limit),
+            ORDER BY COALESCE(d.score,t.score) DESC, t.deadline ASC, t.id ASC
+            LIMIT ? OFFSET ?""",
+        (identity.account_id, identity.account_id, *params, limit + 1, offset),
     ).fetchall()
+    has_more = len(fetched) > limit
+    rows = fetched[:limit]
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
     c.close()
-    return jsonify({"items": items, "count": len(items), "market": market, "generated_at": _iso_now(), "account_id": identity.account_id})
+    page = {"limit": limit, "offset": offset, "has_more": has_more, "next_offset": offset + limit if has_more else None}
+    return jsonify({"items": items, "count": len(items), "page": page, "market": market, "generated_at": _iso_now(), "account_id": identity.account_id})
 
 
 @bp.route("/opportunities/<int:opportunity_id>", methods=["GET"])
 def opportunity_detail(opportunity_id):
-    """Return canonical history plus effective current actionability for this account."""
     identity = request.obrasignal_identity
     c = _db()
     try:
@@ -403,8 +411,5 @@ def opportunity_workflow(opportunity_id):
         c.close()
 
 
-# Keep the native API usable when this module is imported directly (tests and
-# development), while cors_app remains the production WSGI boundary. Register
-# only once because both entrypoints share the same Flask application object.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(bp)

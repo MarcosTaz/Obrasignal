@@ -5,13 +5,15 @@ from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
+from account_privacy import bp as ACCOUNT_PRIVACY_BP, DELETION_LOCKED_STATUSES
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
 
-# api.py owns the mobile API blueprint; register it here because this is the
-# production WSGI entrypoint and keeps registration explicit at the boundary.
+# Register customer-facing authenticated API owners explicitly at the WSGI boundary.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
+if "account_privacy" not in APP.blueprints:
+    APP.register_blueprint(ACCOUNT_PRIVACY_BP)
 
 
 def _origin():
@@ -58,6 +60,41 @@ def _global_api_preflight():
 
 
 @APP.before_request
+def _lock_private_shell_during_account_deletion():
+    """Prevent deleted/deleting accounts from resurrecting product-private data.
+
+    Account privacy endpoints remain reachable so the customer can inspect the
+    lifecycle. Health and billing webhooks are not customer-private reads.
+    """
+    if not request.path.startswith("/api/v1/"):
+        return None
+    if request.path.startswith("/api/v1/account/") or request.path in {"/api/v1/health", "/api/v1/billing/webhook"}:
+        return None
+    try:
+        identity = configured_identity()
+    except (RuntimeError, InvalidTokenError):
+        return None
+    from app import db
+    conn = db()
+    try:
+        exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='accounts'").fetchone()
+        if not exists:
+            return None
+        row = conn.execute("SELECT status FROM accounts WHERE account_id=?", (str(identity.account_id),)).fetchone()
+        status = str(row[0]) if row else None
+    finally:
+        conn.close()
+    if status in DELETION_LOCKED_STATUSES:
+        response = jsonify({
+            "error": "account_private_data_locked",
+            "message": "Os dados privados desta conta estão bloqueados pelo ciclo de eliminação.",
+            "status": status,
+        })
+        return _cors(response), 423
+    return None
+
+
+@APP.before_request
 def _protect_radar_api():
     is_detail = request.path.startswith("/api/v1/opportunities/") and not request.path.endswith("/workflow")
     if request.path != "/api/v1/radar" and not is_detail:
@@ -83,6 +120,7 @@ def _global_api_cors(response):
 # before allowing the ingestion worker to run.
 import app as _app
 from app import db, init_db, start_background_worker
+from evaluation_policy import ensure_evaluation_schema
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
 from latvia_runtime import install as install_latvia_runtime
@@ -102,6 +140,7 @@ import preload as _preload
 init_db()
 _lifecycle_conn = db()
 try:
+    ensure_evaluation_schema(_lifecycle_conn)
     ensure_lifecycle_table(_lifecycle_conn)
     _lifecycle_conn.commit()
 finally:
