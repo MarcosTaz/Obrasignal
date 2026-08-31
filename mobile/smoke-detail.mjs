@@ -2,6 +2,9 @@ import fs from 'node:fs';
 
 const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
+const authScreen = fs.readFileSync(new URL('./components/AuthScreen.tsx', import.meta.url), 'utf8');
+const billingGate = fs.readFileSync(new URL('./components/BillingGate.js', import.meta.url), 'utf8');
+const billing = fs.readFileSync(new URL('./src/billing.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
@@ -45,4 +48,17 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
   process.exit(1);
 }
 
+const uiFailures = [];
+if (!/RADAR COMERCIAL/.test(app) || !/rootWide/.test(app)) uiFailures.push('authenticated workspace must use commercial shell');
+if (/position:'absolute'/.test(billingGate)) uiFailures.push('billing status must never overlay authenticated content');
+if (/A versão Web permite consultar o estado do plano, mas não processa compras/.test(billingGate)) uiFailures.push('web billing copy must not claim the platform cannot purchase');
+if (!/EXPO_PUBLIC_REVENUECAT_WEB_KEY/.test(billing) || !/Platform\.OS === 'web'/.test(billing)) uiFailures.push('RevenueCat web billing configuration must be wired');
+if (/flexBasis/.test(authScreen)) uiFailures.push('public landing must avoid flex-basis responsive overlap regression');
+if (!/width >= 980/.test(authScreen) || !/heroStack/.test(authScreen)) uiFailures.push('public landing must have an explicit stacked breakpoint');
+if (uiFailures.length) {
+  for (const name of uiFailures) console.error(`FAIL: ${name}`);
+  process.exit(1);
+}
+
 for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
+for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing']) console.log(`PASS: ${name}`);
