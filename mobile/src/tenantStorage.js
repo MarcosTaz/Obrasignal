@@ -2,11 +2,12 @@ export const PRIVATE_STORAGE_PREFIX = '@obrasignal/v2/private';
 export const ACTIVE_PRIVATE_TENANT_KEY = '@obrasignal/v2/private-tenant';
 export const LEGACY_PRIVATE_KEYS = [
   '@obrasignal/v1/saved',
+  '@obrasignal/v1/settings',
   '@obrasignal/v1/opportunities-cache',
   '@obrasignal/v1/profile',
 ];
 
-const PRIVATE_KINDS = ['saved', 'opportunities-cache', 'profile', 'push-binding', 'local-notification-scheduled'];
+const PRIVATE_KINDS = ['saved', 'settings', 'opportunities-cache', 'profile', 'push-binding', 'local-notification-scheduled'];
 
 function normalizeIdentity(identity) {
   const value = String(identity || '').trim();
@@ -80,6 +81,8 @@ export function createTenantStorage(adapter, now = () => new Date().toISOString(
     purgeTenant,
     getSaved: (identity) => readPrivate(identity, 'saved', []),
     setSaved: (identity, ids) => writePrivate(identity, 'saved', ids),
+    getSettings: (identity) => readPrivate(identity, 'settings', {}),
+    setSettings: (identity, settings) => writePrivate(identity, 'settings', settings),
     getCache: (identity) => readPrivate(identity, 'opportunities-cache', null),
     setCache: (identity, payload) => writePrivate(identity, 'opportunities-cache', payload),
     getProfile: (identity) => readPrivate(identity, 'profile', null),

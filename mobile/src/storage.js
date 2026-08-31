@@ -16,13 +16,6 @@ const DEFAULT_SETTINGS = {
   source: '',
 };
 
-async function readJson(key, fallback) {
-  try {
-    const raw = await AsyncStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch (_) { return fallback; }
-}
-
 function newInstallationId() {
   return `install-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}-${Math.random().toString(36).slice(2, 12)}`;
 }
@@ -53,8 +46,8 @@ export const storage = {
 
   getSaved: () => activePrivateTenant ? privateStorage.getSaved(activePrivateTenant) : Promise.resolve([]),
   setSaved: (ids) => privateStorage.setSaved(requirePrivateTenant(), ids),
-  getSettings: async () => ({ ...DEFAULT_SETTINGS, ...(await readJson(KEYS.settings, {})) }),
-  setSettings: (settings) => AsyncStorage.setItem(KEYS.settings, JSON.stringify(settings)),
+  getSettings: () => activePrivateTenant ? privateStorage.getSettings(activePrivateTenant).then((settings) => ({ ...DEFAULT_SETTINGS, ...settings })) : Promise.resolve({ ...DEFAULT_SETTINGS }),
+  setSettings: (settings) => privateStorage.setSettings(requirePrivateTenant(), settings),
   getCache: () => activePrivateTenant ? privateStorage.getCache(activePrivateTenant) : Promise.resolve(null),
   setCache: (payload) => privateStorage.setCache(requirePrivateTenant(), payload),
   getProfile: () => activePrivateTenant ? privateStorage.getProfile(activePrivateTenant) : Promise.resolve(null),
