@@ -305,10 +305,10 @@ def opportunities():
     minscore = int(minscore) if minscore not in (None, "") else None
     c = _db()
     ensure_lifecycle_table(c)
-    # The default Radar is the authenticated account's decision set across all
-    # active markets. The previous implicit PT market filter made /stats count
-    # European opportunities that /opportunities could never list.
-    where = [actionable_predicate("lc", "t"), "d.id IS NOT NULL"]
+    # Start with the authenticated account's latest decisions, then join the
+    # canonical tenders. This keeps the Europe-wide Radar bounded by the small
+    # account decision set instead of scanning every tender before filtering.
+    where = [actionable_predicate("lc", "t")]
     params = []
     if market in ("PT", "EU"):
         where.append("(t.market=? OR (t.market IS NULL AND t.country=?))")
@@ -332,13 +332,15 @@ def opportunities():
                    lc.lifecycle_status, lc.lifecycle_reason,
                    lc.source_updated_at AS lifecycle_source_updated_at,
                    lc.last_observed AS lifecycle_last_observed
-            FROM tenders t
+            FROM opportunity_decisions d
+            JOIN (SELECT source, external_id, MAX(id) max_id
+                  FROM opportunity_decisions WHERE account_id=? GROUP BY source, external_id) latest
+              ON latest.max_id=d.id
+            JOIN tenders t ON t.source=d.source AND t.external_id=d.external_id
             LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
-            LEFT JOIN (SELECT source, external_id, MAX(id) max_id FROM opportunity_decisions WHERE account_id=? GROUP BY source, external_id) latest
-            ON latest.source=t.source AND latest.external_id=t.external_id
-            LEFT JOIN opportunity_decisions d ON d.id=latest.max_id
-            WHERE {' AND '.join(where)} ORDER BY COALESCE(d.score,t.score) DESC, t.deadline ASC LIMIT ?""",
-        (identity.account_id, *params, limit),
+            WHERE d.account_id=? AND {' AND '.join(where)}
+            ORDER BY COALESCE(d.score,t.score) DESC, t.deadline ASC LIMIT ?""",
+        (identity.account_id, identity.account_id, *params, limit),
     ).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = [_row(r, decisions.get((r["source"], r["external_id"])), get_workflow(c, identity.account_id, r["source"], r["external_id"])) for r in rows]
