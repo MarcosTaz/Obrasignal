@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api } from '../src/api';
 import { EUROPE_MARKETS } from '../src/markets';
+import { storage } from '../src/storage';
 
 const COLORS={bg:'#07111C',card:'#0D1A29',line:'#22364F',text:'#F4F7FB',muted:'#9BAABD',blue:'#5F8DF7',blueSoft:'#15294C',green:'#72DFA1',red:'#FF8B9A'};
 const MODES=[['portugal','Todo Portugal'],['regions','Zonas específicas'],['europe','Portugal e outros mercados']];
@@ -9,6 +10,7 @@ const parseList=value=>value.split(/[,\n]/).map(item=>item.trim()).filter(Boolea
 const parseCurrency=value=>{const clean=String(value||'').replace(/[^\d,.-]/g,'').replace(',','.');return clean===''?null:Number(clean)};
 const displayCurrency=value=>value==null?'':new Intl.NumberFormat('pt-PT',{maximumFractionDigits:0}).format(value);
 function readiness(profile){let done=0;if(profile.name)done++;if(profile.activity)done++;if(profile.contract_interests?.length)done++;if(profile.countries?.length)done++;if(profile.min_value!=null||profile.max_value!=null)done++;return Math.round(done/5*100)}
+function sameCoreProfile(expected,actual){return Boolean(actual&&actual.name===expected.name&&actual.activity===expected.activity&&JSON.stringify(actual.contract_interests||[])===JSON.stringify(expected.contract_interests||[]))}
 
 export default function ProfileOnboarding({initialProfile,onComplete}){
   const[name,setName]=useState(initialProfile?.name||'');
@@ -29,11 +31,12 @@ export default function ProfileOnboarding({initialProfile,onComplete}){
     if([draft.min_value,draft.max_value].some(v=>v!=null&&!Number.isFinite(v))||(draft.min_value!=null&&draft.max_value!=null&&draft.min_value>draft.max_value)){setError('Revê o intervalo de valor dos contratos.');return}
     setSaving(true);setError('');
     try{
-      // api.saveProfile already returns the canonical server profile. Keeping
-      // the local draft here discarded server-derived CPV/keywords until a reload.
-      const result=await api.saveProfile(draft);
-      if(!result?.name||!result?.activity)throw new Error('invalid_saved_profile');
-      onComplete(result);
+      const saved=await api.saveProfile(draft);
+      if(!sameCoreProfile(draft,saved))throw new Error('O servidor não confirmou os dados guardados.');
+      const persisted=await api.profile();
+      if(!sameCoreProfile(saved,persisted))throw new Error('O perfil não ficou persistido. Tenta guardar novamente.');
+      await storage.setProfile(persisted);
+      onComplete(persisted);
     }catch(err){setError(err?.responseBody?.message||err?.responseBody?.error||err?.message||'Não foi possível guardar o perfil.')}finally{setSaving(false)}
   };
   return <ScrollView style={styles.safe} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><View style={styles.hero}><Text style={styles.brand}>Obra<Text style={styles.brandBlue}>Signal</Text></Text><Text style={styles.eyebrow}>PRIMEIRO PASSO</Text><Text style={styles.title}>Conta-nos o que a tua empresa faz.</Text><Text style={styles.subtitle}>Descreve o negócio em linguagem normal. O ObraSignal trata dos códigos, concursos e ranking.</Text><View style={styles.readiness}><View><Text style={styles.readinessLabel}>PERFIL INICIAL</Text><Text style={styles.readinessCopy}>Quanto mais concreto, melhor fica o primeiro Radar.</Text></View><Text style={styles.readinessValue}>{readiness(draft)}%</Text></View></View><View style={styles.card}>
