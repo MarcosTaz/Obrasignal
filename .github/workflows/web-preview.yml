@@ -32,6 +32,7 @@ jobs:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       EXPO_PUBLIC_REVENUECAT_WEB_KEY: ${{ secrets.EXPO_PUBLIC_REVENUECAT_WEB_KEY }}
+      EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK: ${{ secrets.EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK }}
       EXPO_PUBLIC_API_URL: https://obrasignal.onrender.com/api/v1
       EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
     steps:
@@ -53,10 +54,23 @@ jobs:
           test -n "$EXPO_PUBLIC_SUPABASE_URL" || { echo 'Missing GitHub Actions secret EXPO_PUBLIC_SUPABASE_URL'; exit 1; }
           test -n "$EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY" || { echo 'Missing EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY'; exit 1; }
           test -n "$EXPO_PUBLIC_API_URL" || { echo 'Missing EXPO_PUBLIC_API_URL'; exit 1; }
-          if [ -z "${EXPO_PUBLIC_REVENUECAT_WEB_KEY:-}" ]; then
-            echo 'RevenueCat Web Billing key not configured; web app will keep evaluation/manual activation fallback.'
-          else
-            echo 'RevenueCat Web Billing key present.'
+
+          if [ -n "${EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK:-}" ]; then
+            case "$EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK" in
+              https://pay.rev.cat/*) ;;
+              *) echo 'EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK must be a production https://pay.rev.cat/... URL'; exit 1 ;;
+            esac
+            if printf '%s' "$EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK" | grep -qi '/sandbox/'; then
+              echo 'Sandbox RevenueCat purchase links are forbidden in the production Web bundle.'
+              exit 1
+            fi
+            echo 'RevenueCat production Web Purchase Link present.'
+          fi
+
+          if [ -z "${EXPO_PUBLIC_REVENUECAT_WEB_KEY:-}" ] && [ -z "${EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK:-}" ]; then
+            echo '::warning::COMMERCIAL_BLOCKED No automatic Web checkout is configured; evaluation/manual activation remains available.'
+          elif [ -n "${EXPO_PUBLIC_REVENUECAT_WEB_KEY:-}" ]; then
+            echo 'RevenueCat Web SDK key present.'
           fi
 
       - name: Install dependencies
@@ -78,12 +92,20 @@ jobs:
           full_build = os.environ['GITHUB_SHA']
           build = full_build[:7]
           marker = f'<meta name="obrasignal-build" content="{build}">'
+          checkout_ready = bool((os.environ.get('EXPO_PUBLIC_REVENUECAT_WEB_KEY') or '').strip() or (os.environ.get('EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK') or '').strip())
+          checkout_marker = f'<meta name="obrasignal-commercial-checkout" content="{"configured" if checkout_ready else "blocked"}">'
           if '<meta name="obrasignal-build"' in s:
               s = re.sub(r'<meta name="obrasignal-build"[^>]*>', marker, s, count=1)
           elif '</head>' in s:
               s = s.replace('</head>', f'  {marker}</head>', 1)
           else:
               s = marker + s
+          if '<meta name="obrasignal-commercial-checkout"' in s:
+              s = re.sub(r'<meta name="obrasignal-commercial-checkout"[^>]*>', checkout_marker, s, count=1)
+          elif '</head>' in s:
+              s = s.replace('</head>', f'  {checkout_marker}</head>', 1)
+          else:
+              s = checkout_marker + s
           if re.search(r'<title>.*?</title>', s, flags=re.S):
               s = re.sub(r'<title>.*?</title>', f'<title>ObraSignal • {build}</title>', s, count=1, flags=re.S)
           beacon = f'''<script id="obrasignal-private-traffic">(function(){{try{{var p=new URLSearchParams(location.search||'');var w=window.innerWidth||0;var payload={{event:'page_view',path:location.pathname||'/',referrer:document.referrer||'',utm_source:p.get('utm_source')||'',utm_medium:p.get('utm_medium')||'',utm_campaign:p.get('utm_campaign')||'',timezone:(Intl.DateTimeFormat().resolvedOptions().timeZone||''),language:(navigator.language||''),device:w<760?'mobile':w<1100?'tablet':'desktop',build_id:'{build}'}};fetch('https://obrasignal.onrender.com/api/v1/analytics/event',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload),credentials:'omit',keepalive:true}}).catch(function(){{}});}}catch(e){{}}}})();</script>'''
@@ -101,6 +123,7 @@ jobs:
           test "$(cat .smoke-dist/release-source.txt)" = "$GITHUB_SHA"
           grep -q "ObraSignal" .smoke-dist/index.html
           grep -q "obrasignal-build" .smoke-dist/index.html
+          grep -q "obrasignal-commercial-checkout" .smoke-dist/index.html
           grep -q "obrasignal-private-traffic" .smoke-dist/index.html
           grep -q "analytics/event" .smoke-dist/index.html
           grep -q "${GITHUB_SHA:0:7}" .smoke-dist/index.html
