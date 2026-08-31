@@ -67,10 +67,12 @@ if (!/EUROPE_MARKETS\.map/.test(webApp) || !/EUROPE_MARKETS\.map/.test(onboardin
 if (!/32 mercados europeus activos/.test(webApp) || !/32 mercados europeus activos/.test(onboarding)) uiFailures.push('web market coverage must state the active 32-market scope');
 if (/Terminar sessão/.test(authGate)) uiFailures.push('persistent session header must not advertise logout');
 if (!/Terminar sessão/.test(webApp)) uiFailures.push('logout must remain available at the bottom of Profile');
+if (!/function WebTranslator/.test(authGate) || !/translate\.google\.com\/translate_a\/element\.js/.test(authGate)) uiFailures.push('web session bar must expose the on-demand translator');
+if (!/<WebTranslator\/>/.test(authGate) || !/Tradutor/.test(authGate)) uiFailures.push('translator must sit beside the authenticated date/time controls');
 if (uiFailures.length) {
   for (const name of uiFailures) console.error(`FAIL: ${name}`);
   process.exit(1);
 }
 
 for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
-for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing','single web page scroll','refined web wordmark','32-market Europe scope','logout placement']) console.log(`PASS: ${name}`);
+for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing','single web page scroll','refined web wordmark','32-market Europe scope','logout placement','session translator']) console.log(`PASS: ${name}`);
