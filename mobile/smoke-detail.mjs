@@ -55,6 +55,10 @@ if (!/RADAR COMERCIAL/.test(app) || !/rootWide/.test(app)) uiFailures.push('auth
 if (/position:'absolute'/.test(billingGate)) uiFailures.push('billing status must never overlay authenticated content');
 if (/A versão Web permite consultar o estado do plano, mas não processa compras/.test(billingGate)) uiFailures.push('web billing copy must not claim the platform cannot purchase');
 if (!/EXPO_PUBLIC_REVENUECAT_WEB_KEY/.test(billing) || !/Platform\.OS === 'web'/.test(billing)) uiFailures.push('RevenueCat web billing configuration must be wired');
+if (!/import BillingGate from '\.\/BillingGate'/.test(authGate) || !/<BillingGate>/.test(authGate)) uiFailures.push('every authenticated shell must be wrapped by BillingGate');
+if (!/BILLING_PRODUCT = 'obrasignal_pro_monthly'/.test(billing) || !/p\?\.product\?\.identifier === BILLING_PRODUCT|pkg\?\.product\?\.identifier === BILLING_PRODUCT/.test(billing)) uiFailures.push('billing must select the canonical ObraSignal Pro product by exact identifier');
+if (/packageType === 'MONTHLY'/.test(billing) || /availablePackages\?\.\[0\]/.test(billing)) uiFailures.push('billing must never fall back to an arbitrary monthly or first package');
+if (!/const selectedPackage = proPackage\(offering\)/.test(billingGate) || !/checkoutConfigured && Boolean\(selectedPackage\)/.test(billingGate)) uiFailures.push('subscribe action must stay unavailable until the exact Pro product is loaded');
 if (/flexBasis/.test(authScreen)) uiFailures.push('public landing must avoid flex-basis responsive overlap regression');
 if (!/width >= 980/.test(authScreen) || !/heroStack/.test(authScreen)) uiFailures.push('public landing must have an explicit stacked breakpoint');
 if (!/function WebMain/.test(webApp) || !/<ScrollView style=\{s\.pageScroll\}/.test(webApp)) uiFailures.push('web workspace must have one explicit vertical scroll surface');
@@ -75,4 +79,4 @@ if (uiFailures.length) {
 }
 
 for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
-for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing','single web page scroll','refined web wordmark','32-market Europe scope','logout placement','session translator']) console.log(`PASS: ${name}`);
+for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','authenticated billing gate','exact Pro product selection','fail-closed subscribe action','responsive public landing','single web page scroll','refined web wordmark','32-market Europe scope','logout placement','session translator']) console.log(`PASS: ${name}`);
