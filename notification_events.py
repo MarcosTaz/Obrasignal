@@ -19,6 +19,11 @@ def _key(row):
     return f"fallback:{hashlib.sha256(raw.encode('utf-8')).hexdigest()}"
 
 
+def event_key_for(account_id, row):
+    """Return the one canonical tenant+opportunity identity used by every emitter."""
+    return f"{str(account_id or 'default')}:{_key(row)}"
+
+
 def ensure_event_table(conn):
     exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='opportunity_events'").fetchone()
     if not exists:
@@ -41,33 +46,67 @@ def ensure_event_table(conn):
     conn.commit()
 
 
+def _latest_sync_finished_at(conn):
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sync_runs'").fetchone()
+    if not exists:
+        return None
+    row = conn.execute("SELECT finished_at FROM sync_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
+    return row[0] if row else None
+
+
 def record_new_opportunities(conn, account_id="default", min_score=75):
-    """Record high-value, currently actionable opportunities for one account."""
+    """Record qualified actionable opportunities newly discovered by the latest sync.
+
+    ``tenders.score`` is legacy/global presentation state and must never decide
+    whether a specific customer receives an alert. The latest account-scoped
+    decision is the only scoring authority. In production, newness is tied to
+    the exact latest ``sync_runs.finished_at`` value used as ``tenders.first_seen``;
+    the short datetime window remains only a compatibility fallback for isolated
+    callers/tests without sync-run state.
+    """
     account_id = str(account_id or "default")
     ensure_event_table(conn)
     ensure_lifecycle_table(conn)
+    sync_finished_at = _latest_sync_finished_at(conn)
+    if sync_finished_at:
+        freshness = "t.first_seen=?"
+        freshness_params = [sync_finished_at]
+    else:
+        freshness = "datetime(t.first_seen) >= datetime('now','-2 minutes')"
+        freshness_params = []
+
     rows = conn.execute(
-        f"""SELECT t.* FROM tenders t
+        f"""SELECT t.*, d.score AS account_score, d.decision AS account_decision
+           FROM tenders t
+           JOIN (
+               SELECT od.source, od.external_id, MAX(od.id) AS max_id
+               FROM opportunity_decisions od
+               WHERE od.account_id=?
+               GROUP BY od.source, od.external_id
+           ) latest
+             ON latest.source=t.source AND latest.external_id=t.external_id
+           JOIN opportunity_decisions d ON d.id=latest.max_id
            LEFT JOIN opportunity_lifecycle lc
              ON lc.source=t.source AND lc.external_id=t.external_id
            WHERE t.first_seen IS NOT NULL
-             AND t.first_seen >= datetime('now','-2 minutes')
-             AND t.score >= ?
+             AND {freshness}
+             AND d.decision='QUALIFIED'
+             AND d.score >= ?
              AND {actionable_predicate('lc', 't')}
-           ORDER BY t.score DESC, t.first_seen ASC""",
-        (min_score,),
+           ORDER BY d.score DESC, datetime(t.first_seen) ASC""",
+        (account_id, *freshness_params, min_score),
     ).fetchall()
     events = []
     now = datetime.now(timezone.utc).isoformat()
     for row in rows:
         d = dict(row)
-        base_key = _key(d)
-        event_key = f"{account_id}:{base_key}"
+        event_key = event_key_for(account_id, d)
+        score = d.get("account_score", 0)
         cur = conn.execute(
             """INSERT OR IGNORE INTO opportunity_events
                (account_id,event_key,tender_id,source,event_type,score,created_at)
                VALUES (?,?,?,?,?,?,?)""",
-            (account_id, event_key, d.get("id"), d.get("source"), "new_high_match", d.get("score", 0), now),
+            (account_id, event_key, d.get("id"), d.get("source"), "new_high_match", score, now),
         )
         if cur.rowcount:
             events.append({
@@ -75,7 +114,7 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
                 "account_id": account_id,
                 "tender_id": d.get("id"),
                 "source": d.get("source"),
-                "score": d.get("score", 0),
+                "score": score,
                 "title": d.get("title"),
                 "country": d.get("country"),
                 "url": d.get("url"),

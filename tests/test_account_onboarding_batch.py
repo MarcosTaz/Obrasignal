@@ -61,6 +61,9 @@ def test_bootstrap_reuses_profile_and_batches_decision_writes(monkeypatch):
     assert [call[0] for call in calls] == ["a", "b", "c"]
     assert all(call[2] == "acct-a" for call in calls)
     assert all(call[3] is profile for call in calls)
-    assert all(call[4] == {"commit": False, "ensure": False} for call in calls)
+    assert all(call[4]["commit"] is False for call in calls)
+    assert all(call[4]["ensure"] is False for call in calls)
+    assert all(isinstance(call[4].get("evaluation"), dict) for call in calls)
+    assert all(call[4]["evaluation"].get("profile_score") is not None for call in calls)
 
     conn.close()

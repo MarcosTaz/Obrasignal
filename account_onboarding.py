@@ -12,11 +12,14 @@ from app import db
 from company_profile import load_profile
 from decision_log import ensure_decision_table
 from funnel_integration import persist_and_classify
+from notification_events import event_key_for
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+from opportunity_match_pipeline import evaluate_row
 
 # This runs inside POST /profile. Keep it a first-value sample, not a batch job.
 # 250 rows exceeded the real 30 s production contract even after batching.
 MAX_BOOTSTRAP_ROWS = 50
+BOOTSTRAP_COMMIT_BATCH = 25
 
 
 def _emit_bootstrap_events(conn, account_id: str) -> int:
@@ -33,7 +36,8 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
            JOIN opportunity_decisions d ON d.id=latest.max_id
            LEFT JOIN opportunity_lifecycle lc
              ON lc.source=t.source AND lc.external_id=t.external_id
-           WHERE d.score >= 75
+           WHERE d.decision='QUALIFIED'
+             AND d.score >= 75
              AND {actionable_predicate('lc', 't')}
            ORDER BY d.score DESC, COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC
            LIMIT ?""",
@@ -42,7 +46,7 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
     created = 0
     for row in rows:
         item = dict(row)
-        event_key = f"{account_id}:{item.get('source','')}:{item.get('external_id','')}"
+        event_key = event_key_for(account_id, item)
         cur = conn.execute(
             """INSERT OR IGNORE INTO opportunity_events
                (account_id,event_key,tender_id,source,event_type,score,created_at)
@@ -57,11 +61,10 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
 def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
     """Classify a bounded first-value sample for one account quickly.
 
-    The profile and decision schema are prepared once and all decision rows are
-    committed atomically. Candidate selection prefers the account's configured
-    countries, then the strongest legacy source score and freshest source date.
-    Legacy score is used only to choose which rows to evaluate first; the score
-    shown to customers is always recalculated by the canonical account model.
+    Candidate selection prefers the account's configured countries. Expensive
+    scoring is completed before the first decision INSERT, then decisions are
+    persisted in short batches so customer profile saves do not hold SQLite's
+    single writer lock while classification is still computing.
     """
     account_id = str(account_id or "").strip()
     if not account_id:
@@ -90,20 +93,32 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
                LIMIT ?""",
             params,
         ).fetchall()
-        evaluated = 0
+
+        prepared = []
         for row in rows:
+            item = dict(row)
+            prepared.append((item, evaluate_row(item, profile=profile)))
+
+        for index, (item, evaluation) in enumerate(prepared, start=1):
             persist_and_classify(
                 conn,
-                dict(row),
+                item,
                 False,
                 account_id=account_id,
                 profile=profile,
+                evaluation=evaluation,
                 commit=False,
                 ensure=False,
             )
-            evaluated += 1
-        conn.commit()
+            if index % BOOTSTRAP_COMMIT_BATCH == 0:
+                conn.commit()
+        if prepared and len(prepared) % BOOTSTRAP_COMMIT_BATCH:
+            conn.commit()
+
         _emit_bootstrap_events(conn, account_id)
-        return evaluated
+        return len(prepared)
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()

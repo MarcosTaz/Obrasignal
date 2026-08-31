@@ -164,6 +164,7 @@ from netherlands_runtime import install as install_netherlands_runtime
 from germany_runtime import install as install_germany_runtime
 from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
+from runtime_db_hardening import install as install_runtime_db_hardening
 import preload as _preload
 
 init_db()
@@ -176,6 +177,10 @@ try:
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
+
+# Install SQLite journal/decision-write hardening only after all startup schema
+# migrations complete and before either background writer is allowed to start.
+install_runtime_db_hardening(_preload, _app)
 install_lifecycle_read_model(_preload)
 install_latvia_runtime()
 install_uk_runtime()

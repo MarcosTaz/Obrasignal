@@ -3,16 +3,21 @@ from decision_log import record_decision
 from opportunity_match_pipeline import RULE_VERSION, evaluate_row
 
 
-def persist_and_classify(conn, item, is_new, account_id='default', profile=None, *, commit=True, ensure=True):
+def persist_and_classify(conn, item, is_new, account_id='default', profile=None, *,
+                         evaluation=None, commit=True, ensure=True, ensure_schema=None):
     """Persist the canonical commercial decision with full account-scoped evidence.
 
-    Callers evaluating a batch for one account may pass an already-loaded
-    profile and disable per-row schema checks/commits after preparing the batch.
-    Defaults preserve the historical safe single-item behaviour.
+    Batch callers may provide an already-loaded profile and/or precomputed
+    evaluation, then defer schema checks/commit so scoring CPU work does not
+    happen while SQLite's writer lock is held. ``ensure_schema`` is an explicit
+    compatibility alias for the existing ``ensure`` argument.
     """
+    if ensure_schema is not None:
+        ensure = bool(ensure_schema)
     enriched = dict(item)
-    effective_profile = profile if profile is not None else load_profile(account_id)
-    evaluation = evaluate_row(enriched, profile=effective_profile)
+    if evaluation is None:
+        effective_profile = profile if profile is not None else load_profile(account_id)
+        evaluation = evaluate_row(enriched, profile=effective_profile)
     enriched.update({
         "lot_score": evaluation["lot_score"],
         "lot_match": evaluation["match"],

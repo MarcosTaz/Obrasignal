@@ -8,7 +8,28 @@ decisions or workflow state.
 from datetime import datetime, timezone
 
 
+_LIFECYCLE_TABLE = "opportunity_lifecycle"
+_LIFECYCLE_INDEX = "idx_opportunity_lifecycle_actionable"
+
+
+def _lifecycle_schema_ready(conn):
+    table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (_LIFECYCLE_TABLE,)
+    ).fetchone()
+    if not table:
+        return False
+    index = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name=?", (_LIFECYCLE_INDEX,)
+    ).fetchone()
+    return bool(index)
+
+
 def ensure_lifecycle_table(conn):
+    # Production startup creates this schema before workers/traffic. Keeping the
+    # steady-state path read-only avoids needless SQLite schema-writer locks on
+    # Radar, alert and push reads.
+    if _lifecycle_schema_ready(conn):
+        return
     conn.execute('''CREATE TABLE IF NOT EXISTS opportunity_lifecycle (
         source TEXT NOT NULL,
         external_id TEXT NOT NULL,
