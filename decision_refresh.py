@@ -27,6 +27,10 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS opportunity_decision_inputs (
     PRIMARY KEY(account_id, source, external_id)
 )"""
 
+# A profile edit can invalidate a large observed corpus. Spread that work over
+# successive 60-second source polls instead of monopolising SQLite in one pass.
+MAX_REFRESH_PER_ACCOUNT = 100
+
 _MATERIAL_FIELDS = (
     "title",
     "description",
@@ -104,13 +108,18 @@ def _mark(conn, account_id: str, source: str, external_id: str, fingerprint: str
     )
 
 
-def record_account_decisions(conn, *, commit_chunk: int = 50) -> int:
+def record_account_decisions(
+    conn,
+    *,
+    commit_chunk: int = 50,
+    max_refresh_per_account: int = MAX_REFRESH_PER_ACCOUNT,
+) -> int:
     """Refresh only materially stale decisions for the latest source observation.
 
     Existing deployments have decisions but no fingerprint rows. They are
     seeded without a costly re-score when the latest decision is at least as
-    recent as the current profile. If the profile is newer, the opportunity is
-    re-scored once and then becomes incremental.
+    recent as the current profile. If the profile is newer, stale opportunities
+    are re-scored in bounded batches across successive source polls.
     """
     run = conn.execute(
         "SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1"
@@ -125,6 +134,7 @@ def record_account_decisions(conn, *, commit_chunk: int = 50) -> int:
     accounts = list_active_accounts(conn) or [configured_identity().account_id]
     recorded = 0
     pending_writes = 0
+    refresh_limit = max(1, int(max_refresh_per_account))
 
     for raw_account_id in accounts:
         account_id = str(raw_account_id or "").strip()
@@ -132,6 +142,7 @@ def record_account_decisions(conn, *, commit_chunk: int = 50) -> int:
             continue
         profile = load_profile(account_id)
         profile_updated = _profile_updated_at(conn, account_id)
+        rescored_for_account = 0
 
         for raw_row in rows:
             row = dict(raw_row)
@@ -161,6 +172,11 @@ def record_account_decisions(conn, *, commit_chunk: int = 50) -> int:
                         pending_writes = 0
                     continue
 
+            # Leave excess stale rows unmarked. The next poll sees them again
+            # and continues convergence without one long write transaction.
+            if rescored_for_account >= refresh_limit:
+                continue
+
             persist_and_classify(
                 conn,
                 row,
@@ -172,6 +188,7 @@ def record_account_decisions(conn, *, commit_chunk: int = 50) -> int:
             )
             _mark(conn, account_id, source, external_id, fingerprint)
             recorded += 1
+            rescored_for_account += 1
             pending_writes += 2
             if pending_writes >= max(1, int(commit_chunk)):
                 conn.commit()
