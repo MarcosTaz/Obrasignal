@@ -6,12 +6,12 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 30,
-  "last_factory_id": "obrasignal-release-safety",
-  "last_run_at": "2026-08-31T09:38:45Z",
+  "cursor": 32,
+  "last_factory_id": "eu-switching-evidence-pack",
+  "last_run_at": "2026-08-31T10:39:30Z",
   "last_material_change": {
-    "kind": "ANALYTICS_EXACT_HEAD_GREEN_TRUTH_REPAIRED_RELEASE_SAFETY_NONMERGEABLE_SURFACED",
-    "summary": "Registry and ACTIVE fleet state were re-read with all 33 entries preserved. CausLedger Gmail watch after the prior baton found no new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Analytics PR #344 is OPEN/DRAFT/NOT_MERGED at exact head a331cc882f52ced98b5cb2e8da8a781b1c845a30; exact-head Quality runs 33337007434 and 33337005904 are COMPLETED/SUCCESS, so stale CI-pending prose was repaired while preserving UNKNOWN production telemetry/customer behavior/WTP/outcome/revenue. Release Safety exact-name search recovered #350 at head 2f772dbad537add44169c30e527627de64dbdeab with historical exact-head Quality 32890750011 GREEN, but GitHub currently reports mergeable=false. PR prose was repaired to state NOT_MERGEABLE and to forbid transporting GREEN into integration/release readiness. Fleet rotates to Support Ops.",
+    "kind": "SUPPORT_OPS_SOURCE_UNKNOWN_BYPASSED_EU_SWITCHING_EXACT_HEAD_GREEN_TRUTH_REPAIRED",
+    "summary": "Registry and ACTIVE fleet state were re-read with all 33 entries preserved. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Support Ops exact-name PR search returned zero, so exact source authority remains UNKNOWN and the fleet rotated rather than fabricating lineage. EU Switching Evidence Pack successor PR #818 was recovered OPEN/DRAFT/NOT_MERGED at exact head f9ffcf82f2eebbfdeb400de76f562cb185ec5adf. Cloud Switching Quality 33271664101 and ObraSignal Quality 33271664096 are COMPLETED/SUCCESS on that exact head; stale acceptance-pending PR prose was repaired to exact-head GREEN while preserving NOT_CANONICAL and UNKNOWN live migration/customer/outcome/WTP/payment/revenue truth. ComplianceLedger exact-name PR search returned no result, so it remains UNKNOWN and the fleet rotates onward.",
     "evidence": {
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -19,35 +19,37 @@
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
-      "obrasignal_data_analytics": {
-        "pr": 344,
-        "head": "a331cc882f52ced98b5cb2e8da8a781b1c845a30",
-        "quality_runs": [33337007434,33337005904],
-        "quality_status": "COMPLETED_SUCCESS",
-        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "classification": "EXACT_HEAD_GREEN_MEASUREMENT_CONTRACT_ONLY",
-        "next_exact_action": "Consume authoritative product instrumentation seams before making funnel, retention, TTV or customer-behavior claims; missing remains UNKNOWN."
+      "obrasignal_support_ops": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "exact_name_pr_results": 0,
+        "next_exact_action": "Recover canonical source/BATON/PR/code authority from repository evidence before source-specific mutation."
       },
-      "obrasignal_release_safety": {
-        "pr": 350,
-        "head": "2f772dbad537add44169c30e527627de64dbdeab",
-        "quality_run": 32890750011,
+      "eu_switching_evidence_pack": {
+        "pr": 818,
+        "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
+        "cloud_switching_quality_run": 33271664101,
+        "obrasignal_quality_run": 33271664096,
         "quality_status": "COMPLETED_SUCCESS",
-        "mergeable": false,
-        "pr_state": "OPEN_NOT_MERGED_NOT_CANONICAL_NOT_MERGEABLE",
-        "classification": "EXACT_HEAD_GREEN_BUT_INTEGRATION_BLOCKED",
-        "next_exact_action": "Reconstruct current-main conflict/composition truth before any branch repair; preserve single-manual-release-authority invariants and require new exact-head evidence after movement."
+        "mergeable": true,
+        "pr_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+        "classification": "EXACT_HEAD_GREEN_REPOSITORY_REPAIR_ONLY",
+        "next_exact_action": "Do not infer canonical integration or live migration outcome; advance only with authoritative integration/customer evidence."
+      },
+      "complianceledger": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "exact_name_pr_results": 0
       }
     },
-    "active": "Customer Support, Incident & Service Operations Factory — recover exact source/CI truth and execute highest-value supportability integrity work.",
-    "next": "Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety.",
+    "active": "Factory Cloud / Control Tower — continue global rotation and reconstruct exact source/CI truth for the next highest-value executable Factory.",
+    "next": "Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
       "Factories with UNKNOWN exact source identity retain UNKNOWN until canonical authority is recovered.",
-      "Analytics exact-head GREEN proves repository measurement-contract integrity only; production telemetry, behavior, retention, WTP, outcomes and revenue remain unproven.",
-      "Release Safety #350 is currently NOT_MERGEABLE despite exact-head GREEN; any composition/rebase movement invalidates exact-head evidence and requires retest."
+      "Support Ops exact source identity remains UNKNOWN after exact-name PR search.",
+      "EU Switching Evidence Pack #818 exact-head GREEN proves repository repair only; canonical integration, live migration, customer outcome, WTP, payment and revenue remain unproven.",
+      "ComplianceLedger exact source identity remains UNKNOWN after exact-name PR search."
     ]
   },
   "blocked": [
@@ -57,7 +59,7 @@
     {"factory_id":"recovery-radar","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"product-market-access","blocker":"Exact canonical source identity UNKNOWN; public market research remains non-canonical.","global_stop":false},
-    {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity must be revalidated from current repository evidence.","global_stop":false},
+    {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact-name PR search.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"longlead","blocker":"Exact source/BATON/PR/code identity UNKNOWN after exact searches.","global_stop":false},
@@ -68,7 +70,7 @@
     {"factory_id":"recoverable-money","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN.","global_stop":false},
+    {"factory_id":"complianceledger","blocker":"Exact source/BATON/branch/PR/code identity UNKNOWN after exact-name PR search.","global_stop":false},
     {"factory_id":"obrasignal-release-safety","blocker":"PR #350 exact-head Quality is GREEN but GitHub currently reports mergeable=false; current-main composition/conflict truth must be reconstructed before safe repair.","global_stop":false}
   ],
   "rules": {
