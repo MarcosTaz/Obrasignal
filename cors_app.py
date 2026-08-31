@@ -5,13 +5,19 @@ from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
-from auth_context import configured_identity, InvalidTokenError
-from auth_context_jwt import authentication_health
+from account_privacy import bp as ACCOUNT_PRIVACY_BP
+from auth_context import configured_identity, customer_role_allows, InvalidTokenError
+from auth_context_jwt import authentication_health, JwksUnavailableError
+import notification_privacy_lifecycle as _notification_privacy_lifecycle
+import opportunity_watchlist_api as _opportunity_watchlist_api
 
-# api.py owns the mobile API blueprint; register it here because this is the
-# production WSGI entrypoint and keeps registration explicit at the boundary.
+# api.py owns the mobile API blueprint; account_privacy.py owns authenticated
+# export/deletion. Register each public owner explicitly and idempotently at the
+# production WSGI boundary so implemented routes cannot remain test-only truth.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
+if "account_privacy" not in APP.blueprints:
+    APP.register_blueprint(ACCOUNT_PRIVACY_BP)
 
 
 def _origin():
@@ -30,7 +36,7 @@ def _cors(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-ObraSignal-API"] = "v1"
@@ -58,12 +64,47 @@ def _global_api_preflight():
 
 
 @APP.before_request
+def _authorize_customer_mutation():
+    """Enforce signed company roles before authenticated customer mutations.
+
+    RevenueCat webhook authentication is a separate provider-owned boundary and is
+    deliberately excluded from user-role authorization. In provider mode, requests
+    without a bearer are left to the owning endpoint so its established auth/JWKS
+    failure semantics remain authoritative. A present verified bearer is role-gated.
+    """
+    if not request.path.startswith("/api/v1/") or request.method not in {"POST", "PATCH", "DELETE"}:
+        return None
+    if request.path == "/api/v1/billing/webhook":
+        return None
+    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "").strip().lower()
+    if auth_mode == "provider" and not request.headers.get("Authorization", "").strip():
+        return None
+    try:
+        identity = configured_identity()
+    except JwksUnavailableError:
+        response = jsonify({"error": "auth_provider_unavailable"})
+        return _cors(response), 503
+    except (RuntimeError, InvalidTokenError):
+        response = jsonify({"error": "authentication_required"})
+        return _cors(response), 401
+    owner_only = request.path == "/api/v1/account/deletion"
+    if not customer_role_allows(identity.role, request.method, owner_only=owner_only):
+        response = jsonify({"error": "authorization_denied"})
+        return _cors(response), 403
+    request.obrasignal_identity = identity
+    return None
+
+
+@APP.before_request
 def _protect_radar_api():
     is_detail = request.path.startswith("/api/v1/opportunities/") and not request.path.endswith("/workflow")
     if request.path != "/api/v1/radar" and not is_detail:
         return None
     try:
-        identity = configured_identity()
+        identity = getattr(request, "obrasignal_identity", None) or configured_identity()
+    except JwksUnavailableError:
+        response = jsonify({"error": "auth_provider_unavailable"})
+        return _cors(response), 503
     except (RuntimeError, InvalidTokenError):
         response = jsonify({"error": "authentication_required"})
         return _cors(response), 401
@@ -83,8 +124,14 @@ def _global_api_cors(response):
 # before allowing the ingestion worker to run.
 import app as _app
 from app import db, init_db, start_background_worker
+from storage_migration_lock import run_serialized_schema_init
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
+from notification_dispatch_guard import install as install_notification_dispatch_guard
+from notification_event_recovery import (
+    initialize_existing_account_baselines,
+    install as install_notification_event_recovery,
+)
 from latvia_runtime import install as install_latvia_runtime
 from uk_runtime import install as install_uk_runtime
 from ecuador_runtime import install as install_ecuador_runtime
@@ -99,14 +146,20 @@ from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 import preload as _preload
 
-init_db()
+run_serialized_schema_init(init_db, _app.DB)
 _lifecycle_conn = db()
 try:
     ensure_lifecycle_table(_lifecycle_conn)
+    initialize_existing_account_baselines(
+        _lifecycle_conn,
+        _preload.list_active_accounts(_lifecycle_conn),
+    )
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
 install_lifecycle_read_model(_preload)
+install_notification_dispatch_guard()
+install_notification_event_recovery(_preload)
 install_latvia_runtime()
 install_uk_runtime()
 install_ecuador_runtime()

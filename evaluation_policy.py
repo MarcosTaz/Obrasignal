@@ -66,6 +66,24 @@ def _parse_iso(value):
     return parsed.astimezone(timezone.utc)
 
 
+def _parse_authoritative_iso(value):
+    """Parse persisted access authority without inventing a timezone.
+
+    Evaluation ACTIVE access is a consequential authorization decision. Missing,
+    malformed or timezone-naive persisted boundaries therefore remain UNKNOWN
+    rather than being coerced into UTC authority.
+    """
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
 def ensure_evaluation_schema(conn):
     columns = {row[1] for row in conn.execute("PRAGMA table_info(accounts)").fetchall()}
     migrations = {
@@ -192,7 +210,7 @@ def grant_evaluation_extension(conn, account_id, *, days, reason, real_usage,
     current = int(account.get("evaluation_extension_days") or 0)
     if current + days > MAX_VALUE_EXTENSION_DAYS:
         raise ValueError("extension_limit_exceeded")
-    ends = _parse_iso(account.get("evaluation_ends_at"))
+    ends = _parse_authoritative_iso(account.get("evaluation_ends_at"))
     if not ends:
         raise ValueError("evaluation_not_activated")
     new_end = ends + timedelta(days=days)
@@ -206,14 +224,51 @@ def grant_evaluation_extension(conn, account_id, *, days, reason, real_usage,
     return evaluation_summary(conn, fresh, now=_now(now))
 
 
+def _unknown_active_window(account):
+    return {
+        "plan": "expired",
+        "active": False,
+        "source": "evaluation",
+        "expires_at": account.get("evaluation_ends_at"),
+        "evaluation_status": "UNKNOWN",
+    }
+
+
 def evaluation_access_state(account, *, now=None):
-    """Return evaluation access state, or None for legacy/non-evaluation accounts."""
+    """Return evaluation access state, or None for legacy/non-evaluation accounts.
+
+    ``EVALUATION_ACTIVE`` is an access-granting authority and therefore requires a
+    complete, timezone-aware, forward-moving persisted window. Corrupt or unknown
+    temporal evidence fails closed; it is never interpreted as an open-ended trial.
+    """
     if not account or not account.get("evaluation_status"):
         return None
     current = _now(now)
     status = account.get("evaluation_status")
     if status == "PAID":
         return None
+
+    if status == "EVALUATION_ACTIVE":
+        activated = _parse_authoritative_iso(account.get("evaluation_activated_at"))
+        ends = _parse_authoritative_iso(account.get("evaluation_ends_at"))
+        if activated is None or ends is None or ends <= activated:
+            return _unknown_active_window(account)
+        if ends <= current:
+            return {
+                "plan": "expired",
+                "active": False,
+                "source": "evaluation",
+                "expires_at": account.get("evaluation_ends_at"),
+                "evaluation_status": "EXPIRED",
+            }
+        return {
+            "plan": "evaluation",
+            "active": True,
+            "source": "evaluation",
+            "expires_at": account.get("evaluation_ends_at"),
+            "evaluation_status": status,
+        }
+
     ends = _parse_iso(account.get("evaluation_ends_at"))
     if ends and ends <= current:
         return {
@@ -305,7 +360,9 @@ def evaluation_metrics(conn, account, *, now=None):
     events = [(row[0], _parse_iso(row[1])) for row in rows]
     created = _parse_iso(account.get("created_at"))
     activated = _parse_iso(account.get("evaluation_activated_at"))
-    first_value = next((ts for name, ts in events if name in VALUE_EXPOSURE_EVENTS and ts), None)
+
+    value_available = next((ts for name, ts in events if name == "first_shortlist_generated" and ts), None)
+    first_observed_value = next((ts for name, ts in events if name in ENGAGEMENT_EVENTS and ts), None)
     names = [name for name, _ in events]
     exposure_count = sum(1 for name in names if name in VALUE_EXPOSURE_EVENTS)
     engagement_count = sum(1 for name in names if name in ENGAGEMENT_EVENTS)
@@ -315,10 +372,22 @@ def evaluation_metrics(conn, account, *, now=None):
             return False
         floor = activated + timedelta(days=day)
         ceiling = floor + timedelta(days=1)
-        return any(ts and floor <= ts < ceiling and name in (VALUE_EXPOSURE_EVENTS | ENGAGEMENT_EVENTS) for name, ts in events)
+        return any(ts and floor <= ts < ceiling and name in ENGAGEMENT_EVENTS for name, ts in events)
 
+    observed_seconds = (
+        int((first_observed_value - created).total_seconds())
+        if first_observed_value and created
+        else None
+    )
+    available_seconds = (
+        int((value_available - created).total_seconds())
+        if value_available and created
+        else None
+    )
     return {
-        "TIME_TO_FIRST_VALUE_SECONDS": int((first_value - created).total_seconds()) if first_value and created else None,
+        "TIME_TO_VALUE_AVAILABLE_SECONDS": available_seconds,
+        "TIME_TO_OBSERVED_FIRST_VALUE_SECONDS": observed_seconds,
+        "TIME_TO_FIRST_VALUE_SECONDS": observed_seconds,
         "TRIAL_ACTIVATION_RATE": 1 if activated else 0,
         "VALUE_EXPOSURE_RATE": 1 if exposure_count else 0,
         "DAY_1_ACTIVE": active_on_day(1),

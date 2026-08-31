@@ -1,0 +1,140 @@
+name: ObraSignal Supply Chain Resolution
+
+on:
+  pull_request:
+    paths:
+      - 'mobile/package.json'
+      - 'mobile/package-lock.json'
+      - 'dependency_registry.json'
+      - 'supply_chain_actions.py'
+      - 'tests/test_supply_chain_contract.py'
+      - 'tests/test_supply_chain_actions.py'
+      - '.github/workflows/*.yml'
+  workflow_dispatch:
+
+# Default authority stays read-only. The single owner job below receives
+# contents:write only so it can materialize the exact reproduced lock onto the
+# dedicated supply-chain candidate branch; main is never an allowed target.
+permissions:
+  contents: read
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  npm-resolution:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+          persist-credentials: false
+
+      - name: Confirm exact revision under test
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.13.1'
+
+      - name: Record npm toolchain
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version | tee /tmp/npm-version
+
+      - name: Generate candidate lock without lifecycle scripts
+        run: |
+          set -euo pipefail
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          test -s package-lock.json
+          cp package-lock.json /tmp/package-lock.json
+          sha256sum package-lock.json | tee /tmp/package-lock.sha256
+
+      - name: Prove clean npm ci from generated lock
+        run: |
+          set -euo pipefail
+          rm -rf node_modules
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all --json > /tmp/npm-graph.json
+          python - <<'PY'
+          import hashlib, json
+          graph=json.load(open('/tmp/npm-graph.json', encoding='utf-8'))
+          canonical=json.dumps(graph, sort_keys=True, separators=(',', ':')).encode()
+          print('npm_graph_sha256=' + hashlib.sha256(canonical).hexdigest())
+          open('/tmp/npm-graph.sha256','w').write(hashlib.sha256(canonical).hexdigest() + '\n')
+          PY
+
+      - name: Repeat clean npm ci and compare graph
+        run: |
+          set -euo pipefail
+          rm -rf node_modules
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all --json > /tmp/npm-graph-repeat.json
+          python - <<'PY'
+          import hashlib, json
+          def digest(path):
+              graph=json.load(open(path, encoding='utf-8'))
+              canonical=json.dumps(graph, sort_keys=True, separators=(',', ':')).encode()
+              return hashlib.sha256(canonical).hexdigest()
+          first=open('/tmp/npm-graph.sha256', encoding='utf-8').read().strip()
+          second=digest('/tmp/npm-graph-repeat.json')
+          print('npm_graph_repeat_sha256=' + second)
+          assert first == second, f'REPRODUCIBILITY_DEFECT: {first} != {second}'
+          PY
+
+      - name: Commit reproducible npm lock to supply-chain owner branch
+        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'supply-chain/lock-integrity-v1-20260825' }}
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_HEAD_REF" = 'supply-chain/lock-integrity-v1-20260825'
+          test "$GITHUB_BASE_REF" = 'main'
+          cp /tmp/package-lock.json mobile/package-lock.json
+          if git ls-files --error-unmatch mobile/package-lock.json >/dev/null 2>&1 && git diff --quiet -- mobile/package-lock.json; then
+            echo 'Committed lock already matches reproduced candidate.'
+            exit 0
+          fi
+          python - <<'PY'
+          import base64, json, os, subprocess
+          path='mobile/package-lock.json'
+          body={
+              'message':'supply-chain: commit reproducible npm lock candidate',
+              'content':base64.b64encode(open(path,'rb').read()).decode('ascii'),
+              'branch':os.environ['GITHUB_HEAD_REF'],
+          }
+          tracked=subprocess.run(['git','ls-files','--error-unmatch',path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+          if tracked:
+              body['sha']=subprocess.check_output(['git','rev-parse',f'HEAD:{path}'], text=True).strip()
+          json.dump(body, open('/tmp/lock-put.json','w',encoding='utf-8'), separators=(',',':'))
+          PY
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/mobile/package-lock.json" \
+            --input /tmp/lock-put.json >/tmp/lock-commit.json
+          python - <<'PY'
+          import json
+          data=json.load(open('/tmp/lock-commit.json', encoding='utf-8'))
+          print('lock_commit_sha=' + str((data.get('commit') or {}).get('sha') or 'UNKNOWN'))
+          PY
+
+      - name: Upload secret-free resolution evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: supply-chain-resolution-${{ env.OBRASIGNAL_TEST_SHA }}
+          path: |
+            /tmp/package-lock.json
+            /tmp/package-lock.sha256
+            /tmp/npm-version
+            /tmp/npm-graph.json
+            /tmp/npm-graph-repeat.json
+            /tmp/npm-graph.sha256
+          if-no-files-found: error
+          retention-days: 7

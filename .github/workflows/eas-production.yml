@@ -2,41 +2,124 @@ name: ObraSignal Production Build
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/eas-production.yml'
+    inputs:
+      target_sha:
+        description: Exact current main SHA authorized for the production build
+        required: true
+        type: string
+      platform:
+        description: Native platform to build
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eas-production-${{ inputs.target_sha }}-${{ inputs.platform }}
+  cancel-in-progress: false
 
 jobs:
   production-build:
-    name: EAS production build (${{ matrix.platform }})
+    name: EAS production build
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [android, ios]
+    timeout-minutes: 90
+    env:
+      TARGET_SHA: ${{ inputs.target_sha }}
+      TARGET_PLATFORM: ${{ inputs.platform }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     defaults:
       run:
         working-directory: mobile
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - name: Checkout exact authorized revision
+        uses: actions/checkout@v4
         with:
-          node-version: 24
+          ref: ${{ inputs.target_sha }}
+          fetch-depth: 0
 
-      - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
+      - name: Refuse non-canonical or stale target
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolved="$(git rev-parse HEAD)"
+          test "$resolved" = "$TARGET_SHA" || {
+            echo "Checked out $resolved instead of requested $TARGET_SHA."
+            exit 1
+          }
+          git fetch origin main --no-tags --prune
+          canonical="$(git rev-parse origin/main)"
+          test "$canonical" = "$TARGET_SHA" || {
+            echo "Refusing production build: target $TARGET_SHA is not current canonical main $canonical."
+            exit 1
+          }
+          echo "canonical_build_sha=$TARGET_SHA"
+
+      - uses: actions/setup-node@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          node-version: '22.13.1'
+          cache: npm
+          cache-dependency-path: mobile/package.json
+
+      - name: Require production-build authorization credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$EXPO_TOKEN" || {
+            echo 'EXPO_TOKEN GitHub secret is required for an authorized production build.'
+            exit 1
+          }
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Build production binary
-        run: eas build --platform ${{ matrix.platform }} --profile production --non-interactive --no-wait
+      - name: Verify pinned EAS CLI
+        run: npx --yes eas-cli@21.7.1 --version
+
+      - name: Build exact production artifact and wait for result
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes eas-cli@21.7.1 build \
+            --platform "$TARGET_PLATFORM" \
+            --profile production \
+            --non-interactive \
+            --wait \
+            --json > eas-build.json
+
+      - name: Validate bounded build evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('eas-build.json', 'utf8'));
+          const builds = Array.isArray(report) ? report : [report];
+          if (!builds.length || builds.some((build) => !build || !build.id)) {
+            console.error('EAS build report does not contain a build id for every requested artifact.');
+            process.exit(1);
+          }
+          const evidence = {
+            target_sha: process.env.TARGET_SHA,
+            platform: process.env.TARGET_PLATFORM,
+            eas_cli: '21.7.1',
+            build_ids: builds.map((build) => build.id),
+          };
+          fs.writeFileSync('release-build-evidence.json', JSON.stringify(evidence, null, 2));
+          console.log(JSON.stringify(evidence));
+          NODE
+
+      - name: Upload production-build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-production-build-${{ inputs.target_sha }}-${{ inputs.platform }}
+          path: |
+            mobile/eas-build.json
+            mobile/release-build-evidence.json
+          if-no-files-found: error

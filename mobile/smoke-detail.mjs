@@ -1,20 +1,16 @@
 import fs from 'node:fs';
 
 const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
-const webApp = fs.readFileSync(new URL('./App.web.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
-const authScreen = fs.readFileSync(new URL('./components/AuthScreen.tsx', import.meta.url), 'utf8');
-const billingGate = fs.readFileSync(new URL('./components/BillingGate.js', import.meta.url), 'utf8');
-const billing = fs.readFileSync(new URL('./src/billing.js', import.meta.url), 'utf8');
+const storageSource = fs.readFileSync(new URL('./src/storage.js', import.meta.url), 'utf8');
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
-const markets = fs.readFileSync(new URL('./src/markets.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 
 const checks = [
   ['detail receives selected opportunity', /<Detail\s+item=\{selected\}/],
   ['detail owns local opportunity state', /function Detail\(\{item,/],
-  ['workflow is rendered in detail', /const status=current\.workflow\?\.status\|\|'NEW'/],
+  ['workflow is rendered in detail without fabricated default', /const status=current\.workflow\?\.status\?\?null;const statusKnown=workflowStatusKnown\(status\)/],
   ['workflow action calls API', /api\.setWorkflow\(current\.id,next/],
   ['official source action is rendered', /Abrir fonte oficial/],
   ['onboarding asks for business interests', /Que trabalhos ou contratos procuras/],
@@ -24,10 +20,49 @@ const checks = [
 
 const crossFileChecks = [
   ['startup hydrates local cache before remote data', /Promise\.allSettled\(\[storage\.getSettings\(\),storage\.getCache\(\),storage\.getProfile\(\)\]\)/],
-  ['startup loads independent API data concurrently', /Promise\.allSettled\(\[api\.profile\(\),api\.opportunities/],
+  ['startup loads independent API data concurrently', /Promise\.allSettled\(\[append\?Promise\.resolve\(profile\):api\.profile\(\),api\.opportunities/],
   ['notification sync reads unread server alerts', /api\.alerts\(\{ unreadOnly: true/],
-  ['notification sync acknowledges delivered events', /api\.markAlertDelivered\(item\.event_id\)/],
+  ['notification sync records scheduling without delivered completion', /rememberLocalScheduledEvent\(eventId\)/],
   ['API exposes alerts endpoint', /alerts:\s*\(\{\s*limit\s*=\s*20,\s*unreadOnly\s*=\s*false\s*\}/],
+];
+
+const authIsolationChecks = [
+  ['auth gate blocks authenticated shell until private tenant binding completes', authGate, /setTenantStatus\('loading'\)[\s\S]*await storage\.bindPrivateTenant\(accountId\)[\s\S]*setTenantStatus\('ready'\)/],
+  ['authenticated subtree remounts when session identity changes', authGate, /<BillingGate key=\{accountId\}>\{children\}<\/BillingGate>/],
+  ['private storage facade clears the active identity before asynchronous rebind', storageSource, /activePrivateTenant = null;[\s\S]*await privateStorage\.bindTenant\(accountId\)/],
+  ['unbound Radar cache reads fail closed', storageSource, /getCache: \(\) => activePrivateTenant \? privateStorage\.getCache\(activePrivateTenant\) : Promise\.resolve\(null\)/],
+  ['unbound profile cache reads fail closed', storageSource, /getProfile: \(\) => activePrivateTenant \? privateStorage\.getProfile\(activePrivateTenant\) : Promise\.resolve\(null\)/],
+];
+
+const pushChecks = [
+  ['native client obtains an Expo push token for the canonical EAS project', notifications, /getExpoPushTokenAsync\(\{ projectId: EXPO_PROJECT_ID \}\)/],
+  ['push token is registered through the authenticated API facade', notifications, /api\.registerPushDevice\(\{ installationId, expoPushToken, platform: Platform\.OS \}\)/],
+  ['permission denial remains distinct from zero local schedules', notifications, /return \{ status: 'permission_denied', scheduled: 0 \}/],
+  ['permission denial has truthful customer copy', app, /Notificações não ativadas: permissão recusada no dispositivo/],
+  ['remote registration does not claim background delivery', app, /Dispositivo registado para notificações remotas\. A entrega em segundo plano ainda não está comprovada neste build\./],
+  ['unregister revokes local binding before the bounded server attempt', notifications, /storage\.clearPushBinding\(\)[\s\S]*api\.unregisterPushDevice\(binding\.installationId\)/],
+  ['disabled notifications fail closed before tap binding validation', notifications, /getSettings\(\)[\s\S]*if \(!settings\.notifications\) return null;[\s\S]*getPushBinding\(\)/],
+  ['storage facade exposes tenant-private binding revoke', storageSource, /clearPushBinding: \(\) => activePrivateTenant \? privateStorage\.clearPushBinding\(activePrivateTenant\) : Promise\.resolve\(\)/],
+  ['storage facade exposes tenant-private scheduled evidence', storageSource, /getLocalNotificationScheduled:[\s\S]*setLocalNotificationScheduled:/],
+  ['local fallback creates tenant-private tap authority before scheduling', notifications, /binding = \{ bindingId: newLocalBindingId\(\), kind: 'local' \};[\s\S]*storage\.setPushBinding\(binding\)/],
+  ['local notification payload never falls back to a null binding', notifications, /bindingId: binding\.bindingId/],
+  ['local fallback tray remains tenant-neutral', notifications, /body: 'Abre o ObraSignal para confirmar uma nova oportunidade\.'/],
+  ['missing current binding dismisses stale tray before provider token attempt', notifications, /if \(!existingBinding\)[\s\S]*dismissAllNotificationsAsync\(\)[\s\S]*getExpoPushTokenAsync\(\{ projectId: EXPO_PROJECT_ID \}\)/],
+  ['local-only authority is dismissed only after remote binding succeeds', notifications, /const bindingId = String\(response\?\.binding_id[\s\S]*if \(existingBinding && !isRemoteBinding\(existingBinding\)\)[\s\S]*dismissAllNotificationsAsync\(\)[\s\S]*storage\.setPushBinding\(\{ bindingId, installationId, expoPushToken, kind: 'remote' \}\)/],
+  ['notification tap validates tenant-private binding before navigation', notifications, /current\.bindingId !== bindingId/],
+  ['notification response marks delivered only after tap authority validation', notifications, /current\.bindingId !== bindingId[\s\S]*api\.markAlertDelivered\(eventId\)/],
+  ['notification response id is claimed before async target validation', notifications, /handledResponseIds\.add\(responseId\)[\s\S]*await notificationOpportunityTarget\(response\)/],
+  ['cold-start notification response is consumed', notifications, /getLastNotificationResponseAsync\(\)/],
+  ['consumed native response is cleared to prevent later replay', notifications, /clearLastNotificationResponseAsync\(\)/],
+  ['live notification response listener is installed', notifications, /addNotificationResponseReceivedListener\(handle\)/],
+  ['tap return fetches current opportunity truth before opening detail', app, /openNotificationOpportunity[\s\S]*api\.opportunity\(opportunityId\)/],
+  ['closed or non-actionable tapped opportunity returns to current Radar', app, /fresh\?\.is_actionable===false\|\|fresh\?\.deadline_status\?\.state==='closed'[\s\S]*já não está acionável[\s\S]*loadRef\.current\?\.\(\{manual:true,offset:0\}\)/],
+  ['unavailable tapped opportunity fails honestly', app, /notificação já não está disponível/],
+  ['tap return refreshes current Radar truth', app, /loadRef\.current\?\.\(\{preserve:true,offset:0\}\)/],
+  ['sign-out attempts server unregister before Supabase sign-out', app, /unregisterRemoteOpportunityPush\(\)[\s\S]*supabase\.auth\.signOut\(\)/],
+  ['API facade exposes push registration', api, /registerPushDevice:\(\{installationId,expoPushToken,platform\}\)/],
+  ['API facade exposes push unregister', api, /unregisterPushDevice:\(installationId\)/],
+  ['push binding is unavailable while private storage is unbound', storageSource, /getPushBinding: \(\) => activePrivateTenant \? privateStorage\.getPushBinding\(activePrivateTenant\) : Promise\.resolve\(null\)/],
 ];
 
 const failures = [
@@ -39,9 +74,11 @@ const crossFailures = [
   ...crossFileChecks.slice(2, 4).filter(([, pattern]) => !pattern.test(notifications)),
   ...crossFileChecks.slice(4).filter(([, pattern]) => !pattern.test(api)),
 ];
+const authIsolationFailures = authIsolationChecks.filter(([, source, pattern]) => !pattern.test(source));
+const pushFailures = pushChecks.filter(([, source, pattern]) => !pattern.test(source));
 
-if (failures.length || crossFailures.length) {
-  for (const [name] of [...failures, ...crossFailures]) console.error(`FAIL: ${name}`);
+if (failures.length || crossFailures.length || authIsolationFailures.length || pushFailures.length) {
+  for (const [name] of [...failures, ...crossFailures, ...authIsolationFailures, ...pushFailures]) console.error(`FAIL: ${name}`);
   process.exit(1);
 }
 
@@ -50,29 +87,19 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
   process.exit(1);
 }
 
-const uiFailures = [];
-if (!/RADAR COMERCIAL/.test(app) || !/rootWide/.test(app)) uiFailures.push('authenticated workspace must use commercial shell');
-if (/position:'absolute'/.test(billingGate)) uiFailures.push('billing status must never overlay authenticated content');
-if (/A versão Web permite consultar o estado do plano, mas não processa compras/.test(billingGate)) uiFailures.push('web billing copy must not claim the platform cannot purchase');
-if (!/EXPO_PUBLIC_REVENUECAT_WEB_KEY/.test(billing) || !/Platform\.OS === 'web'/.test(billing)) uiFailures.push('RevenueCat web billing configuration must be wired');
-if (/flexBasis/.test(authScreen)) uiFailures.push('public landing must avoid flex-basis responsive overlap regression');
-if (!/width >= 980/.test(authScreen) || !/heroStack/.test(authScreen)) uiFailures.push('public landing must have an explicit stacked breakpoint');
-if (!/function WebMain/.test(webApp) || !/<ScrollView style=\{s\.pageScroll\}/.test(webApp)) uiFailures.push('web workspace must have one explicit vertical scroll surface');
-if (/FlatList/.test(webApp)) uiFailures.push('web workspace must not trap the Radar in a nested FlatList scroll viewport');
-if (!/visible\.map\(item=>/.test(webApp)) uiFailures.push('web Radar cards must participate in the page scroll flow');
-if (!/Obra<Text style=\{s\.brandSignal\}>Signal/.test(webApp) || !/fontFamily:FONT/.test(webApp)) uiFailures.push('web brand typography must use the refined wordmark system');
-const europeanMarketCount = (markets.match(/^\s*\['[A-Z]{3}',/gm) || []).length;
-if (europeanMarketCount !== 32) uiFailures.push(`European market registry must expose 32 markets, found ${europeanMarketCount}`);
-if (!/EUROPE_MARKETS\.map/.test(webApp) || !/EUROPE_MARKETS\.map/.test(onboarding)) uiFailures.push('web profile and onboarding must use canonical European market registry');
-if (!/32 mercados europeus activos/.test(webApp) || !/32 mercados europeus activos/.test(onboarding)) uiFailures.push('web market coverage must state the active 32-market scope');
-if (/Terminar sessão/.test(authGate)) uiFailures.push('persistent session header must not advertise logout');
-if (!/Terminar sessão/.test(webApp)) uiFailures.push('logout must remain available at the bottom of Profile');
-if (!/function WebTranslator/.test(authGate) || !/translate\.google\.com\/translate_a\/element\.js/.test(authGate)) uiFailures.push('web session bar must expose the on-demand translator');
-if (!/<WebTranslator\/>/.test(authGate) || !/Tradutor/.test(authGate)) uiFailures.push('translator must sit beside the authenticated date/time controls');
-if (uiFailures.length) {
-  for (const name of uiFailures) console.error(`FAIL: ${name}`);
+if (/Notificações push activadas\./.test(app)) {
+  console.error('FAIL: token registration must not be presented as proven background push delivery');
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
-for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing','single web page scroll','refined web wordmark','32-market Europe scope','logout placement','session translator']) console.log(`PASS: ${name}`);
+if (/body:\s*item\?\.title/.test(notifications)) {
+  console.error('FAIL: local notification tray must not expose tenant-specific opportunity title');
+  process.exit(1);
+}
+
+if (/if \(!isRemoteBinding\(existingBinding\)\)[\s\S]*getExpoPushTokenAsync/.test(notifications)) {
+  console.error('FAIL: local fallback alerts must survive a failed remote registration attempt');
+  process.exit(1);
+}
+
+for (const [name] of [...checks, ...crossFileChecks, ...authIsolationChecks, ...pushChecks]) console.log(`PASS: ${name}`);

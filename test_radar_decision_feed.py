@@ -1,6 +1,7 @@
 import sqlite3
 
 from decision_log import ensure_decision_table, record_decision
+from opportunity_match_pipeline import RULE_VERSION
 from radar_decision_feed import enrich_rows
 
 
@@ -20,7 +21,7 @@ def test_enrich_rows_exposes_persisted_decision_and_layers():
         "QUALIFIED",
         "cumpre perfil",
         score=88,
-        rule_version="test-v1",
+        rule_version=RULE_VERSION,
         features={
             "profile_score": 86,
             "lot_score": 78,
@@ -36,7 +37,7 @@ def test_enrich_rows_exposes_persisted_decision_and_layers():
 
     assert summary["status"] == "QUALIFIED"
     assert summary["score"] == 88
-    assert summary["rule_version"] == "test-v1"
+    assert summary["rule_version"] == RULE_VERSION
     layers = {layer["key"]: layer for layer in summary["layers"]}
     assert layers["profile"]["score"] == 86
     assert layers["lot"]["score"] == 78
@@ -65,9 +66,28 @@ def test_enrich_rows_exposes_hard_blockers_separately():
         "REJECTED",
         "CAPABILITY_BLOCKER",
         features={"hard_capability_blockers": ["CPV fora", "procedimento excluído"]},
+        rule_version=RULE_VERSION,
     )
 
     summary = enrich_rows(conn, [{"source": "TED", "external_id": "X-3"}])[0]["decision_summary"]
     blocker = next(layer for layer in summary["layers"] if layer["key"] == "blockers")
     assert blocker["kind"] == "blocker"
     assert blocker["evidence_count"] == 2
+
+
+def test_enrich_rows_degrades_superseded_rule_decision_to_unknown():
+    conn = _db()
+    record_decision(
+        conn,
+        "TED",
+        "X-stale-rule",
+        "QUALIFIED",
+        "historical semantics",
+        score=96,
+        rule_version="superseded-rule",
+    )
+
+    summary = enrich_rows(conn, [{"source": "TED", "external_id": "X-stale-rule"}])[0]["decision_summary"]
+
+    assert summary["status"] == "SEM DECISÃO"
+    assert summary["score"] is None
