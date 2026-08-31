@@ -1,0 +1,474 @@
+name: Radar truth repair
+
+on:
+  push:
+    branches: [fix/radar-truth-and-recall-20260831]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/radar-truth-and-recall-20260831
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply Radar truth, recall and first-value repair
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          
+          def must_replace(path, old, new, count=1):
+              p=Path(path); text=p.read_text(encoding='utf-8')
+              actual=text.count(old)
+              if actual < count:
+                  raise SystemExit(f'{path}: expected at least {count} occurrences, found {actual}: {old[:120]!r}')
+              text=text.replace(old,new,count)
+              p.write_text(text,encoding='utf-8')
+          
+          # 1) Settings: migrate the old hidden strict default (75 + confirmed deadline)
+          # to an honest default showing all customer-relevant actionable decisions.
+          p=Path('mobile/src/storage.js'); text=p.read_text(encoding='utf-8')
+          old="""const DEFAULT_SETTINGS = {
+            notifications: false,
+            minScore: 75,
+            openOnly: true,
+            source: '',
+          };"""
+          new="""const SETTINGS_VERSION = 2;
+          const DEFAULT_SETTINGS = {
+            settingsVersion: SETTINGS_VERSION,
+            notifications: false,
+            minScore: 0,
+            openOnly: false,
+            source: '',
+          };
+          
+          function migrateSettings(settings) {
+            const stored = settings && typeof settings === 'object' ? settings : {};
+            const version = Number(stored.settingsVersion || 0);
+            if (version >= SETTINGS_VERSION) return { ...DEFAULT_SETTINGS, ...stored };
+            // v1 shipped with a hidden 75+ AND confirmed-deadline default. Migrate
+            // only that legacy/default-shaped state; preserve explicit user choices.
+            const legacyStrictDefault = (stored.minScore == null || stored.minScore === 75)
+              && (stored.openOnly == null || stored.openOnly === true);
+            return {
+              ...DEFAULT_SETTINGS,
+              ...stored,
+              settingsVersion: SETTINGS_VERSION,
+              ...(legacyStrictDefault ? { minScore: 0, openOnly: false } : {}),
+            };
+          }"""
+          if old not in text: raise SystemExit('storage defaults block drifted')
+          text=text.replace(old,new,1)
+          text=text.replace("&& settings.notifications === DEFAULT_SETTINGS.notifications\n    && settings.minScore", "&& settings.settingsVersion === DEFAULT_SETTINGS.settingsVersion\n    && settings.notifications === DEFAULT_SETTINGS.notifications\n    && settings.minScore",1)
+          text=text.replace("? privateStorage.getSettings(activePrivateTenant).then((settings) => ({ ...DEFAULT_SETTINGS, ...settings }))", "? privateStorage.getSettings(activePrivateTenant).then(migrateSettings)",1)
+          text=text.replace("await privateStorage.setSettings(activePrivateTenant, settings);\n    await mirrorNotificationPreference(settings);", "const normalized = { ...settings, settingsVersion: SETTINGS_VERSION };\n    await privateStorage.setSettings(activePrivateTenant, normalized);\n    await mirrorNotificationPreference(normalized);",1)
+          p.write_text(text,encoding='utf-8')
+          
+          # 2) Conservative lexical recall: procurement wording may inflect/reorder
+          # service phrases, but generic words alone must never become evidence.
+          p=Path('capability_profile.py'); text=p.read_text(encoding='utf-8')
+          start=text.index('def _normalize_term')
+          replacement=r'''def _normalize_term(value: str) -> str:
+              """Normalize accents, punctuation and spacing deterministically."""
+              value = unicodedata.normalize("NFKD", str(value or ""))
+              value = "".join(ch for ch in value if not unicodedata.combining(ch))
+              value = re.sub(r"[^a-zA-Z0-9]+", " ", value.casefold())
+              return re.sub(r"\s+", " ", value).strip()
+          
+          
+          _GENERIC_CAPABILITY_TOKENS = {
+              "a", "as", "o", "os", "de", "da", "das", "do", "dos", "e", "em", "para", "por", "com", "sem",
+              "construcao", "obra", "obras", "empreitada", "empreitadas", "servico", "servicos", "trabalho", "trabalhos",
+              "fornecimento", "fornecimentos", "execucao", "publica", "publico", "publicos",
+          }
+          
+          
+          def _stem_token(token: str) -> str:
+              token = _normalize_term(token)
+              if len(token) > 6 and token.endswith("oes"):
+                  return token[:-3] + "ao"
+              if len(token) > 5 and token.endswith("ais"):
+                  return token[:-3] + "al"
+              if len(token) > 4 and token.endswith("s") and not token.endswith("ss"):
+                  return token[:-1]
+              return token
+          
+          
+          def _meaningful_tokens(value: str) -> set[str]:
+              return {
+                  _stem_token(token)
+                  for token in _normalize_term(value).split()
+                  if len(token) >= 4 and token not in _GENERIC_CAPABILITY_TOKENS
+              }
+          
+          
+          def _term_variants(value: str) -> set[str]:
+              """Return conservative singular/plural variants for service labels."""
+              term = _normalize_term(value)
+              if not term:
+                  return set()
+              variants = {term}
+              words = term.split()
+              last = words[-1]
+              if len(last) > 3 and last.endswith("s"):
+                  variants.add(" ".join(words[:-1] + [last[:-1]]))
+              elif len(last) > 3 and not last.endswith(("s", "x", "z")):
+                  variants.add(" ".join(words[:-1] + [last + "s"]))
+              return variants
+          
+          
+          def _contains_term(text: str, term: str) -> bool:
+              normalized_text = _normalize_term(text)
+              for variant in _term_variants(term):
+                  if re.search(rf"(?<!\w){re.escape(variant)}(?!\w)", normalized_text):
+                      return True
+              return False
+          
+          
+          def _semantic_term_match(text: str, term: str) -> bool:
+              """High-precision token evidence for reordered/inflected service phrases."""
+              wanted = _meaningful_tokens(term)
+              if not wanted:
+                  return False
+              present = _meaningful_tokens(text)
+              overlap = wanted & present
+              if len(wanted) == 1:
+                  token = next(iter(wanted))
+                  return len(token) >= 6 and token in overlap
+              required = max(2, (len(wanted) * 2 + 2) // 3)  # ceil(2/3), minimum two
+              return len(overlap) >= required
+          
+          
+          def _capability_term_match(text: str, term: str) -> bool:
+              # Generic-only labels such as "construção" are not enough evidence.
+              if not _meaningful_tokens(term):
+                  return False
+              return _contains_term(text, term) or _semantic_term_match(text, term)
+          
+          
+          def capability_matches_text(profile: dict, text: str) -> dict:
+              """Explain high-confidence service/capability evidence in an opportunity."""
+              services = [str(item) for item in profile.get("services", [])]
+              tags = [str(item) for item in profile.get("capability_tags", [])]
+              matched_services = [item for item in services if _capability_term_match(text, item)]
+              matched_tags = [item for item in tags if _capability_term_match(text, item)]
+              evidence = matched_services + matched_tags
+              return {
+                  "status": "MATCH" if evidence else "UNKNOWN",
+                  "matched": bool(evidence),
+                  "matched_services": matched_services,
+                  "matched_capabilities": matched_tags,
+                  "evidence_count": len(evidence),
+                  "reason": (
+                      "foram encontradas capacidades específicas da empresa na descrição"
+                      if evidence else
+                      "não foram encontradas capacidades específicas suficientes na descrição"
+                  ),
+              }
+          '''
+          # Dedent the deliberately indented raw block.
+          import textwrap
+          text=text[:start]+textwrap.dedent(replacement)
+          p.write_text(text,encoding='utf-8')
+          
+          # 3) Cheap first-value pre-ranking: choose the 50 rows most likely to fit
+          # the profile from a larger read-only candidate pool, then canonical-score
+          # only those 50. This fixes the misleading legacy-score top-50 sample.
+          Path('bootstrap_ranking.py').write_text(r'''"""Cheap, non-authoritative candidate ordering for first-value bootstrap.
+          
+          This module never decides customer relevance. It only chooses which bounded
+          rows reach the canonical scoring engine first after a profile save.
+          """
+          from __future__ import annotations
+          import re
+          import unicodedata
+          
+          _STOP = {"a","as","o","os","de","da","das","do","dos","e","em","para","por","com","sem","obra","obras","construcao","empreitada","servico","servicos","trabalho","trabalhos","execucao","fornecimento"}
+          
+          def _norm(value):
+              value=unicodedata.normalize("NFKD",str(value or ""))
+              value="".join(ch for ch in value if not unicodedata.combining(ch))
+              return re.sub(r"[^a-z0-9]+"," ",value.casefold()).strip()
+          
+          def _stem(token):
+              if len(token)>6 and token.endswith("oes"): return token[:-3]+"ao"
+              if len(token)>5 and token.endswith("ais"): return token[:-3]+"al"
+              if len(token)>4 and token.endswith("s"): return token[:-1]
+              return token
+          
+          def _tokens(value):
+              return {_stem(t) for t in _norm(value).split() if len(t)>=4 and t not in _STOP}
+          
+          def _profile_tokens(profile):
+              values=[profile.get("activity","")]
+              for key in ("contract_interests","services","capability_tags","keywords"):
+                  values.extend(profile.get(key) or [])
+              return _tokens(" ".join(str(v) for v in values if v))
+          
+          def _cpv_bonus(row, profile):
+              cpv=re.sub(r"\D","",str(row.get("cpv") or ""))
+              best=0
+              for raw in profile.get("cpv_prefixes") or []:
+                  prefix=re.sub(r"\D","",str(raw or ""))
+                  if prefix and cpv.startswith(prefix):
+                      best=max(best, 36 if len(prefix)>=4 else 7)
+              return best
+          
+          def candidate_rank(row, profile):
+              row=dict(row)
+              wanted=_profile_tokens(profile)
+              title=_tokens(row.get("title"))
+              body=_tokens(" ".join(str(row.get(k) or "") for k in ("title","description")))
+              title_overlap=len(wanted & title)
+              body_overlap=len(wanted & body)
+              lexical=title_overlap*28 + max(0,body_overlap-title_overlap)*14
+              return (lexical+_cpv_bonus(row,profile), int(row.get("score") or 0), str(row.get("publication_date") or row.get("first_seen") or ""))
+          
+          def rank_bootstrap_candidates(rows, profile, *, limit):
+              values=[dict(row) for row in rows]
+              values.sort(key=lambda row:candidate_rank(row,profile), reverse=True)
+              return values[:max(1,int(limit))]
+          ''',encoding='utf-8')
+          
+          p=Path('account_onboarding.py'); text=p.read_text(encoding='utf-8')
+          text=text.replace('from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table\n', 'from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table\nfrom bootstrap_ranking import rank_bootstrap_candidates\n',1)
+          old='''        params.append(max(1, min(int(limit), MAX_BOOTSTRAP_ROWS)))
+                  rows = conn.execute(
+                      f"""SELECT t.*
+                         FROM tenders t
+                         LEFT JOIN opportunity_lifecycle lc
+                           ON lc.source=t.source AND lc.external_id=t.external_id
+                         WHERE {' AND '.join(where)}
+                         ORDER BY COALESCE(t.score,0) DESC,
+                                  COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC
+                         LIMIT ?""",
+                      params,
+                  ).fetchall()'''
+          new='''        requested_limit = max(1, min(int(limit), MAX_BOOTSTRAP_ROWS))
+                  candidate_limit = max(250, min(2000, requested_limit * 20))
+                  params.append(candidate_limit)
+                  candidates = conn.execute(
+                      f"""SELECT t.*
+                         FROM tenders t
+                         LEFT JOIN opportunity_lifecycle lc
+                           ON lc.source=t.source AND lc.external_id=t.external_id
+                         WHERE {' AND '.join(where)}
+                         ORDER BY COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC,
+                                  COALESCE(t.score,0) DESC
+                         LIMIT ?""",
+                      params,
+                  ).fetchall()
+                  rows = rank_bootstrap_candidates(candidates, profile, limit=requested_limit)'''
+          if old not in text: raise SystemExit('account_onboarding selection block drifted')
+          p.write_text(text.replace(old,new,1),encoding='utf-8')
+          
+          # 4) Canonical customer-feed truth: REJECT decisions do not inflate
+          # "Oportunidades" or the list; confirmed-open uses one shared predicate.
+          Path('radar_truth.py').write_text(r'''"""Customer-facing Radar truth predicates."""
+          from opportunity_lifecycle import actionable_predicate
+          
+          CUSTOMER_DECISIONS=("QUALIFIED","RELEVANT","REVIEW")
+          
+          def customer_decision_predicate(conn, alias="d"):
+              """Exclude canonical REJECT/UNKNOWN decisions where schema supports it.
+          
+              Tiny legacy fixtures may not carry the decision column; production does.
+              """
+              cols={str(row[1]) for row in conn.execute("PRAGMA table_info(opportunity_decisions)").fetchall()}
+              if "decision" not in cols:
+                  return "1=1"
+              allowed=",".join("'"+value+"'" for value in CUSTOMER_DECISIONS)
+              return f"UPPER(COALESCE({alias}.decision,'')) IN ({allowed})"
+          
+          def confirmed_open_predicate(lifecycle_alias="lc", opportunity_alias="t"):
+              deadline=f"{opportunity_alias}.deadline"
+              trimmed=f"TRIM({deadline})"
+              date_only=f"LENGTH({trimmed})=10"
+              known_open=(
+                  f"({deadline} IS NOT NULL AND {trimmed}<>'' AND ("
+                  f"({date_only} AND date({deadline}) IS NOT NULL AND date({deadline})>=date('now')) OR "
+                  f"(NOT ({date_only}) AND datetime({deadline}) IS NOT NULL AND datetime({deadline})>=datetime('now'))"
+                  f"))"
+              )
+              return f"({actionable_predicate(lifecycle_alias,opportunity_alias)} AND {known_open})"
+          ''',encoding='utf-8')
+          
+          p=Path('api.py'); text=p.read_text(encoding='utf-8')
+          text=text.replace('from account_onboarding import bootstrap_account\n', 'from account_onboarding import bootstrap_account\nfrom radar_truth import customer_decision_predicate, confirmed_open_predicate\n',1)
+          text=text.replace('return {"state": "unknown", "label": "Prazo hoje — hora não indicada", "days_remaining": 0}', 'return {"state": "urgent", "label": "Prazo hoje — hora não indicada", "days_remaining": 0}',1)
+          old='''    params = [identity.account_id, identity.account_id]
+              total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
+              relevant60 = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 60", params).fetchone()[0]'''
+          new='''    params = [identity.account_id, identity.account_id]
+              evaluated = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
+              base = f"{base} AND {customer_decision_predicate(c, 'd')}"
+              total = c.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
+              relevant60 = c.execute(f"SELECT COUNT(*) {base} AND d.score >= 60", params).fetchone()[0]'''
+          if old not in text: raise SystemExit('api stats base block drifted')
+          text=text.replace(old,new,1)
+          old='''    confirmed_open = """t.deadline IS NOT NULL AND TRIM(t.deadline)<>'' AND (
+                  (LENGTH(TRIM(t.deadline))=10 AND date(t.deadline)>=date('now')) OR
+                  (LENGTH(TRIM(t.deadline))<>10 AND datetime(t.deadline)>=datetime('now'))
+              )"""
+              open_count = c.execute(f"SELECT COUNT(*) {base} AND ({confirmed_open})", params).fetchone()[0]'''
+          new='''    confirmed_open = confirmed_open_predicate("lc", "t")
+              open_count = c.execute(f"SELECT COUNT(*) {base} AND ({confirmed_open})", params).fetchone()[0]'''
+          if old not in text: raise SystemExit('api confirmed_open block drifted')
+          text=text.replace(old,new,1)
+          text=text.replace('''        "total": total,
+                  "relevant60": relevant60,''','''        "total": total,
+                  "evaluated": evaluated,
+                  "deadline_unknown": max(0, total - open_count),
+                  "relevant60": relevant60,''',1)
+          text=text.replace('''    where = [actionable_predicate("lc", "t")]
+              params = []''','''    where = [actionable_predicate("lc", "t")]
+              where.append(customer_decision_predicate(c, "d"))
+              params = []''',1)
+          text=text.replace('where.append("t.deadline IS NOT NULL AND t.deadline<>\'\' AND datetime(t.deadline)>=datetime(\'now\')")','where.append(confirmed_open_predicate("lc", "t"))',1)
+          p.write_text(text,encoding='utf-8')
+          
+          # 5) Make every active Radar filter visible. Zero means all relevant,
+          # not all raw/rejected rows because the server now owns that boundary.
+          p=Path('mobile/App.web.js'); text=p.read_text(encoding='utf-8')
+          text=text.replace('onMinScore={value=>applyCriteria({minScore:value})} onLoadMore=', 'onMinScore={value=>applyCriteria({minScore:value})} onOpenOnly={()=>applyCriteria({openOnly:!settings.openOnly})} onLoadMore=',1)
+          text=text.replace('function RadarPanel({compact,items,stats,settings,search,setSearch,appliedSearch,loading,loadingMore,page,error,notice,onRefresh,onSearch,onClearSearch,onMinScore,onLoadMore,onOpen})', 'function RadarPanel({compact,items,stats,settings,search,setSearch,appliedSearch,loading,loadingMore,page,error,notice,onRefresh,onSearch,onClearSearch,onMinScore,onOpenOnly,onLoadMore,onOpen})',1)
+          old='<View style={s.filters}>{[60,75,90].map(v=><Pressable key={v} onPress={()=>onMinScore(v)} style={[s.filter,settings.minScore===v&&s.filterOn]}><Text style={[s.filterText,settings.minScore===v&&s.filterTextOn]}>{v}+ relevância</Text></Pressable>)}</View>'
+          new='<View style={s.filters}>{[0,60,75,90].map(v=><Pressable key={v} onPress={()=>onMinScore(v)} style={[s.filter,settings.minScore===v&&s.filterOn]}><Text style={[s.filterText,settings.minScore===v&&s.filterTextOn]}>{v===0?\'Todas relevantes\':`${v}+ relevância`}</Text></Pressable>)}<Pressable accessibilityRole="button" onPress={onOpenOnly} style={[s.filter,settings.openOnly&&s.filterOn]}><Text style={[s.filterText,settings.openOnly&&s.filterTextOn]}>{settings.openOnly?\'✓ Só prazo confirmado\':\'Incluir prazo por confirmar\'}</Text></Pressable></View>'
+          if old not in text: raise SystemExit('web Radar filter block drifted')
+          text=text.replace(old,new,1)
+          text=text.replace('<Text style={s.empty}>Sem resultados com estes filtros. Reduz a relevância mínima ou ajusta os critérios da empresa.</Text>', '<Text style={s.empty}>{stats.total>0?`Existem ${stats.total} oportunidades relevantes, mas os filtros atuais estão a ocultá-las.`:stats.evaluated>0?`Foram analisadas ${stats.evaluated} oportunidades e nenhuma cumpre ainda o perfil comercial.`:\'Ainda não existem oportunidades avaliadas para este perfil.\'}</Text>',1)
+          p.write_text(text,encoding='utf-8')
+          
+          p=Path('mobile/App.js'); text=p.read_text(encoding='utf-8')
+          old='<View style={s.filters}>{[60,75,90].map(v=><Pressable key={v} onPress={()=>applyMinScore(v)} style={[s.filter,settings.minScore===v&&s.filterOn]}><Text style={[s.filterText,settings.minScore===v&&s.filterTextOn]}>{v}+ relevância</Text></Pressable>)}</View>'
+          new='<View style={s.filters}>{[0,60,75,90].map(v=><Pressable key={v} onPress={()=>applyMinScore(v)} style={[s.filter,settings.minScore===v&&s.filterOn]}><Text style={[s.filterText,settings.minScore===v&&s.filterTextOn]}>{v===0?\'Todas relevantes\':`${v}+ relevância`}</Text></Pressable>)}<Pressable onPress={()=>applyCriteria({openOnly:!settings.openOnly})} style={[s.filter,settings.openOnly&&s.filterOn]}><Text style={[s.filterText,settings.openOnly&&s.filterTextOn]}>{settings.openOnly?\'✓ Só prazo confirmado\':\'Incluir prazo por confirmar\'}</Text></Pressable></View>'
+          if old not in text: raise SystemExit('native Radar filter block drifted')
+          text=text.replace(old,new,1)
+          text=text.replace('ListEmptyComponent={<Text style={s.empty}>Sem resultados com estes filtros. Reduz a relevância mínima ou ajusta os critérios da empresa.</Text>}', 'ListEmptyComponent={<Text style={s.empty}>{stats.total>0?`Existem ${stats.total} oportunidades relevantes, mas os filtros atuais estão a ocultá-las.`:stats.evaluated>0?`Foram analisadas ${stats.evaluated} oportunidades e nenhuma cumpre ainda o perfil comercial.`:\'Ainda não existem oportunidades avaliadas para este perfil.\'}</Text>}',1)
+          p.write_text(text,encoding='utf-8')
+          
+          # 6) Regression: date-only today is actionable + urgent, not silently hidden.
+          p=Path('tests/test_effective_actionability.py'); text=p.read_text(encoding='utf-8')
+          text=text.replace('assert item["deadline_status"]["state"] == "unknown"\n    assert item["is_open"] is False', 'assert item["deadline_status"]["state"] == "urgent"\n    assert item["is_open"] is True',1)
+          text=text.replace('assert detail["deadline_status"]["state"] == "unknown"\n    assert detail["is_actionable"] is True\n    assert detail["is_open"] is False', 'assert detail["deadline_status"]["state"] == "urgent"\n    assert detail["is_actionable"] is True\n    assert detail["is_open"] is True',1)
+          p.write_text(text,encoding='utf-8')
+          
+          with Path('test_capability_profile.py').open('a',encoding='utf-8') as f:
+              f.write(r'''
+          
+          def test_capability_match_handles_reordered_inflected_procurement_wording():
+              profile = build_capability_profile({"contract_interests": ["Construção de pavilhões industriais"]})
+              result = capability_matches_text(profile, "Execução de novo pavilhão para unidade industrial.")
+              assert result["matched"] is True
+              assert result["matched_services"] == ["Construção de pavilhões industriais"]
+          
+          def test_generic_construction_overlap_does_not_become_capability_evidence():
+              profile = build_capability_profile({"contract_interests": ["Construção de pavilhões industriais"]})
+              result = capability_matches_text(profile, "Construção de rede de saneamento industrial e condutas de água.")
+              assert result["matched"] is False
+          ''')
+          
+          Path('tests/test_bootstrap_ranking.py').write_text(r'''from bootstrap_ranking import rank_bootstrap_candidates
+          
+          def test_first_value_prefers_profile_fit_over_high_legacy_score():
+              rows=[]
+              for i in range(60):
+                  rows.append({"id":i,"external_id":f"noise-{i}","title":"Manutenção de rede de saneamento","description":"Condutas de água","cpv":"45232410","score":99-i//10,"publication_date":"2026-08-31"})
+              rows.append({"id":999,"external_id":"pavilion","title":"Execução de novo pavilhão para unidade industrial","description":"Estrutura e cobertura do pavilhão","cpv":"45213220","score":20,"publication_date":"2026-08-30"})
+              profile={"activity":"Construção e reabilitação de pavilhões industriais","contract_interests":["Construção de pavilhões industriais"],"cpv_prefixes":["45"]}
+              ranked=rank_bootstrap_candidates(rows,profile,limit=50)
+              assert any(row["external_id"]=="pavilion" for row in ranked)
+              assert ranked[0]["external_id"]=="pavilion"
+          ''',encoding='utf-8')
+          
+          Path('tests/test_radar_truth_contract.py').write_text(r'''from datetime import datetime, timezone
+          import api
+          import app
+          from decision_log import record_decision
+          
+          class Identity:
+              account_id="radar-truth"
+              authenticated=True
+          
+          def test_radar_headline_and_feed_share_customer_truth(monkeypatch,tmp_path):
+              db_path=tmp_path/"radar-truth.db"
+              monkeypatch.setenv("OBRASIGNAL_DB",str(db_path))
+              monkeypatch.setattr(app,"DB",str(db_path))
+              app.init_db()
+              conn=app.db()
+              now=datetime.now(timezone.utc).isoformat()
+              today=datetime.now(timezone.utc).date().isoformat()
+              fixtures=[
+                  ("relevant-unknown",None,70,"REVIEW","Reabilitação de cobertura"),
+                  ("relevant-today",today,82,"QUALIFIED","Pavilhão industrial"),
+                  ("rejected-high",None,95,"REJECT","Rede de saneamento"),
+                  ("expired-qualified","2000-01-01",90,"QUALIFIED","Obra antiga"),
+              ]
+              for external_id,deadline,score,decision,title in fixtures:
+                  conn.execute("""INSERT INTO tenders(source,external_id,title,description,buyer,country,cpv,value,deadline,publication_date,url,score,first_seen,last_seen,market) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",("TEST",external_id,title,title,"Buyer","PRT","45213220","100000 EUR",deadline,today,"https://example.test/"+external_id,score,now,now,"PT"))
+                  record_decision(conn,"TEST",external_id,decision,"fixture",score=score,account_id=Identity.account_id)
+              conn.close()
+              monkeypatch.setattr(api,"configured_identity",lambda:Identity())
+              monkeypatch.setattr(api,"_identity",lambda:Identity())
+              client=api.APP.test_client()
+              stats=client.get("/api/v1/stats").get_json()
+              assert stats["evaluated"]==3
+              assert stats["total"]==2
+              assert stats["open"]==1
+              assert stats["high"]==1
+              assert stats["deadline_unknown"]==1
+              feed=client.get("/api/v1/opportunities?limit=20").get_json()["items"]
+              assert {item["external_id"] for item in feed}=={"relevant-unknown","relevant-today"}
+              open_feed=client.get("/api/v1/opportunities?open=1&limit=20").get_json()["items"]
+              assert [item["external_id"] for item in open_feed]==["relevant-today"]
+              high_feed=client.get("/api/v1/opportunities?minscore=75&limit=20").get_json()["items"]
+              assert [item["external_id"] for item in high_feed]==["relevant-today"]
+              assert high_feed[0]["deadline_status"]["state"]=="urgent"
+              assert high_feed[0]["is_open"] is True
+          ''',encoding='utf-8')
+          
+          p=Path('mobile/p0-regressions.test.mjs'); text=p.read_text(encoding='utf-8')
+          if "Radar defaults are visible and cannot silently empty" not in text:
+              text += r'''
+          
+          test('Radar defaults are visible and cannot silently empty the customer feed', () => {
+            const storage = fs.readFileSync(new URL('./src/storage.js', import.meta.url), 'utf8');
+            const web = fs.readFileSync(new URL('./App.web.js', import.meta.url), 'utf8');
+            assert.match(storage, /minScore:\s*0/);
+            assert.match(storage, /openOnly:\s*false/);
+            assert.match(storage, /legacyStrictDefault/);
+            assert.match(app, /\[0,60,75,90\]/);
+            assert.match(web, /\[0,60,75,90\]/);
+            assert.match(web, /Incluir prazo por confirmar/);
+            assert.match(web, /stats\.evaluated/);
+          });
+          '''
+          p.write_text(text,encoding='utf-8')
+          PY
+      - name: Install Python test dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+      - name: Verify targeted Radar regressions
+        run: |
+          python -m py_compile api.py radar_truth.py bootstrap_ranking.py capability_profile.py account_onboarding.py
+          PYTHONPATH=. pytest -q tests/test_radar_truth_contract.py tests/test_bootstrap_ranking.py test_capability_profile.py tests/test_effective_actionability.py tests/test_account_onboarding_batch.py tests/test_api_stats_isolation.py tests/test_api_opportunity_list_scope.py tests/test_production_profile_ranking.py
+          node --test mobile/p0-regressions.test.mjs
+      - name: Verify full Python suite
+        run: PYTHONPATH=. pytest -q --import-mode=importlib tests test_*.py
+      - name: Commit verified repair
+        run: |
+          rm .github/workflows/radar-truth-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix(radar): align customer truth, filters and scoring recall"
+          git push origin HEAD:fix/radar-truth-and-recall-20260831
