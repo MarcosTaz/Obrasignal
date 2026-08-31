@@ -6,6 +6,7 @@ from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
 from account_privacy import bp as ACCOUNT_PRIVACY_BP
+from account_scoped_radar import handle_opportunities as handle_account_scoped_opportunities
 from auth_context import configured_identity, customer_role_allows, InvalidTokenError
 from auth_context_jwt import authentication_health, JwksUnavailableError
 import notification_privacy_lifecycle as _notification_privacy_lifecycle
@@ -60,6 +61,14 @@ def _decorate_health(response):
 def _global_api_preflight():
     if request.path.startswith("/api/v1/") and request.method == "OPTIONS":
         return _cors(APP.response_class("", status=204, mimetype="text/plain"))
+    return None
+
+
+@APP.before_request
+def _account_scoped_radar_list():
+    """Serve the customer Radar from current account decisions, not global rows."""
+    if request.path == "/api/v1/opportunities" and request.method == "GET":
+        return handle_account_scoped_opportunities()
     return None
 
 
