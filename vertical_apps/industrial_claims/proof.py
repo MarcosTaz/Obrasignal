@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Sequence
 
-PROOF_SCHEMA_VERSION = 1
+PROOF_SCHEMA_VERSION = 2
 EVIDENCE_STATE_ORDER = (
     "UNVERIFIED",
     "SOURCE_AUTHENTICATED",
@@ -230,6 +230,49 @@ def _evidence_entry(item: Any, attestations: Sequence[ExternalAttestation]) -> d
     }
 
 
+def _attestation_target(
+    *,
+    core_package: Mapping[str, Any],
+    package_sha256: str,
+    package_sha512: str,
+    evidence_entries: Sequence[Mapping[str, Any]],
+    merkle_root: str | None,
+    revision_number: int,
+    supersedes_finding_id: str | None,
+) -> dict[str, Any]:
+    body = {
+        "target_version": 1,
+        "proof_system": "CausLedger Proof Pack",
+        "tenant_id": core_package.get("tenant_id"),
+        "finding_id": (core_package.get("finding") or {}).get("finding_id"),
+        "revision": {
+            "number": revision_number,
+            "supersedes_finding_id": supersedes_finding_id,
+        },
+        "package_sha256": package_sha256,
+        "package_sha512": package_sha512,
+        "evidence_merkle_root_sha256": merkle_root,
+        "evidence_ids": [str(item.get("evidence_id") or "") for item in evidence_entries],
+        "evidence_sha256": [str((item.get("hashes") or {}).get("sha256") or "") for item in evidence_entries],
+        "truth_boundary": {
+            "integrity_target_only": True,
+            "does_not_establish_factual_truth": True,
+            "does_not_establish_recoverability": True,
+        },
+    }
+    return {
+        "algorithm": "CANONICAL_JSON_V1",
+        "body": body,
+        "sha256": sha256_hex(body),
+        "sha512": sha512_hex(body),
+    }
+
+
+def _attestation_matches_target(attestation: ExternalAttestation, target: Mapping[str, Any]) -> bool:
+    expected = target.get("sha256") if attestation.digest_algorithm.upper() == "SHA-256" else target.get("sha512")
+    return str(attestation.digest).lower() == str(expected or "").lower()
+
+
 def build_proof_manifest(
     *,
     core_package: Mapping[str, Any],
@@ -248,7 +291,21 @@ def build_proof_manifest(
     package_bytes = canonical_json_bytes(core_package)
     package_sha256 = hashlib.sha256(package_bytes).hexdigest()
     package_sha512 = hashlib.sha512(package_bytes).hexdigest()
-    external = [item.as_dict() for item in attestations if not item.details.get("evidence_id")]
+    merkle_root = merkle_root_sha256(sha256_leaves)
+    attestation_target = _attestation_target(
+        core_package=core_package,
+        package_sha256=package_sha256,
+        package_sha512=package_sha512,
+        evidence_entries=evidence_entries,
+        merkle_root=merkle_root,
+        revision_number=revision_number,
+        supersedes_finding_id=supersedes_finding_id,
+    )
+    global_attestations = [item for item in attestations if not item.details.get("evidence_id")]
+    for item in global_attestations:
+        if item.verified and not _attestation_matches_target(item, attestation_target):
+            raise ValueError("verified external attestation does not match stable CausLedger proof target")
+    external = [item.as_dict() for item in global_attestations]
     strongest_state = max(
         (entry["assurance_state"] for entry in evidence_entries),
         key=lambda state: EVIDENCE_STATE_ORDER.index(state),
@@ -276,9 +333,10 @@ def build_proof_manifest(
         "evidence_merkle": {
             "algorithm": "SHA-256",
             "leaf_count": len(sha256_leaves),
-            "root": merkle_root_sha256(sha256_leaves),
+            "root": merkle_root,
             "leaf_order": [entry["evidence_id"] for entry in evidence_entries if entry["hashes"]["sha256"]],
         },
+        "attestation_target": attestation_target,
         "dual_hash_coverage": {
             "sha256": len(sha256_leaves) == len(evidence_entries),
             "sha512": sha512_complete,
@@ -298,16 +356,17 @@ def build_proof_manifest(
         },
         "external_attestations": external,
         "required_external_gates": {
-            "qualified_timestamp": not any(item.kind == "QUALIFIED_TIMESTAMP" and item.verified for item in attestations),
-            "qualified_seal": not any(item.kind == "QUALIFIED_SEAL" and item.verified for item in attestations),
-            "worm_lock": not any(item.kind == "WORM_LOCK" and item.verified for item in attestations),
-            "public_anchor": not any(item.kind == "PUBLIC_ANCHOR" and item.verified for item in attestations),
-            "evidence_escrow": not any(item.kind == "EVIDENCE_ESCROW" and item.verified for item in attestations),
+            "qualified_timestamp": not any(item.kind == "QUALIFIED_TIMESTAMP" and item.verified and _attestation_matches_target(item, attestation_target) for item in global_attestations),
+            "qualified_seal": not any(item.kind == "QUALIFIED_SEAL" and item.verified and _attestation_matches_target(item, attestation_target) for item in global_attestations),
+            "worm_lock": not any(item.kind == "WORM_LOCK" and item.verified and _attestation_matches_target(item, attestation_target) for item in global_attestations),
+            "public_anchor": not any(item.kind == "PUBLIC_ANCHOR" and item.verified and _attestation_matches_target(item, attestation_target) for item in global_attestations),
+            "evidence_escrow": not any(item.kind == "EVIDENCE_ESCROW" and item.verified and _attestation_matches_target(item, attestation_target) for item in global_attestations),
         },
         "verification_policy": {
             "fail_closed": True,
             "no_claim_is_valid_outcome": True,
             "no_external_attestation_may_be_marked_valid_without_provider_reference": True,
+            "external_attestations_bind_to_stable_target_not_recursive_manifest_hash": True,
             "supersession_never_deletes_prior_proof": True,
             "contradictory_evidence_must_be_preserved": True,
         },
@@ -332,12 +391,37 @@ def verify_proof_manifest(core_package: Mapping[str, Any], manifest: Mapping[str
 
     evidence = list(manifest.get("evidence") or [])
     leaves = [str((item.get("hashes") or {}).get("sha256") or "") for item in evidence]
+    expected_root: str | None = None
     if any(not _valid_hex_digest(item, size=64) for item in leaves):
         errors.append("EVIDENCE_SHA256_INVALID")
     else:
         expected_root = merkle_root_sha256(leaves)
         if (manifest.get("evidence_merkle") or {}).get("root") != expected_root:
             errors.append("EVIDENCE_MERKLE_ROOT_MISMATCH")
+
+    revision = manifest.get("revision") or {}
+    expected_target = _attestation_target(
+        core_package=core_package,
+        package_sha256=expected256,
+        package_sha512=expected512,
+        evidence_entries=evidence,
+        merkle_root=expected_root,
+        revision_number=int(revision.get("number") or 0),
+        supersedes_finding_id=revision.get("supersedes_finding_id"),
+    )
+    stored_target = manifest.get("attestation_target") or {}
+    if stored_target.get("sha256") != expected_target["sha256"] or stored_target.get("sha512") != expected_target["sha512"]:
+        errors.append("ATTESTATION_TARGET_MISMATCH")
+    for index, item in enumerate(manifest.get("external_attestations") or []):
+        state = str(item.get("state") or "").upper()
+        if state not in _VERIFIED_EXTERNAL_STATES:
+            continue
+        algorithm = str(item.get("digest_algorithm") or "").upper()
+        expected_digest = expected_target["sha256"] if algorithm == "SHA-256" else expected_target["sha512"] if algorithm == "SHA-512" else None
+        if expected_digest is None or str(item.get("digest") or "").lower() != expected_digest:
+            errors.append(f"EXTERNAL_ATTESTATION_{index}_TARGET_MISMATCH")
+        if not str(item.get("provider_ref") or "").strip():
+            errors.append(f"EXTERNAL_ATTESTATION_{index}_PROVIDER_REF_MISSING")
 
     stored_manifest_hashes = manifest.get("manifest_hashes") or {}
     body = dict(manifest)
@@ -358,4 +442,6 @@ def verify_proof_manifest(core_package: Mapping[str, Any], manifest: Mapping[str
         "warnings": warnings,
         "package_sha256": expected256,
         "package_sha512": expected512,
+        "attestation_target_sha256": expected_target["sha256"],
+        "attestation_target_sha512": expected_target["sha512"],
     }
