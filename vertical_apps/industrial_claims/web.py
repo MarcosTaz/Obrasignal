@@ -16,6 +16,7 @@ from factory_cloud.assurance_store import AssuranceStoreError
 from factory_cloud.recovery_index import RecoveryIndexError
 from factory_cloud.shared_platform import SharedPlatformError
 from vertical_apps.industrial_claims.amendment import amend_case
+from vertical_apps.industrial_claims.durable_proof import build_durable_claim_proof_pack
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
@@ -192,6 +193,19 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
                 "approval_authorizes_external_claim_submission": False,
             }
             return jsonify(detail)
+        except API_ERRORS as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @app.get("/findings/<path:finding_id>/proof-pack")
+    def finding_proof_pack(finding_id: str):
+        try:
+            tenant_id, _actor_id, _roles = identity_any("analyst", "reviewer", "operator")
+            pack = build_durable_claim_proof_pack(
+                service,
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+            )
+            return jsonify(pack)
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
