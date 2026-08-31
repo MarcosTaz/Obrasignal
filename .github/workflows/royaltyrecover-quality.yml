@@ -28,7 +28,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: RoyaltyRecover tests
         working-directory: factories/royaltyrecover
-        run: python -m unittest -v
+        run: python -W error::ResourceWarning -m unittest -v
       - name: Validate SQLite schema
         working-directory: factories/royaltyrecover
         run: |
@@ -54,3 +54,41 @@ jobs:
               raise SystemExit(f'foreign key violations: {violations}')
           print(f'schema ok: {len(tables)} tables')
           PY
+      - name: Production WSGI smoke
+        working-directory: factories/royaltyrecover
+        env:
+          ROYALTYRECOVER_ENV: production
+          ROYALTYRECOVER_DB_PATH: /tmp/royaltyrecover-ci.db
+          ROYALTYRECOVER_AUDIT_SECRET: ci-audit-secret-royaltyrecover-0123456789abcdef
+          ROYALTYRECOVER_BACKUP_SECRET: ci-backup-secret-royaltyrecover-0123456789abcdef
+          ROYALTYRECOVER_MAX_BODY_BYTES: '1024'
+          ROYALTYRECOVER_CREDENTIALS_JSON: '{"keys":[{"key_id":"admin-ci","organization_id":"ORG-CI","secret":"ci-admin-secret-royaltyrecover-0123456789abcdef","role":"ADMIN"}]}'
+        run: |
+          set -euo pipefail
+          gunicorn -b 127.0.0.1:8080 production_app:app >/tmp/royaltyrecover.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/health >/tmp/health.json; then break; fi
+            sleep 0.25
+          done
+          grep -q 'RoyaltyRecover' /tmp/health.json
+          KEY='ci-admin-secret-royaltyrecover-0123456789abcdef'
+          status=$(curl --silent -o /tmp/ready.json -w '%{http_code}' -H "X-RoyaltyRecover-API-Key: $KEY" http://127.0.0.1:8080/api/v1/production/readiness)
+          test "$status" = 200
+          python - <<'PY'
+          import json
+          assert json.load(open('/tmp/ready.json'))['ready'] is True
+          PY
+          python - <<'PY' >/tmp/large.json
+          import json
+          print(json.dumps({'name':'x'*2000}))
+          PY
+          status=$(curl --silent -o /tmp/large-response.json -w '%{http_code}' -X POST -H "X-RoyaltyRecover-API-Key: $KEY" -H 'Content-Type: application/json' --data-binary @/tmp/large.json http://127.0.0.1:8080/api/v1/organization)
+          test "$status" = 413
+          status=$(curl --silent -o /tmp/org.json -w '%{http_code}' -X POST -H "X-RoyaltyRecover-API-Key: $KEY" -H 'Content-Type: application/json' --data '{"name":"CI Organization"}' http://127.0.0.1:8080/api/v1/organization)
+          test "$status" = 200
+          curl --silent -D /tmp/headers.txt -o /dev/null http://127.0.0.1:8080/health
+          grep -qi '^Strict-Transport-Security:' /tmp/headers.txt
+          grep -qi '^Content-Security-Policy:' /tmp/headers.txt
+          grep -qi '^X-Content-Type-Options: nosniff' /tmp/headers.txt
