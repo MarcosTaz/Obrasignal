@@ -25,26 +25,32 @@ def test_recovery_apps_are_source_registered_but_runtime_fail_closed():
             "aviation-lease-entitlement-recovery",
             "apps/aviation-lease-entitlement-recovery",
             "PILOT_CAPABLE_ASSISTED_RUNTIME_PROVISIONING_WAIT",
+            "runtime_provisioning_wait",
+            "runtime:provision",
         ),
         (
             "contractcredit",
             "apps/contractcredit",
             "PILOT_CAPABLE_ASSISTED_RUNTIME_PROVISIONING_WAIT",
+            "runtime_provisioning_wait",
+            "runtime:provision",
         ),
         (
             "industrial-claims",
             "apps/industrial-claims",
             "ASSISTED_RUNTIME_PROVISIONING_WAIT",
+            "assisted_business_runtime_wait",
+            "business:real-case",
         ),
     )
-    for app_id, branch, development_state in expected:
+    for app_id, branch, development_state, activation_mode, active_task in expected:
         app = apps[app_id]
         provisioned = provisioning[app_id]
         expected_head = provisioned["head"]
         assert app["activation"]["enabled"] is False
-        assert app["activation"]["mode"] == "runtime_provisioning_wait"
+        assert app["activation"]["mode"] == activation_mode
         assert app["development_state"] == development_state
-        assert app["baton"]["active"] == "runtime:provision"
+        assert app["baton"]["active"] == active_task
         assert app["source_truth"]["canonical_branch"] == branch
         assert provisioned["branch"] == branch
         assert app["source_truth"]["canonical_head"] == expected_head
@@ -64,12 +70,23 @@ def test_disabled_runtime_wait_app_is_still_source_and_capability_validated():
         validate_registry(broken)
 
 
-def test_runtime_wait_app_cannot_hide_a_stale_active_task():
+def test_assisted_business_runtime_wait_cannot_hide_a_stale_active_task():
     registry = load_registry()
     broken = deepcopy(registry)
     target = next(app for app in broken["applications"] if app["app_id"] == "industrial-claims")
     target["baton"]["active"] = "verify:service"
-    with pytest.raises(RegistryError, match="runtime:provision"):
+    with pytest.raises(RegistryError, match="business:real-case"):
+        validate_registry(broken)
+
+
+def test_assisted_business_runtime_wait_cannot_drop_runtime_provisioning_gate():
+    registry = load_registry()
+    broken = deepcopy(registry)
+    target = next(app for app in broken["applications"] if app["app_id"] == "industrial-claims")
+    target["baton"]["wait"] = [
+        item for item in target["baton"]["wait"] if "runtime workspace provisioning" not in item
+    ]
+    with pytest.raises(RegistryError, match="runtime provisioning gate"):
         validate_registry(broken)
 
 
