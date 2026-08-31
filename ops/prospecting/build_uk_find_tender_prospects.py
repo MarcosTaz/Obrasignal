@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Build UK ObraSignal prospects from the official Find a Tender OCDS API.
+"""Build recent UK ObraSignal prospects from the official Find a Tender OCDS API.
 
 Only role/business supplier emails are retained for outreach enrichment. Person-like
 emails are deliberately not stored in the contact output.
 """
 from __future__ import annotations
 import csv,json,os,re,time,urllib.parse,urllib.request,urllib.error
-from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
 OUT=Path(os.environ.get('OUT_DIR','uk_fts_output')); OUT.mkdir(parents=True,exist_ok=True)
-START=os.environ.get('FTS_START','2021-01-01T00:00:00')
+START=os.environ.get('FTS_START','2025-01-01T00:00:00')
 END=os.environ.get('FTS_END','2026-08-31T23:59:59')
+MAX_PAGES=int(os.environ.get('FTS_MAX_PAGES','500'))
 BASE='https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages'
 CPV={'45':'construction works','71':'engineering/architecture','50':'repair/maintenance','31':'electrical equipment','32':'telecom/electronic equipment','43':'construction machinery','42':'industrial machinery','44':'construction materials','90':'environmental/waste services','65':'utilities'}
 ROLE_WORDS={'info','sales','office','enquiries','enquiry','admin','commercial','tenders','tender','contracts','contract','contact','business','bids','bid','quotes','estimating','estimates','reception','hello','mail','support','projects','project','marketing','accounts','procurement','customerservice','service','general','uk'}
@@ -24,7 +24,6 @@ def role_email(e):
  local=e.split('@',1)[0]
  toks=set(re.split(r'[^a-z]+',local))
  if toks & ROLE_WORDS:return e
- # common generic prefixes embedded with digits/hyphens
  if any(local.startswith(x) for x in ROLE_WORDS):return e
  return ''
 def cpv_codes(rel):
@@ -50,7 +49,7 @@ def cpv_codes(rel):
  return out
 
 def get(url):
- req=urllib.request.Request(url,headers={'User-Agent':'ObraSignal-prospect-research/2.1','Accept':'application/json'})
+ req=urllib.request.Request(url,headers={'User-Agent':'ObraSignal-prospect-research/2.2','Accept':'application/json'})
  for attempt in range(8):
   try:
    with urllib.request.urlopen(req,timeout=90) as r:return json.load(r)
@@ -67,7 +66,7 @@ def get(url):
 def main():
  q={'updatedFrom':START,'updatedTo':END,'stages':'award','limit':'100'}
  url=BASE+'?'+urllib.parse.urlencode(q); P={}; pages=releases=relevant=0
- while url:
+ while url and pages < MAX_PAGES:
   d=get(url);pages+=1
   batch=d.get('releases',[]) or [];releases+=len(batch)
   for rel in batch:
@@ -84,11 +83,11 @@ def main():
     for s in a.get('suppliers',[]) or []:
      if s.get('id'):supplier_ids.add(str(s['id']))
      else:
-      # supplier object may itself contain the identity
       sid=str((s.get('identifier') or {}).get('id') or '')
       name=(s.get('name') or '').strip()
-      if name: parties['inline:'+norm(name)]={**s,'id':'inline:'+norm(name),'identifier':s.get('identifier') or {'id':sid},'roles':['supplier']};supplier_ids.add('inline:'+norm(name))
-   # Fallback to party roles when awards supplier linkage is absent.
+      if name:
+       parties['inline:'+norm(name)]={**s,'id':'inline:'+norm(name),'identifier':s.get('identifier') or {'id':sid},'roles':['supplier']}
+       supplier_ids.add('inline:'+norm(name))
    if not supplier_ids:
     for pid,p in parties.items():
      if 'supplier' in [str(x).lower() for x in p.get('roles',[]) or []]:supplier_ids.add(pid)
@@ -104,7 +103,6 @@ def main():
      p=P[key]={'company_name':name,'country':'GB','company_identifier':ident_id,'identifier_scheme':scheme,'address':addr.get('streetAddress',''),'locality':addr.get('locality',''),'postal_code':addr.get('postalCode',''),'region':addr.get('region',''),'business_email':em,'telephone':cp.get('telephone','') or '','award_count':0,'buyers':set(),'last_award_year':0,'categories':set(),'source_notice':''}
     p['award_count']+=1;p['last_award_year']=max(p['last_award_year'],year);p['categories'].update(cats)
     if buyer:p['buyers'].add(norm(buyer))
-    # Prefer a later role-based email if the first party occurrence lacked one.
     cp=pty.get('contactPoint') or {}; em=role_email(cp.get('email'))
     if em and not p['business_email']:p['business_email']=em
     if cp.get('telephone') and not p['telephone']:p['telephone']=cp['telephone']
@@ -115,8 +113,8 @@ def main():
   links=d.get('links') or {};nxt=links.get('next')
   if nxt and not str(nxt).startswith('http'):nxt=urllib.parse.urljoin(BASE,str(nxt))
   url=nxt or None
-  if pages%50==0:print('pages',pages,'releases',releases,'unique',len(P),flush=True)
-  if url:time.sleep(0.35)
+  if pages%25==0:print('pages',pages,'releases',releases,'unique',len(P),flush=True)
+  if url:time.sleep(0.20)
  rows=[]
  for p in P.values():
   p['buyer_count']=len(p.pop('buyers'));p['procurement_categories']=';'.join(f'{c}:{CPV[c]}' for c in sorted(p.pop('categories')));rows.append(p)
@@ -125,6 +123,6 @@ def main():
  with open(OUT/'obrasignal_uk_fts_prospects.csv','w',encoding='utf-8',newline='') as f:
   w=csv.DictWriter(f,fieldnames=fields);w.writeheader()
   for i,p in enumerate(rows,1):q=dict(p);q['rank']=i;w.writerow(q)
- summary={'generated_utc':datetime.now(timezone.utc).isoformat(),'source':'UK Find a Tender OCDS','start':START,'end':END,'pages':pages,'releases_seen':releases,'relevant_releases':relevant,'unique_suppliers':len(rows),'role_based_business_emails':sum(bool(r['business_email']) for r in rows),'privacy':'Public procurement/business data. Person-like supplier emails are not retained for outreach.'}
+ summary={'generated_utc':datetime.now(timezone.utc).isoformat(),'source':'UK Find a Tender OCDS','start':START,'end':END,'max_pages':MAX_PAGES,'pages':pages,'releases_seen':releases,'relevant_releases':relevant,'unique_suppliers':len(rows),'role_based_business_emails':sum(bool(r['business_email']) for r in rows),'privacy':'Public procurement/business data. Person-like supplier emails are not retained for outreach.'}
  (OUT/'obrasignal_uk_fts_summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8');print(json.dumps(summary,indent=2))
 if __name__=='__main__':main()
