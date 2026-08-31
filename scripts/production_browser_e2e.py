@@ -29,53 +29,52 @@ def fail(message):
     raise AssertionError(message)
 
 
-def _select_reachable_customer_origin(page):
-    """Prefer the canonical domain; use Pages only when canonical is unreachable.
+def wait_for_exact_pages_build(page):
+    """Wait for the exact web build on canonical origin or published fallback.
 
-    The fallback does not redefine product truth. It keeps the production journey
-    testable while DNS/registrar activation is outside the application deploy.
+    Browser E2E starts in parallel with the Pages deployment. A transient 404
+    for ``release-source.txt`` therefore means "not published yet", not a
+    product failure. Prefer the canonical domain whenever it serves the exact
+    target; while registrar/DNS activation is unavailable, accept only the
+    fallback if it serves that same exact target build.
     """
     global ACTIVE_PUBLIC_URL
-    marker = urljoin(CANONICAL_PUBLIC_URL, "release-source.txt")
-    try:
-        response = page.request.get(marker, timeout=12_000)
-        if response.ok:
-            ACTIVE_PUBLIC_URL = CANONICAL_PUBLIC_URL
-            return
-        canonical_failure = f"HTTP {response.status}"
-    except Exception as exc:
-        canonical_failure = str(exc)
-    if not FALLBACK_PUBLIC_URL:
-        fail(f"canonical customer origin is unreachable and no fallback is configured: {canonical_failure}")
-    fallback_marker = urljoin(FALLBACK_PUBLIC_URL, "release-source.txt")
-    try:
-        response = page.request.get(fallback_marker, timeout=12_000)
-    except Exception as exc:
-        fail(f"canonical origin unreachable ({canonical_failure}); fallback also unreachable: {exc}")
-    if not response.ok:
-        fail(f"canonical origin unreachable ({canonical_failure}); fallback returned HTTP {response.status}")
-    ACTIVE_PUBLIC_URL = FALLBACK_PUBLIC_URL
-    print(f"PROVIDER_BLOCKED canonical DNS/origin; exercising published fallback {ACTIVE_PUBLIC_URL}")
-
-
-def wait_for_exact_pages_build(page):
     if not TARGET_BUILD:
         fail("TARGET_BUILD is required")
-    _select_reachable_customer_origin(page)
-    marker_url = urljoin(ACTIVE_PUBLIC_URL, "release-source.txt")
-    deadline = time.time() + 180
-    last = ""
+
+    candidates = [("canonical", CANONICAL_PUBLIC_URL)]
+    if FALLBACK_PUBLIC_URL and FALLBACK_PUBLIC_URL != CANONICAL_PUBLIC_URL:
+        candidates.append(("fallback", FALLBACK_PUBLIC_URL))
+
+    deadline = time.time() + 240
+    last = {}
     while time.time() < deadline:
-        try:
-            response = page.request.get(marker_url, timeout=15_000)
-            if response.ok:
-                last = response.text().strip()
-                if last == TARGET_BUILD:
-                    return
-        except Exception as exc:
-            last = f"network-error:{exc}"
+        for kind, origin in candidates:
+            marker_url = urljoin(origin, "release-source.txt")
+            try:
+                response = page.request.get(marker_url, timeout=12_000)
+                if not response.ok:
+                    last[kind] = f"HTTP {response.status}"
+                    continue
+                marker = response.text().strip()
+                last[kind] = marker
+                if marker != TARGET_BUILD:
+                    continue
+                ACTIVE_PUBLIC_URL = origin
+                if kind == "fallback":
+                    print(
+                        "PROVIDER_BLOCKED canonical DNS/origin; "
+                        f"exercising exact published fallback {ACTIVE_PUBLIC_URL}"
+                    )
+                return
+            except Exception as exc:
+                last[kind] = f"network-error:{exc}"
         time.sleep(5)
-    fail(f"published customer origin never served exact target build {TARGET_BUILD}; origin={ACTIVE_PUBLIC_URL!r}; last marker={last!r}")
+
+    fail(
+        f"no customer origin served exact target build {TARGET_BUILD}; "
+        f"canonical={CANONICAL_PUBLIC_URL!r}; fallback={FALLBACK_PUBLIC_URL!r}; last={last!r}"
+    )
 
 
 def attach_failure_collectors(page, label):
