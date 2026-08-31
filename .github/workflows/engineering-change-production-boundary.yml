@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - factory/engineering-change-production-boundary-20260831
+      - factory/engineering-change-recoverability
     paths:
       - 'factories/engineering_change_recoverability/**'
       - '.github/workflows/engineering-change-production-boundary.yml'
