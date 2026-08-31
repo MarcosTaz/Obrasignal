@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PUBLIC_URL: https://marcostaz.github.io/Obrasignal/
+  PUBLIC_URL: https://obrasignal.com/
   E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
   E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
   TARGET_BUILD: ${{ github.sha }}

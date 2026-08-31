@@ -27,9 +27,11 @@ services:
       # second manually configured URL created a stale-key/configuration failure
       # mode during asymmetric-key migration, so no Supabase JWKS override is
       # declared by the production blueprint.
-      # Production web client origin. This is not a secret.
+      # Official customer Web origin. Infrastructure URLs are not customer truth.
       - key: OBRASIGNAL_CORS_ORIGIN
-        value: "https://marcostaz.github.io"
+        value: "https://obrasignal.com"
+      - key: OBRASIGNAL_WEB_ORIGIN
+        value: "https://obrasignal.com"
       - key: OBRASIGNAL_DB
         value: "/var/data/obrasignal.db"
       - key: POLL_SECONDS
