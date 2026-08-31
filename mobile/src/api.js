@@ -39,9 +39,6 @@ async function request(path, options={}) {
       const text=await response.text();
       let data=null; try{data=text?JSON.parse(text):null;}catch(_){}
       if(!response.ok){
-        // A protected 401 means the application operation was not accepted.
-        // Refresh exactly once and replay with the newly issued token for GETs
-        // and writes alike; skipAuth requests never enter this recovery path.
         if(response.status===401 && !skipAuth && authRefreshes===0){
           authRefreshes+=1;
           let refreshedToken=null;
@@ -65,8 +62,6 @@ async function request(path, options={}) {
   throw lastError||new Error(`API ${path}: não foi possível concluir o pedido.`);
 }
 
-// One health probe is shared by every caller. It has a deliberately separate
-// cold-start budget, while normal business requests keep their 20 s budget.
 export function ensureBackendReady(){
   if(backendReadyPromise)return backendReadyPromise;
   const warmup=request('/health',{timeout:BACKEND_READY_TIMEOUT,skipAuth:true})
@@ -105,6 +100,10 @@ export const api={
   profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
   saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
   billingStatus:()=>readWhenReady('/billing/status'),
+  pushStatus:()=>readWhenReady('/push/status'),
+  setPushPreference:(preference)=>writeWhenReady('/push/preference',{method:'POST',body:JSON.stringify(preference||{})}),
+  registerPushDevice:(device)=>writeWhenReady('/push/device',{method:'POST',body:JSON.stringify(device||{})}),
+  unregisterPushDevice:(token)=>writeWhenReady('/push/device',{method:'DELETE',body:JSON.stringify(token?{token}:{})}),
   stats:()=>readWhenReady('/stats'),
   workflowStats:()=>readWhenReady('/workflow/stats'),
   alerts:({limit=20,unreadOnly=false}={})=>{const p=new URLSearchParams({limit:String(limit)});if(unreadOnly)p.set('unread','1');return readWhenReady(`/alerts?${p.toString()}`);},
