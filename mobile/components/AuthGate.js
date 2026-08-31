@@ -4,6 +4,7 @@ import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
 import { ensureBackendReady } from '../src/api'
 import { authSession } from '../src/authSession'
+import { storage } from '../src/storage'
 import { supabase } from '../lib/supabase'
 
 function WebSessionBar() {
@@ -58,28 +59,61 @@ function WebSessionBar() {
 
 export default function AuthGate({ children }) {
   const [authState, setAuthState] = useState(authSession.getState())
+  const [tenantStatus, setTenantStatus] = useState('loading')
 
   useEffect(() => {
     let active = true
+    let generation = 0
+    let bindingQueue = Promise.resolve()
+
     const update = (nextState) => {
       if (!active) return
-      setAuthState(nextState)
-      if (nextState.status === 'signed-in') ensureBackendReady().catch(() => {})
+      const currentGeneration = ++generation
+      setTenantStatus('loading')
+
+      bindingQueue = bindingQueue
+        .catch(() => {})
+        .then(async () => {
+          const signedIn = nextState.status === 'signed-in'
+          const accountId = signedIn ? nextState.session?.user?.id : null
+          if (signedIn && !accountId) throw new Error('Authenticated session is missing user.id')
+
+          await storage.bindPrivateTenant(accountId)
+          if (!active || currentGeneration !== generation) return
+
+          setAuthState(nextState)
+          setTenantStatus('ready')
+          if (signedIn) ensureBackendReady().catch(() => {})
+        })
+        .catch(() => {
+          if (!active || currentGeneration !== generation) return
+          if (nextState.status !== 'signed-in') {
+            setAuthState(nextState)
+            setTenantStatus('ready')
+            return
+          }
+          setTenantStatus('error')
+        })
     }
+
     const unsubscribe = authSession.subscribe(update)
-    authSession.start().then(update)
-    return () => { active = false; unsubscribe() }
+    authSession.start().then(update).catch(() => update({ status: 'signed-out', session: null }))
+    return () => { active = false; generation += 1; unsubscribe() }
   }, [])
 
-  if (authState.status === 'loading') {
+  if (authState.status === 'loading' || tenantStatus === 'loading') {
     return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><ActivityIndicator size="small" color="#5F8DF7" /><Text style={styles.message}>A recuperar a sessão…</Text></View>
+  }
+
+  if (tenantStatus === 'error') {
+    return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
   }
 
   if (authState.status !== 'signed-in') return <AuthScreen />
 
-  // Hard rule: once Supabase has authenticated the user, the application
-  // shell opens immediately. Profile, billing and API availability are
-  // background concerns and cannot gate the first authenticated render.
+  // The authenticated shell only mounts after tenant-private storage has been
+  // bound to the exact Supabase user id. Profile, billing and API availability
+  // remain background concerns, but cross-account local state never is.
   return <BillingGate>
     {Platform.OS === 'web'
       ? <View style={styles.webShell}><WebSessionBar/><View style={styles.webContent}>{children}</View></View>
@@ -92,6 +126,7 @@ const styles = StyleSheet.create({
   brand: { fontSize: 25, fontWeight: '800', letterSpacing: -0.8, color: '#F4F7FB' },
   blue: { color: '#7FA2FF' },
   message: { color: '#9BAABD', fontSize: 12 },
+  error: { color: '#FF8998', fontSize: 12, textAlign: 'center', paddingHorizontal: 24 },
   webShell: { flex: 1, minHeight: 0, backgroundColor: '#07111C' },
   webContent: { flex: 1, minHeight: 0 },
   sessionBar: {
