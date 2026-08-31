@@ -1,0 +1,32 @@
+.capture-body { min-height: 100vh; }
+.capture-header { padding-bottom: 28px; }
+.capture-shell { width: min(760px, calc(100% - 32px)); margin: 28px auto 56px; }
+.capture-card { padding: clamp(20px, 4vw, 32px); }
+.capture-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.capture-heading-row h2 { margin-top: 10px; font-size: clamp(22px, 4vw, 32px); overflow-wrap: anywhere; }
+.capture-state { border-radius: 999px; padding: 7px 11px; font-size: 12px; font-weight: 850; letter-spacing: .05em; }
+.capture-state.open { background: var(--accent-soft); color: var(--accent); }
+.capture-state.closed { background: #ebeee9; color: var(--muted); }
+.capture-timing { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin: 22px 0; }
+.capture-timing div { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fafbf9; min-width: 0; }
+.capture-timing span { display: block; color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+.capture-timing strong { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.capture-reminder { border: 1px solid #d8c187; background: var(--warning-soft); color: #5f3d06; border-radius: 14px; padding: 16px; margin: 18px 0; }
+.capture-reminder strong { display: block; margin-bottom: 5px; }
+.capture-reminder p, .capture-closed p { margin: 0; font-size: 13px; line-height: 1.5; }
+.capture-form { border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.capture-secondary-fields { margin-top: 12px; }
+.capture-form small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.capture-download { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+.capture-download span { font-size: 12px; color: var(--muted); }
+.capture-button { display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; padding: 12px 16px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 800; }
+.capture-button:hover, .capture-button:focus { outline: 3px solid rgba(23,63,53,.14); }
+.capture-closed { border: 1px solid var(--line); border-radius: 14px; background: #f5f6f3; padding: 16px; margin-top: 18px; }
+.capture-boundary { margin-top: 20px; }
+[hidden] { display: none !important; }
+@media (max-width: 680px) {
+  .capture-shell { width: min(100% - 20px, 760px); }
+  .capture-heading-row { align-items: flex-start; }
+  .capture-timing { grid-template-columns: 1fr; }
+  .capture-secondary-fields { grid-template-columns: 1fr; }
+}
