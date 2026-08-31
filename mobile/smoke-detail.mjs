@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
@@ -8,6 +9,8 @@ const billing = fs.readFileSync(new URL('./src/billing.js', import.meta.url), 'u
 const notifications = fs.readFileSync(new URL('./src/notifications.js', import.meta.url), 'utf8');
 const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
+const storage = fs.readFileSync(new URL('./src/storage.js', import.meta.url), 'utf8');
+const tenantStorage = fs.readFileSync(new URL('./src/tenantStorage.js', import.meta.url), 'utf8');
 
 const checks = [
   ['detail receives selected opportunity', /<Detail\s+item=\{selected\}/],
@@ -48,6 +51,24 @@ if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(a
   process.exit(1);
 }
 
+const privacyFailures = [];
+if (!/nextState\.session\?\.user\?\.id/.test(authGate) || !/await storage\.bindPrivateTenant\(identity\)/.test(authGate)) privacyFailures.push('auth gate must bind Supabase identity before private shell');
+if (!/signed-in' && !privateReady/.test(authGate)) privacyFailures.push('authenticated shell must wait for private storage binding');
+if (!/privateStorage\.getSettings\(activePrivateTenant\)/.test(storage) || /AsyncStorage\.setItem\(KEYS\.settings/.test(storage)) privacyFailures.push('settings must be tenant-private');
+if (!/envelope\.identity !== tenant/.test(tenantStorage) || !/@obrasignal\/v1\/settings/.test(tenantStorage)) privacyFailures.push('tenant storage must validate identity and purge legacy settings');
+if (privacyFailures.length) {
+  for (const name of privacyFailures) console.error(`FAIL: ${name}`);
+  process.exit(1);
+}
+
+const tenantRegression = spawnSync(process.execPath, ['tenant-storage-regression.mjs'], { cwd: new URL('.', import.meta.url), encoding: 'utf8' });
+if (tenantRegression.status !== 0) {
+  console.error(tenantRegression.stdout);
+  console.error(tenantRegression.stderr);
+  console.error('FAIL: tenant storage dynamic regression');
+  process.exit(1);
+}
+
 const uiFailures = [];
 if (!/RADAR COMERCIAL/.test(app) || !/rootWide/.test(app)) uiFailures.push('authenticated workspace must use commercial shell');
 if (/position:'absolute'/.test(billingGate)) uiFailures.push('billing status must never overlay authenticated content');
@@ -61,4 +82,4 @@ if (uiFailures.length) {
 }
 
 for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
-for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing']) console.log(`PASS: ${name}`);
+for (const name of ['tenant-private authenticated storage','authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing']) console.log(`PASS: ${name}`);
