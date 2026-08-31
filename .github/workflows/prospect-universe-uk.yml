@@ -1,0 +1,30 @@
+name: ObraSignal UK prospect extraction
+
+on:
+  push:
+    branches: [ops/prospect-universe-50k]
+    paths:
+      - 'ops/prospecting/build_uk_contracts_finder_prospects.py'
+      - '.github/workflows/prospect-universe-uk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Extract UK award suppliers
+        env:
+          CF_START: '2024-01-01T00:00:00Z'
+          CF_END: '2026-08-31T23:59:59Z'
+          OUT_DIR: uk_prospect_output
+        run: python ops/prospecting/build_uk_contracts_finder_prospects.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-uk-prospects
+          path: uk_prospect_output/*
+          retention-days: 30
