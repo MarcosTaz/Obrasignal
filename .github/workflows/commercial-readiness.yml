@@ -1,0 +1,91 @@
+name: ObraSignal Commercial Readiness
+
+on:
+  workflow_run:
+    workflows: ["ObraSignal Web Preview"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checkout-configuration:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_REVENUECAT_WEB_KEY: ${{ secrets.EXPO_PUBLIC_REVENUECAT_WEB_KEY }}
+      EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK: ${{ secrets.EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK }}
+    steps:
+      - name: Require automatic production checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPO_PUBLIC_REVENUECAT_WEB_KEY:-}" ] && [ -z "${EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK:-}" ]; then
+            echo '::error::COMMERCIAL_BLOCKED No RevenueCat Web SDK key or production Web Purchase Link is configured.'
+            exit 1
+          fi
+          if [ -n "${EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK:-}" ]; then
+            case "$EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK" in
+              https://pay.rev.cat/*) ;;
+              *) echo '::error::Invalid RevenueCat production purchase-link host.'; exit 1 ;;
+            esac
+            if printf '%s' "$EXPO_PUBLIC_REVENUECAT_PURCHASE_LINK" | grep -qi '/sandbox/'; then
+              echo '::error::Sandbox checkout must never pass the commercial release gate.'
+              exit 1
+            fi
+          fi
+          echo 'Automatic Web checkout configuration is present.'
+
+  official-domain:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve expected build
+        id: expected
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          expected="${WORKFLOW_SHA:-$DISPATCH_SHA}"
+          test -n "$expected"
+          echo "sha=$expected" >> "$GITHUB_OUTPUT"
+
+      - name: Require canonical domain to serve exact release
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ steps.expected.outputs.sha }}
+        run: |
+          set -euo pipefail
+          marker="$(curl --fail --silent --show-error --location --max-time 25 https://obrasignal.com/release-source.txt)"
+          test "$marker" = "$EXPECTED_SHA" || {
+            echo "::error::COMMERCIAL_BLOCKED obrasignal.com is not serving exact release $EXPECTED_SHA (got '$marker')."
+            exit 1
+          }
+          body="$(curl --fail --silent --show-error --location --max-time 25 https://obrasignal.com/)"
+          printf '%s' "$body" | grep -q 'name="obrasignal-commercial-checkout" content="configured"' || {
+            echo '::error::COMMERCIAL_BLOCKED Canonical Web release reports checkout blocked.'
+            exit 1
+          }
+          printf '%s' "$body" | grep -q 'obrasignal-private-traffic' || {
+            echo '::error::Canonical Web release is missing the private traffic beacon.'
+            exit 1
+          }
+          echo "Canonical customer domain serves exact commercially configured release $EXPECTED_SHA."
+
+  api-health:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require production API health
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(curl --fail --silent --show-error --location --max-time 25 https://obrasignal.onrender.com/api/v1/health)"
+          printf '%s' "$body" | grep -q '"ok"' || {
+            echo '::error::Production API health contract failed.'
+            exit 1
+          }
+          echo 'Production API is reachable.'
