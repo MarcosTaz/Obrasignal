@@ -10,25 +10,47 @@ const DEFAULT_SETTINGS = {
 
 const privateStorage = createTenantStorage(AsyncStorage);
 let activePrivateTenant = null;
+let initialSettingsWritePending = false;
 
 function requirePrivateTenant() {
   if (!activePrivateTenant) throw new Error('Private storage is not bound to an authenticated account');
   return activePrivateTenant;
 }
 
+function isDefaultSettings(settings) {
+  return Boolean(settings)
+    && settings.notifications === DEFAULT_SETTINGS.notifications
+    && settings.minScore === DEFAULT_SETTINGS.minScore
+    && settings.openOnly === DEFAULT_SETTINGS.openOnly
+    && (settings.source || '') === DEFAULT_SETTINGS.source;
+}
+
+async function mirrorNotificationPreference(settings) {
+  if (typeof settings?.notifications !== 'boolean') return;
+  try {
+    const { syncPushPreference } = await import('./notifications');
+    await syncPushPreference(settings.notifications);
+  } catch (_) {
+    // Local settings remain usable offline. Startup retries registration later.
+  }
+}
+
 export const storage = {
   async bindPrivateTenant(accountId) {
-    // Clear the in-memory binding immediately so an account switch cannot read
-    // the previous account while AsyncStorage cleanup is still in progress.
     activePrivateTenant = null;
+    initialSettingsWritePending = false;
     const next = await privateStorage.bindTenant(accountId);
     activePrivateTenant = next;
+    initialSettingsWritePending = Boolean(next);
     return next;
   },
   async purgePrivateTenant(accountId = activePrivateTenant) {
     if (!accountId) return;
     await privateStorage.purgeTenant(accountId);
-    if (activePrivateTenant === String(accountId).trim()) activePrivateTenant = null;
+    if (activePrivateTenant === String(accountId).trim()) {
+      activePrivateTenant = null;
+      initialSettingsWritePending = false;
+    }
   },
   getActivePrivateTenant: () => activePrivateTenant,
 
@@ -37,7 +59,18 @@ export const storage = {
   getSettings: () => activePrivateTenant
     ? privateStorage.getSettings(activePrivateTenant).then((settings) => ({ ...DEFAULT_SETTINGS, ...settings }))
     : Promise.resolve({ ...DEFAULT_SETTINGS }),
-  setSettings: (settings) => privateStorage.setSettings(requirePrivateTenant(), settings),
+  async setSettings(settings) {
+    requirePrivateTenant();
+    // Main() mounts with DEFAULT_SETTINGS before its async hydration completes.
+    // Never let that first render overwrite a returning customer's persisted
+    // notification choice. The hydrated state (or a later user action) owns it.
+    if (initialSettingsWritePending) {
+      initialSettingsWritePending = false;
+      if (isDefaultSettings(settings)) return;
+    }
+    await privateStorage.setSettings(activePrivateTenant, settings);
+    await mirrorNotificationPreference(settings);
+  },
   getCache: () => activePrivateTenant ? privateStorage.getCache(activePrivateTenant) : Promise.resolve(null),
   setCache: (payload) => privateStorage.setCache(requirePrivateTenant(), payload),
   getProfile: () => activePrivateTenant ? privateStorage.getProfile(activePrivateTenant) : Promise.resolve(null),
