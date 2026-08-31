@@ -39,13 +39,12 @@ async function request(path, options={}) {
       const text=await response.text();
       let data=null; try{data=text?JSON.parse(text):null;}catch(_){}
       if(!response.ok){
-        if(response.status===401 && method==='GET' && !skipAuth && authRefreshes===0){
+        if(response.status===401 && !skipAuth && authRefreshes===0){
           authRefreshes+=1;
           let refreshedToken=null;
           try{refreshedToken=await authSession.refresh();}catch(_){}
-          // A token refresh is authentication recovery, not a network retry.
-          // Repeat this attempt so MAX_ATTEMPTS=1 still sends the request with
-          // the newly issued access token.
+          // A 401 means the protected operation was not accepted. Refreshing
+          // authentication and replaying once is therefore safe for writes too.
           if(refreshedToken){ attempt-=1; continue; }
         }
         const error=new Error(data?.error||`HTTP ${response.status}`);error.status=response.status;error.responseBody=data;throw error;
@@ -65,11 +64,8 @@ async function request(path, options={}) {
   throw lastError||new Error(`API ${path}: não foi possível concluir o pedido.`);
 }
 
-
 // One health probe is shared by every caller. It has a deliberately separate
 // cold-start budget, while normal business requests keep their 20 s budget.
-// A completed probe is cleared so only an in-flight warm-up is shared. A later
-// recoverable GET can therefore wake the backend again if it has gone to sleep.
 export function ensureBackendReady(){
   if(backendReadyPromise)return backendReadyPromise;
   const warmup=request('/health',{timeout:BACKEND_READY_TIMEOUT,skipAuth:true})
@@ -94,13 +90,18 @@ async function writeWhenReady(path,options={}){
 }
 
 function normalizeOpportunity(item){if(!item||typeof item!=='object')return item;return {...item,decision_score:item.decision_score??item.account_score??null,decision_reason:item.decision_reason??item.account_reason??null};}
-function unwrapProfile(data){return data?.profile||data||null;}
+function unwrapProfile(data){
+  if(data===null||data===undefined)return null;
+  if(typeof data!=='object'||Array.isArray(data)||!Object.prototype.hasOwnProperty.call(data,'profile'))throw new Error('API /profile: contrato de resposta inválido.');
+  const profile=data.profile;
+  if(profile===null)return null;
+  if(typeof profile!=='object'||Array.isArray(profile))throw new Error('API /profile: perfil inválido.');
+  return profile;
+}
 
 export const api={
   health:()=>ensureBackendReady(),
   profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
-  // POST is intentionally single-attempt: retrying an authenticated write can
-  // duplicate work and makes a stuck Save button look like a UI failure.
   saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
   billingStatus:()=>readWhenReady('/billing/status'),
   stats:()=>readWhenReady('/stats'),
