@@ -16,6 +16,7 @@ concurrency:
 
 env:
   PUBLIC_URL: https://obrasignal.com/
+  FALLBACK_PUBLIC_URL: https://marcostaz.github.io/Obrasignal/
   E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
   E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
   TARGET_BUILD: ${{ github.sha }}

@@ -1,12 +1,26 @@
 from pathlib import Path
 
 
-def test_live_tenant_workflow_requires_two_distinct_secret_pairs():
+def test_live_tenant_workflow_requires_two_distinct_identity_sources():
     workflow = Path('.github/workflows/tenant-isolation-live.yml').read_text(encoding='utf-8')
     assert 'E2E_EMAIL_B: ${{ secrets.E2E_EMAIL_B }}' in workflow
     assert 'E2E_PASSWORD_B: ${{ secrets.E2E_PASSWORD_B }}' in workflow
     assert 'TARGET_BUILD: ${{ github.sha }}' in workflow
-    assert 'python scripts/live_tenant_isolation_e2e.py' in workflow
+    assert 'python scripts/provision_ephemeral_tenant.py' in workflow
+    assert 'python scripts/live_tenant_isolation_runner.py' in workflow
+
+    runner = Path('scripts/live_tenant_isolation_runner.py').read_text(encoding='utf-8')
+    assert 'import live_tenant_isolation_e2e as probe' in runner
+    assert 'E2E_ACCESS_TOKEN_B' in runner
+    assert 'E2E_USER_ID_B' in runner
+    assert 'probe.sign_in = _sign_in' in runner
+    assert 'probe.main()' in runner
+
+    provisioner = Path('scripts/provision_ephemeral_tenant.py').read_text(encoding='utf-8')
+    assert '/auth/v1/signup' in provisioner
+    assert 'req.add_header("apikey", key)' in provisioner
+    assert 'E2E_ACCESS_TOKEN_B=' in provisioner
+    assert 'E2E_USER_ID_B=' in provisioner
 
 
 def test_live_tenant_probe_attacks_forged_account_claims_and_cross_profile_state():
