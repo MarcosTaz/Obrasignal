@@ -81,6 +81,20 @@ class PublicVerificationStore:
         conn.row_factory = sqlite3.Row
         return conn
 
+    @staticmethod
+    def _validated_receipt(row: sqlite3.Row, *, label: str) -> dict[str, Any]:
+        try:
+            receipt = json.loads(str(row["receipt_json"]))
+        except (TypeError, ValueError) as exc:
+            raise PublicVerificationStoreError(f"stored {label} public receipt is invalid") from exc
+        if not isinstance(receipt, dict):
+            raise PublicVerificationStoreError(f"stored {label} public receipt is invalid")
+        body = dict(receipt)
+        stored = str(body.pop("receipt_sha256", "") or "")
+        if stored != row["receipt_sha256"] or stored != sha256_hex(body):
+            raise PublicVerificationStoreError(f"stored {label} public receipt integrity failure")
+        return receipt
+
     def publish(
         self,
         *,
@@ -231,6 +245,7 @@ class PublicVerificationStore:
 
     def get_public(self, verification_id: str) -> dict[str, Any]:
         token_hash = _token_hash(verification_id)
+        successor_verification_id: str | None = None
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT receipt_json,receipt_sha256 FROM causledger_public_receipts WHERE token_hash=?",
@@ -238,30 +253,35 @@ class PublicVerificationStore:
             ).fetchone()
             if row is None:
                 raise PublicVerificationStoreError("public verification receipt not found")
-            try:
-                receipt = json.loads(str(row["receipt_json"]))
-            except (TypeError, ValueError) as exc:
-                raise PublicVerificationStoreError("stored public receipt is invalid") from exc
-            body = dict(receipt)
-            stored = str(body.pop("receipt_sha256", "") or "")
-            if stored != row["receipt_sha256"] or stored != sha256_hex(body):
-                raise PublicVerificationStoreError("stored public receipt integrity failure")
+            receipt = self._validated_receipt(row, label="current")
             events = self._events(conn, token_hash)
+            if events and events[-1]["successor_token_hash"]:
+                successor_row = conn.execute(
+                    "SELECT receipt_json,receipt_sha256 FROM causledger_public_receipts WHERE token_hash=?",
+                    (events[-1]["successor_token_hash"],),
+                ).fetchone()
+                if successor_row is None:
+                    raise PublicVerificationStoreError("public successor receipt lineage is missing")
+                successor_receipt = self._validated_receipt(successor_row, label="successor")
+                successor_verification_id = _required(
+                    successor_receipt.get("verification_id"),
+                    label="successor verification_id",
+                    max_chars=128,
+                )
+                if _token_hash(successor_verification_id) != events[-1]["successor_token_hash"]:
+                    raise PublicVerificationStoreError("public successor receipt token binding failed")
         valid, chain_head, errors = self._verify_event_chain(events)
         if not valid:
             raise PublicVerificationStoreError(f"public lifecycle integrity failure: {errors}")
         status = "CURRENT"
-        successor = None
         if events:
             status = str(events[-1]["event_type"])
-            if events[-1]["successor_token_hash"]:
-                status = "SUPERSEDED"
-                successor = "SUCCESSOR_AVAILABLE"
         return {
             "receipt": receipt,
             "current_lifecycle": {
                 "state": status,
-                "successor": successor,
+                "successor_verification_id": successor_verification_id,
+                "successor_verification_path": f"/verify/{successor_verification_id}" if successor_verification_id else None,
                 "event_chain_head_sha256": chain_head,
             },
             "privacy": {
