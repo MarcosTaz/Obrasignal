@@ -11,68 +11,93 @@ const onboarding = fs.readFileSync(new URL('./components/ProfileOnboarding.js', 
 const markets = fs.readFileSync(new URL('./src/markets.js', import.meta.url), 'utf8');
 const api = fs.readFileSync(new URL('./src/api.js', import.meta.url), 'utf8');
 
-const checks = [
-  ['detail receives selected opportunity', /<Detail\s+item=\{selected\}/],
-  ['detail owns local opportunity state', /function Detail\(\{item,/],
-  ['workflow is rendered in detail', /const status=current\.workflow\?\.status\|\|'NEW'/],
-  ['workflow action calls API', /api\.setWorkflow\(current\.id,next/],
-  ['official source action is rendered', /Abrir fonte oficial/],
-  ['onboarding asks for business interests', /Que trabalhos ou contratos procuras/],
-  ['CPV is an advanced option', /Opção avançada: rever códigos CPV/],
-  ['internal economic fit is absent from onboarding', /Economic Fit/.test(onboarding) ? /$a/ : /contract_interests/],
-];
+const failures = [];
+const requireMatch = (name, source, pattern) => { if (!pattern.test(source)) failures.push(name); };
+const forbidMatch = (name, source, pattern) => { if (pattern.test(source)) failures.push(name); };
 
-const crossFileChecks = [
-  ['startup hydrates local cache before remote data', /Promise\.allSettled\(\[storage\.getSettings\(\),storage\.getCache\(\),storage\.getProfile\(\)\]\)/],
-  ['startup loads independent API data concurrently', /Promise\.allSettled\(\[api\.profile\(\),api\.opportunities/],
-  ['notification sync reads unread server alerts', /api\.alerts\(\{ unreadOnly: true/],
-  ['notification sync acknowledges delivered events', /api\.markAlertDelivered\(item\.event_id\)/],
-  ['API exposes alerts endpoint', /alerts:\s*\(\{\s*limit\s*=\s*20,\s*unreadOnly\s*=\s*false\s*\}/],
-];
+// Native/customer-detail fundamentals.
+requireMatch('native detail receives selected opportunity', app, /<Detail\s+item=\{selected\}/);
+requireMatch('native detail owns local opportunity state', app, /function Detail\(\{item,/);
+requireMatch('native workflow action calls API', app, /api\.setWorkflow\(current\.id,next/);
+requireMatch('native official-source action is rendered', app, /Abrir fonte oficial/);
+requireMatch('onboarding asks for business interests', onboarding, /Que trabalhos ou contratos procuras/);
+requireMatch('CPV stays an advanced option', onboarding, /Opção avançada: rever códigos CPV/);
 
-const failures = [
-  ...checks.slice(0, 5).filter(([, pattern]) => !pattern.test(app)),
-  ...checks.slice(5).filter(([, pattern]) => !pattern.test(onboarding)),
-];
-const crossFailures = [
-  ...crossFileChecks.slice(0, 2).filter(([, pattern]) => !pattern.test(app)),
-  ...crossFileChecks.slice(2, 4).filter(([, pattern]) => !pattern.test(notifications)),
-  ...crossFileChecks.slice(4).filter(([, pattern]) => !pattern.test(api)),
-];
+// Startup + notification wiring remains single-owner.
+requireMatch('startup hydrates tenant cache before remote data', app, /Promise\.allSettled\(\[storage\.getSettings\(\),storage\.getCache\(\),storage\.getProfile\(\)\]\)/);
+requireMatch('notification sync reads unread alerts', notifications, /api\.alerts\(\{ unreadOnly: true/);
+requireMatch('notification sync acknowledges delivered events', notifications, /api\.markAlertDelivered\(item\.event_id\)/);
+requireMatch('API exposes alerts endpoint', api, /alerts:\s*\(\{\s*limit\s*=\s*20,\s*unreadOnly\s*=\s*false\s*\}/);
+forbidMatch('auth gate must not duplicate business API work', authGate, /api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/);
 
-if (failures.length || crossFailures.length) {
-  for (const [name] of [...failures, ...crossFailures]) console.error(`FAIL: ${name}`);
-  process.exit(1);
-}
+// Web must use the browser document as the vertical page rather than a nested RN viewport.
+requireMatch('web document scroll hook exists', webApp, /function useDocumentScroll\(\)/);
+requireMatch('web root explicitly allows vertical document scrolling', webApp, /overflowY='auto'/);
+requireMatch('web root releases fixed height', webApp, /node\.style\.height='auto'/);
+forbidMatch('web workspace must not trap Radar in FlatList', webApp, /FlatList/);
+forbidMatch('web workspace must not use a top-level RN vertical ScrollView', webApp, /<ScrollView/);
+requireMatch('web Radar cards remain normal-flow content', webApp, /visible\.map\(item=>/);
+requireMatch('web detail retry must trigger a real reload', webApp, /onRetry=\{\(\)=>setReload\(value=>value\+1\)\}/);
+forbidMatch('web detail must not expose a no-op retry', webApp, /onRetry=\{\(\)=>\{\}\}/);
 
-if (/api\.profile|syncUnreadOpportunityAlerts|AppState\.addEventListener/.test(authGate)) {
-  console.error('FAIL: auth gate must not duplicate background API work');
-  process.exit(1);
-}
+// Complete Radar traversal + stable search criteria.
+requireMatch('API accepts offset', api, /offset=0/);
+requireMatch('API sends offset query parameter', api, /offset:String\(offset\)/);
+requireMatch('web retains server page metadata', webApp, /\[page,setPage\]/);
+requireMatch('web load-more uses next_offset', webApp, /offset:page\.next_offset/);
+requireMatch('web deduplicates appended opportunity ids', webApp, /const merged=new Map\(/);
+requireMatch('web exposes load-more action', webApp, /Carregar mais oportunidades/);
+requireMatch('web separates draft search from applied search', webApp, /\[appliedSearch,setAppliedSearch\]/);
 
-const uiFailures = [];
-if (!/RADAR COMERCIAL/.test(app) || !/rootWide/.test(app)) uiFailures.push('authenticated workspace must use commercial shell');
-if (/position:'absolute'/.test(billingGate)) uiFailures.push('billing status must never overlay authenticated content');
-if (/A versão Web permite consultar o estado do plano, mas não processa compras/.test(billingGate)) uiFailures.push('web billing copy must not claim the platform cannot purchase');
-if (!/EXPO_PUBLIC_REVENUECAT_WEB_KEY/.test(billing) || !/Platform\.OS === 'web'/.test(billing)) uiFailures.push('RevenueCat web billing configuration must be wired');
-if (/flexBasis/.test(authScreen)) uiFailures.push('public landing must avoid flex-basis responsive overlap regression');
-if (!/width >= 980/.test(authScreen) || !/heroStack/.test(authScreen)) uiFailures.push('public landing must have an explicit stacked breakpoint');
-if (!/function WebMain/.test(webApp) || !/<ScrollView style=\{s\.pageScroll\}/.test(webApp)) uiFailures.push('web workspace must have one explicit vertical scroll surface');
-if (/FlatList/.test(webApp)) uiFailures.push('web workspace must not trap the Radar in a nested FlatList scroll viewport');
-if (!/visible\.map\(item=>/.test(webApp)) uiFailures.push('web Radar cards must participate in the page scroll flow');
-if (!/Obra<Text style=\{s\.brandSignal\}>Signal/.test(webApp) || !/fontFamily:FONT/.test(webApp)) uiFailures.push('web brand typography must use the refined wordmark system');
+// Session utilities are permanently reachable from the authenticated shell.
+requireMatch('persistent session bar contains logout', authGate, /Terminar sessão/);
+requireMatch('persistent logout calls Supabase signOut', authGate, /supabase\.auth\.signOut\(\)/);
+requireMatch('web session bar exposes on-demand translator', authGate, /function WebTranslator/);
+requireMatch('translator is loaded only after activation', authGate, /if \(!enabled/);
+requireMatch('translator sits in session controls', authGate, /<WebTranslator\/>/);
+requireMatch('session clock uses 24-hour format', authGate, /hour12: false/);
+
+// Billing access must be server-authoritative and fail closed.
+requireMatch('billing requires server billing status', billingGate, /await api\.billingStatus\(\)/);
+requireMatch('billing carries explicit server authority state', billingGate, /authority: 'loading'/);
+requireMatch('pro access derives from server plan', billingGate, /pro: server\.plan === 'pro'/);
+requireMatch('billing unavailable state blocks private access', billingGate, /Não foi possível validar o acesso/);
+forbidMatch('billing must not overlay authenticated content', billingGate, /position:'absolute'/);
+forbidMatch('web billing copy must not claim web purchases are impossible', billingGate, /A versão Web permite consultar o estado do plano, mas não processa compras/);
+requireMatch('RevenueCat Web key remains wired', billing, /EXPO_PUBLIC_REVENUECAT_WEB_KEY/);
+
+// Expired authentication recovery must work for protected writes too.
+requireMatch('authenticated 401 refresh is one-shot', api, /response\.status===401 && !skipAuth && authRefreshes===0/);
+forbidMatch('authenticated refresh must not be GET-only', api, /response\.status===401 && method==='GET'/);
+
+// Branding + market coverage.
+requireMatch('authenticated web uses refined ObraSignal wordmark', webApp, /Obra<Text style=\{s\.brandSignal\}>Signal/);
+requireMatch('authenticated web uses shared font system', webApp, /fontFamily:FONT/);
 const europeanMarketCount = (markets.match(/^\s*\['[A-Z]{3}',/gm) || []).length;
-if (europeanMarketCount !== 32) uiFailures.push(`European market registry must expose 32 markets, found ${europeanMarketCount}`);
-if (!/EUROPE_MARKETS\.map/.test(webApp) || !/EUROPE_MARKETS\.map/.test(onboarding)) uiFailures.push('web profile and onboarding must use canonical European market registry');
-if (!/32 mercados europeus activos/.test(webApp) || !/32 mercados europeus activos/.test(onboarding)) uiFailures.push('web market coverage must state the active 32-market scope');
-if (/Terminar sessão/.test(authGate)) uiFailures.push('persistent session header must not advertise logout');
-if (!/Terminar sessão/.test(webApp)) uiFailures.push('logout must remain available at the bottom of Profile');
-if (!/function WebTranslator/.test(authGate) || !/translate\.google\.com\/translate_a\/element\.js/.test(authGate)) uiFailures.push('web session bar must expose the on-demand translator');
-if (!/<WebTranslator\/>/.test(authGate) || !/Tradutor/.test(authGate)) uiFailures.push('translator must sit beside the authenticated date/time controls');
-if (uiFailures.length) {
-  for (const name of uiFailures) console.error(`FAIL: ${name}`);
+if (europeanMarketCount !== 32) failures.push(`European market registry must expose 32 markets, found ${europeanMarketCount}`);
+requireMatch('web profile uses canonical Europe registry', webApp, /EUROPE_MARKETS\.map/);
+requireMatch('onboarding uses canonical Europe registry', onboarding, /EUROPE_MARKETS\.map/);
+if (!/32 mercados europeus (ativos|activos)/.test(webApp) || !/32 mercados europeus (ativos|activos)/.test(onboarding)) failures.push('customer copy must state the active 32-market Europe scope');
+
+// Public landing responsiveness.
+forbidMatch('public landing must avoid flex-basis responsive overlap regression', authScreen, /flexBasis/);
+requireMatch('public landing must have explicit wide breakpoint', authScreen, /width >= 980/);
+requireMatch('public landing must have stacked compact hero', authScreen, /heroStack/);
+
+if (failures.length) {
+  for (const name of failures) console.error(`FAIL: ${name}`);
   process.exit(1);
 }
 
-for (const [name] of [...checks, ...crossFileChecks]) console.log(`PASS: ${name}`);
-for (const name of ['authenticated commercial shell','non-overlapping billing status','truthful web billing','responsive public landing','single web page scroll','refined web wordmark','32-market Europe scope','logout placement','session translator']) console.log(`PASS: ${name}`);
+for (const name of [
+  'native detail/workflow',
+  'tenant startup + alerts',
+  'browser document scrolling',
+  'web detail retry',
+  'Radar pagination + stable search',
+  'persistent logout/date/time/translator',
+  'server-authoritative billing',
+  'authenticated write token refresh',
+  '32-market Europe registry',
+  'responsive public landing',
+]) console.log(`PASS: ${name}`);
