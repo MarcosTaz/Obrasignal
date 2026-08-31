@@ -41,6 +41,10 @@ export function activeEntitlement(customerInfo) {
   return customerInfo?.entitlements?.active?.[BILLING_ENTITLEMENT] || null;
 }
 
+export function proPackage(offering) {
+  return offering?.availablePackages?.find(pkg => pkg?.product?.identifier === BILLING_PRODUCT) || null;
+}
+
 export async function getCurrentOffering() {
   if (!billingConfigurationAvailable()) return null;
   const offerings = await Purchases.getOfferings();
@@ -50,10 +54,8 @@ export async function getCurrentOffering() {
 export async function purchasePro() {
   if (!billingConfigurationAvailable()) throw new Error('billing_not_configured');
   const offering = await getCurrentOffering();
-  const pkg = offering?.availablePackages?.find(p =>
-    p?.product?.identifier === BILLING_PRODUCT || p?.packageType === 'MONTHLY'
-  ) || offering?.availablePackages?.[0];
-  if (!pkg) throw new Error('subscription_not_configured');
+  const pkg = proPackage(offering);
+  if (!pkg) throw new Error('subscription_product_not_configured');
   const result = await Purchases.purchasePackage(pkg);
   return result?.customerInfo || null;
 }
