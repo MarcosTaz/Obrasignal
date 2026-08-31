@@ -2,7 +2,7 @@
 import csv, json, os, sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-import build_active45_non_europe_prospects as b
+import build_active45_non_europe_prospects_v2 as b
 m=os.environ['MARKET'].upper(); out=Path(os.environ.get('OUT_DIR','market_output'));out.mkdir(parents=True,exist_ok=True)
 if m in b.OCP:
     rows=b.ocp_market(m,*b.OCP[m])
