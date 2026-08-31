@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import AccountPrivacyControls from './AccountPrivacyControls'
 import AuthScreen from './AuthScreen'
 import BillingGate from './BillingGate'
@@ -11,6 +11,58 @@ import { storage } from '../src/storage'
 
 const TRANSLATE_ELEMENT_ID = 'obrasignal-google-translate'
 const TRANSLATE_SCRIPT_ID = 'obrasignal-google-translate-script'
+const SUPPORT_EMAIL = 'obrasignal.pt@gmail.com'
+
+const LEGAL_CONTENT = {
+  privacy: {
+    title: 'Privacidade',
+    updated: 'Atualizado em 31 de agosto de 2026',
+    sections: [
+      ['Que dados tratamos', 'A conta usa o email e a identidade técnica do fornecedor de autenticação. O produto guarda, por conta, o perfil da empresa, preferências, decisões, estados de workflow, notas e outros dados necessários para prestar o serviço. Os anúncios e concursos provenientes de fontes públicas não são dados privados da conta.'],
+      ['Para que usamos os dados', 'Usamos os dados da conta para autenticação, isolamento entre clientes, personalização do Radar, persistência do trabalho, suporte, segurança e, quando aplicável, ativação e gestão comercial do plano. Não apresentamos dados sintéticos como dados reais.'],
+      ['Fornecedores e fronteiras externas', 'A autenticação é prestada através de Supabase. Quando a faturação automática estiver configurada, o estado de compra/subscrição pode ser processado através de RevenueCat e do respetivo canal de pagamento. O Google Translate só é carregado quando o utilizador ativa voluntariamente o tradutor na sessão Web.'],
+      ['Exportação e eliminação', 'Depois de entrar, “Conta e privacidade” permite preparar uma exportação dos dados canónicos atuais do produto e pedir a eliminação dos dados privados. A aplicação não declara concluída a eliminação de identidade, sessões ou faturação externa sem confirmação desses fornecedores.'],
+      ['Segurança e retenção', 'Aplicamos separação por conta e controlos de autenticação no serviço. Conservamos dados enquanto forem necessários para operar a conta, preservar integridade/auditoria do serviço e cumprir obrigações aplicáveis; pedidos de eliminação são tratados pelos controlos autenticados e pelo suporte.'],
+      ['Contacto', `Para questões de privacidade, correções ou suporte: ${SUPPORT_EMAIL}.`],
+    ],
+  },
+  terms: {
+    title: 'Termos de utilização',
+    updated: 'Atualizado em 31 de agosto de 2026',
+    sections: [
+      ['O serviço', 'O ObraSignal é um radar comercial e ferramenta de apoio à decisão sobre oportunidades de contratação pública. Prioriza e organiza informação; não é uma entidade adjudicante, portal oficial de contratação nem substitui os documentos do procedimento.'],
+      ['Fonte oficial e decisões', 'Prazos, requisitos, documentos, elegibilidade, contactos, valores e estado do procedimento devem ser confirmados na fonte oficial antes de qualquer decisão comercial. Sinais, normalizações ou inferências do ObraSignal não transformam informação desconhecida em facto.'],
+      ['Conta e utilização', 'O utilizador é responsável por manter as credenciais seguras e por usar o serviço apenas de forma lícita. Não é permitido tentar aceder a dados de outra conta, contornar controlos de acesso, abusar da infraestrutura ou automatizar tráfego de forma prejudicial.'],
+      ['Disponibilidade e fontes', 'A disponibilidade e atualidade podem ser afetadas por fontes públicas, rede, autenticação ou outros fornecedores externos. Uma indisponibilidade de fonte deve ser apresentada como tal e não como ausência válida de oportunidades.'],
+      ['Avaliação, plano e faturação', 'O estado comercial apresentado dentro do produto é a referência operacional. O checkout automático só é oferecido quando o canal de pagamento correto estiver efetivamente configurado; caso contrário, a ativação é assistida e nenhum botão deve simular uma compra. Condições comerciais específicas acordadas por escrito prevalecem sobre esta descrição geral.'],
+      ['Cancelamento e suporte', `Quando existir gestão automática de subscrição, o produto apresenta o respetivo caminho de gestão. Para ativação assistida, cancelamento, faturação, dados ou suporte, contacte ${SUPPORT_EMAIL}.`],
+    ],
+  },
+}
+
+function PublicLegalBar() {
+  const [legal, setLegal] = useState(null)
+  const content = legal ? LEGAL_CONTENT[legal] : null
+  return <>
+    <View style={styles.publicLegalBar} accessibilityLabel="Privacidade, termos e suporte">
+      <Text style={styles.publicLegalBrand}>ObraSignal</Text>
+      <View style={styles.publicLegalActions}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Privacidade" onPress={() => setLegal('privacy')} style={styles.publicLegalButton}><Text style={styles.publicLegalText}>Privacidade</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Termos de utilização" onPress={() => setLegal('terms')} style={styles.publicLegalButton}><Text style={styles.publicLegalText}>Termos</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Contactar suporte" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Suporte%20ObraSignal`)} style={styles.publicLegalButton}><Text style={styles.publicLegalText}>Suporte</Text></Pressable>
+      </View>
+    </View>
+    <Modal visible={Boolean(content)} transparent={false} animationType="slide" onRequestClose={() => setLegal(null)}>
+      <View style={styles.legalModal}>
+        <View style={styles.legalHeader}><View style={styles.legalHeaderCopy}><Text style={styles.legalTitle}>{content?.title}</Text><Text style={styles.legalUpdated}>{content?.updated}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Fechar informação legal" onPress={() => setLegal(null)} style={styles.legalClose}><Text style={styles.legalCloseText}>Fechar</Text></Pressable></View>
+        <ScrollView contentContainerStyle={styles.legalContent}>
+          {content?.sections.map(([title, body]) => <View key={title} style={styles.legalSection}><Text style={styles.legalHeading}>{title}</Text><Text style={styles.legalBody}>{body}</Text></View>)}
+          <Pressable accessibilityRole="button" accessibilityLabel="Contactar ObraSignal" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)} style={styles.legalContact}><Text style={styles.legalContactText}>{SUPPORT_EMAIL}</Text></Pressable>
+        </ScrollView>
+      </View>
+    </Modal>
+  </>
+}
 
 function WebTranslator() {
   const [enabled, setEnabled] = useState(false)
@@ -157,7 +209,10 @@ export default function AuthGate({ children }) {
   if (tenantStatus === 'error') {
     return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
   }
-  if (authState.status !== 'signed-in') return <AuthScreen />
+  if (authState.status !== 'signed-in') {
+    if (Platform.OS !== 'web') return <AuthScreen />
+    return <View style={styles.publicShell}><View style={styles.publicContent}><AuthScreen /></View><PublicLegalBar /></View>
+  }
 
   if (passwordRecovery) {
     return <PasswordRecovery
@@ -181,6 +236,12 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: '#07111C' },
   brand: { fontSize: 25, fontWeight: '800', letterSpacing: -0.8, color: '#F4F7FB' }, blue: { color: '#7FA2FF' },
   message: { color: '#9BAABD', fontSize: 12 }, error: { color: '#FF8998', fontSize: 12, textAlign: 'center', paddingHorizontal: 24 },
+  publicShell: { flex: 1, minHeight: 0, backgroundColor: '#07111C' }, publicContent: { flex: 1, minHeight: 0 },
+  publicLegalBar: { minHeight: 42, paddingHorizontal: 18, paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#182A3E', backgroundColor: '#08131F', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  publicLegalBrand: { color: '#7489A5', fontSize: 10, fontWeight: '900', letterSpacing: 0.4 }, publicLegalActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  publicLegalButton: { minHeight: 28, justifyContent: 'center', paddingHorizontal: 9, borderRadius: 999, borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B' }, publicLegalText: { color: '#B8C6D7', fontSize: 9, fontWeight: '800' },
+  legalModal: { flex: 1, backgroundColor: '#07111C' }, legalHeader: { paddingHorizontal: 20, paddingVertical: 17, borderBottomWidth: 1, borderBottomColor: '#22364F', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14 }, legalHeaderCopy: { flex: 1 }, legalTitle: { color: '#F4F7FB', fontSize: 25, fontWeight: '900' }, legalUpdated: { color: '#7C91AC', fontSize: 10, marginTop: 4 }, legalClose: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 9, borderWidth: 1, borderColor: '#314763' }, legalCloseText: { color: '#C7D2E1', fontSize: 10, fontWeight: '800' },
+  legalContent: { width: '100%', maxWidth: 860, alignSelf: 'center', padding: 22, paddingBottom: 60, gap: 14 }, legalSection: { padding: 17, borderRadius: 13, borderWidth: 1, borderColor: '#1F314B', backgroundColor: '#0D1A29' }, legalHeading: { color: '#F4F7FB', fontSize: 14, fontWeight: '900' }, legalBody: { color: '#B6C4D5', fontSize: 12, lineHeight: 19, marginTop: 7 }, legalContact: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 9, backgroundColor: '#15294C' }, legalContactText: { color: '#ABC0FF', fontSize: 11, fontWeight: '900' },
   webShell: { flex: 1, minHeight: 0, backgroundColor: '#07111C' }, webContent: { flex: 1, minHeight: 0 },
   sessionBar: { minHeight: 44, paddingHorizontal: 18, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#182A3E', backgroundColor: '#091522', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   dateTime: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
