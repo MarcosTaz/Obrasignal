@@ -5,13 +5,15 @@ from urllib.parse import urlsplit, urlunsplit
 from flask import jsonify, request
 
 from api import APP, bp as MOBILE_API_BP
+from account_privacy import bp as ACCOUNT_PRIVACY_BP, DELETION_LOCKED_STATUSES
 from auth_context import configured_identity, InvalidTokenError
 from auth_context_jwt import authentication_health
 
-# api.py owns the mobile API blueprint; register it here because this is the
-# production WSGI entrypoint and keeps registration explicit at the boundary.
+# Register customer-facing authenticated API owners explicitly at the WSGI boundary.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
+if "account_privacy" not in APP.blueprints:
+    APP.register_blueprint(ACCOUNT_PRIVACY_BP)
 
 
 def _origin():
@@ -54,6 +56,41 @@ def _decorate_health(response):
 def _global_api_preflight():
     if request.path.startswith("/api/v1/") and request.method == "OPTIONS":
         return _cors(APP.response_class("", status=204, mimetype="text/plain"))
+    return None
+
+
+@APP.before_request
+def _lock_private_shell_during_account_deletion():
+    """Prevent deleted/deleting accounts from resurrecting product-private data.
+
+    Account privacy endpoints remain reachable so the customer can inspect the
+    lifecycle. Health and billing webhooks are not customer-private reads.
+    """
+    if not request.path.startswith("/api/v1/"):
+        return None
+    if request.path.startswith("/api/v1/account/") or request.path in {"/api/v1/health", "/api/v1/billing/webhook"}:
+        return None
+    try:
+        identity = configured_identity()
+    except (RuntimeError, InvalidTokenError):
+        return None
+    from app import db
+    conn = db()
+    try:
+        exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='accounts'").fetchone()
+        if not exists:
+            return None
+        row = conn.execute("SELECT status FROM accounts WHERE account_id=?", (str(identity.account_id),)).fetchone()
+        status = str(row[0]) if row else None
+    finally:
+        conn.close()
+    if status in DELETION_LOCKED_STATUSES:
+        response = jsonify({
+            "error": "account_private_data_locked",
+            "message": "Os dados privados desta conta estão bloqueados pelo ciclo de eliminação.",
+            "status": status,
+        })
+        return _cors(response), 423
     return None
 
 
