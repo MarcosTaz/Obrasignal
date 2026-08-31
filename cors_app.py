@@ -18,20 +18,61 @@ if "account_privacy" not in APP.blueprints:
 if "traffic_analytics" not in APP.blueprints:
     APP.register_blueprint(TRAFFIC_ANALYTICS_BP)
 
+OFFICIAL_WEB_ORIGIN = "https://obrasignal.com"
+LEGACY_WEB_ORIGIN = "https://marcostaz.github.io"
 
-def _origin():
-    value = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://obrasignal.com").strip()
-    if value == "*":
-        return value
+
+def _normalized_origin(value):
+    value = (value or "").strip()
+    if not value or value == "*":
+        return value or None
     parsed = urlsplit(value)
     if not parsed.scheme or not parsed.netloc:
         return None
     return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
 
 
+def _allowed_origins():
+    """Return the bounded browser origin allowlist.
+
+    The official customer domain is hard-required in provider mode so a stale
+    provider environment variable cannot silently prevent the new canonical
+    site from using the API. The configured origin remains accepted during the
+    cut-over so the existing Pages infrastructure can continue serving until
+    public DNS for obrasignal.com is live.
+    """
+    mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
+    configured = _normalized_origin(os.getenv("OBRASIGNAL_CORS_ORIGIN"))
+    if mode == "development" and configured == "*":
+        return {"*"}
+    allowed = {OFFICIAL_WEB_ORIGIN}
+    if configured and configured != "*":
+        allowed.add(configured)
+    # The legacy origin is infrastructure-only and may be removed once the
+    # official domain is publicly resolving and the customer E2E is green.
+    if mode == "provider":
+        allowed.add(LEGACY_WEB_ORIGIN)
+    return allowed
+
+
+def _response_origin():
+    request_origin = _normalized_origin(request.headers.get("Origin"))
+    allowed = _allowed_origins()
+    if "*" in allowed:
+        return "*"
+    if request_origin in allowed:
+        return request_origin
+    # Non-browser calls do not carry Origin; no ACAO is required for them.
+    return None
+
+
 def _official_web_url():
-    value = (os.getenv("OBRASIGNAL_WEB_ORIGIN") or "https://obrasignal.com").strip().rstrip("/")
-    return value or "https://obrasignal.com"
+    # Provider environment may still contain the old Pages URL. Customer truth
+    # is explicit and cannot be downgraded by stale infrastructure config.
+    if (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower() == "provider":
+        return OFFICIAL_WEB_ORIGIN
+    value = _normalized_origin(os.getenv("OBRASIGNAL_WEB_ORIGIN"))
+    return value or OFFICIAL_WEB_ORIGIN
 
 
 def _canonical_root_redirect():
@@ -46,7 +87,7 @@ APP.before_request_funcs.setdefault(None, []).insert(0, _canonical_root_redirect
 
 
 def _cors(response):
-    origin = _origin()
+    origin = _response_origin()
     if origin:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
