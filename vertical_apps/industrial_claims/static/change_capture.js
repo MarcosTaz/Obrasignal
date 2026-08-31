@@ -5,6 +5,9 @@ const form = document.getElementById("change-summary-form");
 const countdown = document.getElementById("capture-countdown");
 const stateNode = document.getElementById("capture-state");
 const resultNode = document.getElementById("capture-result");
+const trustNode = document.getElementById("capture-time-trust");
+const digestNode = document.getElementById("capture-sheet-digest");
+const downloadNode = document.getElementById("change-sheet-download");
 const closesAt = shell ? new Date(shell.dataset.closesAt) : null;
 const findingId = shell ? String(shell.dataset.findingId || "") : "";
 
@@ -41,6 +44,35 @@ function renderRemaining() {
   }
 }
 
+function renderTrust(trust) {
+  if (!trust || typeof trust !== "object") return;
+  if (digestNode && trust.current_snapshot_sha256) digestNode.textContent = trust.current_snapshot_sha256;
+  if (!trustNode) return;
+  if (trust.current_snapshot_externally_timestamped === true) {
+    const current = trust.current_timestamp || {};
+    const provider = current.provider ? ` by ${current.provider}` : "";
+    const issued = current.issued_at ? ` at ${current.issued_at}` : "";
+    trustNode.className = "trust-verified";
+    trustNode.textContent = `Independent timestamp: VERIFIED${provider}${issued} for this exact snapshot.`;
+    return;
+  }
+  trustNode.className = "trust-pending";
+  trustNode.textContent = trust.stale_attestation_exists_for_older_snapshot
+    ? "Independent qualified timestamp: NOT VERIFIED for this current snapshot. An older version has time evidence, but it does not transfer after the digest changed."
+    : "Independent qualified timestamp: NOT VERIFIED for this exact snapshot. CausLedger does not label internal server time as qualified evidence.";
+}
+
+async function refreshTrust() {
+  if (!findingId) return;
+  try {
+    const response = await fetch(`/findings/${encodeURIComponent(findingId)}/change-sheet/trust`, {method: "GET"});
+    const body = await response.json();
+    if (response.ok) renderTrust(body);
+  } catch (_error) {
+    // Trust state remains visibly unverified if a refresh cannot be completed.
+  }
+}
+
 async function postFact(factType, factText, sourceRef) {
   const response = await fetch(`/findings/${encodeURIComponent(findingId)}/change-facts`, {
     method: "POST",
@@ -54,6 +86,7 @@ async function postFact(factType, factText, sourceRef) {
   });
   const body = await response.json();
   if (!response.ok) throw new Error(body.message || body.error || "Factual record could not be saved.");
+  if (body.capture && body.capture.snapshot_time_trust) renderTrust(body.capture.snapshot_time_trust);
   return body;
 }
 
@@ -73,7 +106,8 @@ if (form) {
       let latest = summary;
       if (requestedAt) latest = await postFact("CHANGE_REQUESTED_AT", requestedAt, sourceRef);
       const recordedAt = latest.fact_receipt ? latest.fact_receipt.recorded_at : "recorded";
-      resultNode.textContent = `Saved at ${recordedAt}. Download the change sheet now and keep it with the project record.`;
+      resultNode.textContent = `Saved at ${recordedAt}. The sheet digest has been refreshed. Download this version and keep it with the project record.`;
+      await refreshTrust();
     } catch (error) {
       resultNode.className = "result error";
       resultNode.textContent = error.message;
@@ -84,5 +118,17 @@ if (form) {
   });
 }
 
+if (downloadNode) {
+  downloadNode.addEventListener("click", () => {
+    if (trustNode) {
+      trustNode.className = "trust-pending";
+      trustNode.textContent = "Requesting external timestamp status for the downloaded snapshot…";
+    }
+    window.setTimeout(refreshTrust, 1200);
+    window.setTimeout(refreshTrust, 3000);
+  });
+}
+
 renderRemaining();
+refreshTrust();
 setInterval(renderRemaining, 1000);
