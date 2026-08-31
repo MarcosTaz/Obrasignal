@@ -1,0 +1,45 @@
+name: ObraSignal strict active45 combine
+
+on:
+  push:
+    branches: [ops/prospect-universe-50k]
+    paths:
+      - '.github/workflows/prospect-active45-v2-combine.yml'
+  workflow_dispatch:
+
+jobs:
+  combine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: MarcosTaz/Obrasignal
+          run-id: 33349939777
+          pattern: active45-*
+          path: combined
+          merge-multiple: true
+      - name: Combine strict candidates
+        run: |
+          python - <<'PY'
+          import csv,json,glob
+          from pathlib import Path
+          files=glob.glob('combined/obrasignal_candidates_*.csv')
+          rows=[]
+          for p in files:
+            with open(p,encoding='utf-8') as f: rows.extend(csv.DictReader(f))
+          rows.sort(key=lambda r:(float(r.get('fit_score') or 0),int(float(r.get('award_count') or 0)),float(r.get('total_awarded') or 0)),reverse=True)
+          out=Path('strict_combined');out.mkdir(exist_ok=True)
+          fields=['rank','company_name','country','company_id','id_scheme','city','fit_score','award_count','buyer_count','total_awarded','last_award_year','category','website','source','source_url']
+          with (out/'obrasignal_active45_non_europe_strict.csv').open('w',encoding='utf-8',newline='') as f:
+            w=csv.DictWriter(f,fieldnames=fields);w.writeheader()
+            for i,r in enumerate(rows,1):r['rank']=i;w.writerow({k:r.get(k,'') for k in fields})
+          summary={'selected':len(rows),'countries':{c:sum(1 for r in rows if r['country']==c) for c in sorted({r['country'] for r in rows})},'artifacts':len(files),'note':'Canada strict source returned no rows in v2; canonical finalizer applies a sector-name fallback from the prior Canada award extraction.'}
+          (out/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
+          print(json.dumps(summary,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrasignal-active45-non-europe-strict-combined
+          path: strict_combined/*
+          retention-days: 30
