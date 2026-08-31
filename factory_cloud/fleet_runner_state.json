@@ -6,40 +6,33 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 8,
-  "last_factory_id": "product-market-access",
-  "last_run_at": "2026-08-31T01:41:15Z",
+  "cursor": 10,
+  "last_factory_id": "aviation-lease-entitlement-recovery",
+  "last_run_at": "2026-08-31T02:39:00Z",
   "last_material_change": {
-    "kind": "CAUSLEDGER_SECURE_INTAKE_STAGING_AND_PRIVACY_CLEANUP_EXACT_HEAD_GREEN",
-    "summary": "Recovery Radar and Sourcing Recovery exact repository identity searches remained UNKNOWN and were rotated without conflation. Product Market Access exact branch/code/PR/context identity also remained UNKNOWN. CausLedger private Drive gained an unshared Secure Intake Staging folder for future bounded customer samples after an authorized transfer path is agreed. Gmail watch found no new material prospect, CEFAMOL, AFIA or DGC inbound; Portugal and Spain outbound holds remain active. ObraSignal privacy #845 was cleaned by deleting obsolete mobile/AppBase.js after restoring canonical App.js. Exact head b3f162f35c513f15b77c6fcc8ceff6835d5ace08 completed ObraSignal Quality run 33348287239 SUCCESS; PR remains DRAFT / NOT CANONICAL / NOT MERGED.",
+    "kind": "ROTATION_VERIFICATION_NO_NEW_EXTERNAL_PROOF",
+    "summary": "EU Cloud Switching PR #802 remains OPEN/DRAFT at exact head 020efc82e0b2a6509548fa7ef38f1593ca457afa with all observed check-runs SUCCESS; fresh TED/public-trigger search did not yield a sufficiently recent unambiguous additional challengeable switching event, so the conservative 15-event sample was not inflated. Aviation PR #787 remains OPEN/DRAFT at exact head a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32 with Python and Mobile checks SUCCESS; entitlement/recovery/WTP remain unproven. Gmail watch found no new material prospect, CEFAMOL, AFIA or DGC inbound, so Portugal and Spain outbound holds remain active. Fleet rotated to Capacity Commitment.",
     "evidence": {
-      "recovery_radar": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "exact_code_search_results": 0,
-        "recovery_branch_search": "no canonical Recovery Radar identity",
-        "next_exact_action": "Retry canonical identity reconstruction only when new repository/context evidence exists; otherwise rotate."
+      "eu_cloud_switching": {
+        "pr": 802,
+        "head": "020efc82e0b2a6509548fa7ef38f1593ca457afa",
+        "pr_state": "OPEN_DRAFT_NOT_CANONICAL_NOT_MERGED",
+        "check_runs_observed": 3,
+        "check_runs_success": 3,
+        "sample": {"distinct_events": 15, "challengeable": 6, "excluded": 9},
+        "fresh_public_search": "NO_ADDITIONAL_UNAMBIGUOUS_RECENT_CHALLENGEABLE_EVENT_ADMITTED",
+        "classification": "EXACT_HEAD_GREEN_PUBLIC_TRIGGER_CHANNEL_ALIVE_NOT_PROVEN_SUFFICIENT_NO_WTP_PROOF",
+        "next_exact_action": "Continue conservative T1/T2 trigger falsification; admit a new event only with exact source, timing and challengeability evidence."
       },
-      "sourcing_recovery": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "exact_code_search_results": 0,
-        "branch_search_results": 0,
-        "next_exact_action": "Retry canonical identity reconstruction only when new repository/context evidence exists; otherwise rotate."
-      },
-      "product_market_access": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "exact_code_search_results": 0,
-        "branch_search_results": 0,
-        "exact_pr_search_results": 0,
-        "connected_context_exact_identity": "NOT_FOUND",
-        "next_exact_action": "Preserve prior public-market thesis evidence as non-canonical research only; do not write source-specific code until canonical authority is recovered."
-      },
-      "causledger_private_ops": {
-        "parent_folder_id": "1QAA9uP0SsCFHiCWUl_Fe_WzOLtYsTfVo",
-        "secure_intake_staging_folder_id": "1nvr_AZwLOcdj6e4eM1VbF0JuCgtJC90g",
-        "secure_intake_staging_shared": false,
-        "ordinary_email_confidential_document_intake": false,
-        "public_github_customer_document_storage": false,
-        "classification": "PRIVATE_SECURE_INTAKE_STAGING_READY_NOT_CUSTOMER_TRANSFER_ENABLED"
+      "aviation": {
+        "pr": 787,
+        "head": "a5d6fbf64df42fd8ce2edb3af760ff35a3ff4a32",
+        "pr_state": "OPEN_DRAFT_NOT_CANONICAL_NOT_MERGED",
+        "quality_run": 33307110367,
+        "python_job": "SUCCESS",
+        "mobile_job": "SUCCESS",
+        "classification": "EXACT_HEAD_GREEN_SYNTHETIC_ONLY_ENTITLEMENT_RECOVERY_WTP_UNPROVEN",
+        "next_exact_action": "Preserve assisted pilot admission boundary; do not infer entitlement or recovery without real permissioned evidence."
       },
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -50,23 +43,13 @@
       "obrasignal_privacy": {
         "pr": 845,
         "head": "b3f162f35c513f15b77c6fcc8ceff6835d5ace08",
-        "modified_files_this_step": ["mobile/AppBase.js DELETE"],
-        "reason": "remove obsolete duplicate application composition after App.js was restored canonical in-place",
         "quality_run": 33348287239,
         "quality_status": "COMPLETED_SUCCESS",
-        "python_job": "SUCCESS",
-        "mobile_job": "SUCCESS",
-        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NOT_MERGED",
-        "next_exact_action": "Keep PR draft/unmerged; continue next real account/privacy customer milestone without production mutation."
-      },
-      "eu_cloud_switching": {
-        "head": "020efc82e0b2a6509548fa7ef38f1593ca457afa",
-        "sample": {"distinct_events": 15, "challengeable": 6, "excluded": 9},
-        "classification": "PUBLIC_TRIGGER_CHANNEL_ALIVE_NOT_PROVEN_SUFFICIENT_NO_WTP_PROOF"
+        "classification": "EXACT_HEAD_GREEN_DRAFT_NOT_CANONICAL_NOT_MERGED"
       }
     },
-    "active": "EU Cloud Switching: continue conservative T1/T2 public-trigger falsification or exact-head verification; do not infer WTP or migration outcome.",
-    "next": "EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access.",
+    "active": "Capacity Commitment: reconstruct exact current PR/head/test truth and execute the highest-value safe successor milestone.",
+    "next": "Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
