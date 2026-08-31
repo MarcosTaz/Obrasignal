@@ -1,16 +1,14 @@
 """Private, privacy-minimized traffic telemetry for obrasignal.com.
 
-The collector intentionally has no customer-facing reporting route. It stores no
-raw client IP and uses a server-side, persistent random HMAC key to derive a
-rotating daily visitor identifier. Geography is limited to coarse edge-provided
-headers when present plus browser timezone/language supplied by the Web client.
+No analytics report is exposed to customers or the public Web application. The
+collector never persists a raw IP address. It derives short-lived HMAC visitor
+identifiers from network/address signals in memory, then discards those signals.
 """
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
-import json
 import os
 import re
 import secrets
@@ -23,6 +21,7 @@ from app import db
 bp = Blueprint("traffic_analytics", __name__, url_prefix="/api/v1/analytics")
 
 OFFICIAL_ORIGIN = "https://obrasignal.com"
+LEGACY_ORIGIN = "https://marcostaz.github.io"
 ALLOWED_EVENTS = {
     "page_view",
     "authenticated_session",
@@ -54,6 +53,7 @@ def ensure_traffic_schema(conn):
             minute_bucket TEXT NOT NULL,
             event_name TEXT NOT NULL,
             visitor_day_hash TEXT NOT NULL,
+            visitor_period_hash TEXT,
             path TEXT NOT NULL,
             referrer_host TEXT,
             utm_source TEXT,
@@ -69,9 +69,13 @@ def ensure_traffic_schema(conn):
             UNIQUE(visitor_day_hash, event_name, path, minute_bucket)
         )"""
     )
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(traffic_events)").fetchall()}
+    if "visitor_period_hash" not in cols:
+        conn.execute("ALTER TABLE traffic_events ADD COLUMN visitor_period_hash TEXT")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_traffic_events_day ON traffic_events(day)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_traffic_events_campaign ON traffic_events(utm_source, utm_campaign)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_traffic_events_geo ON traffic_events(country, region, city)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_traffic_events_period ON traffic_events(visitor_period_hash,day)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_traffic_events_campaign ON traffic_events(utm_source,utm_campaign)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_traffic_events_geo ON traffic_events(country,region,city)")
     conn.commit()
 
 
@@ -117,14 +121,25 @@ def _key(conn):
     return bytes.fromhex(value)
 
 
-def visitor_day_hash(conn, *, ip, user_agent, day):
-    message = f"{day}|{ip}|{(user_agent or '')[:240]}".encode("utf-8", "ignore")
+def _visitor_hash(conn, *, ip, user_agent, bucket):
+    message = f"{bucket}|{ip}|{(user_agent or '')[:240]}".encode("utf-8", "ignore")
     return hmac.new(_key(conn), message, hashlib.sha256).hexdigest()[:32]
 
 
+def visitor_day_hash(conn, *, ip, user_agent, day):
+    return _visitor_hash(conn, ip=ip, user_agent=user_agent, bucket=f"day:{day}")
+
+
+def visitor_period_hash(conn, *, ip, user_agent, day):
+    # Monthly rotation gives useful new/returning estimates without a permanent
+    # cross-month tracking identifier or client-side cookie/localStorage token.
+    period = str(day)[:7]
+    return _visitor_hash(conn, ip=ip, user_agent=user_agent, bucket=f"month:{period}")
+
+
 def _geo_from_headers():
-    # These names cover common edge/CDN conventions. Missing values remain
-    # unknown rather than triggering a third-party IP lookup.
+    # Use only coarse geography already supplied by trusted hosting/CDN edges.
+    # Missing edge geography remains UNKNOWN; no third-party IP lookup is made.
     country = (
         request.headers.get("CF-IPCountry")
         or request.headers.get("X-Vercel-IP-Country")
@@ -136,19 +151,17 @@ def _geo_from_headers():
     return _bounded(country, 8), _bounded(region, 80), _bounded(city, 80)
 
 
-def _official_origin():
-    value = (os.getenv("OBRASIGNAL_WEB_ORIGIN") or OFFICIAL_ORIGIN).strip().rstrip("/")
-    return value or OFFICIAL_ORIGIN
-
-
 def _origin_allowed():
     origin = (request.headers.get("Origin") or "").strip().rstrip("/")
-    # Same-origin/browser requests carry Origin for this cross-origin API call.
-    # Unit tests/development may omit it; provider mode must not.
     mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").lower().strip()
     if not origin:
         return mode == "development"
-    return origin == _official_origin()
+    if mode == "provider":
+        # Official customer traffic is always accepted even if the hosting
+        # environment still carries the legacy CORS variable during cut-over.
+        return origin in {OFFICIAL_ORIGIN, LEGACY_ORIGIN}
+    configured = (os.getenv("OBRASIGNAL_WEB_ORIGIN") or OFFICIAL_ORIGIN).strip().rstrip("/")
+    return origin == (configured or OFFICIAL_ORIGIN)
 
 
 def _is_bot():
@@ -166,19 +179,19 @@ def record_event(payload):
     conn = db()
     try:
         ensure_traffic_schema(conn)
-        visitor = visitor_day_hash(
-            conn,
-            ip=_client_ip(),
-            user_agent=request.headers.get("User-Agent") or "",
-            day=day,
-        )
+        ip = _client_ip()
+        user_agent = request.headers.get("User-Agent") or ""
+        visitor_day = visitor_day_hash(conn, ip=ip, user_agent=user_agent, day=day)
+        visitor_period = visitor_period_hash(conn, ip=ip, user_agent=user_agent, day=day)
+        # Raw IP exists only in the local call frame above and is never written.
         country, region, city = _geo_from_headers()
         values = (
             now.isoformat(),
             day,
             now.strftime("%Y-%m-%dT%H:%M"),
             event_name,
-            visitor,
+            visitor_day,
+            visitor_period,
             _path(payload.get("path")),
             _referrer_host(payload.get("referrer")),
             _bounded(payload.get("utm_source"), 80),
@@ -194,10 +207,10 @@ def record_event(payload):
         )
         conn.execute(
             """INSERT OR IGNORE INTO traffic_events(
-                occurred_at,day,minute_bucket,event_name,visitor_day_hash,path,
+                occurred_at,day,minute_bucket,event_name,visitor_day_hash,visitor_period_hash,path,
                 referrer_host,utm_source,utm_medium,utm_campaign,country,region,
                 city,timezone,language,device,build_id
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             values,
         )
         conn.commit()
@@ -207,48 +220,79 @@ def record_event(payload):
 
 def private_summary(conn, *, days=30):
     ensure_traffic_schema(conn)
-    start = (datetime.now(timezone.utc).date() - timedelta(days=max(1, int(days)) - 1)).isoformat()
+    days = max(1, int(days))
+    start = (datetime.now(timezone.utc).date() - timedelta(days=days - 1)).isoformat()
     totals = conn.execute(
         """SELECT COUNT(*) AS events,
-                  COUNT(DISTINCT CASE WHEN event_name='page_view' THEN visitor_day_hash END) AS unique_visitors,
+                  COUNT(DISTINCT CASE WHEN event_name='page_view' THEN visitor_day_hash END) AS unique_visitor_days,
+                  COUNT(DISTINCT CASE WHEN event_name='page_view' THEN visitor_period_hash END) AS approximate_unique_visitors,
                   SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) AS page_views
            FROM traffic_events WHERE day>=?""",
         (start,),
     ).fetchone()
+    returning = conn.execute(
+        """SELECT COUNT(*) FROM (
+               SELECT visitor_period_hash FROM traffic_events
+               WHERE day>=? AND event_name='page_view' AND visitor_period_hash IS NOT NULL
+               GROUP BY visitor_period_hash HAVING COUNT(DISTINCT day)>1
+           )""",
+        (start,),
+    ).fetchone()[0]
     by_geo = conn.execute(
         """SELECT COALESCE(country,'UNKNOWN') country,
                   COALESCE(region,'') region, COALESCE(city,'') city,
+                  COALESCE(timezone,'') timezone,
                   COUNT(*) page_views,
-                  COUNT(DISTINCT visitor_day_hash) unique_visitors
+                  COUNT(DISTINCT visitor_period_hash) unique_visitors
            FROM traffic_events WHERE day>=? AND event_name='page_view'
-           GROUP BY country,region,city ORDER BY page_views DESC LIMIT 100""",
+           GROUP BY country,region,city,timezone ORDER BY page_views DESC LIMIT 100""",
         (start,),
     ).fetchall()
     campaigns = conn.execute(
         """SELECT COALESCE(utm_source,'direct') source,
+                  COALESCE(utm_medium,'') medium,
                   COALESCE(utm_campaign,'') campaign,
                   COUNT(*) page_views,
-                  COUNT(DISTINCT visitor_day_hash) unique_visitors
+                  COUNT(DISTINCT visitor_period_hash) unique_visitors
            FROM traffic_events WHERE day>=? AND event_name='page_view'
-           GROUP BY utm_source,utm_campaign ORDER BY page_views DESC LIMIT 100""",
+           GROUP BY utm_source,utm_medium,utm_campaign ORDER BY page_views DESC LIMIT 100""",
+        (start,),
+    ).fetchall()
+    referrers = conn.execute(
+        """SELECT COALESCE(referrer_host,'direct') referrer,
+                  COUNT(*) page_views,
+                  COUNT(DISTINCT visitor_period_hash) unique_visitors
+           FROM traffic_events WHERE day>=? AND event_name='page_view'
+           GROUP BY referrer_host ORDER BY page_views DESC LIMIT 100""",
         (start,),
     ).fetchall()
     funnel = conn.execute(
         """SELECT event_name, COUNT(*) events,
-                  COUNT(DISTINCT visitor_day_hash) visitors
+                  COUNT(DISTINCT visitor_period_hash) visitors
            FROM traffic_events WHERE day>=?
            GROUP BY event_name ORDER BY events DESC""",
+        (start,),
+    ).fetchall()
+    daily = conn.execute(
+        """SELECT day,
+                  SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) page_views,
+                  COUNT(DISTINCT CASE WHEN event_name='page_view' THEN visitor_day_hash END) unique_visitors
+           FROM traffic_events WHERE day>=? GROUP BY day ORDER BY day""",
         (start,),
     ).fetchall()
     return {
         "days": days,
         "from": start,
         "events": int(totals[0] or 0),
-        "page_views": int(totals[2] or 0),
-        "unique_visitors": int(totals[1] or 0),
+        "unique_visitor_days": int(totals[1] or 0),
+        "approximate_unique_visitors": int(totals[2] or 0),
+        "page_views": int(totals[3] or 0),
+        "returning_visitors": int(returning or 0),
         "geography": [dict(row) for row in by_geo],
         "campaigns": [dict(row) for row in campaigns],
+        "referrers": [dict(row) for row in referrers],
         "funnel": [dict(row) for row in funnel],
+        "daily": [dict(row) for row in daily],
     }
 
 
