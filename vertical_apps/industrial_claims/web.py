@@ -17,6 +17,8 @@ from factory_cloud.recovery_index import RecoveryIndexError
 from factory_cloud.shared_platform import SharedPlatformError
 from vertical_apps.industrial_claims.amendment import amend_case
 from vertical_apps.industrial_claims.durable_proof import build_durable_claim_proof_pack
+from vertical_apps.industrial_claims.public_verification_store import PublicVerificationStore
+from vertical_apps.industrial_claims.public_verification_web import create_public_verification_blueprint
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
@@ -51,6 +53,7 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     app.config["MAX_CONTENT_LENGTH"] = 3_500_000
     service = IndustrialClaimsService(database)
     read_model = IndustrialClaimsReadModel(database)
+    public_verification_store = PublicVerificationStore(database)
     resolve_identity = identity_resolver or configured_identity
 
     def identity_any(*required_roles: str) -> tuple[str, str, frozenset[str]]:
@@ -142,6 +145,14 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
     @app.errorhandler(RequestEntityTooLarge)
     def request_too_large(_exc):
         return jsonify({"error": "request_too_large", "message": "request body exceeds assisted intake limit"}), 413
+
+    app.register_blueprint(
+        create_public_verification_blueprint(
+            service=service,
+            store=public_verification_store,
+            publication_identity=lambda: identity("operator"),
+        )
+    )
 
     @app.get("/")
     def console():
