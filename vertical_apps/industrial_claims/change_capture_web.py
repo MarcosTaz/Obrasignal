@@ -103,20 +103,21 @@ def create_change_capture_blueprint(
             tenant_id, actor_id = capture_identity()
             status = store.status(tenant_id=tenant_id, finding_id=finding_id)
             sheet, digest = store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
-            download = store.record_download(
+            timestamp = active_trust.attest_current(tenant_id=tenant_id, finding_id=finding_id)
+            export = store.record_download(
                 tenant_id=tenant_id,
                 finding_id=finding_id,
                 actor_id=actor_id,
                 sheet_sha256=digest,
             )
-            timestamp = active_trust.attest_current(tenant_id=tenant_id, finding_id=finding_id)
             response = make_response(sheet)
             response.headers["Content-Type"] = "text/plain; charset=utf-8"
             response.headers["Content-Disposition"] = (
                 f'attachment; filename="CausLedger-change-{status["sheet_id"]}.txt"'
             )
             response.headers["X-CausLedger-Sheet-SHA256"] = digest
-            response.headers["X-CausLedger-Download-Receipt"] = download["download_id"]
+            response.headers["X-CausLedger-Export-Receipt"] = export["download_id"]
+            response.headers["X-CausLedger-Transfer-Completion-Proven"] = "false"
             response.headers["X-CausLedger-Timestamp-State"] = str(timestamp["state"])
             response.headers["X-CausLedger-Timestamp-Provider"] = str(timestamp["provider"])
             response.headers["X-CausLedger-Timestamp-Attestation"] = str(timestamp["attestation_id"])
