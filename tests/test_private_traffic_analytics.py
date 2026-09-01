@@ -2,8 +2,18 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from app import APP
-from traffic_analytics import _origin_allowed, ensure_traffic_schema, private_summary, visitor_day_hash
+import traffic_analytics as analytics
+from traffic_analytics import (
+    _is_transient_sqlite_contention,
+    _origin_allowed,
+    ensure_traffic_schema,
+    private_summary,
+    record_event,
+    visitor_day_hash,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +78,49 @@ def test_private_analytics_accepts_only_configured_customer_origins(monkeypatch)
         assert _origin_allowed() is True
     with APP.test_request_context("/api/v1/analytics/event", headers={"Origin": "https://attacker.example"}):
         assert _origin_allowed() is False
+
+
+def test_contention_classifier_is_narrow():
+    assert _is_transient_sqlite_contention(sqlite3.OperationalError("database is locked")) is True
+    assert _is_transient_sqlite_contention(sqlite3.OperationalError("database schema is locked")) is True
+    assert _is_transient_sqlite_contention(sqlite3.OperationalError("disk I/O error")) is False
+
+
+class _FailingAnalyticsConnection:
+    def __init__(self, message):
+        self.message = message
+        self.rolled_back = False
+        self.closed = False
+
+    def execute(self, statement, *_args, **_kwargs):
+        if str(statement).startswith("PRAGMA busy_timeout="):
+            return self
+        raise sqlite3.OperationalError(self.message)
+
+    def rollback(self):
+        self.rolled_back = True
+
+    def close(self):
+        self.closed = True
+
+
+def test_telemetry_drops_transient_writer_contention_instead_of_raising(monkeypatch):
+    conn = _FailingAnalyticsConnection("database is locked")
+    monkeypatch.setattr(analytics, "db", lambda: conn)
+    with APP.test_request_context("/api/v1/analytics/event", headers={"User-Agent": "Browser A"}):
+        assert record_event({"event": "page_view", "path": "/"}) is False
+    assert conn.rolled_back is True
+    assert conn.closed is True
+
+
+def test_telemetry_does_not_hide_non_contention_database_failures(monkeypatch):
+    conn = _FailingAnalyticsConnection("disk I/O error")
+    monkeypatch.setattr(analytics, "db", lambda: conn)
+    with APP.test_request_context("/api/v1/analytics/event", headers={"User-Agent": "Browser A"}):
+        with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
+            record_event({"event": "page_view", "path": "/"})
+    assert conn.rolled_back is True
+    assert conn.closed is True
 
 
 def test_customer_domain_is_canonical_in_production_configuration():
