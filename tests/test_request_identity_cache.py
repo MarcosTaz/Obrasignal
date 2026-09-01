@@ -21,6 +21,30 @@ def test_provider_mode_reuses_only_explicit_request_cached_identity(monkeypatch)
         assert auth_context.configured_identity() is expected
 
 
+def test_provider_mode_validates_bearer_once_within_same_request(monkeypatch):
+    app = Flask(__name__)
+    monkeypatch.setenv('OBRASIGNAL_AUTH_MODE', 'provider')
+    calls = []
+
+    class Verifier:
+        def verify(self, token):
+            calls.append(token)
+            return type('Identity', (), {
+                'account_id': 'tenant-once',
+                'subject': 'tenant-once',
+                'claims': {'sub': 'tenant-once'},
+            })()
+
+    verifier = Verifier()
+    monkeypatch.setattr(auth_context, 'production_verifier', lambda: verifier)
+    with app.test_request_context('/api/v1/stats', headers={'Authorization':'Bearer verified-token'}):
+        first = auth_context.configured_identity()
+        second = auth_context.configured_identity()
+        assert first is second
+        assert first.account_id == 'tenant-once'
+        assert calls == ['verified-token']
+
+
 def test_provider_mode_does_not_trust_arbitrary_non_identity_cache(monkeypatch):
     app = Flask(__name__)
     monkeypatch.setenv('OBRASIGNAL_AUTH_MODE', 'provider')
