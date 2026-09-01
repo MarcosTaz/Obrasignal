@@ -1,0 +1,93 @@
+name: ObraSignal Account Privacy Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "11 4 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: account-privacy-production
+  cancel-in-progress: true
+
+env:
+  SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+  E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+  API_URL: https://obrasignal.onrender.com/api/v1
+  WEB_ORIGIN: https://marcostaz.github.io
+
+jobs:
+  privacy-read-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for exact backend build
+        env:
+          TARGET_BUILD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --show-error --max-time 10 "$API_URL/health" > /tmp/health.json \
+              && TARGET_BUILD="$TARGET_BUILD" python - <<'PY'
+          import json, os
+          health=json.load(open('/tmp/health.json',encoding='utf-8'))
+          assert health.get('ok') is True
+          assert health.get('build') == os.environ['TARGET_BUILD']
+          PY
+            then exit 0; fi
+            test "$attempt" != 24 || { echo "Production never served exact target build."; exit 1; }
+            sleep 10
+          done
+
+      - name: Authenticate real production identity
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_URL SUPABASE_KEY E2E_EMAIL E2E_PASSWORD; do
+            test -n "${!name}" || { echo "Missing required E2E secret: $name"; exit 1; }
+          done
+          BASE_URL="${SUPABASE_URL%/}"; BASE_URL="${BASE_URL%/rest/v1}"
+          python - <<'PY' >/tmp/auth-body.json
+          import json, os
+          print(json.dumps({'email':os.environ['E2E_EMAIL'],'password':os.environ['E2E_PASSWORD']}))
+          PY
+          curl --fail --silent --show-error --max-time 30 \
+            -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/auth-body.json >/tmp/auth.json
+          python - <<'PY'
+          import json
+          token=json.load(open('/tmp/auth.json',encoding='utf-8')).get('access_token')
+          assert token
+          open('/tmp/access_token','w',encoding='utf-8').write(token)
+          PY
+
+      - name: Verify browser CORS and deletion-state read
+        run: |
+          set -euo pipefail
+          AUTH="Authorization: Bearer $(cat /tmp/access_token)"
+          preflight="$(curl --silent --show-error --max-time 20 --output /tmp/preflight.out --write-out '%{http_code}' \
+            -X OPTIONS "$API_URL/account/deletion" \
+            -H "Origin: $WEB_ORIGIN" \
+            -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: authorization')"
+          test "$preflight" = "204"
+
+          status="$(curl --silent --show-error --max-time 20 --output /tmp/privacy.json --write-out '%{http_code}' \
+            "$API_URL/account/deletion" -H "$AUTH" -H "Origin: $WEB_ORIGIN" -H 'Accept: application/json')"
+          test "$status" = "200" || { echo "privacy_status=$status"; cat /tmp/privacy.json; exit 1; }
+          python - <<'PY'
+          import json
+          p=json.load(open('/tmp/privacy.json',encoding='utf-8'))
+          assert p.get('state') in {'NONE','PENDING','FAILED','UNKNOWN','NOT_FOUND'}
+          assert 'product_private_db_deleted' in p
+          assert 'external_revocation' in p
+          PY
+          echo "Authenticated account privacy production contract PASS."
