@@ -9,6 +9,8 @@ from vertical_apps.industrial_claims.worm_lock_provider import WormObjectHead, W
 
 
 NOW = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+ORIGINAL = b"confidential original customer document"
+EVIDENCE_ID = "tenant-a:case:x:commercial-basis"
 
 
 class Backend:
@@ -65,8 +67,8 @@ def _store(backend):
 def _put(store):
     return store.put_immutable(
         tenant_id="tenant-a",
-        evidence_id="tenant-a:case:x:commercial-basis",
-        content=b"confidential original customer document",
+        evidence_id=EVIDENCE_ID,
+        content=ORIGINAL,
         content_type="application/pdf",
         retention_until=(NOW + timedelta(days=366)).isoformat(),
         legal_hold=False,
@@ -124,3 +126,50 @@ def test_original_store_detects_provider_metadata_binding_substitution():
     backend = Backend(metadata_override={"causledger_content_sha256": "0" * 64})
     with pytest.raises(OriginalWormStoreError, match="metadata binding mismatch"):
         _put(_store(backend))
+
+
+def test_original_store_can_retrieve_the_exact_committed_version_for_offline_export():
+    backend = Backend()
+    store = _store(backend)
+    receipt = _put(store)
+    payload = store.read_immutable_version(
+        tenant_id="tenant-a",
+        evidence_id=EVIDENCE_ID,
+        object_ref=receipt.object_ref,
+        version_ref=receipt.version_ref,
+    )
+    assert payload == ORIGINAL
+
+
+def test_original_store_refuses_cross_tenant_or_cross_evidence_object_retrieval():
+    backend = Backend()
+    store = _store(backend)
+    receipt = _put(store)
+    with pytest.raises(OriginalWormStoreError, match="does not belong"):
+        store.read_immutable_version(
+            tenant_id="tenant-b",
+            evidence_id=EVIDENCE_ID,
+            object_ref=receipt.object_ref,
+            version_ref=receipt.version_ref,
+        )
+    with pytest.raises(OriginalWormStoreError, match="does not belong"):
+        store.read_immutable_version(
+            tenant_id="tenant-a",
+            evidence_id="other-evidence",
+            object_ref=receipt.object_ref,
+            version_ref=receipt.version_ref,
+        )
+
+
+def test_original_store_rehashes_bytes_again_on_later_exact_version_retrieval():
+    backend = Backend()
+    store = _store(backend)
+    receipt = _put(store)
+    backend.readback_override = b"tampered after capture"
+    with pytest.raises(OriginalWormStoreError, match="OBJECT_KEY_DIGEST_MISMATCH"):
+        store.read_immutable_version(
+            tenant_id="tenant-a",
+            evidence_id=EVIDENCE_ID,
+            object_ref=receipt.object_ref,
+            version_ref=receipt.version_ref,
+        )
