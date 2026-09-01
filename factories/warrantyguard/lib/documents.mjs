@@ -1,6 +1,7 @@
 import {sha256,requiredText,parseIsoDate,parseIsoTimestamp} from './utils.mjs';
 
 const TEXT_MIME=new Set(['text/plain','text/markdown','text/csv','application/json']);
+const DOCX_MIME='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const KEYWORDS={
   WARRANTY:/\b(warrant(?:y|ies)|guarantee(?:s|d)?)\b/i,
   EXCLUSION:/\b(exclud(?:e|ed|es|ing)|exclusion|not covered|does not cover)\b/i,
@@ -11,6 +12,14 @@ const KEYWORDS={
   COST:/\b(costs?|charges?|debits?|credits?|reimburs(?:e|ed|es|ing|able|ement)|expenses?|amounts?)\b/i,
   PARTY:/\b(supplier|customer|buyer|seller|oem|manufacturer|party|parties)\b/i
 };
+
+function reviewedBinaryText(input,{kind,mode}){
+  if(!input.sourceHash)throw new Error(`${kind}_SOURCE_HASH_REQUIRED`);
+  const text=requiredText(input.reviewedExtractedText,'reviewedExtractedText');
+  requiredText(input.reviewer,'reviewer');
+  parseIsoTimestamp(input.reviewedAt);
+  return {text,sourceHash:input.sourceHash,mode};
+}
 
 export function ingestDocument(input){
   if(!input||typeof input!=='object')throw new Error('MISSING_DOCUMENT');
@@ -23,8 +32,9 @@ export function ingestDocument(input){
   if(TEXT_MIME.has(mimeType)){
     text=requiredText(input.sourceText,'sourceText');sourceHash=sourceHash||sha256(text);mode='NATIVE_TEXT';
   }else if(mimeType==='application/pdf'){
-    if(!sourceHash)throw new Error('PDF_SOURCE_HASH_REQUIRED');
-    text=requiredText(input.reviewedExtractedText,'reviewedExtractedText');requiredText(input.reviewer,'reviewer');parseIsoTimestamp(input.reviewedAt);mode='HUMAN_REVIEWED_PDF_TEXT';
+    ({text,sourceHash,mode}=reviewedBinaryText(input,{kind:'PDF',mode:'HUMAN_REVIEWED_PDF_TEXT'}));
+  }else if(mimeType===DOCX_MIME){
+    ({text,sourceHash,mode}=reviewedBinaryText(input,{kind:'DOCX',mode:'HUMAN_REVIEWED_DOCX_TEXT'}));
   }else throw new Error('UNSUPPORTED_DOCUMENT_TYPE');
   return Object.freeze({tenantId,id,fileName,mimeType,receivedAt,sourceHash,textHash:sha256(text),text,mode,reviewer:input.reviewer||null,reviewedAt:input.reviewedAt||null,status:'INGESTED'});
 }
