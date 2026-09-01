@@ -40,19 +40,32 @@ def _iso(value: datetime) -> str:
 
 def _payload(value: Mapping[str, Any] | None) -> tuple[dict[str, Any], str]:
     normalized = dict(value or {})
+    allowed = {
+        "evidence_count",
+        "bundle_sha256",
+        "independent_verification_valid",
+        "contains_documentary_bytes",
+        "failure_class",
+    }
+    if not set(normalized).issubset(allowed):
+        raise OfflineExportAuditError("offline export audit payload contains unsupported metadata")
+    if normalized.get("contains_documentary_bytes") is not False:
+        raise OfflineExportAuditError("offline export audit payload must declare documentary bytes absent")
+    if "evidence_count" in normalized:
+        count = normalized["evidence_count"]
+        if not isinstance(count, int) or count < 1:
+            raise OfflineExportAuditError("offline export audit evidence count is invalid")
+    if "bundle_sha256" in normalized:
+        normalized["bundle_sha256"] = _digest(normalized["bundle_sha256"], label="bundle SHA-256")
+    if "independent_verification_valid" in normalized and normalized["independent_verification_valid"] is not True:
+        raise OfflineExportAuditError("offline export audit verification truth is invalid")
+    if "failure_class" in normalized:
+        normalized["failure_class"] = _required(
+            normalized["failure_class"], label="failure class", maximum=256
+        )
     encoded = canonical_json_bytes(normalized)
     if len(encoded) > 16_384:
         raise OfflineExportAuditError("offline export audit payload is too large")
-    forbidden = {
-        "content",
-        "content_base64",
-        "raw_content",
-        "original_bytes",
-        "document",
-        "documents",
-    }
-    if any(str(key).strip().lower() in forbidden for key in normalized):
-        raise OfflineExportAuditError("offline export audit payload cannot contain documentary content")
     return normalized, encoded.decode("utf-8")
 
 
@@ -60,8 +73,9 @@ class OfflineExportAuditStore:
     """Append-only hash-chained ledger for confidential bundle release attempts.
 
     The ledger records metadata only. Documentary bytes and base64 payloads are
-    explicitly forbidden. STARTED is appended immediately before immutable-store
-    reads; COMPLETED is appended only after independent bundle verification passes.
+    structurally excluded by a closed payload vocabulary. STARTED is appended
+    immediately before immutable-store reads; COMPLETED is appended only after
+    independent bundle verification passes.
     """
 
     def __init__(self, database: str | Path, *, clock: Callable[[], datetime] = _now) -> None:
