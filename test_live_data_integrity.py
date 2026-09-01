@@ -77,5 +77,5 @@ def test_render_uses_one_persistent_sqlite_store_with_spare_http_worker():
     assert '--workers 2' in manifest
     assert 'if acquire_runtime_leader():' in entrypoint
     leader_block = entrypoint.split('if acquire_runtime_leader():', 1)[1]
-    assert 'start_background_worker()' in leader_block
+    assert 'start_source_worker_after_readiness(start_background_worker)' in leader_block
     assert 'start_push_scheduler()' in leader_block
