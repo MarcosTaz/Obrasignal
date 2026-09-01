@@ -15,6 +15,7 @@ SCHEMA = '''CREATE TABLE IF NOT EXISTS opportunity_decisions (
 )'''
 
 RULE_VERSION = 'commercial-v1'
+DECISION_ACCOUNT_INDEX = 'idx_opportunity_decisions_account_opportunity'
 
 
 def _ensure_account_column(conn):
@@ -29,6 +30,13 @@ def ensure_decision_table(conn):
     if not exists:
         conn.execute(SCHEMA)
     _ensure_account_column(conn)
+    # Every customer lookup and latest-decision join begins with this tenant +
+    # opportunity tuple. Keep it indexed so additional tenants do not turn the
+    # shared decision history into a full-table scan.
+    conn.execute(
+        f"CREATE INDEX IF NOT EXISTS {DECISION_ACCOUNT_INDEX} "
+        "ON opportunity_decisions(account_id, source, external_id, id DESC)"
+    )
     conn.commit()
 
 

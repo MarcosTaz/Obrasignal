@@ -149,6 +149,7 @@ def _global_api_cors(response):
 # before allowing the ingestion and push workers to run.
 import app as _app
 from app import db, init_db, start_background_worker
+from decision_refresh import ensure_decision_input_table, record_account_decisions
 from evaluation_policy import ensure_evaluation_schema
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
@@ -174,13 +175,18 @@ try:
     ensure_lifecycle_table(_lifecycle_conn)
     ensure_traffic_schema(_lifecycle_conn)
     ensure_push_schema(_lifecycle_conn)
+    ensure_decision_input_table(_lifecycle_conn)
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
 
-# Install SQLite journal/decision-write hardening only after all startup schema
-# migrations complete and before either background writer is allowed to start.
+# Install SQLite journal/write hardening only after every account-private table
+# exists. The incremental recorder is then selected before the ingestion worker
+# starts, eliminating the previous startup race where the worker could execute
+# an older recorder before production_entrypoint replaced it.
 install_runtime_db_hardening(_preload, _app)
+_preload._record_account_decisions = record_account_decisions
+
 install_lifecycle_read_model(_preload)
 install_latvia_runtime()
 install_uk_runtime()
@@ -198,5 +204,10 @@ install_canadabuys_runtime(
     source_enabled=_preload._global_source_enabled,
     record_blocked=_preload._record_blocked_global_source,
 )
+
+# Keep the schema initializer intact for test/dev connections and any future
+# separately opened database. Production has already created these objects here,
+# so its repeated CREATE IF NOT EXISTS calls are no-op/idempotent rather than a
+# process-global monkeypatch that could make another connection unsafe.
 start_background_worker()
 start_push_scheduler()
