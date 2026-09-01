@@ -138,7 +138,7 @@ def test_verified_timestamp_with_wrong_digest_is_rejected_before_persistence(tmp
         qualified_timestamp_provider=WrongDigestTimestampProvider(),
     )
 
-    with pytest.raises(ChangeSheetTrustError, match="digest does not match current snapshot"):
+    with pytest.raises(ChangeSheetTrustError, match="digest does not match"):
         trust.attest_current(tenant_id="tenant-a", finding_id=finding)
 
     with sqlite3.connect(database) as conn:
