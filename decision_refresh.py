@@ -80,14 +80,29 @@ def _profile_updated_at(conn, account_id: str):
     return row[0] if row else None
 
 
-def _latest_decided_at(conn, account_id: str, source: str, external_id: str):
-    row = conn.execute(
-        """SELECT decided_at FROM opportunity_decisions
-           WHERE account_id=? AND source=? AND external_id=?
-           ORDER BY id DESC LIMIT 1""",
-        (account_id, source, external_id),
-    ).fetchone()
-    return row[0] if row else None
+def _existing_fingerprints(conn, account_id: str) -> dict[tuple[str, str], str]:
+    rows = conn.execute(
+        "SELECT source,external_id,fingerprint FROM opportunity_decision_inputs WHERE account_id=?",
+        (account_id,),
+    ).fetchall()
+    return {(str(row[0]), str(row[1])): str(row[2]) for row in rows}
+
+
+def _latest_decision_times(conn, account_id: str) -> dict[tuple[str, str], str]:
+    """Load current decision timestamps once per tenant, not once per tender."""
+    rows = conn.execute(
+        """SELECT d.source,d.external_id,d.decided_at
+           FROM opportunity_decisions d
+           JOIN (
+               SELECT source,external_id,MAX(id) AS max_id
+               FROM opportunity_decisions
+               WHERE account_id=?
+               GROUP BY source,external_id
+           ) latest ON latest.max_id=d.id
+           WHERE d.account_id=?""",
+        (account_id, account_id),
+    ).fetchall()
+    return {(str(row[0]), str(row[1])): str(row[2]) for row in rows}
 
 
 def _mark(conn, account_id: str, source: str, external_id: str, fingerprint: str):
@@ -120,6 +135,10 @@ def record_account_decisions(
     seeded without a costly re-score when the latest decision is at least as
     recent as the current profile. If the profile is newer, stale opportunities
     are re-scored in bounded batches across successive source polls.
+
+    All existing fingerprints and latest decision timestamps are prefetched once
+    per tenant. This keeps work approximately O(accounts + observed tenders)
+    database reads instead of O(accounts * observed tenders) point queries.
     """
     run = conn.execute(
         "SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1"
@@ -135,6 +154,7 @@ def record_account_decisions(
     recorded = 0
     pending_writes = 0
     refresh_limit = max(1, int(max_refresh_per_account))
+    commit_limit = max(1, int(commit_chunk))
 
     for raw_account_id in accounts:
         account_id = str(raw_account_id or "").strip()
@@ -142,6 +162,8 @@ def record_account_decisions(
             continue
         profile = load_profile(account_id)
         profile_updated = _profile_updated_at(conn, account_id)
+        fingerprints = _existing_fingerprints(conn, account_id)
+        latest_decisions = _latest_decision_times(conn, account_id)
         rescored_for_account = 0
 
         for raw_row in rows:
@@ -150,24 +172,22 @@ def record_account_decisions(
             external_id = str(row.get("external_id") or "")
             if not source or not external_id:
                 continue
+            key = (source, external_id)
             fingerprint = _fingerprint(row, profile)
-            existing = conn.execute(
-                """SELECT fingerprint FROM opportunity_decision_inputs
-                   WHERE account_id=? AND source=? AND external_id=?""",
-                (account_id, source, external_id),
-            ).fetchone()
-            if existing and existing[0] == fingerprint:
+            existing = fingerprints.get(key)
+            if existing == fingerprint:
                 continue
 
             # Migration path: do not re-score the whole observed corpus merely
             # because the fingerprint table is new. A decision made after the
             # current profile was saved is already compatible with that profile.
             if existing is None:
-                latest_decided = _latest_decided_at(conn, account_id, source, external_id)
+                latest_decided = latest_decisions.get(key)
                 if latest_decided and (not profile_updated or latest_decided >= profile_updated):
                     _mark(conn, account_id, source, external_id, fingerprint)
+                    fingerprints[key] = fingerprint
                     pending_writes += 1
-                    if pending_writes >= max(1, int(commit_chunk)):
+                    if pending_writes >= commit_limit:
                         conn.commit()
                         pending_writes = 0
                     continue
@@ -187,10 +207,11 @@ def record_account_decisions(
                 ensure=False,
             )
             _mark(conn, account_id, source, external_id, fingerprint)
+            fingerprints[key] = fingerprint
             recorded += 1
             rescored_for_account += 1
             pending_writes += 2
-            if pending_writes >= max(1, int(commit_chunk)):
+            if pending_writes >= commit_limit:
                 conn.commit()
                 pending_writes = 0
 
