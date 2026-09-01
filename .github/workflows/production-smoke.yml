@@ -24,8 +24,9 @@ jobs:
       - name: Wake and check exact API deployment health
         run: |
           set -euo pipefail
-          # Render services can cold-start or still be replacing the previous
-          # instance. A smoke run is green only for the exact revision under test.
+          # A build is not ready merely because one health request returns its
+          # SHA. Auth warming and the OPTIONS-first hook must be active in the
+          # actual WSGI module that Render is serving.
           for attempt in $(seq 1 18); do
             if curl --fail --silent --show-error --max-time 30 \
               https://obrasignal.onrender.com/api/v1/health > /tmp/health.json \
@@ -39,34 +40,37 @@ jobs:
           assert health.get('service') == 'obrasignal-api'
           assert health.get('build') == os.environ['TARGET_BUILD']
           auth=health.get('auth') or {}
-          # These fields are deliberately bounded by the API contract: no provider
-          # URL, issuer, token, JWK material, credentials or exception strings.
+          runtime=health.get('runtime') or {}
           safe_auth={name: auth.get(name) for name in (
               'mode', 'config_present', 'provider_status', 'provider_kind', 'provider_error'
           )}
+          safe_runtime={name: runtime.get(name) for name in ('auth_warm_status','preflight_first')}
           print('auth_health=' + json.dumps(safe_auth, sort_keys=True, separators=(',', ':')))
+          print('runtime_health=' + json.dumps(safe_runtime, sort_keys=True, separators=(',', ':')))
           assert auth.get('mode') == 'provider'
           assert auth.get('config_present') is True
-          assert auth.get('provider_status') in {'uninitialized', 'ready'}
+          assert auth.get('provider_status') == 'ready'
+          assert runtime.get('auth_warm_status') == 'ready'
+          assert runtime.get('preflight_first') is True
           print('production_build=' + str(health.get('build')))
-          print('auth_provider_status=' + str(auth.get('provider_status')))
           PY
             then
-              echo "Exact production build and auth configuration are healthy on attempt $attempt/18."
+              echo "Exact production build, auth warm and preflight ordering are ready on attempt $attempt/18."
               break
             fi
             if [ "$attempt" = 18 ]; then
-              echo "Production never served a healthy target build ${TARGET_BUILD:0:7}."
+              echo "Production never served a fully ready target build ${TARGET_BUILD:0:7}."
+              cat /tmp/health.json 2>/dev/null || true
               exit 1
             fi
-            echo "Waiting for healthy target production build ${TARGET_BUILD:0:7} (attempt $attempt/18)…"
+            echo "Waiting for fully ready target production build ${TARGET_BUILD:0:7} (attempt $attempt/18)…"
             sleep 10
           done
 
       - name: Check protected API boundary
         run: |
           set -euo pipefail
-          status="$(curl --silent --output /tmp/body --write-out '%{http_code}' --max-time 30 \
+          status="$(curl --silent --output /tmp/body --write-out '%{http_code}' --max-time 10 \
             https://obrasignal.onrender.com/api/v1/profile)"
           test "$status" = "401"
           grep -q 'authentication_required' /tmp/body
@@ -74,15 +78,17 @@ jobs:
       - name: Check browser CORS preflight
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 \
-            -X OPTIONS \
-            -H 'Origin: https://marcostaz.github.io' \
-            -H 'Access-Control-Request-Method: GET' \
-            -H 'Access-Control-Request-Headers: Authorization' \
-            -D /tmp/headers -o /dev/null \
-            https://obrasignal.onrender.com/api/v1/profile
-          grep -qi '^Access-Control-Allow-Origin: https://marcostaz.github.io' /tmp/headers
-          grep -qi '^Access-Control-Allow-Headers: .*Authorization' /tmp/headers
+          for origin in https://obrasignal.com https://marcostaz.github.io; do
+            curl --fail --silent --show-error --max-time 10 \
+              -X OPTIONS \
+              -H "Origin: $origin" \
+              -H 'Access-Control-Request-Method: GET' \
+              -H 'Access-Control-Request-Headers: Authorization' \
+              -D /tmp/headers -o /dev/null \
+              https://obrasignal.onrender.com/api/v1/profile
+            grep -qi "^Access-Control-Allow-Origin: $origin" /tmp/headers
+            grep -qi '^Access-Control-Allow-Headers: .*Authorization' /tmp/headers
+          done
 
       - name: Check deployed Web shell
         run: |
