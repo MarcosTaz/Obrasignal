@@ -13,6 +13,7 @@ from vertical_apps.industrial_claims.outcome_authorization import (
     OutcomeEvidenceAuthorization,
     capture_authorized_outcome_evidence,
 )
+from vertical_apps.industrial_claims.proof import canonical_json_bytes, sha256_hex
 from vertical_apps.industrial_claims.proof_extensions import dual_digest
 from vertical_apps.industrial_claims.proof_storage import OriginalObjectReceipt
 from vertical_apps.industrial_claims.secure_capture import CaptureIdentity, SourceAuthenticationReceipt
@@ -114,6 +115,42 @@ def _secure_authorization(finding_id: str) -> OutcomeEvidenceAuthorization:
     )
 
 
+def _capture_and_resolve_secure_outcome(service, database, finding_id: str) -> tuple[Store, SecureOutcomeRegistry, str]:
+    store = Store()
+    registry = SecureOutcomeRegistry(database)
+    evidence_id = "tenant-a:secure-outcome:payment-1"
+    captured = capture_authorized_outcome_evidence(
+        authorization=_secure_authorization(finding_id),
+        original_store=store,
+        evidence_id=evidence_id,
+        identity=_secure_identity(),
+        source_ref="bank-proof-secure",
+        content=b"secure final settlement proof",
+        content_type="application/pdf",
+        source_authentication=SourceAuthenticationReceipt(
+            state="UNVERIFIED",
+            scheme="AUTHORIZED_UPLOAD",
+            provider="pilot-outcome-intake",
+        ),
+        clock=lambda: NOW,
+    )
+    registry.record(evidence=captured.evidence, captured_by="operator-c")
+    resolve_from_secure_outcome(
+        service,
+        registry,
+        tenant_id="tenant-a",
+        finding_id=finding_id,
+        outcome_id="payment-1",
+        recovered_amount="7500",
+        currency="EUR",
+        evidence_id=evidence_id,
+        evidence_ref="bank-proof-secure",
+        actor_id="operator-d",
+        final_cumulative=True,
+    )
+    return store, registry, evidence_id
+
+
 def test_durable_proof_rejects_outcome_reference_substitution_even_to_same_tenant_valid_evidence(tmp_path):
     database = tmp_path / "outcome-reference-substitution.sqlite3"
     service, finding_id = _actioned_case(database)
@@ -179,38 +216,7 @@ def test_durable_proof_rejects_resolution_audit_payload_rewrite(tmp_path):
 def test_durable_proof_rejects_secure_outcome_metadata_drift_from_authorized_registry(tmp_path):
     database = tmp_path / "secure-outcome-registry-drift.sqlite3"
     service, finding_id = _actioned_case(database)
-    store = Store()
-    registry = SecureOutcomeRegistry(database)
-    evidence_id = "tenant-a:secure-outcome:payment-1"
-    captured = capture_authorized_outcome_evidence(
-        authorization=_secure_authorization(finding_id),
-        original_store=store,
-        evidence_id=evidence_id,
-        identity=_secure_identity(),
-        source_ref="bank-proof-secure",
-        content=b"secure final settlement proof",
-        content_type="application/pdf",
-        source_authentication=SourceAuthenticationReceipt(
-            state="UNVERIFIED",
-            scheme="AUTHORIZED_UPLOAD",
-            provider="pilot-outcome-intake",
-        ),
-        clock=lambda: NOW,
-    )
-    registry.record(evidence=captured.evidence, captured_by="operator-c")
-    resolve_from_secure_outcome(
-        service,
-        registry,
-        tenant_id="tenant-a",
-        finding_id=finding_id,
-        outcome_id="payment-1",
-        recovered_amount="7500",
-        currency="EUR",
-        evidence_id=evidence_id,
-        evidence_ref="bank-proof-secure",
-        actor_id="operator-d",
-        final_cumulative=True,
-    )
+    _store, _registry, evidence_id = _capture_and_resolve_secure_outcome(service, database, finding_id)
     pack = build_durable_claim_proof_pack(service, tenant_id="tenant-a", finding_id=finding_id)
     assert pack["core_package"]["truth_boundaries"]["secure_outcome_bound_to_authorization_registry"] is True
 
@@ -228,4 +234,35 @@ def test_durable_proof_rejects_secure_outcome_metadata_drift_from_authorized_reg
         conn.commit()
 
     with pytest.raises(AssuranceStoreError, match="secure outcome finding authorization mismatch"):
+        build_durable_claim_proof_pack(service, tenant_id="tenant-a", finding_id=finding_id)
+
+
+def test_durable_proof_rejects_joint_projection_and_registry_outcome_scope_forgery(tmp_path):
+    database = tmp_path / "secure-outcome-joint-scope-forgery.sqlite3"
+    service, finding_id = _actioned_case(database)
+    _store, _registry, evidence_id = _capture_and_resolve_secure_outcome(service, database, finding_id)
+    pack = build_durable_claim_proof_pack(service, tenant_id="tenant-a", finding_id=finding_id)
+    assert pack["core_package"]["truth_boundaries"]["secure_authorization_scope_recomputed_from_persisted_metadata"] is True
+
+    with sqlite3.connect(database) as conn:
+        conn.execute("DROP TRIGGER causledger_secure_outcome_no_update")
+        row = conn.execute(
+            "SELECT metadata_json FROM evidence WHERE tenant_id=? AND evidence_id=?",
+            ("tenant-a", evidence_id),
+        ).fetchone()
+        metadata = json.loads(row[0])
+        metadata["outcome_authorized_by_sha256"] = "f" * 64
+        metadata_json = canonical_json_bytes(metadata).decode("utf-8")
+        metadata_sha256 = sha256_hex(metadata_json.encode("utf-8"))
+        conn.execute(
+            "UPDATE evidence SET metadata_json=? WHERE tenant_id=? AND evidence_id=?",
+            (metadata_json, "tenant-a", evidence_id),
+        )
+        conn.execute(
+            "UPDATE causledger_secure_outcome_envelopes SET metadata_json=?,metadata_sha256=? WHERE tenant_id=? AND evidence_id=?",
+            (metadata_json, metadata_sha256, "tenant-a", evidence_id),
+        )
+        conn.commit()
+
+    with pytest.raises(AssuranceStoreError, match="secure outcome authorization scope hash mismatch"):
         build_durable_claim_proof_pack(service, tenant_id="tenant-a", finding_id=finding_id)
