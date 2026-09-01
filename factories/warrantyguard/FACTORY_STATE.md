@@ -1,12 +1,12 @@
 # WARRANTYGUARD — Factory State / BATON
 
 ## MISSION
-Finish WarrantyGuard as a real, tested, reliable, pilot-capable, commercial-capable, supportable operational company + product. Current wedge remains supplier-side automotive pre-acceptance control for inbound OEM/customer warranty/quality debits. Preserve zero-false-warranty, zero-invented-rights, zero-unsupported-calculations and zero-fake-validation.
+Finish WarrantyGuard as a real, tested, reliable, pilot-capable, commercial-capable, supportable operational company + product. Current wedge: supplier-side automotive pre-acceptance financial control for inbound OEM/customer warranty/quality debits. Preserve zero-false-warranty, zero-invented-rights, zero-unsupported-calculations and zero-fake-validation.
 
 ## MODE
 `A / MAXIMUM SAFE AUTONOMY / CONTINUOUS EXECUTION / REPOSITORY-FIRST / EVIDENCE-FIRST / FAIL-CLOSED / NO-AUTOMATIC-MERGE / NO-STOP-BETWEEN-SAFE-TASKS`
 
-Error/blocker/task-end/technical-window-end != Factory stop. PROJECT COMPLETE may be declared only after all applicable completion gates are evidenced.
+Error/blocker/task-end/technical-window-end != Factory stop. PROJECT COMPLETE may be declared only after every applicable completion gate is evidenced.
 
 ## CLASSIFICATION
 `NARROW → PROCEED`
@@ -16,61 +16,100 @@ Repository: `MarcosTaz/Obrasignal`
 Branch: `factory/warrantyguard-debitproof-v084`
 PR: `#805` draft / no automatic merge
 
-## VERSION / SOURCE TRUTH
-VERSION = `0.8.5`
+## VERSION / VERIFIED SOURCE TRUTH
+VERSION = `0.9.0`
 RUNTIME = `Node.js >=20 / zero external npm dependencies`
-ARTIFACT_SHA256 = `1a2beb994aae62c582272e73ceb89418898f047dc6b218264889219c3fd2f240`
-LIBRARY = `/WarrantyGuard/warrantyguard-prototype-v0.8.5.tar.gz`
-PRE_SYNC_TEST_STATE = `52/52 PASS`
-PRE_SYNC_REDTEAM = `10,000 debit cases: 8,829 known + 1,171 UNKNOWN; 1,000 recovery cases PASS`
-PRE_SYNC_ORACLE = `18/18 PASS`
-PRE_SYNC_CLEAN_EXTRACTION = `PASS`
-REPOSITORY_CI = `REVERIFY_REQUIRED_AFTER_v0.8.5_SYNC`
+VERIFIED_EXECUTABLE_HEAD = `343aef3206ffdd1a0e4348e978e51d24d685cb5b`
+CI_RUN = `33557506800` (`WarrantyGuard Factory`, SUCCESS)
+CI_ARTIFACT_ID = `9819910373`
+CI_ARTIFACT_DIGEST = `sha256:80f6556b6e23ae661706ab4a2800da8c350f4e7b1855b177bf00880fa0e45d15` (GitHub ZIP artifact digest)
+SOURCE_TARBALL_SHA256 = `a7ed70cfe40f25a557473ac5f6461ee15d822234917a6b2f4c606e06d492d868`
+LIBRARY = `/WarrantyGuard/warrantyguard-prototype-v0.9.0.tar.gz`
+
+Verification on the executable head:
+- `187/187` automated invariant tests PASS;
+- deterministic debit red-team `10,000` cases PASS;
+- recovery red-team `1,000` cases PASS;
+- document adversarial matrix `16/16` PASS;
+- synthetic assisted customer E2E PASS;
+- assisted-local security red-team PASS;
+- HTTP/operator/workspace/resource gates PASS;
+- CI packaged source outside the source tree;
+- CI clean-extracted the package and re-ran `npm run verify` PASS;
+- downloaded CI tarball was independently SHA-checked and clean-extracted in a separate runtime; `npm run verify` again returned `187/187` and all gates PASS.
+
+The CI artifact tar uses the pull-request merge checkout SHA in its filename; `VERIFIED_EXECUTABLE_HEAD` above is the branch head associated with the successful workflow run. Subsequent BATON/README/source-pointer-only commits do not retroactively change this executable evidence; latest exact-head CI remains authoritative for current repository truth.
 
 ## CURRENT WEDGE
 `Pre-acceptance financial control for recurring inbound OEM/customer warranty and quality debits.`
 
-Current structured flow:
-INCOMING DEBIT → tenant import → mapping → approved contract/version/source lineage → evidence claims/reviewer lineage → warranty/cost eligibility → root-cause/responsibility → duplicate/prior-credit/payment → SUPPORTED/PARTIALLY_SUPPORTED/DISPUTABLE/UNKNOWN → draft-only dossier → verified outcome reconciliation.
+Flow now exercised synthetically end-to-end:
+PILOT INTAKE → SCOPE → ACCEPTANCE EVIDENCE → DATA AUTHORIZATION → SOURCE DOCUMENT → CLAUSE CANDIDATES → HUMAN REVIEW → APPROVED RULES/PROVENANCE → APPLICABLE CONTRACT VERSION → DEBIT + EVIDENCE → WARRANTY/COST/RESPONSIBILITY/EXCLUSION/DUPLICATE/CREDIT/DEADLINE ANALYSIS → SUPPORTED/PARTIALLY_SUPPORTED/DISPUTABLE/UNKNOWN/RESOLVED → CASE DOSSIER → SAVE/RETURN/OUTCOME → OPERATOR MONITORING → BILLING SANDBOX → SUPPORT.
 
 Truth invariants:
 - DEBIT != LIABILITY.
-- Missing mapping/contract/evidence/root-cause/responsibility => UNKNOWN.
+- Candidate clause != legal conclusion.
+- Missing/ambiguous material truth => UNKNOWN / NEEDS REVIEW.
 - UNKNOWN exposes no supported/disputable money.
 - NFF requires explicit contractual rule.
-- Duplicate/prior-credit/mapping/warranty/cost challenges require evidence provenance when external context is used.
-- Potential duplicate never auto-rejects.
+- Exclusions require reviewed evidence facts; absence is not assumed.
+- Exact duplicate and potential duplicate are distinct.
+- Prior credit reduces outstanding and may resolve a case; it does not fabricate new disputable value.
 - Prior payment != prior credit.
-- Credit and cash are not double-counted by default.
 - Draft dispute != submitted dispute != approved credit != received credit/cash.
+- Credit/cash are not double counted by default.
+- Passed notice deadline => REVIEW_REQUIRED, not automatic loss of right.
+- Business-day deadlines are not computed without an applicable calendar rule.
 
 ## PRODUCT BOUNDARY
-`ASSISTED_LOCAL / NO SHARED CUSTOMER PERSISTENCE / HUMAN_REVIEW_REQUIRED`
+`ASSISTED_LOCAL / CLIENT-HELD WORKSPACE / HUMAN_REVIEW_REQUIRED / NO AUTONOMOUS OEM SUBMISSION`
 
-Implemented: strict CSV import; tenant checks; 500-row/2MB pilot bounds; ISO dates/currency; contract version selection; contract/rules/source hashes; approval lineage; evidence hashes/claims/reviewer lineage; conservative responsibility/warranty/cost logic; duplicate handling; prior credit/payment separation; currency-separated summaries; UNKNOWN money suppression; draft dispute packs; recovery state machine; token-protected localhost operator API; CLI; synthetic oracle; deterministic red-team; pseudonymization helper.
+Implemented within this boundary:
+- strict tenant-scoped CSV import, 500-row/2MB pilot bounds;
+- text-native document ingestion;
+- PDF and DOCX assisted ingestion requiring source hash + human-reviewed extracted text + reviewer/time;
+- clause/date/deadline candidates with explicit `CANDIDATES_ONLY` status;
+- human clause approval, deterministic rule compilation, conflict rejection and clause/source/dossier provenance;
+- conservative warranty/cost/responsibility/exclusion/deadline logic;
+- evidence content hashes, claims, reviewer lineage and contradictory-evidence failure;
+- exact/potential duplicate separation and resolved-credit protection;
+- currency-separated economics and UNKNOWN money suppression;
+- draft-only dispute packages and evidence-gated recovery states;
+- complete case dossier with source hashes and action state;
+- client-held HMAC workspace for integrity, explicitly not confidentiality encryption;
+- token-protected localhost operator API / CLI;
+- fail-closed assisted pilot intake and prohibited data classes;
+- operator-only monitoring queue, no automatic external notification;
+- support/incident state machine with P0 evidence requirement;
+- billing sandbox with `realExternalInvoice=false`, `realPayment=false`, `revenueRecognized=0`;
+- cost-to-serve instrumentation separating assumption from real observed evidence;
+- repeat-value ledger where synthetic cycles never prove retention;
+- executable A–R completion evaluator preventing false project completion.
 
-Public/multi-user deployment remains blocked pending AuthN/AuthZ, secure persistence/secrets, audit logs, backup/restore, deletion, monitoring, rollback and independent cross-tenant security proof.
+Public/multi-user customer-data SaaS remains explicitly NOT proven. AuthN/AuthZ, secure shared persistence/secrets, production backup/restore, cloud deletion/retention, observability/rollback and independent production cross-tenant proof require a separate public-deployment gate if that product mode is pursued.
 
-## PERMANENT COMPLETION GATES
-A DOCUMENTS = `PARTIAL` — structured inputs work; source warranty/contract document ingestion still incomplete.
-B EXTRACTION = `NOT_PROVEN` — clause/date/party/condition extraction from source documents not yet end-to-end.
-C WARRANTY LOGIC = `PARTIAL` — structured approved rules conservative; free-document coverage/exclusion/deadline logic incomplete.
-D EVIDENCE = `PARTIAL/PASS_FOR_STRUCTURED_WEDGE`.
-E FALSE-CLAIM CONTROL = `STRONG_FOR_STRUCTURED_WEDGE / CONTINUE_REDTEAM`.
-F CALCULATIONS = `PASS_FOR_CURRENT_WEDGE`.
-G CASE = `PASS_SYNTHETIC_STRUCTURED / NOT_REAL_CASE_VALIDATED`.
-H PRODUCT = `PARTIAL_ASSISTED_LOCAL`.
-I SECURITY = `PASS_WITHIN_LOCAL_NO-PERSISTENCE_BOUNDARY / PUBLIC_SECURITY_NOT_PROVEN`.
-J BILLING = `NOT_IMPLEMENTED/NOT_PROVEN`.
-K SUPPORT = `PARTIAL_DOCUMENTED / NOT_EXERCISED`.
-L OPERATIONS = `PARTIAL_LOCAL / PUBLIC_MONITORING_NOT_PROVEN`.
-M PILOT = `PILOT_CAPABLE_ASSISTED_LOCAL / NO REAL PILOT YET`.
+## PERMANENT COMPLETION GATES — CURRENT TRUTH
+A DOCUMENTS = `PASS_ASSISTED_LOCAL` — text + assisted PDF/DOCX source lineage handled; broader document classes may be added from real pilot evidence.
+B EXTRACTION = `PASS_ASSISTED_HUMAN_REVIEWED` — clauses/dates/deadline candidates traceable; no autonomous legal conclusion.
+C WARRANTY LOGIC = `PASS_FOR_CURRENT_WEDGE_FAIL_CLOSED` — warranty/cost/responsibility/exclusion/deadline rules conservative.
+D EVIDENCE = `PASS_FOR_CURRENT_WEDGE` — hashes, reviewer lineage, source/contract/clause provenance.
+E FALSE-CLAIM CONTROL = `PASS_CURRENT_REDTEAM / CONTINUOUS`.
+F CALCULATIONS = `PASS_CURRENT_WEDGE` — multi-currency truth, outstanding/resolved credit, recovery bounds.
+G CASE = `PASS_SYNTHETIC_E2E / REAL_CASE_NOT_YET_OBSERVED`.
+H PRODUCT = `PASS_ASSISTED_LOCAL_SYNTHETIC_JOURNEY` — intake through support is executable; no public self-service claim.
+I SECURITY = `PASS_ASSISTED_LOCAL_BOUNDARY / PUBLIC_MULTIUSER_NOT_PROVEN`.
+J BILLING = `PASS_SANDBOX_LIFECYCLE / REAL_EXTERNAL_BILLING_NOT_PROVEN`.
+K SUPPORT = `PASS_ASSISTED_WORKFLOW / REAL_SUPPORT_NOT_YET_EXERCISED`.
+L OPERATIONS = `PASS_ASSISTED_LOCAL_MONITORING_INCIDENT_WORKFLOW`.
+M PILOT = `TECHNICALLY PILOT-CAPABLE_ASSISTED_LOCAL / NOT PROVEN WITH REAL CUSTOMER`.
 N VALUE = `NOT_PROVEN_REAL`.
-O COMMERCIAL = `NOT_PROVEN`.
-P RETENTION = `NOT_PROVEN`.
-Q ECONOMICS = `PRICING_HYPOTHESES_ONLY`.
-R QUALITY = `NO KNOWN P0 IN LOCAL BOUNDARY; REPOSITORY CI REVERIFY ACTIVE`.
+O COMMERCIAL = `NOT_PROVEN_REAL / NO PAID PILOT`.
+P RETENTION = `NOT_PROVEN_REAL`.
+Q ECONOMICS = `INSTRUMENTED / REAL COST-TO-SERVE NOT YET OBSERVED`.
+R QUALITY = `PASS_ON_VERIFIED_EXECUTABLE_HEAD / NO KNOWN OPEN P0 IN ASSISTED_LOCAL BOUNDARY`.
 PROJECT_COMPLETE = `NO`.
+
+The executable completion evaluator additionally requires real evidence for M/N/O/P/Q. Internal/synthetic evidence cannot promote those gates.
 
 ## REAL EXPOSURE / BUSINESS TRUTH
 T1 = `PASSED — ASSISTED_LOCAL`
@@ -83,59 +122,59 @@ VERIFIED_RECOVERY_REAL = `€0`
 REVENUE_RECEIVED = `€0`
 WTP = `UNPROVEN`
 
+Real first-touch exposures:
 1. AFIA → `info@afia.pt` → Gmail `1a04dd405f82f212` → SENT
 2. Simoldes → `alexandre.batista@simoldes.com` → Gmail `1a04dd750c85a135` → SENT
 3. FEHST → `fehst.comp@fehstgroup.com` → Gmail `1a04df7aca576132` → SENT
 4. PLASTIFA → `plastifa@plastifa.pt` → Gmail `1a04df81b959496f` → SENT
 
-Silence is `NO_REPLY_YET`, never rejection or demand proof.
+LATEST_RESPONSE_CHECK = `2026-09-01` — each thread contained exactly one message, our outbound message. Observable reply/bounce = `NONE`. Silence = `NO_REPLY_YET`, never rejection or demand proof.
+EARLIEST_CONTROLLED_FOLLOWUP = `2026-09-03` subject to no reply/bounce/rejection/reroute and collision/compliance check.
 
-## DONE
-- v0.8.5 evidence hardening: explicit NFF rule; evidence-backed duplicate/prior-credit/mapping/warranty/cost; typed rules/timestamps.
-- artifact/package clean-extraction proof persisted in Library.
-- repository branch and draft PR #805 established.
-- isolated WarrantyGuard GitHub workflow established.
-- verifier + HTTP smoke synchronized to v0.8.5 after CI exposed version drift.
-
-## IN_PROGRESS
-1. repository CI re-verification of synchronized v0.8.5;
-2. Tier-0 document ingestion/extraction and deadline/condition truth;
-3. complete case dossier from source-document lineage;
-4. support/incident/billing/customer-journey gates around assisted operation.
+## DONE — MATERIAL
+- v0.9.0 source-document truth for native text + assisted PDF/DOCX;
+- human-reviewed clause candidates → explicit rules with provenance;
+- conservative deadline and exclusion evaluation;
+- prior-credit `RESOLVED` protection and outstanding economics;
+- 16-case document adversarial matrix;
+- synthetic intake→support customer E2E;
+- assisted-local security red-team;
+- save/track/return client-held workspace with audit/HMAC integrity;
+- operator monitoring, support/incident flow and billing sandbox;
+- cost-to-serve and repeat-value truth-safe measurement primitives;
+- executable A–R completion gate;
+- minimum data request, onboarding, deletion/return, economics and retention runbooks;
+- GitHub CI exact-head verification and CI artifact packaging + clean-extraction reverify;
+- verified v0.9.0 source tar persisted in Library.
 
 ## ACTIVE
-`DOCUMENT_TRUTH + REPOSITORY_CI_REPAIR`
+`REAL_PILOT_ACQUISITION + RESPONSE_QUALIFICATION + REAL_EVIDENCE_GATES_M/N/O/P/Q`
 
 ## NEXT
-1. make WarrantyGuard workflow GREEN on exact current HEAD;
-2. add conservative source-document ingestion and clause/date/party/condition extraction;
-3. add explicit deadline/exclusion/condition UNKNOWN rules and adversarial tests;
-4. connect extracted terms to case dossier with source/clause hash lineage;
-5. test representative document cases end-to-end;
-6. strengthen customer journey/support/operations and safe billing sandbox;
-7. continue GTM/response qualification in parallel without inventing WTP;
-8. never promote PILOT_VALIDATED/MARKET_VALIDATED/COMMERCIAL_READY without real evidence.
+1. continue checking the four real market lanes and classify only real inbound evidence;
+2. on/after 2026-09-03, send controlled follow-up only to still-eligible silent lanes;
+3. if still no signal after follow-up, open standby targets one at a time after collision/compliance checks;
+4. convert a qualified buyer into a bounded paid diagnostic/pilot using the assisted-local intake boundary;
+5. process first authorized real case without placing confidential customer data in public GitHub;
+6. measure real intended value, real manual cost-to-serve, payment truth and repeat cycle evidence;
+7. repair every product/process weakness exposed by the real pilot;
+8. pursue public multi-user SaaS only if/when justified; never reuse assisted-local security evidence as production proof;
+9. do not declare PROJECT COMPLETE until all applicable A–R gates pass with required real evidence.
 
-## WAIT / OWNER-ONLY DEPENDENCIES
-- T3 and gates N/O/P require real external customer behavior.
-- Public deployment credentials/security architecture, legal signatures, banking/KYC and binding commercial acceptance remain owner/external dependencies when reached.
-- These do not block safe product/repository work.
-
-## TEST_STATE
-Current pre-sync source proof: `52/52 + redteam + oracle + clean extraction PASS`.
-Repository HEAD proof: `ACTIVE / must pass after sync and subsequent document-truth changes`.
-
-## REGRESSIONS
-- v0.8.5 repository sync initially left verifier/http smoke pinned to v0.8.4; GitHub workflow correctly failed. Root cause identified and repaired; exact-head re-test pending.
+## WAIT / OWNER-ONLY / EXTERNAL DEPENDENCIES
+- M/N/O/P/Q require external customer behavior and evidence; cannot be synthesized.
+- Binding contracts/legal signatures, KYC/banking/payment activation and any irreversible customer/OEM authority remain owner-only when reached.
+- Formal commercial-name clearance for DebitProof remains unresolved.
+- These dependencies do not block continued compliant GTM, reply handling, pilot preparation or repository-safe hardening.
 
 ## SECURITY_STATE
-`ASSISTED_LOCAL_BOUNDARY_GREEN / PUBLIC_MULTIUSER_RED-BLOCKED-BY-DESIGN`
+`ASSISTED_LOCAL_GREEN / PUBLIC_MULTIUSER_NOT_PROVEN_AND_NOT_CLAIMED`
 
 ## UNRESOLVED_ASSUMPTIONS
-- customer data/document formats and real warranty/CSR variation not yet observed;
-- WTP and actual cost-to-serve unknown;
-- working commercial name DebitProof not formally cleared;
-- real pilot document/legal/data-handling constraints unknown until qualified customer exists.
+- real customer document/debit formats and contract variation are not yet observed;
+- real pilot data-handling constraints may require narrower scope or additional controls;
+- WTP, observed cost-to-serve and repeat-value are unproven;
+- DebitProof is a provisional working commercial name pending formal clearance.
 
 ## RESUME_AT
-`EXACT_HEAD_CI → DOCUMENT_INGESTION → EXTRACTION/DEADLINE_LOGIC → DOCUMENT_CASE_DOSSIER → ADVERSARIAL_CASES → CUSTOMER_E2E → SECURITY/BILLING/SUPPORT/OPS → REAL_RESPONSE/PILOT → VALUE/PAYMENT/RETENTION → ALL_COMPLETION_GATES`
+`EXACT_LATEST_HEAD_CI → MONITOR_4_THREADS → CONTROLLED_FOLLOWUP_ON_OR_AFTER_2026-09-03_IF_ELIGIBLE → QUALIFY → BOUNDED_PAID_DIAGNOSTIC → REAL_CASE → REAL_VALUE → REAL_PAYMENT → REAL_REPEAT → REPAIR_DISCOVERED_WEAKNESSES → REEVALUATE_A_TO_R → CONTINUE_UNTIL_PROJECT_COMPLETE`
