@@ -267,7 +267,8 @@ def test_service_history_is_evaluated_at_token_time_not_current_status():
 
 
 def test_different_tsa_certificate_cannot_borrow_another_service_qualification():
-    verifier, _session, _tsa, _lotl, _tl, _uri = _fixture_chain()
+    verifier, _session, existing_tsa, _lotl, _tl, _uri = _fixture_chain()
+    assert existing_tsa is not None
     _key, different_tsa = _tsa("Different TSA")
     with pytest.raises(EidasTrustedListVerificationError, match="exact TSA certificate"):
         verifier.verify(certificate=different_tsa, gen_time=datetime.now(timezone.utc) - timedelta(minutes=1))
