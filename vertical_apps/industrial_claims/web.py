@@ -25,6 +25,9 @@ from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
 from vertical_apps.industrial_claims.public_verification_store import PublicVerificationStore
 from vertical_apps.industrial_claims.public_verification_web import create_public_verification_blueprint
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
+from vertical_apps.industrial_claims.secure_capture_registry import SecureCaptureRegistry, SecureCaptureRegistryError
+from vertical_apps.industrial_claims.secure_case_amendment import SecureCaseAmendmentError, amend_case_from_secure_capture
+from vertical_apps.industrial_claims.secure_case_intake import SecureCaseIntakeError, create_case_from_secure_capture
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 API_ERRORS = (
@@ -37,6 +40,9 @@ API_ERRORS = (
     RecoveryIndexError,
     SharedPlatformError,
     ChangeCaptureError,
+    SecureCaptureRegistryError,
+    SecureCaseIntakeError,
+    SecureCaseAmendmentError,
 )
 REVIEWER_QUEUE_STATES = {"READY_FOR_REVIEW"}
 OPERATOR_QUEUE_STATES = {"APPROVED", "ACTIONED"}
@@ -47,6 +53,7 @@ INLINE_DOCUMENTARY_FIELDS = (
     "event_evidence_content",
     "cost_evidence_content",
 )
+SECURE_EVIDENCE_ROLES = ("commercial_basis", "event", "cost")
 
 
 class IndustrialClaimsAuthenticationError(Exception):
@@ -71,6 +78,7 @@ def create_app(
     app.config["CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED"] = bool(allow_inline_evidence_content)
     service = IndustrialClaimsService(database)
     read_model = IndustrialClaimsReadModel(database)
+    secure_capture_registry = SecureCaptureRegistry(database)
     public_verification_store = PublicVerificationStore(database)
     change_capture_store = ChangeCaptureStore(database)
     proof_externalization_audit_store = ProofExternalizationAuditStore(database)
@@ -136,6 +144,18 @@ def create_app(
                 raise ValueError(
                     "inline documentary content is disabled; use authorized secure evidence capture"
                 )
+
+    def secure_evidence_ids(payload: dict) -> dict[str, str]:
+        forbidden = tuple(INLINE_DOCUMENTARY_FIELDS) + ("evidence_content", "content", "raw_content")
+        if any(field in payload for field in forbidden):
+            raise ValueError("secure case routes accept evidence ids only; raw documentary content is forbidden")
+        raw = payload.get("evidence_ids")
+        if not isinstance(raw, dict) or set(raw) != set(SECURE_EVIDENCE_ROLES):
+            raise ValueError("evidence_ids must contain exactly commercial_basis, event and cost")
+        result = {role: str(raw.get(role) or "").strip() for role in SECURE_EVIDENCE_ROLES}
+        if any(not value for value in result.values()):
+            raise ValueError("secure evidence ids must be non-empty")
+        return result
 
     def candidate_payload(payload: dict) -> tuple[list, object, bool]:
         missing = payload.get("missing_evidence") or []
@@ -307,6 +327,63 @@ def create_app(
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
+    @app.post("/secure-analyze")
+    def secure_analyze():
+        try:
+            tenant_id, actor_id = identity("analyst")
+            payload = json_object()
+            evidence_ids = secure_evidence_ids(payload)
+            missing, notice_raw, no_notice_deadline = candidate_payload(payload)
+            result = create_case_from_secure_capture(
+                service,
+                secure_capture_registry,
+                tenant_id=tenant_id,
+                actor_id=actor_id,
+                intake_case_ref=str(payload["intake_case_ref"]),
+                evidence_ids=evidence_ids,
+                customer_ref=str(payload["customer_ref"]),
+                program_ref=str(payload["program_ref"]),
+                event_ref=str(payload["event_ref"]),
+                claim_family=str(payload["claim_family"]),
+                commercial_basis_ref=str(payload["commercial_basis_ref"]),
+                cost_evidence_ref=str(payload["cost_evidence_ref"]),
+                gross_cost=str(payload["gross_cost"]),
+                currency=str(payload.get("currency", "")),
+                avoided_cost=str(payload.get("avoided_cost", "0")),
+                resale_reuse=str(payload.get("resale_reuse", "0")),
+                third_party_recovery=str(payload.get("third_party_recovery", "0")),
+                prior_payment=str(payload.get("prior_payment", "0")),
+                other_mitigation=str(payload.get("other_mitigation", "0")),
+                notice_due=date.fromisoformat(str(notice_raw)) if notice_raw else None,
+                notice_deadline_not_applicable=no_notice_deadline,
+                missing_evidence=tuple(str(item) for item in missing),
+            )
+            change_capture = change_capture_store.status(
+                tenant_id=tenant_id,
+                finding_id=result.finding.finding_id,
+            )
+            return jsonify({
+                "finding_id": result.finding.finding_id,
+                "state": result.finding.state,
+                "claim_family": result.claim_family,
+                "net_potential": result.calculation.output_value,
+                "currency": result.calculation.output_unit,
+                "calculation_hash": result.calculation.reproducibility_hash,
+                "notice_deadline_state": result.notice_deadline_state,
+                "missing_evidence": list(result.missing_evidence),
+                "is_new_recovery": result.is_new_recovery,
+                "revision": 1,
+                "evidence_custody_state": "AUTHORIZED_IMMUTABLE_ORIGINALS",
+                "source_authentication_states": {
+                    item.source_type: str(item.metadata.get("source_authentication") or "UNVERIFIED").upper()
+                    for item in result.evidence
+                },
+                "raw_document_content_included": False,
+                "change_capture": change_capture,
+            }), 201
+        except API_ERRORS as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
     @app.post("/findings/<path:finding_id>/amend")
     def amend_finding(finding_id: str):
         try:
@@ -346,6 +423,72 @@ def create_app(
                 "missing_evidence": list(result.missing_evidence),
                 "is_new_recovery": False,
                 "requires_fresh_review": True,
+                "customer_contact_authorized": False,
+                "external_claim_submission_authorized": False,
+                "change_capture": change_capture,
+            }), 201
+        except API_ERRORS as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @app.post("/findings/<path:finding_id>/secure-amend")
+    def secure_amend_finding(finding_id: str):
+        try:
+            tenant_id, actor_id = identity("analyst")
+            payload = json_object()
+            evidence_ids = secure_evidence_ids(payload)
+            missing, notice_raw, no_notice_deadline = candidate_payload(payload)
+            result = amend_case_from_secure_capture(
+                service,
+                secure_capture_registry,
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                actor_id=actor_id,
+                intake_case_ref=str(payload["intake_case_ref"]),
+                evidence_ids=evidence_ids,
+                customer_ref=str(payload["customer_ref"]),
+                program_ref=str(payload["program_ref"]),
+                event_ref=str(payload["event_ref"]),
+                claim_family=str(payload["claim_family"]),
+                commercial_basis_ref=str(payload["commercial_basis_ref"]),
+                cost_evidence_ref=str(payload["cost_evidence_ref"]),
+                gross_cost=str(payload["gross_cost"]),
+                currency=str(payload.get("currency", "")),
+                avoided_cost=str(payload.get("avoided_cost", "0")),
+                resale_reuse=str(payload.get("resale_reuse", "0")),
+                third_party_recovery=str(payload.get("third_party_recovery", "0")),
+                prior_payment=str(payload.get("prior_payment", "0")),
+                other_mitigation=str(payload.get("other_mitigation", "0")),
+                notice_due=date.fromisoformat(str(notice_raw)) if notice_raw else None,
+                notice_deadline_not_applicable=no_notice_deadline,
+                missing_evidence=tuple(str(item) for item in missing),
+            )
+            revision = service.revision_store.require_current(
+                tenant_id=tenant_id,
+                finding_id=result.finding.finding_id,
+            )
+            change_capture = change_capture_store.status(
+                tenant_id=tenant_id,
+                finding_id=result.finding.finding_id,
+            )
+            return jsonify({
+                "finding_id": result.finding.finding_id,
+                "supersedes_finding_id": finding_id,
+                "revision": revision.revision,
+                "state": result.finding.state,
+                "claim_family": result.claim_family,
+                "net_potential": result.calculation.output_value,
+                "currency": result.calculation.output_unit,
+                "calculation_hash": result.calculation.reproducibility_hash,
+                "notice_deadline_state": result.notice_deadline_state,
+                "missing_evidence": list(result.missing_evidence),
+                "is_new_recovery": False,
+                "requires_fresh_review": True,
+                "evidence_custody_state": "AUTHORIZED_IMMUTABLE_ORIGINALS",
+                "source_authentication_states": {
+                    item.source_type: str(item.metadata.get("source_authentication") or "UNVERIFIED").upper()
+                    for item in result.evidence
+                },
+                "raw_document_content_included": False,
                 "customer_contact_authorized": False,
                 "external_claim_submission_authorized": False,
                 "change_capture": change_capture,
