@@ -23,6 +23,7 @@ def _manifest(external, *, original_integrity_sealed: bool = True):
         "evidence": [
             {
                 "raw_content_persisted": True,
+                "immutability": "WORM_LOCKED",
                 "assurance_dimensions": {
                     "source_authenticated": True,
                     "integrity_sealed": original_integrity_sealed,
