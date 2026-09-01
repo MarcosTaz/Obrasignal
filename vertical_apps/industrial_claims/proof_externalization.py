@@ -30,13 +30,17 @@ def _provider_request(
     if digest != expected:
         raise ProofExternalizationError("stable proof target SHA-256 does not match canonical target bytes")
     finding_hash = hashlib.sha256(finding_id.encode("utf-8")).hexdigest()
+    subject_ref = f"causledger:proof-target:{digest}"
+    purpose = "CAUSLEDGER_DURABLE_PROOF_TARGET"
     return ProofRequest(
         tenant_id=tenant_id,
-        subject_ref=f"causledger:proof-target:{digest}",
+        subject_ref=subject_ref,
         digest_algorithm="SHA-256",
         digest=digest,
-        purpose="CAUSLEDGER_DURABLE_PROOF_TARGET",
+        purpose=purpose,
         metadata={
+            "subject_ref": subject_ref,
+            "purpose": purpose,
             "target_version": target.get("body", {}).get("target_version"),
             "finding_id_sha256": finding_hash,
             "revision": revision,
@@ -56,10 +60,10 @@ def _invoke(provider: ProofProvider, request: ProofRequest) -> ExternalAttestati
         raise ProofExternalizationError("proof provider returned a receipt bound to another digest")
     subject = str(result.details.get("subject_ref") or "").strip()
     purpose = str(result.details.get("purpose") or "").strip()
-    if result.verified and subject and subject != request.subject_ref:
-        raise ProofExternalizationError("verified proof provider receipt is bound to another subject")
-    if result.verified and purpose and purpose != request.purpose:
-        raise ProofExternalizationError("verified proof provider receipt has another purpose")
+    if result.verified and subject != request.subject_ref:
+        raise ProofExternalizationError("verified proof provider receipt is not bound to the exact subject")
+    if result.verified and purpose != request.purpose:
+        raise ProofExternalizationError("verified proof provider receipt is not bound to the exact purpose")
     return result
 
 
@@ -120,6 +124,6 @@ def build_externalized_durable_proof_pack(
         "provider_states": {item.kind: item.state for item in attestations},
         "global_worm_not_requested": True,
         "global_escrow_not_requested": True,
-        "original_evidence_requires_separate_byte-level_preservation": True,
+        "original_evidence_requires_separate_byte_level_preservation": True,
     }
     return final
