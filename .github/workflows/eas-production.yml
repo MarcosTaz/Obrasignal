@@ -2,21 +2,22 @@ name: ObraSignal Production Build
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/eas-production.yml'
+    inputs:
+      platform:
+        description: Native platform to send to EAS
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
 
 jobs:
-  production-build:
-    name: EAS production build (${{ matrix.platform }})
+  android-production-build:
+    if: ${{ inputs.platform == 'android' || inputs.platform == 'all' }}
+    name: EAS production build (android)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [android, ios]
     defaults:
       run:
         working-directory: mobile
@@ -39,4 +40,36 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Build production binary
-        run: eas build --platform ${{ matrix.platform }} --profile production --non-interactive --no-wait
+        run: eas build --platform android --profile production --non-interactive --no-wait
+
+  ios-production-build:
+    # iOS is intentionally opt-in while the Web-first launch is proving paid
+    # demand. It also prevents an unvalidated Apple distribution certificate
+    # from making every Web/mobile code push look like a broken production
+    # release. Select ios/all explicitly once Apple distribution is activated.
+    if: ${{ inputs.platform == 'ios' || inputs.platform == 'all' }}
+    name: EAS production build (ios)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build production binary
+        run: eas build --platform ios --profile production --non-interactive --no-wait
