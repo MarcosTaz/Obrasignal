@@ -22,8 +22,8 @@ def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
     Aggregate sealing cannot substitute for preservation of the originals. An
     original-immutability level therefore requires every evidence item both to
     remain re-verifiable from retained bytes and to carry its own verified
-    immutability dimension (for example an evidence-bound WORM receipt).
-    Internal integrity sealing alone is deliberately insufficient.
+    immutability state. Internal integrity sealing alone is deliberately
+    insufficient, and governance retention is not treated as WORM.
     """
     evidence = list(manifest.get("evidence") or [])
     external = list(manifest.get("external_attestations") or [])
@@ -41,7 +41,7 @@ def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
         for item in evidence
     )
     every_original_immutability_verified = bool(evidence) and all(
-        bool((item.get("assurance_dimensions") or {}).get("original_immutability_verified"))
+        str(item.get("immutability") or "").strip().upper() in {"WORM_LOCKED", "IMMUTABLE_VERIFIED"}
         for item in evidence
     )
     immutability = originals and every_original_integrity_sealed and every_original_immutability_verified
