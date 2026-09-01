@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 from traffic_analytics import ensure_traffic_schema, private_summary, visitor_day_hash
@@ -47,7 +48,8 @@ def test_private_summary_counts_geo_campaign_and_funnel():
         rows,
     )
     conn.commit()
-    report = private_summary(conn, days=1)
+    report = private_summary(conn, days=1, now=datetime(2026, 8, 31, 23, 59, tzinfo=timezone.utc))
+    assert report["from"] == "2026-08-31"
     assert report["page_views"] == 2
     assert report["unique_visitors"] == 2
     assert report["campaigns"][0]["source"] == "email"
