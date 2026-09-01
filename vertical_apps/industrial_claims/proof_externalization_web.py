@@ -4,7 +4,7 @@ import sqlite3
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, make_response, request
 
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.durable_proof import build_durable_claim_proof_pack
@@ -187,10 +187,10 @@ def create_proof_externalization_blueprint(
             ProofExternalizationIntegrityError,
             sqlite3.Error,
         ) as exc:
-            return jsonify({
+            return make_response(jsonify({
                 "error": type(exc).__name__,
                 "message": "durable external attestation reconstruction failed closed",
-            }), 422
+            }), 422)
 
     @blueprint.post("/findings/<path:finding_id>/proof-pack/externalize")
     def externalize(finding_id: str):
