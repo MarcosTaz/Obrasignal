@@ -149,6 +149,7 @@ def _global_api_cors(response):
 # before allowing the ingestion and push workers to run.
 import app as _app
 from app import db, init_db, start_background_worker
+from bounded_sync import sync_once as bounded_source_sync_once
 from decision_refresh import ensure_decision_input_table, record_account_decisions
 from evaluation_policy import ensure_evaluation_schema
 from opportunity_lifecycle import ensure_lifecycle_table
@@ -181,10 +182,12 @@ finally:
     _lifecycle_conn.close()
 
 # Install SQLite journal/write hardening only after every account-private table
-# exists. The incremental recorder is then selected before the ingestion worker
-# starts, eliminating the previous startup race where the worker could execute
-# an older recorder before production_entrypoint replaced it.
+# exists. Select both the bounded source writer and incremental account scorer
+# before the ingestion worker can run. `preload.sync_once_with_events` reads its
+# `_original_sync_once` global at call time, so replacing that reference retains
+# source staging/health/event semantics while removing the full-refresh writer lock.
 install_runtime_db_hardening(_preload, _app)
+_preload._original_sync_once = bounded_source_sync_once
 _preload._record_account_decisions = record_account_decisions
 
 install_lifecycle_read_model(_preload)
@@ -205,9 +208,5 @@ install_canadabuys_runtime(
     record_blocked=_preload._record_blocked_global_source,
 )
 
-# Keep the schema initializer intact for test/dev connections and any future
-# separately opened database. Production has already created these objects here,
-# so its repeated CREATE IF NOT EXISTS calls are no-op/idempotent rather than a
-# process-global monkeypatch that could make another connection unsafe.
 start_background_worker()
 start_push_scheduler()
