@@ -6,28 +6,32 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 13,
-  "last_factory_id": "k3-fatality",
-  "last_run_at": "2026-09-01T22:38:58Z",
+  "cursor": 19,
+  "last_factory_id": "autonomous-revenue-recovery",
+  "last_run_at": "2026-09-01T23:38:49Z",
   "last_material_change": {
-    "kind": "K3_EXACT_CANDIDATE_RECOVERED_EXACT_HEAD_RED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. LongLead exact PR/code authority was not recovered from GitHub search and remains UNKNOWN; rotation continued. MachineRelease Safety exact PR authority was not recovered and remains UNKNOWN; rotation continued. K3 search recovered PR #608 as an OPEN/DRAFT/NOT_MERGED candidate at exact head c7ed7b6683560e9a60756a041f3e30eb15805f1b. ObraSignal Quality run 33272186755 on that exact SHA completed FAILURE: python job SUCCESS, mobile job FAILURE at npx expo-doctor. PR #608 is documentation-only shared platform safety/governance foundation and does not authorize runtime changes or establish K3 canonical runtime/source authority. Gmail watch found no new material CausLedger/CEFAMOL/AFIA/DGC inbound; no outbound was sent and Portugal/Spain holds remain active.",
+    "kind": "WARRANTYGUARD_EXACT_HEAD_FACTORY_GREEN_GLOBAL_QUALITY_RED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. WarrantyGuard canonical candidate identity was recovered as PR #805, OPEN/DRAFT/NOT_MERGED at exact head fe6df98babfc43b2085ae4f4b31575870d776a3e. WarrantyGuard Factory run 33558545498 completed SUCCESS on that exact SHA while ObraSignal Quality run 33558545449 completed FAILURE, so classification is FACTORY_FOCUSED_EXACT_HEAD_GREEN_GLOBAL_REPOSITORY_RED_NOT_CANONICAL. PR truth remains T1 passed, T2 reached via four real first-touch exposures, T3 not reached, WTP unproven, real customers/paid pilots/verified recovery/revenue all zero. Gmail watch found no new material CausLedger/CEFAMOL/AFIA/DGC inbound; no outbound was sent and Portugal/Spain holds remain active. Paper-Laminate Works, Documentary Billing, Recoverable Money and Private Freight exact PR/default-branch authority was not recovered from targeted search and remain UNKNOWN; rotation continued.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "longlead": {"classification": "UNKNOWN_EXACT_SOURCE_IDENTITY", "github_pr_search_matches": 0, "default_branch_code_search_matches": 0},
-      "machine_release_safety": {"classification": "UNKNOWN_EXACT_SOURCE_IDENTITY", "github_pr_search_matches": 0},
-      "k3": {"pr": 608, "head_sha": "c7ed7b6683560e9a60756a041f3e30eb15805f1b", "state": "OPEN_DRAFT_NOT_MERGED", "obrasignal_quality_run": 33272186755, "obrasignal_quality": "FAILURE", "python_job": "SUCCESS", "mobile_job": "FAILURE_AT_EXPO_DOCTOR", "classification": "EXACT_CANDIDATE_RECOVERED_EXACT_HEAD_RED_DOCUMENTATION_ONLY_NOT_CANONICAL"},
-      "causledger_inbound": {"new_material_replies": 0, "latest_watch_date": "2026-09-01", "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK", "spain_unsolicited_commercial_hold": "ACTIVE"}
+      "warrantyguard": {"pr":805,"head_sha":"fe6df98babfc43b2085ae4f4b31575870d776a3e","state":"OPEN_DRAFT_NOT_MERGED","warrantyguard_factory_run":33558545498,"warrantyguard_factory":"SUCCESS","obrasignal_quality_run":33558545449,"obrasignal_quality":"FAILURE","classification":"FACTORY_FOCUSED_EXACT_HEAD_GREEN_GLOBAL_REPOSITORY_RED_NOT_CANONICAL","t1":"PASSED","t2":"REACHED","t3":"NOT_REACHED","real_customers":0,"paid_pilots":0,"verified_recovery":0,"revenue_received":0},
+      "paper_laminate_works":{"classification":"UNKNOWN_EXACT_SOURCE_IDENTITY","github_pr_search_matches":0,"default_branch_code_search_matches":0},
+      "documentary_billing":{"classification":"UNKNOWN_EXACT_SOURCE_IDENTITY","github_pr_search_matches":0,"default_branch_code_search_matches":0},
+      "recoverable_money":{"classification":"UNKNOWN_EXACT_SOURCE_IDENTITY","github_pr_search_matches":0},
+      "private_freight":{"classification":"UNKNOWN_EXACT_SOURCE_IDENTITY","github_pr_search_matches":0},
+      "causledger_inbound":{"new_material_replies":0,"latest_watch_date":"2026-09-02","portugal_outbound_hold":"ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK","spain_unsolicited_commercial_hold":"ACTIVE"}
     },
-    "active": "WarrantyGuard — reconstruct exact canonical source identity; execute repository-safe work only if authority is recovered, otherwise rotate immediately.",
-    "next": "WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3.",
+    "active": "Autonomous Revenue Recovery — reconstruct exact canonical source identity; execute repository-safe work only if authority is recovered, otherwise rotate immediately.",
+    "next": "Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in this run.",
-      "LongLead exact canonical source identity remains UNKNOWN.",
-      "MachineRelease Safety exact canonical source identity remains UNKNOWN.",
-      "K3 PR #608 is exact-head RED, documentation-only, draft/not merged/not canonical; canonical K3 runtime/source authority remains unproved."
+      "WarrantyGuard PR #805 is Factory-specific exact-head GREEN but global ObraSignal Quality RED; it remains draft/not merged/not canonical and T3 commercial proof is absent.",
+      "Paper-Laminate Works exact canonical source identity remains UNKNOWN.",
+      "Documentary Billing exact canonical source identity remains UNKNOWN.",
+      "Recoverable Money exact canonical source identity remains UNKNOWN.",
+      "Private Freight exact canonical source identity remains UNKNOWN."
     ]
   },
   "blocked": [
@@ -41,7 +45,12 @@
     {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"longlead","blocker":"Exact canonical source identity UNKNOWN after PR/default-branch code search.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"Exact canonical source identity UNKNOWN after PR search.","global_stop":false},
-    {"factory_id":"k3-fatality","blocker":"PR #608 is documentation-only and exact-head RED; canonical K3 runtime/source authority remains unproved.","global_stop":false}
+    {"factory_id":"k3-fatality","blocker":"PR #608 is documentation-only and exact-head RED; canonical K3 runtime/source authority remains unproved.","global_stop":false},
+    {"factory_id":"warrantyguard","blocker":"PR #805 is Factory-specific exact-head GREEN but global ObraSignal Quality RED; draft/not merged/not canonical; T3/WTP/customer/recovery/revenue proof absent.","global_stop":false},
+    {"factory_id":"paper-laminate-works","blocker":"Exact canonical source identity UNKNOWN after PR/default-branch search.","global_stop":false},
+    {"factory_id":"documentary-billing","blocker":"Exact canonical source identity UNKNOWN after PR/default-branch search.","global_stop":false},
+    {"factory_id":"recoverable-money","blocker":"Exact canonical source identity UNKNOWN after PR search.","global_stop":false},
+    {"factory_id":"private-freight-orchestration","blocker":"Exact canonical source identity UNKNOWN after PR search.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
