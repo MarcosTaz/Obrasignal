@@ -67,9 +67,15 @@ def test_source_failure_does_not_delete_previously_ingested_opportunities(monkey
     conn.close()
 
 
-def test_render_uses_persistent_single_instance_sqlite_disk():
+def test_render_uses_one_persistent_sqlite_store_with_spare_http_worker():
     manifest = open("render.yaml", encoding="utf-8").read()
+    entrypoint = open("cors_app.py", encoding="utf-8").read()
+    assert manifest.count("- type: web") == 1
     assert 'mountPath: /var/data' in manifest
     assert 'OBRASIGNAL_DB' in manifest
     assert 'value: "/var/data/obrasignal.db"' in manifest
-    assert '--workers 1' in manifest
+    assert '--workers 2' in manifest
+    assert 'if acquire_runtime_leader():' in entrypoint
+    leader_block = entrypoint.split('if acquire_runtime_leader():', 1)[1]
+    assert 'start_background_worker()' in leader_block
+    assert 'start_push_scheduler()' in leader_block
