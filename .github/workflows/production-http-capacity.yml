@@ -1,0 +1,143 @@
+name: ObraSignal Production HTTP Capacity
+
+on:
+  workflow_run:
+    workflows: ["ObraSignal Production Smoke"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-http-capacity
+  cancel-in-progress: true
+
+jobs:
+  authenticated-read-capacity:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      API_URL: https://obrasignal.onrender.com/api/v1
+      TARGET_BUILD: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Confirm exact production build and obtain bounded test session
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_URL SUPABASE_KEY E2E_EMAIL E2E_PASSWORD TARGET_BUILD; do
+            test -n "${!name}" || { echo "Missing required capacity-gate input: $name"; exit 1; }
+          done
+
+          curl --fail --silent --show-error --max-time 10 "$API_URL/health" > /tmp/health.json
+          python - <<'PY'
+          import json, os
+          health=json.load(open('/tmp/health.json', encoding='utf-8'))
+          assert health.get('ok') is True
+          assert health.get('build') == os.environ['TARGET_BUILD']
+          print('capacity_target_build=' + str(health.get('build')))
+          PY
+
+          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${BASE_URL%/rest/v1}"
+          BODY="$(python - <<'PY'
+          import json, os
+          print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
+          PY
+          )"
+          status="$(curl --silent --show-error --output /tmp/auth.json --write-out '%{http_code}' --max-time 15 \
+            -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' -H 'Accept: application/json' \
+            --data "$BODY")"
+          test "$status" = "200"
+          python - <<'PY'
+          import json
+          token=json.load(open('/tmp/auth.json', encoding='utf-8')).get('access_token')
+          assert token
+          open('/tmp/access_token','w',encoding='utf-8').write(token)
+          PY
+
+      - name: Measure authenticated read concurrency 2 → 4 → 8
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          import json
+          import math
+          import os
+          import statistics
+          import time
+          import urllib.error
+          import urllib.request
+
+          base=os.environ['API_URL'].rstrip('/')
+          token=open('/tmp/access_token', encoding='utf-8').read().strip()
+          endpoints=(
+              '/profile',
+              '/opportunities?limit=10',
+              '/stats',
+              '/workflow/stats',
+          )
+
+          def one(index):
+              endpoint=endpoints[index % len(endpoints)]
+              req=urllib.request.Request(
+                  base + endpoint,
+                  headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'},
+                  method='GET',
+              )
+              started=time.perf_counter()
+              try:
+                  with urllib.request.urlopen(req, timeout=10) as response:
+                      response.read(256)
+                      code=int(response.status)
+                  error=None if code == 200 else f'http_{code}'
+              except urllib.error.HTTPError as exc:
+                  error=f'http_{exc.code}'
+              except Exception as exc:
+                  error=type(exc).__name__
+              return endpoint, time.perf_counter()-started, error
+
+          def percentile(values, fraction):
+              ordered=sorted(values)
+              if not ordered:
+                  return math.nan
+              pos=max(0, min(len(ordered)-1, math.ceil(fraction*len(ordered))-1))
+              return ordered[pos]
+
+          stages=((2, 8), (4, 12), (8, 16))
+          summaries=[]
+          for concurrency, total in stages:
+              results=[]
+              with ThreadPoolExecutor(max_workers=concurrency) as pool:
+                  futures=[pool.submit(one, index) for index in range(total)]
+                  for future in as_completed(futures):
+                      results.append(future.result())
+              latencies=[item[1] for item in results]
+              errors=[item for item in results if item[2] is not None]
+              summary={
+                  'concurrency': concurrency,
+                  'requests': total,
+                  'p50_ms': round(statistics.median(latencies)*1000, 1),
+                  'p95_ms': round(percentile(latencies, .95)*1000, 1),
+                  'max_ms': round(max(latencies)*1000, 1),
+                  'errors': len(errors),
+                  'error_rate': round(len(errors)/total, 4),
+              }
+              summaries.append(summary)
+              print('capacity_stage=' + json.dumps(summary, sort_keys=True, separators=(',', ':')))
+              # Do not escalate after a damaged stage. Ten seconds is the request
+              # timeout, not a scale claim; zero errors is required at every wave.
+              if errors or max(latencies) >= 10:
+                  raise SystemExit(f'capacity stage {concurrency} failed; refusing higher load')
+
+          print('capacity_result=' + json.dumps({'status':'PASS','stages':summaries}, sort_keys=True, separators=(',', ':')))
+          PY

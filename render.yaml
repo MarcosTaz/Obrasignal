@@ -4,8 +4,9 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     # Two worker processes preserve process isolation and runtime-leader election.
-    # gthread leaves multiple request slots available even if one authenticated
-    # request is briefly waiting on SQLite/provider I/O while ingestion is active.
+    # Keep the measured baseline at four gthreads per worker until production load
+    # evidence justifies increasing concurrency; auth discovery is moved out of the
+    # request hot path instead of masking starvation with unmeasured overcommit.
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --worker-class gthread --threads 4 --timeout 180 production_entrypoint:APP
     healthCheckPath: /api/v1/health
     # SQLite remains one persistent store on one Render instance. WAL plus short

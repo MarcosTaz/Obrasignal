@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import sqlite3
 
 STATUSES = ("NEW", "REVIEWING", "PREPARING", "SUBMITTED", "WON", "LOST")
 
@@ -16,10 +17,24 @@ CREATE TABLE IF NOT EXISTS opportunity_workflow (
 '''
 
 
+def _workflow_schema_ready(conn):
+    """Probe the exact read schema without acquiring a schema-writer lock."""
+    try:
+        conn.execute(
+            "SELECT account_id,source,external_id,status,note,updated_at "
+            "FROM opportunity_workflow LIMIT 0"
+        )
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
 def ensure_workflow_table(conn):
-    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='opportunity_workflow'").fetchone()
-    if not exists:
-        conn.execute(SCHEMA)
+    # Steady-state customer reads must not run CREATE/commit. Fresh/legacy stores
+    # still self-heal, while current production schema takes the read-only probe.
+    if _workflow_schema_ready(conn):
+        return
+    conn.execute(SCHEMA)
     conn.commit()
 
 

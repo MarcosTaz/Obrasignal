@@ -60,7 +60,7 @@ def tender(**overrides):
         "SubContratacion": "1",
         "Fechas": {
             "FechaPublicacion": "2026-08-24T10:00:00",
-            "FechaCierre": "2026-09-01T15:00:00",
+            "FechaCierre": "2099-09-01T15:00:00",
         },
         "Items": {"Cantidad": 1, "Listado": [{
             "CodigoCategoria": "72131700",
