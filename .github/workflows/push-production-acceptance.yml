@@ -58,6 +58,7 @@ jobs:
           print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
           PY
           )"
+          echo "probe=auth"
           curl --fail --silent --show-error --max-time 30 \
             -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
             -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' \
@@ -69,10 +70,12 @@ jobs:
           )"
           AUTH="Authorization: Bearer $TOKEN"
 
-          unauth="$(curl --silent --output /tmp/push-unauth.json --write-out '%{http_code}' "$API_URL/push/status")"
+          echo "probe=unauthenticated-push-status"
+          unauth="$(curl --max-time 20 --silent --output /tmp/push-unauth.json --write-out '%{http_code}' "$API_URL/push/status")"
           test "$unauth" = "401"
 
-          curl --fail --silent --show-error -H "$AUTH" "$API_URL/push/status" > /tmp/push-before.json
+          echo "probe=authenticated-push-status"
+          curl --fail --silent --show-error --max-time 20 -H "$AUTH" "$API_URL/push/status" > /tmp/push-before.json
           python - <<'PY'
           import json
           p=json.load(open('/tmp/push-before.json',encoding='utf-8'))
@@ -89,19 +92,21 @@ jobs:
           p=json.load(open('/tmp/pref-before.json',encoding='utf-8'))
           print(json.dumps({'enabled':bool(p.get('enabled')),'timezone':p.get('timezone') or 'Europe/Lisbon','local_hour':p.get('local_hour',8),'local_minute':p.get('local_minute',0)}))
           PY
-            curl --silent --show-error -X POST "$API_URL/push/preference" -H "$AUTH" -H 'Content-Type: application/json' --data-binary @/tmp/pref-restore.json >/dev/null || true
+            curl --max-time 20 --silent --show-error -X POST "$API_URL/push/preference" -H "$AUTH" -H 'Content-Type: application/json' --data-binary @/tmp/pref-restore.json >/dev/null || true
           }
           trap cleanup EXIT
 
+          echo "probe=push-preference-write"
           printf '%s' '{"enabled":true,"timezone":"Europe/Lisbon","local_hour":8,"local_minute":0}' >/tmp/pref-test.json
-          curl --fail --silent --show-error -X POST "$API_URL/push/preference" -H "$AUTH" -H 'Content-Type: application/json' --data-binary @/tmp/pref-test.json > /tmp/pref-after.json
+          curl --fail --silent --show-error --max-time 20 -X POST "$API_URL/push/preference" -H "$AUTH" -H 'Content-Type: application/json' --data-binary @/tmp/pref-test.json > /tmp/pref-after.json
           python - <<'PY'
           import json
           p=json.load(open('/tmp/pref-after.json',encoding='utf-8'))['preference']
           assert p['enabled'] is True and p['timezone']=='Europe/Lisbon' and p['local_hour']==8
           PY
 
-          bad="$(curl --silent --output /tmp/bad-token.json --write-out '%{http_code}' -X POST "$API_URL/push/device" -H "$AUTH" -H 'Content-Type: application/json' --data '{"token":"not-a-token","platform":"ios","timezone":"Europe/Lisbon"}')"
+          echo "probe=invalid-device-contract"
+          bad="$(curl --max-time 20 --silent --output /tmp/bad-token.json --write-out '%{http_code}' -X POST "$API_URL/push/device" -H "$AUTH" -H 'Content-Type: application/json' --data '{"token":"not-a-token","platform":"ios","timezone":"Europe/Lisbon"}')"
           test "$bad" = "400"
           grep -q 'invalid_push_token' /tmp/bad-token.json
           echo "Closed-app push server contract PASS."
