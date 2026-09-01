@@ -1,5 +1,10 @@
 from auth_context import RequestIdentity
-from vertical_apps.industrial_claims.web import create_app
+from vertical_apps.industrial_claims.web import create_app as _create_app
+
+
+def create_app(*args, **kwargs):
+    kwargs.setdefault("allow_inline_evidence_content", True)
+    return _create_app(*args, **kwargs)
 
 
 def _identity(tenant_id: str, actor_id: str, *roles: str):
