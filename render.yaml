@@ -21,6 +21,13 @@ services:
         sync: false
       - key: OBRASIGNAL_JWT_AUDIENCE
         value: "authenticated"
+      # Public signing keys are safe to cache for longer than the five-minute
+      # default. Unknown key IDs still force refresh, so provider key rotation is
+      # preserved while normal customer requests avoid repeated network latency.
+      - key: OBRASIGNAL_JWKS_CACHE_SECONDS
+        value: "3600"
+      - key: OBRASIGNAL_JWKS_STALE_MAX_SECONDS
+        value: "86400"
       - key: OBRASIGNAL_CORS_ORIGIN
         value: "https://obrasignal.com"
       - key: OBRASIGNAL_CORS_FALLBACK_ORIGIN
