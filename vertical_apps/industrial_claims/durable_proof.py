@@ -8,7 +8,14 @@ from typing import Any, Sequence
 from factory_cloud.assurance_kernel import EvidenceEnvelope
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.change_chronology_reader import read_change_chronology
-from vertical_apps.industrial_claims.proof import ExternalAttestation, build_proof_manifest, verify_proof_manifest
+from vertical_apps.industrial_claims.outcome_authorization import DOCUMENTED_FINAL_OUTCOME_PURPOSE
+from vertical_apps.industrial_claims.proof import (
+    ExternalAttestation,
+    build_proof_manifest,
+    canonical_json_bytes,
+    sha256_hex,
+    verify_proof_manifest,
+)
 from vertical_apps.industrial_claims.proof_binding import validate_evidence_attestation_bindings
 from vertical_apps.industrial_claims.proof_readiness import evaluate_proof_strength
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
@@ -22,6 +29,20 @@ def _json_list(value: object, *, label: str) -> list[Any]:
     if not isinstance(parsed, list):
         raise AssuranceStoreError(f"{label} is invalid")
     return parsed
+
+
+def _json_object(value: object, *, label: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(str(value))
+    except (TypeError, ValueError) as exc:
+        raise AssuranceStoreError(f"{label} is invalid") from exc
+    if not isinstance(parsed, dict):
+        raise AssuranceStoreError(f"{label} is invalid")
+    return parsed
+
+
+def _true(value: object) -> bool:
+    return value is True or str(value or "").strip().lower() == "true"
 
 
 def _outcome_evidence_ids(detail: dict[str, Any], *, case_evidence_ids: set[str]) -> list[str]:
@@ -46,6 +67,130 @@ def _outcome_evidence_ids(detail: dict[str, Any], *, case_evidence_ids: set[str]
     return result
 
 
+def _validate_resolution_audit(
+    conn: sqlite3.Connection,
+    *,
+    tenant_id: str,
+    finding_id: str,
+    case_evidence_ids: Sequence[str],
+    outcome: dict[str, Any],
+) -> None:
+    outcome_id = str(outcome.get("outcome_id") or "").strip()
+    evidence = outcome.get("evidence")
+    if not outcome_id or not isinstance(evidence, dict):
+        raise AssuranceStoreError("durable proof pack outcome audit binding is invalid")
+    evidence_id = str(evidence.get("evidence_id") or "").strip()
+    row = conn.execute(
+        "SELECT * FROM recovery_outcomes WHERE tenant_id=? AND finding_id=? AND outcome_id=?",
+        (tenant_id, finding_id, outcome_id),
+    ).fetchone()
+    if row is None:
+        raise AssuranceStoreError("durable proof pack outcome row is missing")
+    expected_row = (
+        str(outcome.get("state") or ""),
+        str(outcome.get("recovered_amount") or ""),
+        str(outcome.get("currency") or ""),
+        evidence_id,
+    )
+    actual_row = (
+        str(row["state"]),
+        str(row["recovered_amount"]),
+        str(row["currency"]),
+        str(row["evidence_ref"]),
+    )
+    if actual_row != expected_row:
+        raise AssuranceStoreError("durable proof pack outcome row drift")
+
+    expected_event_id = f"{tenant_id}:{outcome_id}:resolve"
+    audit_rows = conn.execute(
+        "SELECT * FROM audit_events WHERE tenant_id=? AND subject_ref=? AND event_type='finding_resolved'",
+        (tenant_id, finding_id),
+    ).fetchall()
+    matching = [audit for audit in audit_rows if str(audit["event_id"]) == expected_event_id]
+    if len(matching) != 1 or len(audit_rows) != 1:
+        raise AssuranceStoreError("durable proof pack resolution audit lineage is missing or ambiguous")
+    audit = matching[0]
+    if not str(audit["actor_id"] or "").strip():
+        raise AssuranceStoreError("durable proof pack resolution audit actor is missing")
+    audit_evidence = [
+        str(item)
+        for item in _json_list(audit["evidence_refs_json"], label="resolution audit evidence lineage")
+    ]
+    expected_evidence = tuple(sorted(set(tuple(case_evidence_ids) + (evidence_id,))))
+    if len(audit_evidence) != len(expected_evidence) or set(audit_evidence) != set(expected_evidence):
+        raise AssuranceStoreError("durable proof pack resolution audit evidence binding mismatch")
+    expected_payload_hash = sha256_hex({
+        "state": str(row["state"]),
+        "outcome_id": str(row["outcome_id"]),
+        "recovered_amount": str(row["recovered_amount"]),
+        "currency": str(row["currency"]),
+        "evidence_ref": str(row["evidence_ref"]),
+    })
+    if str(audit["payload_hash"]) != expected_payload_hash:
+        raise AssuranceStoreError("durable proof pack resolution audit payload binding mismatch")
+
+
+def _validate_secure_outcome_registry_binding(
+    conn: sqlite3.Connection,
+    *,
+    tenant_id: str,
+    finding_id: str,
+    envelope: EvidenceEnvelope,
+) -> None:
+    metadata = dict(envelope.metadata or {})
+    raw_persisted = _true(metadata.get("raw_content_persisted"))
+    direct_secure = str(metadata.get("capture_mode") or "").strip() == "DIRECT_SECURE_ORIGINAL_CAPTURE"
+    if not raw_persisted and not direct_secure:
+        # Legacy/synthetic hash-only outcome evidence remains representable, but it
+        # is never upgraded into an immutable-original claim by this validator.
+        return
+    if not raw_persisted or not direct_secure:
+        raise AssuranceStoreError("durable proof pack secure outcome custody semantics are inconsistent")
+    if str(metadata.get("outcome_finding_id") or "").strip() != finding_id:
+        raise AssuranceStoreError("durable proof pack secure outcome finding authorization mismatch")
+    if str(metadata.get("outcome_purpose") or "").strip().upper() != DOCUMENTED_FINAL_OUTCOME_PURPOSE:
+        raise AssuranceStoreError("durable proof pack secure outcome authorization purpose mismatch")
+    if str(metadata.get("verification_state") or "").strip().upper() != "CONTENT_HASHED":
+        raise AssuranceStoreError("durable proof pack secure outcome verification state mismatch")
+    if str(metadata.get("immutability") or "").strip().upper() != "WORM_LOCKED":
+        raise AssuranceStoreError("durable proof pack secure outcome immutability mismatch")
+    if not _true(metadata.get("original_version_readback_verified")) or not _true(metadata.get("worm_lock_verified")):
+        raise AssuranceStoreError("durable proof pack secure outcome immutable readback is not verified")
+    if str(metadata.get("original_retention_mode") or "").strip().upper() != "COMPLIANCE":
+        raise AssuranceStoreError("durable proof pack secure outcome retention mode mismatch")
+
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='causledger_secure_outcome_envelopes'"
+    ).fetchone()
+    if table is None:
+        raise AssuranceStoreError("durable proof pack secure outcome registry is missing")
+    registry = conn.execute(
+        "SELECT * FROM causledger_secure_outcome_envelopes WHERE tenant_id=? AND finding_id=? AND evidence_id=? AND source_ref=?",
+        (tenant_id, finding_id, envelope.evidence_id, envelope.source_ref),
+    ).fetchone()
+    if registry is None:
+        raise AssuranceStoreError("durable proof pack secure outcome registry binding is missing")
+    registry_metadata_json = str(registry["metadata_json"])
+    if sha256_hex(registry_metadata_json.encode("utf-8")) != str(registry["metadata_sha256"]):
+        raise AssuranceStoreError("durable proof pack secure outcome registry metadata hash mismatch")
+    registry_metadata = _json_object(
+        registry_metadata_json,
+        label="secure outcome registry metadata",
+    )
+    if registry_metadata != metadata:
+        raise AssuranceStoreError("durable proof pack secure outcome registry metadata drift")
+    if str(registry["content_hash"]).lower() != envelope.content_hash.lower():
+        raise AssuranceStoreError("durable proof pack secure outcome registry digest drift")
+    if str(registry["authorization_id"]) != str(metadata.get("outcome_authorization_id") or ""):
+        raise AssuranceStoreError("durable proof pack secure outcome authorization id drift")
+    if str(registry["authorization_scope_sha256"]).lower() != str(
+        metadata.get("outcome_authorization_scope_sha256") or ""
+    ).lower():
+        raise AssuranceStoreError("durable proof pack secure outcome authorization scope drift")
+    if str(registry["original_receipt_ref"]) != str(metadata.get("original_provider_receipt_ref") or ""):
+        raise AssuranceStoreError("durable proof pack secure outcome original receipt drift")
+
+
 def build_durable_claim_proof_pack(
     service: IndustrialClaimsService,
     *,
@@ -61,7 +206,8 @@ def build_durable_claim_proof_pack(
     generation never creates missing proof tables or requests external attestations.
     Missing proof therefore stays missing rather than being repaired by observation.
     Final outcome evidence is part of the manifest lineage when present; a recovered
-    dossier therefore cannot omit the documentary record used to close the finding.
+    dossier therefore cannot omit or silently substitute the documentary record used
+    to close the finding.
     """
     revision = service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
     detail = service.read_model.get_finding(
@@ -92,6 +238,14 @@ def build_durable_claim_proof_pack(
             detail,
             case_evidence_ids=set(evidence_ids),
         )
+        for outcome in detail.get("outcomes") or []:
+            _validate_resolution_audit(
+                conn,
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                case_evidence_ids=evidence_ids,
+                outcome=outcome,
+            )
 
         calculation = conn.execute(
             "SELECT * FROM calculations WHERE tenant_id=? AND calculation_id=?",
@@ -175,6 +329,12 @@ def build_durable_claim_proof_pack(
             expected_hash = str((outcome_record.get("evidence") or {}).get("content_hash") or "").strip().lower()
             if not expected_hash or envelope.content_hash.lower() != expected_hash:
                 raise AssuranceStoreError("durable proof pack outcome evidence digest drift")
+            _validate_secure_outcome_registry_binding(
+                conn,
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                envelope=envelope,
+            )
             envelopes.append(envelope)
 
     validate_evidence_attestation_bindings(tuple(envelopes), tuple(attestations))
@@ -216,6 +376,8 @@ def build_durable_claim_proof_pack(
             "change_capture_is_evidence_preservation_not_entitlement": True,
             "proof_pack_generation_is_read_only": True,
             "final_outcome_evidence_in_manifest_when_present": True,
+            "final_outcome_bound_to_resolution_audit": True,
+            "secure_outcome_bound_to_authorization_registry": True,
         },
     }
     manifest = build_proof_manifest(
