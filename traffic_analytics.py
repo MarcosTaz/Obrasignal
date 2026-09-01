@@ -205,9 +205,19 @@ def record_event(payload):
         conn.close()
 
 
-def private_summary(conn, *, days=30):
+def private_summary(conn, *, days=30, now=None):
+    """Return the private aggregate report for a deterministic UTC day window.
+
+    ``now`` is injectable so tests and reporting backfills do not depend on the
+    wall-clock date at which they happen to execute.
+    """
     ensure_traffic_schema(conn)
-    start = (datetime.now(timezone.utc).date() - timedelta(days=max(1, int(days)) - 1)).isoformat()
+    reference = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    else:
+        reference = reference.astimezone(timezone.utc)
+    start = (reference.date() - timedelta(days=max(1, int(days)) - 1)).isoformat()
     totals = conn.execute(
         """SELECT COUNT(*) AS events,
                   COUNT(DISTINCT CASE WHEN event_name='page_view' THEN visitor_day_hash END) AS unique_visitors,
