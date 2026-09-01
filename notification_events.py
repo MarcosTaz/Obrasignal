@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import hashlib
 import re
+import sqlite3
 
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 
@@ -24,7 +25,30 @@ def event_key_for(account_id, row):
     return f"{str(account_id or 'default')}:{_key(row)}"
 
 
+def _event_schema_ready(conn):
+    try:
+        conn.execute(
+            "SELECT account_id,event_key,tender_id,source,event_type,score,created_at,delivered_at "
+            "FROM opportunity_events LIMIT 0"
+        )
+    except sqlite3.OperationalError:
+        return False
+    indexes = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name IN "
+            "('idx_opportunity_events_account_feed','idx_opportunity_events_account_delivery')"
+        ).fetchall()
+    }
+    return indexes == {
+        "idx_opportunity_events_account_feed",
+        "idx_opportunity_events_account_delivery",
+    }
+
+
 def ensure_event_table(conn):
+    if _event_schema_ready(conn):
+        return
     exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='opportunity_events'").fetchone()
     if not exists:
         conn.execute(
@@ -43,8 +67,6 @@ def ensure_event_table(conn):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_events)").fetchall()}
     if "account_id" not in cols:
         conn.execute("ALTER TABLE opportunity_events ADD COLUMN account_id TEXT NOT NULL DEFAULT 'default'")
-    # Alert feeds and morning digests are tenant-first reads. Without this index,
-    # every extra customer grows the scan required for one customer's inbox.
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_opportunity_events_account_feed "
         "ON opportunity_events(account_id, event_type, created_at DESC)"
@@ -56,31 +78,41 @@ def ensure_event_table(conn):
     conn.commit()
 
 
-def _latest_sync_finished_at(conn):
+def _latest_completed_sync_window(conn):
     exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sync_runs'").fetchone()
     if not exists:
-        return None
-    row = conn.execute("SELECT finished_at FROM sync_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
-    return row[0] if row else None
+        return None, None
+    rows = conn.execute(
+        "SELECT finished_at FROM sync_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 2"
+    ).fetchall()
+    current = rows[0][0] if rows else None
+    previous = rows[1][0] if len(rows) > 1 else None
+    return current, previous
 
 
 def record_new_opportunities(conn, account_id="default", min_score=75):
-    """Record qualified actionable opportunities newly discovered by the latest sync.
+    """Record qualified actionable opportunities discovered since the last good sync.
 
-    ``tenders.score`` is legacy/global presentation state and must never decide
-    whether a specific customer receives an alert. The latest account-scoped
-    decision is the only scoring authority. In production, newness is tied to
-    the exact latest ``sync_runs.finished_at`` value used as ``tenders.first_seen``;
-    the short datetime window remains only a compatibility fallback for isolated
-    callers/tests without sync-run state.
+    Account-scoped decisions are the only scoring authority. When production
+    ingestion commits tenders in bounded chunks, an interrupted attempt can leave
+    correctly persisted new tenders before its sync run is marked complete. The
+    next successful run updates ``last_seen`` and this window includes every row
+    whose true ``first_seen`` is after the previous completed run, so availability
+    hardening cannot silently lose a customer alert.
     """
     account_id = str(account_id or "default")
     ensure_event_table(conn)
     ensure_lifecycle_table(conn)
-    sync_finished_at = _latest_sync_finished_at(conn)
-    if sync_finished_at:
-        freshness = "t.first_seen=?"
-        freshness_params = [sync_finished_at]
+    current_sync, previous_sync = _latest_completed_sync_window(conn)
+    if current_sync and previous_sync:
+        freshness = (
+            "t.last_seen=? AND julianday(t.first_seen)>julianday(?) "
+            "AND julianday(t.first_seen)<=julianday(?)"
+        )
+        freshness_params = [current_sync, previous_sync, current_sync]
+    elif current_sync:
+        freshness = "t.last_seen=? AND t.first_seen=?"
+        freshness_params = [current_sync, current_sync]
     else:
         freshness = "datetime(t.first_seen) >= datetime('now','-2 minutes')"
         freshness_params = []
