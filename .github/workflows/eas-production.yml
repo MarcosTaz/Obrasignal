@@ -12,10 +12,14 @@ on:
           - android
           - ios
           - all
+  push:
+    branches: [main]
+    paths:
+      - '.eas-production-once'
 
 jobs:
   android-production-build:
-    if: ${{ inputs.platform == 'android' || inputs.platform == 'all' }}
+    if: ${{ github.event_name == 'push' || inputs.platform == 'android' || inputs.platform == 'all' }}
     name: EAS production build (android)
     runs-on: ubuntu-latest
     defaults:
@@ -24,6 +28,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Require EAS token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -43,11 +52,9 @@ jobs:
         run: eas build --platform android --profile production --non-interactive --no-wait
 
   ios-production-build:
-    # iOS is intentionally opt-in while the Web-first launch is proving paid
-    # demand. It also prevents an unvalidated Apple distribution certificate
-    # from making every Web/mobile code push look like a broken production
-    # release. Select ios/all explicitly once Apple distribution is activated.
-    if: ${{ inputs.platform == 'ios' || inputs.platform == 'all' }}
+    # iOS remains explicitly manual: Apple distribution credentials must be
+    # deliberately activated and must never be inferred from an Android build.
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.platform == 'ios' || inputs.platform == 'all') }}
     name: EAS production build (ios)
     runs-on: ubuntu-latest
     defaults:
@@ -56,6 +63,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Require EAS token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
 
       - name: Setup Node
         uses: actions/setup-node@v6
