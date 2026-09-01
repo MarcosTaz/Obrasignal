@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
 
 from auth_context import RequestIdentity
 from vertical_apps.industrial_claims.proof_extensions import dual_digest
@@ -14,8 +13,10 @@ class Store:
 
     def __init__(self):
         self._stored: dict[tuple[str, str], bytes] = {}
+        self.put_calls = 0
 
     def put_immutable(self, *, tenant_id, evidence_id, content, content_type, retention_until, legal_hold, metadata):
+        self.put_calls += 1
         object_ref = f"{tenant_id}/{evidence_id}"
         version_ref = "v1"
         key = (object_ref, version_ref)
@@ -92,6 +93,16 @@ def _capture_payload(*, role: str, evidence_id: str, source_ref: str, content: b
     }
 
 
+def _outcome_capture_payload(*, evidence_id: str, source_ref: str, content: bytes) -> dict:
+    return {
+        "authorization": _outcome_authorization(),
+        "evidence_id": evidence_id,
+        "source_ref": source_ref,
+        "content_type": "application/pdf",
+        "content_base64": base64.b64encode(content).decode("ascii"),
+    }
+
+
 def test_authorized_runtime_capture_to_recovered_offline_dossier_e2e(tmp_path):
     database = tmp_path / "secure-runtime-e2e.sqlite3"
     store = Store()
@@ -123,6 +134,7 @@ def test_authorized_runtime_capture_to_recovered_offline_dossier_e2e(tmp_path):
     assert denied.status_code == 403
     assert denied.get_json() == {"error": "authorization_denied"}
     assert store._stored == {}
+    assert store.put_calls == 0
 
     originals = {
         "commercial_basis": b"SYNTHETIC SIGNED PURCHASE ORDER BASIS",
@@ -154,12 +166,40 @@ def test_authorized_runtime_capture_to_recovered_offline_dossier_e2e(tmp_path):
         assert body["evidence_role"] == role
         assert body["source_authentication"] == "UNVERIFIED"
         assert body["source_authenticity_established"] is False
+        assert body["authorization_identity_independently_verified"] is False
         assert body["recoverability_established"] is False
         assert body["exact_version_readback_verified"] is True
         assert body["raw_content_persisted"] is True
         assert body["raw_content_returned"] is False
+        assert body["idempotent_replay"] is False
         assert "content_base64" not in body
         assert "authorized_by_ref" not in body
+    assert store.put_calls == 3
+
+    replay_payload = _capture_payload(
+        role="event",
+        evidence_id=evidence_ids["event"],
+        source_ref=refs["event"],
+        content=originals["event"],
+    )
+    replay = operator.post("/secure-evidence/capture", json=replay_payload)
+    assert replay.status_code == 200
+    assert replay.get_json()["idempotent_replay"] is True
+    assert store.put_calls == 3
+
+    changed_bytes = dict(replay_payload)
+    changed_bytes["content_base64"] = base64.b64encode(b"DIFFERENT EVENT BYTES").decode("ascii")
+    collision = operator.post("/secure-evidence/capture", json=changed_bytes)
+    assert collision.status_code == 422
+    assert "collision" in collision.get_json()["message"]
+    assert store.put_calls == 3
+
+    changed_source = dict(replay_payload)
+    changed_source["source_ref"] = "change-runtime-other"
+    source_collision = operator.post("/secure-evidence/capture", json=changed_source)
+    assert source_collision.status_code == 422
+    assert "source reference" in source_collision.get_json()["message"]
+    assert store.put_calls == 3
 
     created = analyst.post(
         "/secure-analyze",
@@ -194,21 +234,50 @@ def test_authorized_runtime_capture_to_recovered_offline_dossier_e2e(tmp_path):
 
     outcome_bytes = b"SYNTHETIC FINAL SETTLEMENT PAYMENT EVIDENCE"
     outcome_evidence_id = "tenant-a:runtime-case-1:outcome:payment-1"
+    outcome_payload = _outcome_capture_payload(
+        evidence_id=outcome_evidence_id,
+        source_ref="bank-runtime-1",
+        content=outcome_bytes,
+    )
     outcome_captured = operator.post(
         f"/findings/{finding_id}/secure-outcome-evidence/capture",
-        json={
-            "authorization": _outcome_authorization(),
-            "evidence_id": outcome_evidence_id,
-            "source_ref": "bank-runtime-1",
-            "content_type": "application/pdf",
-            "content_base64": base64.b64encode(outcome_bytes).decode("ascii"),
-        },
+        json=outcome_payload,
     )
     assert outcome_captured.status_code == 201
     outcome_capture_body = outcome_captured.get_json()
     assert outcome_capture_body["evidence_id"] == outcome_evidence_id
     assert outcome_capture_body["source_authentication"] == "UNVERIFIED"
     assert outcome_capture_body["raw_content_returned"] is False
+    assert outcome_capture_body["idempotent_replay"] is False
+    assert store.put_calls == 4
+
+    outcome_replay = operator.post(
+        f"/findings/{finding_id}/secure-outcome-evidence/capture",
+        json=outcome_payload,
+    )
+    assert outcome_replay.status_code == 200
+    assert outcome_replay.get_json()["idempotent_replay"] is True
+    assert store.put_calls == 4
+
+    changed_outcome_source = dict(outcome_payload)
+    changed_outcome_source["source_ref"] = "bank-runtime-other"
+    outcome_collision = operator.post(
+        f"/findings/{finding_id}/secure-outcome-evidence/capture",
+        json=changed_outcome_source,
+    )
+    assert outcome_collision.status_code == 422
+    assert "source reference" in outcome_collision.get_json()["message"]
+    assert store.put_calls == 4
+
+    changed_outcome_bytes = dict(outcome_payload)
+    changed_outcome_bytes["content_base64"] = base64.b64encode(b"DIFFERENT SETTLEMENT BYTES").decode("ascii")
+    outcome_bytes_collision = operator.post(
+        f"/findings/{finding_id}/secure-outcome-evidence/capture",
+        json=changed_outcome_bytes,
+    )
+    assert outcome_bytes_collision.status_code == 422
+    assert "collision" in outcome_bytes_collision.get_json()["message"]
+    assert store.put_calls == 4
 
     resolved = operator.post(
         f"/findings/{finding_id}/secure-resolve",
