@@ -49,6 +49,17 @@ class OriginalEvidenceStore(Protocol):
     ) -> OriginalObjectReceipt:
         ...
 
+    def read_immutable_version(
+        self,
+        *,
+        tenant_id: str,
+        evidence_id: str,
+        object_ref: str,
+        version_ref: str,
+    ) -> bytes:
+        """Return the exact stored bytes for the immutable version named by the receipt."""
+        ...
+
 
 class UnavailableOriginalEvidenceStore:
     name = "UNCONFIGURED"
@@ -64,6 +75,16 @@ class UnavailableOriginalEvidenceStore:
         legal_hold: bool,
         metadata: Mapping[str, Any],
     ) -> OriginalObjectReceipt:
+        raise RuntimeError("secure immutable original-evidence storage is not configured")
+
+    def read_immutable_version(
+        self,
+        *,
+        tenant_id: str,
+        evidence_id: str,
+        object_ref: str,
+        version_ref: str,
+    ) -> bytes:
         raise RuntimeError("secure immutable original-evidence storage is not configured")
 
 
