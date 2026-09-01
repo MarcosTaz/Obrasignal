@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {createPilotIntake,setPilotScope,recordPilotAcceptance,authorizePilotData,verifyPilotIntake} from '../lib/intake.mjs';
 import {ingestDocument,extractDocumentCandidates,approveClause,buildDocumentDossier} from '../lib/documents.mjs';
 import {buildContractFromDocumentReview} from '../lib/rules.mjs';
 import {makeEvidence} from '../lib/evidence.mjs';
@@ -11,6 +12,14 @@ import {buildOperatorQueue} from '../lib/monitoring.mjs';
 import {sha256} from '../lib/utils.mjs';
 
 const tenantId='journey-tenant',customer='OEM-1',reviewer='journey-reviewer';
+const intake=createPilotIntake({tenantId,id:'INTAKE-J1',organization:'Synthetic Supplier',contactName:'Synthetic Buyer',contactEmail:'buyer@example.test',role:'Warranty Manager',termsVersion:'pilot-v1',privacyNoticeVersion:'privacy-v1',createdAt:'2026-08-29T19:55:00Z'});
+setPilotScope(intake,{description:'Synthetic assisted diagnostic',maxCases:50,maxDocuments:20,allowedCurrencies:['EUR'],at:'2026-08-29T19:56:00Z'});
+recordPilotAcceptance(intake,{acceptedBy:'synthetic-buyer',evidenceHash:sha256('synthetic acceptance evidence'),at:'2026-08-29T19:57:00Z'});
+authorizePilotData(intake,{dataClasses:['CONTRACTS','DEBIT_EXPORTS','EVIDENCE'],at:'2026-08-29T19:58:00Z'});
+assert.equal(verifyPilotIntake(intake).ok,true);
+assert.equal(intake.realCustomerPromoted,false);
+assert.equal(intake.state,'DATA_INTAKE_AUTHORIZED');
+
 const receivedAt='2026-08-29T20:00:00Z';
 const sourceText=[
   'Warranty applies to eligible supplied parts.',
@@ -67,7 +76,7 @@ assert.equal(queue.alerts.length,0);
 
 const billing=createBillingSandbox({tenantId,id:'BILL-J1',caseId:debit.id,currency:'EUR',amount:2500,pricingModel:'FIXED_DIAGNOSTIC',termsVersion:'pilot-v1',createdAt:'2026-08-29T20:11:00Z'});
 markOfferReady(billing,{at:'2026-08-29T20:12:00Z'});
-recordAcceptanceEvidence(billing,{evidenceHash:sha256('synthetic acceptance evidence'),at:'2026-08-29T20:13:00Z'});
+recordAcceptanceEvidence(billing,{evidenceHash:sha256('synthetic billing acceptance evidence'),at:'2026-08-29T20:13:00Z'});
 draftInvoiceRecord(billing,{invoiceRef:'SANDBOX-INVOICE-J1',at:'2026-08-29T20:14:00Z'});
 recordPaymentEvidence(billing,{amount:2500,evidenceHash:sha256('synthetic payment evidence'),at:'2026-08-29T20:15:00Z'});
 reviewPaymentEvidence(billing,{reviewer,reviewedAt:'2026-08-29T20:16:00Z'});
@@ -82,4 +91,4 @@ resolveTicket(ticket,{actor:'operator',at:'2026-08-29T20:19:00Z',resolution:'Syn
 assert.equal(verifySupportTicket(ticket).ok,true);
 assert.equal(ticket.externalMessageSent,false);
 
-console.log(JSON.stringify({ok:true,mode:'SYNTHETIC_ASSISTED_E2E',marketValidation:false,realCustomer:false,realPayment:false,revenueRecognized:0,externalNotificationsSent:0,journey:['document','review','contract','analysis','dossier','save','return','outcome','monitoring','billing-sandbox','support']}));
+console.log(JSON.stringify({ok:true,mode:'SYNTHETIC_ASSISTED_E2E',marketValidation:false,realCustomer:false,realPayment:false,revenueRecognized:0,externalNotificationsSent:0,journey:['intake','scope','acceptance','data-authorization','document','review','contract','analysis','dossier','save','return','outcome','monitoring','billing-sandbox','support']}));
