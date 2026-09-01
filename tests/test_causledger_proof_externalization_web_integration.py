@@ -56,6 +56,17 @@ def test_app_externalization_is_operator_only_explicit_fail_closed_and_audited(t
         identity_resolver=_identity("tenant-a", "operator-a", "operator"),
     ).test_client()
 
+    malformed = operator.post(
+        f"/findings/{finding_id}/proof-pack/externalize",
+        data="{",
+        content_type="application/json",
+    )
+    assert malformed.status_code == 400
+    assert malformed.get_json()["error"] == "invalid_json"
+
+    missing_status = operator.get("/findings/not-a-real-finding/proof-pack/externalizations")
+    assert missing_status.status_code == 422
+
     proof = operator.get(f"/findings/{finding_id}/proof-pack")
     assert proof.status_code == 200
     target_sha256 = proof.get_json()["proof_manifest"]["attestation_target"]["sha256"]
