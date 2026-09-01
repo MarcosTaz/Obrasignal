@@ -66,15 +66,25 @@ def _records(values: Sequence[object]) -> tuple[str, ...]:
     return tuple(str(value or "").strip() for value in values if str(value or "").strip())
 
 
+def _has_version(record: str, version: str, *, separators: str) -> bool:
+    lowered = record.strip().lower()
+    expected = version.lower()
+    if not lowered.startswith(expected):
+        return False
+    if len(lowered) == len(expected):
+        return True
+    return lowered[len(expected)] in separators
+
+
 def _spf(records: tuple[str, ...]) -> tuple[bool, str | None]:
-    candidates = tuple(record for record in records if record.lower().startswith("v=spf1"))
+    candidates = tuple(record for record in records if _has_version(record, "v=spf1", separators=" \t"))
     if len(candidates) != 1:
         return False, "SPF_MISSING" if not candidates else "SPF_MULTIPLE"
     return True, None
 
 
 def _dmarc(records: tuple[str, ...]) -> tuple[bool, str | None, str | None, bool]:
-    candidates = tuple(record for record in records if record.lower().startswith("v=dmarc1"))
+    candidates = tuple(record for record in records if _has_version(record, "v=dmarc1", separators="; \t"))
     if len(candidates) != 1:
         return False, "DMARC_MISSING" if not candidates else "DMARC_MULTIPLE", None, False
     tags: dict[str, str] = {}
@@ -99,7 +109,7 @@ def _dkim(records_by_selector: Mapping[str, Sequence[str]]) -> tuple[bool, str |
         if not selector or any(ch not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for ch in selector):
             continue
         records = _records(tuple(values))
-        if any(record.lower().startswith("v=dkim1") for record in records):
+        if any(_has_version(record, "v=dkim1", separators="; \t") for record in records):
             verified_selectors += 1
             continue
         # Many managed-mail providers publish selector._domainkey as CNAME.
