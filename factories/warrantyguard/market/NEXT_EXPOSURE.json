@@ -1,8 +1,29 @@
 {
-  "status": "COHORT_FROZEN_WAITING_RESPONSE",
+  "status": "LEGAL_HOLD_DGC_LIST_PENDING",
   "current_cohort": 4,
   "earliest_controlled_followup": "2026-09-03T09:00:00+01:00",
-  "followup_only_if": ["no reply","no bounce","no rejection","no reroute"],
-  "standby": ["JAC Products Portugal","TMG Automotive"],
-  "truth_constraints": ["no automatic resend","no T3 from reply alone","no sensitive data request before security gate"]
+  "followup_only_if": [
+    "current applicable DGC corporate opt-out list or authoritative procedure obtained",
+    "target checked against current DGC suppression list and not suppressed",
+    "no reply",
+    "no bounce",
+    "no rejection",
+    "no reroute",
+    "no direct opt-out",
+    "no portfolio suppression/collision"
+  ],
+  "dgc_compliance": {
+    "required": true,
+    "law_checked_at": "2026-09-01",
+    "list_status": "PENDING_DGC_RESPONSE",
+    "target_checks_complete": false,
+    "send_allowed": false
+  },
+  "standby": ["JAC Products Portugal", "TMG Automotive"],
+  "truth_constraints": [
+    "no automatic resend",
+    "no T3 from reply alone",
+    "no sensitive data request before security/data-authorization gate",
+    "unknown compliance state means HOLD"
+  ]
 }
