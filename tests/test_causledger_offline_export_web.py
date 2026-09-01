@@ -185,6 +185,8 @@ def test_offline_export_route_releases_only_exact_secure_originals_after_target_
     assert exported.headers["Cache-Control"] == "no-store"
     assert exported.headers["Pragma"] == "no-cache"
     assert exported.headers["X-CausLedger-Confidential"] == "true"
+    operation_id = exported.headers["X-CausLedger-Export-Operation"]
+    assert operation_id.startswith("offexp_")
     assert target[:16] in exported.headers["Content-Disposition"]
     body = exported.get_json()
     assert body["confidential"] is True
@@ -198,6 +200,18 @@ def test_offline_export_route_releases_only_exact_secure_originals_after_target_
     assert set(decoded.values()) == set(payloads.values())
     assert len(store.reads) == 3
     assert all(read[0] == "tenant-a" for read in store.reads)
+
+    audit = client.get(f"/findings/{finding_id}/proof-pack/offline-exports")
+    assert audit.status_code == 200
+    audit_body = audit.get_json()
+    assert audit_body["event_count"] == 2
+    assert audit_body["chain_valid"] is True
+    assert audit_body["documentary_content_stored"] is False
+    events = audit_body["operations"][operation_id]
+    assert [event["state"] for event in events] == ["STARTED", "COMPLETED"]
+    assert events[0]["payload"]["evidence_count"] == 3
+    assert events[1]["payload"]["independent_verification_valid"] is True
+    assert "content_base64" not in str(audit_body)
 
 
 def test_offline_export_route_fails_before_reading_originals_without_confirmation_or_exact_target(tmp_path):
@@ -222,6 +236,8 @@ def test_offline_export_route_fails_before_reading_originals_without_confirmatio
     assert stale.status_code == 422
     assert "target changed" in stale.get_json()["message"]
     assert store.reads == []
+    audit = client.get(f"/findings/{finding_id}/proof-pack/offline-exports").get_json()
+    assert audit["event_count"] == 0
 
 
 def test_offline_export_route_is_tenant_scoped_and_never_reads_cross_tenant_originals(tmp_path):
@@ -271,6 +287,11 @@ def test_offline_export_route_refuses_legacy_hash_only_evidence(tmp_path):
     assert denied.status_code == 422
     assert "not durably persisted" in denied.get_json()["message"]
     assert store.reads == []
+    audit = client.get(f"/findings/{finding_id}/proof-pack/offline-exports").get_json()
+    assert audit["event_count"] == 2
+    events = next(iter(audit["operations"].values()))
+    assert [event["state"] for event in events] == ["STARTED", "FAILED"]
+    assert events[-1]["payload"]["failure_class"] == "AssuranceStoreError"
 
 
 def test_offline_export_route_fails_closed_when_immutable_store_is_not_configured(tmp_path):
@@ -287,6 +308,8 @@ def test_offline_export_route_fails_closed_when_immutable_store_is_not_configure
     )
     assert denied.status_code == 422
     assert "not configured" in denied.get_json()["message"]
+    audit = client.get(f"/findings/{finding_id}/proof-pack/offline-exports").get_json()
+    assert audit["event_count"] == 0
 
 
 def test_assisted_runtime_wires_offline_export_to_verified_reviewer_or_operator_only(tmp_path):
@@ -332,6 +355,10 @@ def test_assisted_runtime_wires_offline_export_to_verified_reviewer_or_operator_
     assert exported.status_code == 200
     assert exported.get_json()["independent_verification"]["valid"] is True
     assert len(store.reads) == 3
+    operation_id = exported.headers["X-CausLedger-Export-Operation"]
+    audit = reviewer.get(f"/findings/{finding_id}/proof-pack/offline-exports")
+    assert audit.status_code == 200
+    assert [event["state"] for event in audit.get_json()["operations"][operation_id]] == ["STARTED", "COMPLETED"]
 
     unconfigured = create_app(
         database,
