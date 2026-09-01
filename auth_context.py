@@ -74,7 +74,15 @@ def _invalid_token_reason(error: InvalidTokenError) -> str:
 
 
 def configured_identity() -> RequestIdentity:
-    """Resolve identity from development configuration or a verified JWT."""
+    """Resolve identity from development configuration or a verified JWT.
+
+    Provider requests can cross more than one authenticated Flask boundary
+    (privacy lock, blueprint route, detail guard). Once this function has
+    successfully verified the bearer token, that immutable RequestIdentity may
+    be reused for the remainder of the *same request*. Nothing from headers or
+    arbitrary request attributes is trusted unless it is already this exact
+    internal type.
+    """
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
     if auth_mode not in _ALLOWED_AUTH_MODES:
         raise RuntimeError("Invalid OBRASIGNAL_AUTH_MODE")
@@ -87,6 +95,10 @@ def configured_identity() -> RequestIdentity:
 
     if not has_request_context():
         raise RuntimeError("Production authentication provider is not configured")
+
+    cached = getattr(request, "obrasignal_identity", None)
+    if isinstance(cached, RequestIdentity) and cached.authenticated:
+        return cached
 
     authorization = request.headers.get("Authorization", "")
     scheme, _, token = authorization.partition(" ")
@@ -107,9 +119,11 @@ def configured_identity() -> RequestIdentity:
         _LOGGER.error("auth_provider_status=misconfigured reason=provider_config")
         raise
 
-    return RequestIdentity(
+    resolved = RequestIdentity(
         account_id=account_id,
         authenticated=True,
         subject=identity.subject,
         claims=identity.claims,
     )
+    request.obrasignal_identity = resolved
+    return resolved
