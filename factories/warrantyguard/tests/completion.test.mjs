@@ -1,0 +1,16 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {COMPLETION_GATES,evaluateCompletion,assertNoFalseCompletion} from '../lib/completion.mjs';
+const allInternal=()=>Object.fromEntries(COMPLETION_GATES.map(id=>[id,{state:'PASS',evidence:[`${id}-evidence`],realEvidence:true,publicMultiuserProven:true,openP0:0}]));
+test('missing gates means project incomplete',()=>{const r=evaluateCompletion();assert.equal(r.projectComplete,false);assert.equal(r.failed.length,18)});
+test('all evidenced gates can complete assisted scope',()=>assert.equal(evaluateCompletion({gates:allInternal()}).projectComplete,true));
+test('pass without evidence is not satisfied',()=>{const g=allInternal();g.A_DOCUMENTS={state:'PASS',evidence:[]};assert.ok(evaluateCompletion({gates:g}).failed.includes('A_DOCUMENTS'))});
+test('pilot requires real evidence',()=>{const g=allInternal();g.M_PILOT.realEvidence=false;assert.ok(evaluateCompletion({gates:g}).failed.includes('M_PILOT'))});
+test('value requires real evidence',()=>{const g=allInternal();g.N_VALUE.realEvidence=false;assert.ok(evaluateCompletion({gates:g}).failed.includes('N_VALUE'))});
+test('commercial requires real evidence',()=>{const g=allInternal();g.O_COMMERCIAL.realEvidence=false;assert.ok(evaluateCompletion({gates:g}).failed.includes('O_COMMERCIAL'))});
+test('retention requires real evidence',()=>{const g=allInternal();g.P_RETENTION.realEvidence=false;assert.ok(evaluateCompletion({gates:g}).failed.includes('P_RETENTION'))});
+test('economics requires real evidence',()=>{const g=allInternal();g.Q_ECONOMICS.realEvidence=false;assert.ok(evaluateCompletion({gates:g}).failed.includes('Q_ECONOMICS'))});
+test('public scope requires explicit public multiuser security proof',()=>{const g=allInternal();g.I_SECURITY.publicMultiuserProven=false;assert.ok(evaluateCompletion({scope:'PUBLIC_MULTIUSER',gates:g}).failed.includes('I_SECURITY'))});
+test('assisted scope does not pretend public security is required for local delivery',()=>{const g=allInternal();g.I_SECURITY.publicMultiuserProven=false;assert.equal(evaluateCompletion({scope:'ASSISTED_LOCAL',gates:g}).gates.I_SECURITY.satisfied,true)});
+test('open P0 blocks quality completion',()=>{const g=allInternal();g.R_QUALITY.openP0=1;assert.ok(evaluateCompletion({gates:g}).failed.includes('R_QUALITY'))});
+test('not applicable gate is not a false failure',()=>{const g=allInternal();g.J_BILLING={state:'NOT_PROVEN',evidence:[],applicable:false};assert.ok(!evaluateCompletion({gates:g}).failed.includes('J_BILLING'))});
+test('invalid scope rejects',()=>assert.throws(()=>evaluateCompletion({scope:'MAGIC'}),/INVALID_COMPLETION_SCOPE/));
+test('false completion assertion accepts consistent result',()=>assert.equal(assertNoFalseCompletion(evaluateCompletion({gates:allInternal()})),true));
