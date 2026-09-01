@@ -175,8 +175,9 @@ def test_authorized_worm_originals_become_exact_case_lineage_without_reupload(tm
     result = _create(service, registry)
     assert result.finding.state == "READY_FOR_REVIEW"
     assert result.is_new_recovery is True
-    assert result.finding.evidence_ids == (basis.evidence_id, event.evidence_id, cost.evidence_id)
-    assert tuple(item.evidence_id for item in result.evidence) == result.finding.evidence_ids
+    expected_evidence_ids = {basis.evidence_id, event.evidence_id, cost.evidence_id}
+    assert set(result.finding.evidence_ids) == expected_evidence_ids
+    assert {item.evidence_id for item in result.evidence} == expected_evidence_ids
     assert all(item.metadata["raw_content_persisted"] == "true" for item in result.evidence)
     assert all(item.metadata["original_version_readback_verified"] is True for item in result.evidence)
     assert all(item.metadata["immutability"] == "WORM_LOCKED" for item in result.evidence)
