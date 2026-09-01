@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from vertical_apps.industrial_claims.proof_extensions import dual_digest
 from vertical_apps.industrial_claims.proof_storage import OriginalObjectReceipt
 from vertical_apps.industrial_claims.secure_capture import (
@@ -17,12 +15,15 @@ class RetentionStore:
     def __init__(self, mode: str, *, legal_hold: bool = False):
         self.mode = mode
         self.legal_hold = legal_hold
+        self._stored: dict[tuple[str, str], bytes] = {}
 
     def put_immutable(self, *, tenant_id, evidence_id, content, content_type, retention_until, legal_hold, metadata):
         digests = dual_digest(content)
+        object_ref = f"{tenant_id}/{evidence_id}"
+        self._stored[(object_ref, "v1")] = content
         return OriginalObjectReceipt(
             provider=self.name,
-            object_ref=f"{tenant_id}/{evidence_id}",
+            object_ref=object_ref,
             version_ref="v1",
             sha256=digests["sha256"],
             sha512=digests["sha512"],
@@ -33,6 +34,9 @@ class RetentionStore:
             provider_receipt_ref=f"receipt-{self.mode.lower()}",
             metadata=dict(metadata),
         )
+
+    def read_immutable_version(self, *, tenant_id, evidence_id, object_ref, version_ref):
+        return self._stored[(object_ref, version_ref)]
 
 
 def _capture(store):
@@ -60,18 +64,21 @@ def _capture(store):
 
 def test_compliance_retention_is_the_only_ordinary_mode_exposed_as_worm_locked():
     captured = _capture(RetentionStore("COMPLIANCE"))
+    assert captured.evidence.metadata["original_version_readback_verified"] is True
     assert captured.evidence.metadata["immutability"] == "WORM_LOCKED"
     assert captured.evidence.metadata["worm_lock_verified"] is True
 
 
 def test_governance_retention_never_claims_worm_lock():
     captured = _capture(RetentionStore("GOVERNANCE"))
+    assert captured.evidence.metadata["original_version_readback_verified"] is True
     assert captured.evidence.metadata["immutability"] == "GOVERNANCE_RETENTION"
     assert captured.evidence.metadata["worm_lock_verified"] is False
 
 
 def test_legal_hold_is_reported_separately_from_worm_lock():
     captured = _capture(RetentionStore("LEGAL_HOLD", legal_hold=True))
+    assert captured.evidence.metadata["original_version_readback_verified"] is True
     assert captured.evidence.metadata["immutability"] == "LEGAL_HOLD"
     assert captured.evidence.metadata["worm_lock_verified"] is False
     assert captured.evidence.metadata["original_legal_hold"] is True
