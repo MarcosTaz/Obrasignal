@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
+import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.proof import verify_proof_manifest
+from vertical_apps.industrial_claims.proof_storage import OriginalEvidenceStore
 from vertical_apps.industrial_claims.proof_verifier import ExternalVerifier, verify_bundle
 
 
@@ -99,6 +102,93 @@ def _verify_original_against_manifest(
             raise AssuranceStoreError(f"offline export original length mismatch for {evidence_id}")
 
 
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value or "").strip().lower() in {"1", "true", "yes", "verified", "valid"}
+
+
+def read_durable_originals_for_offline_export(
+    *,
+    service: Any,
+    proof_pack: Mapping[str, Any],
+    original_store: OriginalEvidenceStore,
+) -> tuple[OfflineOriginal, ...]:
+    """Resolve exact immutable versions from durable tenant-scoped evidence metadata.
+
+    No object reference supplied by the caller is trusted. The references come from
+    persisted evidence metadata, the configured store must match that persisted
+    provider identity, and every returned byte string is rehashed against the Proof
+    Pack before it is eligible for export.
+    """
+    core = proof_pack.get("core_package")
+    if not isinstance(core, Mapping):
+        raise AssuranceStoreError("offline export requires durable core package truth")
+    tenant_id = str(core.get("tenant_id") or "").strip()
+    if not tenant_id:
+        raise AssuranceStoreError("offline export tenant identity is missing")
+    expected = _manifest_evidence_index(proof_pack)
+
+    store_name = str(getattr(original_store, "name", "") or "").strip()
+    if not store_name:
+        raise AssuranceStoreError("offline export immutable original store is unidentified")
+    try:
+        database_path = service.store.path
+    except AttributeError as exc:
+        raise AssuranceStoreError("offline export service does not expose durable evidence storage") from exc
+
+    originals: list[OfflineOriginal] = []
+    with sqlite3.connect(database_path) as conn:
+        conn.row_factory = sqlite3.Row
+        for evidence_id, manifest_item in expected.items():
+            row = conn.execute(
+                "SELECT content_hash, metadata_json FROM evidence WHERE tenant_id=? AND evidence_id=?",
+                (tenant_id, evidence_id),
+            ).fetchone()
+            if row is None:
+                raise AssuranceStoreError(f"offline export durable evidence missing: {evidence_id}")
+            try:
+                metadata = json.loads(str(row["metadata_json"]))
+            except (TypeError, ValueError) as exc:
+                raise AssuranceStoreError(f"offline export durable evidence metadata invalid: {evidence_id}") from exc
+            if not isinstance(metadata, dict):
+                raise AssuranceStoreError(f"offline export durable evidence metadata invalid: {evidence_id}")
+            if not _truthy(metadata.get("raw_content_persisted")):
+                raise AssuranceStoreError(f"offline export original bytes were not durably persisted: {evidence_id}")
+
+            provider = str(metadata.get("original_store_provider") or "").strip()
+            object_ref = str(metadata.get("original_object_ref") or "").strip()
+            version_ref = str(metadata.get("original_version_ref") or "").strip()
+            if provider != store_name:
+                raise AssuranceStoreError(f"offline export original-store provider mismatch: {evidence_id}")
+            if not object_ref or not version_ref:
+                raise AssuranceStoreError(f"offline export immutable version identity missing: {evidence_id}")
+
+            hashes = manifest_item.get("hashes") or {}
+            manifest_sha256 = str(hashes.get("sha256") or "").strip().lower()
+            if str(row["content_hash"] or "").strip().lower() != manifest_sha256:
+                raise AssuranceStoreError(f"offline export durable evidence digest drift: {evidence_id}")
+
+            try:
+                content = original_store.read_immutable_version(
+                    tenant_id=tenant_id,
+                    evidence_id=evidence_id,
+                    object_ref=object_ref,
+                    version_ref=version_ref,
+                )
+            except Exception as exc:
+                raise AssuranceStoreError(f"offline export immutable original retrieval failed: {evidence_id}") from exc
+            if not isinstance(content, bytes) or not content:
+                raise AssuranceStoreError(f"offline export immutable original retrieval returned no bytes: {evidence_id}")
+            _verify_original_against_manifest(
+                evidence_id=evidence_id,
+                content=content,
+                manifest_item=manifest_item,
+            )
+            originals.append(OfflineOriginal(evidence_id=evidence_id, content=content))
+    return tuple(originals)
+
+
 def build_offline_verification_export_bundle(
     proof_pack: Mapping[str, Any],
     *,
@@ -162,3 +252,22 @@ def build_offline_verification_export_bundle(
         )
     bundle["independent_verification"] = independent
     return bundle
+
+
+def build_durable_offline_verification_export_bundle(
+    *,
+    service: Any,
+    proof_pack: Mapping[str, Any],
+    original_store: OriginalEvidenceStore,
+    external_verifiers: Mapping[str, ExternalVerifier] | None = None,
+) -> dict[str, Any]:
+    originals = read_durable_originals_for_offline_export(
+        service=service,
+        proof_pack=proof_pack,
+        original_store=original_store,
+    )
+    return build_offline_verification_export_bundle(
+        proof_pack,
+        originals=originals,
+        external_verifiers=external_verifiers,
+    )
