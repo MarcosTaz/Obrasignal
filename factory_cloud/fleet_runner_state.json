@@ -6,31 +6,26 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 24,
-  "last_factory_id": "obrasignal-customer-journey",
-  "last_run_at": "2026-09-01T03:40:16Z",
+  "cursor": 29,
+  "last_factory_id": "obrasignal-data-analytics",
+  "last_run_at": "2026-09-01T06:40:51Z",
   "last_material_change": {
-    "kind": "CUSTOMER_JOURNEY_EXACT_HEAD_REVALIDATED_AND_DATA_LANES_ROTATED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ObraSignal Data Runner exact PR/code searches returned no result and remains UNKNOWN_EXACT_SOURCE_IDENTITY. Data Truth exact-name search recovered adjacent Data/Analytics and Data Reliability candidates but no unambiguous Data Truth canonical authority, so no lineage was fabricated. OS SIDE FACTORY exact PR search returned no result and remains UNKNOWN_EXACT_SOURCE_IDENTITY. Customer Journey current explicit candidate PR #821 is OPEN/DRAFT/NOT_MERGED/mergeable at exact HEAD b9c637071b9f29fc7b84d6b017e7234cf5d6240b with ObraSignal Quality run 33272280807 COMPLETED/SUCCESS. This proves repository/test integrity only; production membership, customer use/outcome, WTP, revenue and canonical adoption remain unproved. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound; Portugal and Spain outbound holds remain active and no outbound was sent. Private prospect-level data remains out of public GitHub.",
+    "kind": "DATA_ANALYTICS_EXACT_HEAD_REVALIDATED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Data, Analytics & Learning System Factory explicit candidate PR #344 is OPEN/DRAFT/NOT_MERGED/mergeable=false at exact HEAD a331cc882f52ced98b5cb2e8da8a781b1c845a30. Exact-head ObraSignal Quality runs 33337007434 and 33337005904 are COMPLETED/SUCCESS. Classification is repository-evidence-only: production telemetry, customer behavior, retention, WTP, causal impact, customer outcome, revenue and canonical adoption remain unproved. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound in this run; Portugal and Spain outbound holds remain active and no outbound was sent. Private prospect-level data remains out of public GitHub.",
     "evidence": {
       "portfolio_registry_count": 33,
       "causledger_inbound": {"new_material_replies": 0, "latest_watch_date": "2026-09-01", "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK", "spain_unsolicited_commercial_hold": "ACTIVE"},
-      "obrasignal_data_runner": {"exact_pr_search_count": 0, "code_search_count": 0, "canonical_source_identity": "UNKNOWN"},
-      "obrasignal_data_truth": {"canonical_source_identity": "UNKNOWN_UNAMBIGUOUS", "adjacent_candidates_recovered": [344,238]},
-      "os_side_factory": {"exact_pr_search_count": 0, "canonical_source_identity": "UNKNOWN"},
-      "customer_journey": {"pr": 821, "head_sha": "b9c637071b9f29fc7b84d6b017e7234cf5d6240b", "state": "OPEN", "draft": true, "merged": false, "mergeable": true, "quality_run": 33272280807, "quality_conclusion": "success", "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY"}
+      "data_analytics": {"pr":344,"head_sha":"a331cc882f52ced98b5cb2e8da8a781b1c845a30","state":"OPEN","draft":true,"merged":false,"mergeable":false,"quality_runs":[33337007434,33337005904],"quality_conclusion":"success","classification":"EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY"}
     },
-    "active": "Global Market Entry — reconstruct exact current source/PR authority and advance the next safe milestone.",
-    "next": "Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey.",
+    "active": "Release Safety — reconstruct exact current source/PR authority and advance the next safe milestone.",
+    "next": "Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
-      "No new material prospect/CEFAMOL/AFIA/DGC reply observed in the latest watch.",
+      "No new material prospect/CEFAMOL/AFIA/DGC reply observed in this run.",
       "Industrial Claims/CausLedger PR #785 remains RED in Python repository/Factory Cloud tests pending exact failure recovery.",
       "ObraSignal final composition PR #882 remains integration-blocked pending current-main reconciliation and fresh exact-head gates.",
-      "ObraSignal Data Runner and OS SIDE FACTORY exact canonical source identities remain UNKNOWN after exact searches returned no result.",
-      "ObraSignal Data Truth exact canonical authority remains ambiguous; adjacent Data/Analytics and Data Reliability candidates must not be silently promoted.",
-      "Customer Journey PR #821 GREEN does not establish production membership, canonical adoption, customer outcome, WTP or revenue."
+      "Data Analytics PR #344 exact-head GREEN does not establish production telemetry, customer behavior, retention, WTP, causal impact, outcome, revenue or canonical adoption."
     ]
   },
   "blocked": [
@@ -54,7 +49,8 @@
     {"factory_id":"private-freight-orchestration","blocker":"Exact source/BATON identity UNKNOWN after complete exact PR search returned no result.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact source/BATON identity UNKNOWN after complete exact PR search returned no result.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
-    {"factory_id":"obrasignal-release-safety","blocker":"PR #350 exact-head Quality GREEN but mergeable=false; composition truth required.","global_stop":false}
+    {"factory_id":"obrasignal-release-safety","blocker":"PR #350 exact-head Quality GREEN but mergeable=false; composition truth required.","global_stop":false},
+    {"factory_id":"obrasignal-data-analytics","blocker":"PR #344 exact-head Quality GREEN but mergeable=false; production telemetry and canonical adoption remain unproved.","global_stop":false}
   ],
   "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
 }
