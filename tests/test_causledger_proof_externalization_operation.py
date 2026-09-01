@@ -7,6 +7,7 @@ import pytest
 
 from vertical_apps.industrial_claims.durable_proof import build_durable_claim_proof_pack
 from vertical_apps.industrial_claims.proof import ExternalAttestation, sha256_hex
+from vertical_apps.industrial_claims.proof_attestation_archive import ProofAttestationArchive, ProofAttestationArchiveError
 from vertical_apps.industrial_claims.proof_externalization import ProofExternalizationError
 from vertical_apps.industrial_claims.proof_externalization_audit import ProofExternalizationAuditStore
 from vertical_apps.industrial_claims.proof_externalization_operation import externalize_proof_with_audit
@@ -67,18 +68,26 @@ def test_successful_externalization_is_bracketed_by_started_and_completed_events
     database = tmp_path / "success.sqlite3"
     service, finding = _case(database)
     audit = ProofExternalizationAuditStore(database)
+    archive = ProofAttestationArchive(database)
     calls = []
     result = externalize_proof_with_audit(
-        service, audit_store=audit, tenant_id="tenant-a", finding_id=finding, actor_id="operator-a",
+        service, audit_store=audit, attestation_archive=archive,
+        tenant_id="tenant-a", finding_id=finding, actor_id="operator-a",
         providers=_bundle(calls), expected_target_sha256=_target(service, finding),
         generated_at="2026-09-01T00:00:00+00:00",
     )
     operation = result["externalization_operation"]
     assert operation["proof_manifest_sha256"] == sha256_hex(result["proof_manifest"])
     assert operation["external_attestations_sha256"] == sha256_hex(result["proof_manifest"]["external_attestations"])
+    assert operation["receipts_durably_archived"] is True
+    assert operation["attestation_archive_receipt_count"] == 4
+    recovered = archive.operation_receipts(tenant_id="tenant-a", operation_id=operation["operation_id"])
+    assert recovered["receipts_sha256"] == operation["external_attestations_sha256"]
+    assert recovered["receipt_count"] == 4
     status = audit.status(tenant_id="tenant-a", finding_id=finding)
     events = status["operations"][operation["operation_id"]]
     assert [event["state"] for event in events] == ["STARTED", "COMPLETED"]
+    assert events[-1]["payload"]["receipts_durably_archived"] is True
     assert calls == ["QUALIFIED_TIMESTAMP", "QUALIFIED_SEAL", "QUALIFIED_SIGNATURE", "PUBLIC_ANCHOR"]
 
 
@@ -86,10 +95,12 @@ def test_misbound_provider_receipt_leaves_failed_terminal_event(tmp_path):
     database = tmp_path / "failed.sqlite3"
     service, finding = _case(database)
     audit = ProofExternalizationAuditStore(database)
+    archive = ProofAttestationArchive(database)
     calls = []
     with pytest.raises(ProofExternalizationError, match="another digest"):
         externalize_proof_with_audit(
-            service, audit_store=audit, tenant_id="tenant-a", finding_id=finding, actor_id="operator-a",
+            service, audit_store=audit, attestation_archive=archive,
+            tenant_id="tenant-a", finding_id=finding, actor_id="operator-a",
             providers=_bundle(calls, wrong_first=True), expected_target_sha256=_target(service, finding),
             generated_at="2026-09-01T00:00:00+00:00",
         )
@@ -99,16 +110,20 @@ def test_misbound_provider_receipt_leaves_failed_terminal_event(tmp_path):
     assert [event["state"] for event in events] == ["STARTED", "FAILED"]
     assert events[-1]["payload"]["error_type"] == "ProofExternalizationError"
     assert calls == ["QUALIFIED_TIMESTAMP"]
+    with pytest.raises(ProofAttestationArchiveError, match="not found"):
+        archive.operation_receipts(tenant_id="tenant-a", operation_id=events[0]["operation_id"])
 
 
 def test_stale_reviewed_target_calls_no_provider_and_creates_no_operation_event(tmp_path):
     database = tmp_path / "stale.sqlite3"
     service, finding = _case(database)
     audit = ProofExternalizationAuditStore(database)
+    archive = ProofAttestationArchive(database)
     calls = []
     with pytest.raises(ProofExternalizationError, match="stale"):
         externalize_proof_with_audit(
-            service, audit_store=audit, tenant_id="tenant-a", finding_id=finding, actor_id="operator-a",
+            service, audit_store=audit, attestation_archive=archive,
+            tenant_id="tenant-a", finding_id=finding, actor_id="operator-a",
             providers=_bundle(calls), expected_target_sha256="f" * 64,
             generated_at="2026-09-01T00:00:00+00:00",
         )
