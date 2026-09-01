@@ -89,6 +89,11 @@ def test_app_externalization_is_operator_only_explicit_fail_closed_and_audited(t
     }
     assert body["externalization"]["global_worm_not_requested"] is True
     assert body["externalization"]["global_escrow_not_requested"] is True
+    operation = body["externalization_operation"]
+    assert operation["state"] == "COMPLETED"
+    assert operation["verified_provider_count"] == 0
+    assert operation["all_requested_providers_verified"] is False
+    assert operation["operation_completed_does_not_imply_proof_verified"] is True
 
     status = operator.get(f"/findings/{finding_id}/proof-pack/externalizations")
     assert status.status_code == 200
@@ -96,6 +101,9 @@ def test_app_externalization_is_operator_only_explicit_fail_closed_and_audited(t
     assert status_body["event_count"] == 2
     events = next(iter(status_body["operations"].values()))
     assert [event["state"] for event in events] == ["STARTED", "COMPLETED"]
+    assert events[-1]["payload"]["verified_provider_count"] == 0
+    assert events[-1]["payload"]["all_requested_providers_verified"] is False
+    assert events[-1]["payload"]["operation_completed_does_not_imply_proof_verified"] is True
 
     read_again = operator.get(f"/findings/{finding_id}/proof-pack")
     assert read_again.status_code == 200
