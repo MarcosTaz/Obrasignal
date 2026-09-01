@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from factory_cloud.assurance_kernel import EvidenceEnvelope
+from vertical_apps.industrial_claims.intake_authorization import (
+    ALLOWED_DATA_TERMS_STATES,
+    BOUNDED_RAPID_SCAN_PURPOSE,
+)
 from vertical_apps.industrial_claims.proof import canonical_json_bytes, sha256_hex
 
 
@@ -35,7 +39,7 @@ def _sha256(value: object, *, label: str) -> str:
     return text
 
 
-def _aware(value: object, *, label: str) -> str:
+def _aware_datetime(value: object, *, label: str) -> datetime:
     text = _required(value, label=label, maximum=128)
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
@@ -43,7 +47,54 @@ def _aware(value: object, *, label: str) -> str:
         raise SecureCaptureRegistryError(f"invalid secure-capture {label}") from exc
     if parsed.tzinfo is None:
         raise SecureCaptureRegistryError(f"secure-capture {label} must include timezone")
-    return parsed.astimezone(timezone.utc).isoformat()
+    return parsed.astimezone(timezone.utc)
+
+
+def _aware(value: object, *, label: str) -> str:
+    return _aware_datetime(value, label=label).isoformat()
+
+
+def _true(value: object) -> bool:
+    return value is True or str(value or "").strip().lower() == "true"
+
+
+def _validate_intake_metadata(metadata: Mapping[str, Any], *, evidence_role: str) -> None:
+    authorization_id = _required(metadata.get("intake_authorization_id"), label="intake_authorization_id", maximum=256)
+    _ = authorization_id
+    _sha256(metadata.get("intake_authorization_scope_sha256"), label="intake_authorization_scope_sha256")
+    _required(metadata.get("intake_case_ref"), label="intake_case_ref", maximum=512)
+    if str(metadata.get("intake_purpose") or "").strip().upper() != BOUNDED_RAPID_SCAN_PURPOSE:
+        raise SecureCaptureRegistryError("secure-capture intake purpose is not authorized")
+    if str(metadata.get("intake_evidence_role") or "").strip().lower() != evidence_role:
+        raise SecureCaptureRegistryError("secure-capture intake role binding mismatch")
+
+    authorized_at = _aware_datetime(metadata.get("intake_authorized_at"), label="intake_authorized_at")
+    expires_at = _aware_datetime(metadata.get("intake_authorization_expires_at"), label="intake_authorization_expires_at")
+    if expires_at < authorized_at:
+        raise SecureCaptureRegistryError("secure-capture intake authorization chronology is invalid")
+    minimum_retention = _aware_datetime(
+        metadata.get("intake_minimum_immutable_retention_until"),
+        label="intake_minimum_immutable_retention_until",
+    )
+    if not _true(metadata.get("intake_immutable_retention_acknowledged")):
+        raise SecureCaptureRegistryError("secure-capture immutable retention was not authorized")
+
+    data_terms = str(metadata.get("intake_data_terms_state") or "").strip().upper()
+    if data_terms not in ALLOWED_DATA_TERMS_STATES:
+        raise SecureCaptureRegistryError("secure-capture intake data terms are not cleared")
+    _sha256(metadata.get("intake_authorized_by_sha256"), label="intake_authorized_by_sha256")
+    _sha256(metadata.get("intake_transfer_channel_sha256"), label="intake_transfer_channel_sha256")
+
+    try:
+        max_bytes = int(metadata.get("intake_max_bytes_per_evidence"))
+    except (TypeError, ValueError) as exc:
+        raise SecureCaptureRegistryError("secure-capture intake byte limit is invalid") from exc
+    if not (1 <= max_bytes <= 100_000_000):
+        raise SecureCaptureRegistryError("secure-capture intake byte limit is invalid")
+
+    original_retention = _aware_datetime(metadata.get("original_retention_until"), label="original_retention_until")
+    if original_retention < minimum_retention:
+        raise SecureCaptureRegistryError("secure-capture provider retention is shorter than authorized immutable retention")
 
 
 def _now() -> str:
@@ -51,13 +102,16 @@ def _now() -> str:
 
 
 class SecureCaptureRegistry:
-    """Append-only registry of immutable-original evidence envelopes.
+    """Append-only registry of authorized immutable-original evidence envelopes.
 
     Original bytes live only in the configured immutable object store. This DB
     records the exact EvidenceEnvelope metadata/hash needed to bind that original
     into a case later without re-uploading or pretending extracted text is the
-    original document. A retry is idempotent only when the complete durable record
-    is identical; any changed content/metadata under the same evidence_id fails.
+    original document. Durable registration requires a bounded intake authorization;
+    a low-level secure capture without that authorization is deliberately not
+    eligible for a real customer case. A retry is idempotent only when the complete
+    durable record is identical; any changed content/metadata under the same
+    evidence_id fails.
     """
 
     def __init__(self, database: str | Path) -> None:
@@ -109,6 +163,8 @@ class SecureCaptureRegistry:
             raise SecureCaptureRegistryError("secure-capture evidence role is unsupported")
         evidence_id = _required(evidence.evidence_id, label="evidence_id")
         tenant = _required(evidence.tenant_id, label="tenant_id", maximum=64)
+        if not evidence_id.startswith(f"{tenant}:"):
+            raise SecureCaptureRegistryError("secure-capture evidence_id is outside tenant namespace")
         source_type = _required(evidence.source_type, label="source_type", maximum=128)
         source_ref = _required(evidence.source_ref, label="source_ref")
         if source_type != expected_source:
@@ -121,6 +177,7 @@ class SecureCaptureRegistry:
             raise SecureCaptureRegistryError("secure-capture envelope is not direct original capture")
         if str(metadata.get("raw_content_persisted") or "").strip().lower() != "true":
             raise SecureCaptureRegistryError("secure-capture original bytes are not declared persisted")
+        _validate_intake_metadata(metadata, evidence_role=role)
         original_receipt_ref = _required(
             metadata.get("original_provider_receipt_ref"),
             label="original_provider_receipt_ref",
@@ -178,6 +235,9 @@ class SecureCaptureRegistry:
         expected_source = ROLE_SOURCE_TYPES.get(payload["evidence_role"])
         if expected_source != payload["source_type"]:
             raise SecureCaptureRegistryError("secure-capture role/source binding mismatch")
+        _validate_intake_metadata(metadata, evidence_role=payload["evidence_role"])
+        if not payload["evidence_id"].startswith(f"{payload['tenant_id']}:"):
+            raise SecureCaptureRegistryError("secure-capture evidence tenant namespace binding mismatch")
         return EvidenceEnvelope(
             evidence_id=payload["evidence_id"],
             tenant_id=payload["tenant_id"],
