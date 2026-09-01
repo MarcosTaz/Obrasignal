@@ -14,6 +14,7 @@ ACTIVE_PUBLIC_URL = CANONICAL_PUBLIC_URL
 E2E_EMAIL = os.environ.get("E2E_EMAIL", "")
 E2E_PASSWORD = os.environ.get("E2E_PASSWORD", "")
 TARGET_BUILD = os.environ.get("TARGET_BUILD", "")
+API_HEALTH_URL = "https://obrasignal.onrender.com/api/v1/health"
 
 VIEWPORTS = [
     ("mobile-320", 320, 844),
@@ -71,17 +72,22 @@ def wait_for_exact_pages_build(page):
 
 
 def _ignorable_request_failure(request):
-    """Ignore only lifecycle cancellation of the fire-and-forget telemetry beacon.
+    """Ignore browser lifecycle cancellation, never connectivity/CORS failure.
 
-    Chromium can abort a keepalive analytics request when a short-lived E2E page
-    is closed immediately after all customer assertions passed. That is not a
-    product request failure. DNS, TLS, connection and HTTP failures remain red,
-    and every non-analytics request remains strict.
+    All three engines cancel pending fetches when a deliberate reload, logout or
+    context close supersedes a page. Those cancellations are represented by the
+    engine-specific abort values below and do not mean the request failed while
+    the customer was using the page. DNS, TLS, access-control, timeout and HTTP
+    failures remain strict. Analytics keepalive cancellation remains included as
+    a special case naturally covered by these lifecycle-only error strings.
     """
-    if request.method != "POST" or not request.url.endswith("/api/v1/analytics/event"):
-        return False
     failure = str(request.failure or "")
-    return "ERR_ABORTED" in failure or "NS_BINDING_ABORTED" in failure
+    lifecycle_markers = (
+        "ERR_ABORTED",
+        "NS_BINDING_ABORTED",
+        "Load request cancelled",
+    )
+    return any(marker in failure for marker in lifecycle_markers)
 
 
 def attach_failure_collectors(page, label):
@@ -127,6 +133,26 @@ def assert_no_horizontal_overflow(page, label):
     actual = max(metrics["scrollWidth"], metrics["bodyScrollWidth"])
     if actual > allowed:
         fail(f"{label} horizontal overflow: viewport={allowed}, content={actual}, metrics={metrics}")
+
+
+def assert_browser_can_reach_api(page, label):
+    """Prove CORS in the actual browser before treating later aborts as lifecycle."""
+    result = page.evaluate(
+        """async (url) => {
+          try {
+            const response = await fetch(url, {method: 'GET', cache: 'no-store'});
+            const payload = await response.json();
+            return {ok: response.ok, status: response.status, build: payload.build || null};
+          } catch (error) {
+            return {ok: false, status: 0, error: String(error)};
+          }
+        }""",
+        API_HEALTH_URL,
+    )
+    if not result.get("ok"):
+        fail(f"{label} browser API/CORS health probe failed: {result!r}")
+    if result.get("build") != TARGET_BUILD:
+        fail(f"{label} browser API served wrong build: {result!r}")
 
 
 def assert_public_landing(page, browser_name, viewport_name, width, height):
@@ -175,6 +201,7 @@ def authenticated_roundtrip(page, browser_name):
     page.set_viewport_size({"width": 1280, "height": 900})
     failures = attach_failure_collectors(page, label)
     page.goto(ACTIVE_PUBLIC_URL, wait_until="domcontentloaded", timeout=45_000)
+    assert_browser_can_reach_api(page, label)
     page.get_by_role("button", name="Entrar", exact=True).click()
     page.get_by_text("Bem-vindo de volta.", exact=True).wait_for(timeout=10_000)
     inputs = page.locator("input")
@@ -203,15 +230,14 @@ def authenticated_roundtrip(page, browser_name):
 
     page.get_by_role("button", name="Conta e privacidade", exact=True).click()
     page.get_by_text("Exportar os meus dados", exact=True).wait_for(timeout=30_000)
-    # React Native Web does not consistently expose nested Text as the button's
-    # accessible name across Chromium/WebKit. The exact visible control is enough
-    # here because the modal contents have already been asserted.
     page.get_by_text("Fechar", exact=True).last.click()
 
     page.get_by_role("button", name="Terminar sessão", exact=True).click()
     page.get_by_text("Encontra os concursos que merecem o teu tempo.", exact=True).wait_for(timeout=30_000)
     page.get_by_role("button", name="Privacidade", exact=True).wait_for(timeout=10_000)
 
+    # Let lifecycle-triggered callbacks drain before evaluating real failures.
+    page.wait_for_timeout(250)
     if failures:
         fail("\n".join(failures))
     print(f"PASS authenticated {browser_name}")
