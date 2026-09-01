@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 
 from flask import Flask
 
+from auth_context import RequestIdentity
 from vertical_apps.industrial_claims.durable_proof import build_durable_claim_proof_pack
 from vertical_apps.industrial_claims.intake_authorization import IntakeAuthorization, capture_authorized_original_evidence
 from vertical_apps.industrial_claims.proof_extensions import dual_digest
@@ -16,6 +17,7 @@ from vertical_apps.industrial_claims.secure_capture import CaptureIdentity, Sour
 from vertical_apps.industrial_claims.secure_capture_registry import SecureCaptureRegistry
 from vertical_apps.industrial_claims.secure_case_intake import create_case_from_secure_capture
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
+from vertical_apps.industrial_claims.web import create_app
 
 
 NOW = datetime(2026, 9, 1, 20, 0, tzinfo=timezone.utc)
@@ -77,6 +79,15 @@ def _capture_identity() -> CaptureIdentity:
         amr=("webauthn",),
         session_ref="session-a",
         request_ref="request-a",
+    )
+
+
+def _request_identity(tenant_id: str, actor_id: str, *roles: str):
+    return lambda: RequestIdentity(
+        account_id=tenant_id,
+        authenticated=True,
+        subject=actor_id,
+        claims={"sub": actor_id, "roles": list(roles)},
     )
 
 
@@ -273,3 +284,60 @@ def test_offline_export_route_fails_closed_when_immutable_store_is_not_configure
     )
     assert denied.status_code == 422
     assert "not configured" in denied.get_json()["message"]
+
+
+def test_assisted_runtime_wires_offline_export_to_verified_reviewer_or_operator_only(tmp_path):
+    database = tmp_path / "offline-export-assisted-runtime.sqlite3"
+    store = Store()
+    service, finding_id, _payloads = _seed_secure_case(database, store)
+    proof = build_durable_claim_proof_pack(service, tenant_id="tenant-a", finding_id=finding_id)
+    target = proof["proof_manifest"]["attestation_target"]["sha256"]
+    request_body = {"confirm_confidential_export": True, "expected_target_sha256": target}
+
+    analyst = create_app(
+        database,
+        identity_resolver=_request_identity("tenant-a", "analyst-a", "analyst"),
+        original_evidence_store=store,
+    ).test_client()
+    forbidden = analyst.post(
+        f"/findings/{finding_id}/proof-pack/offline-export",
+        json=request_body,
+    )
+    assert forbidden.status_code == 403
+    assert forbidden.get_json() == {"error": "authorization_denied"}
+    assert store.reads == []
+
+    reviewer = create_app(
+        database,
+        identity_resolver=_request_identity("tenant-a", "reviewer-a", "reviewer"),
+        original_evidence_store=store,
+    ).test_client()
+    assert reviewer.get("/health").get_json()["confidential_offline_export_store_configured"] is True
+    spoofed = reviewer.post(
+        f"/findings/{finding_id}/proof-pack/offline-export",
+        headers={"X-Tenant-ID": "tenant-b"},
+        json=request_body,
+    )
+    assert spoofed.status_code == 403
+    assert spoofed.get_json() == {"error": "identity_scope_mismatch"}
+    assert store.reads == []
+
+    exported = reviewer.post(
+        f"/findings/{finding_id}/proof-pack/offline-export",
+        json=request_body,
+    )
+    assert exported.status_code == 200
+    assert exported.get_json()["independent_verification"]["valid"] is True
+    assert len(store.reads) == 3
+
+    unconfigured = create_app(
+        database,
+        identity_resolver=_request_identity("tenant-a", "operator-a", "operator"),
+    ).test_client()
+    assert unconfigured.get("/health").get_json()["confidential_offline_export_store_configured"] is False
+    refused = unconfigured.post(
+        f"/findings/{finding_id}/proof-pack/offline-export",
+        json=request_body,
+    )
+    assert refused.status_code == 422
+    assert "not configured" in refused.get_json()["message"]
