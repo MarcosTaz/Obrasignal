@@ -95,6 +95,16 @@ def test_superseded_revision_keeps_old_receipts_but_cannot_be_externalized_again
     assert receipts_body["receipt_count"] == 4
     assert receipts_body["receipts_sha256"] == operation["external_attestations_sha256"]
 
+    old_integrity = operator.get(
+        f"/findings/{first_id}/proof-pack/externalizations/{operation_id}/integrity"
+    )
+    assert old_integrity.status_code == 200
+    integrity_body = old_integrity.get_json()
+    assert integrity_body["valid"] is True
+    assert integrity_body["operation_state"] == "COMPLETED"
+    assert integrity_body["target_sha256"] == target_sha256
+    assert integrity_body["operation_archive_chain_head_sha256"] == operation["attestation_archive_chain_head_sha256"]
+
     blocked = operator.post(
         f"/findings/{first_id}/proof-pack/externalize",
         json={
@@ -115,3 +125,9 @@ def test_superseded_revision_keeps_old_receipts_but_cannot_be_externalized_again
     )
     assert wrong_revision.status_code == 422
     assert "does not belong" in wrong_revision.get_json()["message"]
+
+    wrong_revision_integrity = operator.get(
+        f"/findings/{second_id}/proof-pack/externalizations/{operation_id}/integrity"
+    )
+    assert wrong_revision_integrity.status_code == 422
+    assert "does not belong" in wrong_revision_integrity.get_json()["message"]
