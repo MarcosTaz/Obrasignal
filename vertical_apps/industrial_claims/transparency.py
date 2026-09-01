@@ -33,11 +33,12 @@ class TransparencySubject:
 
 
 def build_transparency_batch(subjects: Iterable[TransparencySubject], *, batch_id: str) -> dict[str, Any]:
-    """Build a local batch whose public anchor only needs the Merkle root.
+    """Build a privacy-preserving transparency commitment.
 
-    Tenant IDs, finding IDs and nonces stay in the private batch manifest; the
-    external transparency service receives only the root/leaf count unless a
-    deployment explicitly chooses otherwise.
+    Tenant IDs, subject/finding references, nonces, values, filenames and operator
+    labels belong only in the private manifest. The external/public anchor surface is
+    deliberately restricted to cryptographic hashes so a free-form batch identifier
+    can never become an accidental metadata exfiltration channel.
     """
     if not batch_id.strip():
         raise ValueError("transparency batch id is required")
@@ -52,16 +53,14 @@ def build_transparency_batch(subjects: Iterable[TransparencySubject], *, batch_i
         "leaves": commitments,
         "merkle_root_sha256": root,
     }
+    private_manifest_sha256 = sha256_hex(private_manifest)
     public_anchor_payload = {
-        "proof_system": "CausLedger Transparency Log",
-        "batch_id": batch_id,
-        "leaf_count": len(commitments),
         "merkle_root_sha256": root,
-        "contains_customer_or_tenant_identifiers": False,
+        "private_manifest_sha256": private_manifest_sha256,
     }
     return {
         "private_manifest": private_manifest,
-        "private_manifest_sha256": sha256_hex(private_manifest),
+        "private_manifest_sha256": private_manifest_sha256,
         "public_anchor_payload": public_anchor_payload,
         "public_anchor_payload_sha256": sha256_hex(public_anchor_payload),
         "public_anchor_payload_sha512": sha512_hex(public_anchor_payload),
