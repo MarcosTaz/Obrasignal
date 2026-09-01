@@ -43,6 +43,16 @@ def ensure_event_table(conn):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_events)").fetchall()}
     if "account_id" not in cols:
         conn.execute("ALTER TABLE opportunity_events ADD COLUMN account_id TEXT NOT NULL DEFAULT 'default'")
+    # Alert feeds and morning digests are tenant-first reads. Without this index,
+    # every extra customer grows the scan required for one customer's inbox.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_opportunity_events_account_feed "
+        "ON opportunity_events(account_id, event_type, created_at DESC)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_opportunity_events_account_delivery "
+        "ON opportunity_events(account_id, event_type, delivered_at, created_at DESC)"
+    )
     conn.commit()
 
 
