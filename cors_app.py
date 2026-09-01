@@ -167,7 +167,6 @@ from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 from runtime_db_hardening import install as install_runtime_db_hardening
 import preload as _preload
-import push_runtime as _push_runtime
 
 init_db()
 _lifecycle_conn = db()
@@ -206,13 +205,9 @@ install_canadabuys_runtime(
     record_blocked=_preload._record_blocked_global_source,
 )
 
-# Production requests and scheduler iterations no longer need to attempt DDL:
-# all push tables/indexes were synchronously migrated above before Gunicorn can
-# accept customer traffic.
-def _schema_already_initialized(_conn) -> None:
-    return None
-
-
-_push_runtime.ensure_push_schema = _schema_already_initialized
+# Keep the schema initializer intact for test/dev connections and any future
+# separately opened database. Production has already created these objects here,
+# so its repeated CREATE IF NOT EXISTS calls are no-op/idempotent rather than a
+# process-global monkeypatch that could make another connection unsafe.
 start_background_worker()
 start_push_scheduler()
