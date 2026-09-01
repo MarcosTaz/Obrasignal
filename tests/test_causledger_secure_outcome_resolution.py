@@ -154,7 +154,8 @@ def test_secure_outcome_closes_actioned_finding_with_exact_registered_evidence(t
     detail = service.read_model.get_finding(tenant_id="tenant-a", finding_id=finding_id)
     assert detail["finding"]["state"] == "RESOLVED"
     assert len(detail["outcomes"]) == 1
-    assert detail["outcomes"][0]["evidence_ref"] == evidence.evidence_id
+    assert detail["outcomes"][0]["evidence"]["evidence_id"] == evidence.evidence_id
+    assert detail["outcomes"][0]["evidence"]["verification_state"] == "CONTENT_HASHED"
     assert service.store.count("evidence", "tenant-a") == 4
 
 
@@ -265,5 +266,27 @@ def test_outcome_authorization_refuses_reusing_an_unrelated_purpose(tmp_path):
                 scheme="AUTHORIZED_UPLOAD",
                 provider="pilot-outcome-intake",
             ),
+            clock=lambda: NOW,
+        )
+
+
+def test_outcome_capture_refuses_caller_override_of_content_hash_state(tmp_path):
+    database = tmp_path / "secure-outcome-verification-state.sqlite3"
+    _service, finding_id = _actioned_case(database)
+    with pytest.raises(OutcomeAuthorizationError, match="verification state"):
+        capture_authorized_outcome_evidence(
+            authorization=_authorization(finding_id),
+            original_store=Store(),
+            evidence_id="tenant-a:outcome:payment-1",
+            identity=_identity(),
+            source_ref="bank-settlement-1",
+            content=b"synthetic final settlement evidence",
+            content_type="application/pdf",
+            source_authentication=SourceAuthenticationReceipt(
+                state="UNVERIFIED",
+                scheme="AUTHORIZED_UPLOAD",
+                provider="pilot-outcome-intake",
+            ),
+            metadata={"verification_state": "SOURCE_VERIFIED"},
             clock=lambda: NOW,
         )
