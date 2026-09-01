@@ -6,7 +6,13 @@ from vertical_apps.industrial_claims.service import (
     EVENT_DOCUMENT,
     NOTICE_DEADLINE_EVIDENCE,
 )
-from vertical_apps.industrial_claims.web import create_app
+from vertical_apps.industrial_claims.web import create_app as _create_app
+
+
+def create_app(*args, **kwargs):
+    """Existing web suite exercises the explicit synthetic/local inline-content mode."""
+    kwargs.setdefault("allow_inline_evidence_content", True)
+    return _create_app(*args, **kwargs)
 
 
 def _payload():
