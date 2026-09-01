@@ -46,6 +46,11 @@ def _db():
           external_id TEXT NOT NULL, decision TEXT NOT NULL, reason TEXT NOT NULL, score INTEGER,
           features_json TEXT NOT NULL, rule_version TEXT NOT NULL, decided_at TEXT NOT NULL
         );
+        CREATE TABLE opportunity_decision_inputs(
+          account_id TEXT NOT NULL, source TEXT NOT NULL, external_id TEXT NOT NULL,
+          fingerprint TEXT NOT NULL, evaluated_at TEXT NOT NULL,
+          PRIMARY KEY(account_id, source, external_id)
+        );
         CREATE TABLE opportunity_events(
           id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL, event_key TEXT NOT NULL,
           tender_id INTEGER, source TEXT, event_type TEXT NOT NULL, score INTEGER, created_at TEXT NOT NULL,
@@ -88,6 +93,10 @@ def _db():
             """INSERT INTO opportunity_decisions(account_id,source,external_id,decision,reason,score,features_json,rule_version,decided_at)
                VALUES(?,?,?,?,?,?,?,?,?)""",
             (account, "TED", f"{account}-1", "RELEVANT", "fit", 88, json.dumps({"explanation": account}), "v1", "2026-08-31T00:00:00+00:00"),
+        )
+        conn.execute(
+            "INSERT INTO opportunity_decision_inputs(account_id,source,external_id,fingerprint,evaluated_at) VALUES(?,?,?,?,?)",
+            (account, "TED", f"{account}-1", f"fp-{account}", "2026-08-31T00:00:00+00:00"),
         )
         conn.execute(
             "INSERT INTO opportunity_events(account_id,event_key,event_type,created_at) VALUES(?,?,?,?)",
@@ -134,7 +143,7 @@ def test_inventory_classifies_every_account_scoped_table():
     inventory = account_data_inventory(conn)
     assert inventory["missing"] == []
     assert inventory["unknown"] == []
-    assert {"push_devices", "push_preferences", "push_digest_deliveries"} <= set(inventory["discovered"])
+    assert {"opportunity_decision_inputs", "push_devices", "push_preferences", "push_digest_deliveries"} <= set(inventory["discovered"])
     assert "tenders" not in inventory["discovered"]
 
 
@@ -145,6 +154,7 @@ def test_export_is_complete_for_owner_without_cross_tenant_or_shared_tenders():
     assert payload["account"]["account_id"] == "acct-a"
     assert payload["company_profile"]["profile"]["name"] == "acct-a"
     assert {row["account_id"] for row in payload["opportunity_decisions"]} == {"acct-a"}
+    assert {row["account_id"] for row in payload["opportunity_decision_inputs"]} == {"acct-a"}
     assert {row["account_id"] for row in payload["opportunity_events"]} == {"acct-a"}
     assert {row["account_id"] for row in payload["opportunity_workflow"]} == {"acct-a"}
     assert {row["account_id"] for row in payload["evaluation_events"]} == {"acct-a"}
@@ -192,8 +202,8 @@ def test_deletion_removes_only_target_private_rows_and_leaves_fail_closed_tombst
     assert state["external_revocation"] == "PENDING"
 
     for table in (
-        "company_profiles", "opportunity_decisions", "opportunity_events", "opportunity_workflow",
-        "evaluation_events", "push_devices", "push_preferences", "push_digest_deliveries",
+        "company_profiles", "opportunity_decisions", "opportunity_decision_inputs", "opportunity_events",
+        "opportunity_workflow", "evaluation_events", "push_devices", "push_preferences", "push_digest_deliveries",
     ):
         assert conn.execute(f"SELECT COUNT(*) FROM {table} WHERE account_id='acct-a'").fetchone()[0] == 0
         assert conn.execute(f"SELECT COUNT(*) FROM {table} WHERE account_id='acct-b'").fetchone()[0] == 1
