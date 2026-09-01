@@ -9,6 +9,7 @@ import pytest
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.durable_proof import build_durable_claim_proof_pack
 from vertical_apps.industrial_claims.intake_authorization import IntakeAuthorization, capture_authorized_original_evidence
+from vertical_apps.industrial_claims.proof import canonical_json_bytes, sha256_hex
 from vertical_apps.industrial_claims.proof_extensions import dual_digest
 from vertical_apps.industrial_claims.proof_storage import OriginalObjectReceipt
 from vertical_apps.industrial_claims.secure_capture import CaptureIdentity, SourceAuthenticationReceipt
@@ -145,6 +146,7 @@ def test_secure_case_proof_rebinds_all_three_originals_to_one_append_only_regist
 
     assert pack["self_verification"]["valid"] is True
     assert pack["core_package"]["truth_boundaries"]["secure_case_registry_binding_enforced_when_declared_secure"] is True
+    assert pack["core_package"]["truth_boundaries"]["secure_authorization_scope_recomputed_from_persisted_metadata"] is True
     assert {item["evidence_id"] for item in pack["proof_manifest"]["evidence"]} == set(evidence_ids.values())
 
 
@@ -167,7 +169,7 @@ def test_secure_case_proof_rejects_mutable_projection_metadata_drift_from_regist
         )
         conn.commit()
 
-    with pytest.raises(AssuranceStoreError, match="secure case registry metadata drift"):
+    with pytest.raises(AssuranceStoreError, match="authorization scope hash mismatch"):
         build_durable_claim_proof_pack(service, tenant_id="tenant-a", finding_id=finding_id)
 
 
@@ -209,4 +211,34 @@ def test_secure_case_proof_rejects_mixed_secure_and_nonsecure_custody_after_pers
         conn.commit()
 
     with pytest.raises(AssuranceStoreError, match="mixes secure and non-secure case evidence custody"):
+        build_durable_claim_proof_pack(service, tenant_id="tenant-a", finding_id=finding_id)
+
+
+def test_secure_case_proof_rejects_joint_projection_and_registry_scope_field_forgery(tmp_path):
+    database = tmp_path / "secure-case-proof-joint-scope-forgery.sqlite3"
+    service, finding_id, evidence_ids = _secure_case(database)
+    build_durable_claim_proof_pack(service, tenant_id="tenant-a", finding_id=finding_id)
+
+    evidence_id = evidence_ids["event"]
+    with sqlite3.connect(database) as conn:
+        conn.execute("DROP TRIGGER causledger_secure_capture_no_update")
+        row = conn.execute(
+            "SELECT metadata_json FROM evidence WHERE tenant_id=? AND evidence_id=?",
+            ("tenant-a", evidence_id),
+        ).fetchone()
+        metadata = json.loads(row[0])
+        metadata["intake_authorized_by_sha256"] = "f" * 64
+        metadata_json = canonical_json_bytes(metadata).decode("utf-8")
+        metadata_sha256 = sha256_hex(metadata_json.encode("utf-8"))
+        conn.execute(
+            "UPDATE evidence SET metadata_json=? WHERE tenant_id=? AND evidence_id=?",
+            (metadata_json, "tenant-a", evidence_id),
+        )
+        conn.execute(
+            "UPDATE causledger_secure_capture_envelopes SET metadata_json=?,metadata_sha256=? WHERE tenant_id=? AND evidence_id=?",
+            (metadata_json, metadata_sha256, "tenant-a", evidence_id),
+        )
+        conn.commit()
+
+    with pytest.raises(AssuranceStoreError, match="authorization scope hash mismatch"):
         build_durable_claim_proof_pack(service, tenant_id="tenant-a", finding_id=finding_id)
