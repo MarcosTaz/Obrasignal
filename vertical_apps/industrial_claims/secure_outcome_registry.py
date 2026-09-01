@@ -86,10 +86,10 @@ def _validate_evidence(evidence: EvidenceEnvelope, *, captured_by: str) -> dict[
     expires_at = _aware(metadata.get("outcome_authorization_expires_at"), label="authorization_expires_at")
     if datetime.fromisoformat(expires_at) < datetime.fromisoformat(authorized_at):
         raise SecureOutcomeRegistryError("secure outcome authorization chronology is invalid")
-    minimum_retention = _aware(
-        metadata.get("outcome_minimum_immutable_retention_until"),
-        label="minimum_immutable_retention_until",
-    )
+    received = datetime.fromisoformat(received_at)
+    if received < datetime.fromisoformat(authorized_at) or received > datetime.fromisoformat(expires_at):
+        raise SecureOutcomeRegistryError("secure outcome received_at is outside authorized outcome window")
+    minimum_retention = _aware(metadata.get("outcome_minimum_immutable_retention_until"), label="minimum_immutable_retention_until")
     provider_retention = _aware(metadata.get("original_retention_until"), label="original_retention_until")
     if datetime.fromisoformat(provider_retention) < datetime.fromisoformat(minimum_retention):
         raise SecureOutcomeRegistryError("secure outcome provider retention is shorter than authorized retention")
@@ -102,10 +102,7 @@ def _validate_evidence(evidence: EvidenceEnvelope, *, captured_by: str) -> dict[
         raise SecureOutcomeRegistryError("secure outcome SHA-512 binding is invalid")
     original_receipt_ref = _required(metadata.get("original_provider_receipt_ref"), label="original_provider_receipt_ref")
     try:
-        recomputed_scope_sha256 = recompute_outcome_authorization_scope_sha256(
-            metadata,
-            tenant_id=tenant_id,
-        )
+        recomputed_scope_sha256 = recompute_outcome_authorization_scope_sha256(metadata, tenant_id=tenant_id)
     except OutcomeAuthorizationError as exc:
         raise SecureOutcomeRegistryError("secure outcome authorization scope cannot be recomputed") from exc
     if recomputed_scope_sha256 != scope_sha256:
@@ -172,8 +169,7 @@ class SecureOutcomeRegistry:
         ordered = (
             payload["evidence_id"], payload["tenant_id"], payload["finding_id"], payload["source_ref"],
             payload["received_at"], payload["content_hash"], payload["metadata_json"], payload["metadata_sha256"],
-            payload["authorization_id"], payload["authorization_scope_sha256"], payload["original_receipt_ref"],
-            payload["captured_by"],
+            payload["authorization_id"], payload["authorization_scope_sha256"], payload["original_receipt_ref"], payload["captured_by"],
         )
         with self._connect() as conn:
             existing = conn.execute(
@@ -211,13 +207,8 @@ class SecureOutcomeRegistry:
         if not isinstance(metadata, dict):
             raise SecureOutcomeRegistryError("secure outcome metadata must be an object")
         evidence = EvidenceEnvelope(
-            evidence_id=str(row["evidence_id"]),
-            tenant_id=str(row["tenant_id"]),
-            source_type="recovery_outcome_evidence",
-            source_ref=str(row["source_ref"]),
-            received_at=str(row["received_at"]),
-            content_hash=str(row["content_hash"]),
-            metadata=metadata,
+            evidence_id=str(row["evidence_id"]), tenant_id=str(row["tenant_id"]), source_type="recovery_outcome_evidence",
+            source_ref=str(row["source_ref"]), received_at=str(row["received_at"]), content_hash=str(row["content_hash"]), metadata=metadata,
         )
         canonical = _validate_evidence(evidence, captured_by=str(row["captured_by"]))
         if canonical["authorization_id"] != str(row["authorization_id"]):
