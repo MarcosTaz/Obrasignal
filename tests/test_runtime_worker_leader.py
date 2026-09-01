@@ -37,8 +37,9 @@ def test_production_uses_spare_http_capacity_and_one_background_leader():
 
     assert "--workers 2" in render
     assert "from runtime_leader import acquire_runtime_leader, serialized_startup" in entrypoint
+    assert "from runtime_deferred_worker import start_source_worker_after_readiness" in entrypoint
     assert "with serialized_startup():" in entrypoint
     assert "if acquire_runtime_leader():" in entrypoint
     leader_block = entrypoint.split("if acquire_runtime_leader():", 1)[1]
-    assert "start_background_worker()" in leader_block
+    assert "start_source_worker_after_readiness(start_background_worker)" in leader_block
     assert "start_push_scheduler()" in leader_block
