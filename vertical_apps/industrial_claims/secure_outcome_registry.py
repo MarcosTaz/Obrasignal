@@ -55,6 +55,8 @@ def _validate_evidence(evidence: EvidenceEnvelope, *, captured_by: str) -> dict[
     content_hash = _sha256(evidence.content_hash, label="content_hash")
     actor = _required(captured_by, label="captured_by", maximum=256)
     metadata = dict(evidence.metadata or {})
+    if str(metadata.get("verification_state") or "").strip().upper() != "CONTENT_HASHED":
+        raise SecureOutcomeRegistryError("secure outcome content-hash verification state is invalid")
     if str(metadata.get("capture_mode") or "") != "DIRECT_SECURE_ORIGINAL_CAPTURE":
         raise SecureOutcomeRegistryError("secure outcome is not direct original capture")
     if not _true(metadata.get("raw_content_persisted")):
