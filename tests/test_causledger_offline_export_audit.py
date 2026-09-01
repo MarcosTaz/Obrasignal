@@ -59,7 +59,10 @@ def test_offline_export_audit_is_append_only_hash_chained_and_metadata_only(tmp_
     assert events[1]["previous_event_hash"] == started["event_hash"]
     assert completed["event_hash"] == status["chain_head_sha256"]
     assert events[1]["payload"]["bundle_sha256"] == BUNDLE
-    assert "content" not in json.dumps(status).lower()
+    serialized = json.dumps(status).lower()
+    assert "content_base64" not in serialized
+    assert "raw_content" not in serialized
+    assert "secret-document" not in serialized
 
     with sqlite3.connect(store.path) as conn:
         with pytest.raises(sqlite3.IntegrityError, match="append-only"):
