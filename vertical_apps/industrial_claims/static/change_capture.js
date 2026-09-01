@@ -10,6 +10,10 @@ const lateResultNode = document.getElementById("late-supplement-result");
 const trustNode = document.getElementById("capture-time-trust");
 const digestNode = document.getElementById("capture-sheet-digest");
 const downloadNode = document.getElementById("change-sheet-download");
+const reminderNode = document.getElementById("capture-reminder");
+const reminderSatisfiedNode = document.getElementById("capture-reminder-satisfied");
+const reminderMessageNode = document.getElementById("capture-reminder-message");
+const exportCountNode = document.getElementById("capture-export-count");
 const closesAt = shell ? new Date(shell.dataset.closesAt) : null;
 const findingId = shell ? String(shell.dataset.findingId || "") : "";
 
@@ -64,14 +68,39 @@ function renderTrust(trust) {
     : "Independent qualified timestamp: NOT VERIFIED for this exact snapshot. CausLedger does not label internal server time as qualified evidence.";
 }
 
-async function refreshTrust() {
+function renderReminder(reminder, windowState) {
+  if (!reminder || typeof reminder !== "object") return;
+  if (windowState === "CLOSED" || reminder.state === "CLOSED") {
+    if (reminderNode) reminderNode.hidden = true;
+    if (reminderSatisfiedNode) reminderSatisfiedNode.hidden = true;
+    return;
+  }
+  const shouldPrompt = reminder.should_prompt === true;
+  if (reminderNode) reminderNode.hidden = !shouldPrompt;
+  if (reminderSatisfiedNode) reminderSatisfiedNode.hidden = shouldPrompt;
+  if (reminderMessageNode && reminder.message) reminderMessageNode.textContent = reminder.message;
+  if (digestNode && reminder.current_sheet_sha256) digestNode.textContent = reminder.current_sheet_sha256;
+}
+
+function renderCapture(capture) {
+  if (!capture || typeof capture !== "object") return;
+  if (capture.window_state === "CLOSED") setClosedUi();
+  renderTrust(capture.snapshot_time_trust);
+  renderReminder(capture.download_reminder, capture.window_state);
+  if (exportCountNode && Number.isInteger(capture.download_count)) {
+    const count = capture.download_count;
+    exportCountNode.textContent = `${count} prior export${count === 1 ? "" : "s"} generated`;
+  }
+}
+
+async function refreshCapture() {
   if (!findingId) return;
   try {
-    const response = await fetch(`/findings/${encodeURIComponent(findingId)}/change-sheet/trust`, {method: "GET"});
+    const response = await fetch(`/findings/${encodeURIComponent(findingId)}/change-capture`, {method: "GET"});
     const body = await response.json();
-    if (response.ok) renderTrust(body);
+    if (response.ok) renderCapture(body);
   } catch (_error) {
-    // Trust state remains visibly unverified if a refresh cannot be completed.
+    // Preserve the last server-derived state; never infer proof state after a failed refresh.
   }
 }
 
@@ -88,7 +117,7 @@ async function postFact(factType, factText, sourceRef) {
   });
   const body = await response.json();
   if (!response.ok) throw new Error(body.message || body.error || "Factual record could not be saved.");
-  if (body.capture && body.capture.snapshot_time_trust) renderTrust(body.capture.snapshot_time_trust);
+  if (body.capture) renderCapture(body.capture);
   return body;
 }
 
@@ -108,8 +137,8 @@ if (form) {
       let latest = summary;
       if (requestedAt) latest = await postFact("CHANGE_REQUESTED_AT", requestedAt, sourceRef);
       const recordedAt = latest.fact_receipt ? latest.fact_receipt.recorded_at : "recorded";
-      resultNode.textContent = `Saved at ${recordedAt}. The sheet digest has been refreshed. Download this version and keep it with the project record.`;
-      await refreshTrust();
+      resultNode.textContent = `Saved at ${recordedAt}. The sheet digest changed, so this exact version must be exported to satisfy the reminder.`;
+      await refreshCapture();
     } catch (error) {
       resultNode.className = "result error";
       resultNode.textContent = error.message;
@@ -160,11 +189,12 @@ if (downloadNode) {
       trustNode.className = "trust-pending";
       trustNode.textContent = "Requesting external timestamp status for the exported snapshot…";
     }
-    window.setTimeout(refreshTrust, 1200);
-    window.setTimeout(refreshTrust, 3000);
+    window.setTimeout(refreshCapture, 700);
+    window.setTimeout(refreshCapture, 1800);
+    window.setTimeout(refreshCapture, 3500);
   });
 }
 
 renderRemaining();
-refreshTrust();
+refreshCapture();
 setInterval(renderRemaining, 1000);
