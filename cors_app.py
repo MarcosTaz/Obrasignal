@@ -86,6 +86,14 @@ def _decorate_health(response):
     if not isinstance(payload, dict):
         return response
     payload["auth"] = authentication_health()
+    warm = globals().get("AUTH_WARM_STATE")
+    payload["runtime"] = {
+        "auth_warm_status": warm.get("status") if isinstance(warm, dict) else "initializing",
+        "preflight_first": bool(
+            APP.before_request_funcs.get(None)
+            and APP.before_request_funcs[None][0] is _global_api_preflight
+        ),
+    }
     response.set_data(json.dumps(payload, separators=(",", ":")))
     return response
 
@@ -95,6 +103,15 @@ def _global_api_preflight():
     if request.path.startswith("/api/v1/") and request.method == "OPTIONS":
         return _cors(APP.response_class("", status=204, mimetype="text/plain"))
     return None
+
+
+# Do this in the module that Render demonstrably imports, not only in an optional
+# wrapper entrypoint. `api` registers global billing guards transitively before
+# this function exists, so the decorator alone does not make OPTIONS first.
+_global_hooks = APP.before_request_funcs.setdefault(None, [])
+if _global_api_preflight in _global_hooks:
+    _global_hooks.remove(_global_api_preflight)
+_global_hooks.insert(0, _global_api_preflight)
 
 
 @APP.before_request
@@ -231,3 +248,11 @@ install_canadabuys_runtime(
 if acquire_runtime_leader():
     start_source_worker_after_readiness(start_background_worker)
     start_push_scheduler()
+
+# Warm auth here as the authoritative WSGI module. Production telemetry proved
+# that Render was serving exact builds with provider_status=uninitialized even
+# though production_entrypoint.py contained a warm call, which means the live
+# service can bypass that wrapper. Every import path that serves APP now executes
+# the same non-fatal, fail-closed warm before Gunicorn can expose the worker.
+from runtime_auth_warm import warm_production_auth
+AUTH_WARM_STATE = warm_production_auth()
