@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import sqlite3
 
 from flask import Blueprint, jsonify, request
 from jwt import InvalidTokenError
@@ -110,9 +111,20 @@ def _decode_json_row(row, field, output_field):
 
 
 def _account_row(conn, account_id):
-    if "accounts" not in _tables(conn):
-        return None
-    return conn.execute("SELECT * FROM accounts WHERE account_id=?", (str(account_id),)).fetchone()
+    """Read the account row without a sqlite_master/schema-lock round trip.
+
+    Production startup owns schema creation. Privacy status is a customer hot
+    path and should remain a plain indexed SELECT. Fresh/legacy test databases
+    without an accounts table still preserve the historical NOT_FOUND behavior.
+    """
+    try:
+        return conn.execute(
+            "SELECT * FROM accounts WHERE account_id=?", (str(account_id),)
+        ).fetchone()
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc).lower():
+            return None
+        raise
 
 
 def deletion_state(conn, account_id):
@@ -312,15 +324,22 @@ def _identity_or_response():
     except (RuntimeError, InvalidTokenError):
         return None, (jsonify({"error": "authentication_required"}), 401)
 
-    # Account privacy is a separate Flask blueprint, so it does not inherit the
-    # mobile API blueprint's per-request account bootstrap. A newly authenticated
-    # Supabase identity can therefore reach this endpoint before any other API
-    # call has created its canonical account row. Bootstrap that row here too.
-    # Deletion tombstones are retained in `accounts`, and ensure_account never
-    # mutates an existing row, so this cannot reactivate a deletion-locked account.
+    # Account privacy is a separate Flask blueprint, so a genuinely new provider
+    # identity may arrive before another API has created the canonical account.
+    # Existing accounts now stay on a strict read-only indexed fast path. This is
+    # important under browser concurrency: calling the full schema/bootstrap path
+    # on every GET needlessly makes privacy status compete with ingestion writes.
     conn = _db()
     try:
-        ensure_account(conn, identity.account_id)
+        if _account_row(conn, identity.account_id) is None:
+            try:
+                ensure_account(conn, identity.account_id)
+            except sqlite3.IntegrityError:
+                # Two first requests may race to bootstrap the same new account.
+                # The losing INSERT is harmless once the winning row is visible.
+                conn.rollback()
+                if _account_row(conn, identity.account_id) is None:
+                    raise
     finally:
         conn.close()
     return identity, None
