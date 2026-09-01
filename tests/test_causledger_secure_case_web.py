@@ -212,7 +212,12 @@ def test_secure_amend_route_creates_fresh_revision_from_new_registered_ids(tmp_p
 
     old_detail = client.get(f"/findings/{old_id}").get_json()
     new_detail = client.get(f"/findings/{body['finding_id']}").get_json()
+    canonical_revision = IndustrialClaimsService(database).revision_store.require_current(
+        tenant_id="tenant-a",
+        finding_id=body["finding_id"],
+    )
     assert old_detail["revision"]["is_current"] is False
-    assert new_detail["revision"]["revision"] == 2
+    assert canonical_revision.revision == 2
+    assert new_detail["revision"]["is_current"] is True
     assert new_detail["finding"]["reviewer"] is None
     assert "SECRET-" not in json.dumps(new_detail)
