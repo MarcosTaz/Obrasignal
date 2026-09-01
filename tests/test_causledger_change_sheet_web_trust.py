@@ -122,7 +122,9 @@ def test_download_with_unconfigured_provider_exports_sheet_but_never_claims_time
     assert response.headers["X-CausLedger-Timestamp-State"] == "UNAVAILABLE"
     assert response.headers["X-CausLedger-Timestamp-Provider"] == "UNCONFIGURED"
     assert response.headers["X-CausLedger-Transfer-Completion-Proven"] == "false"
-    assert response.headers["X-CausLedger-Sheet-SHA256"] in response.get_data(as_text=True)
+    digest = response.headers["X-CausLedger-Sheet-SHA256"]
+    assert hashlib.sha256(response.data).hexdigest() == digest
+    assert f"Snapshot SHA-256: {digest}" not in response.get_data(as_text=True)
     assert capture.status(tenant_id="tenant-a", finding_id=finding)["download_count"] == 1
 
 
