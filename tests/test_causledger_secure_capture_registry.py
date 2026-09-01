@@ -6,6 +6,7 @@ import sqlite3
 import pytest
 
 from factory_cloud.assurance_kernel import EvidenceEnvelope
+from vertical_apps.industrial_claims.intake_authorization import recompute_intake_authorization_scope_sha256
 from vertical_apps.industrial_claims.proof import canonical_json_bytes, sha256_hex
 from vertical_apps.industrial_claims.secure_capture_registry import (
     SecureCaptureRegistry,
@@ -29,13 +30,13 @@ def _envelope(
         "immutability": "WORM_LOCKED",
         "original_retention_until": "2036-09-01T00:00:00+00:00",
         "intake_authorization_id": "auth-1",
-        "intake_authorization_scope_sha256": "c" * 64,
         "intake_case_ref": "case-x",
         "intake_purpose": "BOUNDED_HISTORICAL_RAPID_SCAN",
         "intake_evidence_role": "commercial_basis",
         "intake_authorized_at": "2026-09-01T10:00:00+00:00",
         "intake_authorization_expires_at": "2026-09-02T10:00:00+00:00",
         "intake_minimum_immutable_retention_until": "2036-09-01T00:00:00+00:00",
+        "intake_authorized_evidence_roles": ["commercial_basis", "event", "cost"],
         "intake_data_terms_state": "SIGNED",
         "intake_immutable_retention_acknowledged": True,
         "intake_authorized_by_sha256": "d" * 64,
@@ -43,6 +44,10 @@ def _envelope(
         "intake_max_bytes_per_evidence": 1_000_000,
     }
     metadata.update(dict(metadata_overrides or {}))
+    metadata["intake_authorization_scope_sha256"] = recompute_intake_authorization_scope_sha256(
+        metadata,
+        tenant_id=tenant,
+    )
     return EvidenceEnvelope(
         evidence_id=evidence_id,
         tenant_id=tenant,
@@ -217,4 +222,30 @@ def test_registry_semantically_rejects_forged_retention_even_with_recomputed_has
         conn.commit()
 
     with pytest.raises(SecureCaptureRegistryError, match="retention is shorter"):
+        registry.get(tenant_id="tenant-a", evidence_id=evidence.evidence_id)
+
+
+def test_registry_rejects_scope_field_rewrite_even_if_attacker_rehashes_metadata(tmp_path):
+    database = tmp_path / "scope-recompute-tamper.sqlite3"
+    registry = SecureCaptureRegistry(database)
+    evidence = _envelope()
+    registry.record(evidence=evidence, evidence_role="commercial_basis", captured_by="actor-a")
+
+    with sqlite3.connect(database) as conn:
+        conn.execute("DROP TRIGGER causledger_secure_capture_no_update")
+        row = conn.execute(
+            "SELECT metadata_json FROM causledger_secure_capture_envelopes WHERE evidence_id=?",
+            (evidence.evidence_id,),
+        ).fetchone()
+        metadata = json.loads(row[0])
+        metadata["intake_authorized_by_sha256"] = "f" * 64
+        metadata_json = canonical_json_bytes(metadata).decode("utf-8")
+        metadata_hash = sha256_hex(metadata_json.encode("utf-8"))
+        conn.execute(
+            "UPDATE causledger_secure_capture_envelopes SET metadata_json=?,metadata_sha256=? WHERE evidence_id=?",
+            (metadata_json, metadata_hash, evidence.evidence_id),
+        )
+        conn.commit()
+
+    with pytest.raises(SecureCaptureRegistryError, match="scope hash mismatch"):
         registry.get(tenant_id="tenant-a", evidence_id=evidence.evidence_id)
