@@ -6,7 +6,11 @@ from datetime import datetime
 from pathlib import Path
 
 from factory_cloud.assurance_kernel import EvidenceEnvelope
-from vertical_apps.industrial_claims.outcome_authorization import DOCUMENTED_FINAL_OUTCOME_PURPOSE
+from vertical_apps.industrial_claims.outcome_authorization import (
+    DOCUMENTED_FINAL_OUTCOME_PURPOSE,
+    OutcomeAuthorizationError,
+    recompute_outcome_authorization_scope_sha256,
+)
 from vertical_apps.industrial_claims.proof import canonical_json_bytes, sha256_hex
 
 
@@ -78,8 +82,10 @@ def _validate_evidence(evidence: EvidenceEnvelope, *, captured_by: str) -> dict[
     finding_id = _required(metadata.get("outcome_finding_id"), label="finding_id", maximum=2048)
     if not finding_id.startswith(f"{tenant_id}:"):
         raise SecureOutcomeRegistryError("secure outcome finding_id is outside tenant namespace")
-    _aware(metadata.get("outcome_authorized_at"), label="authorized_at")
-    _aware(metadata.get("outcome_authorization_expires_at"), label="authorization_expires_at")
+    authorized_at = _aware(metadata.get("outcome_authorized_at"), label="authorized_at")
+    expires_at = _aware(metadata.get("outcome_authorization_expires_at"), label="authorization_expires_at")
+    if datetime.fromisoformat(expires_at) < datetime.fromisoformat(authorized_at):
+        raise SecureOutcomeRegistryError("secure outcome authorization chronology is invalid")
     minimum_retention = _aware(
         metadata.get("outcome_minimum_immutable_retention_until"),
         label="minimum_immutable_retention_until",
@@ -95,6 +101,15 @@ def _validate_evidence(evidence: EvidenceEnvelope, *, captured_by: str) -> dict[
     if len(sha512) != 128 or any(ch not in "0123456789abcdef" for ch in sha512):
         raise SecureOutcomeRegistryError("secure outcome SHA-512 binding is invalid")
     original_receipt_ref = _required(metadata.get("original_provider_receipt_ref"), label="original_provider_receipt_ref")
+    try:
+        recomputed_scope_sha256 = recompute_outcome_authorization_scope_sha256(
+            metadata,
+            tenant_id=tenant_id,
+        )
+    except OutcomeAuthorizationError as exc:
+        raise SecureOutcomeRegistryError("secure outcome authorization scope cannot be recomputed") from exc
+    if recomputed_scope_sha256 != scope_sha256:
+        raise SecureOutcomeRegistryError("secure outcome authorization scope hash mismatch")
     metadata_json = canonical_json_bytes(metadata).decode("utf-8")
     return {
         "evidence_id": evidence_id,
