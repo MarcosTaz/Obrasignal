@@ -4,12 +4,12 @@ import base64
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Sequence
+from typing import Any, Protocol, Sequence
 from urllib.parse import urlparse
 
 import requests
 from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import hashes
 from rfc3161_client import (
     HashAlgorithm,
     TimestampRequestBuilder,
@@ -24,6 +24,9 @@ from vertical_apps.industrial_claims.proof_providers import ProofProvider, Proof
 
 MAX_TIMESTAMP_RESPONSE_BYTES = 262_144
 DEFAULT_TIMEOUT = (4.0, 12.0)
+EIDAS_QTST_SERVICE_TYPE = "http://uri.etsi.org/TrstSvc/Svctype/TSA/QTST"
+EIDAS_GRANTED_STATUS = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted"
+EIDAS_CHAIN_VERIFICATION_METHOD = "XMLDSIG_LOTL_TO_MEMBER_STATE_TL"
 
 
 class Rfc3161TimestampConfigurationError(ValueError):
@@ -51,6 +54,16 @@ def _aware(value: str, *, label: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _https_uri(value: str, *, label: str, expected_host: str | None = None) -> str:
+    text = str(value or "").strip()
+    parsed = urlparse(text)
+    if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
+        raise Rfc3161TimestampConfigurationError(f"{label} must be a credential-free HTTPS URL")
+    if expected_host is not None and parsed.hostname != expected_host:
+        raise Rfc3161TimestampConfigurationError(f"{label} must use {expected_host}")
+    return text
+
+
 def _certs(pem_blobs: Sequence[bytes], *, label: str) -> list[x509.Certificate]:
     result: list[x509.Certificate] = []
     for blob in pem_blobs:
@@ -68,72 +81,104 @@ def _certs(pem_blobs: Sequence[bytes], *, label: str) -> list[x509.Certificate]:
 
 @dataclass(frozen=True)
 class EidasQualifiedTimestampEvidence:
-    """Pinned evidence that a TSA service is qualified in an EU/EEA Trusted List.
+    """Receipt produced only after LOTL -> Member-State TL XMLDSig verification.
 
-    This is deliberately separate from ordinary PKI verification. A valid RFC3161
-    signature becomes CausLedger VERIFIED only when the exact TSA certificate is
-    also bound to independently verified Trusted List evidence covering gen_time.
+    The provider does not trust this object merely because it exists. It only
+    accepts it from a configured qualification verifier invoked at the token's
+    genTime. The receipt binds both signed-list byte hashes, signing certificate
+    identities, sequence numbers, the exact TSA certificate and the status period.
     """
 
-    service_uri: str
     territory: str
     service_type: str
     service_status: str
     service_certificate_sha256: str
     service_valid_from: str
     service_valid_until: str | None
-    trusted_list_sequence: str
-    trusted_list_sha256: str
-    trusted_list_signature_verified: bool
+    service_name: str | None
+    lotl_uri: str
+    lotl_sha256: str
+    lotl_sequence: str
+    lotl_signer_certificate_sha256: str
+    national_tl_uri: str
+    national_tl_sha256: str
+    national_tl_sequence: str
+    national_tl_signer_certificate_sha256: str
+    verification_method: str
     verified_at: str
 
     def __post_init__(self) -> None:
-        parsed = urlparse(self.service_uri)
-        if parsed.scheme != "https" or parsed.netloc != "eidas.ec.europa.eu" or not parsed.path.startswith("/efda/trust-services/"):
-            raise Rfc3161TimestampConfigurationError("eIDAS service URI must reference the official EU eIDAS Dashboard")
         territory = self.territory.strip().upper()
         if len(territory) != 2 or not territory.isalpha():
             raise Rfc3161TimestampConfigurationError("eIDAS territory must be a two-letter code")
-        if self.service_type.strip().upper() != "TSA/QTST":
+        if self.service_type.strip() != EIDAS_QTST_SERVICE_TYPE:
             raise Rfc3161TimestampConfigurationError("eIDAS service type must be TSA/QTST")
-        if self.service_status.strip().upper() != "GRANTED":
-            raise Rfc3161TimestampConfigurationError("eIDAS qualified timestamp service must have GRANTED status")
-        _hex_sha256(self.service_certificate_sha256, label="service certificate")
-        _hex_sha256(self.trusted_list_sha256, label="trusted list")
+        if self.service_status.strip() != EIDAS_GRANTED_STATUS:
+            raise Rfc3161TimestampConfigurationError("eIDAS qualified timestamp service must have granted status")
+        for value, label in (
+            (self.service_certificate_sha256, "service certificate"),
+            (self.lotl_sha256, "LOTL"),
+            (self.lotl_signer_certificate_sha256, "LOTL signer certificate"),
+            (self.national_tl_sha256, "national TL"),
+            (self.national_tl_signer_certificate_sha256, "national TL signer certificate"),
+        ):
+            _hex_sha256(value, label=label)
         _aware(self.service_valid_from, label="service_valid_from")
         if self.service_valid_until is not None:
-            _aware(self.service_valid_until, label="service_valid_until")
+            until = _aware(self.service_valid_until, label="service_valid_until")
+            if until <= _aware(self.service_valid_from, label="service_valid_from"):
+                raise Rfc3161TimestampConfigurationError("service validity interval is invalid")
         _aware(self.verified_at, label="verified_at")
-        if not self.trusted_list_sequence.strip():
-            raise Rfc3161TimestampConfigurationError("trusted list sequence is required")
+        lotl = _https_uri(self.lotl_uri, label="LOTL URI", expected_host="ec.europa.eu")
+        if urlparse(lotl).path != "/tools/lotl/eu-lotl.xml":
+            raise Rfc3161TimestampConfigurationError("LOTL URI must be the official EU LOTL XML")
+        _https_uri(self.national_tl_uri, label="national TL URI")
+        if not self.lotl_sequence.strip() or not self.national_tl_sequence.strip():
+            raise Rfc3161TimestampConfigurationError("trusted-list sequence numbers are required")
+        if self.verification_method != EIDAS_CHAIN_VERIFICATION_METHOD:
+            raise Rfc3161TimestampConfigurationError("eIDAS evidence must come from signed LOTL-to-TL verification")
 
     def covers(self, *, certificate: x509.Certificate, gen_time: datetime) -> bool:
-        if not self.trusted_list_signature_verified:
-            return False
         cert_fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
         if cert_fingerprint != self.service_certificate_sha256.strip().lower():
             return False
         instant = gen_time.astimezone(timezone.utc) if gen_time.tzinfo else gen_time.replace(tzinfo=timezone.utc)
         if instant < _aware(self.service_valid_from, label="service_valid_from"):
             return False
-        if self.service_valid_until is not None and instant > _aware(self.service_valid_until, label="service_valid_until"):
+        if self.service_valid_until is not None and instant >= _aware(self.service_valid_until, label="service_valid_until"):
             return False
         return True
 
     def as_dict(self) -> dict[str, Any]:
         return {
-            "service_uri": self.service_uri,
             "territory": self.territory.strip().upper(),
-            "service_type": "TSA/QTST",
-            "service_status": "GRANTED",
+            "service_type": self.service_type,
+            "service_status": self.service_status,
             "service_certificate_sha256": self.service_certificate_sha256.strip().lower(),
             "service_valid_from": self.service_valid_from,
             "service_valid_until": self.service_valid_until,
-            "trusted_list_sequence": self.trusted_list_sequence,
-            "trusted_list_sha256": self.trusted_list_sha256.strip().lower(),
-            "trusted_list_signature_verified": self.trusted_list_signature_verified,
+            "service_name": self.service_name,
+            "lotl_uri": self.lotl_uri,
+            "lotl_sha256": self.lotl_sha256.strip().lower(),
+            "lotl_sequence": self.lotl_sequence,
+            "lotl_signer_certificate_sha256": self.lotl_signer_certificate_sha256.strip().lower(),
+            "national_tl_uri": self.national_tl_uri,
+            "national_tl_sha256": self.national_tl_sha256.strip().lower(),
+            "national_tl_sequence": self.national_tl_sequence,
+            "national_tl_signer_certificate_sha256": self.national_tl_signer_certificate_sha256.strip().lower(),
+            "verification_method": self.verification_method,
             "verified_at": self.verified_at,
         }
+
+
+class EidasQualificationVerifier(Protocol):
+    def verify(
+        self,
+        *,
+        certificate: x509.Certificate,
+        gen_time: datetime,
+    ) -> EidasQualifiedTimestampEvidence:
+        ...
 
 
 class Rfc3161QualifiedTimestampProvider(ProofProvider):
@@ -147,6 +192,7 @@ class Rfc3161QualifiedTimestampProvider(ProofProvider):
         tsa_certificate_pem: bytes,
         root_certificates_pem: Sequence[bytes],
         intermediate_certificates_pem: Sequence[bytes] = (),
+        qualification_verifier: EidasQualificationVerifier | None = None,
         qualification_evidence: EidasQualifiedTimestampEvidence | None = None,
         session: requests.Session | None = None,
         timeout: tuple[float, float] = DEFAULT_TIMEOUT,
@@ -169,7 +215,8 @@ class Rfc3161QualifiedTimestampProvider(ProofProvider):
         self.tsa_certificate = tsa_list[0]
         self.roots = roots
         self.intermediates = intermediates
-        self.qualification_evidence = qualification_evidence
+        self.qualification_verifier = qualification_verifier
+        self.legacy_qualification_evidence = qualification_evidence
         self.session = session or requests.Session()
         self.timeout = timeout
 
@@ -278,7 +325,7 @@ class Rfc3161QualifiedTimestampProvider(ProofProvider):
         else:
             gen_time = gen_time.astimezone(timezone.utc)
         token_b64 = base64.b64encode(response_bytes).decode("ascii")
-        validation_material = {
+        validation_material: dict[str, Any] = {
             "response_sha256": response_sha256,
             "request_nonce": timestamp_request.nonce,
             "token_policy_oid": timestamp_response.tst_info.policy.dotted_string,
@@ -288,13 +335,31 @@ class Rfc3161QualifiedTimestampProvider(ProofProvider):
             "exact_payload_verified": True,
             "timestamp_response_base64": token_b64,
         }
-        validation_ref = "rfc3161-validation:" + _sha256(canonical_json_bytes(validation_material))
 
         qualified = False
-        qualification = None
-        if self.qualification_evidence is not None:
-            qualification = self.qualification_evidence.as_dict()
-            qualified = self.qualification_evidence.covers(certificate=self.tsa_certificate, gen_time=gen_time)
+        qualification: dict[str, Any] | None = None
+        qualification_error: str | None = None
+        if self.qualification_verifier is not None:
+            try:
+                evidence = self.qualification_verifier.verify(
+                    certificate=self.tsa_certificate,
+                    gen_time=gen_time,
+                )
+                qualification = evidence.as_dict()
+                qualified = evidence.covers(certificate=self.tsa_certificate, gen_time=gen_time)
+                if not qualified:
+                    qualification_error = "QUALIFICATION_RECEIPT_DOES_NOT_COVER_TOKEN"
+            except Exception as exc:  # External trust-chain failure must fail closed, not erase valid RFC3161 proof.
+                qualification_error = f"QUALIFICATION_VERIFICATION_FAILED:{type(exc).__name__}"
+        elif self.legacy_qualification_evidence is not None:
+            qualification = self.legacy_qualification_evidence.as_dict()
+            qualification_error = "STATIC_QUALIFICATION_EVIDENCE_NOT_SUFFICIENT"
+
+        validation_material["eidas_qualification_evidence"] = qualification
+        validation_material["qualified_trusted_list_gate_satisfied"] = qualified
+        validation_material["eidas_qualification_error"] = qualification_error
+        validation_material["qualification_requires_runtime_signed_lotl_chain_verifier"] = True
+        validation_ref = "rfc3161-validation:" + _sha256(canonical_json_bytes(validation_material))
         state = "VERIFIED" if qualified else "CRYPTOGRAPHICALLY_VALID"
         return ExternalAttestation(
             kind=self.kind,
@@ -308,8 +373,6 @@ class Rfc3161QualifiedTimestampProvider(ProofProvider):
             details={
                 **details,
                 **validation_material,
-                "eidas_qualification_evidence": qualification,
-                "qualified_trusted_list_gate_satisfied": qualified,
                 "cryptographically_valid_does_not_imply_eidas_qualified": True,
             },
         )
