@@ -112,8 +112,10 @@ def test_default_runtime_rejects_inline_amendment_without_creating_successor(tmp
     original = strict_analyst.get(f"/findings/{finding_id}")
     assert original.status_code == 200
     detail = original.get_json()
-    assert detail["finding_id"] == finding_id
-    assert detail["state"] == "READY_FOR_REVIEW"
+    assert detail["case"]["finding_id"] == finding_id
+    assert detail["finding"]["state"] == "READY_FOR_REVIEW"
+    assert detail["revision"]["is_current"] is True
+    assert detail["revision"]["superseded_by_finding_id"] is None
 
 
 def test_default_runtime_rejects_inline_outcome_evidence_before_closure(tmp_path):
@@ -148,7 +150,8 @@ def test_default_runtime_rejects_inline_outcome_evidence_before_closure(tmp_path
 
     strict_operator_read = strict_operator.get(f"/findings/{finding_id}")
     assert strict_operator_read.status_code == 200
-    assert strict_operator_read.get_json()["state"] == "ACTIONED"
+    assert strict_operator_read.get_json()["finding"]["state"] == "ACTIONED"
+    assert strict_operator_read.get_json()["outcomes"] == []
 
 
 def test_inline_mode_requires_explicit_opt_in_and_is_visible_in_health(tmp_path):
@@ -166,3 +169,25 @@ def test_inline_mode_requires_explicit_opt_in_and_is_visible_in_health(tmp_path)
     assert strict.get("/health").get_json()["inline_documentary_content_enabled"] is False
     assert synthetic.get("/health").get_json()["inline_documentary_content_enabled"] is True
     assert synthetic.post("/analyze", json=_candidate_payload()).status_code == 201
+
+
+def test_default_console_hides_raw_document_and_outcome_forms_but_synthetic_mode_exposes_them(tmp_path):
+    database = tmp_path / "console-gate.sqlite3"
+    strict = create_app(database).test_client()
+    synthetic = create_app(database, allow_inline_evidence_content=True).test_client()
+
+    strict_html = strict.get("/").get_data(as_text=True)
+    assert 'name="commercial_basis_content"' not in strict_html
+    assert 'name="event_evidence_content"' not in strict_html
+    assert 'name="cost_evidence_content"' not in strict_html
+    assert 'id="resolve-form"' not in strict_html
+    assert "Reference-only intake" in strict_html
+    assert "authorized secure evidence-capture path" in strict_html
+    assert "Do not paste bank statements" in strict_html
+
+    synthetic_html = synthetic.get("/").get_data(as_text=True)
+    assert 'name="commercial_basis_content"' in synthetic_html
+    assert 'name="event_evidence_content"' in synthetic_html
+    assert 'name="cost_evidence_content"' in synthetic_html
+    assert 'id="resolve-form"' in synthetic_html
+    assert "Synthetic/local mode is active" in synthetic_html
