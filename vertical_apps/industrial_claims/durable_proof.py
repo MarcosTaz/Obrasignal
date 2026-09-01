@@ -8,17 +8,24 @@ from typing import Any, Sequence
 from factory_cloud.assurance_kernel import EvidenceEnvelope
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.change_chronology_reader import read_change_chronology
+from vertical_apps.industrial_claims.intake_authorization import BOUNDED_RAPID_SCAN_PURPOSE
 from vertical_apps.industrial_claims.outcome_authorization import DOCUMENTED_FINAL_OUTCOME_PURPOSE
 from vertical_apps.industrial_claims.proof import (
     ExternalAttestation,
     build_proof_manifest,
-    canonical_json_bytes,
     sha256_hex,
     verify_proof_manifest,
 )
 from vertical_apps.industrial_claims.proof_binding import validate_evidence_attestation_bindings
 from vertical_apps.industrial_claims.proof_readiness import evaluate_proof_strength
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
+
+
+_CASE_ROLE_BY_SOURCE_TYPE = {
+    "commercial_basis": "commercial_basis",
+    "industrial_commercial_event": "event",
+    "cost_evidence": "cost",
+}
 
 
 def _json_list(value: object, *, label: str) -> list[Any]:
@@ -130,6 +137,77 @@ def _validate_resolution_audit(
         raise AssuranceStoreError("durable proof pack resolution audit payload binding mismatch")
 
 
+def _validate_secure_case_registry_binding(
+    conn: sqlite3.Connection,
+    *,
+    tenant_id: str,
+    envelope: EvidenceEnvelope,
+) -> tuple[str, ...] | None:
+    metadata = dict(envelope.metadata or {})
+    raw_persisted = _true(metadata.get("raw_content_persisted"))
+    direct_secure = str(metadata.get("capture_mode") or "").strip() == "DIRECT_SECURE_ORIGINAL_CAPTURE"
+    if not raw_persisted and not direct_secure:
+        return None
+    if not raw_persisted or not direct_secure:
+        raise AssuranceStoreError("durable proof pack secure case custody semantics are inconsistent")
+    role = _CASE_ROLE_BY_SOURCE_TYPE.get(envelope.source_type)
+    if role is None:
+        raise AssuranceStoreError("durable proof pack secure case evidence source type is invalid")
+    if str(metadata.get("intake_evidence_role") or "").strip().lower() != role:
+        raise AssuranceStoreError("durable proof pack secure case intake role mismatch")
+    if str(metadata.get("intake_purpose") or "").strip().upper() != BOUNDED_RAPID_SCAN_PURPOSE:
+        raise AssuranceStoreError("durable proof pack secure case intake purpose mismatch")
+    if str(metadata.get("immutability") or "").strip().upper() != "WORM_LOCKED":
+        raise AssuranceStoreError("durable proof pack secure case immutability mismatch")
+    if not _true(metadata.get("original_version_readback_verified")) or not _true(metadata.get("worm_lock_verified")):
+        raise AssuranceStoreError("durable proof pack secure case immutable readback is not verified")
+    if str(metadata.get("original_retention_mode") or "").strip().upper() != "COMPLIANCE":
+        raise AssuranceStoreError("durable proof pack secure case retention mode mismatch")
+
+    table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='causledger_secure_capture_envelopes'"
+    ).fetchone()
+    if table is None:
+        raise AssuranceStoreError("durable proof pack secure capture registry is missing")
+    registry = conn.execute(
+        "SELECT * FROM causledger_secure_capture_envelopes WHERE tenant_id=? AND evidence_id=? AND evidence_role=? AND source_ref=?",
+        (tenant_id, envelope.evidence_id, role, envelope.source_ref),
+    ).fetchone()
+    if registry is None:
+        raise AssuranceStoreError("durable proof pack secure case registry binding is missing")
+    registry_metadata_json = str(registry["metadata_json"])
+    if sha256_hex(registry_metadata_json.encode("utf-8")) != str(registry["metadata_sha256"]):
+        raise AssuranceStoreError("durable proof pack secure case registry metadata hash mismatch")
+    registry_metadata = _json_object(registry_metadata_json, label="secure case registry metadata")
+    if registry_metadata != metadata:
+        raise AssuranceStoreError("durable proof pack secure case registry metadata drift")
+    if str(registry["source_type"]) != envelope.source_type:
+        raise AssuranceStoreError("durable proof pack secure case registry source-type drift")
+    if str(registry["content_hash"]).lower() != envelope.content_hash.lower():
+        raise AssuranceStoreError("durable proof pack secure case registry digest drift")
+    if str(registry["original_receipt_ref"]) != str(metadata.get("original_provider_receipt_ref") or ""):
+        raise AssuranceStoreError("durable proof pack secure case original receipt drift")
+
+    scope = (
+        str(metadata.get("intake_authorization_id") or "").strip(),
+        str(metadata.get("intake_authorization_scope_sha256") or "").strip().lower(),
+        str(metadata.get("intake_case_ref") or "").strip(),
+        str(metadata.get("intake_purpose") or "").strip().upper(),
+        str(metadata.get("intake_authorized_at") or "").strip(),
+        str(metadata.get("intake_authorization_expires_at") or "").strip(),
+        str(metadata.get("intake_minimum_immutable_retention_until") or "").strip(),
+        str(metadata.get("intake_data_terms_state") or "").strip().upper(),
+        str(metadata.get("intake_authorized_by_sha256") or "").strip().lower(),
+        str(metadata.get("intake_transfer_channel_sha256") or "").strip().lower(),
+        str(metadata.get("intake_max_bytes_per_evidence") or "").strip(),
+    )
+    if any(not value for value in scope):
+        raise AssuranceStoreError("durable proof pack secure case authorization scope is incomplete")
+    if len(scope[1]) != 64 or any(ch not in "0123456789abcdef" for ch in scope[1]):
+        raise AssuranceStoreError("durable proof pack secure case authorization scope hash is invalid")
+    return scope
+
+
 def _validate_secure_outcome_registry_binding(
     conn: sqlite3.Connection,
     *,
@@ -141,8 +219,6 @@ def _validate_secure_outcome_registry_binding(
     raw_persisted = _true(metadata.get("raw_content_persisted"))
     direct_secure = str(metadata.get("capture_mode") or "").strip() == "DIRECT_SECURE_ORIGINAL_CAPTURE"
     if not raw_persisted and not direct_secure:
-        # Legacy/synthetic hash-only outcome evidence remains representable, but it
-        # is never upgraded into an immutable-original claim by this validator.
         return
     if not raw_persisted or not direct_secure:
         raise AssuranceStoreError("durable proof pack secure outcome custody semantics are inconsistent")
@@ -205,9 +281,8 @@ def build_durable_claim_proof_pack(
     Evidence and change chronology are reconstructed with SELECT-only reads. Proof
     generation never creates missing proof tables or requests external attestations.
     Missing proof therefore stays missing rather than being repaired by observation.
-    Final outcome evidence is part of the manifest lineage when present; a recovered
-    dossier therefore cannot omit or silently substitute the documentary record used
-    to close the finding.
+    Secure originals are re-bound to their append-only authorization registries at
+    Proof Pack time rather than trusting only the mutable case evidence projection.
     """
     revision = service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
     detail = service.read_model.get_finding(
@@ -257,6 +332,7 @@ def build_durable_claim_proof_pack(
 
         envelopes: list[EvidenceEnvelope] = []
         evidence_index: list[dict[str, Any]] = []
+        secure_case_scopes: list[tuple[str, ...]] = []
         for evidence_id in evidence_ids:
             row = conn.execute(
                 "SELECT * FROM evidence WHERE tenant_id=? AND evidence_id=?",
@@ -279,6 +355,13 @@ def build_durable_claim_proof_pack(
                 content_hash=str(row["content_hash"]),
                 metadata=metadata,
             )
+            secure_scope = _validate_secure_case_registry_binding(
+                conn,
+                tenant_id=tenant_id,
+                envelope=envelope,
+            )
+            if secure_scope is not None:
+                secure_case_scopes.append(secure_scope)
             envelopes.append(envelope)
             evidence_index.append({
                 "evidence_id": envelope.evidence_id,
@@ -293,6 +376,11 @@ def build_durable_claim_proof_pack(
                 "immutability": metadata.get("immutability", "NOT_PROVEN"),
                 "raw_content_persisted": metadata.get("raw_content_persisted", "unknown"),
             })
+        if secure_case_scopes:
+            if len(secure_case_scopes) != len(evidence_ids):
+                raise AssuranceStoreError("durable proof pack mixes secure and non-secure case evidence custody")
+            if any(scope != secure_case_scopes[0] for scope in secure_case_scopes[1:]):
+                raise AssuranceStoreError("durable proof pack secure case evidence authorization scope diverged")
 
         for evidence_id in outcome_evidence_ids:
             row = conn.execute(
@@ -375,6 +463,7 @@ def build_durable_claim_proof_pack(
             "legal_conclusion": None,
             "change_capture_is_evidence_preservation_not_entitlement": True,
             "proof_pack_generation_is_read_only": True,
+            "secure_case_registry_binding_enforced_when_declared_secure": True,
             "final_outcome_evidence_in_manifest_when_present": True,
             "final_outcome_bound_to_resolution_audit": True,
             "secure_outcome_bound_to_authorization_registry": True,
