@@ -34,6 +34,19 @@ def test_new_account_does_not_lose_days_during_onboarding():
     assert state['plan']=='evaluation' and state['active'] is True
     assert state['evaluation_status']=='ONBOARDING'
 
+def test_existing_account_bootstrap_is_read_only_after_schema_is_current():
+    conn=db(); ensure_account(conn,'acct-steady')
+    statements=[]
+    conn.set_trace_callback(statements.append)
+    try:
+        ensure_account(conn,'acct-steady')
+        account=get_account(conn,'acct-steady')
+    finally:
+        conn.set_trace_callback(None)
+    assert account['account_id']=='acct-steady'
+    writes=[s for s in statements if s.lstrip().upper().startswith(('CREATE ','ALTER ','INSERT ','UPDATE ','DELETE ','BEGIN ','COMMIT'))]
+    assert writes == []
+
 def test_evaluation_activates_only_on_value_ready_condition_for_21_days():
     conn=db(); ensure_account(conn,'acct-eval')
     base=datetime(2026,8,25,10,0,tzinfo=timezone.utc)
