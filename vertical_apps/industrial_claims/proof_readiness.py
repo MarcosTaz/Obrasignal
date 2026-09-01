@@ -21,8 +21,9 @@ def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
 
     Aggregate sealing cannot substitute for preservation of the originals. An
     original-immutability level therefore requires every evidence item both to
-    remain re-verifiable from retained bytes and to carry its own supported
-    integrity-sealed dimension (for example an evidence-bound WORM receipt).
+    remain re-verifiable from retained bytes and to carry its own verified
+    immutability dimension (for example an evidence-bound WORM receipt).
+    Internal integrity sealing alone is deliberately insufficient.
     """
     evidence = list(manifest.get("evidence") or [])
     external = list(manifest.get("external_attestations") or [])
@@ -39,7 +40,11 @@ def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
         bool((item.get("assurance_dimensions") or {}).get("integrity_sealed"))
         for item in evidence
     )
-    immutability = originals and every_original_integrity_sealed
+    every_original_immutability_verified = bool(evidence) and all(
+        bool((item.get("assurance_dimensions") or {}).get("original_immutability_verified"))
+        for item in evidence
+    )
+    immutability = originals and every_original_integrity_sealed and every_original_immutability_verified
     independent_time = immutability and "QUALIFIED_TIMESTAMP" in kinds and independence["qualified_timestamp_complete"]
     qualified_origin = independent_time and bool({"QUALIFIED_SEAL", "QUALIFIED_SIGNATURE"} & kinds) and independence["qualified_origin_complete"]
     multi_witness = (
@@ -66,6 +71,7 @@ def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
         "internal_integrity": internal_integrity,
         "original_bytes_preserved": originals,
         "every_original_individually_integrity_sealed": every_original_integrity_sealed,
+        "every_original_immutability_verified": every_original_immutability_verified,
         "worm_or_equivalent_immutability": immutability,
         "qualified_independent_timestamp": independent_time,
         "qualified_seal_or_signature": qualified_origin,
