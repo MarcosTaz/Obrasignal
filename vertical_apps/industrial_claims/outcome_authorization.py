@@ -64,6 +64,8 @@ class OutcomeEvidenceAuthorization:
         authorization_id = _required(self.authorization_id, label="authorization_id", maximum=256)
         tenant_id = _required(self.tenant_id, label="tenant_id", maximum=64)
         finding_id = _required(self.finding_id, label="finding_id", maximum=2048)
+        if not finding_id.startswith(f"{tenant_id}:"):
+            raise OutcomeAuthorizationError("outcome finding_id is outside authorized tenant namespace")
         authorized_by_ref = _required(self.authorized_by_ref, label="authorized_by_ref", maximum=512)
         transfer_channel_ref = _required(self.transfer_channel_ref, label="transfer_channel_ref", maximum=1024)
         purpose = _required(self.purpose, label="purpose", maximum=128).upper()
