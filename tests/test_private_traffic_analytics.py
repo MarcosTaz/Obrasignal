@@ -2,7 +2,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from traffic_analytics import ensure_traffic_schema, private_summary, visitor_day_hash
+from app import APP
+from traffic_analytics import _origin_allowed, ensure_traffic_schema, private_summary, visitor_day_hash
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +56,18 @@ def test_private_summary_counts_geo_campaign_and_funnel():
     assert report["campaigns"][0]["source"] == "email"
     assert any(row["country"] == "PT" for row in report["geography"])
     assert any(row["event_name"] == "profile_completed" for row in report["funnel"])
+
+
+def test_private_analytics_accepts_only_configured_customer_origins(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_WEB_ORIGIN", "https://obrasignal.com")
+    monkeypatch.setenv("OBRASIGNAL_CORS_FALLBACK_ORIGIN", "https://marcostaz.github.io")
+    with APP.test_request_context("/api/v1/analytics/event", headers={"Origin": "https://obrasignal.com"}):
+        assert _origin_allowed() is True
+    with APP.test_request_context("/api/v1/analytics/event", headers={"Origin": "https://marcostaz.github.io"}):
+        assert _origin_allowed() is True
+    with APP.test_request_context("/api/v1/analytics/event", headers={"Origin": "https://attacker.example"}):
+        assert _origin_allowed() is False
 
 
 def test_customer_domain_is_canonical_in_production_configuration():
