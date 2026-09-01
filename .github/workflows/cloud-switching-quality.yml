@@ -1,0 +1,34 @@
+name: Cloud Switching Quality
+
+on:
+  pull_request:
+    paths:
+      - 'cloud_switching/**'
+      - 'tests/test_cloud_switching_*.py'
+      - '.github/workflows/cloud-switching-quality.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CLOUD_SWITCHING_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CLOUD_SWITCHING_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$CLOUD_SWITCHING_TEST_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest
+      - name: Compile cloud switching package
+        run: python -m compileall -q cloud_switching
+      - name: Run focused cloud switching tests
+        run: PYTHONPATH=. pytest -q --import-mode=importlib tests/test_cloud_switching_*.py
