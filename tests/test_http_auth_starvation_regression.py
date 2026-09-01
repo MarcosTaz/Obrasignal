@@ -41,6 +41,7 @@ def test_global_preflight_handler_itself_never_touches_auth_or_db(monkeypatch):
     def bomb(*_args, **_kwargs):
         raise AssertionError("OPTIONS preflight must not touch auth or SQLite")
 
+    monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "https://obrasignal.com")
     monkeypatch.setattr(cors_app, "configured_identity", bomb)
     import app
     monkeypatch.setattr(app, "db", bomb)
