@@ -161,7 +161,7 @@ def test_secure_resolve_is_operator_only_id_only_and_leaks_no_outcome_bytes(tmp_
     detail = client.get(f"/findings/{finding_id}")
     assert detail.status_code == 200
     detail_body = detail.get_json()
-    assert detail_body["finding"]["state"] == "RESOLVED"
+    assert detail_body["finding"]["state"] == "RECOVERED"
     assert detail_body["outcomes"][0]["evidence"]["evidence_id"] == evidence.evidence_id
     assert "SECRET-SETTLEMENT-BODY" not in detail.get_data(as_text=True)
 
