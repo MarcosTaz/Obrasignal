@@ -13,5 +13,5 @@ def test_console_exposes_safe_amendment_mode_without_raw_document_reload(tmp_pat
     assert '`/findings/${encodeURIComponent(amendFindingId)}/amend`' in javascript
     assert ' : "/analyze"' in javascript
     assert "creates a new revision and requires fresh independent review" in javascript
-    assert "real originals must use authorized secure capture" in javascript
+    assert "real documentary originals must use authorized secure capture" in javascript
     assert "await loadDetail(result.body.finding_id)" in javascript
