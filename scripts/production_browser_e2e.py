@@ -246,6 +246,11 @@ def authenticated_roundtrip(page, browser_name):
     page.get_by_role("button", name="Privacidade", exact=True).wait_for(timeout=10_000)
 
     page.wait_for_timeout(250)
+    # WebKit emits the duplicate access-control pageerror asynchronously, often
+    # after the awaited health fetch has already returned the exact build. Apply
+    # the narrow filter again at the final verdict, and only in a path where the
+    # explicit browser fetch above succeeded. Every other failure remains fatal.
+    _discard_verified_webkit_health_noise(failures, browser_name)
     if failures:
         fail("\n".join(failures))
     print(f"PASS authenticated {browser_name}")
