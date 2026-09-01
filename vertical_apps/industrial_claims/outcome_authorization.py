@@ -45,6 +45,74 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _sha256_digest(value: object, *, label: str) -> str:
+    text = str(value or "").strip().lower()
+    if len(text) != 64 or any(ch not in "0123456789abcdef" for ch in text):
+        raise OutcomeAuthorizationError(f"invalid outcome authorization {label}")
+    return text
+
+
+def recompute_outcome_authorization_scope_sha256(
+    metadata: Mapping[str, Any],
+    *,
+    tenant_id: str,
+) -> str:
+    """Recompute persisted outcome-authorization scope without requiring it to be live now."""
+    tenant = _required(tenant_id, label="tenant_id", maximum=64)
+    authorization_id = _required(metadata.get("outcome_authorization_id"), label="authorization_id", maximum=256)
+    finding_id = _required(metadata.get("outcome_finding_id"), label="finding_id", maximum=2048)
+    if not finding_id.startswith(f"{tenant}:"):
+        raise OutcomeAuthorizationError("outcome finding_id is outside authorized tenant namespace")
+    purpose = _required(metadata.get("outcome_purpose"), label="purpose", maximum=128).upper()
+    if purpose != DOCUMENTED_FINAL_OUTCOME_PURPOSE:
+        raise OutcomeAuthorizationError("outcome authorization purpose is not permitted")
+    authorized_at = _aware(metadata.get("outcome_authorized_at"), label="authorized_at")
+    expires_at = _aware(metadata.get("outcome_authorization_expires_at"), label="expires_at")
+    retain_until = _aware(
+        metadata.get("outcome_minimum_immutable_retention_until"),
+        label="minimum_immutable_retention_until",
+    )
+    if expires_at < authorized_at:
+        raise OutcomeAuthorizationError("outcome authorization expiry precedes authorization")
+    if not (
+        metadata.get("outcome_immutable_retention_acknowledged") is True
+        or str(metadata.get("outcome_immutable_retention_acknowledged") or "").strip().lower() == "true"
+    ):
+        raise OutcomeAuthorizationError("immutable retention was not acknowledged")
+    data_terms_state = _required(metadata.get("outcome_data_terms_state"), label="data_terms_state", maximum=64).upper()
+    if data_terms_state not in ALLOWED_DATA_TERMS_STATES:
+        raise OutcomeAuthorizationError("outcome data terms are not cleared")
+    try:
+        max_bytes = int(metadata.get("outcome_max_bytes"))
+    except (TypeError, ValueError) as exc:
+        raise OutcomeAuthorizationError("outcome authorization byte limit is invalid") from exc
+    if not (1 <= max_bytes <= 100_000_000):
+        raise OutcomeAuthorizationError("outcome authorization byte limit is invalid")
+    authorized_by_sha256 = _sha256_digest(
+        metadata.get("outcome_authorized_by_sha256"),
+        label="authorized_by_sha256",
+    )
+    transfer_channel_sha256 = _sha256_digest(
+        metadata.get("outcome_transfer_channel_sha256"),
+        label="transfer_channel_sha256",
+    )
+    scope = {
+        "authorization_id": authorization_id,
+        "tenant_id": tenant,
+        "finding_id": finding_id,
+        "purpose": purpose,
+        "authorized_at": authorized_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "minimum_immutable_retention_until": retain_until.isoformat(),
+        "data_terms_state": data_terms_state,
+        "immutable_retention_acknowledged": True,
+        "max_bytes": max_bytes,
+        "authorized_by_sha256": authorized_by_sha256,
+        "transfer_channel_sha256": transfer_channel_sha256,
+    }
+    return hashlib.sha256(canonical_json_bytes(scope)).hexdigest()
+
+
 @dataclass(frozen=True)
 class OutcomeEvidenceAuthorization:
     authorization_id: str
@@ -211,4 +279,9 @@ def capture_authorized_outcome_evidence(
             raise OutcomeAuthorizationError("secure capture lost outcome authorization binding")
     if captured.evidence.metadata.get("verification_state") != "CONTENT_HASHED":
         raise OutcomeAuthorizationError("secure capture lost content-hash verification state")
+    if recompute_outcome_authorization_scope_sha256(
+        captured.evidence.metadata,
+        tenant_id=validated.tenant_id,
+    ) != validated.scope_sha256:
+        raise OutcomeAuthorizationError("secure capture outcome authorization scope is not independently reproducible")
     return captured
