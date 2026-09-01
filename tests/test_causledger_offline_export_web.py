@@ -147,6 +147,9 @@ def _seed_secure_case(database, store: Store) -> tuple[IndustrialClaimsService, 
         currency="EUR",
         notice_deadline_not_applicable=True,
     )
+    # Capture itself must perform exact-version WORM readback. Reset only this
+    # test instrument so later assertions measure reads caused by export attempts.
+    store.reads.clear()
     return service, result.finding.finding_id, payloads
 
 
