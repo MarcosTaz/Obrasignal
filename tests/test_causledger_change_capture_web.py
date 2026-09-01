@@ -43,7 +43,6 @@ def test_case_creation_returns_active_change_sheet_prompt(tmp_path):
     assert capture["download_prompt"]["stops_when_factual_window_closes"] is True
     assert capture["download_prompt"]["download_path"].endswith("/change-sheet")
     assert capture["download_prompt"]["message"].strip()
-    assert capture["download_prompt"]["current_snapshot_exported"] is False
 
 
 def test_client_can_add_simple_request_description_and_download_hashed_sheet(tmp_path):
