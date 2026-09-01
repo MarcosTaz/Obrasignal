@@ -210,7 +210,7 @@ def test_secure_outcome_cannot_be_rebound_to_a_different_finding(tmp_path):
     service.review(tenant_id="tenant-a", finding_id=other_id, reviewer="reviewer-b", approved=True, reason="synthetic review")
     service.action(tenant_id="tenant-a", finding_id=other_id, actor_id="operator-a")
 
-    with pytest.raises(SecureOutcomeRegistryError, match="not found"):
+    with pytest.raises(SecureOutcomeRegistryError, match="finding binding"):
         resolve_from_secure_outcome(
             service,
             registry,
