@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import sqlite3
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -36,6 +37,18 @@ CREATE TABLE IF NOT EXISTS accounts (
 PROTECTED_PATHS = ('/api/v1/opportunities', '/api/v1/stats', '/api/v1/alerts', '/api/v1/workflow')
 PRO_ENTITLEMENT = 'pro'
 
+# A zero-row projection is cheaper and safer on every authenticated request than
+# running CREATE TABLE IF NOT EXISTS / ALTER checks. Missing/legacy schemas fall
+# back to the migration path below, so fresh tests and old persisted databases
+# remain self-healing without turning steady-state reads into schema writers.
+_ACCOUNT_READY_PROJECTION = """SELECT
+    account_id,status,plan,created_at,trial_ends_at,entitlement_expires_at,store,
+    product_id,original_transaction_id,subscription_status,billing_synced_at,
+    evaluation_type,evaluation_status,evaluation_activated_at,evaluation_ends_at,
+    evaluation_extension_days,evaluation_value_status,evaluation_activation_reason,
+    evaluation_extension_reason
+    FROM accounts LIMIT 0"""
+
 
 def billing_provider_readiness():
     """Return capability flags only; never return billing secrets.
@@ -53,7 +66,18 @@ def billing_provider_readiness():
     }
 
 
+def _account_schema_ready(conn):
+    try:
+        conn.execute(_ACCOUNT_READY_PROJECTION)
+        conn.execute("SELECT account_id,event_name,occurred_at FROM evaluation_events LIMIT 0")
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
 def ensure_account_table(conn):
+    if _account_schema_ready(conn):
+        return
     exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='accounts'").fetchone()
     if not exists:
         conn.execute(SCHEMA)
@@ -77,17 +101,16 @@ def ensure_account_table(conn):
 def ensure_account(conn, account_id, status='active', plan='evaluation'):
     """Ensure the tenant exists without performing network I/O.
 
-    This function is intentionally on the critical path of authenticated API
-    requests, including profile persistence. RevenueCat synchronization is
-    performed by billing/status or webhooks instead of blocking ordinary API
-    operations.
+    For an existing tenant on the current schema this path is strictly read-only.
+    RevenueCat synchronization is performed by billing/status or webhooks instead
+    of blocking ordinary authenticated API operations.
     """
     ensure_account_table(conn)
     account_id = str(account_id)
-    now = datetime.now(timezone.utc)
     existing = conn.execute("SELECT account_id FROM accounts WHERE account_id=?", (account_id,)).fetchone()
     if existing:
         return
+    now = datetime.now(timezone.utc)
     conn.execute(
         """INSERT INTO accounts(account_id, status, plan, created_at, subscription_status,
            evaluation_type, evaluation_status, evaluation_value_status)
@@ -97,8 +120,9 @@ def ensure_account(conn, account_id, status='active', plan='evaluation'):
     conn.commit()
 
 
-def get_account(conn, account_id):
-    ensure_account_table(conn)
+def get_account(conn, account_id, *, ensure_schema=True):
+    if ensure_schema:
+        ensure_account_table(conn)
     row = conn.execute("SELECT * FROM accounts WHERE account_id=?", (str(account_id),)).fetchone()
     return dict(row) if row else None
 
@@ -237,7 +261,7 @@ def _billing_guard():
     conn = _db_from_app()
     try:
         ensure_account(conn, identity.account_id)
-        state = subscription_state(get_account(conn, identity.account_id))
+        state = subscription_state(get_account(conn, identity.account_id, ensure_schema=False))
     finally:
         conn.close()
     if not state['active']:
@@ -262,7 +286,7 @@ def billing_status():
     try:
         ensure_account(conn, identity.account_id)
         _sync_revenuecat_if_due(conn, identity.account_id, force=False)
-        account = get_account(conn, identity.account_id)
+        account = get_account(conn, identity.account_id, ensure_schema=False)
         state = subscription_state(account)
         evaluation = evaluation_summary(conn, account)
         metrics = evaluation_metrics(conn, account)
