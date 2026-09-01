@@ -25,8 +25,10 @@ CI_ARTIFACT_ID = `9819910373`
 CI_ARTIFACT_DIGEST = `sha256:80f6556b6e23ae661706ab4a2800da8c350f4e7b1855b177bf00880fa0e45d15` (GitHub ZIP artifact digest)
 SOURCE_TARBALL_SHA256 = `a7ed70cfe40f25a557473ac5f6461ee15d822234917a6b2f4c606e06d492d868`
 LIBRARY = `/WarrantyGuard/warrantyguard-prototype-v0.9.0.tar.gz`
+LATEST_REPOSITORY_LOGIC_HEAD_VERIFIED = `2adf69cd9077d87ebd8d0ede714c1edafb023e24`
+LATEST_REPOSITORY_LOGIC_CI = `33558305997` (`WarrantyGuard Factory`, SUCCESS)
 
-Verification on the executable head:
+Verification on the executable source:
 - `187/187` automated invariant tests PASS;
 - deterministic debit red-team `10,000` cases PASS;
 - recovery red-team `1,000` cases PASS;
@@ -36,9 +38,10 @@ Verification on the executable head:
 - HTTP/operator/workspace/resource gates PASS;
 - CI packaged source outside the source tree;
 - CI clean-extracted the package and re-ran `npm run verify` PASS;
-- downloaded CI tarball was independently SHA-checked and clean-extracted in a separate runtime; `npm run verify` again returned `187/187` and all gates PASS.
+- downloaded CI tarball was independently SHA-checked and clean-extracted in a separate runtime; `npm run verify` again returned `187/187` and all gates PASS;
+- later repository logic/compliance head `2adf69c…` independently passed the WarrantyGuard-specific workflow.
 
-The CI artifact tar uses the pull-request merge checkout SHA in its filename; `VERIFIED_EXECUTABLE_HEAD` above is the branch head associated with the successful workflow run. Subsequent BATON/README/source-pointer-only commits do not retroactively change this executable evidence; latest exact-head CI remains authoritative for current repository truth.
+The source tar records the last independently downloaded/reverified executable artifact. Later BATON/README/compliance-only commits do not rewrite historical artifact evidence; exact-head CI remains mandatory for current repository truth.
 
 ## CURRENT WEDGE
 `Pre-acceptance financial control for recurring inbound OEM/customer warranty and quality debits.`
@@ -106,10 +109,10 @@ N VALUE = `NOT_PROVEN_REAL`.
 O COMMERCIAL = `NOT_PROVEN_REAL / NO PAID PILOT`.
 P RETENTION = `NOT_PROVEN_REAL`.
 Q ECONOMICS = `INSTRUMENTED / REAL COST-TO-SERVE NOT YET OBSERVED`.
-R QUALITY = `PASS_ON_VERIFIED_EXECUTABLE_HEAD / NO KNOWN OPEN P0 IN ASSISTED_LOCAL BOUNDARY`.
+R QUALITY = `PASS_ON_VERIFIED_LOGIC_HEAD / NO KNOWN OPEN P0 IN ASSISTED_LOCAL BOUNDARY`.
 PROJECT_COMPLETE = `NO`.
 
-The executable completion evaluator additionally requires real evidence for M/N/O/P/Q. Internal/synthetic evidence cannot promote those gates.
+The executable completion evaluator requires real evidence for M/N/O/P/Q. Internal/synthetic evidence cannot promote those gates.
 
 ## REAL EXPOSURE / BUSINESS TRUTH
 T1 = `PASSED — ASSISTED_LOCAL`
@@ -129,7 +132,19 @@ Real first-touch exposures:
 4. PLASTIFA → `plastifa@plastifa.pt` → Gmail `1a04df81b959496f` → SENT
 
 LATEST_RESPONSE_CHECK = `2026-09-01` — each thread contained exactly one message, our outbound message. Observable reply/bounce = `NONE`. Silence = `NO_REPLY_YET`, never rejection or demand proof.
-EARLIEST_CONTROLLED_FOLLOWUP = `2026-09-03` subject to no reply/bounce/rejection/reroute and collision/compliance check.
+
+## PORTUGAL OUTREACH COMPLIANCE
+PORTUGAL_OUTREACH_STATE = `LEGAL_HOLD_DGC_LIST_PENDING`.
+The date `2026-09-03` remains only the earliest timing threshold; it is **not authorization to send**.
+
+No Portuguese unsolicited corporate follow-up/new cold email may be sent until all are true:
+1. the current applicable DGC corporate opt-out list or authoritative DGC checking procedure is obtained;
+2. the intended target is checked and is not suppressed;
+3. the live thread has no reply, bounce, rejection, reroute or direct opt-out;
+4. no portfolio suppression/collision exists;
+5. the message preserves an opt-out route and requests no sensitive customer data by ordinary email.
+
+Current DGC state: requests for the list/procedure already exist in Gmail; as of 2026-09-01 no responsive message providing the current list/procedure was found. Do not duplicate requests merely to create activity. Unknown compliance state = HOLD.
 
 ## DONE — MATERIAL
 - v0.9.0 source-document truth for native text + assisted PDF/DOCX;
@@ -138,34 +153,37 @@ EARLIEST_CONTROLLED_FOLLOWUP = `2026-09-03` subject to no reply/bounce/rejection
 - prior-credit `RESOLVED` protection and outstanding economics;
 - 16-case document adversarial matrix;
 - synthetic intake→support customer E2E;
-- assisted-local security red-team;
+- assisted-local security red-team with causal bounded readiness probe;
 - save/track/return client-held workspace with audit/HMAC integrity;
 - operator monitoring, support/incident flow and billing sandbox;
 - cost-to-serve and repeat-value truth-safe measurement primitives;
 - executable A–R completion gate;
 - minimum data request, onboarding, deletion/return, economics and retention runbooks;
 - GitHub CI exact-head verification and CI artifact packaging + clean-extraction reverify;
-- verified v0.9.0 source tar persisted in Library.
+- verified v0.9.0 source tar persisted in Library;
+- Portugal DGC outbound compliance gate persisted and enforced by `npm run verify`.
 
 ## ACTIVE
-`REAL_PILOT_ACQUISITION + RESPONSE_QUALIFICATION + REAL_EVIDENCE_GATES_M/N/O/P/Q`
+`DGC_RESPONSE_OR_COMPLIANT_CHANNEL + REAL_PILOT_ACQUISITION + RESPONSE_QUALIFICATION + REAL_EVIDENCE_GATES_M/N/O/P/Q`
 
 ## NEXT
 1. continue checking the four real market lanes and classify only real inbound evidence;
-2. on/after 2026-09-03, send controlled follow-up only to still-eligible silent lanes;
-3. if still no signal after follow-up, open standby targets one at a time after collision/compliance checks;
-4. convert a qualified buyer into a bounded paid diagnostic/pilot using the assisted-local intake boundary;
-5. process first authorized real case without placing confidential customer data in public GitHub;
-6. measure real intended value, real manual cost-to-serve, payment truth and repeat cycle evidence;
-7. repair every product/process weakness exposed by the real pilot;
-8. pursue public multi-user SaaS only if/when justified; never reuse assisted-local security evidence as production proof;
-9. do not declare PROJECT COMPLETE until all applicable A–R gates pass with required real evidence.
+2. monitor existing DGC request threads for the current list/procedure; do not duplicate the request while unchanged;
+3. only after DGC compliance is proven, re-check target suppression + thread truth and then consider a follow-up on/after the timing threshold;
+4. if direct Portuguese email remains legally held, pursue only lawful non-held channels/inbound/referrals/association routes rather than bypassing the hold;
+5. convert a qualified buyer into a bounded paid diagnostic/pilot using the assisted-local intake boundary;
+6. process the first authorized real case without placing confidential customer data in public GitHub;
+7. measure real intended value, real manual cost-to-serve, payment truth and repeat-cycle evidence;
+8. repair every product/process weakness exposed by the real pilot;
+9. pursue public multi-user SaaS only if/when justified; never reuse assisted-local security evidence as production proof;
+10. do not declare PROJECT COMPLETE until all applicable A–R gates pass with required real evidence.
 
 ## WAIT / OWNER-ONLY / EXTERNAL DEPENDENCIES
+- Portugal unsolicited corporate email follow-up/new outbound is held pending current DGC suppression-list/procedure evidence and target check.
 - M/N/O/P/Q require external customer behavior and evidence; cannot be synthesized.
 - Binding contracts/legal signatures, KYC/banking/payment activation and any irreversible customer/OEM authority remain owner-only when reached.
 - Formal commercial-name clearance for DebitProof remains unresolved.
-- These dependencies do not block continued compliant GTM, reply handling, pilot preparation or repository-safe hardening.
+- These dependencies do not block compliant inbound handling, association/referral routes, pilot preparation or repository-safe hardening.
 
 ## SECURITY_STATE
 `ASSISTED_LOCAL_GREEN / PUBLIC_MULTIUSER_NOT_PROVEN_AND_NOT_CLAIMED`
@@ -177,4 +195,4 @@ EARLIEST_CONTROLLED_FOLLOWUP = `2026-09-03` subject to no reply/bounce/rejection
 - DebitProof is a provisional working commercial name pending formal clearance.
 
 ## RESUME_AT
-`EXACT_LATEST_HEAD_CI → MONITOR_4_THREADS → CONTROLLED_FOLLOWUP_ON_OR_AFTER_2026-09-03_IF_ELIGIBLE → QUALIFY → BOUNDED_PAID_DIAGNOSTIC → REAL_CASE → REAL_VALUE → REAL_PAYMENT → REAL_REPEAT → REPAIR_DISCOVERED_WEAKNESSES → REEVALUATE_A_TO_R → CONTINUE_UNTIL_PROJECT_COMPLETE`
+`EXACT_LATEST_HEAD_CI → MONITOR_4_THREADS + DGC_THREADS → IF_DGC_LIST_AVAILABLE_CHECK_TARGETS → ELSE_KEEP_PORTUGAL_OUTBOUND_HOLD → QUALIFIED_LAWFUL_CHANNEL → BOUNDED_PAID_DIAGNOSTIC → REAL_CASE → REAL_VALUE → REAL_PAYMENT → REAL_REPEAT → REPAIR_DISCOVERED_WEAKNESSES → REEVALUATE_A_TO_R → CONTINUE_UNTIL_PROJECT_COMPLETE`
