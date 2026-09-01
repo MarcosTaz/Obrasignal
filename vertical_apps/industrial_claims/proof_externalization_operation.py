@@ -65,6 +65,9 @@ def externalize_proof_with_audit(
         external_attestations = list(pack["proof_manifest"].get("external_attestations") or [])
         manifest_sha256 = sha256_hex(pack["proof_manifest"])
         receipts_sha256 = sha256_hex(external_attestations)
+        provider_states = dict(pack["externalization"]["provider_states"])
+        verified_provider_count = sum(1 for state in provider_states.values() if state == "VERIFIED")
+        all_requested_providers_verified = bool(provider_states) and verified_provider_count == len(provider_states)
         completed = audit_store.finish(
             operation_id=operation_id,
             tenant_id=tenant_id,
@@ -73,7 +76,10 @@ def externalize_proof_with_audit(
             state="COMPLETED",
             target_sha256=target,
             payload={
-                "provider_states": dict(pack["externalization"]["provider_states"]),
+                "provider_states": provider_states,
+                "verified_provider_count": verified_provider_count,
+                "all_requested_providers_verified": all_requested_providers_verified,
+                "operation_completed_does_not_imply_proof_verified": True,
                 "proof_manifest_sha256": manifest_sha256,
                 "external_attestations_sha256": receipts_sha256,
                 "attestation_count": len(external_attestations),
@@ -81,10 +87,14 @@ def externalize_proof_with_audit(
         )
         pack["externalization_operation"] = {
             "operation_id": operation_id,
+            "state": "COMPLETED",
             "started_event_hash": started["event_hash"],
             "completed_event_hash": completed["event_hash"],
             "proof_manifest_sha256": manifest_sha256,
             "external_attestations_sha256": receipts_sha256,
+            "verified_provider_count": verified_provider_count,
+            "all_requested_providers_verified": all_requested_providers_verified,
+            "operation_completed_does_not_imply_proof_verified": True,
             "audit_chain_append_only": True,
         }
         return pack
