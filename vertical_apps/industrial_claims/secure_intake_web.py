@@ -9,6 +9,8 @@ from typing import Any
 
 from flask import Blueprint, jsonify, request
 
+from factory_cloud.assurance_ops import AssuranceOperationError
+from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.intake_authorization import (
     BOUNDED_RAPID_SCAN_PURPOSE,
     IntakeAuthorization,
@@ -157,6 +159,7 @@ def _same_existing_capture(
 
 def create_secure_intake_blueprint(
     *,
+    service,
     capture_registry: SecureCaptureRegistry,
     outcome_registry: SecureOutcomeRegistry,
     capture_identity: IdentityResolver,
@@ -296,6 +299,13 @@ def create_secure_intake_blueprint(
             if len(content) > validated.max_bytes:
                 raise SecureIntakeWebError("outcome evidence exceeds authorized byte limit")
 
+            # Settlement evidence is only meaningful for the current ACTIONED case.
+            # Reject nonexistent, superseded, pre-action and already-closed findings
+            # before any immutable provider write, preventing orphan WORM objects.
+            service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
+            if service.ops.get_state(tenant_id=tenant_id, finding_id=finding_id) != "ACTIONED":
+                raise SecureIntakeWebError("secure outcome evidence may only be captured for an ACTIONED finding")
+
             try:
                 existing = outcome_registry.get(
                     tenant_id=tenant_id,
@@ -332,7 +342,13 @@ def create_secure_intake_blueprint(
             )
             outcome_registry.record(evidence=captured.evidence, captured_by=actor_id)
             return jsonify(_result_body(captured.evidence, idempotent_replay=False)), 201
-        except (SecureIntakeWebError, ValueError, SecureOutcomeRegistryError) as exc:
+        except (
+            SecureIntakeWebError,
+            ValueError,
+            AssuranceOperationError,
+            AssuranceStoreError,
+            SecureOutcomeRegistryError,
+        ) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     return blueprint
