@@ -4,9 +4,10 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     # Two worker processes preserve process isolation and runtime-leader election.
-    # gthread leaves multiple request slots available even if one authenticated
-    # request is briefly waiting on SQLite/provider I/O while ingestion is active.
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --worker-class gthread --threads 4 --timeout 180 production_entrypoint:APP
+    # gthread is I/O-bound here: JWT/provider waits and SQLite busy windows should
+    # not consume the whole customer-facing service. Twelve threads per worker
+    # provide 24 request slots without multiplying Python process memory.
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --worker-class gthread --threads 12 --timeout 180 production_entrypoint:APP
     healthCheckPath: /api/v1/health
     # SQLite remains one persistent store on one Render instance. WAL plus short
     # bounded writer transactions allow both HTTP workers to share it safely.
