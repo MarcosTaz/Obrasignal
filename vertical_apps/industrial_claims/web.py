@@ -19,6 +19,9 @@ from vertical_apps.industrial_claims.amendment import amend_case
 from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, ChangeCaptureStore
 from vertical_apps.industrial_claims.change_capture_web import create_change_capture_blueprint
 from vertical_apps.industrial_claims.durable_proof import build_durable_claim_proof_pack
+from vertical_apps.industrial_claims.proof_externalization_audit import ProofExternalizationAuditStore
+from vertical_apps.industrial_claims.proof_externalization_web import create_proof_externalization_blueprint
+from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
 from vertical_apps.industrial_claims.public_verification_store import PublicVerificationStore
 from vertical_apps.industrial_claims.public_verification_web import create_public_verification_blueprint
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
@@ -51,13 +54,20 @@ class IndustrialClaimsAuthorizationError(Exception):
         self.code = code
 
 
-def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestIdentity] | None = None) -> Flask:
+def create_app(
+    database: str | Path,
+    *,
+    identity_resolver: Callable[[], RequestIdentity] | None = None,
+    proof_providers: ProofProviderBundle | None = None,
+) -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 3_500_000
     service = IndustrialClaimsService(database)
     read_model = IndustrialClaimsReadModel(database)
     public_verification_store = PublicVerificationStore(database)
     change_capture_store = ChangeCaptureStore(database)
+    proof_externalization_audit_store = ProofExternalizationAuditStore(database)
+    external_providers = proof_providers or ProofProviderBundle.fail_closed()
     resolve_identity = identity_resolver or configured_identity
 
     def identity_any(*required_roles: str) -> tuple[str, str, frozenset[str]]:
@@ -165,6 +175,14 @@ def create_app(database: str | Path, *, identity_resolver: Callable[[], RequestI
         create_change_capture_blueprint(
             store=change_capture_store,
             capture_identity=change_capture_identity,
+        )
+    )
+    app.register_blueprint(
+        create_proof_externalization_blueprint(
+            service=service,
+            audit_store=proof_externalization_audit_store,
+            providers=external_providers,
+            operator_identity=lambda: identity("operator"),
         )
     )
 
