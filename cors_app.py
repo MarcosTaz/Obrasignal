@@ -11,6 +11,8 @@ from auth_context_jwt import authentication_health
 from traffic_analytics import bp as TRAFFIC_ANALYTICS_BP, ensure_traffic_schema
 from push_runtime import bp as PUSH_RUNTIME_BP, ensure_push_schema, start_push_scheduler
 
+PUBLISHED_FALLBACK_ORIGIN = "https://marcostaz.github.io"
+
 # Register customer-facing authenticated API owners explicitly at the WSGI boundary.
 if "mobile_api" not in APP.blueprints:
     APP.register_blueprint(MOBILE_API_BP)
@@ -34,8 +36,13 @@ def _normalized_origin(value):
 
 def _allowed_origins():
     canonical = _normalized_origin(os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://obrasignal.com")
-    fallback = _normalized_origin(os.getenv("OBRASIGNAL_CORS_FALLBACK_ORIGIN") or "")
-    return tuple(origin for origin in (canonical, fallback) if origin)
+    configured_fallback = _normalized_origin(os.getenv("OBRASIGNAL_CORS_FALLBACK_ORIGIN") or "")
+    published_fallback = _normalized_origin(PUBLISHED_FALLBACK_ORIGIN)
+    # The exact Pages publisher is controlled by the same ObraSignal account and
+    # is the production fallback used by the release gate while canonical DNS is
+    # unavailable. Keep it code-level so a lagging Render env sync cannot break
+    # browser CORS. No wildcard or third-party origin is introduced.
+    return tuple(dict.fromkeys(origin for origin in (canonical, configured_fallback, published_fallback) if origin))
 
 
 def _official_web_url():
