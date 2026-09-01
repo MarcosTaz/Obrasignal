@@ -2,37 +2,47 @@
 
 const findingFields = ["review_finding_id", "action_finding_id", "resolve_finding_id"];
 
+function node(id) {
+  return document.getElementById(id);
+}
+
 function setFinding(id, currency) {
   findingFields.forEach((key) => {
-    document.getElementById(key).value = id || "";
+    const target = node(key);
+    if (target) target.value = id || "";
   });
-  if (currency) document.getElementById("currency").value = String(currency).toUpperCase();
+  const currencyField = node("currency");
+  if (currency && currencyField) currencyField.value = String(currency).toUpperCase();
 }
 
 function render(target, response, body) {
-  const node = document.getElementById(target);
-  node.className = "result" + (response.ok ? "" : " error");
-  node.replaceChildren();
+  const targetNode = node(target);
+  if (!targetNode) return;
+  targetNode.className = "result" + (response.ok ? "" : " error");
+  targetNode.replaceChildren();
   const heading = document.createElement("strong");
   heading.textContent = response.ok ? `HTTP ${response.status} — ${body.state || "OK"}` : `HTTP ${response.status} — ${body.error || "request_failed"}`;
   const detail = document.createElement("pre");
   detail.textContent = JSON.stringify(body, null, 2);
-  node.append(heading, detail);
+  targetNode.append(heading, detail);
 }
 
 async function loadDetail(id) {
   const findingId = String(id || "").trim();
   if (!findingId) {
-    const node = document.getElementById("detail-result");
-    node.className = "result error";
-    node.textContent = "Select a finding before loading its dossier.";
+    const target = node("detail-result");
+    if (target) {
+      target.className = "result error";
+      target.textContent = "Select a finding before loading its dossier.";
+    }
     return null;
   }
   return send(`/findings/${encodeURIComponent(findingId)}`, {method: "GET"}, "detail-result");
 }
 
 function renderQueue(body) {
-  const list = document.getElementById("queue-list");
+  const list = node("queue-list");
+  if (!list) return;
   list.replaceChildren();
   const findings = Array.isArray(body.findings) ? body.findings : [];
   findings.forEach((finding) => {
@@ -71,9 +81,11 @@ async function send(path, options, target) {
     render(target, response, body);
     return {response, body};
   } catch (error) {
-    const node = document.getElementById(target);
-    node.className = "result error";
-    node.textContent = `Network or parsing error: ${error.message}`;
+    const targetNode = node(target);
+    if (targetNode) {
+      targetNode.className = "result error";
+      targetNode.textContent = `Network or parsing error: ${error.message}`;
+    }
     return null;
   }
 }
@@ -81,7 +93,10 @@ async function send(path, options, target) {
 async function loadQueue() {
   const result = await send("/findings", {method: "GET"}, "queue-result");
   if (result && result.response.ok) renderQueue(result.body);
-  else document.getElementById("queue-list").replaceChildren();
+  else {
+    const list = node("queue-list");
+    if (list) list.replaceChildren();
+  }
 }
 
 function jsonRequest(payload) {
@@ -90,7 +105,7 @@ function jsonRequest(payload) {
 
 function installAmendmentControl() {
   const grid = document.querySelector("#analyze-form .form-grid");
-  if (!grid || document.getElementById("amend_finding_id")) return;
+  if (!grid || node("amend_finding_id")) return;
   const field = document.createElement("div");
   field.className = "field full";
   const label = document.createElement("label");
@@ -103,29 +118,37 @@ function installAmendmentControl() {
   input.autocomplete = "off";
   input.placeholder = "Leave blank for a new recovery; enter the current finding ID for a corrected revision.";
   const note = document.createElement("small");
-  note.textContent = "An amendment keeps the same recovery identity, creates a new revision and requires fresh independent review. Supply the full corrected documentary reconstruction because raw documents are not reloaded from storage.";
+  note.textContent = "An amendment keeps the same recovery identity, creates a new revision and requires fresh independent review. In secure mode this form carries references/economics only; real documentary originals must use authorized secure capture.";
   field.append(label, input, note);
   grid.prepend(field);
 }
 
 installAmendmentControl();
 
-document.getElementById("refresh-queue").addEventListener("click", loadQueue);
-document.getElementById("notice_due").addEventListener("change", (event) => {
-  if (event.target.value) document.getElementById("notice_deadline_not_applicable").checked = false;
-});
-document.getElementById("notice_deadline_not_applicable").addEventListener("change", (event) => {
-  if (event.target.checked) document.getElementById("notice_due").value = "";
+const refreshQueue = node("refresh-queue");
+if (refreshQueue) refreshQueue.addEventListener("click", loadQueue);
+
+const noticeDue = node("notice_due");
+if (noticeDue) noticeDue.addEventListener("change", (event) => {
+  const noDeadline = node("notice_deadline_not_applicable");
+  if (event.target.value && noDeadline) noDeadline.checked = false;
 });
 
-document.getElementById("analyze-form").addEventListener("submit", async (event) => {
+const noNoticeDeadline = node("notice_deadline_not_applicable");
+if (noNoticeDeadline) noNoticeDeadline.addEventListener("change", (event) => {
+  const due = node("notice_due");
+  if (event.target.checked && due) due.value = "";
+});
+
+const analyzeForm = node("analyze-form");
+if (analyzeForm) analyzeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
   const amendFindingId = String(payload.amend_finding_id || "").trim();
   delete payload.amend_finding_id;
   ["avoided_cost", "resale_reuse", "third_party_recovery", "prior_payment", "other_mitigation"].forEach((key) => { payload[key] = payload[key] || "0"; });
   payload.currency = String(payload.currency || "").trim().toUpperCase();
-  payload.notice_deadline_not_applicable = document.getElementById("notice_deadline_not_applicable").checked;
+  payload.notice_deadline_not_applicable = Boolean(noNoticeDeadline && noNoticeDeadline.checked);
   if (!payload.notice_due) delete payload.notice_due;
   payload.missing_evidence = (payload.missing_evidence || "").split(",").map((value) => value.trim()).filter(Boolean);
   const path = amendFindingId ? `/findings/${encodeURIComponent(amendFindingId)}/amend` : "/analyze";
@@ -136,20 +159,27 @@ document.getElementById("analyze-form").addEventListener("submit", async (event)
   }
 });
 
-document.getElementById("review-form").addEventListener("submit", async (event) => {
+const reviewForm = node("review-form");
+if (reviewForm) reviewForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const approved = event.submitter.dataset.approved === "true";
-  const id = document.getElementById("review_finding_id").value;
-  const result = await send(`/findings/${encodeURIComponent(id)}/review`, jsonRequest({approved, reason: document.getElementById("review_reason").value}), "review-result");
+  const finding = node("review_finding_id");
+  const reason = node("review_reason");
+  if (!finding || !reason) return;
+  const id = finding.value;
+  const result = await send(`/findings/${encodeURIComponent(id)}/review`, jsonRequest({approved, reason: reason.value}), "review-result");
   if (result && result.response.ok) {
     await loadDetail(id);
     await loadQueue();
   }
 });
 
-document.getElementById("action-form").addEventListener("submit", async (event) => {
+const actionForm = node("action-form");
+if (actionForm) actionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const id = document.getElementById("action_finding_id").value;
+  const finding = node("action_finding_id");
+  if (!finding) return;
+  const id = finding.value;
   const result = await send(`/findings/${encodeURIComponent(id)}/action`, {method: "POST"}, "action-result");
   if (result && result.response.ok) {
     await loadDetail(id);
@@ -157,20 +187,29 @@ document.getElementById("action-form").addEventListener("submit", async (event) 
   }
 });
 
-document.getElementById("resolve-form").addEventListener("submit", async (event) => {
+const resolveForm = node("resolve-form");
+if (resolveForm) resolveForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const id = document.getElementById("resolve_finding_id").value;
+  const finding = node("resolve_finding_id");
+  const outcome = node("outcome_id");
+  const amount = node("recovered_amount");
+  const currency = node("currency");
+  const evidenceRef = node("evidence_ref");
+  const evidenceContent = node("evidence_content");
+  const finalCumulative = node("final_cumulative");
+  if (!finding || !outcome || !amount || !currency || !evidenceRef || !evidenceContent || !finalCumulative) return;
+  const id = finding.value;
   const payload = {
-    outcome_id: document.getElementById("outcome_id").value,
-    recovered_amount: document.getElementById("recovered_amount").value,
-    currency: document.getElementById("currency").value.trim().toUpperCase(),
-    evidence_ref: document.getElementById("evidence_ref").value,
-    evidence_content: document.getElementById("evidence_content").value,
-    final_cumulative: document.getElementById("final_cumulative").checked,
+    outcome_id: outcome.value,
+    recovered_amount: amount.value,
+    currency: currency.value.trim().toUpperCase(),
+    evidence_ref: evidenceRef.value,
+    evidence_content: evidenceContent.value,
+    final_cumulative: finalCumulative.checked,
   };
   const result = await send(`/findings/${encodeURIComponent(id)}/resolve`, jsonRequest(payload), "resolve-result");
   if (result && result.response.ok) {
-    document.getElementById("final_cumulative").checked = false;
+    finalCumulative.checked = false;
     await loadDetail(id);
     await loadQueue();
   }
