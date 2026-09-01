@@ -30,14 +30,7 @@ def fail(message):
 
 
 def wait_for_exact_pages_build(page):
-    """Wait for the exact web build on canonical origin or published fallback.
-
-    Browser E2E starts in parallel with the Pages deployment. A transient 404
-    for ``release-source.txt`` therefore means "not published yet", not a
-    product failure. Prefer the canonical domain whenever it serves the exact
-    target; while registrar/DNS activation is unavailable, accept only the
-    fallback if it serves that same exact target build.
-    """
+    """Wait for the exact web build on canonical origin or published fallback."""
     global ACTIVE_PUBLIC_URL
     if not TARGET_BUILD:
         fail("TARGET_BUILD is required")
@@ -78,6 +71,12 @@ def wait_for_exact_pages_build(page):
 
 
 def attach_failure_collectors(page, label):
+    """Capture JavaScript, network and HTTP failures with actionable URLs.
+
+    Console-only browser errors such as WebKit's generic "status of 403" do not
+    include the request URL. Recording response status here makes a red browser
+    gate diagnostic instead of forcing us to guess which customer boundary broke.
+    """
     failures = []
 
     def on_console(message):
@@ -90,9 +89,17 @@ def attach_failure_collectors(page, label):
     def on_request_failed(request):
         failures.append(f"{label} request failed: {request.method} {request.url} :: {request.failure}")
 
+    def on_response(response):
+        if response.status >= 400:
+            request = response.request
+            failures.append(
+                f"{label} HTTP {response.status}: {request.method} {response.url}"
+            )
+
     page.on("console", on_console)
     page.on("pageerror", on_page_error)
     page.on("requestfailed", on_request_failed)
+    page.on("response", on_response)
     return failures
 
 
@@ -170,14 +177,18 @@ def authenticated_roundtrip(page, browser_name):
         page.get_by_role("button", name="Terminar sessão", exact=True).wait_for(timeout=90_000)
     except PlaywrightTimeoutError:
         body = page.locator("body").inner_text(timeout=10_000)
-        fail(f"{label} authenticated shell did not become ready. Body excerpt: {body[:1200]}")
+        fail(f"{label} authenticated shell did not become ready. Body excerpt: {body[:1200]}; failures={failures!r}")
 
     page.get_by_role("button", name="Conta e privacidade", exact=True).wait_for(timeout=30_000)
     assert_no_horizontal_overflow(page, label)
 
     page.reload(wait_until="domcontentloaded", timeout=45_000)
     page.get_by_role("button", name="Terminar sessão", exact=True).wait_for(timeout=90_000)
-    page.get_by_role("button", name="Conta e privacidade", exact=True).wait_for(timeout=30_000)
+    try:
+        page.get_by_role("button", name="Conta e privacidade", exact=True).wait_for(timeout=30_000)
+    except PlaywrightTimeoutError:
+        body = page.locator("body").inner_text(timeout=10_000)
+        fail(f"{label} privacy status did not become ready after reload. Body excerpt: {body[:1200]}; failures={failures!r}")
 
     page.get_by_role("button", name="Conta e privacidade", exact=True).click()
     page.get_by_text("Exportar os meus dados", exact=True).wait_for(timeout=30_000)
