@@ -142,7 +142,7 @@ def test_historical_revision_detail_exposes_direct_successor_and_current_finding
 
     read_model = IndustrialClaimsReadModel(database)
     first_detail = read_model.get_finding(tenant_id="alpha", finding_id=first.finding.finding_id)
-    second_detail = read_model.get_finding(tenant_id="alpha", finding_id=second.finding.findinding_id) if False else read_model.get_finding(tenant_id="alpha", finding_id=second.finding.finding_id)
+    second_detail = read_model.get_finding(tenant_id="alpha", finding_id=second.finding.finding_id)
     third_detail = read_model.get_finding(tenant_id="alpha", finding_id=third.finding.finding_id)
 
     assert first_detail["revision"]["superseded_by_finding_id"] == second.finding.finding_id
