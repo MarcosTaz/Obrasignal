@@ -6,26 +6,70 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 29,
-  "last_factory_id": "obrasignal-data-analytics",
-  "last_run_at": "2026-09-01T06:40:51Z",
+  "cursor": 32,
+  "last_factory_id": "complianceledger",
+  "last_run_at": "2026-09-01T07:39:08Z",
   "last_material_change": {
-    "kind": "DATA_ANALYTICS_EXACT_HEAD_REVALIDATED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Data, Analytics & Learning System Factory explicit candidate PR #344 is OPEN/DRAFT/NOT_MERGED/mergeable=false at exact HEAD a331cc882f52ced98b5cb2e8da8a781b1c845a30. Exact-head ObraSignal Quality runs 33337007434 and 33337005904 are COMPLETED/SUCCESS. Classification is repository-evidence-only: production telemetry, customer behavior, retention, WTP, causal impact, customer outcome, revenue and canonical adoption remain unproved. CausLedger Gmail watch found no genuinely new material prospect/CEFAMOL/AFIA/DGC inbound in this run; Portugal and Spain outbound holds remain active and no outbound was sent. Private prospect-level data remains out of public GitHub.",
+    "kind": "SUPPORT_OPS_AND_EU_SWITCHING_EVIDENCE_AUTHORITY_RECONSTRUCTED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Release Safety PR #350 remains exact-head Quality GREEN but mergeable=false. Customer Support / Incident Operations exact source authority was reconstructed as PR #355, OPEN/NOT_MERGED/mergeable=false at HEAD 3aacd6cf08bca752e3023bdef61855f99fb07771, with exact-head ObraSignal Quality and CodeQL SUCCESS. EU Switching Evidence Pack successor repair authority was reconstructed as PR #818, OPEN/DRAFT/NOT_MERGED/mergeable=true at HEAD f9ffcf82f2eebbfdeb400de76f562cb185ec5adf, with Cloud Switching Quality and ObraSignal Quality SUCCESS. ComplianceLedger exact source authority remains UNKNOWN after exact PR search returned no result. CausLedger Gmail watch found no new mail in the post-baton window; no outbound was sent. The private Drive prospect pool remains private and was inspected without publishing prospect-level data to GitHub.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "causledger_inbound": {"new_material_replies": 0, "latest_watch_date": "2026-09-01", "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK", "spain_unsolicited_commercial_hold": "ACTIVE"},
-      "data_analytics": {"pr":344,"head_sha":"a331cc882f52ced98b5cb2e8da8a781b1c845a30","state":"OPEN","draft":true,"merged":false,"mergeable":false,"quality_runs":[33337007434,33337005904],"quality_conclusion":"success","classification":"EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY"}
+      "causledger_inbound": {
+        "new_material_replies": 0,
+        "latest_watch_date": "2026-09-01",
+        "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
+        "spain_unsolicited_commercial_hold": "ACTIVE"
+      },
+      "release_safety": {
+        "pr": 350,
+        "head_sha": "2f772dbad537add44169c30e527627de64dbdeab",
+        "state": "OPEN",
+        "merged": false,
+        "mergeable": false,
+        "quality_run": 32890750011,
+        "quality_conclusion": "success",
+        "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY"
+      },
+      "support_ops": {
+        "pr": 355,
+        "head_sha": "3aacd6cf08bca752e3023bdef61855f99fb07771",
+        "state": "OPEN",
+        "merged": false,
+        "mergeable": false,
+        "quality_run": 32892620792,
+        "quality_conclusion": "success",
+        "codeql_run": 32892620579,
+        "codeql_conclusion": "success",
+        "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY"
+      },
+      "eu_switching_evidence_pack": {
+        "pr": 818,
+        "head_sha": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
+        "state": "OPEN",
+        "draft": true,
+        "merged": false,
+        "mergeable": true,
+        "cloud_switching_quality_run": 33271664101,
+        "obrasignal_quality_run": 33271664096,
+        "quality_conclusion": "success",
+        "classification": "EXACT_HEAD_GREEN_REPOSITORY_REPAIR_ONLY"
+      },
+      "complianceledger": {
+        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
+        "exact_pr_search_results": 0
+      }
     },
-    "active": "Release Safety — reconstruct exact current source/PR authority and advance the next safe milestone.",
-    "next": "Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics.",
+    "active": "Factory Cloud / Control Tower — reconstruct current control-plane truth and advance highest-value safe work.",
+    "next": "Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in this run.",
       "Industrial Claims/CausLedger PR #785 remains RED in Python repository/Factory Cloud tests pending exact failure recovery.",
       "ObraSignal final composition PR #882 remains integration-blocked pending current-main reconciliation and fresh exact-head gates.",
-      "Data Analytics PR #344 exact-head GREEN does not establish production telemetry, customer behavior, retention, WTP, causal impact, outcome, revenue or canonical adoption."
+      "Release Safety PR #350 and Support Ops PR #355 are exact-head GREEN but mergeable=false and not canonical.",
+      "EU Switching Evidence Pack PR #818 is exact-head GREEN repository repair evidence only; no live migration/customer/WTP/payment/revenue proof.",
+      "ComplianceLedger exact source identity remains UNKNOWN."
     ]
   },
   "blocked": [
@@ -36,7 +80,7 @@
     {"factory_id":"recovery-radar","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"product-market-access","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
-    {"factory_id":"obrasignal-support-ops","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
+    {"factory_id":"obrasignal-support-ops","blocker":"PR #355 exact-head Quality/CodeQL GREEN but mergeable=false; not canonical/deployed.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact source/BATON identity UNKNOWN after exact PR/code searches returned no result.","global_stop":false},
     {"factory_id":"obrasignal-data-truth","blocker":"Exact canonical authority ambiguous; adjacent candidates recovered but not promoted.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact source/BATON identity UNKNOWN after exact PR search returned no result.","global_stop":false},
@@ -48,9 +92,18 @@
     {"factory_id":"recoverable-money","blocker":"Exact source/BATON identity UNKNOWN after complete exact PR search returned no result.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"Exact source/BATON identity UNKNOWN after complete exact PR search returned no result.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact source/BATON identity UNKNOWN after complete exact PR search returned no result.","global_stop":false},
-    {"factory_id":"complianceledger","blocker":"Exact source/BATON identity UNKNOWN.","global_stop":false},
+    {"factory_id":"complianceledger","blocker":"Exact source/BATON identity UNKNOWN after exact PR search returned no result.","global_stop":false},
     {"factory_id":"obrasignal-release-safety","blocker":"PR #350 exact-head Quality GREEN but mergeable=false; composition truth required.","global_stop":false},
-    {"factory_id":"obrasignal-data-analytics","blocker":"PR #344 exact-head Quality GREEN but mergeable=false; production telemetry and canonical adoption remain unproved.","global_stop":false}
+    {"factory_id":"obrasignal-data-analytics","blocker":"PR #344 exact-head Quality GREEN but mergeable=false; production telemetry and canonical adoption remain unproved.","global_stop":false},
+    {"factory_id":"eu-switching-evidence-pack","blocker":"PR #818 exact-head GREEN repair is not canonical and does not prove live migration/customer/WTP/payment/revenue.","global_stop":false}
   ],
-  "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
+  "rules": {
+    "technical_window_is_not_stop": true,
+    "other_owner_is_not_stop": true,
+    "wait_is_not_global_stop": true,
+    "no_false_progress": true,
+    "no_automatic_merge": true,
+    "move_to_next_factory_when_blocked": true,
+    "persist_exact_baton_before_switch": true
+  }
 }
