@@ -1,0 +1,10 @@
+import {normalizeAmount,requiredText,sha256} from './utils.mjs';
+const BASIS=new Set(['ASSUMPTION','OBSERVED_REAL']);
+export function measureCostToServe({caseCount,operatorMinutes,reviewMinutes=0,supportMinutes=0,hourlyLoadedCostEur,basis='ASSUMPTION',evidenceHash=null}){
+  const cases=Number(caseCount),mins=[operatorMinutes,reviewMinutes,supportMinutes].map(Number),rate=normalizeAmount(hourlyLoadedCostEur);
+  if(!Number.isInteger(cases)||cases<1||cases>100000)throw new Error('INVALID_CASE_COUNT');if(mins.some(x=>!Number.isFinite(x)||x<0||x>1_000_000))throw new Error('INVALID_MINUTES');if(!BASIS.has(basis))throw new Error('INVALID_ECONOMICS_BASIS');if(basis==='OBSERVED_REAL'&&!evidenceHash)throw new Error('REAL_ECONOMICS_EVIDENCE_REQUIRED');
+  const totalMinutes=mins.reduce((a,b)=>a+b,0),totalCost=Math.round((totalMinutes/60*rate+Number.EPSILON)*100)/100,costPerCase=Math.round((totalCost/cases+Number.EPSILON)*100)/100;
+  return {basis,caseCount:cases,totalMinutes,hourlyLoadedCostEur:rate,totalCostEur:totalCost,costPerCaseEur:costPerCase,evidenceHash:evidenceHash||null,realEconomicsProven:basis==='OBSERVED_REAL'};
+}
+export function scenarioUnitEconomics({priceEur,costMeasurement}){if(!costMeasurement||typeof costMeasurement!=='object')throw new Error('COST_MEASUREMENT_REQUIRED');const price=normalizeAmount(priceEur),cost=normalizeAmount(costMeasurement.totalCostEur);const gross= Math.round((price-cost+Number.EPSILON)*100)/100,marginPct=price===0?null:Math.round((gross/price*100+Number.EPSILON)*100)/100;return {priceEur:price,totalCostEur:cost,grossContributionEur:gross,marginPct,basis:costMeasurement.basis,status:costMeasurement.realEconomicsProven?'OBSERVED_COST_SCENARIO':'ASSUMPTION_ONLY_SCENARIO',revenueRecognized:0};}
+export function economicsEvidenceHash(x){return sha256({basis:requiredText(x.basis,'basis'),caseCount:x.caseCount,totalMinutes:x.totalMinutes,hourlyLoadedCostEur:x.hourlyLoadedCostEur,totalCostEur:x.totalCostEur,evidenceHash:x.evidenceHash||null});}
