@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 from auth_context import RequestIdentity
 from vertical_apps.industrial_claims.proof import ExternalAttestation
 from vertical_apps.industrial_claims.proof_providers import (
@@ -160,10 +162,52 @@ def test_http_externalization_is_operator_only_target_locked_and_read_side_effec
     events = next(iter(status_payload["operations"].values()))
     assert [event["state"] for event in events] == ["STARTED", "COMPLETED"]
 
-    # A later normal read must still be side-effect free.
+    # A later normal read reconstructs the exact durable receipts, without calling
+    # providers again or creating any audit event.
     calls_before_read = list(calls)
     event_count_before_read = status_payload["event_count"]
+    current_identity["value"] = _identity("analyst")
     reread = client.get(f"/findings/{finding_id}/proof-pack")
     assert reread.status_code == 200
+    reread_payload = reread.get_json()
+    assert reread_payload["proof_manifest"]["attestation_target"]["sha256"] == target_sha
+    assert {
+        item["kind"] for item in reread_payload["proof_manifest"]["external_attestations"]
+    } == {
+        "QUALIFIED_TIMESTAMP",
+        "QUALIFIED_SEAL",
+        "QUALIFIED_SIGNATURE",
+        "PUBLIC_ANCHOR",
+    }
+    reconstruction = reread_payload["archived_externalization"]
+    assert reconstruction["source"] == "DURABLE_ATTESTATION_ARCHIVE"
+    assert reconstruction["target_sha256"] == target_sha
+    assert reconstruction["receipt_count"] == 4
+    assert reconstruction["archive_chain_verified"] is True
+    assert reconstruction["integrity_verified"] is True
+    assert reconstruction["read_only_reconstruction"] is True
     assert calls == calls_before_read
+
+    current_identity["value"] = _identity("operator")
+    assert client.get(f"/findings/{finding_id}/proof-pack/externalizations").get_json()["event_count"] == event_count_before_read
+
+    # Even a privileged direct-SQL bypass of append-only triggers cannot make an
+    # altered archived receipt appear valid on the normal Proof Pack read path.
+    with sqlite3.connect(database) as conn:
+        conn.execute("DROP TRIGGER causledger_external_attestation_no_update")
+        conn.execute("DROP TRIGGER causledger_external_attestation_no_delete")
+        conn.execute(
+            """UPDATE causledger_external_attestation_receipts
+               SET provider='tampered-provider'
+               WHERE sequence=(SELECT MIN(sequence) FROM causledger_external_attestation_receipts)"""
+        )
+        conn.commit()
+
+    current_identity["value"] = _identity("analyst")
+    corrupted = client.get(f"/findings/{finding_id}/proof-pack")
+    assert corrupted.status_code == 422
+    assert corrupted.get_json()["message"] == "durable external attestation reconstruction failed closed"
+    assert calls == calls_before_read
+
+    current_identity["value"] = _identity("operator")
     assert client.get(f"/findings/{finding_id}/proof-pack/externalizations").get_json()["event_count"] == event_count_before_read
