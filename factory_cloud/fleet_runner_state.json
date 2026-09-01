@@ -6,12 +6,12 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 32,
-  "last_factory_id": "complianceledger",
-  "last_run_at": "2026-09-01T07:39:08Z",
+  "cursor": 1,
+  "last_factory_id": "obrasignal",
+  "last_run_at": "2026-09-01T08:38:09Z",
   "last_material_change": {
-    "kind": "SUPPORT_OPS_AND_EU_SWITCHING_EVIDENCE_AUTHORITY_RECONSTRUCTED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Release Safety PR #350 remains exact-head Quality GREEN but mergeable=false. Customer Support / Incident Operations exact source authority was reconstructed as PR #355, OPEN/NOT_MERGED/mergeable=false at HEAD 3aacd6cf08bca752e3023bdef61855f99fb07771, with exact-head ObraSignal Quality and CodeQL SUCCESS. EU Switching Evidence Pack successor repair authority was reconstructed as PR #818, OPEN/DRAFT/NOT_MERGED/mergeable=true at HEAD f9ffcf82f2eebbfdeb400de76f562cb185ec5adf, with Cloud Switching Quality and ObraSignal Quality SUCCESS. ComplianceLedger exact source authority remains UNKNOWN after exact PR search returned no result. CausLedger Gmail watch found no new mail in the post-baton window; no outbound was sent. The private Drive prospect pool remains private and was inspected without publishing prospect-level data to GitHub.",
+    "kind": "OBRASIGNAL_PRODUCTION_HARDENING_EXACT_HEAD_GREEN",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Factory Cloud state was reconstructed first. ObraSignal PR #890 is OPEN/NOT_MERGED/mergeable=false at exact HEAD 91d31452e19abb65d6eff6aac7897c6327c76fd5 with ObraSignal Quality run 33407801718 SUCCESS. The PR hardens official-domain CORS/canonical-origin handling, privacy-safe returning-visitor estimates and production smoke coverage, but domain ownership/DNS remains an external fail-closed gate and no production/customer/revenue outcome is inferred. CausLedger Gmail watch found no new material mail in the post-baton window; no outbound was sent.",
     "evidence": {
       "portfolio_registry_count": 33,
       "causledger_inbound": {
@@ -20,61 +20,33 @@
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
-      "release_safety": {
-        "pr": 350,
-        "head_sha": "2f772dbad537add44169c30e527627de64dbdeab",
+      "obrasignal_production_hardening": {
+        "pr": 890,
+        "head_sha": "91d31452e19abb65d6eff6aac7897c6327c76fd5",
         "state": "OPEN",
+        "draft": false,
         "merged": false,
         "mergeable": false,
-        "quality_run": 32890750011,
+        "quality_run": 33407801718,
         "quality_conclusion": "success",
-        "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY"
-      },
-      "support_ops": {
-        "pr": 355,
-        "head_sha": "3aacd6cf08bca752e3023bdef61855f99fb07771",
-        "state": "OPEN",
-        "merged": false,
-        "mergeable": false,
-        "quality_run": 32892620792,
-        "quality_conclusion": "success",
-        "codeql_run": 32892620579,
-        "codeql_conclusion": "success",
-        "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY"
-      },
-      "eu_switching_evidence_pack": {
-        "pr": 818,
-        "head_sha": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
-        "state": "OPEN",
-        "draft": true,
-        "merged": false,
-        "mergeable": true,
-        "cloud_switching_quality_run": 33271664101,
-        "obrasignal_quality_run": 33271664096,
-        "quality_conclusion": "success",
-        "classification": "EXACT_HEAD_GREEN_REPOSITORY_REPAIR_ONLY"
-      },
-      "complianceledger": {
-        "classification": "UNKNOWN_EXACT_SOURCE_IDENTITY",
-        "exact_pr_search_results": 0
+        "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY",
+        "external_gate": "DOMAIN_OWNERSHIP_DNS_UNPROVED"
       }
     },
-    "active": "Factory Cloud / Control Tower — reconstruct current control-plane truth and advance highest-value safe work.",
-    "next": "Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger.",
+    "active": "Industrial Supplier Claims / CausLedger — continue business-first inbound watch, compliant channel development, private prospect research, and exact PR #785 failure recovery.",
+    "next": "Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in this run.",
       "Industrial Claims/CausLedger PR #785 remains RED in Python repository/Factory Cloud tests pending exact failure recovery.",
-      "ObraSignal final composition PR #882 remains integration-blocked pending current-main reconciliation and fresh exact-head gates.",
-      "Release Safety PR #350 and Support Ops PR #355 are exact-head GREEN but mergeable=false and not canonical.",
-      "EU Switching Evidence Pack PR #818 is exact-head GREEN repository repair evidence only; no live migration/customer/WTP/payment/revenue proof.",
-      "ComplianceLedger exact source identity remains UNKNOWN."
+      "ObraSignal PR #890 is exact-head Quality GREEN but mergeable=false; domain ownership/DNS remains externally unproved.",
+      "ObraSignal final composition PR #882 remains integration-blocked pending current-main reconciliation and fresh exact-head gates."
     ]
   },
   "blocked": [
     {"factory_id":"industrial-claims","blocker":"Outbound legal holds remain; PR #785 Python/Factory Cloud test failure needs exact failure recovery.","global_stop":false},
-    {"factory_id":"obrasignal","blocker":"Final composition PR #882 integration-blocked pending reconciliation and fresh gates.","global_stop":false},
+    {"factory_id":"obrasignal","blocker":"PR #890 exact-head Quality GREEN but mergeable=false and official-domain ownership/DNS remains an external fail-closed gate; final composition PR #882 also remains integration-blocked.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Live canonical implementation/production lineage unproved.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
