@@ -27,11 +27,12 @@ def create_proof_externalization_blueprint(
     *,
     service: IndustrialClaimsService,
     audit_store: ProofExternalizationAuditStore,
-    attestation_archive: ProofAttestationArchive,
     providers: ProofProviderBundle,
     operator_identity: IdentityResolver,
+    attestation_archive: ProofAttestationArchive | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("causledger_proof_externalization", __name__)
+    archive = attestation_archive or ProofAttestationArchive(audit_store.path)
 
     def json_object() -> dict[str, Any]:
         payload = request.get_json(force=True)
@@ -52,7 +53,7 @@ def create_proof_externalization_blueprint(
             pack = externalize_proof_with_audit(
                 service,
                 audit_store=audit_store,
-                attestation_archive=attestation_archive,
+                attestation_archive=archive,
                 tenant_id=tenant_id,
                 finding_id=finding_id,
                 actor_id=actor_id,
@@ -87,7 +88,7 @@ def create_proof_externalization_blueprint(
             operations = status.get("operations") or {}
             if operation_id not in operations:
                 raise ProofAttestationArchiveError("externalization operation does not belong to this finding")
-            return jsonify(attestation_archive.operation_receipts(tenant_id=tenant_id, operation_id=operation_id))
+            return jsonify(archive.operation_receipts(tenant_id=tenant_id, operation_id=operation_id))
         except (AssuranceStoreError, ProofExternalizationAuditError, ProofAttestationArchiveError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
