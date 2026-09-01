@@ -11,6 +11,7 @@ from auth_context_jwt import authentication_health
 from traffic_analytics import bp as TRAFFIC_ANALYTICS_BP, ensure_traffic_schema
 from push_runtime import bp as PUSH_RUNTIME_BP, ensure_push_schema, start_push_scheduler
 
+CANONICAL_WEB_ORIGIN = "https://obrasignal.com"
 PUBLISHED_FALLBACK_ORIGIN = "https://marcostaz.github.io"
 
 # Register customer-facing authenticated API owners explicitly at the WSGI boundary.
@@ -35,19 +36,26 @@ def _normalized_origin(value):
 
 
 def _allowed_origins():
-    canonical = _normalized_origin(os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://obrasignal.com")
+    # The canonical customer origin is a code-level invariant. A lagging Render
+    # environment must never be able to replace it with an older Pages origin.
+    canonical = _normalized_origin(CANONICAL_WEB_ORIGIN)
+    configured_primary = _normalized_origin(os.getenv("OBRASIGNAL_CORS_ORIGIN") or "")
     configured_fallback = _normalized_origin(os.getenv("OBRASIGNAL_CORS_FALLBACK_ORIGIN") or "")
     published_fallback = _normalized_origin(PUBLISHED_FALLBACK_ORIGIN)
-    # The exact Pages publisher is controlled by the same ObraSignal account and
-    # is the production fallback used by the release gate while canonical DNS is
-    # unavailable. Keep it code-level so a lagging Render env sync cannot break
-    # browser CORS. No wildcard or third-party origin is introduced.
-    return tuple(dict.fromkeys(origin for origin in (canonical, configured_fallback, published_fallback) if origin))
+    # Fail closed on wildcard configuration: only explicit ObraSignal-owned
+    # origins are admitted. Duplicate explicit origins collapse deterministically.
+    return tuple(
+        dict.fromkeys(
+            origin
+            for origin in (canonical, configured_primary, configured_fallback, published_fallback)
+            if origin and origin != "*"
+        )
+    )
 
 
 def _official_web_url():
-    value = (os.getenv("OBRASIGNAL_WEB_ORIGIN") or "https://obrasignal.com").strip().rstrip("/")
-    return value or "https://obrasignal.com"
+    value = (os.getenv("OBRASIGNAL_WEB_ORIGIN") or CANONICAL_WEB_ORIGIN).strip().rstrip("/")
+    return value or CANONICAL_WEB_ORIGIN
 
 
 def _canonical_root_redirect():
@@ -62,9 +70,7 @@ APP.before_request_funcs.setdefault(None, []).insert(0, _canonical_root_redirect
 def _cors(response):
     allowed = _allowed_origins()
     requested = _normalized_origin(request.headers.get("Origin"))
-    if "*" in allowed:
-        response.headers["Access-Control-Allow-Origin"] = "*"
-    elif requested and requested in allowed:
+    if requested and requested in allowed:
         response.headers["Access-Control-Allow-Origin"] = requested
         response.headers["Vary"] = "Origin"
     elif allowed:
