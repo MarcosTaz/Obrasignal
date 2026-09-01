@@ -14,6 +14,7 @@ import json
 import os
 import re
 import secrets
+import sqlite3
 from urllib.parse import urlsplit, urlunsplit
 
 from flask import Blueprint, jsonify, request
@@ -23,6 +24,11 @@ from app import db
 bp = Blueprint("traffic_analytics", __name__, url_prefix="/api/v1/analytics")
 
 OFFICIAL_ORIGIN = "https://obrasignal.com"
+# This is the exact GitHub Pages origin controlled by the same ObraSignal
+# publisher. Keep it explicit in code as a deploy-safe fallback: Render blueprint
+# env propagation can lag a code deploy, but a published fallback must never turn
+# every legitimate page view into a deliberate 403 while canonical DNS is pending.
+PUBLISHED_FALLBACK_ORIGIN = "https://marcostaz.github.io"
 ALLOWED_EVENTS = {
     "page_view",
     "authenticated_session",
@@ -37,8 +43,32 @@ BOT_RE = re.compile(
 )
 MAX_TEXT = 160
 
+_TRAFFIC_READY_PROJECTION = """SELECT
+    occurred_at,day,minute_bucket,event_name,visitor_day_hash,path,referrer_host,
+    utm_source,utm_medium,utm_campaign,country,region,city,timezone,language,
+    device,build_id FROM traffic_events LIMIT 0"""
+
+
+def _traffic_schema_ready(conn):
+    try:
+        conn.execute("SELECT key,value,created_at FROM internal_config LIMIT 0")
+        conn.execute(_TRAFFIC_READY_PROJECTION)
+        return True
+    except sqlite3.OperationalError:
+        return False
+
 
 def ensure_traffic_schema(conn):
+    """Create/migrate telemetry storage only when it is actually absent.
+
+    Page-view collection is a steady-state hot path. Running CREATE TABLE/INDEX
+    statements on every beacon turns harmless analytics into a schema-lock
+    participant and can starve authenticated customer reads under browser load.
+    Startup still calls this function, while current schemas now take a strictly
+    read-only projection fast path.
+    """
+    if _traffic_schema_ready(conn):
+        return
     conn.execute(
         """CREATE TABLE IF NOT EXISTS internal_config(
             key TEXT PRIMARY KEY,
@@ -143,16 +173,11 @@ def _normalized_origin(value):
 
 
 def _allowed_origins():
-    """Mirror the customer Web origins accepted by the API CORS boundary.
-
-    The canonical domain remains the primary production origin. Until DNS is
-    activated, GitHub Pages is an explicitly configured published fallback and
-    must not generate a deliberate 403 on every real page view. No arbitrary
-    third-party origin is accepted.
-    """
+    """Return only publisher-controlled customer Web origins."""
     canonical = _normalized_origin(os.getenv("OBRASIGNAL_WEB_ORIGIN") or OFFICIAL_ORIGIN)
-    fallback = _normalized_origin(os.getenv("OBRASIGNAL_CORS_FALLBACK_ORIGIN") or "")
-    return {origin for origin in (canonical, fallback) if origin}
+    configured_fallback = _normalized_origin(os.getenv("OBRASIGNAL_CORS_FALLBACK_ORIGIN") or "")
+    published_fallback = _normalized_origin(PUBLISHED_FALLBACK_ORIGIN)
+    return {origin for origin in (canonical, configured_fallback, published_fallback) if origin}
 
 
 def _origin_allowed():
