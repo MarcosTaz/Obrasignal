@@ -70,6 +70,24 @@ def _parse_aware(value: str | None, *, label: str) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _immutability_state(*, retention_mode: str, legal_hold: bool) -> str:
+    """Describe storage strength without upgrading governance retention to WORM.
+
+    Compliance Object Lock is the only ordinary retention mode described as
+    WORM_LOCKED here. A legal hold is reported separately because it is a strong
+    preservation control but can have a different release/governance lifecycle.
+    Governance retention remains explicitly below the WORM proof gate.
+    """
+    mode = str(retention_mode or "").strip().upper()
+    if mode == "COMPLIANCE":
+        return "WORM_LOCKED"
+    if mode == "LEGAL_HOLD" or legal_hold:
+        return "LEGAL_HOLD"
+    if mode == "GOVERNANCE":
+        return "GOVERNANCE_RETENTION"
+    return "UNVERIFIED"
+
+
 def capture_original_evidence(
     *,
     original_store: OriginalEvidenceStore,
@@ -116,6 +134,10 @@ def capture_original_evidence(
     if not receipt_validation["valid"]:
         raise ValueError("immutable original store returned a receipt that does not match captured bytes")
 
+    immutability_state = _immutability_state(
+        retention_mode=receipt.retention_mode,
+        legal_hold=receipt.legal_hold,
+    )
     proof_metadata = {
         **dict(metadata or {}),
         "content_sha512": digests["sha512"],
@@ -124,7 +146,8 @@ def capture_original_evidence(
         "capture_mode": "DIRECT_SECURE_ORIGINAL_CAPTURE",
         "raw_content_persisted": "true",
         "proof_integrity_sealed": True,
-        "immutability": "WORM_LOCKED",
+        "immutability": immutability_state,
+        "worm_lock_verified": immutability_state == "WORM_LOCKED",
         "first_seen_at": first_seen.isoformat(),
         "effective_at": effective.isoformat() if effective is not None else None,
         "delayed_evidence": delayed,
