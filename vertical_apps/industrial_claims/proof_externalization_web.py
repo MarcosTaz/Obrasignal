@@ -8,8 +8,9 @@ from flask import Blueprint, jsonify, make_response, request
 
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.durable_proof import build_durable_claim_proof_pack
+from vertical_apps.industrial_claims.offline_export_audit import OfflineExportAuditError, OfflineExportAuditStore
 from vertical_apps.industrial_claims.offline_export_bundle import build_durable_offline_verification_export_bundle
-from vertical_apps.industrial_claims.proof import ExternalAttestation
+from vertical_apps.industrial_claims.proof import ExternalAttestation, sha256_hex
 from vertical_apps.industrial_claims.proof_attestation_archive import (
     ProofAttestationArchive,
     ProofAttestationArchiveError,
@@ -92,11 +93,13 @@ def create_proof_externalization_blueprint(
     offline_export_identity: IdentityResolver | None = None,
     original_store: OriginalEvidenceStore | None = None,
     offline_external_verifiers: Mapping[str, ExternalVerifier] | None = None,
+    offline_export_audit_store: OfflineExportAuditStore | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("causledger_proof_externalization", __name__)
     # Construction is intentionally an application-startup concern. Read paths below
-    # reuse this instance and never create archive schema while observing a Proof Pack.
+    # reuse these instances and never create schema while observing a Proof Pack.
     archive = attestation_archive or ProofAttestationArchive(audit_store.path)
+    confidential_export_audit = offline_export_audit_store or OfflineExportAuditStore(audit_store.path)
     resolve_offline_export_identity = offline_export_identity or operator_identity
 
     def json_object() -> dict[str, Any]:
@@ -175,14 +178,7 @@ def create_proof_externalization_blueprint(
 
     @blueprint.after_app_request
     def reconstruct_archived_attestations(response):
-        """Enrich successful Proof Pack reads from verified durable receipts only.
-
-        The underlying Proof Pack endpoint performs tenant authorization first. This
-        hook uses only the already-authorized pack's tenant/finding identifiers, does
-        not invoke providers, does not write audit events, and does not create schema.
-        Any corruption in either durable ledger fails the read closed instead of
-        silently returning an apparently stronger proof state.
-        """
+        """Enrich successful Proof Pack reads from verified durable receipts only."""
         if request.method != "GET" or response.status_code != 200 or not request.path.endswith("/proof-pack"):
             return response
         base = response.get_json(silent=True)
@@ -252,8 +248,12 @@ def create_proof_externalization_blueprint(
 
     @blueprint.post("/findings/<path:finding_id>/proof-pack/offline-export")
     def confidential_offline_export(finding_id: str):
+        started_operation: dict[str, Any] | None = None
+        tenant_id = ""
+        actor_id = ""
+        actual = ""
         try:
-            tenant_id, _actor_id = resolve_offline_export_identity()
+            tenant_id, actor_id = resolve_offline_export_identity()
             payload = json_object()
             if payload.get("confirm_confidential_export") is not True:
                 raise ValueError("confirm_confidential_export must be true")
@@ -278,12 +278,37 @@ def create_proof_externalization_blueprint(
             ).strip().lower()
             if actual != expected:
                 raise AssuranceStoreError("offline export proof target changed or was not explicitly confirmed")
+            evidence = (pack.get("proof_manifest") or {}).get("evidence") or []
+            if not isinstance(evidence, list) or not evidence:
+                raise AssuranceStoreError("offline export proof manifest evidence is invalid")
 
+            started_operation = confidential_export_audit.start(
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                actor_id=actor_id,
+                target_sha256=actual,
+                evidence_count=len(evidence),
+            )
             bundle = build_durable_offline_verification_export_bundle(
                 service=service,
                 proof_pack=pack,
                 original_store=original_store,
                 external_verifiers=offline_external_verifiers,
+            )
+            bundle_sha256 = sha256_hex(bundle)
+            completed = confidential_export_audit.finish(
+                operation_id=str(started_operation["operation_id"]),
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                actor_id=actor_id,
+                target_sha256=actual,
+                state="COMPLETED",
+                payload={
+                    "evidence_count": len(evidence),
+                    "bundle_sha256": bundle_sha256,
+                    "independent_verification_valid": True,
+                    "contains_documentary_bytes": False,
+                },
             )
             response = make_response(jsonify(bundle), 200)
             response.headers["Cache-Control"] = "no-store"
@@ -292,15 +317,42 @@ def create_proof_externalization_blueprint(
                 f'attachment; filename="causledger-offline-{actual[:16]}.json"'
             )
             response.headers["X-CausLedger-Confidential"] = "true"
+            response.headers["X-CausLedger-Export-Operation"] = str(completed["operation_id"])
             return response
         except (
             ValueError,
             AssuranceStoreError,
+            OfflineExportAuditError,
             ProofExternalizationAuditError,
             ProofAttestationArchiveError,
             ProofExternalizationIntegrityError,
             sqlite3.Error,
         ) as exc:
+            if started_operation is not None:
+                try:
+                    confidential_export_audit.finish(
+                        operation_id=str(started_operation["operation_id"]),
+                        tenant_id=tenant_id,
+                        finding_id=finding_id,
+                        actor_id=actor_id,
+                        target_sha256=actual,
+                        state="FAILED",
+                        payload={
+                            "failure_class": type(exc).__name__,
+                            "contains_documentary_bytes": False,
+                        },
+                    )
+                except (OfflineExportAuditError, sqlite3.Error):
+                    pass
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @blueprint.get("/findings/<path:finding_id>/proof-pack/offline-exports")
+    def confidential_offline_export_status(finding_id: str):
+        try:
+            tenant_id, _actor_id = resolve_offline_export_identity()
+            service.revision_store.get(tenant_id=tenant_id, finding_id=finding_id)
+            return jsonify(confidential_export_audit.status(tenant_id=tenant_id, finding_id=finding_id))
+        except (AssuranceStoreError, OfflineExportAuditError, sqlite3.Error) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/proof-pack/externalizations")
