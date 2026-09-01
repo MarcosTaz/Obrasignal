@@ -3,31 +3,24 @@ services:
     name: obrasignal
     runtime: python
     buildCommand: pip install -r requirements.txt
-    # Global WSGI boundary guarantees browser preflight/CORS before auth hooks.
-    # production_entrypoint keeps schema migration at startup and removes DDL
-    # from live push request/scheduler hot paths after startup completes.
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 180 production_entrypoint:APP
+    # Two HTTP workers prevent the elected ingestion leader from becoming a
+    # single availability point. Cross-process runtime_leader locking guarantees
+    # that only one worker starts ingestion and push schedulers.
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 180 production_entrypoint:APP
     healthCheckPath: /api/v1/health
-    # SQLite is currently the application's datastore. Keep it on a Render
-    # persistent disk so authenticated profiles and opportunity state survive
-    # deploys/restarts. This is intentionally single-instance for now.
+    # SQLite remains one persistent store on one Render instance. WAL plus short
+    # bounded writer transactions allow both HTTP workers to share it safely.
     disk:
       name: obrasignal-data
       mountPath: /var/data
       sizeGB: 1
     envVars:
-      # Production authentication MUST be explicit; secret JWT provider values
-      # are configured in the Render dashboard/environment, never committed here.
       - key: OBRASIGNAL_AUTH_MODE
         value: "provider"
       - key: OBRASIGNAL_JWT_ISSUER
         sync: false
-      # Supabase user access tokens use the authenticated audience.
       - key: OBRASIGNAL_JWT_AUDIENCE
         value: "authenticated"
-      # Native Supabase JWKS is derived from the canonicalized issuer.
-      # Official customer Web origin remains canonical even while DNS activation
-      # is pending. The GitHub Pages origin is a bounded temporary CORS fallback.
       - key: OBRASIGNAL_CORS_ORIGIN
         value: "https://obrasignal.com"
       - key: OBRASIGNAL_CORS_FALLBACK_ORIGIN
@@ -36,8 +29,6 @@ services:
         value: "https://obrasignal.com"
       - key: OBRASIGNAL_DB
         value: "/var/data/obrasignal.db"
-      # Backend-only RevenueCat credentials. Values must be entered in Render;
-      # never commit them. Both are required before automatic checkout is exposed.
       - key: REVENUECAT_SECRET_API_KEY
         sync: false
       - key: REVENUECAT_WEBHOOK_SECRET
@@ -46,6 +37,5 @@ services:
         value: "60"
       - key: TED_DAYS
         value: "30"
-      # Keep the first production sync bounded; subsequent 60s polls keep it fresh.
       - key: TED_MAX_PAGES
         value: "4"
