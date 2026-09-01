@@ -31,6 +31,9 @@ ACCOUNT_SCOPED_TABLES = frozenset({
     "opportunity_events",
     "opportunity_workflow",
     "evaluation_events",
+    "push_devices",
+    "push_preferences",
+    "push_digest_deliveries",
 })
 DEPENDENT_TABLES = (
     "company_profiles",
@@ -38,6 +41,9 @@ DEPENDENT_TABLES = (
     "opportunity_events",
     "opportunity_workflow",
     "evaluation_events",
+    "push_devices",
+    "push_preferences",
+    "push_digest_deliveries",
 )
 DELETION_LOCKED_STATUSES = frozenset({
     "deletion_pending",
@@ -193,6 +199,18 @@ def export_account_data(conn, account_id):
             (account_id,),
         ).fetchall()
     ]
+    push_devices = [dict(row) for row in conn.execute(
+        "SELECT * FROM push_devices WHERE account_id=? ORDER BY last_seen_at DESC, token",
+        (account_id,),
+    ).fetchall()]
+    push_preferences = [dict(row) for row in conn.execute(
+        "SELECT * FROM push_preferences WHERE account_id=? ORDER BY account_id",
+        (account_id,),
+    ).fetchall()]
+    push_digest_deliveries = [dict(row) for row in conn.execute(
+        "SELECT * FROM push_digest_deliveries WHERE account_id=? ORDER BY local_date",
+        (account_id,),
+    ).fetchall()]
 
     return {
         "schema_version": EXPORT_SCHEMA_VERSION,
@@ -203,6 +221,9 @@ def export_account_data(conn, account_id):
         "opportunity_events": events,
         "opportunity_workflow": workflow,
         "evaluation_events": evaluation,
+        "push_devices": push_devices,
+        "push_preferences": push_preferences,
+        "push_digest_deliveries": push_digest_deliveries,
         "scope": {
             "server_owned_account_tables": inventory["required"],
             "completeness": "CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY",
