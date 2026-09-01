@@ -6,7 +6,10 @@ classification should not churn hundreds of redundant commits every minute.
 """
 from __future__ import annotations
 
-DECISION_COMMIT_BATCH = 25
+# SQLite admits a single writer. Ten changed decisions per commit keeps the
+# account-classification writer bounded tightly enough for interactive customer
+# writes to acquire the database between batches.
+DECISION_COMMIT_BATCH = 10
 
 
 def _enable_wal(app_module) -> str:

@@ -4,6 +4,12 @@ The collector intentionally has no customer-facing reporting route. It stores no
 raw client IP and uses a server-side, persistent random HMAC key to derive a
 rotating daily visitor identifier. Geography is limited to coarse edge-provided
 headers when present plus browser timezone/language supplied by the Web client.
+
+Telemetry is deliberately lower priority than customer traffic. SQLite permits
+only one writer at a time, so analytics uses a very short writer wait and drops a
+beacon on transient BUSY/LOCKED contention instead of consuming a customer HTTP
+slot for seconds or surfacing an HTTP 500. Non-contention database failures still
+raise: this is a bounded availability policy, not a blanket error suppressor.
 """
 from __future__ import annotations
 
@@ -24,10 +30,6 @@ from app import db
 bp = Blueprint("traffic_analytics", __name__, url_prefix="/api/v1/analytics")
 
 OFFICIAL_ORIGIN = "https://obrasignal.com"
-# This is the exact GitHub Pages origin controlled by the same ObraSignal
-# publisher. Keep it explicit in code as a deploy-safe fallback: Render blueprint
-# env propagation can lag a code deploy, but a published fallback must never turn
-# every legitimate page view into a deliberate 403 while canonical DNS is pending.
 PUBLISHED_FALLBACK_ORIGIN = "https://marcostaz.github.io"
 ALLOWED_EVENTS = {
     "page_view",
@@ -42,6 +44,7 @@ BOT_RE = re.compile(
     re.I,
 )
 MAX_TEXT = 160
+ANALYTICS_BUSY_TIMEOUT_MS = 250
 
 _TRAFFIC_READY_PROJECTION = """SELECT
     occurred_at,day,minute_bucket,event_name,visitor_day_hash,path,referrer_host,
@@ -59,14 +62,7 @@ def _traffic_schema_ready(conn):
 
 
 def ensure_traffic_schema(conn):
-    """Create/migrate telemetry storage only when it is actually absent.
-
-    Page-view collection is a steady-state hot path. Running CREATE TABLE/INDEX
-    statements on every beacon turns harmless analytics into a schema-lock
-    participant and can starve authenticated customer reads under browser load.
-    Startup still calls this function, while current schemas now take a strictly
-    read-only projection fast path.
-    """
+    """Create/migrate telemetry storage only when it is actually absent."""
     if _traffic_schema_ready(conn):
         return
     conn.execute(
@@ -139,12 +135,17 @@ def _key(conn):
     if row:
         return bytes.fromhex(str(row[0]))
     value = secrets.token_hex(32)
+    now = datetime.now(timezone.utc).isoformat()
+    # INSERT OR IGNORE makes simultaneous first beacons converge on one key.
     conn.execute(
-        "INSERT INTO internal_config(key,value,created_at) VALUES(?,?,?)",
-        ("traffic_hmac_key", value, datetime.now(timezone.utc).isoformat()),
+        "INSERT OR IGNORE INTO internal_config(key,value,created_at) VALUES(?,?,?)",
+        ("traffic_hmac_key", value, now),
     )
     conn.commit()
-    return bytes.fromhex(value)
+    row = conn.execute("SELECT value FROM internal_config WHERE key='traffic_hmac_key'").fetchone()
+    if not row:
+        raise RuntimeError("traffic_hmac_key_not_persisted")
+    return bytes.fromhex(str(row[0]))
 
 
 def visitor_day_hash(conn, *, ip, user_agent, day):
@@ -194,7 +195,20 @@ def _is_bot():
     return bool(BOT_RE.search(ua) or synthetic.lower() in {"1", "true", "yes"})
 
 
+def _is_transient_sqlite_contention(exc):
+    message = str(exc or "").lower()
+    return any(marker in message for marker in (
+        "database is locked",
+        "database table is locked",
+        "database schema is locked",
+        "database is busy",
+        "sqlite_busy",
+        "sqlite_locked",
+    ))
+
+
 def record_event(payload):
+    """Persist one telemetry event; return False only when contention drops it."""
     event_name = _bounded(payload.get("event"), 48)
     if event_name not in ALLOWED_EVENTS:
         raise ValueError("invalid_event")
@@ -202,6 +216,9 @@ def record_event(payload):
     day = now.date().isoformat()
     conn = db()
     try:
+        # Override the product-wide 15s timeout for this non-critical write. A
+        # telemetry beacon must never queue behind procurement ingestion.
+        conn.execute(f"PRAGMA busy_timeout={ANALYTICS_BUSY_TIMEOUT_MS}")
         ensure_traffic_schema(conn)
         visitor = visitor_day_hash(
             conn,
@@ -238,6 +255,12 @@ def record_event(payload):
             values,
         )
         conn.commit()
+        return True
+    except sqlite3.OperationalError as exc:
+        conn.rollback()
+        if _is_transient_sqlite_contention(exc):
+            return False
+        raise
     finally:
         conn.close()
 

@@ -70,13 +70,22 @@ def wait_for_exact_pages_build(page):
     )
 
 
-def attach_failure_collectors(page, label):
-    """Capture JavaScript, network and HTTP failures with actionable URLs.
+def _ignorable_request_failure(request):
+    """Ignore only lifecycle cancellation of the fire-and-forget telemetry beacon.
 
-    Console-only browser errors such as WebKit's generic "status of 403" do not
-    include the request URL. Recording response status here makes a red browser
-    gate diagnostic instead of forcing us to guess which customer boundary broke.
+    Chromium can abort a keepalive analytics request when a short-lived E2E page
+    is closed immediately after all customer assertions passed. That is not a
+    product request failure. DNS, TLS, connection and HTTP failures remain red,
+    and every non-analytics request remains strict.
     """
+    if request.method != "POST" or not request.url.endswith("/api/v1/analytics/event"):
+        return False
+    failure = str(request.failure or "")
+    return "ERR_ABORTED" in failure or "NS_BINDING_ABORTED" in failure
+
+
+def attach_failure_collectors(page, label):
+    """Capture JavaScript, network and HTTP failures with actionable URLs."""
     failures = []
 
     def on_console(message):
@@ -87,6 +96,8 @@ def attach_failure_collectors(page, label):
         failures.append(f"{label} page error: {error}")
 
     def on_request_failed(request):
+        if _ignorable_request_failure(request):
+            return
         failures.append(f"{label} request failed: {request.method} {request.url} :: {request.failure}")
 
     def on_response(response):
@@ -192,7 +203,10 @@ def authenticated_roundtrip(page, browser_name):
 
     page.get_by_role("button", name="Conta e privacidade", exact=True).click()
     page.get_by_text("Exportar os meus dados", exact=True).wait_for(timeout=30_000)
-    page.get_by_role("button", name="Fechar", exact=True).click()
+    # React Native Web does not consistently expose nested Text as the button's
+    # accessible name across Chromium/WebKit. The exact visible control is enough
+    # here because the modal contents have already been asserted.
+    page.get_by_text("Fechar", exact=True).last.click()
 
     page.get_by_role("button", name="Terminar sessão", exact=True).click()
     page.get_by_text("Encontra os concursos que merecem o teu tempo.", exact=True).wait_for(timeout=30_000)

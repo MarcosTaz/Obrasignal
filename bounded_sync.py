@@ -12,7 +12,9 @@ from datetime import datetime, timezone
 
 import app as _app
 
-DEFAULT_WRITE_CHUNK = 100
+# SQLite has one writer. Keep production source transactions deliberately small
+# so customer profile/privacy/workflow writes get frequent acquisition windows.
+DEFAULT_WRITE_CHUNK = 20
 
 _UPSERT = """INSERT INTO tenders(
     title,description,buyer,country,cpv,value,deadline,publication_date,url,score,
