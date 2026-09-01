@@ -18,15 +18,21 @@ def externalize_proof_with_audit(
     service: IndustrialClaimsService,
     *,
     audit_store: ProofExternalizationAuditStore,
-    attestation_archive: ProofAttestationArchive,
     tenant_id: str,
     finding_id: str,
     actor_id: str,
     providers: ProofProviderBundle,
     expected_target_sha256: str | None,
+    attestation_archive: ProofAttestationArchive | None = None,
     generated_at: str | None = None,
 ) -> dict[str, Any]:
-    """Execute one explicit external-proof operation with durable intent/outcome lineage."""
+    """Execute one explicit external-proof operation with durable intent/outcome lineage.
+
+    Receipt preservation is mandatory. Callers may inject an archive explicitly;
+    otherwise it is created against the exact same durable database as the audit
+    ledger so the HTTP surface cannot accidentally omit receipt preservation.
+    """
+    archive_store = attestation_archive or ProofAttestationArchive(audit_store.path)
     preflight = build_durable_claim_proof_pack(
         service,
         tenant_id=tenant_id,
@@ -68,7 +74,7 @@ def externalize_proof_with_audit(
         external_attestations = list(pack["proof_manifest"].get("external_attestations") or [])
         manifest_sha256 = sha256_hex(pack["proof_manifest"])
         receipts_sha256 = sha256_hex(external_attestations)
-        archive = attestation_archive.archive_operation(
+        archive = archive_store.archive_operation(
             operation_id=operation_id,
             tenant_id=tenant_id,
             target_sha256=target,
@@ -102,6 +108,7 @@ def externalize_proof_with_audit(
         pack["externalization_operation"] = {
             "operation_id": operation_id,
             "state": "COMPLETED",
+            "target_sha256": target,
             "started_event_hash": started["event_hash"],
             "completed_event_hash": completed["event_hash"],
             "proof_manifest_sha256": manifest_sha256,
