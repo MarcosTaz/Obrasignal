@@ -1,0 +1,50 @@
+name: ObraSignal Android Build Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.eas-build-status-once'
+
+jobs:
+  verify-android-production-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Require EAS token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Verify submitted production build
+        working-directory: mobile
+        env:
+          BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
+        run: |
+          set -euo pipefail
+          eas build:view "$BUILD_ID" --json > /tmp/eas-build.json
+          python - <<'PY'
+          import json
+          payload=json.load(open('/tmp/eas-build.json',encoding='utf-8'))
+          status=str(payload.get('status') or '').upper()
+          platform=str(payload.get('platform') or '').upper()
+          profile=str(payload.get('buildProfile') or payload.get('profile') or '').lower()
+          print(f"eas_build_id={payload.get('id')} status={status} platform={platform} profile={profile or 'unknown'}")
+          assert payload.get('id') == '33e3a915-1330-40ba-9e02-2c10c5a1e148'
+          assert platform == 'ANDROID'
+          if status != 'FINISHED':
+              raise SystemExit(f"Android production build not finished: {status}")
+          PY
