@@ -11,6 +11,9 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 import vertical_apps.industrial_claims.rfc3161_timestamp_provider as module
 from vertical_apps.industrial_claims.proof_providers import ProofRequest
 from vertical_apps.industrial_claims.rfc3161_timestamp_provider import (
+    EIDAS_CHAIN_VERIFICATION_METHOD,
+    EIDAS_GRANTED_STATUS,
+    EIDAS_QTST_SERVICE_TYPE,
     EidasQualifiedTimestampEvidence,
     Rfc3161QualifiedTimestampProvider,
     Rfc3161TimestampConfigurationError,
@@ -65,24 +68,39 @@ def _request(payload: bytes) -> ProofRequest:
 def _qualification(tsa: x509.Certificate) -> EidasQualifiedTimestampEvidence:
     now = datetime.now(timezone.utc)
     return EidasQualifiedTimestampEvidence(
-        service_uri="https://eidas.ec.europa.eu/efda/trust-services/browse/eidas/tls/tl/ES/tsp/24/service/9",
         territory="ES",
-        service_type="TSA/QTST",
-        service_status="GRANTED",
+        service_type=EIDAS_QTST_SERVICE_TYPE,
+        service_status=EIDAS_GRANTED_STATUS,
         service_certificate_sha256=tsa.fingerprint(hashes.SHA256()).hex(),
         service_valid_from=(now - timedelta(days=10)).isoformat(),
         service_valid_until=(now + timedelta(days=10)).isoformat(),
-        trusted_list_sequence="test-sequence-1",
-        trusted_list_sha256="a" * 64,
-        trusted_list_signature_verified=True,
+        service_name="Test Qualified TSA",
+        lotl_uri="https://ec.europa.eu/tools/lotl/eu-lotl.xml",
+        lotl_sha256="a" * 64,
+        lotl_sequence="389",
+        lotl_signer_certificate_sha256="b" * 64,
+        national_tl_uri="https://example.test/es-trusted-list.xml",
+        national_tl_sha256="c" * 64,
+        national_tl_sequence="99",
+        national_tl_signer_certificate_sha256="d" * 64,
+        verification_method=EIDAS_CHAIN_VERIFICATION_METHOD,
         verified_at=now.isoformat(),
     )
+
+
+class _QualificationVerifier:
+    def __init__(self, tsa):
+        self.tsa = tsa
+        self.calls = []
+    def verify(self, *, certificate, gen_time):
+        self.calls.append((certificate, gen_time))
+        assert certificate == self.tsa
+        return _qualification(self.tsa)
 
 
 class _Session:
     def __init__(self):
         self.calls = []
-
     def post(self, *args, **kwargs):
         self.calls.append((args, kwargs))
         class Response:
@@ -166,7 +184,7 @@ def _patch_rfc(monkeypatch, recorder):
     monkeypatch.setattr(module, "VerifierBuilder", _VerifierFactory)
 
 
-def test_provider_requires_https_and_official_eidas_evidence():
+def test_provider_requires_https_and_canonical_lotl_receipt():
     _root, tsa, root_pem, tsa_pem = _certificates()
     with pytest.raises(Rfc3161TimestampConfigurationError, match="HTTPS"):
         Rfc3161QualifiedTimestampProvider(
@@ -175,15 +193,11 @@ def test_provider_requires_https_and_official_eidas_evidence():
             tsa_certificate_pem=tsa_pem,
             root_certificates_pem=(root_pem,),
         )
-    with pytest.raises(Rfc3161TimestampConfigurationError, match="official EU eIDAS Dashboard"):
-        EidasQualifiedTimestampEvidence(
-            service_uri="https://example.test/fake-list",
-            territory="ES", service_type="TSA/QTST", service_status="GRANTED",
-            service_certificate_sha256=tsa.fingerprint(hashes.SHA256()).hex(),
-            service_valid_from="2026-01-01T00:00:00+00:00", service_valid_until=None,
-            trusted_list_sequence="1", trusted_list_sha256="a" * 64,
-            trusted_list_signature_verified=True, verified_at="2026-09-01T00:00:00+00:00",
-        )
+    good = _qualification(tsa)
+    values = good.__dict__.copy()
+    values["lotl_uri"] = "https://example.test/fake-lotl.xml"
+    with pytest.raises(Rfc3161TimestampConfigurationError, match="ec.europa.eu|official EU LOTL"):
+        EidasQualifiedTimestampEvidence(**values)
 
 
 def test_exact_sheet_bytes_are_timestamped_and_crypto_valid_is_not_called_qualified(monkeypatch):
@@ -202,6 +216,7 @@ def test_exact_sheet_bytes_are_timestamped_and_crypto_valid_is_not_called_qualif
     result = provider.attest(_request(payload))
     assert result.state == "CRYPTOGRAPHICALLY_VALID"
     assert result.details["qualified_trusted_list_gate_satisfied"] is False
+    assert result.details["qualification_requires_runtime_signed_lotl_chain_verifier"] is True
     assert recorder["request_payload"] == payload
     assert recorder["verified_payload"] == payload
     assert recorder["cert_request"] is True
@@ -209,7 +224,7 @@ def test_exact_sheet_bytes_are_timestamped_and_crypto_valid_is_not_called_qualif
     assert session.calls[0][1]["allow_redirects"] is False
 
 
-def test_eidas_gate_must_match_exact_pinned_tsa_certificate_before_verified(monkeypatch):
+def test_static_qualification_object_is_never_enough_to_upgrade_rfc3161_token(monkeypatch):
     _root, tsa, root_pem, tsa_pem = _certificates()
     recorder = {}
     _patch_rfc(monkeypatch, recorder)
@@ -222,11 +237,32 @@ def test_eidas_gate_must_match_exact_pinned_tsa_certificate_before_verified(monk
         session=_Session(),
     )
     result = provider.attest(_request(b"exact bytes"))
+    assert result.state == "CRYPTOGRAPHICALLY_VALID"
+    assert result.details["qualified_trusted_list_gate_satisfied"] is False
+    assert result.details["eidas_qualification_error"] == "STATIC_QUALIFICATION_EVIDENCE_NOT_SUFFICIENT"
+
+
+def test_eidas_gate_requires_runtime_verifier_and_binds_receipt_into_validation_ref(monkeypatch):
+    _root, tsa, root_pem, tsa_pem = _certificates()
+    recorder = {}
+    _patch_rfc(monkeypatch, recorder)
+    qualification_verifier = _QualificationVerifier(tsa)
+    provider = Rfc3161QualifiedTimestampProvider(
+        endpoint="https://tsa.example.test/rfc3161",
+        provider_name="tsa-test",
+        tsa_certificate_pem=tsa_pem,
+        root_certificates_pem=(root_pem,),
+        qualification_verifier=qualification_verifier,
+        session=_Session(),
+    )
+    result = provider.attest(_request(b"exact bytes"))
     assert result.state == "VERIFIED"
     assert result.details["qualified_trusted_list_gate_satisfied"] is True
+    assert result.details["eidas_qualification_evidence"]["verification_method"] == EIDAS_CHAIN_VERIFICATION_METHOD
     assert result.validation_ref.startswith("rfc3161-validation:")
     assert result.provider_ref.startswith("rfc3161:")
     assert result.details["timestamp_response_base64"]
+    assert len(qualification_verifier.calls) == 1
 
 
 def test_payload_digest_mismatch_fails_before_any_network_call():
