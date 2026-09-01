@@ -3,10 +3,10 @@ services:
     name: obrasignal
     runtime: python
     buildCommand: pip install -r requirements.txt
-    # Two HTTP workers prevent the elected ingestion leader from becoming a
-    # single availability point. Cross-process runtime_leader locking guarantees
-    # that only one worker starts ingestion and push schedulers.
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 180 production_entrypoint:APP
+    # Two worker processes preserve process isolation and runtime-leader election.
+    # gthread leaves multiple request slots available even if one authenticated
+    # request is briefly waiting on SQLite/provider I/O while ingestion is active.
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --worker-class gthread --threads 4 --timeout 180 production_entrypoint:APP
     healthCheckPath: /api/v1/health
     # SQLite remains one persistent store on one Render instance. WAL plus short
     # bounded writer transactions allow both HTTP workers to share it safely.
@@ -33,8 +33,10 @@ services:
         sync: false
       - key: REVENUECAT_WEBHOOK_SECRET
         sync: false
+      # Public-procurement feeds do not need one-minute polling. Five minutes
+      # materially lowers writer pressure while remaining operationally fresh.
       - key: POLL_SECONDS
-        value: "60"
+        value: "300"
       - key: TED_DAYS
         value: "30"
       - key: TED_MAX_PAGES
