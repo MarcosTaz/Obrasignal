@@ -6,6 +6,10 @@ from typing import Any
 from flask import Blueprint, jsonify, request
 
 from factory_cloud.assurance_store import AssuranceStoreError
+from vertical_apps.industrial_claims.proof_attestation_archive import (
+    ProofAttestationArchive,
+    ProofAttestationArchiveError,
+)
 from vertical_apps.industrial_claims.proof_externalization import ProofExternalizationError
 from vertical_apps.industrial_claims.proof_externalization_audit import (
     ProofExternalizationAuditError,
@@ -23,6 +27,7 @@ def create_proof_externalization_blueprint(
     *,
     service: IndustrialClaimsService,
     audit_store: ProofExternalizationAuditStore,
+    attestation_archive: ProofAttestationArchive,
     providers: ProofProviderBundle,
     operator_identity: IdentityResolver,
 ) -> Blueprint:
@@ -47,6 +52,7 @@ def create_proof_externalization_blueprint(
             pack = externalize_proof_with_audit(
                 service,
                 audit_store=audit_store,
+                attestation_archive=attestation_archive,
                 tenant_id=tenant_id,
                 finding_id=finding_id,
                 actor_id=actor_id,
@@ -54,7 +60,13 @@ def create_proof_externalization_blueprint(
                 expected_target_sha256=expected,
             )
             return jsonify(pack), 201
-        except (ValueError, AssuranceStoreError, ProofExternalizationError, ProofExternalizationAuditError) as exc:
+        except (
+            ValueError,
+            AssuranceStoreError,
+            ProofExternalizationError,
+            ProofExternalizationAuditError,
+            ProofAttestationArchiveError,
+        ) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/proof-pack/externalizations")
@@ -64,6 +76,19 @@ def create_proof_externalization_blueprint(
             service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
             return jsonify(audit_store.status(tenant_id=tenant_id, finding_id=finding_id))
         except (AssuranceStoreError, ProofExternalizationAuditError) as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @blueprint.get("/findings/<path:finding_id>/proof-pack/externalizations/<operation_id>/receipts")
+    def externalization_receipts(finding_id: str, operation_id: str):
+        try:
+            tenant_id, _actor_id = operator_identity()
+            service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
+            status = audit_store.status(tenant_id=tenant_id, finding_id=finding_id)
+            operations = status.get("operations") or {}
+            if operation_id not in operations:
+                raise ProofAttestationArchiveError("externalization operation does not belong to this finding")
+            return jsonify(attestation_archive.operation_receipts(tenant_id=tenant_id, operation_id=operation_id))
+        except (AssuranceStoreError, ProofExternalizationAuditError, ProofAttestationArchiveError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     return blueprint
