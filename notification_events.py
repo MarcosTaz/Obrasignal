@@ -90,6 +90,10 @@ def _latest_completed_sync_window(conn):
     return current, previous
 
 
+def _tender_has_last_seen(conn):
+    return "last_seen" in {row[1] for row in conn.execute("PRAGMA table_info(tenders)").fetchall()}
+
+
 def record_new_opportunities(conn, account_id="default", min_score=75):
     """Record qualified actionable opportunities discovered since the last good sync.
 
@@ -98,21 +102,29 @@ def record_new_opportunities(conn, account_id="default", min_score=75):
     correctly persisted new tenders before its sync run is marked complete. The
     next successful run updates ``last_seen`` and this window includes every row
     whose true ``first_seen`` is after the previous completed run, so availability
-    hardening cannot silently lose a customer alert.
+    hardening cannot silently lose a customer alert. Isolated/legacy databases
+    without ``last_seen`` retain the same completed-sync time window using
+    ``first_seen`` only rather than falling back to a fragile wall-clock window.
     """
     account_id = str(account_id or "default")
     ensure_event_table(conn)
     ensure_lifecycle_table(conn)
     current_sync, previous_sync = _latest_completed_sync_window(conn)
+    has_last_seen = _tender_has_last_seen(conn)
     if current_sync and previous_sync:
+        observed_now = "t.last_seen=? AND " if has_last_seen else ""
         freshness = (
-            "t.last_seen=? AND julianday(t.first_seen)>julianday(?) "
-            "AND julianday(t.first_seen)<=julianday(?)"
+            observed_now
+            + "julianday(t.first_seen)>julianday(?) AND julianday(t.first_seen)<=julianday(?)"
         )
-        freshness_params = [current_sync, previous_sync, current_sync]
+        freshness_params = ([current_sync] if has_last_seen else []) + [previous_sync, current_sync]
     elif current_sync:
-        freshness = "t.last_seen=? AND t.first_seen=?"
-        freshness_params = [current_sync, current_sync]
+        if has_last_seen:
+            freshness = "t.last_seen=? AND t.first_seen=?"
+            freshness_params = [current_sync, current_sync]
+        else:
+            freshness = "t.first_seen=?"
+            freshness_params = [current_sync]
     else:
         freshness = "datetime(t.first_seen) >= datetime('now','-2 minutes')"
         freshness_params = []
