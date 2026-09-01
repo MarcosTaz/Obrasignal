@@ -4,7 +4,6 @@ from collections.abc import Callable
 from typing import Any
 
 from flask import Blueprint, jsonify, request
-from werkzeug.exceptions import BadRequest
 
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.proof_externalization import ProofExternalizationError
@@ -55,13 +54,14 @@ def create_proof_externalization_blueprint(
                 expected_target_sha256=expected,
             )
             return jsonify(pack), 201
-        except (BadRequest, ValueError, AssuranceStoreError, ProofExternalizationError, ProofExternalizationAuditError) as exc:
+        except (ValueError, AssuranceStoreError, ProofExternalizationError, ProofExternalizationAuditError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     @blueprint.get("/findings/<path:finding_id>/proof-pack/externalizations")
     def externalization_status(finding_id: str):
         try:
             tenant_id, _actor_id = operator_identity()
+            service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
             return jsonify(audit_store.status(tenant_id=tenant_id, finding_id=finding_id))
         except (AssuranceStoreError, ProofExternalizationAuditError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
