@@ -171,9 +171,13 @@ def test_secure_amendment_supersedes_with_exact_new_originals_and_requires_fresh
 
     old_detail = service.read_model.get_finding(tenant_id="tenant-a", finding_id=original.finding.finding_id)
     new_detail = service.read_model.get_finding(tenant_id="tenant-a", finding_id=amended.finding.finding_id)
+    current_revision = service.revision_store.require_current(
+        tenant_id="tenant-a",
+        finding_id=amended.finding.finding_id,
+    )
     assert old_detail["revision"]["is_current"] is False
     assert old_detail["revision"]["superseded_by_finding_id"] == amended.finding.finding_id
-    assert new_detail["revision"]["revision"] == 2
+    assert current_revision.revision == 2
     assert new_detail["revision"]["is_current"] is True
     assert new_detail["raw_document_content_included"] is False
 
