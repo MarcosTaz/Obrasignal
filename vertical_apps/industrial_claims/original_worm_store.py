@@ -65,6 +65,13 @@ class WormOriginalEvidenceStore(OriginalEvidenceStore):
             f"{_hash_text(tenant_id)[:24]}/{_hash_text(evidence_id)[:24]}/{sha256}"
         )
 
+    @staticmethod
+    def _expected_object_prefix(*, tenant_id: str, evidence_id: str) -> str:
+        return (
+            "causledger/originals/"
+            f"{_hash_text(tenant_id)[:24]}/{_hash_text(evidence_id)[:24]}/"
+        )
+
     def put_immutable(
         self,
         *,
@@ -180,3 +187,52 @@ class WormOriginalEvidenceStore(OriginalEvidenceStore):
                 "provider_metadata": provider_head_metadata,
             },
         )
+
+    def read_immutable_version(
+        self,
+        *,
+        tenant_id: str,
+        evidence_id: str,
+        object_ref: str,
+        version_ref: str,
+    ) -> bytes:
+        """Read one exact immutable version and re-prove its tenant/evidence binding."""
+        tenant = _required(tenant_id, label="tenant_id", maximum=64)
+        evidence = _required(evidence_id, label="evidence_id")
+        object_key = _required(object_ref, label="object_ref")
+        version = _required(version_ref, label="version_ref")
+        expected_prefix = self._expected_object_prefix(tenant_id=tenant, evidence_id=evidence)
+        if not object_key.startswith(expected_prefix):
+            raise OriginalWormStoreError("immutable original object does not belong to requested tenant/evidence")
+        committed_sha256 = object_key[len(expected_prefix):]
+        if len(committed_sha256) != 64 or any(ch not in "0123456789abcdef" for ch in committed_sha256.lower()):
+            raise OriginalWormStoreError("immutable original object digest binding is invalid")
+
+        try:
+            head = self.backend.head_version(object_key=object_key, version_id=version)
+            payload = self.backend.read_version(object_key=object_key, version_id=version)
+        except Exception as exc:
+            raise OriginalWormStoreError("immutable original exact-version retrieval failed") from exc
+
+        errors: list[str] = []
+        if head.object_key != object_key:
+            errors.append("OBJECT_KEY_MISMATCH")
+        if head.version_id != version:
+            errors.append("VERSION_ID_MISMATCH")
+        if not head.object_lock_enabled:
+            errors.append("OBJECT_LOCK_DISABLED")
+        if head.retention_mode.upper() != "COMPLIANCE":
+            errors.append("COMPLIANCE_RETENTION_REQUIRED")
+        if not isinstance(payload, bytes) or not payload:
+            errors.append("READBACK_NOT_BYTES")
+        else:
+            observed_sha256 = hashlib.sha256(payload).hexdigest()
+            if observed_sha256 != committed_sha256.lower():
+                errors.append("OBJECT_KEY_DIGEST_MISMATCH")
+            if observed_sha256 != str(head.content_sha256 or "").strip().lower():
+                errors.append("PROVIDER_SHA256_MISMATCH")
+            if len(payload) != head.content_length:
+                errors.append("CONTENT_LENGTH_MISMATCH")
+        if errors:
+            raise OriginalWormStoreError("immutable original retrieval verification failed: " + ",".join(errors))
+        return payload
