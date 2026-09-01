@@ -36,13 +36,32 @@ def _digest(value: object) -> str:
     return text
 
 
+def _detached_payload(rendered_sheet: str, digest: str) -> bytes:
+    """Return the exact export bytes covered by the renderer digest.
+
+    The legacy human-readable renderer appends a detached hash line after it
+    computes the digest. A file cannot contain its own full-file digest without
+    changing that digest, so trust/export operations strip that detached line and
+    verify the remaining bytes before any provider call or export receipt.
+    """
+    normalized = _digest(digest)
+    marker = f"\nSnapshot SHA-256: {normalized}\n"
+    if not isinstance(rendered_sheet, str) or not rendered_sheet.endswith(marker):
+        raise ChangeSheetTrustError("change sheet detached digest marker is invalid")
+    payload = rendered_sheet[: -len(marker)].encode("utf-8")
+    if not payload or sha256_hex(payload) != normalized:
+        raise ChangeSheetTrustError("change sheet renderer digest does not match detached export bytes")
+    return payload
+
+
 class ChangeSheetTrustService:
     """Bind exact Change Capture Sheet bytes to independent time evidence.
 
     Timestamp requests carry the exact exported payload separately from metadata.
     The SHA-256 supplied to the evidence model must equal those bytes before any
-    provider is called. This avoids both hash-of-hash ambiguity and races where a
-    later factual edit could otherwise cause the token and exported file to differ.
+    provider is called. This avoids hash-of-hash ambiguity, self-referential hash
+    claims and races where a later factual edit could otherwise cause the token
+    and exported file to differ.
     """
 
     def __init__(
@@ -103,13 +122,15 @@ class ChangeSheetTrustService:
     def _purpose() -> str:
         return "CHANGE_CAPTURE_SNAPSHOT_EXISTENCE_TIME"
 
+    @staticmethod
+    def detached_export_payload(rendered_sheet: str, digest: str) -> bytes:
+        return _detached_payload(rendered_sheet, digest)
+
     def _current_snapshot(self, *, tenant_id: str, finding_id: str) -> tuple[dict[str, Any], bytes, str, str]:
         status = self.capture_store.status(tenant_id=tenant_id, finding_id=finding_id)
         sheet, digest = self.capture_store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
-        payload = sheet.encode("utf-8")
         digest = _digest(digest)
-        if sha256_hex(payload) != digest:
-            raise ChangeSheetTrustError("change sheet renderer digest does not match rendered bytes")
+        payload = _detached_payload(sheet, digest)
         return status, payload, digest, self._subject_ref(str(status["sheet_id"]), digest)
 
     def _validate_attestation(
@@ -317,5 +338,6 @@ class ChangeSheetTrustService:
             "timestamp_receipts_revalidated_on_read": True, "timestamp_is_digest_specific": True,
             "timestamp_binds_exact_snapshot_bytes": True, "new_fact_requires_new_timestamp": True,
             "qualified_timestamp_claim_is_fail_closed": True,
+            "detached_digest_matches_exact_export_bytes": True,
             "declared_change_requested_at_is_not_upgraded_by_sheet_timestamp": True,
         }
