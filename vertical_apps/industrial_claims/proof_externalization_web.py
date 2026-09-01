@@ -74,7 +74,7 @@ def create_proof_externalization_blueprint(
     def externalization_status(finding_id: str):
         try:
             tenant_id, _actor_id = operator_identity()
-            service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
+            service.revision_store.get(tenant_id=tenant_id, finding_id=finding_id)
             return jsonify(audit_store.status(tenant_id=tenant_id, finding_id=finding_id))
         except (AssuranceStoreError, ProofExternalizationAuditError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
@@ -83,7 +83,7 @@ def create_proof_externalization_blueprint(
     def externalization_receipts(finding_id: str, operation_id: str):
         try:
             tenant_id, _actor_id = operator_identity()
-            service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
+            service.revision_store.get(tenant_id=tenant_id, finding_id=finding_id)
             status = audit_store.status(tenant_id=tenant_id, finding_id=finding_id)
             operations = status.get("operations") or {}
             if operation_id not in operations:
