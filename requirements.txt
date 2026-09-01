@@ -3,3 +3,5 @@ requests>=2.32,<3
 gunicorn>=23,<24
 PyJWT[crypto]>=2.10,<3
 rfc3161-client==1.0.8
+signxml==5.1.0
+lxml==6.1.2
