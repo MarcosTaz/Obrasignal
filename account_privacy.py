@@ -28,6 +28,7 @@ ACCOUNT_SCOPED_TABLES = frozenset({
     "accounts",
     "company_profiles",
     "opportunity_decisions",
+    "opportunity_decision_inputs",
     "opportunity_events",
     "opportunity_workflow",
     "evaluation_events",
@@ -38,6 +39,7 @@ ACCOUNT_SCOPED_TABLES = frozenset({
 DEPENDENT_TABLES = (
     "company_profiles",
     "opportunity_decisions",
+    "opportunity_decision_inputs",
     "opportunity_events",
     "opportunity_workflow",
     "evaluation_events",
@@ -186,6 +188,10 @@ def export_account_data(conn, account_id):
             (account_id,),
         ).fetchall()
     ]
+    decision_inputs = [dict(row) for row in conn.execute(
+        "SELECT * FROM opportunity_decision_inputs WHERE account_id=? ORDER BY source,external_id",
+        (account_id,),
+    ).fetchall()]
     events = [dict(row) for row in conn.execute(
         "SELECT * FROM opportunity_events WHERE account_id=? ORDER BY id", (account_id,)
     ).fetchall()]
@@ -218,6 +224,7 @@ def export_account_data(conn, account_id):
         "account": dict(account),
         "company_profile": profile,
         "opportunity_decisions": decisions,
+        "opportunity_decision_inputs": decision_inputs,
         "opportunity_events": events,
         "opportunity_workflow": workflow,
         "evaluation_events": evaluation,
