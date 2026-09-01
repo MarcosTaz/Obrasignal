@@ -76,6 +76,8 @@ def _validate_evidence(evidence: EvidenceEnvelope, *, captured_by: str) -> dict[
     authorization_id = _required(metadata.get("outcome_authorization_id"), label="authorization_id", maximum=256)
     scope_sha256 = _sha256(metadata.get("outcome_authorization_scope_sha256"), label="authorization_scope_sha256")
     finding_id = _required(metadata.get("outcome_finding_id"), label="finding_id", maximum=2048)
+    if not finding_id.startswith(f"{tenant_id}:"):
+        raise SecureOutcomeRegistryError("secure outcome finding_id is outside tenant namespace")
     _aware(metadata.get("outcome_authorized_at"), label="authorized_at")
     _aware(metadata.get("outcome_authorization_expires_at"), label="authorization_expires_at")
     minimum_retention = _aware(
