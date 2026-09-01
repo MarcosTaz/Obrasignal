@@ -55,8 +55,7 @@ class SourceAuthenticationReceipt:
         if state in _VERIFIED_SOURCE_STATES:
             if not self.provider_ref or not self.checked_at:
                 raise ValueError("verified source authentication requires provider reference and checked_at")
-            parsed = _parse_aware(self.checked_at, label="source authentication checked_at")
-            if parsed is None:
+            if _parse_aware(self.checked_at, label="source authentication checked_at") is None:
                 raise ValueError("verified source authentication requires checked_at")
 
     @property
@@ -85,7 +84,6 @@ def _parse_aware(value: str | None, *, label: str) -> datetime | None:
 
 
 def _immutability_state(*, retention_mode: str, legal_hold: bool) -> str:
-    """Describe storage strength without upgrading governance retention to WORM."""
     mode = str(retention_mode or "").strip().upper()
     if mode == "COMPLIANCE":
         return "WORM_LOCKED"
@@ -119,8 +117,6 @@ def capture_original_evidence(
     if identity.tenant_id.strip() == "" or identity.actor_id.strip() == "" or identity.subject.strip() == "":
         raise ValueError("secure evidence capture requires authenticated tenant/actor/subject")
 
-    # first_seen is deliberately generated inside the trusted capture boundary.
-    # User/request metadata may declare effective_at, but cannot override first_seen.
     first_seen = _aware_datetime(clock(), label="secure capture clock")
     effective = _parse_aware(effective_at, label="effective_at")
     delayed = effective is not None and effective < first_seen
@@ -144,6 +140,23 @@ def capture_original_evidence(
     if not receipt_validation["valid"]:
         raise ValueError("immutable original store returned a receipt that does not match captured bytes")
 
+    try:
+        readback = original_store.read_immutable_version(
+            tenant_id=identity.tenant_id,
+            evidence_id=evidence_id,
+            object_ref=receipt.object_ref,
+            version_ref=receipt.version_ref,
+        )
+    except AttributeError as exc:
+        raise ValueError("immutable original store does not support exact-version readback verification") from exc
+    if not isinstance(readback, bytes):
+        raise ValueError("immutable original store readback must return bytes")
+    if readback != content:
+        raise ValueError("immutable original store readback does not match captured bytes")
+    readback_validation = verify_original_receipt(readback, receipt)
+    if not readback_validation["valid"]:
+        raise ValueError("immutable original store readback does not match provider receipt")
+
     immutability_state = _immutability_state(
         retention_mode=receipt.retention_mode,
         legal_hold=receipt.legal_hold,
@@ -155,6 +168,7 @@ def capture_original_evidence(
         "content_type": content_type,
         "capture_mode": "DIRECT_SECURE_ORIGINAL_CAPTURE",
         "raw_content_persisted": "true",
+        "original_version_readback_verified": True,
         "proof_integrity_sealed": True,
         "immutability": immutability_state,
         "worm_lock_verified": immutability_state == "WORM_LOCKED",
