@@ -134,7 +134,7 @@ def create_change_capture_blueprint(
             tenant_id, actor_id = capture_identity()
             status = store.status(tenant_id=tenant_id, finding_id=finding_id)
             sheet, digest = store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
-            payload = sheet.encode("utf-8")
+            payload = active_trust.detached_export_payload(sheet, digest)
             timestamp = active_trust.attest_snapshot(
                 tenant_id=tenant_id,
                 finding_id=finding_id,
