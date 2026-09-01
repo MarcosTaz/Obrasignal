@@ -52,6 +52,12 @@ def _sha256_digest(value: object, *, label: str) -> str:
     return text
 
 
+def _byte_limit(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not (1 <= value <= 100_000_000):
+        raise OutcomeAuthorizationError("outcome authorization byte limit is invalid")
+    return value
+
+
 def recompute_outcome_authorization_scope_sha256(
     metadata: Mapping[str, Any],
     *,
@@ -82,12 +88,7 @@ def recompute_outcome_authorization_scope_sha256(
     data_terms_state = _required(metadata.get("outcome_data_terms_state"), label="data_terms_state", maximum=64).upper()
     if data_terms_state not in ALLOWED_DATA_TERMS_STATES:
         raise OutcomeAuthorizationError("outcome data terms are not cleared")
-    try:
-        max_bytes = int(metadata.get("outcome_max_bytes"))
-    except (TypeError, ValueError) as exc:
-        raise OutcomeAuthorizationError("outcome authorization byte limit is invalid") from exc
-    if not (1 <= max_bytes <= 100_000_000):
-        raise OutcomeAuthorizationError("outcome authorization byte limit is invalid")
+    max_bytes = _byte_limit(metadata.get("outcome_max_bytes"))
     authorized_by_sha256 = _sha256_digest(
         metadata.get("outcome_authorized_by_sha256"),
         label="authorized_by_sha256",
@@ -161,8 +162,7 @@ class OutcomeEvidenceAuthorization:
         data_terms_state = _required(self.data_terms_state, label="data_terms_state", maximum=64).upper()
         if data_terms_state not in ALLOWED_DATA_TERMS_STATES:
             raise OutcomeAuthorizationError("outcome data terms are not cleared")
-        if not isinstance(self.max_bytes, int) or not (1 <= self.max_bytes <= 100_000_000):
-            raise OutcomeAuthorizationError("outcome authorization byte limit is invalid")
+        max_bytes = _byte_limit(self.max_bytes)
 
         scope = {
             "authorization_id": authorization_id,
@@ -174,7 +174,7 @@ class OutcomeEvidenceAuthorization:
             "minimum_immutable_retention_until": retain_until.isoformat(),
             "data_terms_state": data_terms_state,
             "immutable_retention_acknowledged": True,
-            "max_bytes": self.max_bytes,
+            "max_bytes": max_bytes,
             "authorized_by_sha256": _sha256_text(authorized_by_ref),
             "transfer_channel_sha256": _sha256_text(transfer_channel_ref),
         }
@@ -187,7 +187,7 @@ class OutcomeEvidenceAuthorization:
             expires_at=expires_at,
             minimum_immutable_retention_until=retain_until,
             data_terms_state=data_terms_state,
-            max_bytes=self.max_bytes,
+            max_bytes=max_bytes,
             authorized_by_sha256=scope["authorized_by_sha256"],
             transfer_channel_sha256=scope["transfer_channel_sha256"],
             scope_sha256=hashlib.sha256(canonical_json_bytes(scope)).hexdigest(),
