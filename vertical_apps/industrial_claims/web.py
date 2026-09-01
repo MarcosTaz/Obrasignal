@@ -28,6 +28,8 @@ from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 from vertical_apps.industrial_claims.secure_capture_registry import SecureCaptureRegistry, SecureCaptureRegistryError
 from vertical_apps.industrial_claims.secure_case_amendment import SecureCaseAmendmentError, amend_case_from_secure_capture
 from vertical_apps.industrial_claims.secure_case_intake import SecureCaseIntakeError, create_case_from_secure_capture
+from vertical_apps.industrial_claims.secure_outcome_registry import SecureOutcomeRegistry, SecureOutcomeRegistryError
+from vertical_apps.industrial_claims.secure_outcome_resolution import SecureOutcomeResolutionError, resolve_from_secure_outcome
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 API_ERRORS = (
@@ -43,6 +45,8 @@ API_ERRORS = (
     SecureCaptureRegistryError,
     SecureCaseIntakeError,
     SecureCaseAmendmentError,
+    SecureOutcomeRegistryError,
+    SecureOutcomeResolutionError,
 )
 REVIEWER_QUEUE_STATES = {"READY_FOR_REVIEW"}
 OPERATOR_QUEUE_STATES = {"APPROVED", "ACTIONED"}
@@ -79,6 +83,7 @@ def create_app(
     service = IndustrialClaimsService(database)
     read_model = IndustrialClaimsReadModel(database)
     secure_capture_registry = SecureCaptureRegistry(database)
+    secure_outcome_registry = SecureOutcomeRegistry(database)
     public_verification_store = PublicVerificationStore(database)
     change_capture_store = ChangeCaptureStore(database)
     proof_externalization_audit_store = ProofExternalizationAuditStore(database)
@@ -156,6 +161,20 @@ def create_app(
         if any(not value for value in result.values()):
             raise ValueError("secure evidence ids must be non-empty")
         return result
+
+    def secure_outcome_evidence_id(payload: dict) -> str:
+        forbidden = tuple(INLINE_DOCUMENTARY_FIELDS) + (
+            "evidence_content",
+            "content",
+            "raw_content",
+            "evidence_ids",
+        )
+        if any(field in payload for field in forbidden):
+            raise ValueError("secure outcome routes accept one evidence id only; raw documentary content is forbidden")
+        evidence_id = str(payload.get("evidence_id") or "").strip()
+        if not evidence_id:
+            raise ValueError("secure outcome evidence_id is required")
+        return evidence_id
 
     def candidate_payload(payload: dict) -> tuple[list, object, bool]:
         missing = payload.get("missing_evidence") or []
@@ -528,6 +547,49 @@ def create_app(
                 "customer_contact_performed": False,
                 "external_claim_submitted": False,
             })
+        except API_ERRORS as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @app.post("/findings/<path:finding_id>/secure-resolve")
+    def secure_resolve_finding(finding_id: str):
+        try:
+            tenant_id, actor_id = identity("operator")
+            payload = json_object()
+            evidence_id = secure_outcome_evidence_id(payload)
+            evidence_ref = str(payload.get("evidence_ref") or "").strip()
+            if not evidence_ref:
+                raise ValueError("secure outcome evidence_ref is required")
+            outcome = resolve_from_secure_outcome(
+                service,
+                secure_outcome_registry,
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                outcome_id=str(payload["outcome_id"]),
+                recovered_amount=str(payload["recovered_amount"]),
+                currency=str(payload["currency"]),
+                evidence_id=evidence_id,
+                evidence_ref=evidence_ref,
+                actor_id=actor_id,
+                final_cumulative=payload.get("final_cumulative") is True,
+            )
+            evidence = secure_outcome_registry.get(
+                tenant_id=tenant_id,
+                evidence_id=evidence_id,
+                finding_id=finding_id,
+                source_ref=evidence_ref,
+            )
+            body = dict(outcome.__dict__)
+            body.update({
+                "final_cumulative": True,
+                "finding_closed_by_outcome": True,
+                "evidence_custody_state": "AUTHORIZED_IMMUTABLE_ORIGINAL",
+                "verification_state": "CONTENT_HASHED",
+                "source_authentication_state": str(
+                    evidence.metadata.get("source_authentication") or "UNVERIFIED"
+                ).upper(),
+                "raw_document_content_included": False,
+            })
+            return jsonify(body), 201
         except API_ERRORS as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
