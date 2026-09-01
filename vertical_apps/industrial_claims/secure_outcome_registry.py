@@ -192,11 +192,15 @@ class SecureOutcomeRegistry:
         source = _required(source_ref, label="source_ref")
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM causledger_secure_outcome_envelopes WHERE tenant_id=? AND evidence_id=? AND finding_id=? AND source_ref=?",
-                (tenant, evidence_key, finding_key, source),
+                "SELECT * FROM causledger_secure_outcome_envelopes WHERE tenant_id=? AND evidence_id=?",
+                (tenant, evidence_key),
             ).fetchone()
         if row is None:
-            raise SecureOutcomeRegistryError("tenant/finding-scoped secure outcome evidence not found")
+            raise SecureOutcomeRegistryError("tenant-scoped secure outcome evidence not found")
+        if str(row["finding_id"]) != finding_key:
+            raise SecureOutcomeRegistryError("secure outcome finding binding does not match request")
+        if str(row["source_ref"]) != source:
+            raise SecureOutcomeRegistryError("secure outcome source reference does not match request")
         metadata_json = str(row["metadata_json"])
         if sha256_hex(metadata_json.encode("utf-8")) != str(row["metadata_sha256"]):
             raise SecureOutcomeRegistryError("secure outcome metadata hash mismatch")
