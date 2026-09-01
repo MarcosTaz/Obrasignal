@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 const DELETE_CONFIRMATION = 'DELETE_MY_OBRASIGNAL_DATA';
 const EXPORT_COMPLETENESS = 'CURRENT_CANONICAL_SERVER_ACCOUNT_DATA_ONLY';
 const C = {bg:'#07111C',panel:'#0D1A29',panel2:'#101F31',line:'#22364F',text:'#F4F7FB',muted:'#9BAABD',blue:'#5F8DF7',green:'#72DFA1',amber:'#EFCB78',red:'#FF8B9A'};
+const sleep=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 
 function stateCopy(state) {
   if (!state || state.state === 'NONE') return 'Não existe um pedido de eliminação em curso.';
@@ -40,14 +41,24 @@ export default function AccountPrivacyControls({ children }) {
   const refreshStatus=async({initial=false}={})=>{
     setStatusLoading(true);setStatusError('');
     if(initial){setReady(false);setPrivacyLocked(true);}
+    const attempts=initial?3:1;
     try{
-      const next=await api.accountDeletionStatus();
-      if(!next||typeof next.state!=='string')throw new Error('invalid_deletion_state_contract');
-      setStatus(next);
-      const shouldLock=next.state!=='NONE';
-      setPrivacyLocked(shouldLock);
-      setReady(true);
-      return next;
+      let lastError=null;
+      for(let attempt=1;attempt<=attempts;attempt+=1){
+        try{
+          const next=await api.accountDeletionStatus();
+          if(!next||typeof next.state!=='string')throw new Error('invalid_deletion_state_contract');
+          setStatus(next);
+          const shouldLock=next.state!=='NONE';
+          setPrivacyLocked(shouldLock);
+          setReady(true);
+          return next;
+        }catch(error){
+          lastError=error;
+          if(attempt<attempts)await sleep(500*attempt);
+        }
+      }
+      throw lastError||new Error('account_deletion_status_unavailable');
     }catch(_){
       setStatusError(initial?'Não foi possível confirmar o estado privado da conta.':'Não foi possível atualizar o estado de eliminação.');
       if(initial){setReady(false);setPrivacyLocked(true);}
