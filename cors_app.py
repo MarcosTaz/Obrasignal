@@ -149,6 +149,7 @@ def _global_api_cors(response):
 # before allowing the ingestion and push workers to run.
 import app as _app
 from app import db, init_db, start_background_worker
+from decision_refresh import ensure_decision_input_table, record_account_decisions
 from evaluation_policy import ensure_evaluation_schema
 from opportunity_lifecycle import ensure_lifecycle_table
 from lifecycle_read_model import install as install_lifecycle_read_model
@@ -166,6 +167,7 @@ from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 from runtime_db_hardening import install as install_runtime_db_hardening
 import preload as _preload
+import push_runtime as _push_runtime
 
 init_db()
 _lifecycle_conn = db()
@@ -174,13 +176,18 @@ try:
     ensure_lifecycle_table(_lifecycle_conn)
     ensure_traffic_schema(_lifecycle_conn)
     ensure_push_schema(_lifecycle_conn)
+    ensure_decision_input_table(_lifecycle_conn)
     _lifecycle_conn.commit()
 finally:
     _lifecycle_conn.close()
 
-# Install SQLite journal/decision-write hardening only after all startup schema
-# migrations complete and before either background writer is allowed to start.
+# Install SQLite journal/write hardening only after every account-private table
+# exists. The incremental recorder is then selected before the ingestion worker
+# starts, eliminating the previous startup race where the worker could execute
+# an older recorder before production_entrypoint replaced it.
 install_runtime_db_hardening(_preload, _app)
+_preload._record_account_decisions = record_account_decisions
+
 install_lifecycle_read_model(_preload)
 install_latvia_runtime()
 install_uk_runtime()
@@ -198,5 +205,14 @@ install_canadabuys_runtime(
     source_enabled=_preload._global_source_enabled,
     record_blocked=_preload._record_blocked_global_source,
 )
+
+# Production requests and scheduler iterations no longer need to attempt DDL:
+# all push tables/indexes were synchronously migrated above before Gunicorn can
+# accept customer traffic.
+def _schema_already_initialized(_conn) -> None:
+    return None
+
+
+_push_runtime.ensure_push_schema = _schema_already_initialized
 start_background_worker()
 start_push_scheduler()
