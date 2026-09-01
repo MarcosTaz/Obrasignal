@@ -15,6 +15,10 @@ from vertical_apps.industrial_claims.proof_externalization_audit import (
     ProofExternalizationAuditError,
     ProofExternalizationAuditStore,
 )
+from vertical_apps.industrial_claims.proof_externalization_integrity import (
+    ProofExternalizationIntegrityError,
+    verify_externalization_operation_integrity,
+)
 from vertical_apps.industrial_claims.proof_externalization_operation import externalize_proof_with_audit
 from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
@@ -90,6 +94,27 @@ def create_proof_externalization_blueprint(
                 raise ProofAttestationArchiveError("externalization operation does not belong to this finding")
             return jsonify(archive.operation_receipts(tenant_id=tenant_id, operation_id=operation_id))
         except (AssuranceStoreError, ProofExternalizationAuditError, ProofAttestationArchiveError) as exc:
+            return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
+
+    @blueprint.get("/findings/<path:finding_id>/proof-pack/externalizations/<operation_id>/integrity")
+    def externalization_integrity(finding_id: str, operation_id: str):
+        try:
+            tenant_id, _actor_id = operator_identity()
+            service.revision_store.get(tenant_id=tenant_id, finding_id=finding_id)
+            result = verify_externalization_operation_integrity(
+                audit_store=audit_store,
+                attestation_archive=archive,
+                tenant_id=tenant_id,
+                finding_id=finding_id,
+                operation_id=operation_id,
+            )
+            return jsonify(result)
+        except (
+            AssuranceStoreError,
+            ProofExternalizationAuditError,
+            ProofAttestationArchiveError,
+            ProofExternalizationIntegrityError,
+        ) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
     return blueprint
