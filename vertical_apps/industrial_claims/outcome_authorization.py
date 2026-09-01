@@ -182,6 +182,8 @@ def capture_authorized_outcome_evidence(
     caller_metadata = dict(metadata or {})
     if any(str(key).startswith("outcome_") for key in caller_metadata):
         raise OutcomeAuthorizationError("caller metadata cannot override outcome authorization bindings")
+    if "verification_state" in caller_metadata:
+        raise OutcomeAuthorizationError("caller metadata cannot override outcome verification state")
     authorization_metadata = validated.metadata()
     captured = capture_original_evidence(
         original_store=original_store,
@@ -195,10 +197,16 @@ def capture_authorized_outcome_evidence(
         effective_at=effective_at,
         retention_until=validated.minimum_immutable_retention_until.isoformat(),
         legal_hold=False,
-        metadata={**caller_metadata, **authorization_metadata},
+        metadata={
+            **caller_metadata,
+            **authorization_metadata,
+            "verification_state": "CONTENT_HASHED",
+        },
         clock=lambda: now,
     )
     for key, expected in authorization_metadata.items():
         if captured.evidence.metadata.get(key) != expected:
             raise OutcomeAuthorizationError("secure capture lost outcome authorization binding")
+    if captured.evidence.metadata.get("verification_state") != "CONTENT_HASHED":
+        raise OutcomeAuthorizationError("secure capture lost content-hash verification state")
     return captured
