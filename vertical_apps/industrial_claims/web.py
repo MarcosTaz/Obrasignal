@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import date
 from pathlib import Path
 
@@ -22,6 +22,8 @@ from vertical_apps.industrial_claims.durable_proof import build_durable_claim_pr
 from vertical_apps.industrial_claims.proof_externalization_audit import ProofExternalizationAuditStore
 from vertical_apps.industrial_claims.proof_externalization_web import create_proof_externalization_blueprint
 from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
+from vertical_apps.industrial_claims.proof_storage import OriginalEvidenceStore
+from vertical_apps.industrial_claims.proof_verifier import ExternalVerifier
 from vertical_apps.industrial_claims.public_verification_store import PublicVerificationStore
 from vertical_apps.industrial_claims.public_verification_web import create_public_verification_blueprint
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
@@ -75,6 +77,8 @@ def create_app(
     *,
     identity_resolver: Callable[[], RequestIdentity] | None = None,
     proof_providers: ProofProviderBundle | None = None,
+    original_evidence_store: OriginalEvidenceStore | None = None,
+    offline_external_verifiers: Mapping[str, ExternalVerifier] | None = None,
     allow_inline_evidence_content: bool = False,
 ) -> Flask:
     app = Flask(__name__)
@@ -130,6 +134,10 @@ def create_app(
 
     def change_capture_identity() -> tuple[str, str]:
         tenant_id, actor_id, _roles = identity_any("client", "analyst", "operator")
+        return tenant_id, actor_id
+
+    def offline_export_identity() -> tuple[str, str]:
+        tenant_id, actor_id, _roles = identity_any("reviewer", "operator")
         return tenant_id, actor_id
 
     def json_object() -> dict:
@@ -239,6 +247,9 @@ def create_app(
             audit_store=proof_externalization_audit_store,
             providers=external_providers,
             operator_identity=lambda: identity("operator"),
+            offline_export_identity=offline_export_identity,
+            original_store=original_evidence_store,
+            offline_external_verifiers=offline_external_verifiers,
         )
     )
 
@@ -255,6 +266,7 @@ def create_app(
             "inline_documentary_content_enabled": bool(
                 app.config["CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED"]
             ),
+            "confidential_offline_export_store_configured": original_evidence_store is not None,
         })
 
     @app.get("/findings")
