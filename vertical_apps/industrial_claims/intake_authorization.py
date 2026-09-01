@@ -57,6 +57,12 @@ def _sha256_digest(value: object, *, label: str) -> str:
     return text
 
 
+def _byte_limit(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not (1 <= value <= 100_000_000):
+        raise IntakeAuthorizationError("intake authorization byte limit is invalid")
+    return value
+
+
 def _normalized_roles(value: object) -> tuple[str, ...]:
     if isinstance(value, (str, bytes, bytearray)):
         raise IntakeAuthorizationError("intake authorization evidence roles are invalid")
@@ -104,12 +110,7 @@ def recompute_intake_authorization_scope_sha256(
     data_terms_state = _required(metadata.get("intake_data_terms_state"), label="data_terms_state", maximum=64).upper()
     if data_terms_state not in ALLOWED_DATA_TERMS_STATES:
         raise IntakeAuthorizationError("intake data terms are not cleared")
-    try:
-        max_bytes = int(metadata.get("intake_max_bytes_per_evidence"))
-    except (TypeError, ValueError) as exc:
-        raise IntakeAuthorizationError("intake authorization byte limit is invalid") from exc
-    if not (1 <= max_bytes <= 100_000_000):
-        raise IntakeAuthorizationError("intake authorization byte limit is invalid")
+    max_bytes = _byte_limit(metadata.get("intake_max_bytes_per_evidence"))
     authorized_by_sha256 = _sha256_digest(
         metadata.get("intake_authorized_by_sha256"),
         label="authorized_by_sha256",
@@ -187,8 +188,7 @@ class IntakeAuthorization:
             raise IntakeAuthorizationError("intake data terms are not cleared")
 
         roles = _normalized_roles(self.evidence_roles)
-        if not isinstance(self.max_bytes_per_evidence, int) or not (1 <= self.max_bytes_per_evidence <= 100_000_000):
-            raise IntakeAuthorizationError("intake authorization byte limit is invalid")
+        max_bytes = _byte_limit(self.max_bytes_per_evidence)
 
         scope = {
             "authorization_id": authorization_id,
@@ -201,7 +201,7 @@ class IntakeAuthorization:
             "evidence_roles": list(roles),
             "data_terms_state": data_terms_state,
             "immutable_retention_acknowledged": True,
-            "max_bytes_per_evidence": self.max_bytes_per_evidence,
+            "max_bytes_per_evidence": max_bytes,
             "authorized_by_sha256": _sha256_text(authorized_by_ref),
             "transfer_channel_sha256": _sha256_text(transfer_channel_ref),
         }
@@ -216,7 +216,7 @@ class IntakeAuthorization:
             minimum_immutable_retention_until=retain_until,
             evidence_roles=roles,
             data_terms_state=data_terms_state,
-            max_bytes_per_evidence=self.max_bytes_per_evidence,
+            max_bytes_per_evidence=max_bytes,
             authorized_by_sha256=scope["authorized_by_sha256"],
             transfer_channel_sha256=scope["transfer_channel_sha256"],
             scope_sha256=scope_sha256,
