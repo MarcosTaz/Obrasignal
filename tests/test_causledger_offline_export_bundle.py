@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -8,7 +10,9 @@ import pytest
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.offline_export_bundle import (
     OfflineOriginal,
+    build_durable_offline_verification_export_bundle,
     build_offline_verification_export_bundle,
+    read_durable_originals_for_offline_export,
 )
 from vertical_apps.industrial_claims.proof import ExternalAttestation, build_proof_manifest
 
@@ -55,6 +59,39 @@ def _originals():
     return [OfflineOriginal("evidence-a", PAYLOAD_A), OfflineOriginal("evidence-b", PAYLOAD_B)]
 
 
+class DurableOriginalStore:
+    name = "worm-a"
+
+    def __init__(self, payloads=None):
+        self.payloads = payloads or {"evidence-a": PAYLOAD_A, "evidence-b": PAYLOAD_B}
+        self.reads = []
+
+    def read_immutable_version(self, *, tenant_id, evidence_id, object_ref, version_ref):
+        self.reads.append((tenant_id, evidence_id, object_ref, version_ref))
+        return self.payloads[evidence_id]
+
+
+def _durable_service(tmp_path, *, raw_persisted=True, provider="worm-a"):
+    database = tmp_path / "claims.sqlite3"
+    with sqlite3.connect(database) as conn:
+        conn.execute(
+            "CREATE TABLE evidence (tenant_id TEXT NOT NULL, evidence_id TEXT NOT NULL, content_hash TEXT NOT NULL, metadata_json TEXT NOT NULL)"
+        )
+        for evidence_id, payload in (("evidence-a", PAYLOAD_A), ("evidence-b", PAYLOAD_B)):
+            metadata = {
+                "raw_content_persisted": raw_persisted,
+                "original_store_provider": provider,
+                "original_object_ref": f"obj/{evidence_id}",
+                "original_version_ref": f"v/{evidence_id}",
+            }
+            conn.execute(
+                "INSERT INTO evidence(tenant_id,evidence_id,content_hash,metadata_json) VALUES(?,?,?,?)",
+                ("tenant-a", evidence_id, hashlib.sha256(payload).hexdigest(), json.dumps(metadata)),
+            )
+        conn.commit()
+    return SimpleNamespace(store=SimpleNamespace(path=database))
+
+
 def test_confidential_export_carries_every_exact_original_and_preflights_offline_verifier():
     pack = _pack()
     bundle = build_offline_verification_export_bundle(pack, originals=_originals())
@@ -94,6 +131,57 @@ def test_confidential_export_refuses_unknown_or_duplicate_originals():
         build_offline_verification_export_bundle(
             _pack(),
             originals=_originals() + [OfflineOriginal("evidence-a", PAYLOAD_A)],
+        )
+
+
+def test_durable_export_reads_only_persisted_tenant_scoped_immutable_versions(tmp_path):
+    service = _durable_service(tmp_path)
+    store = DurableOriginalStore()
+    originals = read_durable_originals_for_offline_export(
+        service=service,
+        proof_pack=_pack(),
+        original_store=store,
+    )
+    assert [(item.evidence_id, item.content) for item in originals] == [
+        ("evidence-a", PAYLOAD_A),
+        ("evidence-b", PAYLOAD_B),
+    ]
+    assert store.reads == [
+        ("tenant-a", "evidence-a", "obj/evidence-a", "v/evidence-a"),
+        ("tenant-a", "evidence-b", "obj/evidence-b", "v/evidence-b"),
+    ]
+
+    bundle = build_durable_offline_verification_export_bundle(
+        service=service,
+        proof_pack=_pack(),
+        original_store=store,
+    )
+    assert bundle["independent_verification"]["valid"] is True
+
+
+def test_durable_export_refuses_hash_only_or_wrong_provider_metadata(tmp_path):
+    with pytest.raises(AssuranceStoreError, match="were not durably persisted"):
+        read_durable_originals_for_offline_export(
+            service=_durable_service(tmp_path / "not-persisted", raw_persisted=False),
+            proof_pack=_pack(),
+            original_store=DurableOriginalStore(),
+        )
+
+    with pytest.raises(AssuranceStoreError, match="provider mismatch"):
+        read_durable_originals_for_offline_export(
+            service=_durable_service(tmp_path / "wrong-provider", provider="other-store"),
+            proof_pack=_pack(),
+            original_store=DurableOriginalStore(),
+        )
+
+
+def test_durable_export_refuses_store_bytes_that_drift_from_manifest(tmp_path):
+    store = DurableOriginalStore(payloads={"evidence-a": b"tampered", "evidence-b": PAYLOAD_B})
+    with pytest.raises(AssuranceStoreError, match="sha256 mismatch for evidence-a"):
+        read_durable_originals_for_offline_export(
+            service=_durable_service(tmp_path),
+            proof_pack=_pack(),
+            original_store=store,
         )
 
 
