@@ -141,9 +141,9 @@ def _global_api_cors(response):
     return response
 
 
-# Gunicorn imports this module before it starts accepting requests. Complete all
-# idempotent schema/read-model work and install additive global-source runtimes
-# before allowing the ingestion and push workers to run.
+# Every Gunicorn worker imports this module independently. Startup DDL/WAL work
+# is serialized across those processes, while process-local runtime patches are
+# installed in each worker before it can serve traffic.
 import app as _app
 from app import db, init_db, start_background_worker
 from bounded_sync import sync_once as bounded_source_sync_once
@@ -165,30 +165,33 @@ from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 from runtime_db_hardening import install as install_runtime_db_hardening
 from push_schema_fastpath import install as install_push_schema_fastpath
+from runtime_leader import acquire_runtime_leader, serialized_startup
 import preload as _preload
 import push_runtime as _push_runtime
 
-init_db()
-_lifecycle_conn = db()
-try:
-    ensure_evaluation_schema(_lifecycle_conn)
-    ensure_lifecycle_table(_lifecycle_conn)
-    ensure_traffic_schema(_lifecycle_conn)
-    ensure_push_schema(_lifecycle_conn)
-    ensure_decision_input_table(_lifecycle_conn)
-    _lifecycle_conn.commit()
-finally:
-    _lifecycle_conn.close()
+with serialized_startup():
+    init_db()
+    _lifecycle_conn = db()
+    try:
+        ensure_evaluation_schema(_lifecycle_conn)
+        ensure_lifecycle_table(_lifecycle_conn)
+        ensure_traffic_schema(_lifecycle_conn)
+        ensure_push_schema(_lifecycle_conn)
+        ensure_decision_input_table(_lifecycle_conn)
+        _lifecycle_conn.commit()
+    finally:
+        _lifecycle_conn.close()
+    # WAL mode is persistent but PRAGMA journal_mode can itself require a lock;
+    # serialize it with migrations so a second HTTP worker cannot race startup.
+    install_runtime_db_hardening(_preload, _app)
 
 # All push objects now exist, so install a read-only steady-state schema check
 # that still delegates to the real migrator for any fresh/legacy connection.
 install_push_schema_fastpath(_push_runtime)
 
-# Select both the bounded source writer and incremental account scorer before the
-# ingestion worker can run. `preload.sync_once_with_events` reads these globals at
-# call time, preserving source staging/health/event semantics without one long
-# SQLite writer transaction.
-install_runtime_db_hardening(_preload, _app)
+# Select both the bounded source writer and incremental account scorer before any
+# elected background leader can run. Every HTTP worker receives identical read
+# models and source runtime wiring, but only one process owns scheduled writes.
 _preload._original_sync_once = bounded_source_sync_once
 _preload._record_account_decisions = record_account_decisions
 
@@ -210,5 +213,9 @@ install_canadabuys_runtime(
     record_blocked=_preload._record_blocked_global_source,
 )
 
-start_background_worker()
-start_push_scheduler()
+# A process-lifetime non-blocking lease prevents duplicate ingestion/push loops
+# when Gunicorn has multiple workers. Follower workers remain dedicated capacity
+# for customer HTTP requests while the leader refreshes procurement data.
+if acquire_runtime_leader():
+    start_background_worker()
+    start_push_scheduler()
