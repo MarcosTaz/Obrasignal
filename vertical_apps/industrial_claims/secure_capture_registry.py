@@ -65,9 +65,9 @@ def _validate_intake_metadata(
     *,
     evidence_role: str,
     tenant_id: str,
+    received_at: str,
 ) -> None:
-    authorization_id = _required(metadata.get("intake_authorization_id"), label="intake_authorization_id", maximum=256)
-    _ = authorization_id
+    _required(metadata.get("intake_authorization_id"), label="intake_authorization_id", maximum=256)
     stored_scope_sha256 = _sha256(
         metadata.get("intake_authorization_scope_sha256"),
         label="intake_authorization_scope_sha256",
@@ -91,35 +91,32 @@ def _validate_intake_metadata(
     expires_at = _aware_datetime(metadata.get("intake_authorization_expires_at"), label="intake_authorization_expires_at")
     if expires_at < authorized_at:
         raise SecureCaptureRegistryError("secure-capture intake authorization chronology is invalid")
+    received = _aware_datetime(received_at, label="received_at")
+    if received < authorized_at or received > expires_at:
+        raise SecureCaptureRegistryError("secure-capture received_at is outside authorized intake window")
+
     minimum_retention = _aware_datetime(
         metadata.get("intake_minimum_immutable_retention_until"),
         label="intake_minimum_immutable_retention_until",
     )
     if not _true(metadata.get("intake_immutable_retention_acknowledged")):
         raise SecureCaptureRegistryError("secure-capture immutable retention was not authorized")
-
     data_terms = str(metadata.get("intake_data_terms_state") or "").strip().upper()
     if data_terms not in ALLOWED_DATA_TERMS_STATES:
         raise SecureCaptureRegistryError("secure-capture intake data terms are not cleared")
     _sha256(metadata.get("intake_authorized_by_sha256"), label="intake_authorized_by_sha256")
     _sha256(metadata.get("intake_transfer_channel_sha256"), label="intake_transfer_channel_sha256")
-
     try:
         max_bytes = int(metadata.get("intake_max_bytes_per_evidence"))
     except (TypeError, ValueError) as exc:
         raise SecureCaptureRegistryError("secure-capture intake byte limit is invalid") from exc
     if not (1 <= max_bytes <= 100_000_000):
         raise SecureCaptureRegistryError("secure-capture intake byte limit is invalid")
-
     original_retention = _aware_datetime(metadata.get("original_retention_until"), label="original_retention_until")
     if original_retention < minimum_retention:
         raise SecureCaptureRegistryError("secure-capture provider retention is shorter than authorized immutable retention")
-
     try:
-        recomputed_scope_sha256 = recompute_intake_authorization_scope_sha256(
-            metadata,
-            tenant_id=tenant_id,
-        )
+        recomputed_scope_sha256 = recompute_intake_authorization_scope_sha256(metadata, tenant_id=tenant_id)
     except IntakeAuthorizationError as exc:
         raise SecureCaptureRegistryError("secure-capture intake authorization scope cannot be recomputed") from exc
     if recomputed_scope_sha256 != stored_scope_sha256:
@@ -131,17 +128,7 @@ def _now() -> str:
 
 
 class SecureCaptureRegistry:
-    """Append-only registry of authorized immutable-original evidence envelopes.
-
-    Original bytes live only in the configured immutable object store. This DB
-    records the exact EvidenceEnvelope metadata/hash needed to bind that original
-    into a case later without re-uploading or pretending extracted text is the
-    original document. Durable registration requires a bounded intake authorization;
-    a low-level secure capture without that authorization is deliberately not
-    eligible for a real customer case. A retry is idempotent only when the complete
-    durable record is identical; any changed content/metadata under the same
-    evidence_id fails.
-    """
+    """Append-only registry of authorized immutable-original evidence envelopes."""
 
     def __init__(self, database: str | Path) -> None:
         self.path = Path(database)
@@ -180,12 +167,7 @@ class SecureCaptureRegistry:
         return conn
 
     @staticmethod
-    def _validated_record(
-        *,
-        evidence: EvidenceEnvelope,
-        evidence_role: str,
-        captured_by: str,
-    ) -> dict[str, str]:
+    def _validated_record(*, evidence: EvidenceEnvelope, evidence_role: str, captured_by: str) -> dict[str, str]:
         role = str(evidence_role or "").strip().lower()
         expected_source = ROLE_SOURCE_TYPES.get(role)
         if expected_source is None:
@@ -206,11 +188,8 @@ class SecureCaptureRegistry:
             raise SecureCaptureRegistryError("secure-capture envelope is not direct original capture")
         if str(metadata.get("raw_content_persisted") or "").strip().lower() != "true":
             raise SecureCaptureRegistryError("secure-capture original bytes are not declared persisted")
-        _validate_intake_metadata(metadata, evidence_role=role, tenant_id=tenant)
-        original_receipt_ref = _required(
-            metadata.get("original_provider_receipt_ref"),
-            label="original_provider_receipt_ref",
-        )
+        _validate_intake_metadata(metadata, evidence_role=role, tenant_id=tenant, received_at=received_at)
+        original_receipt_ref = _required(metadata.get("original_provider_receipt_ref"), label="original_provider_receipt_ref")
         metadata_json = canonical_json_bytes(metadata).decode("utf-8")
         return {
             "evidence_id": evidence_id,
@@ -228,19 +207,10 @@ class SecureCaptureRegistry:
 
     @staticmethod
     def _row_payload(row: sqlite3.Row) -> dict[str, str]:
-        return {
-            "evidence_id": str(row["evidence_id"]),
-            "tenant_id": str(row["tenant_id"]),
-            "evidence_role": str(row["evidence_role"]),
-            "source_type": str(row["source_type"]),
-            "source_ref": str(row["source_ref"]),
-            "received_at": str(row["received_at"]),
-            "content_hash": str(row["content_hash"]),
-            "metadata_json": str(row["metadata_json"]),
-            "metadata_sha256": str(row["metadata_sha256"]),
-            "original_receipt_ref": str(row["original_receipt_ref"]),
-            "captured_by": str(row["captured_by"]),
-        }
+        return {key: str(row[key]) for key in (
+            "evidence_id", "tenant_id", "evidence_role", "source_type", "source_ref", "received_at",
+            "content_hash", "metadata_json", "metadata_sha256", "original_receipt_ref", "captured_by",
+        )}
 
     @classmethod
     def _envelope_from_row(cls, row: sqlite3.Row) -> EvidenceEnvelope:
@@ -260,7 +230,7 @@ class SecureCaptureRegistry:
         if str(metadata.get("raw_content_persisted") or "").strip().lower() != "true":
             raise SecureCaptureRegistryError("secure-capture original persistence binding mismatch")
         _sha256(payload["content_hash"], label="content_hash")
-        _aware(payload["received_at"], label="received_at")
+        received_at = _aware(payload["received_at"], label="received_at")
         expected_source = ROLE_SOURCE_TYPES.get(payload["evidence_role"])
         if expected_source != payload["source_type"]:
             raise SecureCaptureRegistryError("secure-capture role/source binding mismatch")
@@ -268,40 +238,22 @@ class SecureCaptureRegistry:
             metadata,
             evidence_role=payload["evidence_role"],
             tenant_id=payload["tenant_id"],
+            received_at=received_at,
         )
         if not payload["evidence_id"].startswith(f"{payload['tenant_id']}:"):
             raise SecureCaptureRegistryError("secure-capture evidence tenant namespace binding mismatch")
         return EvidenceEnvelope(
-            evidence_id=payload["evidence_id"],
-            tenant_id=payload["tenant_id"],
-            source_type=payload["source_type"],
-            source_ref=payload["source_ref"],
-            received_at=payload["received_at"],
-            content_hash=payload["content_hash"],
-            metadata=metadata,
+            evidence_id=payload["evidence_id"], tenant_id=payload["tenant_id"], source_type=payload["source_type"],
+            source_ref=payload["source_ref"], received_at=payload["received_at"], content_hash=payload["content_hash"], metadata=metadata,
         )
 
-    def record(
-        self,
-        *,
-        evidence: EvidenceEnvelope,
-        evidence_role: str,
-        captured_by: str,
-    ) -> EvidenceEnvelope:
-        record = self._validated_record(
-            evidence=evidence,
-            evidence_role=evidence_role,
-            captured_by=captured_by,
-        )
+    def record(self, *, evidence: EvidenceEnvelope, evidence_role: str, captured_by: str) -> EvidenceEnvelope:
+        record = self._validated_record(evidence=evidence, evidence_role=evidence_role, captured_by=captured_by)
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            existing = conn.execute(
-                "SELECT * FROM causledger_secure_capture_envelopes WHERE evidence_id=?",
-                (record["evidence_id"],),
-            ).fetchone()
+            existing = conn.execute("SELECT * FROM causledger_secure_capture_envelopes WHERE evidence_id=?", (record["evidence_id"],)).fetchone()
             if existing is not None:
-                existing_payload = self._row_payload(existing)
-                if existing_payload != record:
+                if self._row_payload(existing) != record:
                     raise SecureCaptureRegistryError("immutable secure-capture evidence_id collision")
                 return self._envelope_from_row(existing)
             conn.execute(
@@ -318,20 +270,12 @@ class SecureCaptureRegistry:
             conn.commit()
         return evidence
 
-    def get(
-        self,
-        *,
-        tenant_id: str,
-        evidence_id: str,
-        evidence_role: str | None = None,
-        source_ref: str | None = None,
-    ) -> EvidenceEnvelope:
+    def get(self, *, tenant_id: str, evidence_id: str, evidence_role: str | None = None, source_ref: str | None = None) -> EvidenceEnvelope:
         tenant = _required(tenant_id, label="tenant_id", maximum=64)
         evidence_key = _required(evidence_id, label="evidence_id")
         with self._connect() as conn:
             row = conn.execute(
-                """SELECT * FROM causledger_secure_capture_envelopes
-                   WHERE tenant_id=? AND evidence_id=?""",
+                "SELECT * FROM causledger_secure_capture_envelopes WHERE tenant_id=? AND evidence_id=?",
                 (tenant, evidence_key),
             ).fetchone()
         if row is None:
@@ -345,8 +289,5 @@ class SecureCaptureRegistry:
     def count(self, *, tenant_id: str) -> int:
         tenant = _required(tenant_id, label="tenant_id", maximum=64)
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) AS n FROM causledger_secure_capture_envelopes WHERE tenant_id=?",
-                (tenant,),
-            ).fetchone()
+            row = conn.execute("SELECT COUNT(*) AS n FROM causledger_secure_capture_envelopes WHERE tenant_id=?", (tenant,)).fetchone()
         return int(row["n"])
