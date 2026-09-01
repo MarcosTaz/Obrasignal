@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/eas-build-status.yml'
       - '.eas-build-status-once'
 
 jobs:
@@ -33,18 +34,35 @@ jobs:
         working-directory: mobile
         env:
           BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
+          BUILD_GIT_SHA: 11cbc5a527680759fe003132a902aa8164f4b156
         run: |
           set -euo pipefail
-          eas build:view "$BUILD_ID" --json > /tmp/eas-build.json
+          eas build:list \
+            --platform android \
+            --build-profile production \
+            --git-commit-hash "$BUILD_GIT_SHA" \
+            --limit 10 \
+            --json \
+            --non-interactive > /tmp/eas-builds.json
           python - <<'PY'
-          import json
-          payload=json.load(open('/tmp/eas-build.json',encoding='utf-8'))
-          status=str(payload.get('status') or '').upper()
-          platform=str(payload.get('platform') or '').upper()
-          profile=str(payload.get('buildProfile') or payload.get('profile') or '').lower()
-          print(f"eas_build_id={payload.get('id')} status={status} platform={platform} profile={profile or 'unknown'}")
-          assert payload.get('id') == '33e3a915-1330-40ba-9e02-2c10c5a1e148'
-          assert platform == 'ANDROID'
+          import json, os
+          payload=json.load(open('/tmp/eas-builds.json',encoding='utf-8'))
+          builds = payload if isinstance(payload, list) else payload.get('builds', []) if isinstance(payload, dict) else []
+          target = next((item for item in builds if str(item.get('id')) == os.environ['BUILD_ID']), None)
+          if target is None:
+              raise SystemExit(f"Submitted Android build {os.environ['BUILD_ID']} not returned by EAS build:list")
+          status=str(target.get('status') or '').upper().replace('-', '_')
+          platform=str(target.get('platform') or '').upper()
+          profile=str(target.get('buildProfile') or target.get('profile') or '').lower()
+          git_sha=str(target.get('gitCommitHash') or target.get('gitCommit') or '')
+          print(f"eas_build_id={target.get('id')} status={status} platform={platform} profile={profile or 'unknown'} git={git_sha or 'unknown'}")
+          if platform and platform != 'ANDROID':
+              raise SystemExit(f"Wrong EAS platform: {platform}")
+          if profile and profile != 'production':
+              raise SystemExit(f"Wrong EAS build profile: {profile}")
+          if git_sha and git_sha != os.environ['BUILD_GIT_SHA']:
+              raise SystemExit(f"Wrong EAS git commit: {git_sha}")
           if status != 'FINISHED':
               raise SystemExit(f"Android production build not finished: {status}")
+          print('Android production EAS build FINISHED.')
           PY
