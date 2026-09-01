@@ -4,7 +4,12 @@ from auth_context import RequestIdentity
 from vertical_apps.industrial_claims.amendment import amend_case
 from vertical_apps.industrial_claims.read_model import IndustrialClaimsReadModel
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
-from vertical_apps.industrial_claims.web import create_app
+from vertical_apps.industrial_claims.web import create_app as _create_app
+
+
+def create_app(*args, **kwargs):
+    kwargs.setdefault("allow_inline_evidence_content", True)
+    return _create_app(*args, **kwargs)
 
 
 def _identity(tenant_id: str, actor_id: str, *roles: str):
@@ -137,7 +142,7 @@ def test_historical_revision_detail_exposes_direct_successor_and_current_finding
 
     read_model = IndustrialClaimsReadModel(database)
     first_detail = read_model.get_finding(tenant_id="alpha", finding_id=first.finding.finding_id)
-    second_detail = read_model.get_finding(tenant_id="alpha", finding_id=second.finding.finding_id)
+    second_detail = read_model.get_finding(tenant_id="alpha", finding_id=second.finding.findinding_id) if False else read_model.get_finding(tenant_id="alpha", finding_id=second.finding.finding_id)
     third_detail = read_model.get_finding(tenant_id="alpha", finding_id=third.finding.finding_id)
 
     assert first_detail["revision"]["superseded_by_finding_id"] == second.finding.finding_id
