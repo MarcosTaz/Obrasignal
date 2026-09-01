@@ -61,8 +61,6 @@ def _cors(response):
         response.headers["Access-Control-Allow-Origin"] = requested
         response.headers["Vary"] = "Origin"
     elif allowed:
-        # Non-browser responses have no Origin header. Keep the canonical origin
-        # visible for diagnostics without granting an unrequested fallback.
         response.headers["Access-Control-Allow-Origin"] = allowed[0]
         response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-ObraSignal-Version"
@@ -75,7 +73,6 @@ def _cors(response):
 
 
 def _decorate_health(response):
-    """Add bounded auth readiness metadata without exposing provider secrets."""
     if request.path != "/api/v1/health" or not response.is_json:
         return response
     payload = response.get_json(silent=True)
@@ -167,7 +164,9 @@ from germany_runtime import install as install_germany_runtime
 from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 from runtime_db_hardening import install as install_runtime_db_hardening
+from push_schema_fastpath import install as install_push_schema_fastpath
 import preload as _preload
+import push_runtime as _push_runtime
 
 init_db()
 _lifecycle_conn = db()
@@ -181,11 +180,14 @@ try:
 finally:
     _lifecycle_conn.close()
 
-# Install SQLite journal/write hardening only after every account-private table
-# exists. Select both the bounded source writer and incremental account scorer
-# before the ingestion worker can run. `preload.sync_once_with_events` reads its
-# `_original_sync_once` global at call time, so replacing that reference retains
-# source staging/health/event semantics while removing the full-refresh writer lock.
+# All push objects now exist, so install a read-only steady-state schema check
+# that still delegates to the real migrator for any fresh/legacy connection.
+install_push_schema_fastpath(_push_runtime)
+
+# Select both the bounded source writer and incremental account scorer before the
+# ingestion worker can run. `preload.sync_once_with_events` reads these globals at
+# call time, preserving source staging/health/event semantics without one long
+# SQLite writer transaction.
 install_runtime_db_hardening(_preload, _app)
 _preload._original_sync_once = bounded_source_sync_once
 _preload._record_account_decisions = record_account_decisions
