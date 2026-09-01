@@ -42,6 +42,11 @@ REVIEWER_QUEUE_STATES = {"READY_FOR_REVIEW"}
 OPERATOR_QUEUE_STATES = {"APPROVED", "ACTIONED"}
 ADMIN_QUEUE_STATES = REVIEWER_QUEUE_STATES | OPERATOR_QUEUE_STATES
 REVIEW_SCOPE = "INTERNAL_WORKFLOW_APPROVAL"
+INLINE_DOCUMENTARY_FIELDS = (
+    "commercial_basis_content",
+    "event_evidence_content",
+    "cost_evidence_content",
+)
 
 
 class IndustrialClaimsAuthenticationError(Exception):
@@ -59,9 +64,11 @@ def create_app(
     *,
     identity_resolver: Callable[[], RequestIdentity] | None = None,
     proof_providers: ProofProviderBundle | None = None,
+    allow_inline_evidence_content: bool = False,
 ) -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 3_500_000
+    app.config["CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED"] = bool(allow_inline_evidence_content)
     service = IndustrialClaimsService(database)
     read_model = IndustrialClaimsReadModel(database)
     public_verification_store = PublicVerificationStore(database)
@@ -120,11 +127,21 @@ def create_app(
             raise ValueError("JSON body must be an object")
         return payload
 
+    def reject_inline_documentary_content(payload: dict, *, fields: tuple[str, ...]) -> None:
+        if app.config["CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED"]:
+            return
+        for field in fields:
+            value = payload.get(field)
+            if isinstance(value, str) and value.strip():
+                raise ValueError(
+                    "inline documentary content is disabled; use authorized secure evidence capture"
+                )
+
     def candidate_payload(payload: dict) -> tuple[list, object, bool]:
         missing = payload.get("missing_evidence") or []
         if not isinstance(missing, list):
             raise ValueError("missing_evidence must be a list")
-        for field in ("commercial_basis_content", "event_evidence_content", "cost_evidence_content"):
+        for field in INLINE_DOCUMENTARY_FIELDS:
             value = payload.get(field)
             if value is not None and not isinstance(value, str):
                 raise ValueError(f"{field} must be text when supplied")
@@ -192,7 +209,14 @@ def create_app(
 
     @app.get("/health")
     def health():
-        return jsonify({"status": "ok", "vertical": "industrial-claims", "mode": "assisted"})
+        return jsonify({
+            "status": "ok",
+            "vertical": "industrial-claims",
+            "mode": "assisted",
+            "inline_documentary_content_enabled": bool(
+                app.config["CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED"]
+            ),
+        })
 
     @app.get("/findings")
     def list_findings():
@@ -258,6 +282,7 @@ def create_app(
             tenant_id, actor_id = identity("analyst")
             payload = json_object()
             missing, notice_raw, no_notice_deadline = candidate_payload(payload)
+            reject_inline_documentary_content(payload, fields=INLINE_DOCUMENTARY_FIELDS)
             result = service.analyze(
                 tenant_id=tenant_id, actor_id=actor_id, customer_ref=str(payload["customer_ref"]), program_ref=str(payload["program_ref"]), event_ref=str(payload["event_ref"]), claim_family=str(payload["claim_family"]), commercial_basis_ref=str(payload["commercial_basis_ref"]), cost_evidence_ref=str(payload["cost_evidence_ref"]), gross_cost=str(payload["gross_cost"]), currency=str(payload.get("currency", "")), commercial_basis_content=payload.get("commercial_basis_content"), event_evidence_content=payload.get("event_evidence_content"), cost_evidence_content=payload.get("cost_evidence_content"), avoided_cost=str(payload.get("avoided_cost", "0")), resale_reuse=str(payload.get("resale_reuse", "0")), third_party_recovery=str(payload.get("third_party_recovery", "0")), prior_payment=str(payload.get("prior_payment", "0")), other_mitigation=str(payload.get("other_mitigation", "0")), notice_due=date.fromisoformat(str(notice_raw)) if notice_raw else None, notice_deadline_not_applicable=no_notice_deadline, missing_evidence=tuple(str(item) for item in missing),
             )
@@ -288,6 +313,7 @@ def create_app(
             tenant_id, actor_id = identity("analyst")
             payload = json_object()
             missing, notice_raw, no_notice_deadline = candidate_payload(payload)
+            reject_inline_documentary_content(payload, fields=INLINE_DOCUMENTARY_FIELDS)
             result = amend_case(
                 service,
                 tenant_id=tenant_id, finding_id=finding_id, actor_id=actor_id,
@@ -372,6 +398,7 @@ def create_app(
             evidence_content = payload.get("evidence_content")
             if not isinstance(evidence_content, str) or not evidence_content.strip():
                 raise ValueError("documentary outcome evidence content is required as text")
+            reject_inline_documentary_content(payload, fields=("evidence_content",))
             outcome = service.resolve(
                 tenant_id=tenant_id,
                 finding_id=finding_id,
