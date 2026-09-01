@@ -16,14 +16,51 @@ _LEVELS = (
 )
 
 
+def _strict_true(value: object) -> bool:
+    return value is True
+
+
+def _original_has_verified_escrow(item: Mapping[str, Any]) -> bool:
+    evidence_id = str(item.get("evidence_id") or "").strip()
+    evidence_sha256 = str((item.get("hashes") or {}).get("sha256") or "").strip().lower()
+    if not evidence_id or len(evidence_sha256) != 64:
+        return False
+    external = [entry for entry in list(item.get("external_attestations") or []) if isinstance(entry, Mapping)]
+    for receipt in external:
+        details = receipt.get("details") or {}
+        if not isinstance(details, Mapping):
+            continue
+        if str(receipt.get("kind") or "") != "EVIDENCE_ESCROW":
+            continue
+        if str(receipt.get("state") or "").upper() not in {"VALID", "VERIFIED"}:
+            continue
+        if not str(receipt.get("provider_ref") or "").strip():
+            continue
+        if str(receipt.get("digest_algorithm") or "").upper() != "SHA-256":
+            continue
+        if str(receipt.get("digest") or "").strip().lower() != evidence_sha256:
+            continue
+        if str(details.get("evidence_id") or "").strip() != evidence_id:
+            continue
+        # These flags are set only by the dedicated escrow adapter after it has
+        # verified request/receipt binding and read back the same deposited bytes.
+        if not _strict_true(details.get("binding_verified")):
+            continue
+        if not _strict_true(details.get("original_bytes_escrowed")):
+            continue
+        if not _strict_true(details.get("read_back_verified")):
+            continue
+        return True
+    return False
+
+
 def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
     """Describe proof strength without assigning a misleading numeric confidence score.
 
-    Aggregate sealing cannot substitute for preservation of the originals. An
-    original-immutability level therefore requires every evidence item both to
-    remain re-verifiable from retained bytes and to carry its own verified
-    immutability state. Internal integrity sealing alone is deliberately
-    insufficient, and governance retention is not treated as WORM.
+    Aggregate sealing or escrow cannot substitute for preservation of every original.
+    Original-level gates therefore require retained bytes plus per-evidence verified
+    immutability/escrow evidence; a global provider receipt can never manufacture the
+    maximum infrastructure level.
     """
     evidence = list(manifest.get("evidence") or [])
     external = list(manifest.get("external_attestations") or [])
@@ -57,7 +94,11 @@ def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
         bool((item.get("assurance_dimensions") or {}).get("source_authenticated")) for item in evidence
     )
     dual_hash = bool((manifest.get("dual_hash_coverage") or {}).get("sha512"))
-    escrow = "EVIDENCE_ESCROW" in kinds
+    every_original_escrowed = bool(evidence) and all(
+        isinstance(item, Mapping) and _original_has_verified_escrow(item)
+        for item in evidence
+    )
+    escrow = "EVIDENCE_ESCROW" in kinds and every_original_escrowed
     maximum = (
         multi_witness
         and source_authenticated
@@ -81,6 +122,7 @@ def evaluate_proof_strength(manifest: Mapping[str, Any]) -> dict[str, Any]:
         "maximum_provider_quorum_at_least_three": independence["provider_quorum_at_least_three"],
         "source_authentication_for_all_evidence": source_authenticated,
         "dual_sha256_sha512_coverage": dual_hash,
+        "every_original_individually_escrowed": every_original_escrowed,
         "independent_evidence_escrow": escrow,
         "escrow_independent_from_qualified_and_anchor": independence["escrow_independent_from_qualified_and_anchor"],
         "counterparty_acknowledgement": "COUNTERPARTY_ACKNOWLEDGEMENT" in kinds,
