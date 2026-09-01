@@ -72,6 +72,7 @@ class DurableOriginalStore:
 
 
 def _durable_service(tmp_path, *, raw_persisted=True, provider="worm-a"):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     database = tmp_path / "claims.sqlite3"
     with sqlite3.connect(database) as conn:
         conn.execute(
