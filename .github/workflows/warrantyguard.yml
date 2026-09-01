@@ -18,7 +18,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     defaults:
       run:
         working-directory: factories/warrantyguard
@@ -29,3 +29,18 @@ jobs:
           node-version: '22'
       - name: Verify WarrantyGuard completion slice
         run: npm run verify
+      - name: Package verified source
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          ARCHIVE="warrantyguard-source-v${VERSION}-${GITHUB_SHA}.tar.gz"
+          tar --exclude="$ARCHIVE" --exclude='PACKAGE_SHA256.txt' -czf "$ARCHIVE" .
+          sha256sum "$ARCHIVE" | tee PACKAGE_SHA256.txt
+      - name: Upload verified source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: warrantyguard-source-${{ github.sha }}
+          path: |
+            factories/warrantyguard/warrantyguard-source-*.tar.gz
+            factories/warrantyguard/PACKAGE_SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
