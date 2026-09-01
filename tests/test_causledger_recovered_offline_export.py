@@ -226,6 +226,9 @@ def _resolve_secure_outcome(service, database, store: Store, finding_id: str) ->
         final_cumulative=True,
     )
     assert outcome.evidence_ref == evidence_id
+    # Both initial and outcome secure captures intentionally perform exact-version
+    # WORM readback. Reset only instrumentation before measuring export-time reads.
+    store.reads.clear()
     return evidence_id
 
 
