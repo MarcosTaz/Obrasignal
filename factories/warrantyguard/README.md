@@ -1,25 +1,74 @@
 # WarrantyGuard / DebitProof
 
-Canonical Factory: **WarrantyGuard**. Provisional commercial working name: **DebitProof** pending formal brand clearance.
+Canonical Factory: **WarrantyGuard**. Provisional commercial working name: **DebitProof**, pending formal brand clearance.
 
 ## Completion mode
-This Factory is now governed by permanent completion mode: finish the operational company + product, do not stop between safe tasks, and never promote status without evidence. Error/blocker/technical-window end is not project completion.
+This Factory is governed by permanent completion mode: finish the operational company + product, do not stop between safe tasks, and never promote status without evidence. Error, blocker, test failure, individual task completion or technical-window end is not project completion.
 
-## Current terminal
+## Current commercial terminal
 - T1: `PASSED — ASSISTED_LOCAL`
 - T2: `REACHED — 4 real first-touch market exposures`
-- T3: `NOT REACHED — WTP unproven`
+- T3: `NOT REACHED — no real commercial proof / WTP unproven`
+- Real customers: `0`
+- Paid pilots: `0`
+- Verified real recovery: `€0`
+- Revenue received: `€0`
 - PROJECT COMPLETE: `NO`
 
-## Source truth
-Version `0.8.5`, Node.js >=20, zero external npm dependencies. The verified artifact is `warrantyguard-prototype-v0.8.5.tar.gz`, SHA-256 `1a2beb994aae62c582272e73ceb89418898f047dc6b218264889219c3fd2f240`, persisted in the user's ChatGPT Library under `/WarrantyGuard/`.
+## Verified source truth
+Version `0.9.0`, Node.js >=20, zero external npm dependencies.
 
-Pre-sync artifact verification: 52/52 automated tests, 10,000 deterministic debit red-team cases (8,829 known / 1,171 UNKNOWN), 1,000 recovery cases, 18/18 synthetic oracle and clean archive extraction/retest. Repository CI must independently re-prove the synchronized HEAD.
+Last independently verified executable branch head: `343aef3206ffdd1a0e4348e978e51d24d685cb5b`.
+
+GitHub Actions `WarrantyGuard Factory` run `33557506800` completed successfully and generated artifact `9819910373`. The source tarball SHA-256 is:
+
+`a7ed70cfe40f25a557473ac5f6461ee15d822234917a6b2f4c606e06d492d868`
+
+It is persisted in the user's Library as `/WarrantyGuard/warrantyguard-prototype-v0.9.0.tar.gz`.
+
+Verification evidence on that source:
+- 187/187 invariant tests;
+- 10,000 deterministic debit red-team cases;
+- 1,000 recovery red-team cases;
+- 16 document adversarial scenarios;
+- synthetic assisted customer E2E;
+- assisted-local security red-team;
+- HTTP/operator/workspace/resource checks;
+- CI package creation outside the source tree;
+- CI clean extraction + full re-verification;
+- independent download SHA check + clean extraction + full re-verification in a separate runtime.
 
 ## Product boundary
-Current product is assisted-local pre-acceptance financial control for inbound OEM/customer warranty and quality debits. No public customer-data upload, shared persistence or autonomous OEM submission. Missing mapping/contract/evidence/root-cause/responsibility truth remains `UNKNOWN`; UNKNOWN exposes no supported/disputable money.
+Current deliverable is **assisted-local pre-acceptance financial control** for inbound OEM/customer warranty and quality debits. It is not a public customer-data SaaS and does not autonomously submit disputes.
 
-## Completion gap now active
-The permanent completion definition is broader than the current structured-debit engine. Highest-value unfinished Tier-0 work is document truth: receive source warranty/contract text, preserve document/clause/date lineage, extract conservative terms/deadlines/conditions, and connect those terms into the complete case dossier without inventing rights. Public SaaS/auth/billing/support/retention remain later gates and cannot be declared complete from assisted-local tests.
+The assisted journey now covers:
 
-See `FACTORY_STATE.md` for BATON/completion gates and `SOURCE_POINTER.json` for artifact truth.
+`pilot intake → scope → acceptance evidence → data authorization → source document → clause candidates → human review → approved rule provenance → applicable contract → debit/evidence analysis → case dossier → save/return/outcome → monitoring → billing sandbox → support`.
+
+Document truth supports native text plus assisted PDF/DOCX. PDF/DOCX require source hash and human-reviewed extracted text; extraction produces candidates, not legal conclusions.
+
+Missing or ambiguous material mapping, contract, evidence, responsibility, exclusion facts or deadline semantics remains `UNKNOWN / NEEDS REVIEW`. UNKNOWN has no supported/disputable economic output.
+
+## Important safeguards
+- no false warranty/right/remedy inference;
+- no automatic legal conclusion from extracted text;
+- no business-day deadline calculation without a calendar rule;
+- prior credit reduces outstanding and cannot create a fresh recovery opportunity;
+- potential duplicate is not confirmed duplicate;
+- currency totals are separated;
+- draft dispute is not submitted/accepted/recovered value;
+- billing sandbox never creates a real invoice/payment/revenue event;
+- synthetic cycles never prove retention or market validation;
+- public multi-user security is not inferred from assisted-local security tests.
+
+## Completion status
+Internal/synthetic product gates have advanced substantially, but the permanent completion definition still requires external real evidence. The executable completion evaluator requires real evidence for:
+- M — PILOT;
+- N — VALUE;
+- O — COMMERCIAL;
+- P — RETENTION;
+- Q — ECONOMICS.
+
+Until those gates and all other applicable gates are satisfied, `PROJECT_COMPLETE = NO`.
+
+See `FACTORY_STATE.md` for the exact BATON and completion-gate state, and `SOURCE_POINTER.json` for artifact/verification truth.
