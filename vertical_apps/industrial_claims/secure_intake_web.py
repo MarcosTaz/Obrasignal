@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 from collections.abc import Callable, Mapping
+from datetime import datetime, timezone
 from typing import Any
 
 from flask import Blueprint, jsonify, request
@@ -29,7 +31,7 @@ class SecureIntakeWebError(ValueError):
 
 IdentityResolver = Callable[[], tuple[str, str]]
 MAX_ROUTE_ORIGINAL_BYTES = 2_000_000
-_ALLOWED_AUTHORIZATION_KEYS = {
+_COMMON_AUTHORIZATION_KEYS = {
     "authorization_id",
     "authorized_by_ref",
     "authorized_at",
@@ -38,12 +40,10 @@ _ALLOWED_AUTHORIZATION_KEYS = {
     "transfer_channel_ref",
     "data_terms_state",
     "immutable_retention_acknowledged",
-    "max_bytes_per_evidence",
-    "max_bytes",
-    "evidence_roles",
     "purpose",
-    "case_ref",
 }
+_CASE_AUTHORIZATION_KEYS = _COMMON_AUTHORIZATION_KEYS | {"case_ref", "evidence_roles", "max_bytes_per_evidence"}
+_OUTCOME_AUTHORIZATION_KEYS = _COMMON_AUTHORIZATION_KEYS | {"max_bytes"}
 
 
 def _json_object() -> dict[str, Any]:
@@ -60,13 +60,13 @@ def _required_text(value: object, *, label: str, maximum: int) -> str:
     return text
 
 
-def _authorization_object(payload: Mapping[str, Any]) -> dict[str, Any]:
+def _authorization_object(payload: Mapping[str, Any], *, allowed_keys: set[str]) -> dict[str, Any]:
     raw = payload.get("authorization")
     if not isinstance(raw, dict):
         raise SecureIntakeWebError("authorization must be an object")
-    unknown = set(raw) - _ALLOWED_AUTHORIZATION_KEYS
+    unknown = set(raw) - allowed_keys
     if unknown:
-        raise SecureIntakeWebError("authorization contains unsupported fields")
+        raise SecureIntakeWebError("authorization contains unsupported fields for this capture route")
     return dict(raw)
 
 
@@ -88,6 +88,12 @@ def _strict_original(payload: Mapping[str, Any]) -> tuple[bytes, str]:
     return content, content_type
 
 
+def _positive_byte_limit(value: object, *, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not (1 <= value <= 100_000_000):
+        raise SecureIntakeWebError(f"{label} must be an integer byte limit")
+    return value
+
+
 def _capture_identity(tenant_id: str, actor_id: str) -> CaptureIdentity:
     return CaptureIdentity(
         tenant_id=tenant_id,
@@ -99,9 +105,6 @@ def _capture_identity(tenant_id: str, actor_id: str) -> CaptureIdentity:
 
 
 def _unverified_upload_receipt() -> SourceAuthenticationReceipt:
-    # The web route never accepts a caller assertion that source authenticity was
-    # independently verified. Stronger source proof must come through a separately
-    # validated provider path and can never be manufactured by an upload request.
     return SourceAuthenticationReceipt(
         state="UNVERIFIED",
         scheme="AUTHORIZED_UPLOAD",
@@ -109,16 +112,16 @@ def _unverified_upload_receipt() -> SourceAuthenticationReceipt:
     )
 
 
-def _result_body(captured, *, evidence_role: str | None = None) -> dict[str, Any]:
-    metadata = dict(captured.evidence.metadata or {})
+def _result_body(evidence, *, evidence_role: str | None = None, idempotent_replay: bool) -> dict[str, Any]:
+    metadata = dict(evidence.metadata or {})
     return {
-        "evidence_id": captured.evidence.evidence_id,
-        "tenant_id": captured.evidence.tenant_id,
+        "evidence_id": evidence.evidence_id,
+        "tenant_id": evidence.tenant_id,
         "evidence_role": evidence_role,
-        "source_type": captured.evidence.source_type,
-        "source_ref": captured.evidence.source_ref,
-        "received_at": captured.evidence.received_at,
-        "content_sha256": captured.evidence.content_hash,
+        "source_type": evidence.source_type,
+        "source_ref": evidence.source_ref,
+        "received_at": evidence.received_at,
+        "content_sha256": evidence.content_hash,
         "content_sha512": metadata.get("content_sha512"),
         "byte_length": metadata.get("content_size_bytes"),
         "capture_mode": metadata.get("capture_mode"),
@@ -127,9 +130,29 @@ def _result_body(captured, *, evidence_role: str | None = None) -> dict[str, Any
         "exact_version_readback_verified": metadata.get("original_version_readback_verified") is True,
         "raw_content_persisted": str(metadata.get("raw_content_persisted") or "").lower() == "true",
         "raw_content_returned": False,
+        "idempotent_replay": idempotent_replay,
         "recoverability_established": False,
         "source_authenticity_established": False,
+        "authorization_identity_independently_verified": False,
     }
+
+
+def _same_existing_capture(
+    existing,
+    *,
+    content: bytes,
+    content_type: str,
+    actor_id: str,
+    authorization_scope_sha256: str,
+    scope_metadata_key: str,
+) -> bool:
+    metadata = dict(existing.metadata or {})
+    return (
+        existing.content_hash.lower() == hashlib.sha256(content).hexdigest()
+        and str(metadata.get("content_type") or "") == content_type
+        and str(metadata.get(scope_metadata_key) or "").strip().lower() == authorization_scope_sha256
+        and str(metadata.get("identity_actor_id") or "").strip() == actor_id
+    )
 
 
 def create_secure_intake_blueprint(
@@ -148,7 +171,7 @@ def create_secure_intake_blueprint(
             if original_store is None:
                 raise SecureIntakeWebError("secure intake immutable original store is not configured")
             payload = _json_object()
-            authorization_raw = _authorization_object(payload)
+            authorization_raw = _authorization_object(payload, allowed_keys=_CASE_AUTHORIZATION_KEYS)
             content, content_type = _strict_original(payload)
             role = _required_text(payload.get("evidence_role"), label="evidence_role", maximum=64).lower()
             evidence_id = _required_text(payload.get("evidence_id"), label="evidence_id", maximum=2048)
@@ -158,7 +181,10 @@ def create_secure_intake_blueprint(
             if not isinstance(raw_roles, list):
                 raise SecureIntakeWebError("authorization evidence_roles must be a list")
             purpose = str(authorization_raw.get("purpose") or BOUNDED_RAPID_SCAN_PURPOSE).strip().upper()
-            max_bytes = authorization_raw.get("max_bytes_per_evidence", MAX_ROUTE_ORIGINAL_BYTES)
+            max_bytes = _positive_byte_limit(
+                authorization_raw.get("max_bytes_per_evidence", MAX_ROUTE_ORIGINAL_BYTES),
+                label="max_bytes_per_evidence",
+            )
             authorization = IntakeAuthorization(
                 authorization_id=_required_text(authorization_raw.get("authorization_id"), label="authorization_id", maximum=256),
                 tenant_id=tenant_id,
@@ -182,6 +208,33 @@ def create_secure_intake_blueprint(
                 purpose=purpose,
                 max_bytes_per_evidence=max_bytes,
             )
+            now = datetime.now(timezone.utc)
+            validated = authorization.validated(now=now)
+            if len(content) > validated.max_bytes_per_evidence:
+                raise SecureIntakeWebError("evidence exceeds authorized intake byte limit")
+
+            try:
+                existing = capture_registry.get(
+                    tenant_id=tenant_id,
+                    evidence_id=evidence_id,
+                    evidence_role=role,
+                    source_ref=source_ref,
+                )
+            except SecureCaptureRegistryError as exc:
+                if str(exc) != "tenant-scoped secure-capture envelope not found":
+                    raise
+            else:
+                if not _same_existing_capture(
+                    existing,
+                    content=content,
+                    content_type=content_type,
+                    actor_id=actor_id,
+                    authorization_scope_sha256=validated.scope_sha256,
+                    scope_metadata_key="intake_authorization_scope_sha256",
+                ):
+                    raise SecureIntakeWebError("immutable secure intake evidence id collision")
+                return jsonify(_result_body(existing, evidence_role=role, idempotent_replay=True)), 200
+
             captured = capture_authorized_original_evidence(
                 authorization=authorization,
                 evidence_role=role,
@@ -193,13 +246,10 @@ def create_secure_intake_blueprint(
                 content_type=content_type,
                 source_authentication=_unverified_upload_receipt(),
                 effective_at=str(payload.get("effective_at") or "").strip() or None,
+                clock=lambda: now,
             )
-            capture_registry.record(
-                evidence=captured.evidence,
-                evidence_role=role,
-                captured_by=actor_id,
-            )
-            return jsonify(_result_body(captured, evidence_role=role)), 201
+            capture_registry.record(evidence=captured.evidence, evidence_role=role, captured_by=actor_id)
+            return jsonify(_result_body(captured.evidence, evidence_role=role, idempotent_replay=False)), 201
         except (SecureIntakeWebError, ValueError, SecureCaptureRegistryError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -210,12 +260,15 @@ def create_secure_intake_blueprint(
             if original_store is None:
                 raise SecureIntakeWebError("secure intake immutable original store is not configured")
             payload = _json_object()
-            authorization_raw = _authorization_object(payload)
+            authorization_raw = _authorization_object(payload, allowed_keys=_OUTCOME_AUTHORIZATION_KEYS)
             content, content_type = _strict_original(payload)
             evidence_id = _required_text(payload.get("evidence_id"), label="evidence_id", maximum=2048)
             source_ref = _required_text(payload.get("source_ref"), label="source_ref", maximum=2048)
             purpose = str(authorization_raw.get("purpose") or DOCUMENTED_FINAL_OUTCOME_PURPOSE).strip().upper()
-            max_bytes = authorization_raw.get("max_bytes", MAX_ROUTE_ORIGINAL_BYTES)
+            max_bytes = _positive_byte_limit(
+                authorization_raw.get("max_bytes", MAX_ROUTE_ORIGINAL_BYTES),
+                label="max_bytes",
+            )
             authorization = OutcomeEvidenceAuthorization(
                 authorization_id=_required_text(authorization_raw.get("authorization_id"), label="authorization_id", maximum=256),
                 tenant_id=tenant_id,
@@ -238,6 +291,33 @@ def create_secure_intake_blueprint(
                 purpose=purpose,
                 max_bytes=max_bytes,
             )
+            now = datetime.now(timezone.utc)
+            validated = authorization.validated(now=now)
+            if len(content) > validated.max_bytes:
+                raise SecureIntakeWebError("outcome evidence exceeds authorized byte limit")
+
+            try:
+                existing = outcome_registry.get(
+                    tenant_id=tenant_id,
+                    evidence_id=evidence_id,
+                    finding_id=finding_id,
+                    source_ref=source_ref,
+                )
+            except SecureOutcomeRegistryError as exc:
+                if str(exc) != "tenant-scoped secure outcome evidence not found":
+                    raise
+            else:
+                if not _same_existing_capture(
+                    existing,
+                    content=content,
+                    content_type=content_type,
+                    actor_id=actor_id,
+                    authorization_scope_sha256=validated.scope_sha256,
+                    scope_metadata_key="outcome_authorization_scope_sha256",
+                ):
+                    raise SecureIntakeWebError("immutable secure outcome evidence id collision")
+                return jsonify(_result_body(existing, idempotent_replay=True)), 200
+
             captured = capture_authorized_outcome_evidence(
                 authorization=authorization,
                 original_store=original_store,
@@ -248,9 +328,10 @@ def create_secure_intake_blueprint(
                 content_type=content_type,
                 source_authentication=_unverified_upload_receipt(),
                 effective_at=str(payload.get("effective_at") or "").strip() or None,
+                clock=lambda: now,
             )
             outcome_registry.record(evidence=captured.evidence, captured_by=actor_id)
-            return jsonify(_result_body(captured)), 201
+            return jsonify(_result_body(captured.evidence, idempotent_replay=False)), 201
         except (SecureIntakeWebError, ValueError, SecureOutcomeRegistryError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
