@@ -57,6 +57,20 @@ def test_identity_release_blocks_each_missing_or_ambiguous_prerequisite(override
     assert decision.ready_for_public_contact_cta is False
 
 
+@pytest.mark.parametrize(
+    "override,blocker",
+    [
+        ({"apex_txt_records": ("v=spf10 include:fake.test -all",)}, "SPF_MISSING"),
+        ({"dmarc_txt_records": ("v=DMARC10; p=reject",)}, "DMARC_MISSING"),
+        ({"dkim_records_by_selector": {"selector1": ("v=DKIM10; k=rsa; p=fake",)}}, "DKIM_MISSING"),
+    ],
+)
+def test_identity_release_rejects_lookalike_protocol_version_tags(override, blocker):
+    decision = evaluate_identity_release(_evidence(**override))
+    assert blocker in decision.blockers
+    assert decision.ready_for_brand_outbound is False
+
+
 def test_identity_release_recognizes_enforced_dmarc_without_requiring_it_for_initial_readiness():
     decision = evaluate_identity_release(
         _evidence(dmarc_txt_records=("v=DMARC1; p=reject; pct=100",))
