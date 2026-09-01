@@ -159,12 +159,16 @@ def _same_existing_capture(
 
 def create_secure_intake_blueprint(
     *,
-    service,
     capture_registry: SecureCaptureRegistry,
     outcome_registry: SecureOutcomeRegistry,
     capture_identity: IdentityResolver,
     original_store: OriginalEvidenceStore | None,
+    service=None,
 ) -> Blueprint:
+    if service is None:
+        from vertical_apps.industrial_claims.service import IndustrialClaimsService
+        service = IndustrialClaimsService(capture_registry.path)
+
     blueprint = Blueprint("causledger_secure_intake", __name__)
 
     @blueprint.post("/secure-evidence/capture")
@@ -299,9 +303,6 @@ def create_secure_intake_blueprint(
             if len(content) > validated.max_bytes:
                 raise SecureIntakeWebError("outcome evidence exceeds authorized byte limit")
 
-            # Settlement evidence is only meaningful for the current ACTIONED case.
-            # Reject nonexistent, superseded, pre-action and already-closed findings
-            # before any immutable provider write, preventing orphan WORM objects.
             service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
             if service.ops.get_state(tenant_id=tenant_id, finding_id=finding_id) != "ACTIONED":
                 raise SecureIntakeWebError("secure outcome evidence may only be captured for an ACTIONED finding")
