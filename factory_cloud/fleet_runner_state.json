@@ -6,12 +6,12 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 1,
-  "last_factory_id": "obrasignal",
-  "last_run_at": "2026-09-01T08:38:09Z",
+  "cursor": 2,
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-09-01T10:38:04Z",
   "last_material_change": {
-    "kind": "OBRASIGNAL_PRODUCTION_HARDENING_EXACT_HEAD_GREEN",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Factory Cloud state was reconstructed first. ObraSignal PR #890 is OPEN/NOT_MERGED/mergeable=false at exact HEAD 91d31452e19abb65d6eff6aac7897c6327c76fd5 with ObraSignal Quality run 33407801718 SUCCESS. The PR hardens official-domain CORS/canonical-origin handling, privacy-safe returning-visitor estimates and production smoke coverage, but domain ownership/DNS remains an external fail-closed gate and no production/customer/revenue outcome is inferred. CausLedger Gmail watch found no new material mail in the post-baton window; no outbound was sent.",
+    "kind": "CAUSLEDGER_STALE_RED_BLOCKER_REPAIRED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Registry/state were reconstructed first. Industrial Claims/CausLedger PR #785 remains OPEN/DRAFT/NOT_MERGED at exact HEAD dce402b96328ccdd189a73dc5e3a813e117b4b72. ObraSignal Quality run 33456814787 is completed SUCCESS on that exact HEAD, so the previously persisted Python/Factory Cloud RED blocker was stale and has been removed. This is repository evidence only and does not establish any real claim, entitlement, recovery, payment, WTP, customer or revenue outcome. Gmail watch found no new material inbound in the current post-baton window; no outbound was sent. ScopeLedger exact open-PR and default-branch code searches returned no canonical result, so its production/canonical lineage remains unproved rather than inferred.",
     "evidence": {
       "portfolio_registry_count": 33,
       "causledger_inbound": {
@@ -20,34 +20,37 @@
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       },
-      "obrasignal_production_hardening": {
-        "pr": 890,
-        "head_sha": "91d31452e19abb65d6eff6aac7897c6327c76fd5",
+      "industrial_claims": {
+        "pr": 785,
+        "head_sha": "dce402b96328ccdd189a73dc5e3a813e117b4b72",
         "state": "OPEN",
-        "draft": false,
+        "draft": true,
         "merged": false,
-        "mergeable": false,
-        "quality_run": 33407801718,
+        "quality_run": 33456814787,
         "quality_conclusion": "success",
-        "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY",
-        "external_gate": "DOMAIN_OWNERSHIP_DNS_UNPROVED"
+        "classification": "EXACT_HEAD_GREEN_REPOSITORY_EVIDENCE_ONLY"
+      },
+      "scopeledger": {
+        "open_pr_exact_name_search_count": 0,
+        "default_branch_code_search_count": 0,
+        "classification": "CANONICAL_LIVE_LINEAGE_UNPROVED"
       }
     },
-    "active": "Industrial Supplier Claims / CausLedger — continue business-first inbound watch, compliant channel development, private prospect research, and exact PR #785 failure recovery.",
-    "next": "Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal.",
+    "active": "ScopeLedger — continue canonical lineage reconstruction and highest-value repository-safe hardening if an exact authority is recovered; otherwise rotate immediately.",
+    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in this run.",
-      "Industrial Claims/CausLedger PR #785 remains RED in Python repository/Factory Cloud tests pending exact failure recovery.",
+      "ScopeLedger live canonical implementation/production lineage remains unproved after exact open-PR and default-branch code searches returned no canonical result.",
       "ObraSignal PR #890 is exact-head Quality GREEN but mergeable=false; domain ownership/DNS remains externally unproved.",
       "ObraSignal final composition PR #882 remains integration-blocked pending current-main reconciliation and fresh exact-head gates."
     ]
   },
   "blocked": [
-    {"factory_id":"industrial-claims","blocker":"Outbound legal holds remain; PR #785 Python/Factory Cloud test failure needs exact failure recovery.","global_stop":false},
+    {"factory_id":"industrial-claims","blocker":"Outbound legal holds remain; PR #785 technical RED blocker is cleared by exact-head Quality SUCCESS, but no real commercial outcome is proved.","global_stop":false},
     {"factory_id":"obrasignal","blocker":"PR #890 exact-head Quality GREEN but mergeable=false and official-domain ownership/DNS remains an external fail-closed gate; final composition PR #882 also remains integration-blocked.","global_stop":false},
-    {"factory_id":"scopeledger","blocker":"Live canonical implementation/production lineage unproved.","global_stop":false},
+    {"factory_id":"scopeledger","blocker":"Live canonical implementation/production lineage unproved; exact open-PR and default-branch code searches returned no canonical result.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
