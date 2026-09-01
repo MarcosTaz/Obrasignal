@@ -1,0 +1,15 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createPilotIntake,setPilotScope,recordPilotAcceptance,authorizePilotData,verifyPilotIntake} from '../lib/intake.mjs';
+const ts='2026-09-01T20:00:00Z';
+const base=()=>createPilotIntake({tenantId:'t1',id:'I1',organization:'Supplier One',contactName:'A Person',contactEmail:'A@Example.com',role:'Warranty Manager',termsVersion:'pilot-v1',privacyNoticeVersion:'privacy-v1',createdAt:ts});
+function scoped(){const r=base();setPilotScope(r,{description:'Historical debit diagnostic',maxCases:50,maxDocuments:20,allowedCurrencies:['EUR'],at:'2026-09-01T20:01:00Z'});return r;}
+test('intake starts draft and never promotes real customer',()=>{const r=base();assert.equal(r.state,'DRAFT');assert.equal(r.realCustomerPromoted,false);assert.equal(r.commercialTruth,'EXTERNAL_EVIDENCE_REQUIRED')});
+test('contact email is normalized',()=>assert.equal(base().contact.email,'a@example.com'));
+test('invalid email rejected',()=>assert.throws(()=>createPilotIntake({tenantId:'t',id:'i',organization:'o',contactName:'n',contactEmail:'bad',role:'r',termsVersion:'v',privacyNoticeVersion:'p',createdAt:ts}),/INVALID_CONTACT_EMAIL/));
+test('scope limits are explicit',()=>{const r=scoped();assert.deepEqual(r.scope.allowedCurrencies,['EUR']);assert.equal(r.scope.maxCases,50);assert.equal(r.state,'SCOPE_READY')});
+test('acceptance impossible before scope',()=>assert.throws(()=>recordPilotAcceptance(base(),{acceptedBy:'buyer',evidenceHash:'hash',at:ts}),/SCOPE_REQUIRED_BEFORE_ACCEPTANCE/));
+test('acceptance preserves terms and privacy lineage',()=>{const r=scoped();recordPilotAcceptance(r,{acceptedBy:'buyer',evidenceHash:'acceptance-hash',at:'2026-09-01T20:02:00Z'});assert.equal(r.accepted.termsVersion,'pilot-v1');assert.equal(r.accepted.privacyNoticeVersion,'privacy-v1');assert.equal(r.state,'ACCEPTED_FOR_ASSISTED_PILOT')});
+test('data authorization impossible before acceptance',()=>assert.throws(()=>authorizePilotData(scoped(),{dataClasses:['CONTRACTS'],at:ts}),/PILOT_ACCEPTANCE_REQUIRED/));
+test('prohibited secrets cannot be authorized',()=>{const r=scoped();recordPilotAcceptance(r,{acceptedBy:'buyer',evidenceHash:'h',at:'2026-09-01T20:02:00Z'});assert.throws(()=>authorizePilotData(r,{dataClasses:['CONTRACTS','SECRETS'],at:'2026-09-01T20:03:00Z'}),/PROHIBITED_DATA_CLASS_SECRETS/)});
+test('allowed pilot data becomes assisted-local authorized',()=>{const r=scoped();recordPilotAcceptance(r,{acceptedBy:'buyer',evidenceHash:'h',at:'2026-09-01T20:02:00Z'});authorizePilotData(r,{dataClasses:['CONTRACTS','DEBIT_EXPORTS','EVIDENCE'],at:'2026-09-01T20:03:00Z'});assert.equal(r.state,'DATA_INTAKE_AUTHORIZED');assert.equal(r.dataAuthorization.boundary,'ASSISTED_LOCAL_ONLY');assert.equal(verifyPilotIntake(r).ok,true)});
+test('audit tamper is detected',()=>{const r=scoped();r.audit[0].type='TAMPERED';assert.equal(verifyPilotIntake(r).ok,false)});
+test('commercial truth tamper is detected',()=>{const r=scoped();r.realCustomerPromoted=true;assert.equal(verifyPilotIntake(r).reason,'COMMERCIAL_TRUTH_VIOLATION')});
