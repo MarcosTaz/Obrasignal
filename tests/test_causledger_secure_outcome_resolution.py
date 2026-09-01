@@ -152,7 +152,7 @@ def test_secure_outcome_closes_actioned_finding_with_exact_registered_evidence(t
     assert outcome.finding_id == finding_id
     assert outcome.evidence_ref == evidence.evidence_id
     detail = service.read_model.get_finding(tenant_id="tenant-a", finding_id=finding_id)
-    assert detail["finding"]["state"] == "RESOLVED"
+    assert detail["finding"]["state"] == "RECOVERED"
     assert len(detail["outcomes"]) == 1
     assert detail["outcomes"][0]["evidence"]["evidence_id"] == evidence.evidence_id
     assert detail["outcomes"][0]["evidence"]["verification_state"] == "CONTENT_HASHED"
