@@ -24,6 +24,28 @@ def _json_list(value: object, *, label: str) -> list[Any]:
     return parsed
 
 
+def _outcome_evidence_ids(detail: dict[str, Any], *, case_evidence_ids: set[str]) -> list[str]:
+    raw_outcomes = detail.get("outcomes")
+    if not isinstance(raw_outcomes, list):
+        raise AssuranceStoreError("durable proof pack outcome lineage is invalid")
+    result: list[str] = []
+    seen: set[str] = set()
+    for outcome in raw_outcomes:
+        if not isinstance(outcome, dict):
+            raise AssuranceStoreError("durable proof pack outcome lineage is invalid")
+        evidence = outcome.get("evidence")
+        if not isinstance(evidence, dict):
+            raise AssuranceStoreError("durable proof pack outcome evidence lineage is invalid")
+        evidence_id = str(evidence.get("evidence_id") or "").strip()
+        if not evidence_id:
+            raise AssuranceStoreError("durable proof pack outcome evidence identity is missing")
+        if evidence_id in case_evidence_ids or evidence_id in seen:
+            raise AssuranceStoreError("durable proof pack outcome evidence identity is duplicated")
+        seen.add(evidence_id)
+        result.append(evidence_id)
+    return result
+
+
 def build_durable_claim_proof_pack(
     service: IndustrialClaimsService,
     *,
@@ -38,6 +60,8 @@ def build_durable_claim_proof_pack(
     Evidence and change chronology are reconstructed with SELECT-only reads. Proof
     generation never creates missing proof tables or requests external attestations.
     Missing proof therefore stays missing rather than being repaired by observation.
+    Final outcome evidence is part of the manifest lineage when present; a recovered
+    dossier therefore cannot omit the documentary record used to close the finding.
     """
     revision = service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
     detail = service.read_model.get_finding(
@@ -64,6 +88,10 @@ def build_durable_claim_proof_pack(
         detail_evidence_ids = [str(item["evidence_id"]) for item in detail["evidence_index"]]
         if len(detail_evidence_ids) != len(evidence_ids) or set(detail_evidence_ids) != set(evidence_ids):
             raise AssuranceStoreError("durable proof pack evidence lineage does not match read model")
+        outcome_evidence_ids = _outcome_evidence_ids(
+            detail,
+            case_evidence_ids=set(evidence_ids),
+        )
 
         calculation = conn.execute(
             "SELECT * FROM calculations WHERE tenant_id=? AND calculation_id=?",
@@ -112,6 +140,43 @@ def build_durable_claim_proof_pack(
                 "raw_content_persisted": metadata.get("raw_content_persisted", "unknown"),
             })
 
+        for evidence_id in outcome_evidence_ids:
+            row = conn.execute(
+                "SELECT * FROM evidence WHERE tenant_id=? AND evidence_id=?",
+                (tenant_id, evidence_id),
+            ).fetchone()
+            if row is None or str(row["source_type"]) != "recovery_outcome_evidence":
+                raise AssuranceStoreError("durable proof pack outcome evidence not found")
+            try:
+                metadata = json.loads(str(row["metadata_json"]))
+            except (TypeError, ValueError) as exc:
+                raise AssuranceStoreError("durable proof pack outcome evidence metadata is invalid") from exc
+            if not isinstance(metadata, dict):
+                raise AssuranceStoreError("durable proof pack outcome evidence metadata is invalid")
+            envelope = EvidenceEnvelope(
+                evidence_id=str(row["evidence_id"]),
+                tenant_id=str(row["tenant_id"]),
+                source_type=str(row["source_type"]),
+                source_ref=str(row["source_ref"]),
+                received_at=str(row["received_at"]),
+                content_hash=str(row["content_hash"]),
+                metadata=metadata,
+            )
+            outcome_record = next(
+                (
+                    item
+                    for item in detail["outcomes"]
+                    if str((item.get("evidence") or {}).get("evidence_id") or "") == evidence_id
+                ),
+                None,
+            )
+            if outcome_record is None:
+                raise AssuranceStoreError("durable proof pack outcome evidence is not bound to an outcome")
+            expected_hash = str((outcome_record.get("evidence") or {}).get("content_hash") or "").strip().lower()
+            if not expected_hash or envelope.content_hash.lower() != expected_hash:
+                raise AssuranceStoreError("durable proof pack outcome evidence digest drift")
+            envelopes.append(envelope)
+
     validate_evidence_attestation_bindings(tuple(envelopes), tuple(attestations))
     change_chronology = read_change_chronology(
         service.store.path,
@@ -150,6 +215,7 @@ def build_durable_claim_proof_pack(
             "legal_conclusion": None,
             "change_capture_is_evidence_preservation_not_entitlement": True,
             "proof_pack_generation_is_read_only": True,
+            "final_outcome_evidence_in_manifest_when_present": True,
         },
     }
     manifest = build_proof_manifest(
