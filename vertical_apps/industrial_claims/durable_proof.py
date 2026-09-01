@@ -8,8 +8,16 @@ from typing import Any, Sequence
 from factory_cloud.assurance_kernel import EvidenceEnvelope
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.change_chronology_reader import read_change_chronology
-from vertical_apps.industrial_claims.intake_authorization import BOUNDED_RAPID_SCAN_PURPOSE
-from vertical_apps.industrial_claims.outcome_authorization import DOCUMENTED_FINAL_OUTCOME_PURPOSE
+from vertical_apps.industrial_claims.intake_authorization import (
+    BOUNDED_RAPID_SCAN_PURPOSE,
+    IntakeAuthorizationError,
+    recompute_intake_authorization_scope_sha256,
+)
+from vertical_apps.industrial_claims.outcome_authorization import (
+    DOCUMENTED_FINAL_OUTCOME_PURPOSE,
+    OutcomeAuthorizationError,
+    recompute_outcome_authorization_scope_sha256,
+)
 from vertical_apps.industrial_claims.proof import (
     ExternalAttestation,
     build_proof_manifest,
@@ -164,6 +172,23 @@ def _validate_secure_case_registry_binding(
     if str(metadata.get("original_retention_mode") or "").strip().upper() != "COMPLIANCE":
         raise AssuranceStoreError("durable proof pack secure case retention mode mismatch")
 
+    stored_scope_sha256 = str(metadata.get("intake_authorization_scope_sha256") or "").strip().lower()
+    try:
+        recomputed_scope_sha256 = recompute_intake_authorization_scope_sha256(
+            metadata,
+            tenant_id=tenant_id,
+        )
+    except IntakeAuthorizationError as exc:
+        raise AssuranceStoreError("durable proof pack secure case authorization scope cannot be recomputed") from exc
+    if recomputed_scope_sha256 != stored_scope_sha256:
+        raise AssuranceStoreError("durable proof pack secure case authorization scope hash mismatch")
+    raw_authorized_roles = metadata.get("intake_authorized_evidence_roles")
+    if not isinstance(raw_authorized_roles, list):
+        raise AssuranceStoreError("durable proof pack secure case authorized role scope is missing")
+    authorized_roles = tuple(dict.fromkeys(str(item or "").strip().lower() for item in raw_authorized_roles))
+    if role not in authorized_roles:
+        raise AssuranceStoreError("durable proof pack secure case role is outside authorization scope")
+
     table = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='causledger_secure_capture_envelopes'"
     ).fetchone()
@@ -190,12 +215,13 @@ def _validate_secure_case_registry_binding(
 
     scope = (
         str(metadata.get("intake_authorization_id") or "").strip(),
-        str(metadata.get("intake_authorization_scope_sha256") or "").strip().lower(),
+        stored_scope_sha256,
         str(metadata.get("intake_case_ref") or "").strip(),
         str(metadata.get("intake_purpose") or "").strip().upper(),
         str(metadata.get("intake_authorized_at") or "").strip(),
         str(metadata.get("intake_authorization_expires_at") or "").strip(),
         str(metadata.get("intake_minimum_immutable_retention_until") or "").strip(),
+        json.dumps(list(authorized_roles), separators=(",", ":")),
         str(metadata.get("intake_data_terms_state") or "").strip().upper(),
         str(metadata.get("intake_authorized_by_sha256") or "").strip().lower(),
         str(metadata.get("intake_transfer_channel_sha256") or "").strip().lower(),
@@ -203,8 +229,6 @@ def _validate_secure_case_registry_binding(
     )
     if any(not value for value in scope):
         raise AssuranceStoreError("durable proof pack secure case authorization scope is incomplete")
-    if len(scope[1]) != 64 or any(ch not in "0123456789abcdef" for ch in scope[1]):
-        raise AssuranceStoreError("durable proof pack secure case authorization scope hash is invalid")
     return scope
 
 
@@ -235,6 +259,17 @@ def _validate_secure_outcome_registry_binding(
     if str(metadata.get("original_retention_mode") or "").strip().upper() != "COMPLIANCE":
         raise AssuranceStoreError("durable proof pack secure outcome retention mode mismatch")
 
+    stored_scope_sha256 = str(metadata.get("outcome_authorization_scope_sha256") or "").strip().lower()
+    try:
+        recomputed_scope_sha256 = recompute_outcome_authorization_scope_sha256(
+            metadata,
+            tenant_id=tenant_id,
+        )
+    except OutcomeAuthorizationError as exc:
+        raise AssuranceStoreError("durable proof pack secure outcome authorization scope cannot be recomputed") from exc
+    if recomputed_scope_sha256 != stored_scope_sha256:
+        raise AssuranceStoreError("durable proof pack secure outcome authorization scope hash mismatch")
+
     table = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='causledger_secure_outcome_envelopes'"
     ).fetchone()
@@ -259,9 +294,7 @@ def _validate_secure_outcome_registry_binding(
         raise AssuranceStoreError("durable proof pack secure outcome registry digest drift")
     if str(registry["authorization_id"]) != str(metadata.get("outcome_authorization_id") or ""):
         raise AssuranceStoreError("durable proof pack secure outcome authorization id drift")
-    if str(registry["authorization_scope_sha256"]).lower() != str(
-        metadata.get("outcome_authorization_scope_sha256") or ""
-    ).lower():
+    if str(registry["authorization_scope_sha256"]).lower() != stored_scope_sha256:
         raise AssuranceStoreError("durable proof pack secure outcome authorization scope drift")
     if str(registry["original_receipt_ref"]) != str(metadata.get("original_provider_receipt_ref") or ""):
         raise AssuranceStoreError("durable proof pack secure outcome original receipt drift")
@@ -281,8 +314,8 @@ def build_durable_claim_proof_pack(
     Evidence and change chronology are reconstructed with SELECT-only reads. Proof
     generation never creates missing proof tables or requests external attestations.
     Missing proof therefore stays missing rather than being repaired by observation.
-    Secure originals are re-bound to their append-only authorization registries at
-    Proof Pack time rather than trusting only the mutable case evidence projection.
+    Secure originals are re-bound to their append-only authorization registries and
+    their authorization scope hashes are independently recomputed at Proof Pack time.
     """
     revision = service.revision_store.require_current(tenant_id=tenant_id, finding_id=finding_id)
     detail = service.read_model.get_finding(
@@ -464,6 +497,7 @@ def build_durable_claim_proof_pack(
             "change_capture_is_evidence_preservation_not_entitlement": True,
             "proof_pack_generation_is_read_only": True,
             "secure_case_registry_binding_enforced_when_declared_secure": True,
+            "secure_authorization_scope_recomputed_from_persisted_metadata": True,
             "final_outcome_evidence_in_manifest_when_present": True,
             "final_outcome_bound_to_resolution_audit": True,
             "secure_outcome_bound_to_authorization_registry": True,
