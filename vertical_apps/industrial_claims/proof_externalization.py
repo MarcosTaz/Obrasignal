@@ -74,6 +74,7 @@ def build_externalized_durable_proof_pack(
     finding_id: str,
     providers: ProofProviderBundle,
     generated_at: str | None = None,
+    expected_target_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Explicitly request external proof over one stable, precomputed target.
 
@@ -90,6 +91,13 @@ def build_externalized_durable_proof_pack(
         generated_at=generated,
     )
     target = dict(initial["proof_manifest"]["attestation_target"])
+    current_target_sha256 = str(target.get("sha256") or "").strip().lower()
+    if expected_target_sha256 is not None:
+        expected = str(expected_target_sha256).strip().lower()
+        if expected != current_target_sha256:
+            raise ProofExternalizationError(
+                "reviewed proof target is stale; no external proof provider was called"
+            )
     revision = int(initial["core_package"]["revision"]["number"])
     request = _provider_request(
         tenant_id=tenant_id,
@@ -120,6 +128,7 @@ def build_externalized_durable_proof_pack(
         "explicit_operation": True,
         "normal_proof_pack_read_remains_side_effect_free": True,
         "target_sha256": request.digest,
+        "expected_target_sha256_enforced": expected_target_sha256 is not None,
         "provider_kinds_requested": [item.kind for item in attestations],
         "provider_states": {item.kind: item.state for item in attestations},
         "global_worm_not_requested": True,
