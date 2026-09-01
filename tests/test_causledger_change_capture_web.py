@@ -42,7 +42,8 @@ def test_case_creation_returns_active_change_sheet_prompt(tmp_path):
     assert capture["download_prompt"]["active"] is True
     assert capture["download_prompt"]["stops_when_factual_window_closes"] is True
     assert capture["download_prompt"]["download_path"].endswith("/change-sheet")
-    assert "Descreva o pedido" in capture["download_prompt"]["message"]
+    assert capture["download_prompt"]["message"].strip()
+    assert capture["download_prompt"]["current_snapshot_exported"] is False
 
 
 def test_client_can_add_simple_request_description_and_download_hashed_sheet(tmp_path):
@@ -64,7 +65,9 @@ def test_client_can_add_simple_request_description_and_download_hashed_sheet(tmp
     body = summary.get_json()
     assert body["fact_receipt"]["fact_hash"]
     assert body["capture"]["requested_change_source"] == "DECLARED_FACT"
-    assert "Descarregue a folha" in body["capture"]["download_prompt"]["message"]
+    assert body["capture"]["download_prompt"]["active"] is True
+    assert body["capture"]["download_prompt"]["message"].strip()
+    assert body["capture"]["download_prompt"]["current_snapshot_exported"] is False
 
     declared_time = client.post(
         f"/findings/{finding}/change-facts",
@@ -95,7 +98,9 @@ def test_client_can_add_simple_request_description_and_download_hashed_sheet(tmp
 
     status = client.get(f"/findings/{finding}/change-capture").get_json()
     assert status["download_count"] == 1
-    assert status["download_prompt"]["active"] is True
+    assert status["download_prompt"]["active"] is False
+    assert status["download_prompt"]["current_snapshot_exported"] is True
+    assert status["download_reminder"]["state"] == "SATISFIED_CURRENT_SNAPSHOT"
 
 
 def test_reviewer_alone_cannot_use_client_fact_capture_surface(tmp_path):
