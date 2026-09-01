@@ -125,11 +125,30 @@ def test_app_externalization_is_operator_only_explicit_fail_closed_and_audited(t
         "PUBLIC_ANCHOR",
     ]
 
+    integrity = operator.get(
+        f"/findings/{finding_id}/proof-pack/externalizations/{operation_id}/integrity"
+    )
+    assert integrity.status_code == 200
+    integrity_body = integrity.get_json()
+    assert integrity_body["valid"] is True
+    assert integrity_body["errors"] == []
+    assert integrity_body["operation_state"] == "COMPLETED"
+    assert integrity_body["receipts_present"] is True
+    assert integrity_body["receipt_count"] == 4
+    assert integrity_body["operation_archive_chain_head_sha256"] == operation["attestation_archive_chain_head_sha256"]
+    assert integrity_body["operation_completed_does_not_imply_proof_verified"] is True
+
     wrong_finding = operator.get(
         f"/findings/{other_finding_id}/proof-pack/externalizations/{operation_id}/receipts"
     )
     assert wrong_finding.status_code == 422
     assert "does not belong" in wrong_finding.get_json()["message"]
+
+    wrong_integrity = operator.get(
+        f"/findings/{other_finding_id}/proof-pack/externalizations/{operation_id}/integrity"
+    )
+    assert wrong_integrity.status_code == 422
+    assert "does not belong" in wrong_integrity.get_json()["message"]
 
     status = operator.get(f"/findings/{finding_id}/proof-pack/externalizations")
     assert status.status_code == 200
