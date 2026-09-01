@@ -29,6 +29,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Stagger push acceptance behind primary production gates
+        if: ${{ github.event_name == 'push' }}
+        run: sleep 90
+
       - name: Wait for exact backend build
         env:
           TARGET_BUILD: ${{ github.sha }}
