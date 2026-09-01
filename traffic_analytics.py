@@ -14,7 +14,7 @@ import json
 import os
 import re
 import secrets
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from flask import Blueprint, jsonify, request
 
@@ -123,8 +123,6 @@ def visitor_day_hash(conn, *, ip, user_agent, day):
 
 
 def _geo_from_headers():
-    # These names cover common edge/CDN conventions. Missing values remain
-    # unknown rather than triggering a third-party IP lookup.
     country = (
         request.headers.get("CF-IPCountry")
         or request.headers.get("X-Vercel-IP-Country")
@@ -136,19 +134,33 @@ def _geo_from_headers():
     return _bounded(country, 8), _bounded(region, 80), _bounded(city, 80)
 
 
-def _official_origin():
-    value = (os.getenv("OBRASIGNAL_WEB_ORIGIN") or OFFICIAL_ORIGIN).strip().rstrip("/")
-    return value or OFFICIAL_ORIGIN
+def _normalized_origin(value):
+    value = str(value or "").strip()
+    parsed = urlsplit(value)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
+
+
+def _allowed_origins():
+    """Mirror the customer Web origins accepted by the API CORS boundary.
+
+    The canonical domain remains the primary production origin. Until DNS is
+    activated, GitHub Pages is an explicitly configured published fallback and
+    must not generate a deliberate 403 on every real page view. No arbitrary
+    third-party origin is accepted.
+    """
+    canonical = _normalized_origin(os.getenv("OBRASIGNAL_WEB_ORIGIN") or OFFICIAL_ORIGIN)
+    fallback = _normalized_origin(os.getenv("OBRASIGNAL_CORS_FALLBACK_ORIGIN") or "")
+    return {origin for origin in (canonical, fallback) if origin}
 
 
 def _origin_allowed():
-    origin = (request.headers.get("Origin") or "").strip().rstrip("/")
-    # Same-origin/browser requests carry Origin for this cross-origin API call.
-    # Unit tests/development may omit it; provider mode must not.
+    origin = _normalized_origin(request.headers.get("Origin") or "")
     mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").lower().strip()
     if not origin:
         return mode == "development"
-    return origin == _official_origin()
+    return origin in _allowed_origins()
 
 
 def _is_bot():
@@ -206,11 +218,6 @@ def record_event(payload):
 
 
 def private_summary(conn, *, days=30, now=None):
-    """Return the private aggregate report for a deterministic UTC day window.
-
-    ``now`` is injectable so tests and reporting backfills do not depend on the
-    wall-clock date at which they happen to execute.
-    """
     ensure_traffic_schema(conn)
     reference = now or datetime.now(timezone.utc)
     if reference.tzinfo is None:
