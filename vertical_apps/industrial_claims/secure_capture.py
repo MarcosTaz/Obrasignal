@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from factory_cloud.assurance_kernel import EvidenceEnvelope
 from vertical_apps.industrial_claims.proof_extensions import dual_digest
@@ -11,6 +11,16 @@ from vertical_apps.industrial_claims.proof_storage import OriginalEvidenceStore,
 
 _VERIFIED_SOURCE_STATES = {"VERIFIED", "VALID", "DKIM_VALID", "SIGNATURE_VALID", "API_VERIFIED", "DIRECT_SOURCE_CAPTURE"}
 _STRONG_AMR = {"mfa", "webauthn", "passkey", "hwk", "fido", "fido2"}
+
+
+def _server_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _aware_datetime(value: datetime, *, label: str) -> datetime:
+    if not isinstance(value, datetime) or value.tzinfo is None:
+        raise ValueError(f"{label} must be a timezone-aware datetime")
+    return value.astimezone(timezone.utc)
 
 
 @dataclass(frozen=True)
@@ -42,8 +52,12 @@ class SourceAuthenticationReceipt:
         state = str(self.state or "").strip().upper()
         if not state or not str(self.scheme or "").strip() or not str(self.provider or "").strip():
             raise ValueError("source authentication state, scheme and provider are required")
-        if state in _VERIFIED_SOURCE_STATES and (not self.provider_ref or not self.checked_at):
-            raise ValueError("verified source authentication requires provider reference and checked_at")
+        if state in _VERIFIED_SOURCE_STATES:
+            if not self.provider_ref or not self.checked_at:
+                raise ValueError("verified source authentication requires provider reference and checked_at")
+            parsed = _parse_aware(self.checked_at, label="source authentication checked_at")
+            if parsed is None:
+                raise ValueError("verified source authentication requires checked_at")
 
     @property
     def verified(self) -> bool:
@@ -71,13 +85,7 @@ def _parse_aware(value: str | None, *, label: str) -> datetime | None:
 
 
 def _immutability_state(*, retention_mode: str, legal_hold: bool) -> str:
-    """Describe storage strength without upgrading governance retention to WORM.
-
-    Compliance Object Lock is the only ordinary retention mode described as
-    WORM_LOCKED here. A legal hold is reported separately because it is a strong
-    preservation control but can have a different release/governance lifecycle.
-    Governance retention remains explicitly below the WORM proof gate.
-    """
+    """Describe storage strength without upgrading governance retention to WORM."""
     mode = str(retention_mode or "").strip().upper()
     if mode == "COMPLIANCE":
         return "WORM_LOCKED"
@@ -101,8 +109,8 @@ def capture_original_evidence(
     effective_at: str | None = None,
     retention_until: str | None = None,
     legal_hold: bool = False,
-    first_seen_at: str | None = None,
     metadata: Mapping[str, Any] | None = None,
+    clock: Callable[[], datetime] = _server_now,
 ) -> SecureCaptureResult:
     if not isinstance(content, bytes) or not content:
         raise ValueError("secure evidence capture requires non-empty original bytes")
@@ -111,7 +119,9 @@ def capture_original_evidence(
     if identity.tenant_id.strip() == "" or identity.actor_id.strip() == "" or identity.subject.strip() == "":
         raise ValueError("secure evidence capture requires authenticated tenant/actor/subject")
 
-    first_seen = _parse_aware(first_seen_at, label="first_seen_at") or datetime.now(timezone.utc)
+    # first_seen is deliberately generated inside the trusted capture boundary.
+    # User/request metadata may declare effective_at, but cannot override first_seen.
+    first_seen = _aware_datetime(clock(), label="secure capture clock")
     effective = _parse_aware(effective_at, label="effective_at")
     delayed = effective is not None and effective < first_seen
     digests = dual_digest(content)
