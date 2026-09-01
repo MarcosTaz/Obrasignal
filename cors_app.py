@@ -165,6 +165,7 @@ from italy_runtime import install as install_italy_runtime
 from canada_buys_runtime import install_canadabuys_runtime
 from runtime_db_hardening import install as install_runtime_db_hardening
 from push_schema_fastpath import install as install_push_schema_fastpath
+from runtime_deferred_worker import start_source_worker_after_readiness
 from runtime_leader import acquire_runtime_leader, serialized_startup
 import preload as _preload
 import push_runtime as _push_runtime
@@ -215,7 +216,11 @@ install_canadabuys_runtime(
 
 # A process-lifetime non-blocking lease prevents duplicate ingestion/push loops
 # when Gunicorn has multiple workers. Follower workers remain dedicated capacity
-# for customer HTTP requests while the leader refreshes procurement data.
+# for customer HTTP requests while the leader refreshes procurement data. Heavy
+# source ingestion is deliberately delayed beyond the deployment readiness
+# window so an exact-build health response cannot be followed by a 20s customer
+# timeout. Push scheduling stays live immediately because it is lightweight and
+# customer-facing push preferences must remain available during that grace.
 if acquire_runtime_leader():
-    start_background_worker()
+    start_source_worker_after_readiness(start_background_worker)
     start_push_scheduler()
