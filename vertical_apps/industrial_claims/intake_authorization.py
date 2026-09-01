@@ -50,6 +50,92 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _sha256_digest(value: object, *, label: str) -> str:
+    text = str(value or "").strip().lower()
+    if len(text) != 64 or any(ch not in "0123456789abcdef" for ch in text):
+        raise IntakeAuthorizationError(f"invalid intake authorization {label}")
+    return text
+
+
+def _normalized_roles(value: object) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes, bytearray)):
+        raise IntakeAuthorizationError("intake authorization evidence roles are invalid")
+    try:
+        raw_roles = tuple(value)  # type: ignore[arg-type]
+    except TypeError as exc:
+        raise IntakeAuthorizationError("intake authorization evidence roles are invalid") from exc
+    roles = tuple(dict.fromkeys(str(role or "").strip().lower() for role in raw_roles))
+    if not roles or any(role not in ROLE_SOURCE_TYPES for role in roles):
+        raise IntakeAuthorizationError("intake authorization evidence roles are invalid")
+    return roles
+
+
+def recompute_intake_authorization_scope_sha256(
+    metadata: Mapping[str, Any],
+    *,
+    tenant_id: str,
+) -> str:
+    """Recompute the original bounded intake scope from persisted non-secret metadata.
+
+    This deliberately validates chronology and scope semantics without asking whether
+    the authorization is still live *now*. Once validly captured, evidence remains
+    auditable after the upload authorization itself expires.
+    """
+    tenant = _required(tenant_id, label="tenant_id", maximum=64)
+    authorization_id = _required(metadata.get("intake_authorization_id"), label="authorization_id", maximum=256)
+    case_ref = _required(metadata.get("intake_case_ref"), label="case_ref", maximum=512)
+    purpose = _required(metadata.get("intake_purpose"), label="purpose", maximum=128).upper()
+    if purpose != BOUNDED_RAPID_SCAN_PURPOSE:
+        raise IntakeAuthorizationError("intake authorization purpose is not permitted for pilot capture")
+    authorized_at = _aware(metadata.get("intake_authorized_at"), label="authorized_at")
+    expires_at = _aware(metadata.get("intake_authorization_expires_at"), label="expires_at")
+    retain_until = _aware(
+        metadata.get("intake_minimum_immutable_retention_until"),
+        label="minimum_immutable_retention_until",
+    )
+    if expires_at < authorized_at:
+        raise IntakeAuthorizationError("intake authorization expiry precedes authorization")
+    if not (
+        metadata.get("intake_immutable_retention_acknowledged") is True
+        or str(metadata.get("intake_immutable_retention_acknowledged") or "").strip().lower() == "true"
+    ):
+        raise IntakeAuthorizationError("immutable retention was not acknowledged")
+    roles = _normalized_roles(metadata.get("intake_authorized_evidence_roles"))
+    data_terms_state = _required(metadata.get("intake_data_terms_state"), label="data_terms_state", maximum=64).upper()
+    if data_terms_state not in ALLOWED_DATA_TERMS_STATES:
+        raise IntakeAuthorizationError("intake data terms are not cleared")
+    try:
+        max_bytes = int(metadata.get("intake_max_bytes_per_evidence"))
+    except (TypeError, ValueError) as exc:
+        raise IntakeAuthorizationError("intake authorization byte limit is invalid") from exc
+    if not (1 <= max_bytes <= 100_000_000):
+        raise IntakeAuthorizationError("intake authorization byte limit is invalid")
+    authorized_by_sha256 = _sha256_digest(
+        metadata.get("intake_authorized_by_sha256"),
+        label="authorized_by_sha256",
+    )
+    transfer_channel_sha256 = _sha256_digest(
+        metadata.get("intake_transfer_channel_sha256"),
+        label="transfer_channel_sha256",
+    )
+    scope = {
+        "authorization_id": authorization_id,
+        "tenant_id": tenant,
+        "case_ref": case_ref,
+        "purpose": purpose,
+        "authorized_at": authorized_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "minimum_immutable_retention_until": retain_until.isoformat(),
+        "evidence_roles": list(roles),
+        "data_terms_state": data_terms_state,
+        "immutable_retention_acknowledged": True,
+        "max_bytes_per_evidence": max_bytes,
+        "authorized_by_sha256": authorized_by_sha256,
+        "transfer_channel_sha256": transfer_channel_sha256,
+    }
+    return hashlib.sha256(canonical_json_bytes(scope)).hexdigest()
+
+
 @dataclass(frozen=True)
 class IntakeAuthorization:
     authorization_id: str
@@ -100,9 +186,7 @@ class IntakeAuthorization:
         if data_terms_state not in ALLOWED_DATA_TERMS_STATES:
             raise IntakeAuthorizationError("intake data terms are not cleared")
 
-        roles = tuple(dict.fromkeys(str(role or "").strip().lower() for role in self.evidence_roles))
-        if not roles or any(role not in ROLE_SOURCE_TYPES for role in roles):
-            raise IntakeAuthorizationError("intake authorization evidence roles are invalid")
+        roles = _normalized_roles(self.evidence_roles)
         if not isinstance(self.max_bytes_per_evidence, int) or not (1 <= self.max_bytes_per_evidence <= 100_000_000):
             raise IntakeAuthorizationError("intake authorization byte limit is invalid")
 
@@ -164,6 +248,7 @@ class ValidatedIntakeAuthorization:
             "intake_authorized_at": self.authorized_at.isoformat(),
             "intake_authorization_expires_at": self.expires_at.isoformat(),
             "intake_minimum_immutable_retention_until": self.minimum_immutable_retention_until.isoformat(),
+            "intake_authorized_evidence_roles": list(self.evidence_roles),
             "intake_data_terms_state": self.data_terms_state,
             "intake_immutable_retention_acknowledged": True,
             "intake_authorized_by_sha256": self.authorized_by_sha256,
@@ -224,4 +309,9 @@ def capture_authorized_original_evidence(
     for key, expected in authorization_metadata.items():
         if proof_metadata.get(key) != expected:
             raise IntakeAuthorizationError("secure capture lost intake authorization binding")
+    if recompute_intake_authorization_scope_sha256(
+        proof_metadata,
+        tenant_id=validated.tenant_id,
+    ) != validated.scope_sha256:
+        raise IntakeAuthorizationError("secure capture intake authorization scope is not independently reproducible")
     return captured
