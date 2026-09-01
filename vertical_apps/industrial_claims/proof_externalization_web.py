@@ -28,6 +28,9 @@ from vertical_apps.industrial_claims.proof_externalization_operation import exte
 from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
 from vertical_apps.industrial_claims.proof_storage import OriginalEvidenceStore
 from vertical_apps.industrial_claims.proof_verifier import ExternalVerifier
+from vertical_apps.industrial_claims.secure_capture_registry import SecureCaptureRegistry
+from vertical_apps.industrial_claims.secure_intake_web import create_secure_intake_blueprint
+from vertical_apps.industrial_claims.secure_outcome_registry import SecureOutcomeRegistry
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
@@ -101,6 +104,19 @@ def create_proof_externalization_blueprint(
     archive = attestation_archive or ProofAttestationArchive(audit_store.path)
     confidential_export_audit = offline_export_audit_store or OfflineExportAuditStore(audit_store.path)
     resolve_offline_export_identity = offline_export_identity or operator_identity
+
+    # The assisted runtime's only documentary-byte ingress is deliberately nested
+    # under this already operator-bound subsystem. It writes exact originals to the
+    # configured immutable store and the dedicated append-only registries; normal
+    # analyze/amend/resolve routes remain identifier-only by default.
+    blueprint.register_blueprint(
+        create_secure_intake_blueprint(
+            capture_registry=SecureCaptureRegistry(audit_store.path),
+            outcome_registry=SecureOutcomeRegistry(audit_store.path),
+            capture_identity=operator_identity,
+            original_store=original_store,
+        )
+    )
 
     def json_object() -> dict[str, Any]:
         payload = request.get_json(force=True)
