@@ -6,10 +6,10 @@ SQLite capacity during the most sensitive readiness window. The elected runtime
 leader therefore waits a short bounded grace period before starting the existing
 source worker. The worker itself and its polling cadence remain unchanged.
 
-Production also repairs active accounts that have no decision rows yet when a
-persisted tender corpus already exists. This closes the first-value gap where an
-account can be created between source polls (or while a deploy repeatedly resets
-the source-worker grace period) and otherwise see a permanently empty Radar.
+Production also repairs active accounts whose persisted public corpus has not
+produced any visible relevant decision yet. This closes both the new-account gap
+and the migration gap after a ranking fix: customers must not remain stuck with a
+small stale bootstrap forever merely because they technically have decision rows.
 """
 from __future__ import annotations
 
@@ -36,13 +36,13 @@ def source_start_delay_seconds() -> int:
 
 
 def _repair_accounts_from_existing_corpus() -> int:
-    """Populate a bounded first-value radar for active accounts missing decisions.
+    """Populate a bounded first-value radar for accounts with no visible match.
 
-    This runs only in the elected background leader and never on a customer
-    request. Tenant scoring remains account-scoped; the shared procurement
-    corpus contains public tender data only. Accounts that already have any
-    decision rows are left untouched and normal incremental refresh remains the
-    authoritative convergence path.
+    The shared procurement corpus contains public tender data only. Account
+    scoring remains tenant-scoped. A repair is needed when an active account has
+    no decisions at all *or* has decisions but none at the customer-visible
+    60-point relevance boundary. Re-running the bounded bootstrap also migrates
+    old decisions after matcher improvements without touching another tenant.
     """
     from app import db
     from account_registry import list_active_accounts
@@ -53,25 +53,32 @@ def _repair_accounts_from_existing_corpus() -> int:
         if not conn.execute("SELECT 1 FROM tenders LIMIT 1").fetchone():
             return 0
         account_ids = list_active_accounts(conn)
-        missing = [
-            str(account_id)
-            for account_id in account_ids
-            if not conn.execute(
+        needs_repair = []
+        for raw_account_id in account_ids:
+            account_id = str(raw_account_id or "").strip()
+            if not account_id:
+                continue
+            has_decisions = conn.execute(
                 "SELECT 1 FROM opportunity_decisions WHERE account_id=? LIMIT 1",
-                (str(account_id),),
+                (account_id,),
             ).fetchone()
-        ]
+            has_visible_relevance = conn.execute(
+                "SELECT 1 FROM opportunity_decisions WHERE account_id=? AND score>=60 LIMIT 1",
+                (account_id,),
+            ).fetchone()
+            if not has_decisions or not has_visible_relevance:
+                needs_repair.append(account_id)
     finally:
         conn.close()
 
     repaired = 0
-    for account_id in missing:
+    for account_id in needs_repair:
         try:
             repaired += int(bootstrap_account(account_id) or 0)
         except Exception as exc:  # pragma: no cover - defensive runtime boundary
             print(f"account first-value repair error ({account_id}):", exc)
-    if missing:
-        print(f"account first-value repair: accounts={len(missing)} classified={repaired}")
+    if needs_repair:
+        print(f"account first-value repair: accounts={len(needs_repair)} classified={repaired}")
     return repaired
 
 
