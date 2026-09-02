@@ -6,14 +6,21 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 32,
+  "cursor": 0,
   "last_factory_id": "complianceledger",
   "last_run_at": "2026-09-02T14:39:41Z",
   "last_material_change": {
-    "kind": "COMPLIANCELEDGER_AUTHORITY_UNRECOVERED_ROTATED_FAIL_CLOSED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ComplianceLedger has no recoverable exact PR or default-branch code authority under its registered name in the current repository evidence, so it remains fail-closed rather than inheriting Documentary Billing authority. Rotation advanced to Factory Cloud / Control Tower. Gmail watch on the two successfully queried connected accounts found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound; the third Gmail account hit a transient rate limit, so no comprehensive three-account no-reply claim is made. No outbound was sent and Portugal/Spain holds remain active.",
+    "kind": "FLEET_CURSOR_SEMANTICS_REPAIRED_AFTER_COMPLIANCELEDGER_ROTATION",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Control-loop truth was repaired: fleet_runner.py interprets cursor as the NEXT registry index and increments it after dispatch, while persisted manual BATON updates had been leaving cursor on the just-completed lane. After completing fail-closed ComplianceLedger inspection at registry index 32, cursor is now 0 so the next executable dispatch is Factory Cloud rather than ComplianceLedger again. ComplianceLedger itself still has no recoverable exact-name PR or default-branch code authority and remains fail-closed. Gmail watch on the two successfully queried connected accounts found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound; the third account hit transient provider rate limiting and is not treated as negative evidence. No outbound was sent and Portugal/Spain holds remain active.",
     "evidence": {
       "portfolio_registry_count": 33,
+      "fleet_cursor_contract": {
+        "source": "factory_cloud/fleet_runner.py",
+        "select_semantics": "index = state[cursor] % len(factories)",
+        "post_dispatch_semantics": "cursor = (index + 1) % factory_count",
+        "repaired_next_cursor": 0,
+        "next_factory_id": "factory-cloud"
+      },
       "complianceledger": {
         "registered_target": "ComplianceLedger / Documentary Billing support lane",
         "exact_name_pr_search_results": 0,
@@ -29,7 +36,7 @@
         "spain_unsolicited_commercial_hold": "ACTIVE"
       }
     },
-    "active": "Factory Cloud / Control Tower — verify current branch/control-loop truth and highest-value repository-safe milestone; rotate immediately when blocked.",
+    "active": "Factory Cloud / Control Tower — verify and harden control-loop truth, then rotate using executable next-cursor semantics.",
     "next": "Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
