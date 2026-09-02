@@ -6,38 +6,28 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 20,
-  "last_factory_id": "obrasignal-data-runner",
-  "last_run_at": "2026-09-02T00:37:48Z",
+  "cursor": 22,
+  "last_factory_id": "os-side-factory",
+  "last_run_at": "2026-09-02T01:41:00Z",
   "last_material_change": {
-    "kind": "OBRASIGNAL_MAIN_ADVANCED_MOBILE_BUILD_VERIFICATION_AND_PRODUCTION_SMOKE_GREEN",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ObraSignal main advanced to bad6a169ac9957e5d58c3c16d28249e44bd931c6 via merged PR #920, replacing the EAS build:view verifier with build:list against the already-submitted Android production build and requiring FINISHED status without submitting another build. Fresh production smoke on this exact main SHA completed SUCCESS. Production HTTP Capacity was SKIPPED, so no capacity claim is inferred. Autonomous Revenue Recovery and ObraSignal Data Runner exact standalone source identity were not recovered from default-branch code search and remain UNKNOWN/fail-closed. Gmail watch found no new material CausLedger/CEFAMOL/AFIA/DGC inbound; no outbound was sent and Portugal/Spain holds remain active.",
+    "kind": "BATON_ROTATION_NO_NEW_MATERIAL_EXTERNAL_DELTA",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ObraSignal Data Truth and OS SIDE FACTORY — RECOVERY SUCCESSOR were searched against current repository/PR evidence; exact standalone canonical source identity was not recovered, so both remain UNKNOWN/fail-closed and rotation advanced rather than stopping. ObraSignal main remains bad6a169ac9957e5d58c3c16d28249e44bd931c6. Gmail watch found no new material CausLedger/CEFAMOL/AFIA/DGC inbound after 2026-09-02; no outbound was sent and Portugal/Spain holds remain active.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "obrasignal_main": {
-        "head_sha": "bad6a169ac9957e5d58c3c16d28249e44bd931c6",
-        "source_pr": 920,
-        "source_pr_state": "MERGED",
-        "change": "EAS Android production build verification uses build:list and requires FINISHED without submitting another build",
-        "production_smoke_run": 33575778210,
-        "production_smoke": "SUCCESS",
-        "production_http_capacity_run": 33575816284,
-        "production_http_capacity": "SKIPPED",
-        "classification": "MAIN_AUTHORITY_ADVANCED_PRODUCTION_SMOKE_GREEN_CAPACITY_UNPROVED"
-      },
-      "autonomous_revenue_recovery": {"classification": "UNKNOWN_EXACT_SOURCE_IDENTITY", "default_branch_code_search_matches": 0},
-      "obrasignal_data_runner": {"classification": "UNKNOWN_EXACT_SOURCE_IDENTITY", "default_branch_code_search_matches": 0},
+      "obrasignal_main": {"head_sha": "bad6a169ac9957e5d58c3c16d28249e44bd931c6", "source_pr": 920, "classification": "MAIN_AUTHORITY_UNCHANGED"},
+      "obrasignal_data_truth": {"classification": "UNKNOWN_EXACT_SOURCE_IDENTITY", "default_branch_code_search_matches": 0},
+      "os_side_factory": {"classification": "UNKNOWN_EXACT_SOURCE_IDENTITY", "exact_pr_search_match": false},
       "causledger_inbound": {"new_material_replies": 0, "latest_watch_date": "2026-09-02", "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK", "spain_unsolicited_commercial_hold": "ACTIVE"}
     },
-    "active": "ObraSignal Data Truth — reconstruct exact canonical source identity and current main authority; execute repository-safe work only if authority is recovered, otherwise rotate immediately.",
-    "next": "Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner.",
+    "active": "Customer Journey, First Value & Outcome Integrity — reconstruct current canonical/main authority and highest-value repository-safe customer-outcome gap; rotate immediately if authority cannot be proved.",
+    "next": "Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in this run.",
-      "ObraSignal main production smoke is GREEN at bad6a169ac9957e5d58c3c16d28249e44bd931c6, but Production HTTP Capacity was SKIPPED; do not infer capacity readiness.",
-      "Autonomous Revenue Recovery exact canonical source identity remains UNKNOWN.",
-      "ObraSignal Data Runner exact canonical source identity remains UNKNOWN."
+      "ObraSignal main remains bad6a169ac9957e5d58c3c16d28249e44bd931c6; prior Production HTTP Capacity was SKIPPED, so do not infer capacity readiness.",
+      "ObraSignal Data Truth exact canonical source identity remains UNKNOWN.",
+      "OS SIDE FACTORY — RECOVERY SUCCESSOR exact canonical source identity remains UNKNOWN."
     ]
   },
   "blocked": [
@@ -58,7 +48,9 @@
     {"factory_id":"recoverable-money","blocker":"Exact canonical source identity UNKNOWN after PR search.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"Exact canonical source identity UNKNOWN after PR search.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact canonical source identity UNKNOWN after default-branch code search.","global_stop":false},
-    {"factory_id":"obrasignal-data-runner","blocker":"Exact canonical source identity UNKNOWN after default-branch code search.","global_stop":false}
+    {"factory_id":"obrasignal-data-runner","blocker":"Exact canonical source identity UNKNOWN after default-branch code search.","global_stop":false},
+    {"factory_id":"obrasignal-data-truth","blocker":"Exact canonical source identity UNKNOWN after default-branch code/PR search.","global_stop":false},
+    {"factory_id":"os-side-factory","blocker":"Exact canonical source identity UNKNOWN after targeted PR search.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
