@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
       API_URL: https://obrasignal.onrender.com/api/v1
@@ -49,7 +49,7 @@ jobs:
                   return e.code,body
           status, body=req(base+'/auth/v1/admin/users?page=1&per_page=1000')
           if status!=200:
-              raise SystemExit(f'ADMIN_CONFIRM_BLOCKED existing SUPABASE_KEY has no admin authority (HTTP {status}).')
+              raise SystemExit(f'ADMIN_CONFIRM_BLOCKED existing publishable key has no admin authority (HTTP {status}).')
           users=body.get('users', body if isinstance(body,list) else [])
           user=next((u for u in users if str(u.get('email','')).lower()==target),None)
           if not user: raise SystemExit('ADMIN_CONFIRM_BLOCKED tenant B user not found.')
