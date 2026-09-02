@@ -1,0 +1,42 @@
+name: ObraSignal Play Store Submit One-Shot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/play-submit-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  submit-android-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Require EAS token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Submit exact production build to Google Play
+        env:
+          BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
+        run: eas submit --platform android --id "$BUILD_ID" --profile production --non-interactive --wait
