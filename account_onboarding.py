@@ -19,16 +19,31 @@ from opportunity_match_pipeline import evaluate_row
 # This runs inside POST /profile. Keep it a first-value sample, not a batch job.
 # 250 rows exceeded the real 30 s production contract even after batching.
 MAX_BOOTSTRAP_ROWS = 50
+MAX_BOOTSTRAP_CANDIDATES = 80
 BOOTSTRAP_COMMIT_BATCH = 25
 
 # A customer starts with "Apenas oportunidades abertas" enabled. Therefore the
 # bounded first-value sample must prefer tenders whose deadline is explicitly
 # still open. Unknown-deadline tenders remain eligible, but they no longer fill
-# all 50 bootstrap slots while the customer's initial Radar appears empty.
+# all bootstrap slots while the customer's initial Radar appears empty.
 CONFIRMED_OPEN_SQL = """t.deadline IS NOT NULL AND TRIM(t.deadline)<>'' AND (
     (LENGTH(TRIM(t.deadline))=10 AND date(t.deadline)>=date('now')) OR
     (LENGTH(TRIM(t.deadline))<>10 AND datetime(t.deadline)>=datetime('now'))
 )"""
+
+_DECISION_ORDER = {"QUALIFIED": 0, "REVIEW": 1, "REJECT": 2}
+
+
+def _bootstrap_rank(pair):
+    """Put the account's strongest matches ahead of generic source ranking."""
+    item, evaluation = pair
+    return (
+        _DECISION_ORDER.get(str(evaluation.get("decision") or "REJECT"), 3),
+        -int(evaluation.get("profile_score") or 0),
+        -int(evaluation.get("lot_score") or 0),
+        -int(item.get("score") or 0),
+        str(item.get("external_id") or item.get("id") or ""),
+    )
 
 
 def _emit_bootstrap_events(conn, account_id: str) -> int:
@@ -70,11 +85,12 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
 def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
     """Classify a bounded first-value sample for one account quickly.
 
-    Candidate selection prefers the account's configured countries and then
-    confirmed-open tenders, because the default customer filter shows open work.
-    Expensive scoring is completed before the first decision INSERT, then
-    decisions are persisted in short batches so customer profile saves do not
-    hold SQLite's single writer lock while classification is still computing.
+    The database first supplies a small candidate pool biased toward the
+    account's countries and confirmed-open work. Crucially, those candidates are
+    then evaluated against the *saved company profile* before the final bootstrap
+    rows are chosen. This prevents a high generic/source score from consuming all
+    50 first-value slots with work that does not match the customer's stated
+    activity or specifications.
     """
     account_id = str(account_id or "").strip()
     if not account_id:
@@ -91,7 +107,10 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
             placeholders = ",".join("?" for _ in countries)
             where.append(f"UPPER(COALESCE(t.country,'')) IN ({placeholders})")
             params.extend(countries)
-        params.append(max(1, min(int(limit), MAX_BOOTSTRAP_ROWS)))
+
+        requested_limit = max(1, min(int(limit), MAX_BOOTSTRAP_ROWS))
+        candidate_limit = min(MAX_BOOTSTRAP_CANDIDATES, max(requested_limit, requested_limit * 2))
+        params.append(candidate_limit)
         rows = conn.execute(
             f"""SELECT t.*
                FROM tenders t
@@ -110,7 +129,12 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
             item = dict(row)
             prepared.append((item, evaluate_row(item, profile=profile)))
 
-        for index, (item, evaluation) in enumerate(prepared, start=1):
+        # Source ordering is only candidate discovery. Final first-value
+        # selection is explicitly account-specific.
+        prepared.sort(key=_bootstrap_rank)
+        selected = prepared[:requested_limit]
+
+        for index, (item, evaluation) in enumerate(selected, start=1):
             persist_and_classify(
                 conn,
                 item,
@@ -123,11 +147,11 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
             )
             if index % BOOTSTRAP_COMMIT_BATCH == 0:
                 conn.commit()
-        if prepared and len(prepared) % BOOTSTRAP_COMMIT_BATCH:
+        if selected and len(selected) % BOOTSTRAP_COMMIT_BATCH:
             conn.commit()
 
         _emit_bootstrap_events(conn, account_id)
-        return len(prepared)
+        return len(selected)
     except Exception:
         conn.rollback()
         raise
