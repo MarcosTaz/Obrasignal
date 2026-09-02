@@ -3,7 +3,7 @@
 Render/Gunicorn may begin routing traffic as soon as one worker reports the exact
 build. Starting the procurement refresh at the same instant can consume CPU and
 SQLite capacity during the most sensitive readiness window. The elected runtime
-leader therefore waits a bounded grace period before starting the existing
+leader therefore waits a short bounded grace period before starting the existing
 source worker. The worker itself and its polling cadence remain unchanged.
 
 Production also repairs active accounts that have no decision rows yet when a
@@ -18,7 +18,9 @@ import threading
 import time
 from collections.abc import Callable
 
-DEFAULT_SOURCE_START_DELAY_SECONDS = 120
+# Ten seconds is enough to let Gunicorn expose its health/readiness path while
+# preventing routine UI deploys from postponing procurement ingestion for minutes.
+DEFAULT_SOURCE_START_DELAY_SECONDS = 10
 MAX_SOURCE_START_DELAY_SECONDS = 600
 
 
