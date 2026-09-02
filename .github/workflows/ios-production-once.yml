@@ -1,10 +1,7 @@
 name: ObraSignal iOS Production One-Shot
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/ios-production-once.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
