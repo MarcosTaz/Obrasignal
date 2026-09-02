@@ -21,6 +21,15 @@ from opportunity_match_pipeline import evaluate_row
 MAX_BOOTSTRAP_ROWS = 50
 BOOTSTRAP_COMMIT_BATCH = 25
 
+# A customer starts with "Apenas oportunidades abertas" enabled. Therefore the
+# bounded first-value sample must prefer tenders whose deadline is explicitly
+# still open. Unknown-deadline tenders remain eligible, but they no longer fill
+# all 50 bootstrap slots while the customer's initial Radar appears empty.
+CONFIRMED_OPEN_SQL = """t.deadline IS NOT NULL AND TRIM(t.deadline)<>'' AND (
+    (LENGTH(TRIM(t.deadline))=10 AND date(t.deadline)>=date('now')) OR
+    (LENGTH(TRIM(t.deadline))<>10 AND datetime(t.deadline)>=datetime('now'))
+)"""
+
 
 def _emit_bootstrap_events(conn, account_id: str) -> int:
     ensure_lifecycle_table(conn)
@@ -61,10 +70,11 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
 def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
     """Classify a bounded first-value sample for one account quickly.
 
-    Candidate selection prefers the account's configured countries. Expensive
-    scoring is completed before the first decision INSERT, then decisions are
-    persisted in short batches so customer profile saves do not hold SQLite's
-    single writer lock while classification is still computing.
+    Candidate selection prefers the account's configured countries and then
+    confirmed-open tenders, because the default customer filter shows open work.
+    Expensive scoring is completed before the first decision INSERT, then
+    decisions are persisted in short batches so customer profile saves do not
+    hold SQLite's single writer lock while classification is still computing.
     """
     account_id = str(account_id or "").strip()
     if not account_id:
@@ -88,8 +98,9 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
                LEFT JOIN opportunity_lifecycle lc
                  ON lc.source=t.source AND lc.external_id=t.external_id
                WHERE {' AND '.join(where)}
-               ORDER BY COALESCE(t.score,0) DESC,
-                        COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC
+               ORDER BY CASE WHEN {CONFIRMED_OPEN_SQL} THEN 0 ELSE 1 END,
+                        COALESCE(t.score,0) DESC,
+                        COALESCE(NULLIF(t.publication_date,''), NULLIF(t.published_at,''), t.first_seen) DESC
                LIMIT ?""",
             params,
         ).fetchall()
