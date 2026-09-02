@@ -1,10 +1,7 @@
 name: ObraSignal Android Artifact Verification
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/android-artifact-verification.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
