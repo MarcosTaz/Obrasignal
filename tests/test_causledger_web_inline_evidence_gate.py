@@ -182,8 +182,8 @@ def test_default_console_hides_raw_document_and_outcome_forms_but_synthetic_mode
     assert 'name="cost_evidence_content"' not in strict_html
     assert 'id="resolve-form"' not in strict_html
     assert "Reference-only intake" in strict_html
-    assert "authorized secure evidence-capture path" in strict_html
-    assert "Do not paste bank statements" in strict_html
+    assert "authorized secure evidence path" in strict_html
+    assert "Settlement/closure evidence is captured through the authorized secure evidence path" in strict_html
 
     synthetic_html = synthetic.get("/").get_data(as_text=True)
     assert 'name="commercial_basis_content"' in synthetic_html
