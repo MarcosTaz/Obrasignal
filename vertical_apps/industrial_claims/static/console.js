@@ -1,6 +1,10 @@
 "use strict";
 
 const findingFields = ["review_finding_id", "action_finding_id", "resolve_finding_id"];
+const selectedFindingKey = "certactum:selected-finding";
+
+if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+window.addEventListener("pageshow", () => window.scrollTo({top: 0, left: 0, behavior: "auto"}));
 
 function node(id) {
   return document.getElementById(id);
@@ -13,6 +17,8 @@ function setFinding(id, currency) {
   });
   const currencyField = node("currency");
   if (currency && currencyField) currencyField.value = String(currency).toUpperCase();
+  if (id) sessionStorage.setItem(selectedFindingKey, String(id));
+  else sessionStorage.removeItem(selectedFindingKey);
 }
 
 function render(target, response, body) {
@@ -27,6 +33,33 @@ function render(target, response, body) {
   targetNode.append(heading, detail);
 }
 
+function setBusy(control, busy, label = "Working…") {
+  if (!control) return;
+  if (busy) {
+    control.dataset.previousText = control.textContent;
+    control.disabled = true;
+    control.setAttribute("aria-busy", "true");
+    control.textContent = label;
+  } else {
+    control.disabled = false;
+    control.removeAttribute("aria-busy");
+    if (control.dataset.previousText) {
+      control.textContent = control.dataset.previousText;
+      delete control.dataset.previousText;
+    }
+  }
+}
+
+async function withBusy(control, operation, label) {
+  if (control && control.disabled) return null;
+  setBusy(control, true, label);
+  try {
+    return await operation();
+  } finally {
+    setBusy(control, false);
+  }
+}
+
 async function loadDetail(id) {
   const findingId = String(id || "").trim();
   if (!findingId) {
@@ -37,7 +70,9 @@ async function loadDetail(id) {
     }
     return null;
   }
-  return send(`/findings/${encodeURIComponent(findingId)}`, {method: "GET"}, "detail-result");
+  const result = await send(`/findings/${encodeURIComponent(findingId)}`, {method: "GET"}, "detail-result");
+  if (result && result.response.ok) setFinding(findingId, result.body.currency || result.body.currency_unit);
+  return result;
 }
 
 function renderQueue(body) {
@@ -61,7 +96,7 @@ function renderQueue(body) {
     item.addEventListener("click", async () => {
       const id = String(finding.finding_id || "");
       setFinding(id, finding.currency_unit);
-      await loadDetail(id);
+      await withBusy(item, () => loadDetail(id), "Loading dossier…");
     });
     list.append(item);
   });
@@ -97,6 +132,7 @@ async function loadQueue() {
     const list = node("queue-list");
     if (list) list.replaceChildren();
   }
+  return result;
 }
 
 function jsonRequest(payload) {
@@ -118,7 +154,7 @@ function installAmendmentControl() {
   input.autocomplete = "off";
   input.placeholder = "Leave blank for a new recovery; enter the current finding ID for a corrected revision.";
   const note = document.createElement("small");
-  note.textContent = "An amendment keeps the same recovery identity, creates a new revision and requires fresh independent review. In secure mode this form carries references/economics only; real documentary originals must use authorized secure capture.";
+  note.textContent = "An amendment keeps the same recovery identity, creates a new revision and requires fresh independent review. In secure mode this form carries references/economics only; real documentary originals use authorized secure capture.";
   field.append(label, input, note);
   grid.prepend(field);
 }
@@ -126,7 +162,7 @@ function installAmendmentControl() {
 installAmendmentControl();
 
 const refreshQueue = node("refresh-queue");
-if (refreshQueue) refreshQueue.addEventListener("click", loadQueue);
+if (refreshQueue) refreshQueue.addEventListener("click", () => withBusy(refreshQueue, loadQueue, "Refreshing…"));
 
 const noticeDue = node("notice_due");
 if (noticeDue) noticeDue.addEventListener("change", (event) => {
@@ -143,74 +179,98 @@ if (noNoticeDeadline) noNoticeDeadline.addEventListener("change", (event) => {
 const analyzeForm = node("analyze-form");
 if (analyzeForm) analyzeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
-  const amendFindingId = String(payload.amend_finding_id || "").trim();
-  delete payload.amend_finding_id;
-  ["avoided_cost", "resale_reuse", "third_party_recovery", "prior_payment", "other_mitigation"].forEach((key) => { payload[key] = payload[key] || "0"; });
-  payload.currency = String(payload.currency || "").trim().toUpperCase();
-  payload.notice_deadline_not_applicable = Boolean(noNoticeDeadline && noNoticeDeadline.checked);
-  if (!payload.notice_due) delete payload.notice_due;
-  payload.missing_evidence = (payload.missing_evidence || "").split(",").map((value) => value.trim()).filter(Boolean);
-  const path = amendFindingId ? `/findings/${encodeURIComponent(amendFindingId)}/amend` : "/analyze";
-  const result = await send(path, jsonRequest(payload), "analyze-result");
-  if (result && result.response.ok) {
-    setFinding(result.body.finding_id, result.body.currency);
-    await loadDetail(result.body.finding_id);
-  }
+  const submitter = event.submitter;
+  await withBusy(submitter, async () => {
+    const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const amendFindingId = String(payload.amend_finding_id || "").trim();
+    delete payload.amend_finding_id;
+    ["avoided_cost", "resale_reuse", "third_party_recovery", "prior_payment", "other_mitigation"].forEach((key) => { payload[key] = payload[key] || "0"; });
+    payload.currency = String(payload.currency || "").trim().toUpperCase();
+    payload.notice_deadline_not_applicable = Boolean(noNoticeDeadline && noNoticeDeadline.checked);
+    if (!payload.notice_due) delete payload.notice_due;
+    payload.missing_evidence = (payload.missing_evidence || "").split(",").map((value) => value.trim()).filter(Boolean);
+    const path = amendFindingId ? `/findings/${encodeURIComponent(amendFindingId)}/amend` : "/analyze";
+    const result = await send(path, jsonRequest(payload), "analyze-result");
+    if (result && result.response.ok) {
+      setFinding(result.body.finding_id, result.body.currency);
+      await loadDetail(result.body.finding_id);
+      await loadQueue();
+    }
+  }, amendFindingIdFromForm() ? "Creating revision…" : "Analyzing…");
 });
+
+function amendFindingIdFromForm() {
+  const field = node("amend_finding_id");
+  return field ? String(field.value || "").trim() : "";
+}
 
 const reviewForm = node("review-form");
 if (reviewForm) reviewForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const approved = event.submitter.dataset.approved === "true";
-  const finding = node("review_finding_id");
-  const reason = node("review_reason");
-  if (!finding || !reason) return;
-  const id = finding.value;
-  const result = await send(`/findings/${encodeURIComponent(id)}/review`, jsonRequest({approved, reason: reason.value}), "review-result");
-  if (result && result.response.ok) {
-    await loadDetail(id);
-    await loadQueue();
-  }
+  const submitter = event.submitter;
+  await withBusy(submitter, async () => {
+    const approved = submitter.dataset.approved === "true";
+    const finding = node("review_finding_id");
+    const reason = node("review_reason");
+    if (!finding || !reason) return;
+    const id = finding.value;
+    const result = await send(`/findings/${encodeURIComponent(id)}/review`, jsonRequest({approved, reason: reason.value}), "review-result");
+    if (result && result.response.ok) {
+      await loadDetail(id);
+      await loadQueue();
+    }
+  }, "Saving decision…");
 });
 
 const actionForm = node("action-form");
 if (actionForm) actionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const finding = node("action_finding_id");
-  if (!finding) return;
-  const id = finding.value;
-  const result = await send(`/findings/${encodeURIComponent(id)}/action`, {method: "POST"}, "action-result");
-  if (result && result.response.ok) {
-    await loadDetail(id);
-    await loadQueue();
-  }
+  const submitter = event.submitter;
+  await withBusy(submitter, async () => {
+    const finding = node("action_finding_id");
+    if (!finding) return;
+    const id = finding.value;
+    const result = await send(`/findings/${encodeURIComponent(id)}/action`, {method: "POST"}, "action-result");
+    if (result && result.response.ok) {
+      await loadDetail(id);
+      await loadQueue();
+    }
+  }, "Advancing…");
 });
 
 const resolveForm = node("resolve-form");
 if (resolveForm) resolveForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const finding = node("resolve_finding_id");
-  const outcome = node("outcome_id");
-  const amount = node("recovered_amount");
-  const currency = node("currency");
-  const evidenceRef = node("evidence_ref");
-  const evidenceContent = node("evidence_content");
-  const finalCumulative = node("final_cumulative");
-  if (!finding || !outcome || !amount || !currency || !evidenceRef || !evidenceContent || !finalCumulative) return;
-  const id = finding.value;
-  const payload = {
-    outcome_id: outcome.value,
-    recovered_amount: amount.value,
-    currency: currency.value.trim().toUpperCase(),
-    evidence_ref: evidenceRef.value,
-    evidence_content: evidenceContent.value,
-    final_cumulative: finalCumulative.checked,
-  };
-  const result = await send(`/findings/${encodeURIComponent(id)}/resolve`, jsonRequest(payload), "resolve-result");
-  if (result && result.response.ok) {
-    finalCumulative.checked = false;
-    await loadDetail(id);
-    await loadQueue();
-  }
+  const submitter = event.submitter;
+  await withBusy(submitter, async () => {
+    const finding = node("resolve_finding_id");
+    const outcome = node("outcome_id");
+    const amount = node("recovered_amount");
+    const currency = node("currency");
+    const evidenceRef = node("evidence_ref");
+    const evidenceContent = node("evidence_content");
+    const finalCumulative = node("final_cumulative");
+    if (!finding || !outcome || !amount || !currency || !evidenceRef || !evidenceContent || !finalCumulative) return;
+    const id = finding.value;
+    const payload = {
+      outcome_id: outcome.value,
+      recovered_amount: amount.value,
+      currency: currency.value.trim().toUpperCase(),
+      evidence_ref: evidenceRef.value,
+      evidence_content: evidenceContent.value,
+      final_cumulative: finalCumulative.checked,
+    };
+    const result = await send(`/findings/${encodeURIComponent(id)}/resolve`, jsonRequest(payload), "resolve-result");
+    if (result && result.response.ok) {
+      finalCumulative.checked = false;
+      await loadDetail(id);
+      await loadQueue();
+    }
+  }, "Recording…");
 });
+
+(async function initializeConsole() {
+  await loadQueue();
+  const selected = sessionStorage.getItem(selectedFindingKey);
+  if (selected) await loadDetail(selected);
+})();
