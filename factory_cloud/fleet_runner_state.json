@@ -6,43 +6,42 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 0,
-  "last_factory_id": "complianceledger",
-  "last_run_at": "2026-09-02T14:39:41Z",
+  "cursor": 1,
+  "last_factory_id": "factory-cloud",
+  "last_run_at": "2026-09-02T15:39:29Z",
   "last_material_change": {
-    "kind": "FLEET_CURSOR_SEMANTICS_REPAIRED_AFTER_COMPLIANCELEDGER_ROTATION",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Control-loop truth was repaired: fleet_runner.py interprets cursor as the NEXT registry index and increments it after dispatch, while persisted manual BATON updates had been leaving cursor on the just-completed lane. After completing fail-closed ComplianceLedger inspection at registry index 32, cursor is now 0 so the next executable dispatch is Factory Cloud rather than ComplianceLedger again. ComplianceLedger itself still has no recoverable exact-name PR or default-branch code authority and remains fail-closed. Gmail watch on the two successfully queried connected accounts found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound; the third account hit transient provider rate limiting and is not treated as negative evidence. No outbound was sent and Portugal/Spain holds remain active.",
+    "kind": "FACTORY_CLOUD_CURRENT_MAIN_RECONSTRUCTED_WITH_COMMERCIAL_READINESS_RED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Factory Cloud reconstructed current repository truth: main is 36e0c560e3dc13144c613d6a912101d89c09253f after removing a one-line invalid placeholder .github/workflows/pages.yml. Production Smoke is GREEN on this exact SHA, while Production HTTP Capacity remains SKIPPED. ObraSignal Commercial Readiness is RED on the same exact SHA: checkout-configuration, backend-billing, and official-domain all failed, so release/commercial readiness must remain fail-closed. Gmail watch across all three connected accounts found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound. No outbound was sent and Portugal/Spain holds remain active.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "fleet_cursor_contract": {
-        "source": "factory_cloud/fleet_runner.py",
-        "select_semantics": "index = state[cursor] % len(factories)",
-        "post_dispatch_semantics": "cursor = (index + 1) % factory_count",
-        "repaired_next_cursor": 0,
-        "next_factory_id": "factory-cloud"
-      },
-      "complianceledger": {
-        "registered_target": "ComplianceLedger / Documentary Billing support lane",
-        "exact_name_pr_search_results": 0,
-        "default_branch_code_search_results": 0,
-        "classification": "EXACT_AUTHORITY_UNKNOWN_FAIL_CLOSED"
+      "factory_cloud": {
+        "main_sha": "36e0c560e3dc13144c613d6a912101d89c09253f",
+        "main_change": "removed invalid one-line placeholder .github/workflows/pages.yml",
+        "production_smoke_run": 33648858607,
+        "production_smoke": "SUCCESS",
+        "production_http_capacity_run": 33648915233,
+        "production_http_capacity": "SKIPPED",
+        "commercial_readiness_run": 33638399110,
+        "checkout_configuration": "FAILURE",
+        "backend_billing": "FAILURE",
+        "official_domain": "FAILURE",
+        "classification": "PRODUCTION_SMOKE_GREEN_BUT_COMMERCIAL_READINESS_RED_FAIL_CLOSED"
       },
       "causledger_inbound": {
-        "new_material_replies_on_successfully_queried_accounts": 0,
-        "successfully_queried_accounts": 2,
-        "third_account_watch": "TRANSIENT_RATE_LIMIT_NOT_TREATED_AS_NEGATIVE_EVIDENCE",
+        "new_material_replies": 0,
+        "successfully_queried_accounts": 3,
         "latest_watch_date": "2026-09-02",
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       }
     },
-    "active": "Factory Cloud / Control Tower — verify and harden control-loop truth, then rotate using executable next-cursor semantics.",
-    "next": "Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger.",
+    "active": "ObraSignal — diagnose exact-main commercial-readiness failures without treating Production Smoke GREEN as global readiness.",
+    "next": "ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "ComplianceLedger exact canonical/candidate authority remains UNKNOWN; do not inherit Documentary Billing truth merely because the registry labels it a support lane.",
-      "Third connected Gmail account watch was not completed because of transient provider rate limiting; retry on a later rotation."
+      "ObraSignal exact-main Commercial Readiness is RED: checkout configuration, backend billing reconciliation, and official domain exact-release gate failed on 36e0c560e3dc13144c613d6a912101d89c09253f."
     ]
   },
   "blocked": [
@@ -71,7 +70,8 @@
     {"factory_id":"obrasignal-gtm","blocker":"Exact-head GREEN candidate remains draft/not merged/not canonical; no positive commercial validation exists.","global_stop":false},
     {"factory_id":"obrasignal-customer-decision","blocker":"PR #376 exact-head Python GREEN/Mobile RED; draft/not merged/not canonical.","global_stop":false},
     {"factory_id":"eu-switching-evidence-pack","blocker":"PR #818 exact-head GREEN repository repair only; draft/not merged/not canonical; no live migration/customer/WTP/payment/revenue proof.","global_stop":false},
-    {"factory_id":"complianceledger","blocker":"No exact-name PR or default-branch code authority recovered; registry support-lane label is insufficient to inherit Documentary Billing truth.","global_stop":false}
+    {"factory_id":"complianceledger","blocker":"No exact-name PR or default-branch code authority recovered; registry support-lane label is insufficient to inherit Documentary Billing truth.","global_stop":false},
+    {"factory_id":"obrasignal","blocker":"Exact-main Commercial Readiness run 33638399110 is RED: checkout-configuration, backend-billing, and official-domain failed; Production Smoke GREEN does not override these gates.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
