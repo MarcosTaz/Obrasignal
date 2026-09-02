@@ -6,26 +6,28 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 1,
-  "last_factory_id": "factory-cloud",
-  "last_run_at": "2026-09-02T15:39:29Z",
+  "cursor": 3,
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-09-02T16:38:03Z",
   "last_material_change": {
-    "kind": "FACTORY_CLOUD_CURRENT_MAIN_RECONSTRUCTED_WITH_COMMERCIAL_READINESS_RED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Factory Cloud reconstructed current repository truth: main is 36e0c560e3dc13144c613d6a912101d89c09253f after removing a one-line invalid placeholder .github/workflows/pages.yml. Production Smoke is GREEN on this exact SHA, while Production HTTP Capacity remains SKIPPED. ObraSignal Commercial Readiness is RED on the same exact SHA: checkout-configuration, backend-billing, and official-domain all failed, so release/commercial readiness must remain fail-closed. Gmail watch across all three connected accounts found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound. No outbound was sent and Portugal/Spain holds remain active.",
+    "kind": "CAUSLEDGER_PRIVATE_RESEARCH_ADVANCED_AND_ROTATED_WITHOUT_OUTBOUND",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ObraSignal exact-main commercial readiness remains fail-closed on 36e0c560e3dc13144c613d6a912101d89c09253f: checkout configuration, backend billing reconciliation, and official-domain exact-release gates remain external/configuration blockers, so no repository-safe change was justified to manufacture GREEN. CausLedger private prospect research advanced using publicly presented business routes from official company sites; prospect-level identifiers remain private in Drive and were not written to GitHub. All newly researched routes remain HOLD for country-rule/suppression/sender-readiness review and no outbound was sent. Gmail watch across all three connected accounts found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound. The fleet rotated to ScopeLedger.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "factory_cloud": {
+      "obrasignal": {
         "main_sha": "36e0c560e3dc13144c613d6a912101d89c09253f",
-        "main_change": "removed invalid one-line placeholder .github/workflows/pages.yml",
-        "production_smoke_run": 33648858607,
-        "production_smoke": "SUCCESS",
-        "production_http_capacity_run": 33648915233,
-        "production_http_capacity": "SKIPPED",
         "commercial_readiness_run": 33638399110,
         "checkout_configuration": "FAILURE",
         "backend_billing": "FAILURE",
         "official_domain": "FAILURE",
-        "classification": "PRODUCTION_SMOKE_GREEN_BUT_COMMERCIAL_READINESS_RED_FAIL_CLOSED"
+        "classification": "COMMERCIAL_READINESS_RED_FAIL_CLOSED_EXTERNAL_CONFIGURATION_REMAINS"
+      },
+      "causledger_private_research": {
+        "storage": "PRIVATE_DRIVE_ONLY",
+        "source_class": "PUBLIC_OFFICIAL_COMPANY_SITES",
+        "send_eligibility": "HOLD_COMPLIANCE_ENRICHMENT",
+        "prospect_level_identifiers_in_public_github": false,
+        "outbound_sent": 0
       },
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -35,17 +37,17 @@
         "spain_unsolicited_commercial_hold": "ACTIVE"
       }
     },
-    "active": "ObraSignal — diagnose exact-main commercial-readiness failures without treating Production Smoke GREEN as global readiness.",
-    "next": "ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud.",
+    "active": "ScopeLedger — reconstruct exact standalone canonical/candidate authority and advance the highest-value repository-safe milestone; rotate immediately if exact authority remains unproved.",
+    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "ComplianceLedger exact canonical/candidate authority remains UNKNOWN; do not inherit Documentary Billing truth merely because the registry labels it a support lane.",
-      "ObraSignal exact-main Commercial Readiness is RED: checkout configuration, backend billing reconciliation, and official domain exact-release gate failed on 36e0c560e3dc13144c613d6a912101d89c09253f."
+      "ObraSignal exact-main Commercial Readiness remains RED: checkout configuration, backend billing reconciliation, and official-domain exact-release gate failed on 36e0c560e3dc13144c613d6a912101d89c09253f."
     ]
   },
   "blocked": [
-    {"factory_id":"industrial-claims","blocker":"Outbound legal holds remain; no real commercial outcome is proved.","global_stop":false},
+    {"factory_id":"industrial-claims","blocker":"Outbound legal holds remain; no real commercial outcome is proved. Private compliant research may continue.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Standalone canonical implementation/production authority unproved.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Historical candidate exists; canonical main authority remains unproved.","global_stop":false},
