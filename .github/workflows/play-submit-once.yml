@@ -16,26 +16,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
       - name: Require EAS token
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
-
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: 24
-
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-
       - name: Submit exact production build to Google Play
         env:
           BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
