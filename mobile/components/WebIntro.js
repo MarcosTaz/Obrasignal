@@ -7,7 +7,7 @@ export default function WebIntro({ onComplete }) {
   useEffect(() => {
     const animation = Animated.timing(progress, {
       toValue: 1,
-      duration: 4000,
+      duration: 6500,
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     });
@@ -15,13 +15,13 @@ export default function WebIntro({ onComplete }) {
     return () => animation.stop();
   }, [onComplete, progress]);
 
-  const dotX = progress.interpolate({ inputRange: [0, .18, .36, .54, .72, .84, 1], outputRange: [-170, -75, 85, -85, 75, 0, 0] });
-  const dotY = progress.interpolate({ inputRange: [0, .18, .36, .54, .72, .84, 1], outputRange: [0, -55, 55, 55, -55, 0, 0] });
-  const dotScale = progress.interpolate({ inputRange: [0, .78, .88, 1], outputRange: [.8, 1, 1.45, 1] });
-  const radarOpacity = progress.interpolate({ inputRange: [0, .08, .82, 1], outputRange: [0, 1, 1, .25] });
-  const trailOpacity = progress.interpolate({ inputRange: [0, .12, .72, .86, 1], outputRange: [0, .85, .85, .15, 0] });
-  const brandOpacity = progress.interpolate({ inputRange: [0, .82, .9, 1], outputRange: [0, 0, 1, 1] });
-  const brandY = progress.interpolate({ inputRange: [0, .82, 1], outputRange: [12, 12, 0] });
+  const dotX = progress.interpolate({ inputRange: [0, .11, .22, .33, .44, .52, .62, 1], outputRange: [-170, -75, 85, -85, 75, 0, 0, 0] });
+  const dotY = progress.interpolate({ inputRange: [0, .11, .22, .33, .44, .52, .62, 1], outputRange: [0, -55, 55, 55, -55, 0, 0, 0] });
+  const dotScale = progress.interpolate({ inputRange: [0, .48, .56, .62, 1], outputRange: [.8, 1, 1.45, 1, 1] });
+  const radarOpacity = progress.interpolate({ inputRange: [0, .05, .5, .62, 1], outputRange: [0, 1, 1, .25, .25] });
+  const trailOpacity = progress.interpolate({ inputRange: [0, .08, .44, .56, .62, 1], outputRange: [0, .85, .85, .15, 0, 0] });
+  const brandOpacity = progress.interpolate({ inputRange: [0, .59, .615, 1], outputRange: [0, 0, 1, 1] });
+  const brandY = progress.interpolate({ inputRange: [0, .59, .615, 1], outputRange: [12, 12, 0, 0] });
 
   return <View style={styles.root} accessibilityLabel="ObraSignal — Veja antes. Aja primeiro.">
     <View style={styles.stage}>
