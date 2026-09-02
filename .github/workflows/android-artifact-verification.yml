@@ -1,0 +1,52 @@
+name: ObraSignal Android Artifact Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-artifact-verification.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-production-artifact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Require EAS token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Download exact Android production artifact
+        working-directory: mobile
+        env:
+          BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
+        run: |
+          set -euo pipefail
+          out="$(mktemp -d)"
+          cd "$out"
+          eas build:download --build-id "$BUILD_ID" --json --non-interactive > /tmp/eas-download.json
+          cat /tmp/eas-download.json
+          artifact="$(find "$out" -type f -size +0c | head -n 1)"
+          test -n "$artifact" || { echo "::error::Android build $BUILD_ID has no downloadable artifact."; exit 1; }
+          echo "artifact_name=$(basename "$artifact")"
+          stat -c 'artifact_bytes=%s' "$artifact"
+          sha256sum "$artifact"
+          file "$artifact"
+          echo "ANDROID_ARTIFACT_VERIFIED build_id=$BUILD_ID"
