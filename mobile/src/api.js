@@ -3,7 +3,7 @@ import { authSession } from './authSession';
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'https://obrasignal.onrender.com/api/v1').replace(/\/$/, '');
 const DEFAULT_TIMEOUT = 20000;
-const PROFILE_TIMEOUT = 20000;
+const PROFILE_TIMEOUT = 35000;
 const BACKEND_READY_TIMEOUT = 75000;
 const MAX_ATTEMPTS = 1;
 
@@ -95,10 +95,43 @@ function unwrapProfile(data){
   return profile;
 }
 
+function sameList(expected, actual){
+  const left=(expected||[]).map(value=>String(value).trim()).filter(Boolean);
+  const right=(actual||[]).map(value=>String(value).trim()).filter(Boolean);
+  return JSON.stringify(left)===JSON.stringify(right);
+}
+
+function sameOptionalNumber(expected, actual){
+  if(expected==null||expected==='')return actual==null||actual==='';
+  return Number(expected)===Number(actual);
+}
+
+function persistedProfileMatches(expected, actual){
+  if(!actual||typeof actual!=='object')return false;
+  if(String(expected?.name||'').trim()!==String(actual.name||'').trim())return false;
+  if(String(expected?.activity||'').trim()!==String(actual.activity||'').trim())return false;
+  if(Object.prototype.hasOwnProperty.call(expected||{},'contract_interests')&&!sameList(expected.contract_interests,actual.contract_interests))return false;
+  if(Object.prototype.hasOwnProperty.call(expected||{},'coverage_mode')&&String(expected.coverage_mode||'')!==String(actual.coverage_mode||''))return false;
+  if(Object.prototype.hasOwnProperty.call(expected||{},'countries')&&!sameList(expected.countries,actual.countries))return false;
+  if(Object.prototype.hasOwnProperty.call(expected||{},'regions')&&!sameList(expected.regions,actual.regions))return false;
+  if(Object.prototype.hasOwnProperty.call(expected||{},'min_value')&&!sameOptionalNumber(expected.min_value,actual.min_value))return false;
+  if(Object.prototype.hasOwnProperty.call(expected||{},'max_value')&&!sameOptionalNumber(expected.max_value,actual.max_value))return false;
+  return true;
+}
+
+async function saveProfileVerified(profile){
+  const expected=profile||{};
+  const posted=unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(expected),timeout:PROFILE_TIMEOUT}));
+  if(!persistedProfileMatches(expected,posted))throw new Error('O servidor não confirmou todos os dados do perfil.');
+  const persisted=unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT}));
+  if(!persistedProfileMatches(expected,persisted))throw new Error('O perfil não ficou persistido no servidor. Tenta guardar novamente.');
+  return persisted;
+}
+
 export const api={
   health:()=>ensureBackendReady(),
   profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
-  saveProfile:async(profile)=>unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(profile||{}),timeout:PROFILE_TIMEOUT})),
+  saveProfile:saveProfileVerified,
   billingStatus:()=>readWhenReady('/billing/status'),
   pushStatus:()=>readWhenReady('/push/status'),
   setPushPreference:(preference)=>writeWhenReady('/push/preference',{method:'POST',body:JSON.stringify(preference||{})}),
