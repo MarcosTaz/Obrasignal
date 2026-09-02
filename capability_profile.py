@@ -36,7 +36,7 @@ class CapabilityProfile:
         aliases = {
             "services": "service_types",
             "capabilities": "capability_tags",
-            # Profiles written by the first web form used these names.  Keep
+            # Profiles written by the first web form used these names. Keep
             # accepting them at the matcher boundary so an old persisted JSON
             # document cannot silently lose its commercial envelope.
             "min_value": "minimum_value",
@@ -109,18 +109,86 @@ def _contains_term(text: str, term: str) -> bool:
     return False
 
 
+_STOPWORDS = {
+    "a", "as", "o", "os", "de", "da", "das", "do", "dos", "e", "em",
+    "para", "por", "com", "sem", "uma", "um", "the", "and", "of", "for",
+    "servico", "servicos", "service", "services", "trabalho", "trabalhos",
+    "contrato", "contratos",
+}
+
+
+def _stem_token(token: str) -> str:
+    """Small deterministic stemmer for the inflections common in PT tenders.
+
+    This is intentionally not a general linguistic stemmer. It only normalizes
+    forms that otherwise make a user's natural-language profile miss an obvious
+    tender, e.g. ``instalações elétricas`` vs ``instalação elétrica``.
+    """
+    token = str(token or "")
+    if len(token) > 6 and token.endswith("oes"):
+        token = token[:-3]
+    elif len(token) > 5 and token.endswith("ao"):
+        token = token[:-2]
+    if len(token) > 4 and token.endswith("s"):
+        token = token[:-1]
+    return token
+
+
+def _semantic_tokens(value: str) -> list[str]:
+    normalized = _normalize_term(value)
+    tokens = []
+    for raw in re.findall(r"[a-z0-9]+", normalized):
+        if raw in _STOPWORDS or len(raw) < 4:
+            continue
+        stem = _stem_token(raw)
+        if len(stem) >= 4 and stem not in tokens:
+            tokens.append(stem)
+    return tokens
+
+
+def _semantic_term_match(text: str, term: str) -> bool:
+    """Require all meaningful words from a profile phrase to occur in the tender.
+
+    Exact phrase matching remains preferred, but word order and conservative
+    singular/plural differences no longer make a saved company specification
+    disappear from ranking evidence.
+    """
+    wanted = _semantic_tokens(term)
+    if not wanted:
+        return False
+    available = set(_semantic_tokens(text))
+    if len(wanted) == 1:
+        # Single-word activity evidence is accepted only for a reasonably
+        # specific token; short/generic words never become positive evidence.
+        return len(wanted[0]) >= 5 and wanted[0] in available
+    return all(token in available for token in wanted)
+
+
+def _matches_label(text: str, label: str) -> bool:
+    return _contains_term(text, label) or _semantic_term_match(text, label)
+
+
 def capability_matches_text(profile: dict, text: str) -> dict:
-    """Explain service/capability evidence found in an opportunity description."""
-    services = [str(item) for item in profile.get("services", [])]
-    tags = [str(item) for item in profile.get("capability_tags", [])]
-    matched_services = [item for item in services if _contains_term(text, item)]
-    matched_tags = [item for item in tags if _contains_term(text, item)]
-    evidence = matched_services + matched_tags
+    """Explain service/capability evidence found in an opportunity description.
+
+    User-entered services, capability tags and the primary activity are all
+    authoritative profile inputs. They are matched with conservative semantic
+    normalization so natural Portuguese inflections do not silently erase a
+    company's saved specifications from the Radar.
+    """
+    services = [str(item) for item in profile.get("services", []) if str(item).strip()]
+    tags = [str(item) for item in profile.get("capability_tags", []) if str(item).strip()]
+    activity = str(profile.get("activity") or "").strip()
+    matched_services = [item for item in services if _matches_label(text, item)]
+    matched_tags = [item for item in tags if _matches_label(text, item)]
+    matched_activity = bool(activity and _matches_label(text, activity))
+    evidence = matched_services + matched_tags + ([activity] if matched_activity else [])
     return {
         "status": "MATCH" if evidence else "UNKNOWN",
         "matched": bool(evidence),
         "matched_services": matched_services,
         "matched_capabilities": matched_tags,
+        "matched_activity": activity if matched_activity else None,
         "evidence_count": len(evidence),
         "reason": (
             "foram encontradas capacidades da empresa na descrição"
