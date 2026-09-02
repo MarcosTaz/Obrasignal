@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { createTenantStorage } from './tenantStorage';
 
 const DEFAULT_SETTINGS = {
@@ -73,7 +74,13 @@ export const storage = {
   },
   getCache: () => activePrivateTenant ? privateStorage.getCache(activePrivateTenant) : Promise.resolve(null),
   setCache: (payload) => privateStorage.setCache(requirePrivateTenant(), payload),
-  getProfile: () => activePrivateTenant ? privateStorage.getProfile(activePrivateTenant) : Promise.resolve(null),
+  // On Web the server is the canonical company profile. Hydrating an older
+  // browser copy before GET /profile can make the form appear to have forgotten
+  // a successful save even though the authenticated server record is correct.
+  // Native keeps the tenant-scoped local copy for offline continuity.
+  getProfile: () => activePrivateTenant && Platform.OS !== 'web'
+    ? privateStorage.getProfile(activePrivateTenant)
+    : Promise.resolve(null),
   setProfile: (profile) => privateStorage.setProfile(requirePrivateTenant(), profile),
 };
 
