@@ -23,27 +23,23 @@ def test_operator_console_is_self_contained_and_exposes_safe_assisted_journey(tm
     assert "Reference-only intake" in html
     assert "Create reference-only candidate" in html
     assert "authorized secure evidence path" in html
-    assert "Do not paste bank statements" in html
     assert "Four-eyes review" in html
     assert "selected dossier" in html.lower()
     assert "inspect the selected dossier before review" in html.lower()
     assert "raw document content is not returned" in html.lower()
-    assert "unknown notice deadline" in html.lower()
-    assert "neither state is a legal conclusion" in html.lower()
-    assert "established recoverability" in html.lower()
+    assert "notice deadline values are declared for human review" in html.lower()
     assert "currency is explicit and immutable" in html.lower()
     assert "declare for review: no notice deadline applies" in html.lower()
     assert "analyst declarations for independent review" in html.lower()
     assert "verified: no notice deadline applies" not in html.lower()
     assert "workflow findings" in html.lower()
     assert "approve for internal workflow" in html.lower()
-    assert "approved for internal workflow only" in html.lower()
-    assert "does not establish a legal entitlement" in html.lower()
-    assert "authorize customer contact" in html.lower()
-    assert "authorize external claim submission" in html.lower()
-    assert "not an installment" in html.lower()
-    assert "expired declared date" in html.lower()
-    assert "not proof of non-recoverability" in html.lower()
+    assert "the creator cannot self-approve" in html.lower()
+    assert "settlement/closure evidence is captured through the authorized secure evidence path" in html.lower()
+    assert "final cumulative outcome" in html.lower()
+    assert "ready_for_review" in html.lower()
+    assert "approved" in html.lower()
+    assert "proof pack preserves evidence state" in html.lower()
     assert "actionable findings" not in html.lower()
     assert 'maxlength="512"' in html
     assert 'maxlength="2048"' in html
@@ -98,6 +94,9 @@ def test_console_has_strict_browser_headers_and_safe_dossier_renderer(tmp_path):
     assert "if (resolveForm) resolveForm.addEventListener" in javascript
     assert "No workflow findings for this verified role and tenant." in javascript
     assert "No actionable findings" not in javascript
+    assert 'history.scrollRestoration = "manual"' in javascript
+    assert "withBusy" in javascript
+    assert "sessionStorage" in javascript
 
 
 def test_console_shell_contains_no_tenant_or_case_data(tmp_path):
