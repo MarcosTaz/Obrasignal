@@ -81,6 +81,13 @@ export const storage = {
   getProfile: () => activePrivateTenant && Platform.OS !== 'web'
     ? privateStorage.getProfile(activePrivateTenant)
     : Promise.resolve(null),
+  // Recovery-only read. api.profile() may use this browser copy exactly once
+  // when the authenticated server profile has no company identity. This lets
+  // older ObraSignal builds migrate a profile that was only cached locally,
+  // without allowing stale browser state to override a valid server profile.
+  getRecoverableProfile: () => activePrivateTenant
+    ? privateStorage.getProfile(activePrivateTenant)
+    : Promise.resolve(null),
   setProfile: (profile) => privateStorage.setProfile(requirePrivateTenant(), profile),
 };
 
