@@ -119,18 +119,53 @@ function persistedProfileMatches(expected, actual){
   return true;
 }
 
+function hasCompanyIdentity(profile){
+  return Boolean(String(profile?.name||'').trim()&&String(profile?.activity||'').trim());
+}
+
+function announceProfile(profile, source){
+  if(typeof window!=='undefined'&&typeof window.dispatchEvent==='function'){
+    window.dispatchEvent(new CustomEvent('obrasignal:profile-ready',{detail:{profile,source}}));
+  }
+}
+
 async function saveProfileVerified(profile){
   const expected=profile||{};
   const posted=unwrapProfile(await writeWhenReady('/profile',{method:'POST',body:JSON.stringify(expected),timeout:PROFILE_TIMEOUT}));
   if(!persistedProfileMatches(expected,posted))throw new Error('O servidor não confirmou todos os dados do perfil.');
   const persisted=unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT}));
   if(!persistedProfileMatches(expected,persisted))throw new Error('O perfil não ficou persistido no servidor. Tenta guardar novamente.');
+  await storage.setProfile(persisted).catch(()=>{});
+  announceProfile(persisted,'server-write');
   return persisted;
+}
+
+async function loadCanonicalProfile(){
+  const serverProfile=unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT}));
+  if(hasCompanyIdentity(serverProfile)){
+    await storage.setProfile(serverProfile).catch(()=>{});
+    announceProfile(serverProfile,'server-read');
+    return serverProfile;
+  }
+
+  // Migration path for older Web builds that could leave the company profile
+  // only in tenant-scoped browser storage. A valid server profile always wins;
+  // local state is consulted only when the authenticated server has no complete
+  // company identity. Successful migration uses the same POST+GET verification
+  // as a normal save, so a browser cache can never masquerade as persistence.
+  const recoverable=await storage.getRecoverableProfile().catch(()=>null);
+  if(hasCompanyIdentity(recoverable)){
+    const migrated=await saveProfileVerified(recoverable);
+    announceProfile(migrated,'browser-recovery');
+    return migrated;
+  }
+  announceProfile(serverProfile,'server-empty');
+  return serverProfile;
 }
 
 export const api={
   health:()=>ensureBackendReady(),
-  profile:async()=>unwrapProfile(await readWhenReady('/profile',{timeout:PROFILE_TIMEOUT})),
+  profile:loadCanonicalProfile,
   saveProfile:saveProfileVerified,
   billingStatus:()=>readWhenReady('/billing/status'),
   pushStatus:()=>readWhenReady('/push/status'),
