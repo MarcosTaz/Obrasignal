@@ -100,7 +100,7 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
                WHERE {' AND '.join(where)}
                ORDER BY CASE WHEN {CONFIRMED_OPEN_SQL} THEN 0 ELSE 1 END,
                         COALESCE(t.score,0) DESC,
-                        COALESCE(NULLIF(t.publication_date,''), NULLIF(t.published_at,''), t.first_seen) DESC
+                        COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC
                LIMIT ?""",
             params,
         ).fetchall()
