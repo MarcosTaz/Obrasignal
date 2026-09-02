@@ -19,10 +19,10 @@ class ImmediateThread:
         self.target(*self.args)
 
 
-def test_default_delay_protects_http_readiness(monkeypatch):
+def test_default_delay_protects_http_readiness_without_starving_first_value(monkeypatch):
     monkeypatch.delenv("OBRASIGNAL_SOURCE_START_DELAY_SECONDS", raising=False)
     assert source_start_delay_seconds() == DEFAULT_SOURCE_START_DELAY_SECONDS
-    assert DEFAULT_SOURCE_START_DELAY_SECONDS >= 60
+    assert DEFAULT_SOURCE_START_DELAY_SECONDS == 10
 
 
 def test_env_delay_is_bounded(monkeypatch):
