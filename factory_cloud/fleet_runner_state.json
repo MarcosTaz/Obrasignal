@@ -6,42 +6,51 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 6,
-  "last_factory_id": "recovery-radar",
-  "last_run_at": "2026-09-02T21:40:07Z",
+  "cursor": 8,
+  "last_factory_id": "product-market-access",
+  "last_run_at": "2026-09-02T22:42:54Z",
   "last_material_change": {
-    "kind": "CHANGELEDGER_FAIL_CLOSED_ROTATION_AND_RECOVERY_RADAR_CANDIDATE_RECONSTRUCTED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ChangeLedger exact default-branch code search and exact-name PR search returned no authority, so it remains fail-closed and rotation continued. Recovery Radar search recovered a bounded owner repair candidate PR #542 and integration composition PR #545. #542 is OPEN / DRAFT / NOT MERGED at ab59fa7d043067515aa10bea77a32e29be50101c and preserves durable profile truth separately from Radar readiness after downstream bootstrap failure. #545 is OPEN / DRAFT / NOT MERGED at 1a30cbef9e568204afe2ebb5b35a9270aa3314e6 and is explicitly integration-lab only; its PR body records Python/Mobile composition intent and #542 records exact passing composition evidence, but neither is canonical authority. No customer recovery, WTP, payment or revenue is inferred. Gmail watch on the ObraSignal account found no new material monitored inbound. No outbound was sent. Fleet rotates to Sourcing Recovery.",
+    "kind": "CAPACITY_COMMITMENT_STALE_GREEN_INVALIDATED_EXACT_HEAD_RED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Sourcing Recovery and Product Market Access exact-name PR/default-branch code searches returned no authority, so both remain fail-closed and rotation advances. Capacity Commitment PR #729 remains OPEN / DRAFT / NOT MERGED, but its PR body is stale: it claims exact-head GREEN for 0b156218ce427284d40583d4b7eb317622d95376 while current GitHub PR metadata reports head 0cc510c63219d50c153d1c09eb884f82c89c1247. The only ObraSignal Quality run for the current head, 33625531311, completed FAILURE: Mobile SUCCESS, Python FAILURE at repository tests. Therefore prior GREEN is invalidated and Capacity Commitment is NOT_FULLY_VERIFIED / EXACT_HEAD_RED until repaired and revalidated. T2 market-exposed / T3 commercial-proof semantics remain PR-body claims only; no buyer WTP, recovery, payment or revenue is inferred. Gmail watch completed across all three connected accounts with no new material monitored inbound; no outbound was sent. Fleet continues at EU Cloud Switching.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "changeledger": {
-        "default_branch_code_search": "NO_RESULTS",
+      "sourcing_recovery": {
         "exact_name_pr_search": "NO_RESULTS",
+        "default_branch_code_search": "NO_RESULTS",
         "classification": "EXACT_CANONICAL_SOURCE_IDENTITY_UNKNOWN_FAIL_CLOSED"
       },
-      "recovery_radar": {
-        "owner_candidate_pr": 542,
-        "owner_candidate_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "owner_candidate_head": "ab59fa7d043067515aa10bea77a32e29be50101c",
-        "integration_pr": 545,
-        "integration_state": "OPEN_DRAFT_NOT_MERGED_INTEGRATION_LAB_ONLY",
-        "integration_head": "1a30cbef9e568204afe2ebb5b35a9270aa3314e6",
-        "truth_invariant": "DURABLE_PROFILE_SAVE_AND_RADAR_READINESS_ARE_SEPARATE_STATES; RECOVERY_REQUIRED_MUST_NOT_BECOME_FALSE_FULL_SUCCESS",
-        "classification": "BOUNDED_REPAIR_AUTHORITY_RECOVERED_NOT_CANONICAL"
+      "product_market_access": {
+        "exact_name_pr_search": "NO_RESULTS",
+        "default_branch_code_search": "NO_RESULTS",
+        "classification": "EXACT_CANONICAL_SOURCE_IDENTITY_UNKNOWN_FAIL_CLOSED"
+      },
+      "capacity_commitment": {
+        "candidate_pr": 729,
+        "state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+        "pr_body_claimed_head": "0b156218ce427284d40583d4b7eb317622d95376",
+        "current_head": "0cc510c63219d50c153d1c09eb884f82c89c1247",
+        "current_head_quality_run": 33625531311,
+        "current_head_quality": "FAILURE",
+        "mobile": "SUCCESS",
+        "python": "FAILURE_AT_REPOSITORY_TESTS",
+        "classification": "STALE_GREEN_INVALIDATED_EXACT_HEAD_RED_NOT_FULLY_VERIFIED"
       },
       "causledger_inbound": {
         "new_material_replies": 0,
-        "successfully_queried_accounts_this_run": 1,
+        "successfully_queried_accounts_this_run": 3,
         "latest_watch_date": "2026-09-02",
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       }
     },
-    "active": "Sourcing Recovery — reconstruct exact canonical/candidate authority and advance highest-value repository-safe milestone; rotate immediately if exact authority remains unproved.",
-    "next": "Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar.",
+    "active": "EU Cloud Switching / Migration Capital Network — reconstruct current exact-head candidate truth and advance highest-value repository-safe milestone; rotate immediately if blocked.",
+    "next": "EU Cloud Switching -> Aviation -> Capacity Commitment repair/verification -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
+      "Capacity Commitment PR #729 current head 0cc510c63219d50c153d1c09eb884f82c89c1247 is exact-head RED: Mobile SUCCESS / Python FAILURE; PR-body GREEN evidence is stale and must not be inherited.",
+      "Sourcing Recovery exact canonical/candidate authority remains UNKNOWN after exact-name PR/default-branch code search.",
+      "Product Market Access exact canonical/candidate authority remains UNKNOWN after exact-name PR/default-branch code search.",
       "ChangeLedger exact canonical/candidate authority remains UNKNOWN after exact default-branch code and PR searches.",
       "Recovery Radar candidate #542 and integration #545 remain draft/not merged/not canonical; do not infer production authority or customer outcomes.",
       "ScopeLedger standalone canonical implementation/production authority remains unproved.",
@@ -54,10 +63,11 @@
     {"factory_id":"scopeledger","blocker":"Standalone canonical implementation/production authority unproved.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Exact canonical source identity UNKNOWN after exact default-branch code and PR searches.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Bounded owner candidate #542 and integration #545 recovered, but both remain draft/not merged/not canonical; production/customer authority unproved.","global_stop":false},
-    {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
-    {"factory_id":"product-market-access","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
+    {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN after exact-name PR/default-branch code search.","global_stop":false},
+    {"factory_id":"product-market-access","blocker":"Exact canonical source identity UNKNOWN after exact-name PR/default-branch code search.","global_stop":false},
     {"factory_id":"eu-cloud-switching","blocker":"Candidate exact-head GREEN but draft/not merged/not canonical; external WTP/outcome proof absent.","global_stop":false},
     {"factory_id":"aviation-lease-entitlement-recovery","blocker":"Candidate exact-head GREEN but draft/not merged/not canonical; real entitlement/recovery/outcome proof absent.","global_stop":false},
+    {"factory_id":"capacity-commitment","blocker":"PR #729 current head 0cc510c63219d50c153d1c09eb884f82c89c1247 is exact-head RED: workflow 33625531311 failed; Mobile SUCCESS, Python repository tests FAILURE. Prior PR-body GREEN evidence references stale head 0b156218ce427284d40583d4b7eb317622d95376.","global_stop":false},
     {"factory_id":"longlead","blocker":"Exact canonical source identity UNKNOWN after PR/default-branch code search.","global_stop":false},
     {"factory_id":"machine-release-safety","blocker":"Exact canonical source identity UNKNOWN after PR search.","global_stop":false},
     {"factory_id":"k3-fatality","blocker":"Documentation-only candidate exact-head RED; canonical runtime/source authority remains unproved.","global_stop":false},
