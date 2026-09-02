@@ -6,28 +6,26 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 22,
-  "last_factory_id": "os-side-factory",
-  "last_run_at": "2026-09-02T01:41:00Z",
+  "cursor": 23,
+  "last_factory_id": "obrasignal-customer-journey",
+  "last_run_at": "2026-09-02T02:42:08Z",
   "last_material_change": {
     "kind": "BATON_ROTATION_NO_NEW_MATERIAL_EXTERNAL_DELTA",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ObraSignal Data Truth and OS SIDE FACTORY — RECOVERY SUCCESSOR were searched against current repository/PR evidence; exact standalone canonical source identity was not recovered, so both remain UNKNOWN/fail-closed and rotation advanced rather than stopping. ObraSignal main remains bad6a169ac9957e5d58c3c16d28249e44bd931c6. Gmail watch found no new material CausLedger/CEFAMOL/AFIA/DGC inbound after 2026-09-02; no outbound was sent and Portugal/Spain holds remain active.",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Customer Journey / First Value / Outcome Integrity was searched against current default-branch repository evidence; no exact standalone canonical source identity was recovered, so it remains UNKNOWN/fail-closed and rotation advanced rather than stopping. ObraSignal main remains bad6a169ac9957e5d58c3c16d28249e44bd931c6. Gmail watch found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound after 2026-09-02; no outbound was sent and Portugal/Spain holds remain active.",
     "evidence": {
       "portfolio_registry_count": 33,
       "obrasignal_main": {"head_sha": "bad6a169ac9957e5d58c3c16d28249e44bd931c6", "source_pr": 920, "classification": "MAIN_AUTHORITY_UNCHANGED"},
-      "obrasignal_data_truth": {"classification": "UNKNOWN_EXACT_SOURCE_IDENTITY", "default_branch_code_search_matches": 0},
-      "os_side_factory": {"classification": "UNKNOWN_EXACT_SOURCE_IDENTITY", "exact_pr_search_match": false},
+      "customer_journey": {"classification": "UNKNOWN_EXACT_SOURCE_IDENTITY", "default_branch_code_search_matches": 0},
       "causledger_inbound": {"new_material_replies": 0, "latest_watch_date": "2026-09-02", "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK", "spain_unsolicited_commercial_hold": "ACTIVE"}
     },
-    "active": "Customer Journey, First Value & Outcome Integrity — reconstruct current canonical/main authority and highest-value repository-safe customer-outcome gap; rotate immediately if authority cannot be proved.",
-    "next": "Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side.",
+    "active": "Global Market Entry, Localization & Country Launch Automation — reconstruct current canonical/main authority and highest-value repository-safe market-entry gap; rotate immediately if authority cannot be proved.",
+    "next": "Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in this run.",
       "ObraSignal main remains bad6a169ac9957e5d58c3c16d28249e44bd931c6; prior Production HTTP Capacity was SKIPPED, so do not infer capacity readiness.",
-      "ObraSignal Data Truth exact canonical source identity remains UNKNOWN.",
-      "OS SIDE FACTORY — RECOVERY SUCCESSOR exact canonical source identity remains UNKNOWN."
+      "Customer Journey exact canonical source identity remains UNKNOWN."
     ]
   },
   "blocked": [
@@ -50,7 +48,8 @@
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact canonical source identity UNKNOWN after default-branch code search.","global_stop":false},
     {"factory_id":"obrasignal-data-runner","blocker":"Exact canonical source identity UNKNOWN after default-branch code search.","global_stop":false},
     {"factory_id":"obrasignal-data-truth","blocker":"Exact canonical source identity UNKNOWN after default-branch code/PR search.","global_stop":false},
-    {"factory_id":"os-side-factory","blocker":"Exact canonical source identity UNKNOWN after targeted PR search.","global_stop":false}
+    {"factory_id":"os-side-factory","blocker":"Exact canonical source identity UNKNOWN after targeted PR search.","global_stop":false},
+    {"factory_id":"obrasignal-customer-journey","blocker":"Exact standalone canonical source identity UNKNOWN after default-branch code search.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
