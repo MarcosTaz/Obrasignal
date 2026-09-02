@@ -6,48 +6,54 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 4,
-  "last_factory_id": "scopeledger",
-  "last_run_at": "2026-09-02T18:10:06Z",
+  "cursor": 6,
+  "last_factory_id": "recovery-radar",
+  "last_run_at": "2026-09-02T21:40:07Z",
   "last_material_change": {
-    "kind": "SCOPELEDGER_AUTHORITY_RECONSTRUCTED_FAIL_CLOSED_AND_ROTATED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ScopeLedger exact-name PR search recovered only PR #769, which is CLOSED / DRAFT / NOT MERGED and explicitly says its physical-isolation patch was promoted linearly into Factory Cloud PR #652. That promotion is infrastructure evidence, not standalone ScopeLedger product/canonical authority. PR #652 is OPEN / NOT MERGED / NOT CANONICAL; its live head d1b683dd98d0ffc566e1366726f151bd744f4150 currently has mobile SUCCESS but python FAILURE, so no historical GREEN is inherited. ScopeLedger therefore remains fail-closed with standalone canonical implementation/production authority unproved. Gmail watch across all three connected accounts found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound. No outbound was sent. Fleet rotated to ChangeLedger.",
+    "kind": "CHANGELEDGER_FAIL_CLOSED_ROTATION_AND_RECOVERY_RADAR_CANDIDATE_RECONSTRUCTED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ChangeLedger exact default-branch code search and exact-name PR search returned no authority, so it remains fail-closed and rotation continued. Recovery Radar search recovered a bounded owner repair candidate PR #542 and integration composition PR #545. #542 is OPEN / DRAFT / NOT MERGED at ab59fa7d043067515aa10bea77a32e29be50101c and preserves durable profile truth separately from Radar readiness after downstream bootstrap failure. #545 is OPEN / DRAFT / NOT MERGED at 1a30cbef9e568204afe2ebb5b35a9270aa3314e6 and is explicitly integration-lab only; its PR body records Python/Mobile composition intent and #542 records exact passing composition evidence, but neither is canonical authority. No customer recovery, WTP, payment or revenue is inferred. Gmail watch on the ObraSignal account found no new material monitored inbound. No outbound was sent. Fleet rotates to Sourcing Recovery.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "scopeledger": {
-        "exact_name_pr": 769,
-        "exact_name_pr_state": "CLOSED_DRAFT_NOT_MERGED_SUPERSEDED",
-        "promoted_patch_target_pr": 652,
-        "promoted_patch_scope": "FACTORY_CLOUD_PHYSICAL_ISOLATION_INFRASTRUCTURE_NOT_SCOPELEDGER_PRODUCT_AUTHORITY",
-        "factory_cloud_pr_state": "OPEN_NOT_MERGED_NOT_CANONICAL",
-        "factory_cloud_live_head": "d1b683dd98d0ffc566e1366726f151bd744f4150",
-        "factory_cloud_live_head_python": "FAILURE",
-        "factory_cloud_live_head_mobile": "SUCCESS",
-        "classification": "SCOPELEDGER_STANDALONE_CANONICAL_AUTHORITY_UNPROVED_FAIL_CLOSED"
+      "changeledger": {
+        "default_branch_code_search": "NO_RESULTS",
+        "exact_name_pr_search": "NO_RESULTS",
+        "classification": "EXACT_CANONICAL_SOURCE_IDENTITY_UNKNOWN_FAIL_CLOSED"
+      },
+      "recovery_radar": {
+        "owner_candidate_pr": 542,
+        "owner_candidate_state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+        "owner_candidate_head": "ab59fa7d043067515aa10bea77a32e29be50101c",
+        "integration_pr": 545,
+        "integration_state": "OPEN_DRAFT_NOT_MERGED_INTEGRATION_LAB_ONLY",
+        "integration_head": "1a30cbef9e568204afe2ebb5b35a9270aa3314e6",
+        "truth_invariant": "DURABLE_PROFILE_SAVE_AND_RADAR_READINESS_ARE_SEPARATE_STATES; RECOVERY_REQUIRED_MUST_NOT_BECOME_FALSE_FULL_SUCCESS",
+        "classification": "BOUNDED_REPAIR_AUTHORITY_RECOVERED_NOT_CANONICAL"
       },
       "causledger_inbound": {
         "new_material_replies": 0,
-        "successfully_queried_accounts": 3,
+        "successfully_queried_accounts_this_run": 1,
         "latest_watch_date": "2026-09-02",
         "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK",
         "spain_unsolicited_commercial_hold": "ACTIVE"
       }
     },
-    "active": "ChangeLedger — reconstruct exact canonical/candidate authority and advance the highest-value repository-safe milestone; rotate immediately if exact authority remains unproved.",
-    "next": "ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger.",
+    "active": "Sourcing Recovery — reconstruct exact canonical/candidate authority and advance highest-value repository-safe milestone; rotate immediately if exact authority remains unproved.",
+    "next": "Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
-      "ScopeLedger standalone canonical implementation/production authority remains unproved; PR #769 only proves a superseded Factory Cloud isolation patch, not ScopeLedger product authority.",
-      "ComplianceLedger exact canonical/candidate authority remains UNKNOWN; do not inherit Documentary Billing truth merely because the registry labels it a support lane.",
+      "ChangeLedger exact canonical/candidate authority remains UNKNOWN after exact default-branch code and PR searches.",
+      "Recovery Radar candidate #542 and integration #545 remain draft/not merged/not canonical; do not infer production authority or customer outcomes.",
+      "ScopeLedger standalone canonical implementation/production authority remains unproved.",
+      "ComplianceLedger exact canonical/candidate authority remains UNKNOWN.",
       "ObraSignal exact-main Commercial Readiness remains RED: checkout configuration, backend billing reconciliation, and official-domain exact-release gate failed on 36e0c560e3dc13144c613d6a912101d89c09253f."
     ]
   },
   "blocked": [
     {"factory_id":"industrial-claims","blocker":"Outbound legal holds remain; no real commercial outcome is proved. Private compliant research may continue.","global_stop":false},
-    {"factory_id":"scopeledger","blocker":"Standalone canonical implementation/production authority unproved. Exact-name PR #769 is closed/draft/not merged and only promoted a physical-isolation infrastructure patch into Factory Cloud PR #652; #652 is not ScopeLedger product authority and its current live head is Python RED / Mobile GREEN.","global_stop":false},
-    {"factory_id":"changeledger","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
-    {"factory_id":"recovery-radar","blocker":"Historical candidate exists; canonical main authority remains unproved.","global_stop":false},
+    {"factory_id":"scopeledger","blocker":"Standalone canonical implementation/production authority unproved.","global_stop":false},
+    {"factory_id":"changeledger","blocker":"Exact canonical source identity UNKNOWN after exact default-branch code and PR searches.","global_stop":false},
+    {"factory_id":"recovery-radar","blocker":"Bounded owner candidate #542 and integration #545 recovered, but both remain draft/not merged/not canonical; production/customer authority unproved.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"product-market-access","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"eu-cloud-switching","blocker":"Candidate exact-head GREEN but draft/not merged/not canonical; external WTP/outcome proof absent.","global_stop":false},
@@ -69,8 +75,8 @@
     {"factory_id":"obrasignal-gtm","blocker":"Exact-head GREEN candidate remains draft/not merged/not canonical; no positive commercial validation exists.","global_stop":false},
     {"factory_id":"obrasignal-customer-decision","blocker":"PR #376 exact-head Python GREEN/Mobile RED; draft/not merged/not canonical.","global_stop":false},
     {"factory_id":"eu-switching-evidence-pack","blocker":"PR #818 exact-head GREEN repository repair only; draft/not merged/not canonical; no live migration/customer/WTP/payment/revenue proof.","global_stop":false},
-    {"factory_id":"complianceledger","blocker":"No exact-name PR or default-branch code authority recovered; registry support-lane label is insufficient to inherit Documentary Billing truth.","global_stop":false},
-    {"factory_id":"obrasignal","blocker":"Exact-main Commercial Readiness run 33638399110 is RED: checkout-configuration, backend-billing, and official-domain failed; Production Smoke GREEN does not override these gates.","global_stop":false}
+    {"factory_id":"complianceledger","blocker":"No exact-name PR or default-branch code authority recovered.","global_stop":false},
+    {"factory_id":"obrasignal","blocker":"Exact-main Commercial Readiness remains RED: checkout-configuration, backend-billing, and official-domain failed.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
