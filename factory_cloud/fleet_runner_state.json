@@ -6,28 +6,24 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 3,
-  "last_factory_id": "industrial-claims",
-  "last_run_at": "2026-09-02T16:38:03Z",
+  "cursor": 4,
+  "last_factory_id": "scopeledger",
+  "last_run_at": "2026-09-02T18:10:06Z",
   "last_material_change": {
-    "kind": "CAUSLEDGER_PRIVATE_RESEARCH_ADVANCED_AND_ROTATED_WITHOUT_OUTBOUND",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ObraSignal exact-main commercial readiness remains fail-closed on 36e0c560e3dc13144c613d6a912101d89c09253f: checkout configuration, backend billing reconciliation, and official-domain exact-release gates remain external/configuration blockers, so no repository-safe change was justified to manufacture GREEN. CausLedger private prospect research advanced using publicly presented business routes from official company sites; prospect-level identifiers remain private in Drive and were not written to GitHub. All newly researched routes remain HOLD for country-rule/suppression/sender-readiness review and no outbound was sent. Gmail watch across all three connected accounts found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound. The fleet rotated to ScopeLedger.",
+    "kind": "SCOPELEDGER_AUTHORITY_RECONSTRUCTED_FAIL_CLOSED_AND_ROTATED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ScopeLedger exact-name PR search recovered only PR #769, which is CLOSED / DRAFT / NOT MERGED and explicitly says its physical-isolation patch was promoted linearly into Factory Cloud PR #652. That promotion is infrastructure evidence, not standalone ScopeLedger product/canonical authority. PR #652 is OPEN / NOT MERGED / NOT CANONICAL; its live head d1b683dd98d0ffc566e1366726f151bd744f4150 currently has mobile SUCCESS but python FAILURE, so no historical GREEN is inherited. ScopeLedger therefore remains fail-closed with standalone canonical implementation/production authority unproved. Gmail watch across all three connected accounts found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound. No outbound was sent. Fleet rotated to ChangeLedger.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "obrasignal": {
-        "main_sha": "36e0c560e3dc13144c613d6a912101d89c09253f",
-        "commercial_readiness_run": 33638399110,
-        "checkout_configuration": "FAILURE",
-        "backend_billing": "FAILURE",
-        "official_domain": "FAILURE",
-        "classification": "COMMERCIAL_READINESS_RED_FAIL_CLOSED_EXTERNAL_CONFIGURATION_REMAINS"
-      },
-      "causledger_private_research": {
-        "storage": "PRIVATE_DRIVE_ONLY",
-        "source_class": "PUBLIC_OFFICIAL_COMPANY_SITES",
-        "send_eligibility": "HOLD_COMPLIANCE_ENRICHMENT",
-        "prospect_level_identifiers_in_public_github": false,
-        "outbound_sent": 0
+      "scopeledger": {
+        "exact_name_pr": 769,
+        "exact_name_pr_state": "CLOSED_DRAFT_NOT_MERGED_SUPERSEDED",
+        "promoted_patch_target_pr": 652,
+        "promoted_patch_scope": "FACTORY_CLOUD_PHYSICAL_ISOLATION_INFRASTRUCTURE_NOT_SCOPELEDGER_PRODUCT_AUTHORITY",
+        "factory_cloud_pr_state": "OPEN_NOT_MERGED_NOT_CANONICAL",
+        "factory_cloud_live_head": "d1b683dd98d0ffc566e1366726f151bd744f4150",
+        "factory_cloud_live_head_python": "FAILURE",
+        "factory_cloud_live_head_mobile": "SUCCESS",
+        "classification": "SCOPELEDGER_STANDALONE_CANONICAL_AUTHORITY_UNPROVED_FAIL_CLOSED"
       },
       "causledger_inbound": {
         "new_material_replies": 0,
@@ -37,18 +33,19 @@
         "spain_unsolicited_commercial_hold": "ACTIVE"
       }
     },
-    "active": "ScopeLedger — reconstruct exact standalone canonical/candidate authority and advance the highest-value repository-safe milestone; rotate immediately if exact authority remains unproved.",
-    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger.",
+    "active": "ChangeLedger — reconstruct exact canonical/candidate authority and advance the highest-value repository-safe milestone; rotate immediately if exact authority remains unproved.",
+    "next": "ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
+      "ScopeLedger standalone canonical implementation/production authority remains unproved; PR #769 only proves a superseded Factory Cloud isolation patch, not ScopeLedger product authority.",
       "ComplianceLedger exact canonical/candidate authority remains UNKNOWN; do not inherit Documentary Billing truth merely because the registry labels it a support lane.",
       "ObraSignal exact-main Commercial Readiness remains RED: checkout configuration, backend billing reconciliation, and official-domain exact-release gate failed on 36e0c560e3dc13144c613d6a912101d89c09253f."
     ]
   },
   "blocked": [
     {"factory_id":"industrial-claims","blocker":"Outbound legal holds remain; no real commercial outcome is proved. Private compliant research may continue.","global_stop":false},
-    {"factory_id":"scopeledger","blocker":"Standalone canonical implementation/production authority unproved.","global_stop":false},
+    {"factory_id":"scopeledger","blocker":"Standalone canonical implementation/production authority unproved. Exact-name PR #769 is closed/draft/not merged and only promoted a physical-isolation infrastructure patch into Factory Cloud PR #652; #652 is not ScopeLedger product authority and its current live head is Python RED / Mobile GREEN.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Historical candidate exists; canonical main authority remains unproved.","global_stop":false},
     {"factory_id":"sourcing-recovery","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
