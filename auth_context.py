@@ -1,4 +1,4 @@
-"""Identity context for ObraSignal API requests."""
+"""Verified identity context for API requests."""
 from __future__ import annotations
 
 import logging
@@ -23,6 +23,7 @@ from auth_context_jwt import JwksUnavailableError, production_verifier
 _ACCOUNT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ALLOWED_AUTH_MODES = {"development", "provider"}
 _DEFAULT_WEB_ORIGIN = "https://marcostaz.github.io"
+_DEFAULT_TENANT_CLAIM = "sub"
 _LOGGER = logging.getLogger(__name__)
 
 # A browser Origin never contains a path. GitHub Pages serves the project under
@@ -53,6 +54,35 @@ def _valid_account(account_id: str) -> str:
     return account_id
 
 
+def _claim_value(claims: dict, claim_path: str):
+    value = claims
+    for part in claim_path.split("."):
+        if not part or not isinstance(value, dict) or part not in value:
+            raise InvalidTokenError("verified tenant claim is missing")
+        value = value[part]
+    return value
+
+
+def _verified_tenant_id(claims: dict, subject: str) -> str:
+    """Return tenant/account identity from a signed JWT claim.
+
+    Production can set OBRASIGNAL_JWT_TENANT_CLAIM to a provider-managed claim
+    such as ``app_metadata.tenant_id``. The default remains ``sub`` only for
+    backward compatibility while the production IdP configuration is migrated.
+    The request can never choose or override the resulting tenant.
+    """
+    claim_path = (os.getenv("OBRASIGNAL_JWT_TENANT_CLAIM") or _DEFAULT_TENANT_CLAIM).strip()
+    if not claim_path:
+        raise RuntimeError("OBRASIGNAL_JWT_TENANT_CLAIM is invalid")
+    value = subject if claim_path == "sub" else _claim_value(claims, claim_path)
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        raise InvalidTokenError("verified tenant claim must be a scalar identifier")
+    tenant_id = str(value).strip()
+    if not tenant_id:
+        raise InvalidTokenError("verified tenant claim is empty")
+    return tenant_id
+
+
 def _invalid_token_reason(error: InvalidTokenError) -> str:
     """Return a bounded diagnostic category without logging token material."""
     if isinstance(error, ExpiredSignatureError):
@@ -70,6 +100,8 @@ def _invalid_token_reason(error: InvalidTokenError) -> str:
         return "unknown_kid"
     if "algorithm" in message or message == "unsupported JWT header":
         return "unsupported_algorithm"
+    if "tenant claim" in message:
+        return "tenant_claim_invalid"
     return "invalid_token"
 
 
@@ -96,7 +128,8 @@ def configured_identity() -> RequestIdentity:
 
     try:
         identity = production_verifier().verify(token.strip())
-        account_id = _valid_account(identity.account_id)
+        claims = identity.claims if isinstance(identity.claims, dict) else {}
+        account_id = _valid_account(_verified_tenant_id(claims, identity.subject))
     except JwksUnavailableError:
         _LOGGER.warning("auth_provider_status=degraded reason=jwks_unavailable")
         raise
