@@ -6,7 +6,8 @@ def test_operator_console_is_self_contained_and_exposes_safe_assisted_journey(tm
     response = client.get("/")
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "CausLedger" in html
+    assert "Certactum" in html
+    assert "CausLedger" not in html
     assert "Industrial Claims operator console" in html
     assert 'id="analyze-form"' in html
     assert 'id="claim_currency"' in html
