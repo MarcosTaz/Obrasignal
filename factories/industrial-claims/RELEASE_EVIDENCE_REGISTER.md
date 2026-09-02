@@ -42,7 +42,9 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - CLOSED — Public commercial identity uses marcos@certactum.com.
 - CLOSED — Help instructs users not to send confidential documents by email without an authorized intake channel.
 - CLOSED — Customer-zero abuse journey covers creation, cross-tenant denial, review segregation and internal action without implying external claim submission.
-- PENDING — Billing sandbox complete journey evidence: success, decline, cancellation, refund, webhook, activation and failed renewal.
+- INTERNAL CLOSED — Stripe test-mode integration direction is hosted Checkout; billing projection covers checkout completion, invoice paid activation, failed renewal/past-due, recovery, cancellation and refund.
+- INTERNAL CLOSED — Billing event application is idempotent; event-ID semantic collision and missing Certactum account metadata fail closed.
+- PENDING — End-to-end Stripe-hosted Checkout session/webhook exercise against the connected test account after a final commercial price/plan is fixed; no live charge is required pre-launch.
 - PENDING — Final onboarding walkthrough from fresh account to first verified dossier must be recorded against the canonical deployed application.
 
 ## Security/legal truth boundary
