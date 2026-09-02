@@ -6,26 +6,26 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 24,
-  "last_factory_id": "obrasignal-global-market-entry",
-  "last_run_at": "2026-09-02T06:40:37Z",
+  "cursor": 25,
+  "last_factory_id": "obrasignal-gtm",
+  "last_run_at": "2026-09-02T07:42:46Z",
   "last_material_change": {
-    "kind": "BATON_ROTATION_NO_NEW_MATERIAL_EXTERNAL_DELTA",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Global Market Entry candidate PR #519 was revalidated as OPEN/DRAFT/NOT_MERGED at exact head 53b65b952acbf5ad100356f8aeb1800e5d6094a1; it remains research-only/non-canonical and does not authorize production launch. ObraSignal main remains bad6a169ac9957e5d58c3c16d28249e44bd931c6. Gmail watch found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound after 2026-09-02; no outbound was sent and Portugal/Spain holds remain active.",
+    "kind": "GTM_EXACT_HEAD_AUTHORITY_REVALIDATED_AND_ROTATED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. ObraSignal GTM candidate PR #822 was revalidated OPEN/DRAFT/NOT_MERGED at exact head 6854270be0938e6e65077ae9452bf17268e1ae28 with exact-head ObraSignal Quality run 33274254279 COMPLETED/SUCCESS. Its preserved real commercial truth remains 10 initial emails, 9 follow-ups, 1 inbound reply, 0 positive replies, 0 qualified conversations/meetings/pilots/payments, revenue EUR 0; Cohort 2 and assisted pilot artifacts remain prepared but NOT SENT and pricing/ICP/pilot/market remain unvalidated. Gmail watch found no new material CausLedger/CEFAMOL/AFIA/DGC/prospect inbound after 2026-09-02; no outbound was sent and Portugal/Spain holds remain active.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "obrasignal_main": {"head_sha": "bad6a169ac9957e5d58c3c16d28249e44bd931c6", "source_pr": 920, "classification": "MAIN_AUTHORITY_UNCHANGED"},
-      "global_market_entry": {"source_pr": 519, "head_sha": "53b65b952acbf5ad100356f8aeb1800e5d6094a1", "state": "OPEN_DRAFT_NOT_MERGED", "classification": "EXACT_CANDIDATE_REVALIDATED_NOT_CANONICAL"},
+      "obrasignal_main": {"head_sha": "bad6a169ac9957e5d58c3c16d28249e44bd931c6", "source_pr": 920, "classification": "MAIN_AUTHORITY_LAST_PROVED_UNCHANGED_IN_FLEET_STATE"},
+      "obrasignal_gtm": {"source_pr": 822, "head_sha": "6854270be0938e6e65077ae9452bf17268e1ae28", "state": "OPEN_DRAFT_NOT_MERGED", "quality_run": 33274254279, "quality_conclusion": "SUCCESS", "classification": "REAL_GTM_EVIDENCE_EXACT_HEAD_GREEN_NOT_CANONICAL", "initial_emails": 10, "followups": 9, "observed_inbound_replies": 1, "positive_replies": 0, "qualified_conversations": 0, "meetings": 0, "pilots": 0, "payments": 0, "observed_revenue_eur": 0},
       "causledger_inbound": {"new_material_replies": 0, "latest_watch_date": "2026-09-02", "portugal_outbound_hold": "ACTIVE_PENDING_CURRENT_DGC_LIST_OR_PROCEDURE_AND_RECIPIENT_CHECK", "spain_unsolicited_commercial_hold": "ACTIVE"}
     },
-    "active": "ObraSignal GTM / First Revenue — reconstruct current canonical/main authority and highest-value repository-safe first-revenue gap; rotate immediately if authority cannot be proved.",
-    "next": "GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry.",
+    "active": "Customer Decision & Outcome Intelligence Factory — reconstruct exact candidate/main authority and highest-value repository-safe decision/outcome milestone; rotate immediately if authority cannot be proved.",
+    "next": "Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM.",
     "wait": [
       "Portugal CausLedger outbound remains held until DGC returns the current corporate opt-out list/access procedure and intended recipients are checked against the effective current version.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "No new material prospect/CEFAMOL/AFIA/DGC reply observed in this run.",
-      "ObraSignal main remains bad6a169ac9957e5d58c3c16d28249e44bd931c6; prior Production HTTP Capacity was SKIPPED, so do not infer capacity readiness.",
-      "Global Market Entry PR #519 remains draft/not merged/research-only and is not production-launch authority."
+      "ObraSignal main remains last-proved bad6a169ac9957e5d58c3c16d28249e44bd931c6 in fleet state; prior Production HTTP Capacity was SKIPPED, so do not infer capacity readiness.",
+      "GTM PR #822 is exact-head GREEN but draft/not merged/not canonical; Cohort 2 and assisted pilot are prepared NOT SENT and no positive commercial validation exists."
     ]
   },
   "blocked": [
@@ -50,7 +50,8 @@
     {"factory_id":"obrasignal-data-truth","blocker":"Exact canonical source identity UNKNOWN after default-branch code/PR search.","global_stop":false},
     {"factory_id":"os-side-factory","blocker":"Exact canonical source identity UNKNOWN after targeted PR search.","global_stop":false},
     {"factory_id":"obrasignal-customer-journey","blocker":"Exact standalone canonical source identity UNKNOWN after default-branch code search.","global_stop":false},
-    {"factory_id":"obrasignal-global-market-entry","blocker":"PR #519 is open/draft/not merged and research-only; production launch authority and qualified cohort evidence remain absent.","global_stop":false}
+    {"factory_id":"obrasignal-global-market-entry","blocker":"PR #519 is open/draft/not merged and research-only; production launch authority and qualified cohort evidence remain absent.","global_stop":false},
+    {"factory_id":"obrasignal-gtm","blocker":"PR #822 exact-head GREEN but draft/not merged/not canonical; 0 positive replies, 0 qualified conversations/meetings/pilots/payments and EUR 0 observed revenue; Cohort 2/pilot remain NOT SENT.","global_stop":false}
   ],
   "rules": {
     "technical_window_is_not_stop": true,
