@@ -6,11 +6,11 @@ Truth rule: a researched target or unsent draft is **not CONTACTED**. Gmail `SEN
 
 | Target | Country | Segment | Trigger | Commitment type hypothesis | Contact route | CONTACTED | DELIVERED | REPLIED | QUALIFIED | CASE_EXISTS | DATA_AVAILABLE | DISCOVERY | PILOT_PROPOSED | PILOT_ACCEPTED | PAID | REJECTED | REASON |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Sodecia | Portugal | Automotive Tier supplier | VW/Ford customer-specific investment + VW restructuring context | nomination / volume-linked amortization / dedicated capacity — UNKNOWN until buyer confirms | sgps@sodecia.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | DGC list check pending |
-| Simoldes Plásticos | Portugal | Automotive plastics / injection | high disclosed VW/Stellantis concentration + capacity expansion | program tooling / nomination / customer-specific investment — UNKNOWN | corporate route unresolved | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | No legitimate generic commercial route confirmed |
-| Fehst Componentes | Portugal | Automotive plastics / tooling / assembly | VW program/tool/assembly-line responsibility + capacity expansion | tooling / dedicated line / program-volume basis — UNKNOWN | fehst.comp@fehstgroup.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | DGC list check pending |
+| Sodecia | Portugal | Automotive Tier supplier | VW/Ford customer-specific investment + VW restructuring context | nomination / volume-linked amortization / dedicated capacity — UNKNOWN until buyer confirms | sgps@sodecia.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | DGC list access resolved; current-list screening required before send |
+| Simoldes Plásticos | Portugal | Automotive plastics / injection | high disclosed VW/Stellantis concentration + capacity expansion | program tooling / nomination / customer-specific investment — UNKNOWN | corporate route unresolved | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | No legitimate generic commercial route confirmed; DGC screening also required before send |
+| Fehst Componentes | Portugal | Automotive plastics / tooling / assembly | VW program/tool/assembly-line responsibility + capacity expansion | tooling / dedicated line / program-volume basis — UNKNOWN | fehst.comp@fehstgroup.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | DGC list access resolved; current-list screening required before send |
 | Teknia | Spain | Automotive components | demand volatility / OEM exposure | program-specific capex/tooling / nomination — UNKNOWN | info@tekniagroup.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | LSSI lawful-basis route unresolved |
-| COINDU | Portugal | Automotive interiors / seat covers | OEM program exposure + recent investment; weaker public current trigger | program/tooling/capacity — UNKNOWN | info@coindu.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | DGC list check pending |
+| COINDU | Portugal | Automotive interiors / seat covers | OEM program exposure + recent investment; weaker public current trigger | program/tooling/capacity — UNKNOWN | info@coindu.com | NO | NO | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | NO | NO | NO | NO | DGC list access resolved; current-list screening required before send |
 | CT Automotive Group plc | United Kingdom | Automotive interiors / tooling | 77% of 2025 revenue concentrated in top 3 customers; $13.5m tooling revenue; production-volume pressure / end-of-production programs | bespoke tooling + serial-production program commitment / customer acceptance — UNKNOWN | sales@ct-automotive.net | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility CTA only | NO | NO | NO | Initial `1a04ad907dae4739`; internal HOLD subject defect corrected transparently by `1a04b1d3c9e08987` |
 | Autins Group plc | United Kingdom | Automotive NVH / acoustic & thermal components | UK revenue disruption linked to major-customer demand interruption; tooling for new programs | major-customer program volumes / tooling / component awards — UNKNOWN | sales@autins.com | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility CTA only | NO | NO | NO | Initial `1a04ad9158ab6f1b`; internal HOLD subject defect corrected transparently by `1a04b1d5308bfbf0` |
 | Castings plc | United Kingdom | Commercial-vehicle foundry / machining | >70% heavy-truck revenue; demand below OEM-normalised level; material capex | program volume / dedicated foundry-machining capacity / tooling — UNKNOWN | sales@castings.plc.uk | YES | UNKNOWN/PENDING | NO | PUBLIC_SIGNAL_ONLY | UNKNOWN | UNKNOWN | NO | YES — eligibility CTA only | NO | NO | NO | Sent `1a04adae56e38c0b` |
@@ -25,9 +25,9 @@ Truth rule: a researched target or unsent draft is **not CONTACTED**. Gmail `SEN
 - PUBLIC_SIGNAL_QUALIFIED = 12
 - COHORT_2_PREPARED_NOT_CONTACTED = 2
 - UNIQUE_COMPANIES_CONTACTED = 5
-- OUTBOUND_TRANSMISSIONS = 7 commercial transmissions to those 5 companies + 1 DGC regulatory inquiry
+- OUTBOUND_TRANSMISSIONS = 12 commercial transmissions to those 5 companies (initial/correction/follow-up history; unique-company count remains 5) + DGC regulatory inquiries
 - DELIVERED = 0 confirmed / 5 company targets pending
-- REPLIED = 0
+- REPLIED = 0 buyer replies
 - QUALIFIED_BY_BUYER = 0
 - CASE_EXISTS = 0 confirmed
 - DATA_AVAILABLE = 0 confirmed
@@ -40,34 +40,28 @@ Truth rule: a researched target or unsent draft is **not CONTACTED**. Gmail `SEN
 - PAID = 0
 - REJECTED = 0
 
-## Latest monitoring truth — 2026-08-29 19:59+01:00 Europe/Lisbon class
+## Latest monitoring truth — 2026-09-02 12:35+01:00 Europe/Lisbon class
 
-Fresh direct Gmail re-check during the final technical hardening cycle:
+Fresh Capacity-only Gmail re-check:
 
-- no inbound reply found from CT Automotive, Autins, Castings, Trifast or Strip Tinning;
-- no bounce/DSN found for the live cohort;
-- no inbound DGC Article 13-B response found;
-- no delivery/read state can be upgraded from the absence of a bounce;
-- state remains `NO_REPLY_YET`, not rejection or weak-demand proof.
+- no inbound buyer reply found from CT Automotive, Autins, Castings, Trifast or Strip Tinning after the 2026-09-02 follow-ups;
+- no new bounce/DSN found for the live UK cohort;
+- DGC Fiscalização replied on 2026-09-02 to the Article 13-B inquiry (`1a061e68bf66e4f8`);
+- DGC states that the Article 13-B list is available on the official consumidor.gov.pt list page, downloadable in Excel format, and is updated whenever a new inclusion request is made;
+- this resolves the access/procedure blocker but does **not** by itself clear any Portuguese target for sending: each Portuguese commercial route remains fail-closed until screened against the then-current downloaded list immediately before send;
+- the earlier bounce to the invalid `dgc@dgconsumer.gov.pt` route remains closed and must not be retried.
 
 ## First-cohort follow-ups
 
-Five clean threaded follow-up drafts are prepared and were re-read/audited:
+Five clean threaded follow-ups were sent on **2026-09-02** after pre-send checks:
 
-- CT Automotive — `r7499258762669998010`;
-- Autins — `r-8693565801222009862`;
-- Castings — `r-8862220876514914778`;
-- Trifast — `r-270028345496521485`;
-- Strip Tinning — `r-3929895759824443129`.
+- CT Automotive — Gmail sent message `1a0617b31b9dd0b5`;
+- Autins — Gmail sent message `1a0617b4a2ac3858`;
+- Castings — Gmail sent message `1a0617b5ef52b129`;
+- Trifast — Gmail sent message `1a0617b8279d5db2`;
+- Strip Tinning — Gmail sent message `1a0617b9207bcd6a`.
 
-Audit result:
-
-- correct destination/thread;
-- no internal `HOLD`, `OWNER APPROVAL`, `DGC`, `COMPLIANCE`, `INTERNAL` control token in external subject/body;
-- no invented entitlement/recovery/payment claim;
-- explicit stop route for “no / not relevant”.
-
-Initial outreach landed over the weekend. The follow-up is scheduled for **2026-09-02 10:00 Europe/Lisbon**, conditional on continued silence, no bounce, no reply and no suppression.
+Current response state remains `NO_REPLY_YET`, not rejection or weak-demand proof.
 
 ## Cohort 2 continuation
 
@@ -97,9 +91,16 @@ Current live cohort uses limited-company/corporate routes and generic corporate 
 
 ### Portugal
 
-Owner outreach authorization exists, but Article 13-B list consultation remains a separate compliance gate. DGC inquiry was sent in message `1a04ad94d7f104c5`; no response is currently recorded.
+DGC Article 13-B access/procedure response received **2026-09-02** from DGC Fiscalização. Operative instructions:
 
-Sodecia, Fehst and COINDU remain **HOLD — DGC LIST CHECK**. Simoldes remains without a confirmed legitimate corporate route.
+1. consult the official DGC/consumidor.gov.pt Article 13-B list page;
+2. download the list files in Excel format;
+3. treat the list as dynamic — DGC says it is updated whenever a new inclusion request is made;
+4. therefore use a current-list check immediately before any Portuguese commercial send and suppress any listed person/entity/route as applicable.
+
+Portugal state changes from **HOLD — DGC ACCESS/PROCEDURE UNKNOWN** to **HOLD — CURRENT DGC LIST SCREEN REQUIRED BEFORE SEND**. No Portuguese commercial send is authorized merely by receipt of the DGC reply.
+
+Sodecia, Fehst and COINDU remain fail-closed pending current-list screening. Simoldes additionally remains without a confirmed legitimate corporate route.
 
 ### Spain
 
@@ -164,13 +165,12 @@ ACTIVE:
 - autonomously classify and handle non-binding buyer replies using the T3 response kit without duplicate replies;
 - preserve confidential data outside public GitHub if a real buyer supplies it;
 - convert a qualified fit to the smallest truthful priced pilot/scope;
-- execute the scheduled first-cohort follow-up only after pre-send recheck;
 - execute Cohort 2 only if no stronger T3 signal supersedes it;
-- keep Portugal/Spain fail-closed;
+- keep Portugal/Spain fail-closed until their respective current compliance gates pass;
 - reopen technical work immediately if a real case exposes a P0/P1 or material delivery bottleneck.
 
 WAIT / external evidence:
 
 - actual buyer response/delivery/bounce/opt-out/case/data/WTP;
-- DGC list/access response;
+- current DGC list screening for each Portuguese target immediately before any send;
 - correct Capacity payment account/rail if and when payment becomes due.
