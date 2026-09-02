@@ -50,15 +50,13 @@ jobs:
           open('/tmp/access_token','w',encoding='utf-8').write(token)
           PY
 
-      - name: Require exact production build and populated Radar
+      - name: Require exact production build and first-value Radar
         env:
           TARGET_BUILD: ${{ github.sha }}
         run: |
           set -euo pipefail
           AUTH="Authorization: Bearer $(cat /tmp/access_token)"
 
-          # Render may still be replacing the previous build. Wait for the exact
-          # commit first so a green result can never certify stale production.
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error --max-time 15 "$API_URL/health" > /tmp/health.json \
               && TARGET_BUILD="$TARGET_BUILD" python - <<'PY'
@@ -75,13 +73,12 @@ jobs:
             sleep 10
           done
 
-          # The product is not ready merely because HTTP/auth work. The tenant
-          # Radar must have a completed source synchronization and at least one
-          # real account-scoped opportunity. The source worker starts shortly
-          # after readiness, so give the first bounded refresh time to complete.
+          # The default customer UI starts at 60+ relevance. A generic corpus
+          # below that threshold is not first value, so production is green only
+          # when the authenticated probe has at least one genuinely visible item.
           for attempt in $(seq 1 36); do
             stats_status="$(curl --silent --show-error --output /tmp/stats.json --write-out '%{http_code}' --max-time 30 -H "$AUTH" "$API_URL/stats" || true)"
-            opp_status="$(curl --silent --show-error --output /tmp/opportunities.json --write-out '%{http_code}' --max-time 30 -H "$AUTH" "$API_URL/opportunities?limit=1&minscore=0" || true)"
+            opp_status="$(curl --silent --show-error --output /tmp/opportunities.json --write-out '%{http_code}' --max-time 30 -H "$AUTH" "$API_URL/opportunities?limit=1&minscore=60" || true)"
             if test "$stats_status" = "200" && test "$opp_status" = "200" \
               && python - <<'PY'
           import json
@@ -91,24 +88,29 @@ jobs:
           assert stats.get('account_id') == opportunities.get('account_id')
           assert stats.get('last_sync')
           assert int(stats.get('total') or 0) > 0
+          assert int(stats.get('relevant60') or 0) > 0
           assert len(items) > 0
           item=items[0]
           assert item.get('id')
           assert item.get('source')
           assert item.get('title')
+          score=item.get('decision_score') if item.get('decision_score') is not None else item.get('score')
+          assert float(score or 0) >= 60
           print('radar_total=' + str(stats.get('total')))
+          print('radar_relevant60=' + str(stats.get('relevant60')))
           print('last_sync=' + str(stats.get('last_sync')))
           print('sample_source=' + str(item.get('source')))
+          print('sample_score=' + str(score))
           PY
             then
-              echo "Authenticated production Radar is populated and synchronized."
+              echo "Authenticated production Radar has first-value opportunities at the default relevance threshold."
               exit 0
             fi
-            echo "Waiting for populated production Radar (attempt $attempt/36; stats=$stats_status opportunities=$opp_status)…"
+            echo "Waiting for first-value production Radar (attempt $attempt/36; stats=$stats_status opportunities=$opp_status)…"
             sleep 10
           done
 
-          echo "Production Radar remained empty or unsynchronized."
+          echo "Production Radar remained empty, unsynchronized, or below the default relevance threshold."
           echo "stats:"
           cat /tmp/stats.json 2>/dev/null || true
           echo
