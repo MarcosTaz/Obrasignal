@@ -10,6 +10,14 @@ export function createSessionCoordinator(auth) {
     listeners.forEach((listener) => listener(state));
   };
 
+  const withTimeout = (promise, ms = 5000) => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Session recovery timed out')), ms);
+    Promise.resolve(promise).then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
+
   const start = () => {
     if (startPromise) return startPromise;
 
@@ -21,7 +29,12 @@ export function createSessionCoordinator(auth) {
     });
     subscription = data?.subscription || null;
     const eventsBeforeRead = authEvents;
-    startPromise = auth.getSession()
+    // Browser storage/auth providers can occasionally leave getSession pending
+    // forever (notably Safari after stale/corrupt persisted state). Startup must
+    // always converge: after the bounded recovery window we fail closed to the
+    // signed-out screen. A later Supabase auth event can still publish a valid
+    // authenticated session normally.
+    startPromise = withTimeout(auth.getSession())
       .then(({ data: result, error }) => {
         if (error) throw error;
         // An auth event observed while storage was loading is newer than the
