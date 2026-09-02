@@ -40,6 +40,11 @@ services:
         value: "https://obrasignal.com"
       - key: OBRASIGNAL_DB
         value: "/var/data/obrasignal.db"
+      # Start ingestion shortly after HTTP readiness. A 120-second default was
+      # safe for cold starts but repeated Web/UI deploys could keep resetting the
+      # grace period and leave a new customer Radar without first-value data.
+      - key: OBRASIGNAL_SOURCE_START_DELAY_SECONDS
+        value: "10"
       - key: REVENUECAT_SECRET_API_KEY
         sync: false
       - key: REVENUECAT_WEBHOOK_SECRET
