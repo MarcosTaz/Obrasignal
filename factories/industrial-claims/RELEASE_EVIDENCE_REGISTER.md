@@ -1,0 +1,60 @@
+# CERTACTUM — RELEASE EVIDENCE REGISTER
+
+This register is the internal launch gate. A control is only CLOSED when evidence exists. External controls remain PENDING until third-party evidence exists.
+
+## Product identity and UX
+- CLOSED — Canonical public/product identity is Certactum on current customer-facing public site, operator console and change-capture page.
+- CLOSED — Approved visual language preserved; hardening changes do not redesign the visual system.
+- CLOSED — Console queue auto-loads; selected dossier persists within the browser session; duplicate form submission is blocked while a request is in flight; explicit scroll restoration avoids refresh jumps.
+- CLOSED — Responsive CSS already provides one-column layouts for tablet/mobile breakpoints on current console/public surfaces.
+- CLOSED — Customer Help exists in PT, EN, FR and ES.
+- PENDING — Approved final logo/favicon asset must be verified against the actual production deployment before release; do not fabricate an asset.
+
+## Identity and authorization
+- CLOSED — Tenant comes from verified identity context, not request body.
+- CLOSED — JWT tenant claim can be configured separately from user subject and fails closed when required but missing/invalid.
+- CLOSED — Role separation covers analyst/reviewer/operator; cross-role abuse fails closed.
+- CLOSED — X-Tenant-ID and X-Actor-ID spoof attempts fail closed.
+- CLOSED — Customer-zero adversarial test verifies cross-tenant dossier/proof access is denied.
+- EXTERNAL PENDING — Production IdP configuration and privileged MFA.
+- EXTERNAL PENDING — Account recovery exercise with real production identities.
+
+## Evidence custody and proof
+- CLOSED — Secure capture is authorization-scoped, actor-bound and replay-bound.
+- CLOSED — Source authentication remains UNVERIFIED unless independently established.
+- CLOSED — Immutable provider contract requires COMPLIANCE retention, exact-version readback and digest/length verification.
+- CLOSED — Semantic rebinding/collision attempts fail before duplicate immutable writes.
+- CLOSED — Proof Pack/offline export binds exact originals and outcome evidence and independently rehashes them.
+- CLOSED — E2E includes effective_at replay tampering and exact-original export validation.
+- EXTERNAL PENDING — Production WORM/Object Lock provider and archived provider receipts.
+- EXTERNAL PENDING — Real qualified/trusted timestamp provider and historical validation.
+
+## Operational resilience
+- CLOSED — Verified SQLite backup uses online backup API, integrity_check, SHA-256 receipt and atomic destination replacement.
+- CLOSED — Restore requires expected SHA-256 and rejects a tampered backup before destination mutation.
+- CLOSED — Secret-free readiness report distinguishes blocking failures, warnings and external proof dependencies.
+- CLOSED — 200 repeated tenant-scoped queue reads smoke-test stable no-store behavior.
+- CLOSED — Request size limits and secure intake byte limits are enforced by existing gates.
+- EXTERNAL PENDING — Production backup schedule, off-site/independent copy, restore drill and RPO/RTO evidence.
+- EXTERNAL PENDING — External uptime/error monitoring provider and alert delivery verification.
+
+## Commercial/support journey
+- CLOSED — Public commercial identity uses marcos@certactum.com.
+- CLOSED — Help instructs users not to send confidential documents by email without an authorized intake channel.
+- CLOSED — Customer-zero abuse journey covers creation, cross-tenant denial, review segregation and internal action without implying external claim submission.
+- PENDING — Billing sandbox complete journey evidence: success, decline, cancellation, refund, webhook, activation and failed renewal.
+- PENDING — Final onboarding walkthrough from fresh account to first verified dossier must be recorded against the canonical deployed application.
+
+## Security/legal truth boundary
+- CLOSED — No internal gate claims court acceptance, certification, liability or guaranteed recovery.
+- CLOSED — No real customer documentary data is authorized before production identity/storage/access controls are verified.
+- EXTERNAL PENDING — Independent pentest and remediation evidence.
+- EXTERNAL PENDING — GDPR controller/processor mapping, DPA/privacy/retention/incident procedures reviewed for production use.
+- EXTERNAL PENDING — Jurisdiction-specific legal review of evidentiary positioning.
+
+## CI truth
+- Last validated Certactum head before the current operational additions: 1295 passed, 2 skipped; the only repository-wide failure was the pre-existing unrelated Chile MercadoPublico temporal assertion. Mobile passed.
+- Current operational additions require exact-head CI validation. Never convert an in-progress or absent workflow into a PASS claim.
+
+## Launch decision rule
+Internal launch readiness can be declared only when every non-external PENDING line above is CLOSED with evidence and exact-head Certactum tests show no Certactum-caused failure. External certification/trust upgrades can follow revenue where explicitly accepted, but production identity, access control, storage and data-handling controls cannot be bypassed for real confidential customer evidence.
