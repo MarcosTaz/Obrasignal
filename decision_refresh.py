@@ -27,6 +27,11 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS opportunity_decision_inputs (
     PRIMARY KEY(account_id, source, external_id)
 )"""
 
+# Bump whenever account-level ranking semantics change even if source/profile
+# inputs stay identical. Without this, a production matcher fix can deploy while
+# every existing customer's old decision remains frozen indefinitely.
+MATCHER_INPUT_VERSION = "profile-semantic-v3"
+
 # A profile edit can invalidate a large observed corpus. Spread that work over
 # successive 60-second source polls instead of monopolising SQLite in one pass.
 MAX_REFRESH_PER_ACCOUNT = 100
@@ -63,7 +68,11 @@ def _fingerprint(row: dict, profile: dict) -> str:
         if key not in {"account_id", "updated_at"}
     }
     payload = json.dumps(
-        {"opportunity": source_input, "profile": profile_input},
+        {
+            "opportunity": source_input,
+            "profile": profile_input,
+            "matcher_version": MATCHER_INPUT_VERSION,
+        },
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -181,6 +190,8 @@ def record_account_decisions(
             # Migration path: do not re-score the whole observed corpus merely
             # because the fingerprint table is new. A decision made after the
             # current profile was saved is already compatible with that profile.
+            # Once a matcher version is encoded, old fingerprints are different
+            # and therefore correctly re-evaluated instead of being re-seeded.
             if existing is None:
                 latest_decided = latest_decisions.get(key)
                 if latest_decided and (not profile_updated or latest_decided >= profile_updated):
