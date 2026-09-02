@@ -44,7 +44,8 @@ def test_client_page_contains_active_download_reminder_without_economic_or_custo
     response = client.get(f"/findings/{finding}/change-capture/view")
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "CausLedger" in html
+    assert "Certactum" in html
+    assert "CausLedger" not in html
     assert "Do this before the factual window closes" in html
     assert "What was requested? One sentence." in html
     assert "Download change sheet" in html
