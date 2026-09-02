@@ -1,10 +1,7 @@
 name: ObraSignal Play Store Submit One-Shot
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/play-submit-once.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
