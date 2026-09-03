@@ -2,6 +2,12 @@ name: ObraSignal iOS Production One-Shot
 
 on:
   workflow_dispatch:
+    inputs:
+      submit_to_testflight:
+        description: Submit the exact finished build to TestFlight after verification
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -9,27 +15,98 @@ permissions:
 jobs:
   ios-production:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: mobile
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout exact revision
+        uses: actions/checkout@v7
+
+      - name: Record exact release source
+        working-directory: .
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "IOS_RELEASE_SOURCE=$GITHUB_SHA"
+
       - name: Require EAS token
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
+
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify Expo project before native build
+        run: npx expo-doctor
+
       - name: Build iOS production binary and wait for final result
-        run: eas build --platform ios --profile production --non-interactive
+        run: |
+          set -euo pipefail
+          eas build \
+            --platform ios \
+            --profile production \
+            --non-interactive \
+            --wait \
+            --json > /tmp/eas-ios-build.json
+          cat /tmp/eas-ios-build.json
+
+      - name: Verify exact finished iOS build and record ID
+        env:
+          EXPECTED_GIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          payload = json.load(open('/tmp/eas-ios-build.json', encoding='utf-8'))
+          if isinstance(payload, list):
+              builds = payload
+          elif isinstance(payload, dict) and isinstance(payload.get('builds'), list):
+              builds = payload['builds']
+          elif isinstance(payload, dict):
+              builds = [payload]
+          else:
+              builds = []
+          if len(builds) != 1:
+              raise SystemExit(f"Expected exactly one iOS build result, got {len(builds)}")
+          target = builds[0]
+          build_id = str(target.get('id') or '')
+          status = str(target.get('status') or '').upper().replace('-', '_')
+          platform = str(target.get('platform') or '').upper()
+          profile = str(target.get('buildProfile') or target.get('profile') or '').lower()
+          git_sha = str(target.get('gitCommitHash') or target.get('gitCommit') or '')
+          if not build_id:
+              raise SystemExit('EAS did not return an iOS build ID')
+          if status != 'FINISHED':
+              raise SystemExit(f"iOS production build did not finish successfully: {status or 'missing'}")
+          if platform and platform != 'IOS':
+              raise SystemExit(f"Wrong EAS platform: {platform}")
+          if profile and profile != 'production':
+              raise SystemExit(f"Wrong EAS build profile: {profile}")
+          if git_sha and git_sha != os.environ['EXPECTED_GIT_SHA']:
+              raise SystemExit(f"Wrong EAS git commit: {git_sha}")
+          env_file = Path(os.environ['GITHUB_ENV'])
+          with env_file.open('a', encoding='utf-8') as fh:
+              fh.write(f"EAS_IOS_BUILD_ID={build_id}\n")
+          print(f"IOS_EAS_BUILD_VERIFIED id={build_id} source={os.environ['EXPECTED_GIT_SHA']}")
+          PY
+
+      - name: Submit exact verified build to TestFlight
+        if: ${{ inputs.submit_to_testflight }}
+        run: eas build:submit --platform ios --id "$EAS_IOS_BUILD_ID" --profile production --non-interactive --wait
