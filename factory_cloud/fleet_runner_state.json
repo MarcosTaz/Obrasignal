@@ -7,19 +7,25 @@
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
   "cursor": 4,
-  "last_factory_id": "scopeledger",
-  "last_run_at": "2026-09-03T15:42:22Z",
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-09-03T16:42:14Z",
   "last_material_change": {
-    "kind": "SCOPELEDGER_AUTHORITY_NOT_RECOVERED_ROTATE_FAIL_CLOSED",
-    "summary": "ScopeLedger was reconstructed from the current control-plane registry and repository search. No open ScopeLedger PR and no default-branch code/document authority matching ScopeLedger were recovered, so no product, engineering, customer, revenue, deployment, or readiness claim was promoted. The lane remains registered but UNKNOWN rather than borrowing authority from adjacent Factories. Gmail watch across all three connected accounts found no new material inbound from the explicitly monitored CausLedger/association/DGC routes in the last day; no outbound was sent. The fleet remains ACTIVE and rotates immediately to ChangeLedger.",
+    "kind": "CERTACTUM_PRODUCTION_TRUST_CONTROL_SUCCESSOR_EXACT_HEAD_GREEN",
+    "summary": "A newer Industrial Supplier Claims/Certactum successor was recovered after the previously recorded RED #785 state. PR #922 is OPEN/DRAFT/NOT MERGED/NOT CANONICAL at exact HEAD 085deeeede5c3366f93b25ea05aaece3697b45b5. It adds fail-closed production trust-control automation for signed JWT AAL2 MFA, AWS S3 Object Lock/Versioning with per-object COMPLIANCE exact-version verification, and live RFC3161/eIDAS trust-chain verification. Exact-head GitHub Actions run 33777761130 has both python and mobile SUCCESS. This is repository evidence only: no external provider activation, certification, production deployment, real customer validation, recovery, paid audit, WTP, payment or revenue is promoted. Gmail watch across all three connected accounts found no new material inbound from monitored prospect/association/DGC routes; no outbound was sent. Fleet remains ACTIVE and rotates to ChangeLedger.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "scopeledger": {
-        "registry_present": true,
-        "open_pr_recovered": false,
-        "default_branch_authority_recovered": false,
-        "verification": "UNKNOWN_NO_DEDICATED_AUTHORITY_RECOVERED",
-        "automatic_merge_authorized": false
+      "certactum": {
+        "pr": 922,
+        "state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+        "head": "085deeeede5c3366f93b25ea05aaece3697b45b5",
+        "quality_run": 33777761130,
+        "python": "SUCCESS",
+        "mobile": "SUCCESS",
+        "verification": "EXACT_HEAD_GREEN_REPOSITORY_TRUST_CONTROLS_ONLY",
+        "automatic_merge_authorized": false,
+        "external_provider_activation_proved": false,
+        "production_deployment_proved": false,
+        "real_customer_validation_proved": false
       },
       "causledger_inbound_watch": {
         "accounts_checked": 3,
@@ -33,8 +39,7 @@
       "Portugal outbound requires current DGC-list recipient screening immediately before send.",
       "Spain unsolicited commercial email/follow-up hold remains active.",
       "ScopeLedger has no recovered dedicated open PR or default-branch repository authority; keep UNKNOWN and do not borrow adjacent Factory authority.",
-      "Certactum PR #785 is exact-head RED: Mobile passes, Python repository/Factory Cloud tests fail; no merge/deploy is authorized.",
-      "Certactum real-customer validation, real recovery, paid audit, independently verified operator identity and production WORM/TSA/HSM configuration remain unproved.",
+      "Certactum PR #922 is exact-head GREEN at repository level but non-canonical; external provider activation/certification, production deployment, real-customer validation, real recovery, paid audit, WTP, payment and revenue remain unproved.",
       "ComplianceLedger has no recovered dedicated repository/source authority; do not borrow Documentary Billing authority.",
       "Factory Cloud PR #777 is exact-head GREEN at repository/control-plane level, but a real persistent autonomous portfolio agent host is not proved provisioned.",
       "ObraSignal PR #890 is exact-head GREEN but non-canonical and domain ownership/DNS remains an external fail-closed gate.",
