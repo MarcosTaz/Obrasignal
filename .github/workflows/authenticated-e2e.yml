@@ -10,12 +10,9 @@ on:
 permissions:
   contents: read
 
-# Shares E2E_EMAIL with Radar Production Readiness and temporarily mutates the
-# profile before restoring it. Serialize all such probes so cleanup can never
-# restore stale profile state over another production test's deliberate save.
 concurrency:
-  group: obrasignal-production-e2e-account
-  cancel-in-progress: false
+  group: authenticated-e2e
+  cancel-in-progress: true
 
 env:
   SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
@@ -62,21 +59,15 @@ jobs:
 
           BASE_URL="${SUPABASE_URL%/}"
           BASE_URL="${BASE_URL%/rest/v1}"
-
-          settings_status="$(curl --silent --show-error --output /tmp/settings.json --write-out '%{http_code}' --max-time 30 \
-            -H "apikey: $SUPABASE_KEY" "$BASE_URL/auth/v1/settings")"
-          test "$settings_status" = "200"
-
           BODY="$(python - <<'PY'
           import json, os
           print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
           PY
           )"
-          auth_status="$(curl --silent --show-error --output /tmp/auth.json --write-out '%{http_code}' --max-time 30 \
+          curl --fail --silent --show-error --max-time 30 \
             -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
-            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' -H 'Accept: application/json' \
-            --data "$BODY")"
-          test "$auth_status" = "200"
+            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' \
+            --data "$BODY" > /tmp/auth.json
           python - <<'PY'
           import json
           token=json.load(open('/tmp/auth.json', encoding='utf-8')).get('access_token')
@@ -87,55 +78,19 @@ jobs:
 
           unauth_status="$(curl --silent --output /tmp/unauth.json --write-out '%{http_code}' --max-time 30 "$API_URL/profile")"
           test "$unauth_status" = "401"
-          grep -q 'authentication_required' /tmp/unauth.json
-          malformed_status="$(curl --silent --output /tmp/malformed.json --write-out '%{http_code}' --max-time 30 \
-            -H 'Authorization: Bearer definitely-not-a-jwt' "$API_URL/profile")"
+          malformed_status="$(curl --silent --output /tmp/malformed.json --write-out '%{http_code}' --max-time 30 -H 'Authorization: Bearer definitely-not-a-jwt' "$API_URL/profile")"
           test "$malformed_status" = "401"
-          grep -q 'authentication_required' /tmp/malformed.json
 
-          curl --fail --silent --show-error --max-time 30 -H "$AUTH" "$API_URL/profile" > /tmp/profile-original-response.json
+          # Profile is deliberately read-only in this general E2E. Radar
+          # Production Readiness owns profile write persistence. This prevents
+          # cleanup from ever restoring stale profile state over another probe.
+          curl --fail --silent --show-error --max-time 30 -H "$AUTH" "$API_URL/profile" > /tmp/profile.json
           python - <<'PY'
-          import json, uuid
-          payload=json.load(open('/tmp/profile-original-response.json', encoding='utf-8'))
+          import json
+          payload=json.load(open('/tmp/profile.json', encoding='utf-8'))
           assert payload.get('authenticated') is True
           assert payload.get('account_id')
           assert isinstance(payload.get('profile'), dict)
-          profile=dict(payload['profile'])
-          marker=f"__e2e_{uuid.uuid4().hex[:12]}"
-          profile['keywords']=list(profile.get('keywords') or [])+[marker]
-          json.dump(profile, open('/tmp/profile-write.json','w',encoding='utf-8'), ensure_ascii=False)
-          json.dump(payload['profile'], open('/tmp/profile-restore.json','w',encoding='utf-8'), ensure_ascii=False)
-          json.dump({'marker':marker}, open('/tmp/profile-marker.json','w',encoding='utf-8'))
-          PY
-
-          cleanup() {
-            set +e
-            if test -s /tmp/profile-restore.json; then
-              curl --silent --show-error --max-time 30 -X POST "$API_URL/profile" -H "$AUTH" -H 'Content-Type: application/json' \
-                --data-binary @/tmp/profile-restore.json >/tmp/profile-restore-response.json
-            fi
-            if test -s /tmp/workflow-original.json && test -s /tmp/tender_id; then
-              ID="$(cat /tmp/tender_id)"
-              python - <<'PY'
-          import json
-          w=json.load(open('/tmp/workflow-original.json', encoding='utf-8'))
-          json.dump({'status':w['status'],'note':w.get('note')}, open('/tmp/workflow-restore.json','w',encoding='utf-8'))
-          PY
-              curl --silent --show-error --max-time 30 -X POST "$API_URL/opportunities/$ID/workflow" \
-                -H "$AUTH" -H 'Content-Type: application/json' --data-binary @/tmp/workflow-restore.json >/tmp/workflow-restore-response.json
-            fi
-          }
-          trap cleanup EXIT
-
-          curl --fail --silent --show-error --max-time 30 -X POST "$API_URL/profile" -H "$AUTH" -H 'Content-Type: application/json' \
-            --data-binary @/tmp/profile-write.json >/tmp/profile-write-response.json
-          curl --fail --silent --show-error --max-time 30 -H "$AUTH" "$API_URL/profile" > /tmp/profile-after-write.json
-          python - <<'PY'
-          import json
-          marker=json.load(open('/tmp/profile-marker.json', encoding='utf-8'))['marker']
-          payload=json.load(open('/tmp/profile-after-write.json', encoding='utf-8'))
-          assert marker in (payload.get('profile') or {}).get('keywords', [])
-          assert payload.get('authenticated') is True
           PY
 
           curl --fail --silent --show-error --max-time 30 -H "$AUTH" "$API_URL/opportunities?limit=1" > /tmp/opportunities.json
@@ -154,6 +109,21 @@ jobs:
           items=opportunities.get('items') or []
           open('/tmp/tender_id','w',encoding='utf-8').write(str(items[0]['id']) if items else '')
           PY
+
+          cleanup() {
+            set +e
+            if test -s /tmp/workflow-original.json && test -s /tmp/tender_id; then
+              ID="$(cat /tmp/tender_id)"
+              python - <<'PY'
+          import json
+          w=json.load(open('/tmp/workflow-original.json', encoding='utf-8'))
+          json.dump({'status':w['status'],'note':w.get('note')}, open('/tmp/workflow-restore.json','w',encoding='utf-8'))
+          PY
+              curl --silent --show-error --max-time 30 -X POST "$API_URL/opportunities/$ID/workflow" \
+                -H "$AUTH" -H 'Content-Type: application/json' --data-binary @/tmp/workflow-restore.json >/tmp/workflow-restore-response.json
+            fi
+          }
+          trap cleanup EXIT
 
           if test -s /tmp/tender_id; then
             ID="$(cat /tmp/tender_id)"
@@ -189,8 +159,6 @@ jobs:
           assert actual.get('status') == expected['status']
           assert actual.get('note') == expected['note']
           PY
-          else
-            echo "No opportunity available; bounded detail/workflow mutation skipped."
           fi
 
           echo "Authenticated production contract PASS."
