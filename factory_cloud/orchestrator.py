@@ -11,6 +11,7 @@ from typing import Any
 
 from factory_cloud.adapters import AdapterRegistry, ExecutionRequest, ExecutionResult
 from factory_cloud.control_plane import ACTIVATION_CODE, RegistryError, load_registry
+from factory_cloud.portfolio_priority import PortfolioPriorityError, priority_for_app
 from factory_cloud.state_store import StateStore, StateStoreError, utc_now
 
 DEFAULT_STATE_PATH = Path(__file__).with_name("factory_cloud_state.sqlite3")
@@ -64,6 +65,8 @@ class PersistentFactoryOrchestrator:
 
     Canonical source truth remains persisted separately from the mutable development
     execution source. A successful repository-safe task may advance only the latter.
+    Portfolio priority signals affect scheduling only; they never grant execution
+    capability, repository authority, production authority or cross-app data access.
     """
 
     def __init__(
@@ -170,9 +173,19 @@ class PersistentFactoryOrchestrator:
             required_capabilities=required_capabilities,
         )
 
+    def _priority_score(self, app_id: str) -> int:
+        try:
+            return priority_for_app(self._app_config(app_id)).score
+        except PortfolioPriorityError as exc:
+            raise OrchestratorError(f"invalid portfolio priority for {app_id}: {exc}") from exc
+
     def choose_next(self, attempted: set[str] | None = None) -> DispatchDecision | None:
         attempted = attempted or set()
-        for state in self.store.list_apps():
+        states = sorted(
+            self.store.list_apps(),
+            key=lambda state: (-self._priority_score(state["app_id"]), state["app_id"]),
+        )
+        for state in states:
             if state["app_id"] in attempted:
                 continue
             decision = self._decision_for(state)
@@ -301,7 +314,13 @@ class PersistentFactoryOrchestrator:
             if decision is None:
                 break
             result = self.execute_one(decision)
-            dispatches.append({"app_id": decision.app_id, "task": decision.task, "status": result.status, "evidence": result.evidence})
+            dispatches.append({
+                "app_id": decision.app_id,
+                "task": decision.task,
+                "status": result.status,
+                "evidence": result.evidence,
+                "portfolio_priority_score": self._priority_score(decision.app_id),
+            })
             if result.status == "DONE":
                 state = self.store.get_app(decision.app_id)
                 if state and self._decision_for(state) is not None:
@@ -320,13 +339,13 @@ class PersistentFactoryOrchestrator:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Persistent Factory Cloud orchestrator")
-    parser.add_argument("code", help="activation code; must be Ω")
+    parser.add_argument("code", help="activation code; must be D")
     parser.add_argument("--registry", type=Path, default=None)
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE_PATH)
     parser.add_argument("--max-dispatches", type=int, default=100)
     args = parser.parse_args()
     if args.code != ACTIVATION_CODE:
-        parser.error("Factory Cloud activation requires Ω")
+        parser.error("Factory Cloud activation requires D")
     try:
         registry = load_registry(args.registry) if args.registry else load_registry()
         orchestrator = PersistentFactoryOrchestrator(registry, StateStore(args.state), recover_interrupted=True)

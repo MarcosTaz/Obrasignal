@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "vertical": "industrial-claims",
+  "mode": "assisted",
+  "wedge": "supplier-side recovery after material industrial or commercial events",
+  "required_inputs": ["commercial_basis", "customer_program_event", "cost_evidence", "gross_cost", "mitigation_and_prior_recovery"],
+  "outputs": ["evidence_envelope", "entitlement_basis", "reproducible_net_potential_calculation", "missing_evidence", "reviewable_finding", "outcome_record"],
+  "fail_closed": ["cost_without_commercial_basis", "missing_event_evidence", "partial_entitlement_basis", "negative_economic_input", "mitigation_exceeds_gross_cost", "duplicate_recovery_fingerprint", "cross_tenant_composition", "unsupported_review_transition"],
+  "pricing": {"status": "HYPOTHESIS", "currency": "EUR", "audit_fee_min": 0, "audit_fee_max": 5000, "success_fee_percent_min": 10, "success_fee_percent_max": 25},
+  "pilot_exit_criteria": ["canonical_source_green", "synthetic_ground_truth_green", "all_claim_families_structurally_supported", "tenant_isolation_green", "backup_restart_green", "no_known_p0_p1", "runtime_provisioned", "pricing_validated_or_revised"],
+  "commercial_success": {"status": "UNPROVEN", "requires": ["real_incremental_recovery_gt_zero", "real_customer_revenue_gt_zero"]},
+  "production_authority": false
+}

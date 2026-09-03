@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "scope": "switchboard_only",
   "default_signal": "X",
   "progress_semantics": "estimated readiness of the current Factory phase; not lifetime business completion",
@@ -13,7 +13,8 @@
     {"id":"sourcing-recovery","name":"Sourcing Recovery & Supplier Margin Control","target":"Sourcing Recovery","group":"business","progress_seed":46},
     {"id":"product-market-access","name":"Product Market Access / Legal Product Checker","target":"Product Market Access / Legal Product Checker","group":"business","progress_seed":57},
     {"id":"eu-cloud-switching","name":"EU Cloud Switching / Migration Capital Network","target":"Cloud Switching Factory","group":"business","progress_seed":59},
-    {"id":"aviation-lease-entitlement-recovery","name":"Aviation Lease Entitlement Recovery","target":"Aviation","group":"business","progress_seed":52},
+    {"id":"aviation-lease-entitlement-recovery","name":"Aviation Lease Entitlement Recovery","target":"Aviation","group":"business","progress_seed":60},
+    {"id":"contractcredit","name":"ContractCredit","target":"ContractCredit","group":"business","progress_seed":45},
     {"id":"capacity-commitment","name":"Capacity Commitment","target":"Capacity Commitment","group":"business","progress_seed":44},
     {"id":"longlead","name":"LongLead","target":"LongLead","group":"business","progress_seed":49},
     {"id":"machine-release-safety","name":"MachineRelease Safety","target":"MachineRelease Safety","group":"business","progress_seed":51},

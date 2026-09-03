@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "truth_owner": "independent_test_fixture",
+  "cases": [
+    {
+      "id": "alpha-cancel-clean",
+      "company": "ALPHA COMPONENTS",
+      "claim_family": "EXCESS_OBSOLETE_RAW_MATERIAL",
+      "gross_cost": "120000",
+      "avoided_cost": "10000",
+      "resale_reuse": "15000",
+      "third_party_recovery": "0",
+      "prior_payment": "5000",
+      "other_mitigation": "0",
+      "missing_evidence": [],
+      "expected_net_potential": "90000",
+      "expected_state": "READY_FOR_REVIEW"
+    },
+    {
+      "id": "nova-volume-reduction",
+      "company": "NOVA PRECISION",
+      "claim_family": "WIP",
+      "gross_cost": "80000",
+      "avoided_cost": "5000",
+      "resale_reuse": "0",
+      "third_party_recovery": "0",
+      "prior_payment": "10000",
+      "other_mitigation": "2000",
+      "missing_evidence": [],
+      "expected_net_potential": "63000",
+      "expected_state": "READY_FOR_REVIEW"
+    },
+    {
+      "id": "legacy-missing-basis-proof",
+      "company": "LEGACY PARTS",
+      "claim_family": "TOOLING",
+      "gross_cost": "45000",
+      "avoided_cost": "0",
+      "resale_reuse": "0",
+      "third_party_recovery": "0",
+      "prior_payment": "0",
+      "other_mitigation": "0",
+      "missing_evidence": ["tooling_ownership", "customer_authorization"],
+      "expected_net_potential": "45000",
+      "expected_state": "UNRESOLVED_EVIDENCE"
+    },
+    {
+      "id": "distressed-partial-settlement",
+      "company": "DISTRESSED SUPPLIER",
+      "claim_family": "SUPPLIER_COMMITMENT",
+      "gross_cost": "200000",
+      "avoided_cost": "20000",
+      "resale_reuse": "10000",
+      "third_party_recovery": "5000",
+      "prior_payment": "60000",
+      "other_mitigation": "5000",
+      "missing_evidence": [],
+      "expected_net_potential": "100000",
+      "expected_state": "READY_FOR_REVIEW"
+    },
+    {
+      "id": "zero-net-correct",
+      "company": "TITAN INDUSTRIES",
+      "claim_family": "NRE",
+      "gross_cost": "30000",
+      "avoided_cost": "0",
+      "resale_reuse": "0",
+      "third_party_recovery": "0",
+      "prior_payment": "30000",
+      "other_mitigation": "0",
+      "missing_evidence": [],
+      "expected_net_potential": "0",
+      "expected_state": "UNRESOLVED_EVIDENCE"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 3,
+  "purpose": "host provisioning contract only; does not itself mutate or deploy production",
+  "supervision_required": true,
+  "applications": [
+    {
+      "app_id": "aviation-lease-entitlement-recovery",
+      "repository": "MarcosTaz/Obrasignal",
+      "branch": "apps/aviation-lease-entitlement-recovery",
+      "head": "0d1759832a06b3177b67b35a4c53ee0c69db459e",
+      "workspace": "/srv/factory-cloud/apps/aviation-lease-entitlement-recovery",
+      "agent": "/opt/factory-cloud/current/factory_cloud/recovery_vertical_agent.py",
+      "adapter_config": "factory_cloud/runtime/aviation-recovery-adapter.json",
+      "activation_after": ["workspace_exists", "exact_head_matches", "agent_exists", "verification_tests_pass", "supervised_worker_confirmed"]
+    },
+    {
+      "app_id": "contractcredit",
+      "repository": "MarcosTaz/Obrasignal",
+      "branch": "apps/contractcredit",
+      "head": "0d1759832a06b3177b67b35a4c53ee0c69db459e",
+      "workspace": "/srv/factory-cloud/apps/contractcredit",
+      "agent": "/opt/factory-cloud/current/factory_cloud/recovery_vertical_agent.py",
+      "adapter_config": "factory_cloud/runtime/contractcredit-adapter.json",
+      "activation_after": ["workspace_exists", "exact_head_matches", "agent_exists", "verification_tests_pass", "supervised_worker_confirmed"]
+    },
+    {
+      "app_id": "industrial-claims",
+      "repository": "MarcosTaz/Obrasignal",
+      "branch": "apps/industrial-claims",
+      "head": "529debe635aa281b0c6062a2de7f6ef580e57738",
+      "workspace": "/srv/factory-cloud/apps/industrial-claims",
+      "agent": "/opt/factory-cloud/current/factory_cloud/recovery_vertical_agent.py",
+      "adapter_config": "factory_cloud/runtime/industrial-claims-adapter.json",
+      "activation_after": ["workspace_exists", "exact_head_matches", "agent_exists", "verification_tests_pass", "supervised_worker_confirmed"]
+    }
+  ]
+}
