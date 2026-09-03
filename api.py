@@ -200,6 +200,10 @@ def sources():
 _PROFILE_FIELDS = {"name", "activity", "contract_interests", "coverage_mode", "keywords", "countries", "cpv_prefixes", "min_value", "max_value", "economic_min_score", "min_deadline_days", "max_deadline_days", "preferred_procedure_types", "excluded_procedure_types", "exclude_keywords", "regions", "geographic_radius_km", "services", "capability_tags", "project_scales", "certifications", "hard_exclusions"}
 
 
+def _same_public_list(left, right):
+    return [str(v).strip() for v in (left or []) if str(v).strip()] == [str(v).strip() for v in (right or []) if str(v).strip()]
+
+
 @bp.route("/profile", methods=["GET", "POST"])
 def profile():
     identity = request.obrasignal_identity
@@ -210,6 +214,18 @@ def profile():
     current = load_profile(identity.account_id)
     merged = dict(current)
     merged.update({k: payload[k] for k in _PROFILE_FIELDS if k in payload})
+
+    # Public flattened fields are editable in the customer UI, while the profile
+    # model now tracks manual and inferred provenance separately. Only promote a
+    # flattened list to manual provenance when the customer actually changed it;
+    # an unchanged form round-trip must not cement old inferred values forever.
+    if "cpv_prefixes" in payload and not _same_public_list(payload.get("cpv_prefixes"), current.get("cpv_prefixes")):
+        merged["manual_cpv_prefixes"] = list(payload.get("cpv_prefixes") or [])
+        merged["inferred_cpv_prefixes"] = []
+    if "keywords" in payload and not _same_public_list(payload.get("keywords"), current.get("keywords")):
+        merged["manual_keywords"] = list(payload.get("keywords") or [])
+        merged["inferred_keywords"] = []
+
     normalized = derive_profile(str(merged.get("activity") or ""), merged)
     normalized["account_id"] = identity.account_id
     try:
@@ -348,7 +364,13 @@ def opportunities():
         where.append("UPPER(t.source)=?")
         params.append(source)
     if open_only:
-        where.append("t.deadline IS NOT NULL AND t.deadline<>'' AND datetime(t.deadline)>=datetime('now')")
+        # Match the same precision-aware definition used by /stats. A deadline
+        # containing only a date stays open for that entire calendar day instead
+        # of being converted to midnight and disappearing after 00:00 UTC.
+        where.append("""t.deadline IS NOT NULL AND TRIM(t.deadline)<>'' AND (
+            (LENGTH(TRIM(t.deadline))=10 AND date(t.deadline)>=date('now')) OR
+            (LENGTH(TRIM(t.deadline))<>10 AND datetime(t.deadline)>=datetime('now'))
+        )""")
     if minscore is not None:
         where.append("COALESCE(d.score,t.score)>=?")
         params.append(minscore)
