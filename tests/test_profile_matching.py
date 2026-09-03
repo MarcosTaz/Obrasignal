@@ -21,14 +21,14 @@ def test_profile_derivation(profile_env):
     )
     assert profile["activity"]
     assert any("metal" in x.lower() for x in profile["keywords"])
-    assert profile["countries"] == ["PT", "ES", "FR"]
+    assert profile["countries"] == ["PRT", "ESP", "FRA"]
 
 
 def test_strong_match_scores_high(profile_env):
     from company_profile import save_profile
     from profile_scoring import personalized_score
 
-    save_profile({
+    saved = save_profile({
         "activity": "estruturas metálicas, pavilhões industriais e serralharia",
         "keywords": ["estruturas metálicas", "pavilhões", "serralharia"],
         "countries": ["PT", "ES", "FR"],
@@ -37,12 +37,14 @@ def test_strong_match_scores_high(profile_env):
         "max_value": 2000000,
         "exclude_keywords": ["arquitetura", "fiscalização", "consultoria"],
     })
+    assert "452" in saved["manual_cpv_prefixes"]
+    assert "454" in saved["manual_cpv_prefixes"]
     row = {
         "score": 70,
         "title": "Construção de pavilhão industrial em estruturas metálicas",
         "description": "Fabrico e montagem de estruturas de aço e cobertura.",
         "buyer": "Município",
-        "country": "ES",
+        "country": "ESP",
         "cpv": "45213200",
         "value": "850000 EUR",
     }
@@ -71,7 +73,7 @@ def test_excluded_service_is_penalized(profile_env):
         "title": "Serviços de arquitetura e fiscalização de obra",
         "description": "Projeto, arquitetura e fiscalização.",
         "buyer": "Município",
-        "country": "ES",
+        "country": "ESP",
         "cpv": "71200000",
         "value": "400000 EUR",
     }
@@ -101,8 +103,8 @@ def test_non_preferred_country_loses_bonus(profile_env):
         "cpv": "45213200",
         "value": "850000 EUR",
     }
-    preferred = personalized_score({**base, "country": "ES"})[0]
-    other = personalized_score({**base, "country": "DE"})[0]
+    preferred = personalized_score({**base, "country": "ESP"})[0]
+    other = personalized_score({**base, "country": "DEU"})[0]
     assert preferred > other
 
 
