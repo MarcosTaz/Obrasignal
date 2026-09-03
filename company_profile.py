@@ -17,8 +17,12 @@ DEFAULT_PROFILE = {
     "contract_interests": [],
     "coverage_mode": "portugal",
     "keywords": [],
+    "manual_keywords": [],
+    "inferred_keywords": [],
     "countries": ["PRT"],
-    "cpv_prefixes": ["45", "44", "42", "43"],
+    "cpv_prefixes": [],
+    "manual_cpv_prefixes": [],
+    "inferred_cpv_prefixes": [],
     "min_value": None,
     "max_value": None,
     "economic_min_score": 60,
@@ -59,6 +63,14 @@ _COUNTRY_ALIASES = {
     "NO": "NOR", "GB": "GBR",
 }
 
+# Older releases stored inferred terms and explicit user criteria in the same
+# arrays. These sets let us migrate old documents conservatively: known inference
+# artefacts are rebuilt from the *current* activity, while unknown/custom values
+# are preserved as manual user criteria.
+_KNOWN_INFERRED_TERMS = {str(term).strip() for _, terms, _ in ACTIVITY_RULES for term in terms}
+_KNOWN_INFERRED_CPVS = {str(prefix).strip() for _, _, prefixes in ACTIVITY_RULES for prefix in prefixes}
+_LEGACY_BROAD_DEFAULT_CPVS = {"45", "44", "42", "43"}
+
 PROFILE_TABLE = """
 CREATE TABLE IF NOT EXISTS company_profiles (
     account_id TEXT PRIMARY KEY,
@@ -92,6 +104,15 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _unique(values) -> list[str]:
+    out = []
+    for value in values or []:
+        token = str(value).strip()
+        if token and token not in out:
+            out.append(token)
+    return out
+
+
 def _normalize_countries(values) -> list[str]:
     normalized = []
     for value in values or []:
@@ -119,29 +140,60 @@ def _normalize_optional_number(value):
     return value
 
 
+def _legacy_manual_keywords(profile: dict) -> list[str]:
+    if "manual_keywords" in profile:
+        return _unique(profile.get("manual_keywords"))
+    return [
+        value for value in _unique(profile.get("keywords"))
+        if value not in _KNOWN_INFERRED_TERMS
+    ]
+
+
+def _legacy_manual_cpvs(profile: dict) -> list[str]:
+    if "manual_cpv_prefixes" in profile:
+        return _unique(profile.get("manual_cpv_prefixes"))
+    return [
+        value for value in _unique(profile.get("cpv_prefixes"))
+        if value not in _KNOWN_INFERRED_CPVS and value not in _LEGACY_BROAD_DEFAULT_CPVS
+    ]
+
+
 def derive_profile(activity: str, base: dict | None = None) -> dict:
+    """Derive current criteria without carrying stale inference across edits.
+
+    Manual criteria and inferred criteria have separate provenance. The public
+    compatibility fields ``keywords`` and ``cpv_prefixes`` remain the union used
+    by existing matchers, but inferred values are rebuilt from the current
+    activity + contract interests on every load/save.
+    """
+    supplied = dict(base or {})
     profile = dict(DEFAULT_PROFILE)
-    if base:
-        profile.update({k: v for k, v in base.items() if v is not None})
+    profile.update({k: v for k, v in supplied.items() if v is not None})
     interests = profile.get("contract_interests") or []
     if isinstance(interests, str):
         interests = [interests]
-    interests = [str(value).strip() for value in interests if str(value).strip()]
+    interests = _unique(interests)
     profile["contract_interests"] = interests
-    activity_n = _normalize(" ".join([activity or "", *interests]))
-    profile["activity"] = activity or profile.get("activity", "")
-    keywords = list(profile.get("keywords") or [])
-    cpvs = list(profile.get("cpv_prefixes") or [])
+    activity_value = activity or profile.get("activity", "")
+    activity_n = _normalize(" ".join([activity_value, *interests]))
+    profile["activity"] = activity_value
+
+    manual_keywords = _legacy_manual_keywords(supplied or profile)
+    manual_cpvs = _legacy_manual_cpvs(supplied or profile)
+    inferred_keywords = []
+    inferred_cpvs = []
     for _, terms, prefixes in ACTIVITY_RULES:
         if any(term in activity_n for term in terms):
-            for term in terms:
-                if term not in keywords:
-                    keywords.append(term)
-            for prefix in prefixes:
-                if prefix not in cpvs:
-                    cpvs.append(prefix)
-    profile["keywords"] = keywords
-    profile["cpv_prefixes"] = cpvs
+            inferred_keywords.extend(terms)
+            inferred_cpvs.extend(prefixes)
+
+    profile["manual_keywords"] = _unique(manual_keywords)
+    profile["inferred_keywords"] = _unique(inferred_keywords)
+    profile["keywords"] = _unique([*profile["manual_keywords"], *profile["inferred_keywords"]])
+    profile["manual_cpv_prefixes"] = _unique(manual_cpvs)
+    profile["inferred_cpv_prefixes"] = _unique(inferred_cpvs)
+    profile["cpv_prefixes"] = _unique([*profile["manual_cpv_prefixes"], *profile["inferred_cpv_prefixes"]])
+    profile["countries"] = _normalize_countries(profile.get("countries")) or ["PRT"]
     return normalize_company_profile(profile)
 
 
@@ -192,10 +244,9 @@ def load_profile(account_id: str | None = None) -> dict:
     if row:
         try:
             raw = json.loads(row["profile_json"])
-            profile = dict(DEFAULT_PROFILE)
-            profile.update(raw or {})
-            profile["account_id"] = account
-            return derive_profile(profile.get("activity", ""), profile)
+            raw = dict(raw or {})
+            raw["account_id"] = account
+            return derive_profile(raw.get("activity", ""), raw)
         except (TypeError, ValueError, json.JSONDecodeError):
             pass
 
@@ -229,15 +280,15 @@ def _persist_profile_db(profile: dict, account: str) -> None:
 def save_profile(profile: dict, account_id: str | None = None) -> dict:
     requested_account = account_id or (profile or {}).get("account_id") or "default"
     account = str(requested_account).strip() or "default"
+    supplied = dict(profile or {})
     normalized = dict(DEFAULT_PROFILE)
-    normalized.update(profile or {})
+    normalized.update(supplied)
     normalized["account_id"] = account
     normalized["min_value"] = _normalize_optional_number(normalized.get("min_value"))
     normalized["max_value"] = _normalize_optional_number(normalized.get("max_value"))
     normalized = derive_profile(normalized.get("activity", ""), normalized)
-    validation_profile = dict(normalized)
-    validation_profile["countries"] = _normalize_countries(validation_profile.get("countries"))
-    errors = validate_company_profile(validation_profile)
+    normalized["countries"] = _normalize_countries(normalized.get("countries")) or ["PRT"]
+    errors = validate_company_profile(normalized)
     if errors:
         raise ValueError({"code": "INVALID_COMPANY_PROFILE", "errors": errors})
 
