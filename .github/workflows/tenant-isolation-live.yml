@@ -17,6 +17,8 @@ concurrency:
 env:
   SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
   SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
   E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
   E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
   E2E_EMAIL_B: ${{ secrets.E2E_EMAIL_B }}
@@ -29,9 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
