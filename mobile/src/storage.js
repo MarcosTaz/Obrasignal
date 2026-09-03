@@ -4,7 +4,7 @@ import { createTenantStorage } from './tenantStorage';
 
 const DEFAULT_SETTINGS = {
   notifications: false,
-  minScore: 75,
+  minScore: 60,
   openOnly: true,
   source: '',
 };

@@ -283,6 +283,16 @@ def save_profile(profile: dict, account_id: str | None = None) -> dict:
     supplied = dict(profile or {})
     normalized = dict(DEFAULT_PROFILE)
     normalized.update(supplied)
+
+    # The flattened compatibility fields are also a public write contract. If a
+    # caller explicitly supplies keywords/CPVs without provenance fields, treat
+    # them as manual customer criteria before defaults introduce empty manual_*
+    # arrays. Otherwise explicit CPVs can silently disappear during derivation.
+    if "manual_keywords" not in supplied and "keywords" in supplied:
+        normalized["manual_keywords"] = _unique(supplied.get("keywords"))
+    if "manual_cpv_prefixes" not in supplied and "cpv_prefixes" in supplied:
+        normalized["manual_cpv_prefixes"] = _unique(supplied.get("cpv_prefixes"))
+
     normalized["account_id"] = account
     normalized["min_value"] = _normalize_optional_number(normalized.get("min_value"))
     normalized["max_value"] = _normalize_optional_number(normalized.get("max_value"))

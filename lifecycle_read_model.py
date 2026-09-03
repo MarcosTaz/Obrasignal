@@ -17,9 +17,11 @@ from auth_context import configured_identity
 from decision_dashboard import get_presented_decision
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+from opportunity_web import render_opportunity_detail
 from account_registry import list_active_accounts
 from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
+from runtime_radar_integrity import install as install_radar_integrity
 
 
 _ORIGINAL_COMMERCIAL_SCORE = _app.commercial_score
@@ -124,7 +126,7 @@ def stats_for(market):
             params + [(datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()],
         ).fetchone()["n"]
         last = conn.execute("SELECT MAX(finished_at) v FROM sync_runs").fetchone()["v"]
-        return dict(total=total, new24=new24, high=high, last=last or "nunca")
+        return dict(total=total, new24=new24, high=high,last=last or "nunca")
     finally:
         conn.close()
 
@@ -241,6 +243,7 @@ def opportunity_detail(tender_id):
 
 def install(preload_module):
     """Install lifecycle-aware reads without replacing the decision refresh owner."""
+    install_radar_integrity(preload_module, _app)
     _app.commercial_score = commercial_score
     _app.query_tenders = query_tenders
     _app.stats_for = stats_for

@@ -17,19 +17,34 @@ SCHEMA = '''CREATE TABLE IF NOT EXISTS opportunity_decisions (
 RULE_VERSION = 'commercial-v1'
 DECISION_ACCOUNT_INDEX = 'idx_opportunity_decisions_account_opportunity'
 
+# Additive migration for databases created by older releases. Missing rule/model
+# metadata must never make a production refresh crash; an empty rule_version is
+# intentionally incompatible with the current matcher and therefore triggers a
+# clean re-score on the next incremental refresh.
+_LEGACY_COLUMNS = {
+    "account_id": "TEXT NOT NULL DEFAULT 'default'",
+    "decision": "TEXT NOT NULL DEFAULT 'REVIEW'",
+    "reason": "TEXT NOT NULL DEFAULT ''",
+    "score": "INTEGER",
+    "features_json": "TEXT NOT NULL DEFAULT '{}'",
+    "rule_version": "TEXT NOT NULL DEFAULT ''",
+    "decided_at": "TEXT NOT NULL DEFAULT ''",
+}
 
-def _ensure_account_column(conn):
+
+def _ensure_legacy_columns(conn):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(opportunity_decisions)").fetchall()}
-    if "account_id" not in cols:
-        conn.execute("ALTER TABLE opportunity_decisions ADD COLUMN account_id TEXT NOT NULL DEFAULT 'default'")
-        conn.commit()
+    for name, definition in _LEGACY_COLUMNS.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE opportunity_decisions ADD COLUMN {name} {definition}")
+            cols.add(name)
 
 
 def ensure_decision_table(conn):
     exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='opportunity_decisions'").fetchone()
     if not exists:
         conn.execute(SCHEMA)
-    _ensure_account_column(conn)
+    _ensure_legacy_columns(conn)
     # Every customer lookup and latest-decision join begins with this tenant +
     # opportunity tuple. Keep it indexed so additional tenants do not turn the
     # shared decision history into a full-table scan.
@@ -84,6 +99,7 @@ def latest_decision(conn, source, external_id, account_id='default'):
 
 def funnel_counts(conn, account_id='default'):
     """Return current funnel state, counting only the latest decision per opportunity."""
+    ensure_decision_table(conn)
     rows = conn.execute(
         '''SELECT d.decision, COUNT(*) AS count
            FROM opportunity_decisions d

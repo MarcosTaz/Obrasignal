@@ -149,7 +149,12 @@ def _explain_evaluation(profile_score, lot_score, geo, capability_evidence, cpv_
 
 
 def evaluate_row(row, profile=None):
-    profile = profile or load_profile()
+    # ``None`` means "load the default configured profile" for legacy callers.
+    # An explicit empty dict is an intentional tenant profile and must remain
+    # empty; treating it as false and falling back can import another context's
+    # criteria into the evaluation boundary.
+    if profile is None:
+        profile = load_profile()
     source_row = dict(row)
     lot = _lot_from_row(source_row)
     capability = build_capability_profile(profile)

@@ -15,6 +15,7 @@ import json
 from account_registry import list_active_accounts
 from auth_context import configured_identity
 from company_profile import load_profile
+from decision_log import ensure_decision_table
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 from opportunity_match_pipeline import RULE_VERSION
@@ -53,7 +54,7 @@ _MATERIAL_FIELDS = (
 
 
 def ensure_decision_input_table(conn):
-    """Startup-only schema preparation; never call this from request hot paths."""
+    """Idempotently prepare the incremental-decision fingerprint storage."""
     conn.execute(SCHEMA)
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_decision_inputs_account "
@@ -161,7 +162,12 @@ def record_account_decisions(
     if not run or not run["finished_at"]:
         return 0
 
+    # Sync can be invoked against a database created by an older release or a
+    # direct test/runtime path that did not execute the latest startup migration.
+    # Repair the additive schema once before entering the tenant/row hot loops.
     ensure_lifecycle_table(conn)
+    ensure_decision_table(conn)
+    ensure_decision_input_table(conn)
     rows = conn.execute(
         f"""SELECT t.* FROM tenders t
             LEFT JOIN opportunity_lifecycle lc

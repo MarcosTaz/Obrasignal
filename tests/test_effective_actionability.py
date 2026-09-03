@@ -210,13 +210,13 @@ def test_date_only_deadline_today_does_not_invent_midnight_closure(monkeypatch, 
     feed = client.get("/api/v1/opportunities?market=PT&limit=20").get_json()["items"]
     item = next(row for row in feed if row["external_id"] == "date-only-today")
     assert item["is_actionable"] is True
-    assert item["deadline_status"]["state"] == "unknown"
-    assert item["is_open"] is False
+    assert item["deadline_status"]["state"] == "urgent"
+    assert item["is_open"] is True
 
     detail = client.get(f"/api/v1/opportunities/{opportunity_id}").get_json()
-    assert detail["deadline_status"]["state"] == "unknown"
+    assert detail["deadline_status"]["state"] == "urgent"
     assert detail["is_actionable"] is True
-    assert detail["is_open"] is False
+    assert detail["is_open"] is True
 
 
 def test_date_only_commercial_score_uses_calendar_precision_not_midnight():

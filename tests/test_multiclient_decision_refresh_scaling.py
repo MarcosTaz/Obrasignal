@@ -1,5 +1,7 @@
 import sqlite3
 
+from opportunity_match_pipeline import RULE_VERSION
+
 
 def test_decision_refresh_prefetches_history_per_tenant(monkeypatch):
     import decision_refresh as refresh
@@ -16,7 +18,7 @@ def test_decision_refresh_prefetches_history_per_tenant(monkeypatch):
         );
         CREATE TABLE company_profiles(account_id TEXT PRIMARY KEY, profile_json TEXT NOT NULL, updated_at TEXT NOT NULL);
         CREATE TABLE opportunity_decisions(
-          id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT, source TEXT, external_id TEXT, decided_at TEXT
+          id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT, source TEXT, external_id TEXT, decided_at TEXT, rule_version TEXT
         );
         INSERT INTO sync_runs VALUES(1,'2026-09-01T00:00:00+00:00');
         """
@@ -39,8 +41,8 @@ def test_decision_refresh_prefetches_history_per_tenant(monkeypatch):
         )
         for tenant in tenants:
             conn.execute(
-                "INSERT INTO opportunity_decisions(account_id,source,external_id,decided_at) VALUES(?,?,?,?)",
-                (tenant, "TEST", external_id, "2026-08-02T00:00:00+00:00"),
+                "INSERT INTO opportunity_decisions(account_id,source,external_id,decided_at,rule_version) VALUES(?,?,?,?,?)",
+                (tenant, "TEST", external_id, "2026-08-02T00:00:00+00:00", RULE_VERSION),
             )
     refresh.ensure_decision_input_table(conn)
     conn.commit()
