@@ -26,8 +26,6 @@ _DEFAULT_WEB_ORIGIN = "https://marcostaz.github.io"
 _DEFAULT_TENANT_CLAIM = "sub"
 _LOGGER = logging.getLogger(__name__)
 
-# A browser Origin never contains a path. GitHub Pages serves the project under
-# /Obrasignal/, but the API must receive only the origin (scheme + host).
 _configured_cors = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "").strip()
 if not _configured_cors:
     os.environ["OBRASIGNAL_CORS_ORIGIN"] = _DEFAULT_WEB_ORIGIN
@@ -64,13 +62,6 @@ def _claim_value(claims: dict, claim_path: str):
 
 
 def _verified_tenant_id(claims: dict, subject: str) -> str:
-    """Return tenant/account identity from a signed JWT claim.
-
-    Production can set OBRASIGNAL_JWT_TENANT_CLAIM to a provider-managed claim
-    such as ``app_metadata.tenant_id``. The default remains ``sub`` only for
-    backward compatibility while the production IdP configuration is migrated.
-    The request can never choose or override the resulting tenant.
-    """
     claim_path = (os.getenv("OBRASIGNAL_JWT_TENANT_CLAIM") or _DEFAULT_TENANT_CLAIM).strip()
     if not claim_path:
         raise RuntimeError("OBRASIGNAL_JWT_TENANT_CLAIM is invalid")
@@ -83,8 +74,30 @@ def _verified_tenant_id(claims: dict, subject: str) -> str:
     return tenant_id
 
 
+def _mfa_required() -> bool:
+    value = (os.getenv("CERTACTUM_REQUIRE_MFA") or "").strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off", ""}:
+        return False
+    raise RuntimeError("CERTACTUM_REQUIRE_MFA is invalid")
+
+
+def _enforce_mfa_assurance(claims: dict) -> None:
+    """Require a provider-signed AAL2 session when production MFA is enabled.
+
+    Supabase Auth encodes the authenticator assurance level in the signed ``aal``
+    JWT claim. We deliberately do not inspect user_metadata or a caller header.
+    Missing or non-AAL2 assurance fails closed once CERTACTUM_REQUIRE_MFA is on.
+    """
+    if not _mfa_required():
+        return
+    aal = claims.get("aal") if isinstance(claims, dict) else None
+    if aal != "aal2":
+        raise InvalidTokenError("mfa assurance level is insufficient")
+
+
 def _invalid_token_reason(error: InvalidTokenError) -> str:
-    """Return a bounded diagnostic category without logging token material."""
     if isinstance(error, ExpiredSignatureError):
         return "token_expired"
     if isinstance(error, ImmatureSignatureError):
@@ -102,19 +115,12 @@ def _invalid_token_reason(error: InvalidTokenError) -> str:
         return "unsupported_algorithm"
     if "tenant claim" in message:
         return "tenant_claim_invalid"
+    if "mfa assurance" in message:
+        return "mfa_required"
     return "invalid_token"
 
 
 def configured_identity() -> RequestIdentity:
-    """Resolve identity from development configuration or a verified JWT.
-
-    Provider requests can cross more than one authenticated Flask boundary
-    (privacy lock, blueprint route, detail guard). Once this function has
-    successfully verified the bearer token, that immutable RequestIdentity may
-    be reused for the remainder of the *same request*. Nothing from headers or
-    arbitrary request attributes is trusted unless it is already this exact
-    internal type.
-    """
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
     if auth_mode not in _ALLOWED_AUTH_MODES:
         raise RuntimeError("Invalid OBRASIGNAL_AUTH_MODE")
@@ -141,6 +147,7 @@ def configured_identity() -> RequestIdentity:
     try:
         identity = production_verifier().verify(token.strip())
         claims = identity.claims if isinstance(identity.claims, dict) else {}
+        _enforce_mfa_assurance(claims)
         account_id = _valid_account(_verified_tenant_id(claims, identity.subject))
     except JwksUnavailableError:
         _LOGGER.warning("auth_provider_status=degraded reason=jwks_unavailable")

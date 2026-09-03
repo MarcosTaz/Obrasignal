@@ -45,5 +45,8 @@ def test_declared_external_providers_do_not_invent_certification(tmp_path, monke
 
     report = build_operational_readiness(database)
     proof = next(item for item in report["checks"] if item["name"] == "external_proof")
-    assert proof["status"] == "pass"
+    assert proof["status"] == "warn"
+    assert proof["detail"] == "external_providers_declared_unverified"
+    assert report["truth_boundary"]["external_provider_names_are_not_verification"] is True
+    assert report["truth_boundary"]["real_confidential_intake_requires_live_production_trust_gate"] is True
     assert report["truth_boundary"]["production_certification_claimed"] is False

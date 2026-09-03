@@ -5,3 +5,4 @@ PyJWT[crypto]>=2.10,<3
 rfc3161-client==1.0.8
 signxml==5.1.0
 lxml==6.1.2
+boto3==1.43.87

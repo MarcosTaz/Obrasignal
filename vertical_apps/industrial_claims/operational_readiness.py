@@ -50,14 +50,15 @@ def _auth_check() -> ReadinessCheck:
 
 
 def _external_proof_check() -> ReadinessCheck:
-    configured = all(
+    """Provider names are configuration, never evidence that controls work."""
+    declared = all(
         bool((os.getenv(name) or "").strip())
         for name in ("CERTACTUM_WORM_PROVIDER", "CERTACTUM_TIMESTAMP_PROVIDER")
     )
     return ReadinessCheck(
         "external_proof",
-        "pass" if configured else "warn",
-        "external_providers_declared" if configured else "external_providers_pending",
+        "warn",
+        "external_providers_declared_unverified" if declared else "external_providers_pending",
         False,
     )
 
@@ -75,6 +76,7 @@ def build_operational_readiness(database: str | Path) -> dict[str, object]:
         "truth_boundary": {
             "production_certification_claimed": False,
             "court_acceptance_guaranteed": False,
-            "external_worm_timestamp_may_be_pending": True,
+            "external_provider_names_are_not_verification": True,
+            "real_confidential_intake_requires_live_production_trust_gate": True,
         },
     }
