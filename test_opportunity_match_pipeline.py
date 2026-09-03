@@ -31,9 +31,10 @@ def test_evaluate_row_uses_lot_geography_profile_score_and_economic_fit():
     assert result["economic_fit"]["status"] == "FAVOURABLE"
     assert result["economic_fit"]["score"] == 100
     assert "profitability" not in result
-    # Geography and economics alone are not positive activity evidence.
-    assert result["profile_score"] < 75
-    assert result["decision"] == "REVIEW"
+    # Geography and economics alone are not positive activity evidence and must
+    # not put an unrelated tender on the customer's shortlist.
+    assert result["profile_score"] < 60
+    assert result["decision"] == "REJECT"
 
 
 def test_evaluate_row_does_not_qualify_weak_profile():
