@@ -152,19 +152,23 @@ def _require_production_trust(
     """Automatically protect documentary ingress whenever provider auth is live.
 
     Development/synthetic execution remains testable. In provider-auth production,
-    there is no manual "open intake" switch: a real gate and verified JWT claims
-    are mandatory, and the gate itself requires live WORM + qualified timestamp
-    control receipts in addition to AAL2 MFA.
+    there is no manual "open intake" switch. If the caller did not inject a gate,
+    Certactum auto-builds one from protected production configuration. Missing or
+    invalid external configuration therefore closes intake rather than downgrading.
     """
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
     if auth_mode != "provider":
         return
-    if production_trust_gate is None or verified_claims is None:
+    gate = production_trust_gate
+    if gate is None:
+        from vertical_apps.industrial_claims.production_trust_runtime import configured_production_trust_gate
+        gate = configured_production_trust_gate()
+    if gate is None or verified_claims is None:
         raise ProductionTrustGateError("real confidential intake blocked: production trust gate is not configured")
     claims = verified_claims()
     if not isinstance(claims, Mapping):
         raise ProductionTrustGateError("real confidential intake blocked: verified JWT claims are unavailable")
-    production_trust_gate.require_ready(verified_claims=claims)
+    gate.require_ready(verified_claims=claims)
 
 
 def create_secure_intake_blueprint(
