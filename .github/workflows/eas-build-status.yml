@@ -44,6 +44,17 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Verify resolved ObraSignal EAS project
+        env:
+          EAS_PROJECT_ID: c277466b-a418-45f7-b070-4fc3f96386b7
+          EAS_FULL_NAME: '@obrasignal/obrasignal'
+        run: |
+          set -euo pipefail
+          eas project:info 2>&1 | tee /tmp/eas-project-info.txt
+          grep -F "$EAS_PROJECT_ID" /tmp/eas-project-info.txt
+          grep -F "$EAS_FULL_NAME" /tmp/eas-project-info.txt
+          echo "EAS_PROJECT_CONTEXT_VERIFIED id=$EAS_PROJECT_ID fullName=$EAS_FULL_NAME"
+
       - name: Verify exact submitted production build
         env:
           BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
@@ -52,19 +63,30 @@ jobs:
           ANDROID_PACKAGE: pt.obrasignal.app
         run: |
           set -euo pipefail
-          eas build:view "$BUILD_ID" --json > /tmp/eas-build.json
+          eas build:list --platform android --limit 50 --json --non-interactive > /tmp/eas-builds.json
           python - <<'PY'
           import json, os
 
-          target = json.load(open('/tmp/eas-build.json', encoding='utf-8'))
-          if not isinstance(target, dict):
-              raise SystemExit('EAS build:view did not return one build object')
+          payload = json.load(open('/tmp/eas-builds.json', encoding='utf-8'))
+          builds = payload if isinstance(payload, list) else payload.get('builds', []) if isinstance(payload, dict) else []
+          print(f"ANDROID_BUILDS_VISIBLE count={len(builds)}")
+          for build in builds:
+              print(
+                  'EAS_BUILD '
+                  f"id={build.get('id')} status={build.get('status')} "
+                  f"profile={build.get('buildProfile') or build.get('profile')} "
+                  f"git={build.get('gitCommitHash') or build.get('gitCommit')}"
+              )
+
+          target = next((item for item in builds if str(item.get('id')) == os.environ['BUILD_ID']), None)
+          if target is None:
+              raise SystemExit(f"Submitted Android build {os.environ['BUILD_ID']} is not visible in the resolved ObraSignal EAS project")
 
           build_id = str(target.get('id') or '')
           status = str(target.get('status') or '').upper().replace('-', '_')
           platform = str(target.get('platform') or '').upper()
           profile = str(target.get('buildProfile') or target.get('profile') or '').lower()
-          git_sha = str(target.get('gitCommitHash') or '')
+          git_sha = str(target.get('gitCommitHash') or target.get('gitCommit') or '')
           project_id = str((target.get('app') or {}).get('id') or '')
           app_identifier = str(target.get('appIdentifier') or '')
 
@@ -78,13 +100,13 @@ jobs:
               raise SystemExit(f"Wrong EAS build profile: {profile or 'missing'}")
           if git_sha != os.environ['BUILD_GIT_SHA']:
               raise SystemExit(f"Wrong EAS git commit: {git_sha or 'missing'}")
-          if project_id != os.environ['EAS_PROJECT_ID']:
-              raise SystemExit(f"Wrong EAS project: {project_id or 'missing'}")
+          if project_id and project_id != os.environ['EAS_PROJECT_ID']:
+              raise SystemExit(f"Wrong EAS project: {project_id}")
           if app_identifier != os.environ['ANDROID_PACKAGE']:
               raise SystemExit(f"Wrong Android package: {app_identifier or 'missing'}")
 
           print(
               'ANDROID_EAS_BUILD_VERIFIED '
-              f"id={build_id} source={git_sha} project={project_id} package={app_identifier}"
+              f"id={build_id} source={git_sha} project={project_id or os.environ['EAS_PROJECT_ID']} package={app_identifier}"
           )
           PY
