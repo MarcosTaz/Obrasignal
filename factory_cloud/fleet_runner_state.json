@@ -6,38 +6,28 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 2,
-  "last_factory_id": "obrasignal",
-  "last_run_at": "2026-09-03T12:37:15Z",
+  "cursor": 3,
+  "last_factory_id": "industrial-claims",
+  "last_run_at": "2026-09-03T13:38:53Z",
   "last_material_change": {
-    "kind": "OBRASIGNAL_PRODUCTION_HARDENING_EXACT_HEAD_GREEN_DOMAIN_GATE_OPEN",
-    "summary": "ComplianceLedger was first inspected and kept fail-closed because no dedicated current repository/source authority could be recovered without borrowing Documentary Billing authority. Factory Cloud PR #777 was then verified exact-head GREEN at repository/control-plane level while its persistent autonomous agent host remains unproved. ObraSignal was advanced to current production-hardening candidate PR #890, which is OPEN/NOT_MERGED/NOT_CANONICAL at exact head 91d31452e19abb65d6eff6aac7897c6327c76fd5. Exact-head ObraSignal Quality run 33407801718 is COMPLETED/SUCCESS. The candidate hardens obrasignal.com canonical-origin/CORS handling, private analytics and Production Smoke, but its own truth boundary keeps domain ownership/DNS as an external fail-closed gate. PR mergeability is currently false, so no merge is attempted. CausLedger/Certactum Gmail watch across all three connected accounts found no new material inbound in the current window; no outbound was sent.",
+    "kind": "CERTACTUM_CURRENT_EXACT_HEAD_RED_PRODUCTION_EVIDENCE_COMMIT",
+    "summary": "Industrial Supplier Claims was reconstructed from current repository truth. PR #785 is OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at exact head b86730b9b35c5eec84ab8cdab3ffa7d6c20a9e41 and is now canonically named Certactum in its own PR truth boundary. Exact-head ObraSignal Quality run 33752991948 is FAILURE: Mobile passed, Python failed at repository and Factory Cloud tests. The head commit records canonical production deployment evidence, but the PR itself still explicitly does not establish complete production readiness, real-customer validation, recovery, paid audit, operator identity verification, or production WORM/TSA/HSM configuration. No merge or deploy was attempted. Gmail watch across all three connected accounts found no new material inbound; no outbound was sent.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "complianceledger": {
-        "repository_authority": "NOT_RECOVERED",
-        "classification": "FAIL_CLOSED_ROTATE"
-      },
-      "factory_cloud": {
-        "candidate_pr": 777,
-        "head": "72616e482d698564e73110d79c9b801ae5e82809",
-        "verification": "EXACT_HEAD_GREEN_REPOSITORY_CONTROL_PLANE_ONLY",
-        "obrasignal_quality_run": 33263744425,
-        "obrasignal_quality": "SUCCESS",
-        "persistent_agent_host_proven": false
-      },
-      "obrasignal": {
-        "candidate_pr": 890,
-        "state": "OPEN_NOT_MERGED_NOT_CANONICAL",
-        "draft": false,
-        "mergeable": false,
-        "head": "91d31452e19abb65d6eff6aac7897c6327c76fd5",
-        "verification": "EXACT_HEAD_GREEN_PRODUCTION_HARDENING_CANDIDATE",
-        "obrasignal_quality_run": 33407801718,
-        "obrasignal_quality": "SUCCESS",
-        "domain_dns_gate_proven": false,
-        "automatic_merge_authorized": false,
-        "production_deploy_authorized": false
+      "industrial_claims": {
+        "canonical_product_identity": "Certactum",
+        "candidate_pr": 785,
+        "state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+        "mergeable": true,
+        "head": "b86730b9b35c5eec84ab8cdab3ffa7d6c20a9e41",
+        "verification": "EXACT_HEAD_RED",
+        "obrasignal_quality_run": 33752991948,
+        "mobile": "SUCCESS",
+        "python": "FAILURE_REPOSITORY_AND_FACTORY_CLOUD_TESTS",
+        "real_customer_validation_proven": false,
+        "real_recovery_proven": false,
+        "paid_audit_proven": false,
+        "automatic_merge_authorized": false
       },
       "causledger_inbound_watch": {
         "accounts_checked": 3,
@@ -45,20 +35,22 @@
         "outbound_sent": 0
       }
     },
-    "active": "Industrial Supplier Claims & Margin Recovery",
-    "next": "Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal",
+    "active": "ScopeLedger",
+    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum",
     "wait": [
       "Portugal outbound requires current DGC-list recipient screening immediately before send.",
       "Spain unsolicited commercial email/follow-up hold remains active.",
+      "Certactum PR #785 is exact-head RED: Mobile passes, Python repository/Factory Cloud tests fail; no merge/deploy is authorized.",
+      "Certactum real-customer validation, real recovery, paid audit, independently verified operator identity and production WORM/TSA/HSM configuration remain unproved.",
       "ComplianceLedger has no recovered dedicated repository/source authority; do not borrow Documentary Billing authority.",
       "Factory Cloud PR #777 is exact-head GREEN at repository/control-plane level, but a real persistent autonomous portfolio agent host is not proved provisioned.",
-      "ObraSignal PR #890 is exact-head GREEN but non-canonical and currently mergeable=false; domain ownership/DNS remains an external fail-closed gate and no production deploy is authorized.",
-      "EU Switching Evidence Pack PR #818 is exact-head GREEN but non-canonical and repository-repair-only; no deployment, live migration, customer acceptance, savings, WTP, payment or revenue is established.",
-      "Release Safety PR #345 is exact-head GREEN but non-canonical; rollback remains UNPROVEN and no deployment is authorized.",
-      "Support Operations PR #355 is exact-head GREEN but non-canonical and non-runtime; CI is not customer incident-resolution evidence.",
-      "Analytics PR #344 is exact-head GREEN but non-canonical and does not establish production telemetry or behavioral/commercial truth.",
+      "ObraSignal PR #890 is exact-head GREEN but non-canonical and domain ownership/DNS remains an external fail-closed gate.",
+      "EU Switching Evidence Pack PR #818 is exact-head GREEN but non-canonical and repository-repair-only.",
+      "Release Safety PR #345 is exact-head GREEN but non-canonical; rollback remains UNPROVEN.",
+      "Support Operations PR #355 is exact-head GREEN but non-canonical and non-runtime.",
+      "Analytics PR #344 is exact-head GREEN but non-canonical.",
       "Customer Decision PR #376 remains exact-head RED due Mobile expo-doctor failure.",
-      "ObraSignal GTM PR #822 is exact-head GREEN but non-canonical; real commercial evidence remains negative/zero and Cohort 2 is not sent.",
+      "ObraSignal GTM PR #822 is exact-head GREEN but real commercial evidence remains negative/zero.",
       "Global Market Entry PR #519 remains exact-head RED and non-canonical.",
       "WarrantyGuard and Capacity Commitment remain exact-head RED at last verified truth."
     ]
