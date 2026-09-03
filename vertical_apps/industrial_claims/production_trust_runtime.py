@@ -27,6 +27,7 @@ def _config() -> tuple[str, ...]:
         for name in (
             "CERTACTUM_WORM_BUCKET",
             "AWS_REGION",
+            "CERTACTUM_WORM_S3_ENDPOINT",
             "CERTACTUM_AWS_EXPECTED_BUCKET_OWNER",
             "CERTACTUM_TSA_ENDPOINT",
             "CERTACTUM_TSA_PROVIDER_NAME",
@@ -40,8 +41,9 @@ def _config() -> tuple[str, ...]:
 
 
 def _configured(values: tuple[str, ...]) -> bool:
-    # Optional: expected owner and TSA intermediates. Everything else is required.
-    required_indexes = (0, 1, 3, 4, 5, 6, 8, 9)
+    # Optional: S3-compatible endpoint, expected owner and TSA intermediates.
+    # An empty endpoint preserves native AWS S3 behavior.
+    required_indexes = (0, 1, 4, 5, 6, 7, 9, 10)
     return all(bool(values[index]) for index in required_indexes)
 
 
@@ -49,6 +51,7 @@ def _build_gate(values: tuple[str, ...]) -> ProductionTrustGate:
     (
         bucket,
         region,
+        s3_endpoint,
         expected_owner,
         tsa_endpoint,
         tsa_name,
@@ -62,7 +65,10 @@ def _build_gate(values: tuple[str, ...]) -> ProductionTrustGate:
     # Import lazily so development/synthetic execution does not need AWS credentials.
     import boto3
 
-    s3 = boto3.client("s3", region_name=region)
+    s3_client_args: dict[str, str] = {"region_name": region}
+    if s3_endpoint:
+        s3_client_args["endpoint_url"] = s3_endpoint
+    s3 = boto3.client("s3", **s3_client_args)
     worm_backend = S3ObjectLockBackend(
         client=s3,
         bucket=bucket,
@@ -84,7 +90,7 @@ def _build_gate(values: tuple[str, ...]) -> ProductionTrustGate:
     def worm_probe() -> ControlReceipt:
         checked = datetime.now(timezone.utc)
         worm_backend.verify_bucket_controls()
-        reference_material = f"{bucket}\n{region}\n{expected_owner}".encode("utf-8")
+        reference_material = f"{bucket}\n{region}\n{s3_endpoint}\n{expected_owner}".encode("utf-8")
         return ControlReceipt(
             control="worm",
             verified=True,
@@ -139,7 +145,8 @@ def configured_production_trust_gate() -> ProductionTrustGate | None:
 
     AWS credentials deliberately use boto3's standard production credential chain
     (workload role or protected environment variables); secrets are never accepted
-    from request data and are never returned by this module.
+    from request data and are never returned by this module. A protected custom
+    endpoint may be supplied for S3-compatible Object Lock providers such as B2.
     """
     global _RUNTIME_GATE, _RUNTIME_CONFIG
     values = _config()
