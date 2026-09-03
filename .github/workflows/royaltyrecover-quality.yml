@@ -1,0 +1,56 @@
+name: RoyaltyRecover Quality
+
+on:
+  push:
+    branches:
+      - royaltyrecover/company-web-app
+    paths:
+      - 'factories/royaltyrecover/**'
+      - '.github/workflows/royaltyrecover-quality.yml'
+  pull_request:
+    paths:
+      - 'factories/royaltyrecover/**'
+      - '.github/workflows/royaltyrecover-quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: RoyaltyRecover tests
+        working-directory: factories/royaltyrecover
+        run: python -m unittest -v
+      - name: Validate SQLite schema
+        working-directory: factories/royaltyrecover
+        run: |
+          python - <<'PY'
+          import sqlite3
+          from pathlib import Path
+          sql = Path('schema.sql').read_text(encoding='utf-8')
+          conn = sqlite3.connect(':memory:')
+          conn.executescript(sql)
+          tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          required = {
+              'organizations', 'licensors', 'licensees', 'agreements', 'agreement_versions',
+              'clauses', 'audit_rights', 'royalty_rules', 'royalty_tiers', 'sales_records',
+              'royalty_statements', 'payments', 'calculation_runs', 'expected_royalties',
+              'variances', 'evidence', 'findings', 'deadlines', 'information_requests',
+              'reviews', 'recovery_actions', 'claims', 'outcomes', 'recovered_amounts', 'audit_events'
+          }
+          missing = sorted(required - tables)
+          if missing:
+              raise SystemExit(f'missing tables: {missing}')
+          violations = list(conn.execute('PRAGMA foreign_key_check'))
+          if violations:
+              raise SystemExit(f'foreign key violations: {violations}')
+          print(f'schema ok: {len(tables)} tables')
+          PY
