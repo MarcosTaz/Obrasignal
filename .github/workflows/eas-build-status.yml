@@ -7,12 +7,26 @@ on:
       - '.github/workflows/eas-build-status.yml'
       - '.eas-build-status-once'
 
+permissions:
+  contents: read
+
 jobs:
   verify-android-production-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout exact revision
+        uses: actions/checkout@v7
+
+      - name: Record exact workflow revision
+        working-directory: .
+        run: |
+          set -euo pipefail
+          echo "ObraSignal Android proof workflow source: $GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Require EAS token
         env:
@@ -20,7 +34,7 @@ jobs:
         run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -30,8 +44,7 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Verify submitted production build
-        working-directory: mobile
+      - name: Verify exact submitted production build
         env:
           BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
           BUILD_GIT_SHA: 11cbc5a527680759fe003132a902aa8164f4b156
@@ -41,28 +54,27 @@ jobs:
             --platform android \
             --build-profile production \
             --git-commit-hash "$BUILD_GIT_SHA" \
-            --limit 10 \
+            --limit 50 \
             --json \
             --non-interactive > /tmp/eas-builds.json
           python - <<'PY'
           import json, os
-          payload=json.load(open('/tmp/eas-builds.json',encoding='utf-8'))
+          payload = json.load(open('/tmp/eas-builds.json', encoding='utf-8'))
           builds = payload if isinstance(payload, list) else payload.get('builds', []) if isinstance(payload, dict) else []
           target = next((item for item in builds if str(item.get('id')) == os.environ['BUILD_ID']), None)
           if target is None:
-              raise SystemExit(f"Submitted Android build {os.environ['BUILD_ID']} not returned by EAS build:list")
-          status=str(target.get('status') or '').upper().replace('-', '_')
-          platform=str(target.get('platform') or '').upper()
-          profile=str(target.get('buildProfile') or target.get('profile') or '').lower()
-          git_sha=str(target.get('gitCommitHash') or target.get('gitCommit') or '')
-          print(f"eas_build_id={target.get('id')} status={status} platform={platform} profile={profile or 'unknown'} git={git_sha or 'unknown'}")
+              raise SystemExit(
+                  f"Android build {os.environ['BUILD_ID']} is not associated by EAS with production source {os.environ['BUILD_GIT_SHA']}"
+              )
+          status = str(target.get('status') or '').upper().replace('-', '_')
+          platform = str(target.get('platform') or '').upper()
+          profile = str(target.get('buildProfile') or target.get('profile') or '').lower()
+          print(f"eas_build_id={target.get('id')} status={status} platform={platform} profile={profile or 'unknown'}")
           if platform and platform != 'ANDROID':
               raise SystemExit(f"Wrong EAS platform: {platform}")
           if profile and profile != 'production':
               raise SystemExit(f"Wrong EAS build profile: {profile}")
-          if git_sha and git_sha != os.environ['BUILD_GIT_SHA']:
-              raise SystemExit(f"Wrong EAS git commit: {git_sha}")
           if status != 'FINISHED':
-              raise SystemExit(f"Android production build not finished: {status}")
-          print('Android production EAS build FINISHED.')
+              raise SystemExit(f"Android production build not finished: {status or 'missing'}")
+          print('ANDROID_EAS_BUILD_VERIFIED')
           PY
