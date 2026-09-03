@@ -9,6 +9,7 @@ _COUNTRY_ALIASES = {
     "ES": "ESP", "ESP": "ESP",
     "FR": "FRA", "FRA": "FRA",
     "DE": "DEU", "DEU": "DEU",
+    "CL": "CHL", "CHL": "CHL",
 }
 
 
