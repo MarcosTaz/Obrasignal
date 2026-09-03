@@ -10,9 +10,12 @@ on:
 permissions:
   contents: read
 
+# Shares E2E_EMAIL with Radar Production Readiness and temporarily mutates the
+# profile before restoring it. Serialize all such probes so cleanup can never
+# restore stale profile state over another production test's deliberate save.
 concurrency:
-  group: authenticated-e2e
-  cancel-in-progress: true
+  group: obrasignal-production-e2e-account
+  cancel-in-progress: false
 
 env:
   SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
