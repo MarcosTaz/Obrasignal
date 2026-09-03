@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime, timedelta, timezone
 
 from auth_context import RequestIdentity
 from vertical_apps.industrial_claims.proof_extensions import dual_digest
 from vertical_apps.industrial_claims.proof_storage import OriginalObjectReceipt
 from vertical_apps.industrial_claims.web import create_app
+
+
+_TEST_NOW = datetime.now(timezone.utc)
+_AUTHORIZED_AT = (_TEST_NOW - timedelta(hours=1)).isoformat()
+_EXPIRES_AT = (_TEST_NOW + timedelta(days=1)).isoformat()
+_RETENTION_UNTIL = (_TEST_NOW + timedelta(days=366)).isoformat()
+_CHANGED_EFFECTIVE_AT = (_TEST_NOW + timedelta(minutes=5)).isoformat()
 
 
 class Store:
@@ -57,9 +65,9 @@ def _case_authorization() -> dict:
         "authorization_id": "runtime-case-auth-1",
         "case_ref": "runtime-case-1",
         "authorized_by_ref": "synthetic-controller@example.test",
-        "authorized_at": "2026-09-01T00:00:00+00:00",
-        "expires_at": "2026-09-03T00:00:00+00:00",
-        "minimum_immutable_retention_until": "2027-09-03T00:00:00+00:00",
+        "authorized_at": _AUTHORIZED_AT,
+        "expires_at": _EXPIRES_AT,
+        "minimum_immutable_retention_until": _RETENTION_UNTIL,
         "transfer_channel_ref": "synthetic-secure-channel",
         "evidence_roles": ["commercial_basis", "event", "cost"],
         "data_terms_state": "SIGNED",
@@ -72,9 +80,9 @@ def _outcome_authorization() -> dict:
     return {
         "authorization_id": "runtime-outcome-auth-1",
         "authorized_by_ref": "synthetic-controller@example.test",
-        "authorized_at": "2026-09-01T00:00:00+00:00",
-        "expires_at": "2026-09-03T00:00:00+00:00",
-        "minimum_immutable_retention_until": "2027-09-03T00:00:00+00:00",
+        "authorized_at": _AUTHORIZED_AT,
+        "expires_at": _EXPIRES_AT,
+        "minimum_immutable_retention_until": _RETENTION_UNTIL,
         "transfer_channel_ref": "synthetic-secure-outcome-channel",
         "data_terms_state": "SIGNED",
         "immutable_retention_acknowledged": True,
@@ -188,7 +196,7 @@ def test_authorized_runtime_capture_to_recovered_offline_dossier_e2e(tmp_path):
     assert store.put_calls == 3
 
     changed_effective_at = dict(replay_payload)
-    changed_effective_at["effective_at"] = "2026-09-01T12:00:00+00:00"
+    changed_effective_at["effective_at"] = _CHANGED_EFFECTIVE_AT
     effective_collision = operator.post("/secure-evidence/capture", json=changed_effective_at)
     assert effective_collision.status_code == 422
     assert store.put_calls == 3
@@ -266,7 +274,7 @@ def test_authorized_runtime_capture_to_recovered_offline_dossier_e2e(tmp_path):
     assert store.put_calls == 4
 
     changed_outcome_effective_at = dict(outcome_payload)
-    changed_outcome_effective_at["effective_at"] = "2026-09-01T12:00:00+00:00"
+    changed_outcome_effective_at["effective_at"] = _CHANGED_EFFECTIVE_AT
     outcome_effective_collision = operator.post(
         f"/findings/{finding_id}/secure-outcome-evidence/capture",
         json=changed_outcome_effective_at,
