@@ -18,9 +18,28 @@ CAPABILITY_DEFAULTS = {
     "hard_exclusions": [],
 }
 
+_COUNTRY_ALIASES = {
+    "CL": "CHL",
+    "CHL": "CHL",
+}
+
+
+def _canonical_countries(values) -> list[str]:
+    normalized = []
+    for value in values or []:
+        code = str(value or "").strip().upper()
+        if not code:
+            continue
+        code = _COUNTRY_ALIASES.get(code, code)
+        if code not in normalized:
+            normalized.append(code)
+    return normalized
+
 
 def normalize_company_profile(profile: dict | None = None) -> dict:
     data = dict(profile or {})
+    if "countries" in data:
+        data["countries"] = _canonical_countries(data.get("countries"))
     capability = build_capability_profile({**CAPABILITY_DEFAULTS, **data})
     normalized = dict(data)
     for key, value in capability.items():
