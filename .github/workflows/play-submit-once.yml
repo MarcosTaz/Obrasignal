@@ -2,6 +2,15 @@ name: ObraSignal Play Store Submit One-Shot
 
 on:
   workflow_dispatch:
+    inputs:
+      build_id:
+        description: Exact finished Android EAS production build ID to submit
+        required: true
+        type: string
+      expected_git_sha:
+        description: Exact Git commit SHA that EAS must associate with the build
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -13,25 +22,73 @@ jobs:
     defaults:
       run:
         working-directory: mobile
+    env:
+      BUILD_ID: ${{ inputs.build_id }}
+      EXPECTED_GIT_SHA: ${{ inputs.expected_git_sha }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout expected source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.expected_git_sha }}
+
+      - name: Verify checked-out source
+        working-directory: .
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_GIT_SHA" || {
+            echo "::error::Checked out source does not match expected release SHA."
+            exit 1
+          }
+          echo "PLAY_SUBMISSION_SOURCE=$EXPECTED_GIT_SHA"
+
       - name: Require EAS token
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
+
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
+
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Submit exact production build to Google Play
-        env:
-          BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
-        run: eas submit --platform android --id "$BUILD_ID" --profile production --non-interactive --wait
+
+      - name: Verify exact Android build provenance before submission
+        run: |
+          set -euo pipefail
+          test -n "$BUILD_ID"
+          test -n "$EXPECTED_GIT_SHA"
+          eas build:list \
+            --platform android \
+            --build-profile production \
+            --git-commit-hash "$EXPECTED_GIT_SHA" \
+            --limit 50 \
+            --json \
+            --non-interactive > /tmp/eas-builds.json
+          python - <<'PY'
+          import json, os
+          payload = json.load(open('/tmp/eas-builds.json', encoding='utf-8'))
+          builds = payload if isinstance(payload, list) else payload.get('builds', []) if isinstance(payload, dict) else []
+          target = next((item for item in builds if str(item.get('id')) == os.environ['BUILD_ID']), None)
+          if target is None:
+              raise SystemExit(
+                  f"Refusing submission: build {os.environ['BUILD_ID']} is not tied by EAS to {os.environ['EXPECTED_GIT_SHA']}"
+              )
+          status = str(target.get('status') or '').upper().replace('-', '_')
+          platform = str(target.get('platform') or '').upper()
+          profile = str(target.get('buildProfile') or target.get('profile') or '').lower()
+          if status != 'FINISHED':
+              raise SystemExit(f"Refusing submission: build status is {status or 'missing'}")
+          if platform and platform != 'ANDROID':
+              raise SystemExit(f"Refusing submission: wrong platform {platform}")
+          if profile and profile != 'production':
+              raise SystemExit(f"Refusing submission: wrong build profile {profile}")
+          print(f"PLAY_BUILD_PROVENANCE_VERIFIED id={target.get('id')} source={os.environ['EXPECTED_GIT_SHA']}")
+          PY
+
+      - name: Submit exact production build to Google Play internal track
+        run: eas build:submit --platform android --id "$BUILD_ID" --profile production --non-interactive --wait
