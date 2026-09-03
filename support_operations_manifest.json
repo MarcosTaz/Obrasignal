@@ -1,0 +1,84 @@
+{
+  "contract_version": "support-incident-operations.v1",
+  "canonical_base_at_reconstruction": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "owner_issue": 347,
+  "status": "CANDIDATE_NOT_CANONICAL",
+  "customer_failure_classes": [
+    "RETRYABLE",
+    "UNAVAILABLE",
+    "DEGRADED",
+    "STALE",
+    "UNKNOWN",
+    "AUTH_REQUIRED",
+    "PERMISSION_DENIED",
+    "NOT_FOUND",
+    "CONFLICT",
+    "INVALID_INPUT"
+  ],
+  "service_readiness": ["HEALTHY", "DEGRADED", "BLOCKED", "UNKNOWN"],
+  "service_areas": [
+    "AUTH",
+    "DATA",
+    "SOURCES",
+    "WEB",
+    "MOBILE",
+    "NOTIFICATIONS",
+    "BILLING",
+    "PRIVACY",
+    "RECOVERY",
+    "OBSERVABILITY",
+    "SUPPORT"
+  ],
+  "incident_severity": {
+    "SEV0": ["TENANT_LEAKAGE", "DATA_LOSS", "SECURITY_COMPROMISE"],
+    "SEV1": ["BILLING_ACCESS_OUTAGE", "CUSTOMER_JOURNEY_OUTAGE"],
+    "SEV2": ["SOURCE_DEGRADATION"],
+    "SEV3": ["SINGLE_CUSTOMER_DEFECT"]
+  },
+  "journeys": [
+    {"id": "signup_login", "owner_refs": [289], "recovery": "AUTH_OWNER_CONTRACT"},
+    {"id": "profile", "owner_refs": [341, 360], "recovery": "READ_DURABLE_PROFILE_THEN_IDEMPOTENT_REFRESH"},
+    {"id": "radar", "owner_refs": [281, 327], "recovery": "SOURCE_HEALTH_AND_RADAR_REFRESH"},
+    {"id": "sources", "owner_refs": [281, 327], "recovery": "SOURCE_OWNER_CONTRACT"},
+    {"id": "opportunity_detail", "owner_refs": [212], "recovery": "REFRESH_CURRENT_AUTHORIZED_TRUTH"},
+    {"id": "evidence", "owner_refs": [212, 323], "recovery": "EVIDENCE_OWNER_PUBLIC_CONTRACT"},
+    {"id": "workflow", "owner_refs": [289, 335, 360], "recovery": "READ_BEFORE_RETRY_AND_VERIFY_READBACK"},
+    {"id": "notifications", "owner_refs": [259, 263, 329], "recovery": "PERMISSION_REGISTRATION_DELIVERY_TAP_SEPARATE"},
+    {"id": "evaluation", "owner_refs": [333], "recovery": "SERVER_LIFECYCLE_RECHECK"},
+    {"id": "billing", "owner_refs": [83, 288], "recovery": "SERVER_AUTHORITATIVE_BILLING_RECHECK"},
+    {"id": "account_privacy", "owner_refs": [292, 342], "recovery": "ACCOUNT_LIFECYCLE_OWNER_CONTRACT"}
+  ],
+  "runbook_overlays": [
+    "auth_outage",
+    "database_degradation",
+    "source_outage",
+    "stale_radar",
+    "billing_verification_failure",
+    "notification_failure",
+    "bad_deployment",
+    "migration_failure",
+    "cross_tenant_suspicion",
+    "data_corruption",
+    "external_dependency_outage"
+  ],
+  "specialist_boundaries": {
+    "security_operability": [248],
+    "data_reliability_recovery": [238],
+    "source_health": [281, 327],
+    "auth": [289],
+    "billing": [83, 288],
+    "mobile_session": [291, 322],
+    "notifications": [263, 329],
+    "account_privacy": [292, 342],
+    "production_readiness": [337],
+    "golden_acceptance": [212]
+  },
+  "forbidden_claims": [
+    "WORKAROUND_EQUALS_FIX",
+    "GREEN_CI_EQUALS_INCIDENT_RESOLVED",
+    "SERVICE_RESTORED_EQUALS_ROOT_CAUSE_CLOSED",
+    "UNKNOWN_EQUALS_SUCCESS",
+    "CANDIDATE_EQUALS_DEPLOYED",
+    "EMPTY_SOURCE_EQUALS_ZERO_MARKET"
+  ]
+}
