@@ -55,8 +55,9 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - EXTERNAL PENDING — Jurisdiction-specific legal review of evidentiary positioning.
 
 ## CI truth
-- Last validated Certactum head before the current operational additions: 1295 passed, 2 skipped; the only repository-wide failure was the pre-existing unrelated Chile MercadoPublico temporal assertion. Mobile passed.
-- Current operational additions require exact-head CI validation. Never convert an in-progress or absent workflow into a PASS claim.
+- CLOSED — Exact-head validation for commit 6fae35f4e2537eb534382616d0868faf6eb36734 completed: 1310 passed, 2 skipped, 2 warnings; Mobile passed.
+- The sole repository-wide failure remains `tests/test_chile_mercadopublico.py::test_observation_uses_visible_amount_only_and_preserves_publisher_state`, where an unrelated Chile MercadoPublico assertion expects `is_actionable=True` but receives `False`.
+- No Certactum-caused failure was observed in that exact-head run. The global workflow conclusion remains FAILURE because the unrelated Chile test is part of the same repository-wide job; do not relabel the global workflow as green.
 
 ## Launch decision rule
 Internal launch readiness can be declared only when every non-external PENDING line above is CLOSED with evidence and exact-head Certactum tests show no Certactum-caused failure. External certification/trust upgrades can follow revenue where explicitly accepted, but production identity, access control, storage and data-handling controls cannot be bypassed for real confidential customer evidence.
