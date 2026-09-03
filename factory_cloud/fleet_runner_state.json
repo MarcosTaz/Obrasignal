@@ -6,20 +6,20 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 24,
-  "last_factory_id": "obrasignal-customer-journey",
-  "last_run_at": "2026-09-03T05:39:46Z",
+  "cursor": 25,
+  "last_factory_id": "obrasignal-global-market-entry",
+  "last_run_at": "2026-09-03T06:39:38Z",
   "last_material_change": {
-    "kind": "CUSTOMER_JOURNEY_SUCCESSOR_EXACT_HEAD_GREEN_RECOVERED",
-    "summary": "Customer Journey PR #819 is OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at exact head 52eefb70afd82f8646fb940591058dad7789b211. It changes four legacy notification test fixtures to require explicit relevance authority while preserving fail-closed runtime semantics. Prior exact-head CI evidence for this SHA is GREEN for Python and Mobile, classified REPAIR_ONLY. No production, customer, outcome, WTP, payment or revenue proof is inferred. Gmail watch across all three connected accounts found no new monitored inbound in the last day; no outbound was sent. All 33 registered Factories remain ACTIVE and rotation advances to Global Market Entry.",
+    "kind": "GLOBAL_MARKET_ENTRY_EXACT_HEAD_RED_RECONSTRUCTED",
+    "summary": "Global Market Entry PR #519 is OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at exact head 53b65b952acbf5ad100356f8aeb1800e5d6094a1. Exact-head ObraSignal Quality run 33334251192 is FAILURE: Python succeeded, while Mobile failed at npx expo-doctor before critical wiring verification and Expo bundle smoke. The PR remains research-only and explicitly does not authorize production launch, outreach, paid spend or partnership claims. Gmail watch across all three connected accounts found no new monitored inbound in the last day; no outbound was sent. All 33 registered Factories remain ACTIVE and rotation advances to ObraSignal GTM / First Revenue.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "customer_journey": {"candidate_pr":819,"state":"OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL","head":"52eefb70afd82f8646fb940591058dad7789b211","changed_files":4,"verification":"EXACT_HEAD_GREEN_REPAIR_ONLY"},
+      "global_market_entry": {"candidate_pr":519,"state":"OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL","head":"53b65b952acbf5ad100356f8aeb1800e5d6094a1","changed_files":5,"verification":"EXACT_HEAD_RED","workflow_run":33334251192,"python":"SUCCESS","mobile":"FAILURE_EXPO_DOCTOR"},
       "causledger_inbound": {"new_material_replies":0,"successfully_queried_accounts":3,"portugal_outbound_state":"HOLD_CURRENT_DGC_LIST_SCREEN_REQUIRED_BEFORE_SEND","spain_unsolicited_commercial_hold":"ACTIVE"}
     },
-    "active": "Global Market Entry, Localization & Country Launch Automation",
-    "next": "Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey",
-    "wait": ["Portugal outbound requires current DGC-list recipient screening immediately before send.","Spain unsolicited commercial email/follow-up hold remains active.","Customer Journey PR #819 is GREEN repair-only and non-canonical.","WarrantyGuard and Capacity Commitment remain exact-head RED at last verified truth.","ObraSignal Commercial Readiness remains RED at last verified truth."]
+    "active": "ObraSignal GTM / First Revenue",
+    "next": "GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry",
+    "wait": ["Portugal outbound requires current DGC-list recipient screening immediately before send.","Spain unsolicited commercial email/follow-up hold remains active.","Global Market Entry PR #519 is exact-head RED and non-canonical; Python GREEN, Mobile expo-doctor RED.","Customer Journey PR #819 is GREEN repair-only and non-canonical.","WarrantyGuard and Capacity Commitment remain exact-head RED at last verified truth.","ObraSignal Commercial Readiness remains RED at last verified truth."]
   },
   "blocked": [],
   "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
