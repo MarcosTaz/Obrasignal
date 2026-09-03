@@ -6,21 +6,30 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 29,
-  "last_factory_id": "obrasignal-data-analytics",
-  "last_run_at": "2026-09-03T09:40:03Z",
+  "cursor": 31,
+  "last_factory_id": "obrasignal-support-ops",
+  "last_run_at": "2026-09-03T10:42:26Z",
   "last_material_change": {
-    "kind": "ANALYTICS_EXACT_HEAD_GREEN_BOUNDED",
-    "summary": "Data, Analytics & Learning System Factory has candidate PR #344 OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at exact head a331cc882f52ced98b5cb2e8da8a781b1c845a30. Two exact-head ObraSignal Quality runs, 33337007434 and 33337005904, are COMPLETED/SUCCESS. The candidate establishes a measurement-truth registry that preserves UNKNOWN/MISSING semantics and explicitly refuses to infer customer behavior, retention, WTP, causal impact, outcomes or revenue from repository telemetry fragments. No production analytics provider, tracking SDK, persistence, config or customer-private payload capture is introduced. Gmail watch across all three connected accounts found no new monitored inbound in the last day; no outbound was sent. All 33 registered Factories remain ACTIVE and rotation advances to Release, Deployment & Change Safety Factory.",
+    "kind": "RELEASE_AND_SUPPORT_EXACT_HEAD_GREEN_BOUNDED",
+    "summary": "Release Safety PR #345 remains OPEN/NOT_MERGED/NOT_CANONICAL at exact head 672e535f0b04f27d967ae3c174bd871fc0a56893 with ObraSignal Quality run 32900014033 COMPLETED/SUCCESS. It establishes explicit dispatch-only Pages release authority, exact target/main equality, exact deployed Web marker verification and bounded release-proof output, while rollback remains UNPROVEN and no deploy is authorized. Support Operations PR #355 remains OPEN/NOT_MERGED/NOT_CANONICAL at exact head 3aacd6cf08bca752e3023bdef61855f99fb07771; exact-head ObraSignal Quality evidence includes run 32892620792 COMPLETED/SUCCESS. Support semantics preserve UNKNOWN, separate SERVICE_RESTORED from VERIFIED and ROOT_CAUSE_CLOSED, and introduce no runtime endpoint or production mutation. Rotation advances to EU Switching Evidence Pack.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "analytics": {"candidate_pr":344,"state":"OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL","head":"a331cc882f52ced98b5cb2e8da8a781b1c845a30","verification":"EXACT_HEAD_GREEN_BOUNDED","workflow_runs":[33337007434,33337005904],"quality":"SUCCESS","truth_boundary":"NO_PRODUCTION_TELEMETRY_OR_COMMERCIAL_INFERENCE"},
-      "product_strategy": {"candidate_pr":521,"head":"74c23f15eed1b55dfff0742d9388c8f36230c49c","verification":"EXACT_HEAD_GREEN_BOUNDED","workflow_run":33336993718,"quality":"SUCCESS"},
-      "causledger_inbound": {"new_material_replies":0,"successfully_queried_accounts":3,"portugal_outbound_state":"HOLD_CURRENT_DGC_LIST_SCREEN_REQUIRED_BEFORE_SEND","spain_unsolicited_commercial_hold":"ACTIVE"}
+      "release_safety": {"candidate_pr":345,"state":"OPEN_NOT_MERGED_NOT_CANONICAL","head":"672e535f0b04f27d967ae3c174bd871fc0a56893","verification":"EXACT_HEAD_GREEN_BOUNDED","workflow_run":32900014033,"quality":"SUCCESS","rollback":"UNPROVEN","deployment_authorized":false},
+      "support_ops": {"candidate_pr":355,"state":"OPEN_NOT_MERGED_NOT_CANONICAL","head":"3aacd6cf08bca752e3023bdef61855f99fb07771","verification":"EXACT_HEAD_GREEN_BOUNDED","workflow_run":32892620792,"quality":"SUCCESS","runtime_endpoint":false,"production_mutation":false}
     },
-    "active": "Release, Deployment & Change Safety Factory",
-    "next": "Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics",
-    "wait": ["Portugal outbound requires current DGC-list recipient screening immediately before send.","Spain unsolicited commercial email/follow-up hold remains active.","Analytics PR #344 is exact-head GREEN but non-canonical and does not establish production telemetry or behavioral/commercial truth.","Product Strategy PR #521 is exact-head GREEN but strategy/documentation-only and non-canonical.","Customer Decision PR #376 remains exact-head RED due Mobile expo-doctor failure.","ObraSignal GTM PR #822 is exact-head GREEN but non-canonical; real commercial evidence remains negative/zero and Cohort 2 is not sent.","Global Market Entry PR #519 remains exact-head RED and non-canonical.","Customer Journey PR #819 is GREEN repair-only and non-canonical.","WarrantyGuard and Capacity Commitment remain exact-head RED at last verified truth."]
+    "active": "EU Switching Evidence Pack / Verified Migration Outcomes",
+    "next": "EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops",
+    "wait": [
+      "Portugal outbound requires current DGC-list recipient screening immediately before send.",
+      "Spain unsolicited commercial email/follow-up hold remains active.",
+      "Release Safety PR #345 is exact-head GREEN but non-canonical; rollback remains UNPROVEN and no deployment is authorized.",
+      "Support Operations PR #355 is exact-head GREEN but non-canonical and non-runtime; CI is not customer incident-resolution evidence.",
+      "Analytics PR #344 is exact-head GREEN but non-canonical and does not establish production telemetry or behavioral/commercial truth.",
+      "Customer Decision PR #376 remains exact-head RED due Mobile expo-doctor failure.",
+      "ObraSignal GTM PR #822 is exact-head GREEN but non-canonical; real commercial evidence remains negative/zero and Cohort 2 is not sent.",
+      "Global Market Entry PR #519 remains exact-head RED and non-canonical.",
+      "WarrantyGuard and Capacity Commitment remain exact-head RED at last verified truth."
+    ]
   },
   "blocked": [],
   "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
