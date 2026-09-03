@@ -23,4 +23,5 @@ def test_profile_includes_capability_fields(tmp_path, monkeypatch):
     assert loaded["project_scales"] == ["medium"]
     assert loaded["certifications"] == ["ISO 9001"]
     assert loaded["hard_exclusions"] == ["consultoria"]
-    assert "45" in loaded["cpv_prefixes"]
+    assert {"4522", "443"}.issubset(set(loaded["cpv_prefixes"]))
+    assert "45" not in loaded["cpv_prefixes"]
