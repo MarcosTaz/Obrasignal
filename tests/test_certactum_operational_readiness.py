@@ -9,7 +9,7 @@ def _database(path):
         connection.commit()
 
 
-def test_readiness_is_secret_free_and_reports_external_dependencies_as_warnings(tmp_path, monkeypatch):
+def test_readiness_is_secret_free_and_external_dependencies_block_real_intake(tmp_path, monkeypatch):
     database = tmp_path / "certactum.sqlite3"
     _database(database)
     monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
@@ -18,10 +18,12 @@ def test_readiness_is_secret_free_and_reports_external_dependencies_as_warnings(
 
     report = build_operational_readiness(database)
     assert report["product"] == "Certactum"
-    assert report["status"] == "ready_with_warnings"
+    assert report["status"] == "not_ready"
     assert "authentication" in report["warnings"]
-    assert "external_proof" in report["warnings"]
-    assert report["blocking_failures"] == []
+    assert "worm_storage" in report["blocking_failures"]
+    assert "trusted_timestamp" in report["blocking_failures"]
+    assert report["activation"]["automatic"] is True
+    assert report["activation"]["real_evidence_intake_enabled"] is False
     text = repr(report).lower()
     assert "password" not in text
     assert "token" not in text
@@ -34,9 +36,10 @@ def test_missing_database_is_blocking_and_fails_closed(tmp_path, monkeypatch):
     report = build_operational_readiness(tmp_path / "missing.sqlite3")
     assert report["status"] == "not_ready"
     assert "database" in report["blocking_failures"]
+    assert report["activation"]["real_evidence_intake_enabled"] is False
 
 
-def test_declared_external_providers_do_not_invent_certification(tmp_path, monkeypatch):
+def test_declared_external_providers_do_not_invent_certification_or_bypass_auth(tmp_path, monkeypatch):
     database = tmp_path / "certactum.sqlite3"
     _database(database)
     monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
@@ -44,6 +47,10 @@ def test_declared_external_providers_do_not_invent_certification(tmp_path, monke
     monkeypatch.setenv("CERTACTUM_TIMESTAMP_PROVIDER", "configured-provider")
 
     report = build_operational_readiness(database)
-    proof = next(item for item in report["checks"] if item["name"] == "external_proof")
-    assert proof["status"] == "pass"
+    worm = next(item for item in report["checks"] if item["name"] == "worm_storage")
+    timestamp = next(item for item in report["checks"] if item["name"] == "trusted_timestamp")
+    assert worm["status"] == "pass"
+    assert timestamp["status"] == "pass"
+    assert report["activation"]["real_evidence_intake_enabled"] is False
     assert report["truth_boundary"]["production_certification_claimed"] is False
+    assert report["truth_boundary"]["provider_declaration_is_not_external_certification"] is True
