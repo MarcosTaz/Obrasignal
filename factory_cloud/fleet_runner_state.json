@@ -6,47 +6,26 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 20,
-  "last_factory_id": "autonomous-revenue-recovery",
+  "cursor": 23,
+  "last_factory_id": "os-side-factory",
   "last_run_at": "2026-09-03T03:38:43Z",
   "last_material_change": {
-    "kind": "WARRANTYGUARD_EXACT_HEAD_VERIFICATION_RED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Paper-Laminate Works, Documentary Billing, Recoverable Money, Private Freight Orchestration and Autonomous Revenue Recovery exact PR/default-branch code searches produced no recoverable canonical/candidate authority and were rotated fail-closed. WarrantyGuard compliance head b3652c84f9b53a003d4a09b8f7acfe3aec322718 now has exact-head CI evidence: WarrantyGuard Factory run 33708637778 SUCCESS; ObraSignal Quality run 33708637775 FAILURE. Within Quality, mobile SUCCESS while python FAILS specifically at Run repository and Factory Cloud tests. Therefore the prior NOT_FULLY_VERIFIED state is replaced by EXACT_HEAD_RED / FACTORY_SPECIFIC_GREEN_ONLY; no historical or partial GREEN is promoted to repository-wide readiness. The verified DGC response remains authoritative that the Article 13-B corporate opt-out list is available through the official portal, downloadable as Excel and updated on each inclusion; Portugal outbound remains held until the then-current list is retrieved/consulted and each intended recipient is screened immediately before send. Gmail watch across all three connected accounts found no new monitored buyer/association inbound; no outbound was sent. Fleet rotates to ObraSignal Data Runner.",
+    "kind": "WARRANTYGUARD_EXACT_HEAD_RED_AND_CUSTOMER_JOURNEY_AUTHORITY_RECOVERED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Paper-Laminate Works, Documentary Billing, Recoverable Money, Private Freight Orchestration and Autonomous Revenue Recovery exact PR/default-branch code searches produced no recoverable canonical/candidate authority and were rotated fail-closed. ObraSignal Data Runner exact PR search produced no authority; Data Truth exact-name search returned adjacent analytics/storage candidates but did not establish standalone Data Truth authority; OS SIDE exact PR search produced no authority, so those lanes rotated fail-closed. Customer Journey recovered a bounded exact candidate: PR #701 is OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at head 5b40013527ff7af109d189a68ce1bedaac759a42; exact-head ObraSignal Quality run 33205358343 is FAILURE, so it remains exact-head RED while its invariant CUSTOMER_REPORTED_UNVERIFIED != VERIFIED_OUTCOME is preserved as candidate intent only. Separately, WarrantyGuard compliance head b3652c84f9b53a003d4a09b8f7acfe3aec322718 now has exact-head CI evidence: WarrantyGuard Factory run 33708637778 SUCCESS; ObraSignal Quality run 33708637775 FAILURE, with Mobile SUCCESS and Python failing at repository/Factory Cloud tests. Portugal outbound remains held until the then-current DGC Article 13-B list is retrieved/consulted and each intended recipient is screened immediately before send. Gmail watch across all three connected accounts found no new monitored buyer/association inbound; no outbound was sent. Fleet is active on Customer Journey to diagnose/repair the exact-head RED candidate or rotate if unsafe/blocked.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "rotated_fail_closed": [
-        "paper-laminate-works",
-        "documentary-billing",
-        "recoverable-money",
-        "private-freight-orchestration",
-        "autonomous-revenue-recovery"
-      ],
-      "warrantyguard": {
-        "candidate_pr": 805,
-        "state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "head": "b3652c84f9b53a003d4a09b8f7acfe3aec322718",
-        "factory_workflow_run": 33708637778,
-        "factory_workflow_conclusion": "SUCCESS",
-        "quality_workflow_run": 33708637775,
-        "quality_workflow_conclusion": "FAILURE",
-        "python_job": "FAILURE_AT_REPOSITORY_AND_FACTORY_CLOUD_TESTS",
-        "mobile_job": "SUCCESS",
-        "verification": "EXACT_HEAD_RED_FACTORY_SPECIFIC_GREEN_ONLY",
-        "portugal_outbound_state": "HOLD_CURRENT_DGC_LIST_SCREEN_REQUIRED_BEFORE_SEND"
-      },
-      "causledger_inbound": {
-        "new_material_buyer_or_association_replies": 0,
-        "successfully_queried_accounts_this_run": 3,
-        "portugal_dgc_procedure": "VERIFIED_LIST_PORTAL_AND_EXCEL_DOWNLOAD_PROCEDURE",
-        "spain_unsolicited_commercial_hold": "ACTIVE"
-      }
+      "rotated_fail_closed": ["paper-laminate-works","documentary-billing","recoverable-money","private-freight-orchestration","autonomous-revenue-recovery","obrasignal-data-runner","obrasignal-data-truth","os-side-factory"],
+      "customer_journey": {"candidate_pr":701,"state":"OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL","head":"5b40013527ff7af109d189a68ce1bedaac759a42","quality_run":33205358343,"quality_conclusion":"FAILURE","verification":"EXACT_HEAD_RED"},
+      "warrantyguard": {"candidate_pr":805,"state":"OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL","head":"b3652c84f9b53a003d4a09b8f7acfe3aec322718","factory_workflow_run":33708637778,"factory_workflow_conclusion":"SUCCESS","quality_workflow_run":33708637775,"quality_workflow_conclusion":"FAILURE","python_job":"FAILURE_AT_REPOSITORY_AND_FACTORY_CLOUD_TESTS","mobile_job":"SUCCESS","verification":"EXACT_HEAD_RED_FACTORY_SPECIFIC_GREEN_ONLY","portugal_outbound_state":"HOLD_CURRENT_DGC_LIST_SCREEN_REQUIRED_BEFORE_SEND"},
+      "causledger_inbound": {"new_material_buyer_or_association_replies":0,"successfully_queried_accounts_this_run":3,"portugal_dgc_procedure":"VERIFIED_LIST_PORTAL_AND_EXCEL_DOWNLOAD_PROCEDURE","spain_unsolicited_commercial_hold":"ACTIVE"}
     },
-    "active": "ObraSignal Data Runner — reconstruct exact candidate/canonical truth and advance highest-value repository-safe milestone; rotate immediately if blocked.",
-    "next": "ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery.",
+    "active": "Customer Journey, First Value & Outcome Integrity — diagnose/repair exact-head RED PR #701 without merge/deploy/prod mutation; rotate immediately if blocked.",
+    "next": "Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side.",
     "wait": [
       "Portugal CausLedger/WarrantyGuard outbound remains held until the then-current DGC Article 13-B list is retrieved/consulted and each intended recipient is screened immediately before send.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
       "WarrantyGuard head b3652c84f9b53a003d4a09b8f7acfe3aec322718 is exact-head RED at repository quality level: Factory workflow SUCCESS, Mobile SUCCESS, Python repository/Factory Cloud tests FAILURE.",
+      "Customer Journey PR #701 head 5b40013527ff7af109d189a68ce1bedaac759a42 is exact-head RED; do not inherit older #494 GREEN as current/canonical proof.",
       "Capacity Commitment #729 remains exact-head RED at last verified truth: Mobile SUCCESS / Python repository tests FAILURE.",
       "ObraSignal exact-main Commercial Readiness remains RED at last verified truth."
     ]
@@ -72,10 +51,10 @@
     {"factory_id":"recoverable-money","blocker":"Exact canonical/candidate source identity UNKNOWN after exact PR/default-branch code search.","global_stop":false},
     {"factory_id":"private-freight-orchestration","blocker":"Exact canonical/candidate source identity UNKNOWN after exact PR/default-branch code search.","global_stop":false},
     {"factory_id":"autonomous-revenue-recovery","blocker":"Exact canonical/candidate source identity UNKNOWN after exact PR/default-branch code search.","global_stop":false},
-    {"factory_id":"obrasignal-data-runner","blocker":"Exact canonical source identity UNKNOWN at previous truth; current active lane.","global_stop":false},
-    {"factory_id":"obrasignal-data-truth","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
-    {"factory_id":"os-side-factory","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
-    {"factory_id":"obrasignal-customer-journey","blocker":"Exact standalone canonical source identity UNKNOWN.","global_stop":false},
+    {"factory_id":"obrasignal-data-runner","blocker":"Exact PR search produced no recoverable candidate/canonical authority in this run.","global_stop":false},
+    {"factory_id":"obrasignal-data-truth","blocker":"Exact-name search returned adjacent candidates but standalone Data Truth authority remains UNKNOWN; no association promoted to truth.","global_stop":false},
+    {"factory_id":"os-side-factory","blocker":"Exact PR search produced no recoverable candidate/canonical authority in this run.","global_stop":false},
+    {"factory_id":"obrasignal-customer-journey","blocker":"PR #701 exact head 5b40013527ff7af109d189a68ce1bedaac759a42 is OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL and ObraSignal Quality run 33205358343 FAILURE.","global_stop":false},
     {"factory_id":"obrasignal-global-market-entry","blocker":"Candidate research-only/draft/not merged; launch authority and cohort evidence absent.","global_stop":false},
     {"factory_id":"obrasignal-gtm","blocker":"Exact-head GREEN candidate draft/not merged/not canonical; positive commercial validation absent.","global_stop":false},
     {"factory_id":"obrasignal-customer-decision","blocker":"PR #376 Python GREEN/Mobile RED; draft/not merged/not canonical.","global_stop":false},
@@ -86,13 +65,5 @@
     {"factory_id":"eu-switching-evidence-pack","blocker":"PR #818 exact-head GREEN repair only; no live migration/customer/payment proof.","global_stop":false},
     {"factory_id":"complianceledger","blocker":"Exact canonical/candidate authority UNKNOWN.","global_stop":false}
   ],
-  "rules": {
-    "technical_window_is_not_stop": true,
-    "other_owner_is_not_stop": true,
-    "wait_is_not_global_stop": true,
-    "no_false_progress": true,
-    "no_automatic_merge": true,
-    "move_to_next_factory_when_blocked": true,
-    "persist_exact_baton_before_switch": true
-  }
+  "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
 }
