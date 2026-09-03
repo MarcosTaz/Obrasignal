@@ -1,0 +1,31 @@
+name: ObraSignal Canonical Domain Readiness
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canonical-domain-readiness
+  cancel-in-progress: true
+
+env:
+  CANONICAL_URL: https://obrasignal.com/
+  TARGET_BUILD: ${{ github.sha }}
+
+jobs:
+  canonical-domain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Require DNS, HTTPS and exact build on canonical domain
+        run: python scripts/canonical_domain_readiness.py
