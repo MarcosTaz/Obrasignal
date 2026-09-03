@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Certactum — Industrial Claims</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='console.css') }}">
+  <script src="{{ url_for('static', filename='console.js') }}" defer></script>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Assisted recovery assurance</div>
+    <h1>Certactum</h1>
+    <p>Industrial Claims operator console. Reconstruct potential recovery from documentary evidence, preserve UNKNOWN states, require independent review, and record documented outcomes without upgrading them into legal conclusions.</p>
+  </header>
+
+  <main>
+    <section class="guardrails" aria-label="Safety guardrails">
+      <div class="guardrail"><strong>Evidence-first analysis</strong><span>Documented cost, contractual basis and reviewed recovery position remain distinct.</span></div>
+      <div class="guardrail"><strong>Four-eyes review</strong><span>The finding creator cannot approve the same finding.</span></div>
+      <div class="guardrail"><strong>Secure documentary intake</strong><span>Real originals use the authorized secure-capture path with custody metadata and exact-version integrity.</span></div>
+    </section>
+
+    <div class="grid">
+      <div>
+        <section class="panel">
+          <span class="badge">Analyst</span>
+          <h2>Reconstruct a candidate</h2>
+          {% if config['CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}
+          <p class="sub">Synthetic/local mode is active. Source content supplied here is hashed for deterministic test coverage; this mode must not be used for real confidential customer documents.</p>
+          {% else %}
+          <div class="guardrail"><strong>Reference-only intake</strong><span>This runtime accepts source references and economics here. Documentary originals are captured through the authorized secure evidence path before a case can reach the evidence-backed workflow.</span></div>
+          {% endif %}
+          <form id="analyze-form">
+            <div class="form-grid">
+              <div class="field"><label for="customer_ref">Customer reference</label><input id="customer_ref" name="customer_ref" required maxlength="512" autocomplete="off"></div>
+              <div class="field"><label for="program_ref">Program reference</label><input id="program_ref" name="program_ref" required maxlength="512" autocomplete="off"></div>
+              <div class="field"><label for="event_ref">Event reference</label><input id="event_ref" name="event_ref" required maxlength="512" autocomplete="off"></div>
+              <div class="field"><label for="claim_family">Claim family</label><select id="claim_family" name="claim_family" required>
+                <option value="">Select…</option>
+                <option>EXCESS_OBSOLETE_RAW_MATERIAL</option><option>WIP</option><option>FINISHED_GOODS</option><option>TOOLING</option><option>NRE</option><option>DEDICATED_INVESTMENT</option><option>SUPPLIER_COMMITMENT</option><option>MITIGATION_COST</option><option>OTHER_DOCUMENTED_PROGRAM_EXPOSURE</option>
+              </select></div>
+              <div class="field"><label for="commercial_basis_ref">Commercial basis evidence reference</label><input id="commercial_basis_ref" name="commercial_basis_ref" required maxlength="512" autocomplete="off"></div>
+              <div class="field"><label for="cost_evidence_ref">Cost evidence reference</label><input id="cost_evidence_ref" name="cost_evidence_ref" required maxlength="512" autocomplete="off"></div>
+              {% if config['CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}
+              <div class="field full"><label for="commercial_basis_content">Synthetic commercial basis content</label><textarea id="commercial_basis_content" name="commercial_basis_content" required placeholder="Synthetic/local test content only."></textarea></div>
+              <div class="field full"><label for="event_evidence_content">Synthetic event evidence content</label><textarea id="event_evidence_content" name="event_evidence_content" required placeholder="Synthetic/local test content only."></textarea></div>
+              <div class="field full"><label for="cost_evidence_content">Synthetic cost evidence content</label><textarea id="cost_evidence_content" name="cost_evidence_content" required placeholder="Synthetic/local test content only."></textarea></div>
+              {% endif %}
+              <div class="field"><label for="claim_currency">Claim currency</label><input id="claim_currency" name="currency" required minlength="3" maxlength="3" placeholder="EUR" autocomplete="off"></div>
+              <div class="field"><label for="gross_cost">Gross cost</label><input id="gross_cost" name="gross_cost" inputmode="decimal" required value="0"></div>
+              <div class="field"><label for="prior_payment">Prior payment</label><input id="prior_payment" name="prior_payment" inputmode="decimal" value="0"></div>
+              <div class="field"><label for="avoided_cost">Avoided cost</label><input id="avoided_cost" name="avoided_cost" inputmode="decimal" value="0"></div>
+              <div class="field"><label for="resale_reuse">Resale / reuse</label><input id="resale_reuse" name="resale_reuse" inputmode="decimal" value="0"></div>
+              <div class="field"><label for="third_party_recovery">Third-party recovery</label><input id="third_party_recovery" name="third_party_recovery" inputmode="decimal" value="0"></div>
+              <div class="field"><label for="other_mitigation">Other mitigation</label><input id="other_mitigation" name="other_mitigation" inputmode="decimal" value="0"></div>
+              <div class="field"><label for="notice_due">Notice due date declared for review</label><input id="notice_due" name="notice_due" type="date"></div>
+              <div class="field check"><input id="notice_deadline_not_applicable" name="notice_deadline_not_applicable" type="checkbox"><label for="notice_deadline_not_applicable">Declare for review: no notice deadline applies</label></div>
+              <div class="field full"><label for="missing_evidence">Other missing evidence — comma separated</label><input id="missing_evidence" name="missing_evidence" placeholder="customer_authorization, tooling_ownership" autocomplete="off"></div>
+            </div>
+            <p class="note">Notice date/no-deadline values are analyst declarations for independent review.</p>
+            <div class="actions"><button type="submit">{% if config['CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}Analyze synthetic evidence{% else %}Create reference-only candidate{% endif %}</button></div>
+          </form>
+          <div id="analyze-result" class="result" aria-live="polite">No analysis submitted.</div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="panel">
+          <span class="badge warn">Tenant-safe work queue</span>
+          <h2>Workflow findings</h2>
+          <p class="sub">Reviewer identities receive documented candidates ready for review. Operator identities receive internally approved/actioned findings. Queue state and evidentiary status remain separately visible.</p>
+          <div class="actions"><button id="refresh-queue" type="button" class="secondary">Refresh my queue</button></div>
+          <div id="queue-result" class="result" aria-live="polite">Queue not loaded.</div>
+          <div id="queue-list" class="queue-list" aria-label="Tenant-scoped finding workflow queue"></div>
+          <h3>Selected dossier</h3>
+          <p class="sub">Select a queue item before deciding. The dossier exposes evidence hashes and source references, calculation lineage, notice timing risk, review history and documented outcomes; raw document content is not returned.</p>
+          <div id="detail-result" class="result" aria-live="polite">No dossier selected.</div>
+        </section>
+
+        <section class="panel">
+          <span class="badge warn">Human-controlled workflow</span>
+          <h2>Finding lifecycle</h2>
+          <p class="sub">Roles are verified server-side. A role mismatch fails closed. Inspect the selected dossier before review.</p>
+          <div class="workflow">
+            <form id="review-form" class="step">
+              <h3>1. Independent review</h3><p>Reviewer role. The creator cannot self-approve. The decision and its reason are retained in the workflow history.</p>
+              <div class="field"><label for="review_finding_id">Finding ID</label><input id="review_finding_id" required maxlength="2048" autocomplete="off"></div>
+              <div class="field"><label for="review_reason">Decision reason</label><textarea id="review_reason" required maxlength="4000"></textarea></div>
+              <div class="actions"><button type="submit" data-approved="true">Approve for internal workflow</button><button type="submit" class="danger" data-approved="false">Reject candidate</button></div>
+              <div id="review-result" class="result" aria-live="polite">Awaiting review.</div>
+            </form>
+
+            <form id="action-form" class="step">
+              <h3>2. Advance internally approved finding</h3><p>Operator role. This records the controlled workflow transition.</p>
+              <div class="field"><label for="action_finding_id">Finding ID</label><input id="action_finding_id" required maxlength="2048" autocomplete="off"></div>
+              <div class="actions"><button type="submit">Mark internally actioned</button></div>
+              <div id="action-result" class="result" aria-live="polite">Awaiting internally approved finding.</div>
+            </form>
+
+            {% if config['CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}
+            <form id="resolve-form" class="step">
+              <h3>3. Record synthetic final cumulative documented outcome</h3>
+              <p>Explicit synthetic/local mode only.</p>
+              <div class="field"><label for="resolve_finding_id">Finding ID</label><input id="resolve_finding_id" required maxlength="2048" autocomplete="off"></div>
+              <div class="field"><label for="outcome_id">Outcome ID</label><input id="outcome_id" required maxlength="512" autocomplete="off"></div>
+              <div class="field"><label for="recovered_amount">Final cumulative recovered amount</label><input id="recovered_amount" inputmode="decimal" required></div>
+              <div class="field"><label for="currency">Currency</label><input id="currency" required minlength="3" maxlength="3" autocomplete="off"></div>
+              <div class="field"><label for="evidence_ref">Settlement / closure evidence reference</label><input id="evidence_ref" required maxlength="512" autocomplete="off"></div>
+              <div class="field"><label for="evidence_content">Synthetic settlement / closure evidence content</label><textarea id="evidence_content" required placeholder="Synthetic/local test content only."></textarea></div>
+              <div class="field check"><input id="final_cumulative" name="final_cumulative" type="checkbox" required><label for="final_cumulative">I confirm this is the final cumulative synthetic outcome for this finding; this is not an installment entry.</label></div>
+              <div class="actions"><button type="submit">Record synthetic final outcome</button></div>
+              <div id="resolve-result" class="result" aria-live="polite">No outcome recorded.</div>
+            </form>
+            {% else %}
+            <section class="step" aria-label="Secure outcome intake required">
+              <h3>3. Final documented outcome</h3>
+              <p>Settlement/closure evidence is captured through the authorized secure evidence path and then bound to the final cumulative outcome.</p>
+            </section>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Truth rules</h2>
+          <p class="note">A reference without securely captured documentary content remains REFERENCE_ONLY. Currency is explicit and immutable across reviewed economics and recovery recording. A recovered outcome requires documentary evidence and a final cumulative record. Notice deadline values are declared for human review rather than independently inferred. <code>READY_FOR_REVIEW</code> means documented candidate ready for human review. <code>APPROVED</code> records the independent internal decision. The Proof Pack preserves evidence state, calculation lineage, review history and documented outcome separately.</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>

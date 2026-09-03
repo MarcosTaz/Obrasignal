@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Certactum — Change Capture</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='console.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='change_capture.css') }}">
+  <script src="{{ url_for('static', filename='change_capture.js') }}" defer></script>
+</head>
+<body class="capture-body">
+  <header class="capture-header">
+    <div class="eyebrow">Contemporaneous factual record</div>
+    <h1>Certactum</h1>
+    <p>Record what was requested while the factual capture window is open, then keep a hashed change sheet with the project record.</p>
+  </header>
+
+  <main class="capture-shell" data-finding-id="{{ capture.finding_id }}" data-closes-at="{{ capture.factual_window_closes_at }}">
+    <section class="panel capture-card">
+      <div class="capture-heading-row">
+        <div>
+          <span class="badge">Change capture</span>
+          <h2>Change {{ capture.event_ref }}</h2>
+        </div>
+        <div id="capture-state" class="capture-state {{ 'open' if capture.window_state == 'OPEN' else 'closed' }}">{{ capture.window_state }}</div>
+      </div>
+
+      <div class="capture-timing">
+        <div><span>First recorded by Certactum</span><strong>{{ capture.recorded_at }}</strong></div>
+        <div><span>Factual input closes</span><strong>{{ capture.factual_window_closes_at }}</strong></div>
+        <div><span>Time remaining</span><strong id="capture-countdown">Calculating…</strong></div>
+      </div>
+
+      <section id="capture-reminder" class="capture-reminder open-only" {% if capture.window_state != 'OPEN' or not capture.download_reminder.should_prompt %}hidden{% endif %}>
+        <strong>Do this before the factual window closes</strong>
+        <p id="capture-reminder-message">{{ capture.download_reminder.message }}</p>
+      </section>
+      <section id="capture-reminder-satisfied" class="capture-reminder-satisfied open-only" {% if capture.window_state != 'OPEN' or capture.download_reminder.should_prompt %}hidden{% endif %}>
+        <strong>Current sheet version exported</strong>
+        <p>The SHA-256 currently shown below has an export receipt. If you add another factual entry, the sheet changes and the download reminder becomes active again.</p>
+      </section>
+
+      <form id="change-summary-form" class="capture-form open-only" {% if capture.window_state != 'OPEN' %}hidden{% endif %}>
+        <div class="field">
+          <label for="requested_change">What was requested? One sentence.</label>
+          <textarea id="requested_change" required maxlength="2000" placeholder="Example: Move the mounting holes 8 mm to clear the revised housing.">{% if capture.requested_change_source == 'DECLARED_FACT' %}{{ capture.requested_change }}{% endif %}</textarea>
+        </div>
+        <div class="form-grid capture-secondary-fields">
+          <div class="field">
+            <label for="declared_requested_at">Request date/time — optional</label>
+            <input id="declared_requested_at" maxlength="128" placeholder="2026-08-31T14:35:00+01:00" value="{{ capture.declared_change_requested_at or '' }}">
+            <small>Include the timezone. This remains a declared fact unless supported by external evidence.</small>
+          </div>
+          <div class="field">
+            <label for="source_ref">Source reference — optional</label>
+            <input id="source_ref" maxlength="512" placeholder="Email ID, ECO number, meeting note reference">
+          </div>
+        </div>
+        <div class="actions"><button type="submit">Save factual record</button></div>
+      </form>
+
+      <div id="capture-result" class="result" aria-live="polite">{% if capture.requested_change_source == 'DECLARED_FACT' %}Requested change already recorded. You can add a corrected statement; the prior entry remains in the append-only history.{% else %}No one-sentence requested-change statement recorded yet.{% endif %}</div>
+
+      <div class="capture-download">
+        <a id="change-sheet-download" class="capture-button" href="{{ capture.download_prompt.download_path }}">Download change sheet</a>
+        <span id="capture-export-count">{{ capture.download_count }} prior export{{ '' if capture.download_count == 1 else 's' }} generated</span>
+      </div>
+
+      <section id="capture-trust" class="capture-trust" aria-label="Snapshot proof state">
+        <strong>Snapshot proof state</strong>
+        <p>Current sheet SHA-256: <code id="capture-sheet-digest">{{ capture.snapshot_time_trust.current_snapshot_sha256 }}</code></p>
+        {% if capture.snapshot_time_trust.current_snapshot_externally_timestamped %}
+          <p id="capture-time-trust" class="trust-verified">Independent timestamp: VERIFIED for this exact snapshot.</p>
+        {% else %}
+          <p id="capture-time-trust" class="trust-pending">Independent qualified timestamp: NOT VERIFIED for this exact snapshot. Downloading requests the configured timestamp provider; Certactum keeps internal server time distinct from qualified trust-service evidence.</p>
+        {% endif %}
+        {% if capture.snapshot_time_trust.stale_attestation_exists_for_older_snapshot %}
+          <p class="note">An older sheet version has time evidence. It does not transfer to this version because the digest changed.</p>
+        {% endif %}
+      </section>
+
+      <section id="capture-closed" class="capture-closed closed-only" {% if capture.window_state == 'OPEN' %}hidden{% endif %}>
+        <strong>Factual input is closed.</strong>
+        <p>The contemporaneous sheet is frozen and remains downloadable. New information can only be recorded below as a separate late supplement; it will not rewrite or backdate the original record.</p>
+
+        <form id="late-supplement-form" class="capture-form late-supplement-form">
+          <div class="field">
+            <label for="late_fact_text">Information discovered after close</label>
+            <textarea id="late_fact_text" required maxlength="4000" placeholder="Describe only the factual information discovered later."></textarea>
+          </div>
+          <div class="field">
+            <label for="late_reason">Why is this being recorded late?</label>
+            <textarea id="late_reason" required maxlength="2000" placeholder="Example: archived meeting minutes were received after the factual window closed."></textarea>
+          </div>
+          <div class="form-grid capture-secondary-fields">
+            <div class="field">
+              <label for="late_declared_event_at">Original event date/time — optional</label>
+              <input id="late_declared_event_at" maxlength="128" placeholder="2026-08-30T15:00:00+01:00">
+              <small>This is always labelled declared event time; the actual late-recorded time is generated by Certactum.</small>
+            </div>
+            <div class="field">
+              <label for="late_source_ref">Source reference — optional</label>
+              <input id="late_source_ref" maxlength="512" placeholder="Archive file, email ID, minutes reference">
+            </div>
+          </div>
+          <div class="actions"><button type="submit">Add separate late supplement</button></div>
+        </form>
+        <div id="late-supplement-result" class="result" aria-live="polite">{{ capture.late_supplements.count }} late supplement{{ '' if capture.late_supplements.count == 1 else 's' }} recorded.</div>
+        <div class="capture-download">
+          <a id="late-supplement-download" class="capture-button secondary-capture-button" href="{{ capture.late_supplements.sheet_path }}">Download late supplement sheet</a>
+        </div>
+      </section>
+
+      <p class="note capture-boundary">This capture window is an internal evidence-preservation control, not a contractual or statutory notice deadline. Saving or downloading the sheet preserves the recorded facts and their integrity trail; contractual responsibility, entitlement and recoverability remain separately reviewable. Hash integrity and server timestamps are distinct from independent qualified trust-service evidence. Export receipts record that Certactum generated an export for the referenced version.</p>
+    </section>
+  </main>
+</body>
+</html>

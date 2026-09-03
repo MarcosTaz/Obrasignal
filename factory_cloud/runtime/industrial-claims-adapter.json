@@ -1,0 +1,8 @@
+{
+  "app_id": "industrial-claims",
+  "mode": "repository_safe_execution",
+  "workspace": "/srv/factory-cloud/apps/industrial-claims",
+  "command": ["/usr/bin/python3", "/opt/factory-cloud/current/factory_cloud/recovery_vertical_agent.py"],
+  "capabilities": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
+  "timeout_seconds": 1800
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "vertical": "contractcredit",
+  "mode": "assisted",
+  "wedge": "enterprise SaaS and managed-service credit recovery",
+  "required_inputs": ["service_contract", "incident_evidence", "monthly_fee", "credit_rate", "notice_due"],
+  "outputs": ["evidence_envelope", "reproducible_calculation", "deadline_state", "reviewable_finding", "outcome_record"],
+  "fail_closed": ["missing_contract_basis", "missing_incident_evidence", "cross_tenant_composition", "invalid_credit_rate", "unsupported_review_transition"],
+  "pricing": {"status": "HYPOTHESIS", "currency": "EUR", "audit_fee_min": 5000, "audit_fee_max": 25000, "success_fee_percent_min": 15, "success_fee_percent_max": 25},
+  "pilot_exit_criteria": ["real_contract_loaded_with_permission", "real_incident_evidence_loaded_with_permission", "finding_reviewed_by_human", "outcome_or_no_recovery_recorded", "delivery_cost_measured", "pricing_validated_or_revised"],
+  "production_authority": false
+}
