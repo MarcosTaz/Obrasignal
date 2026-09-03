@@ -116,4 +116,59 @@ jobs:
           echo
           echo "opportunities:"
           cat /tmp/opportunities.json 2>/dev/null || true
+          echo
+          echo "Safe score diagnostics (no profile text or credentials):"
+          profile_status="$(curl --silent --show-error --output /tmp/profile.json --write-out '%{http_code}' --max-time 30 -H "$AUTH" "$API_URL/profile" || true)"
+          top_status="$(curl --silent --show-error --output /tmp/top.json --write-out '%{http_code}' --max-time 30 -H "$AUTH" "$API_URL/opportunities?limit=20&minscore=0" || true)"
+          PROFILE_STATUS="$profile_status" TOP_STATUS="$top_status" python - <<'PY'
+          import json, os
+
+          print('profile_http=' + os.environ.get('PROFILE_STATUS', ''))
+          if os.environ.get('PROFILE_STATUS') == '200':
+              payload=json.load(open('/tmp/profile.json', encoding='utf-8'))
+              profile=payload.get('profile') or {}
+              summary={
+                  'has_name': bool(str(profile.get('name') or '').strip()),
+                  'has_activity': bool(str(profile.get('activity') or '').strip()),
+                  'contract_interest_count': len(profile.get('contract_interests') or []),
+                  'service_count': len(profile.get('services') or []),
+                  'capability_tag_count': len(profile.get('capability_tags') or []),
+                  'keyword_count': len(profile.get('keywords') or []),
+                  'cpv_prefix_count': len(profile.get('cpv_prefixes') or []),
+                  'country_count': len(profile.get('countries') or []),
+                  'region_count': len(profile.get('regions') or []),
+                  'has_min_value': profile.get('min_value') is not None,
+                  'has_max_value': profile.get('max_value') is not None,
+              }
+              print('profile_shape=' + json.dumps(summary, sort_keys=True))
+
+          print('top_http=' + os.environ.get('TOP_STATUS', ''))
+          if os.environ.get('TOP_STATUS') == '200':
+              payload=json.load(open('/tmp/top.json', encoding='utf-8'))
+              items=payload.get('items') or []
+              print('top_count=' + str(len(items)))
+              for rank, item in enumerate(items, 1):
+                  cap=item.get('capability_evidence') or {}
+                  cpv=item.get('cpv_evidence') or {}
+                  score=item.get('decision_score') if item.get('decision_score') is not None else item.get('score')
+                  diagnostic={
+                      'rank': rank,
+                      'source': item.get('source'),
+                      'external_id': item.get('external_id'),
+                      'score': score,
+                      'decision': item.get('account_decision'),
+                      'profile_score': item.get('profile_score'),
+                      'lot_score': item.get('lot_score'),
+                      'capability_status': cap.get('status'),
+                      'capability_matched': bool(cap.get('matched')),
+                      'capability_evidence_count': int(cap.get('evidence_count') or 0),
+                      'cpv_status': cpv.get('status'),
+                      'cpv_strength': cpv.get('strength'),
+                      'blocker_count': len(item.get('hard_capability_blockers') or []),
+                      'country': item.get('country'),
+                      'cpv_present': bool(str(item.get('cpv') or '').strip()),
+                      'description_present': bool(str(item.get('description') or '').strip()),
+                  }
+                  print('top_item=' + json.dumps(diagnostic, sort_keys=True))
+          PY
           exit 1
