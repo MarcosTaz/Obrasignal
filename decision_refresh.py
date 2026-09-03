@@ -16,6 +16,8 @@ from account_registry import list_active_accounts
 from auth_context import configured_identity
 from company_profile import load_profile
 from funnel_integration import persist_and_classify
+from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+from opportunity_match_pipeline import RULE_VERSION
 
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS opportunity_decision_inputs (
@@ -30,10 +32,10 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS opportunity_decision_inputs (
 # Bump whenever account-level ranking semantics change even if source/profile
 # inputs stay identical. Without this, a production matcher fix can deploy while
 # every existing customer's old decision remains frozen indefinitely.
-MATCHER_INPUT_VERSION = "profile-semantic-v3"
+MATCHER_INPUT_VERSION = "profile-semantic-v4"
 
 # A profile edit can invalidate a large observed corpus. Spread that work over
-# successive 60-second source polls instead of monopolising SQLite in one pass.
+# successive source polls instead of monopolising SQLite in one pass.
 MAX_REFRESH_PER_ACCOUNT = 100
 
 _MATERIAL_FIELDS = (
@@ -72,6 +74,7 @@ def _fingerprint(row: dict, profile: dict) -> str:
             "opportunity": source_input,
             "profile": profile_input,
             "matcher_version": MATCHER_INPUT_VERSION,
+            "rule_version": RULE_VERSION,
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -97,10 +100,10 @@ def _existing_fingerprints(conn, account_id: str) -> dict[tuple[str, str], str]:
     return {(str(row[0]), str(row[1])): str(row[2]) for row in rows}
 
 
-def _latest_decision_times(conn, account_id: str) -> dict[tuple[str, str], str]:
-    """Load current decision timestamps once per tenant, not once per tender."""
+def _latest_decisions(conn, account_id: str) -> dict[tuple[str, str], tuple[str, str]]:
+    """Load current decision timestamp and rule version once per tenant."""
     rows = conn.execute(
-        """SELECT d.source,d.external_id,d.decided_at
+        """SELECT d.source,d.external_id,d.decided_at,d.rule_version
            FROM opportunity_decisions d
            JOIN (
                SELECT source,external_id,MAX(id) AS max_id
@@ -111,7 +114,10 @@ def _latest_decision_times(conn, account_id: str) -> dict[tuple[str, str], str]:
            WHERE d.account_id=?""",
         (account_id, account_id),
     ).fetchall()
-    return {(str(row[0]), str(row[1])): str(row[2]) for row in rows}
+    return {
+        (str(row[0]), str(row[1])): (str(row[2] or ""), str(row[3] or ""))
+        for row in rows
+    }
 
 
 def _mark(conn, account_id: str, source: str, external_id: str, fingerprint: str):
@@ -138,16 +144,16 @@ def record_account_decisions(
     commit_chunk: int = 50,
     max_refresh_per_account: int = MAX_REFRESH_PER_ACCOUNT,
 ) -> int:
-    """Refresh only materially stale decisions for the latest source observation.
+    """Refresh only materially stale, effectively actionable decisions.
 
-    Existing deployments have decisions but no fingerprint rows. They are
-    seeded without a costly re-score when the latest decision is at least as
-    recent as the current profile. If the profile is newer, stale opportunities
-    are re-scored in bounded batches across successive source polls.
+    Existing deployments may have decisions but no fingerprint rows. A current
+    decision is seeded without a costly re-score only when it was produced by the
+    *current* rule version and is at least as recent as the current profile.
+    Decisions from an older matcher are re-evaluated even during migration.
 
-    All existing fingerprints and latest decision timestamps are prefetched once
-    per tenant. This keeps work approximately O(accounts + observed tenders)
-    database reads instead of O(accounts * observed tenders) point queries.
+    Closed/cancelled opportunities are deliberately excluded from scoring work:
+    lifecycle/deadline state already removes them from current customer surfaces,
+    so spending SQLite writer time re-ranking them only harms Radar availability.
     """
     run = conn.execute(
         "SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1"
@@ -155,8 +161,12 @@ def record_account_decisions(
     if not run or not run["finished_at"]:
         return 0
 
+    ensure_lifecycle_table(conn)
     rows = conn.execute(
-        "SELECT * FROM tenders WHERE last_seen=?",
+        f"""SELECT t.* FROM tenders t
+            LEFT JOIN opportunity_lifecycle lc
+              ON lc.source=t.source AND lc.external_id=t.external_id
+            WHERE t.last_seen=? AND {actionable_predicate('lc', 't')}""",
         (run["finished_at"],),
     ).fetchall()
     accounts = list_active_accounts(conn) or [configured_identity().account_id]
@@ -172,7 +182,7 @@ def record_account_decisions(
         profile = load_profile(account_id)
         profile_updated = _profile_updated_at(conn, account_id)
         fingerprints = _existing_fingerprints(conn, account_id)
-        latest_decisions = _latest_decision_times(conn, account_id)
+        latest_decisions = _latest_decisions(conn, account_id)
         rescored_for_account = 0
 
         for raw_row in rows:
@@ -187,21 +197,25 @@ def record_account_decisions(
             if existing == fingerprint:
                 continue
 
-            # Migration path: do not re-score the whole observed corpus merely
-            # because the fingerprint table is new. A decision made after the
-            # current profile was saved is already compatible with that profile.
-            # Once a matcher version is encoded, old fingerprints are different
-            # and therefore correctly re-evaluated instead of being re-seeded.
+            # Migration fast path is safe only for a decision made by this exact
+            # rule version. Timestamp alone is not enough: that was the previous
+            # bug that could freeze old ranking semantics indefinitely.
             if existing is None:
-                latest_decided = latest_decisions.get(key)
-                if latest_decided and (not profile_updated or latest_decided >= profile_updated):
-                    _mark(conn, account_id, source, external_id, fingerprint)
-                    fingerprints[key] = fingerprint
-                    pending_writes += 1
-                    if pending_writes >= commit_limit:
-                        conn.commit()
-                        pending_writes = 0
-                    continue
+                latest = latest_decisions.get(key)
+                if latest:
+                    latest_decided, latest_rule = latest
+                    if (
+                        latest_rule == RULE_VERSION
+                        and latest_decided
+                        and (not profile_updated or latest_decided >= profile_updated)
+                    ):
+                        _mark(conn, account_id, source, external_id, fingerprint)
+                        fingerprints[key] = fingerprint
+                        pending_writes += 1
+                        if pending_writes >= commit_limit:
+                            conn.commit()
+                            pending_writes = 0
+                        continue
 
             # Leave excess stale rows unmarked. The next poll sees them again
             # and continues convergence without one long write transaction.
