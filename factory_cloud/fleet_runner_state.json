@@ -6,38 +6,27 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 4,
-  "last_factory_id": "industrial-claims",
-  "last_run_at": "2026-09-03T16:42:14Z",
+  "cursor": 5,
+  "last_factory_id": "changeledger",
+  "last_run_at": "2026-09-03T17:38:44Z",
   "last_material_change": {
-    "kind": "CERTACTUM_PRODUCTION_TRUST_CONTROL_SUCCESSOR_EXACT_HEAD_GREEN",
-    "summary": "A newer Industrial Supplier Claims/Certactum successor was recovered after the previously recorded RED #785 state. PR #922 is OPEN/DRAFT/NOT MERGED/NOT CANONICAL at exact HEAD 085deeeede5c3366f93b25ea05aaece3697b45b5. It adds fail-closed production trust-control automation for signed JWT AAL2 MFA, AWS S3 Object Lock/Versioning with per-object COMPLIANCE exact-version verification, and live RFC3161/eIDAS trust-chain verification. Exact-head GitHub Actions run 33777761130 has both python and mobile SUCCESS. This is repository evidence only: no external provider activation, certification, production deployment, real customer validation, recovery, paid audit, WTP, payment or revenue is promoted. Gmail watch across all three connected accounts found no new material inbound from monitored prospect/association/DGC routes; no outbound was sent. Fleet remains ACTIVE and rotates to ChangeLedger.",
+    "kind": "CHANGELEDGER_UNKNOWN_NO_DEDICATED_AUTHORITY_RECOVERED",
+    "summary": "ChangeLedger was reconstructed fail-closed from current repository truth. No default-branch code match or matching pull request was recovered. Adjacent Factory authority is not borrowed. Fleet remains ACTIVE and rotates to Recovery Radar.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "certactum": {
-        "pr": 922,
-        "state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "head": "085deeeede5c3366f93b25ea05aaece3697b45b5",
-        "quality_run": 33777761130,
-        "python": "SUCCESS",
-        "mobile": "SUCCESS",
-        "verification": "EXACT_HEAD_GREEN_REPOSITORY_TRUST_CONTROLS_ONLY",
-        "automatic_merge_authorized": false,
-        "external_provider_activation_proved": false,
-        "production_deployment_proved": false,
-        "real_customer_validation_proved": false
-      },
-      "causledger_inbound_watch": {
-        "accounts_checked": 3,
-        "material_new_inbound": 0,
-        "outbound_sent": 0
+      "changeledger": {
+        "default_branch_code_search_matches": 0,
+        "matching_pull_requests": 0,
+        "verification": "UNKNOWN_NO_DEDICATED_AUTHORITY_RECOVERED",
+        "automatic_merge_authorized": false
       }
     },
-    "active": "ChangeLedger",
-    "next": "ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum -> ScopeLedger",
+    "active": "Recovery Radar",
+    "next": "Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum -> ScopeLedger -> ChangeLedger",
     "wait": [
       "Portugal outbound requires current DGC-list recipient screening immediately before send.",
       "Spain unsolicited commercial email/follow-up hold remains active.",
+      "ChangeLedger has no recovered dedicated open PR or default-branch repository authority; keep UNKNOWN and do not borrow adjacent Factory authority.",
       "ScopeLedger has no recovered dedicated open PR or default-branch repository authority; keep UNKNOWN and do not borrow adjacent Factory authority.",
       "Certactum PR #922 is exact-head GREEN at repository level but non-canonical; external provider activation/certification, production deployment, real-customer validation, real recovery, paid audit, WTP, payment and revenue remain unproved.",
       "ComplianceLedger has no recovered dedicated repository/source authority; do not borrow Documentary Billing authority.",
