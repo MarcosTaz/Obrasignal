@@ -8,7 +8,7 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - CLOSED — Console queue auto-loads; selected dossier persists within the browser session; duplicate form submission is blocked while a request is in flight; explicit scroll restoration avoids refresh jumps.
 - CLOSED — Responsive CSS already provides one-column layouts for tablet/mobile breakpoints on current console/public surfaces.
 - CLOSED — Customer Help exists in PT, EN, FR and ES.
-- PENDING — Approved final logo/favicon asset must be verified against the actual production deployment before release; do not fabricate an asset.
+- PENDING — Approved final logo/favicon asset must be visually verified against the canonical production deployment; do not fabricate or silently replace an asset.
 
 ## Identity and authorization
 - CLOSED — Tenant comes from verified identity context, not request body.
@@ -35,8 +35,10 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - CLOSED — Secret-free readiness report distinguishes blocking failures, warnings and external proof dependencies.
 - CLOSED — 200 repeated tenant-scoped queue reads smoke-test stable no-store behavior.
 - CLOSED — Request size limits and secure intake byte limits are enforced by existing gates.
+- CLOSED — Vercel canonical project `changeclaim` currently has a READY production deployment and no runtime-error clusters in the inspected 24-hour window.
+- CLOSED — Canonical Vercel project currently carries both `certactum.com` and `www.certactum.com` domains.
 - EXTERNAL PENDING — Production backup schedule, off-site/independent copy, restore drill and RPO/RTO evidence.
-- EXTERNAL PENDING — External uptime/error monitoring provider and alert delivery verification.
+- EXTERNAL PENDING — Independent external uptime/error alert delivery verification beyond platform runtime-error inspection.
 
 ## Commercial/support journey
 - CLOSED — Public commercial identity uses marcos@certactum.com.
