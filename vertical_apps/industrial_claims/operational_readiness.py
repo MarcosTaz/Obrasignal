@@ -49,32 +49,41 @@ def _auth_check() -> ReadinessCheck:
     return ReadinessCheck("authentication", "fail", f"provider_{provider_status}", True)
 
 
-def _external_proof_check() -> ReadinessCheck:
-    configured = all(
-        bool((os.getenv(name) or "").strip())
-        for name in ("CERTACTUM_WORM_PROVIDER", "CERTACTUM_TIMESTAMP_PROVIDER")
-    )
-    return ReadinessCheck(
-        "external_proof",
-        "pass" if configured else "warn",
-        "external_providers_declared" if configured else "external_providers_pending",
-        False,
+def _declared(name: str) -> bool:
+    return bool((os.getenv(name) or "").strip())
+
+
+def _external_proof_checks() -> tuple[ReadinessCheck, ReadinessCheck]:
+    worm = _declared("CERTACTUM_WORM_PROVIDER")
+    timestamp = _declared("CERTACTUM_TIMESTAMP_PROVIDER")
+    return (
+        ReadinessCheck("worm_storage", "pass" if worm else "fail", "worm_provider_declared" if worm else "worm_provider_pending", True),
+        ReadinessCheck("trusted_timestamp", "pass" if timestamp else "fail", "timestamp_provider_declared" if timestamp else "timestamp_provider_pending", True),
     )
 
 
 def build_operational_readiness(database: str | Path) -> dict[str, object]:
-    checks = (_database_check(database), _auth_check(), _external_proof_check())
+    checks = (_database_check(database), _auth_check(), *_external_proof_checks())
     blocking_failures = [check.name for check in checks if check.blocking and check.status == "fail"]
     warnings = [check.name for check in checks if check.status == "warn"]
+    external_proof_ready = all(check.status == "pass" for check in checks if check.name in {"worm_storage", "trusted_timestamp"})
+    auth_ready = next(check.status == "pass" for check in checks if check.name == "authentication")
+    database_ready = next(check.status == "pass" for check in checks if check.name == "database")
+    real_evidence_intake_enabled = database_ready and auth_ready and external_proof_ready and not blocking_failures
     return {
         "product": "Certactum",
-        "status": "not_ready" if blocking_failures else ("ready_with_warnings" if warnings else "ready"),
+        "status": "ready" if real_evidence_intake_enabled and not warnings else ("ready_with_warnings" if real_evidence_intake_enabled else "not_ready"),
         "blocking_failures": blocking_failures,
         "warnings": warnings,
         "checks": [check.as_dict() for check in checks],
+        "activation": {
+            "automatic": True,
+            "real_evidence_intake_enabled": real_evidence_intake_enabled,
+            "rule": "database_ok AND production_auth_ok AND worm_provider_declared AND timestamp_provider_declared",
+        },
         "truth_boundary": {
             "production_certification_claimed": False,
             "court_acceptance_guaranteed": False,
-            "external_worm_timestamp_may_be_pending": True,
+            "provider_declaration_is_not_external_certification": True,
         },
     }
