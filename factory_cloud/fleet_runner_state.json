@@ -6,22 +6,39 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 31,
-  "last_factory_id": "obrasignal-support-ops",
-  "last_run_at": "2026-09-03T10:42:26Z",
+  "cursor": 32,
+  "last_factory_id": "eu-switching-evidence-pack",
+  "last_run_at": "2026-09-03T11:38:27Z",
   "last_material_change": {
-    "kind": "RELEASE_AND_SUPPORT_EXACT_HEAD_GREEN_BOUNDED",
-    "summary": "Release Safety PR #345 remains OPEN/NOT_MERGED/NOT_CANONICAL at exact head 672e535f0b04f27d967ae3c174bd871fc0a56893 with ObraSignal Quality run 32900014033 COMPLETED/SUCCESS. It establishes explicit dispatch-only Pages release authority, exact target/main equality, exact deployed Web marker verification and bounded release-proof output, while rollback remains UNPROVEN and no deploy is authorized. Support Operations PR #355 remains OPEN/NOT_MERGED/NOT_CANONICAL at exact head 3aacd6cf08bca752e3023bdef61855f99fb07771; exact-head ObraSignal Quality evidence includes run 32892620792 COMPLETED/SUCCESS. Support semantics preserve UNKNOWN, separate SERVICE_RESTORED from VERIFIED and ROOT_CAUSE_CLOSED, and introduce no runtime endpoint or production mutation. Rotation advances to EU Switching Evidence Pack.",
+    "kind": "EU_SWITCHING_EVIDENCE_PACK_SUCCESSOR_EXACT_HEAD_GREEN_REPAIR_ONLY",
+    "summary": "EU Switching Evidence Pack successor PR #818 remains OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at exact head f9ffcf82f2eebbfdeb400de76f562cb185ec5adf. The bounded successor changes only mobile/package.json react-native 0.86.2 -> 0.86.3 to repair the Expo compatibility failure from parent PR #711. Exact-head Cloud Switching Quality run 33271664101 and ObraSignal Quality run 33271664096 are both COMPLETED/SUCCESS. This establishes repository repair verification only; it does not establish canonical integration, deployment, live migration execution, customer acceptance, switching savings, outcome evidence, WTP, payment or revenue. CausLedger Gmail watch across all three connected accounts found no new material inbound in the current watch window; no outbound was sent. Rotation advances to ComplianceLedger.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "release_safety": {"candidate_pr":345,"state":"OPEN_NOT_MERGED_NOT_CANONICAL","head":"672e535f0b04f27d967ae3c174bd871fc0a56893","verification":"EXACT_HEAD_GREEN_BOUNDED","workflow_run":32900014033,"quality":"SUCCESS","rollback":"UNPROVEN","deployment_authorized":false},
-      "support_ops": {"candidate_pr":355,"state":"OPEN_NOT_MERGED_NOT_CANONICAL","head":"3aacd6cf08bca752e3023bdef61855f99fb07771","verification":"EXACT_HEAD_GREEN_BOUNDED","workflow_run":32892620792,"quality":"SUCCESS","runtime_endpoint":false,"production_mutation":false}
+      "eu_switching_evidence_pack": {
+        "candidate_pr": 818,
+        "state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+        "head": "f9ffcf82f2eebbfdeb400de76f562cb185ec5adf",
+        "verification": "EXACT_HEAD_GREEN_REPOSITORY_REPAIR_ONLY",
+        "cloud_switching_quality_run": 33271664101,
+        "cloud_switching_quality": "SUCCESS",
+        "obrasignal_quality_run": 33271664096,
+        "obrasignal_quality": "SUCCESS",
+        "changed_files": 1,
+        "deployment_authorized": false,
+        "outreach_authorized": false
+      },
+      "causledger_inbound_watch": {
+        "accounts_checked": 3,
+        "material_new_inbound": 0,
+        "outbound_sent": 0
+      }
     },
-    "active": "EU Switching Evidence Pack / Verified Migration Outcomes",
-    "next": "EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops",
+    "active": "ComplianceLedger",
+    "next": "ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack",
     "wait": [
       "Portugal outbound requires current DGC-list recipient screening immediately before send.",
       "Spain unsolicited commercial email/follow-up hold remains active.",
+      "EU Switching Evidence Pack PR #818 is exact-head GREEN but non-canonical and repository-repair-only; no deployment, live migration, customer acceptance, savings, WTP, payment or revenue is established.",
       "Release Safety PR #345 is exact-head GREEN but non-canonical; rollback remains UNPROVEN and no deployment is authorized.",
       "Support Operations PR #355 is exact-head GREEN but non-canonical and non-runtime; CI is not customer incident-resolution evidence.",
       "Analytics PR #344 is exact-head GREEN but non-canonical and does not establish production telemetry or behavioral/commercial truth.",
@@ -32,5 +49,13 @@
     ]
   },
   "blocked": [],
-  "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
+  "rules": {
+    "technical_window_is_not_stop": true,
+    "other_owner_is_not_stop": true,
+    "wait_is_not_global_stop": true,
+    "no_false_progress": true,
+    "no_automatic_merge": true,
+    "move_to_next_factory_when_blocked": true,
+    "persist_exact_baton_before_switch": true
+  }
 }
