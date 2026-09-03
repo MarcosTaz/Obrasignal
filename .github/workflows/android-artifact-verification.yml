@@ -10,24 +10,64 @@ jobs:
   verify-production-artifact:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout exact revision
+        uses: actions/checkout@v7
+
       - name: Require EAS token
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
+
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
+
       - name: Setup EAS
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Download exact Android production artifact
-        working-directory: mobile
+
+      - name: Verify exact build provenance
+        env:
+          BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
+          BUILD_GIT_SHA: 11cbc5a527680759fe003132a902aa8164f4b156
+        run: |
+          set -euo pipefail
+          eas build:list \
+            --platform android \
+            --build-profile production \
+            --git-commit-hash "$BUILD_GIT_SHA" \
+            --limit 50 \
+            --json \
+            --non-interactive > /tmp/eas-builds.json
+          python - <<'PY'
+          import json, os
+          payload = json.load(open('/tmp/eas-builds.json', encoding='utf-8'))
+          builds = payload if isinstance(payload, list) else payload.get('builds', []) if isinstance(payload, dict) else []
+          target = next((item for item in builds if str(item.get('id')) == os.environ['BUILD_ID']), None)
+          if target is None:
+              raise SystemExit(
+                  f"Android build {os.environ['BUILD_ID']} is not associated by EAS with production source {os.environ['BUILD_GIT_SHA']}"
+              )
+          status = str(target.get('status') or '').upper().replace('-', '_')
+          platform = str(target.get('platform') or '').upper()
+          profile = str(target.get('buildProfile') or target.get('profile') or '').lower()
+          if status != 'FINISHED':
+              raise SystemExit(f"Android production build not finished: {status or 'missing'}")
+          if platform and platform != 'ANDROID':
+              raise SystemExit(f"Wrong EAS platform: {platform}")
+          if profile and profile != 'production':
+              raise SystemExit(f"Wrong EAS build profile: {profile}")
+          print(f"ANDROID_BUILD_PROVENANCE_VERIFIED id={target.get('id')} source={os.environ['BUILD_GIT_SHA']}")
+          PY
+
+      - name: Download and fingerprint exact Android production artifact
         env:
           BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
         run: |
