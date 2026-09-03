@@ -151,10 +151,9 @@ def _require_production_trust(
 ) -> None:
     """Automatically protect documentary ingress whenever provider auth is live.
 
-    Development/synthetic execution remains testable. In provider-auth production,
-    there is no manual "open intake" switch. If the caller did not inject a gate,
-    Certactum auto-builds one from protected production configuration. Missing or
-    invalid external configuration therefore closes intake rather than downgrading.
+    There is no manual "open intake" switch. The gate and signed claims are
+    resolved automatically from production configuration; any missing component,
+    external outage or failed verification closes intake.
     """
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
     if auth_mode != "provider":
@@ -163,9 +162,18 @@ def _require_production_trust(
     if gate is None:
         from vertical_apps.industrial_claims.production_trust_runtime import configured_production_trust_gate
         gate = configured_production_trust_gate()
-    if gate is None or verified_claims is None:
+    if gate is None:
         raise ProductionTrustGateError("real confidential intake blocked: production trust gate is not configured")
-    claims = verified_claims()
+
+    if verified_claims is not None:
+        claims = verified_claims()
+    else:
+        # The normal production path already verified/cached this bearer identity
+        # through capture_identity. Re-resolving uses that immutable same-request
+        # cache and never trusts client-supplied tenant/role headers.
+        from auth_context import configured_identity
+        identity = configured_identity()
+        claims = identity.claims if identity.authenticated else None
     if not isinstance(claims, Mapping):
         raise ProductionTrustGateError("real confidential intake blocked: verified JWT claims are unavailable")
     gate.require_ready(verified_claims=claims)
@@ -190,10 +198,7 @@ def create_secure_intake_blueprint(
     def capture_case_original():
         tenant_id, actor_id = capture_identity()
         try:
-            _require_production_trust(
-                production_trust_gate=production_trust_gate,
-                verified_claims=verified_claims,
-            )
+            _require_production_trust(production_trust_gate=production_trust_gate, verified_claims=verified_claims)
             if original_store is None:
                 raise SecureIntakeWebError("secure intake immutable original store is not configured")
             payload = _json_object(); authorization_raw = _authorization_object(payload, allowed_keys=_CASE_AUTHORIZATION_KEYS)
@@ -236,10 +241,7 @@ def create_secure_intake_blueprint(
     def capture_outcome_original(finding_id: str):
         tenant_id, actor_id = capture_identity()
         try:
-            _require_production_trust(
-                production_trust_gate=production_trust_gate,
-                verified_claims=verified_claims,
-            )
+            _require_production_trust(production_trust_gate=production_trust_gate, verified_claims=verified_claims)
             if original_store is None: raise SecureIntakeWebError("secure intake immutable original store is not configured")
             payload = _json_object(); authorization_raw = _authorization_object(payload, allowed_keys=_OUTCOME_AUTHORIZATION_KEYS)
             content, content_type = _strict_original(payload)
