@@ -21,6 +21,13 @@ jobs:
       - name: Checkout exact diagnostic revision
         uses: actions/checkout@v7
 
+      - name: Record diagnostic revision
+        working-directory: .
+        run: |
+          set -euo pipefail
+          echo "EAS_DIAGNOSTIC_SOURCE=$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
       - name: Require EAS token
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
