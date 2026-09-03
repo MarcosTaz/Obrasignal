@@ -37,6 +37,7 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - CLOSED — Request size limits and secure intake byte limits are enforced by existing gates.
 - CLOSED — Vercel canonical project `changeclaim` currently has a READY production deployment and no runtime-error clusters in the inspected 24-hour window.
 - CLOSED — Canonical Vercel project currently carries both `certactum.com` and `www.certactum.com` domains.
+- VERIFIED 2026-09-03 — `https://certactum.com` permanently redirects to `https://www.certactum.com/`; the canonical `www` endpoint returned HTTP 200 through the connected Vercel fetch.
 - EXTERNAL PENDING — Production backup schedule, off-site/independent copy, restore drill and RPO/RTO evidence.
 - EXTERNAL PENDING — Independent external uptime/error alert delivery verification beyond platform runtime-error inspection.
 
@@ -44,9 +45,13 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - CLOSED — Public commercial identity uses marcos@certactum.com.
 - CLOSED — Help instructs users not to send confidential documents by email without an authorized intake channel.
 - CLOSED — Customer-zero abuse journey covers creation, cross-tenant denial, review segregation and internal action without implying external claim submission.
-- INTERNAL CLOSED — Stripe test-mode integration direction is hosted Checkout; billing projection covers checkout completion, invoice paid activation, failed renewal/past-due, recovery, cancellation and refund.
+- INTERNAL CLOSED — Stripe integration direction is hosted Checkout; billing projection covers checkout completion, invoice paid activation, failed renewal/past-due, recovery, cancellation and refund.
 - INTERNAL CLOSED — Billing event application is idempotent; event-ID semantic collision and missing Certactum account metadata fail closed.
-- PENDING — End-to-end Stripe-hosted Checkout session/webhook exercise against the connected test account after a final commercial price/plan is fixed; no live charge is required pre-launch.
+- VERIFIED 2026-09-03 — Connected Stripe TEST Checkout completed a symbolic EUR 1.00 card payment (`pi_3UBZarABxblxoGAb1vRU1IIf`) with Certactum validation metadata.
+- VERIFIED 2026-09-03 — TEST-mode full refund of that EUR 1.00 payment succeeded (`re_3UBZarABxblxoGAb1CYZGmsx`), proving Stripe refund execution without touching live funds.
+- VERIFIED 2026-09-03 — Connected Stripe LIVE Checkout completed a symbolic EUR 1.00 card payment (`pi_3UBZtEABxblxoGAb1Oa3kP8V`), amount received EUR 1.00, status `succeeded`, metadata purpose `symbolic_live_validation`, statement descriptor suffix `CERTACTUM`.
+- TRUTH BOUNDARY — The LIVE EUR 1.00 transaction is a technical validation payment, not a commercial customer, subscription, sale validation or recovered revenue. It remains intentionally unrefunded at the owner's instruction because refunding it provides no additional live-flow evidence beyond the successful TEST refund.
+- PENDING — Final commercial price/plan and corresponding recurring subscription lifecycle exercise, including failed renewal and recovery against the final commercial configuration.
 - PENDING — Final onboarding walkthrough from fresh account to first verified dossier must be recorded against the canonical deployed application.
 
 ## Security/legal truth boundary
@@ -58,8 +63,9 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 
 ## CI truth
 - CLOSED — Exact-head validation for commit 6fae35f4e2537eb534382616d0868faf6eb36734 completed: 1310 passed, 2 skipped, 2 warnings; Mobile passed.
-- The sole repository-wide failure remains `tests/test_chile_mercadopublico.py::test_observation_uses_visible_amount_only_and_preserves_publisher_state`, where an unrelated Chile MercadoPublico assertion expects `is_actionable=True` but receives `False`.
-- No Certactum-caused failure was observed in that exact-head run. The global workflow conclusion remains FAILURE because the unrelated Chile test is part of the same repository-wide job; do not relabel the global workflow as green.
+- The sole repository-wide failure in that validated run was `tests/test_chile_mercadopublico.py::test_observation_uses_visible_amount_only_and_preserves_publisher_state`, where an unrelated Chile MercadoPublico assertion expects `is_actionable=True` but receives `False`.
+- No Certactum-caused failure was observed in that exact-head run. The global workflow conclusion remained FAILURE because the unrelated Chile test is part of the same repository-wide job; do not relabel that workflow as green.
+- VERIFIED 2026-09-03 — Current PR head `b86730b9b35c5eec84ab8cdab3ffa7d6c20a9e41` has workflow run `33752991948`: Mobile completed SUCCESS; Python completed FAILURE at the repository/Factory Cloud test step. Do not infer a new Certactum regression without failure-level evidence.
 
 ## Launch decision rule
 Internal launch readiness can be declared only when every non-external PENDING line above is CLOSED with evidence and exact-head Certactum tests show no Certactum-caused failure. External certification/trust upgrades can follow revenue where explicitly accepted, but production identity, access control, storage and data-handling controls cannot be bypassed for real confidential customer evidence.
