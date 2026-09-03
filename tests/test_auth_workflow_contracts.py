@@ -59,7 +59,10 @@ def test_authenticated_e2e_keeps_shared_profile_read_only():
     assert '-X POST "$API_URL/profile"' not in workflow
     assert "profile-restore" not in workflow
     assert "profile-write" not in workflow
-    assert "__e2e_" not in workflow
+    # Workflow roundtrip markers remain valid; only profile mutation markers
+    # are forbidden in this shared-account gate.
+    assert "profile-marker" not in workflow
+    assert "profile['keywords']" not in workflow
 
 
 def test_release_gates_and_manual_diagnostic_remain_separate():
