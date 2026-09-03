@@ -35,13 +35,14 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - CLOSED — Secret-free readiness report distinguishes blocking failures, warnings and external proof dependencies.
 - CLOSED — 200 repeated tenant-scoped queue reads smoke-test stable no-store behavior.
 - CLOSED — Request size limits and secure intake byte limits are enforced by existing gates.
-- CLOSED — Vercel canonical project `changeclaim` currently has a READY production deployment and no runtime-error clusters in the inspected 24-hour window.
+- CLOSED — Vercel canonical project `changeclaim` currently has a READY production deployment.
 - CLOSED — Canonical Vercel project currently carries both `certactum.com` and `www.certactum.com` domains.
 - VERIFIED 2026-09-03 — `https://certactum.com` permanently redirects to `https://www.certactum.com/`; the canonical `www` endpoint returned HTTP 200 through the connected Vercel fetch.
-- VERIFIED 2026-09-03 — `https://www.certactum.com/` and `https://www.certactum.com/dashboard` both returned HTTP 200 in the final pre-tour connected Vercel check.
-- VERIFIED 2026-09-03 — Vercel grouped runtime-error inspection found no production runtime error clusters in the preceding 24-hour window.
+- VERIFIED 2026-09-03 — Production shell fetch confirms the Certactum root remains a lightweight Vercel loader for the external application document; Vercel READY is not being confused with full customer-journey proof.
+- VERIFIED 2026-09-03 — Connected Neon project `certactum-core` is accessible; schema includes organizations, projects, memberships, changes, notices, decisions, evidence, audit log and evidence upload token tables.
+- VERIFIED 2026-09-03 — Current production data counts are 1 organization, 1 project, 1 membership, 2 change records and 0 evidence records. No real confidential evidence is present in the evidence table at this checkpoint.
 - EXTERNAL PENDING — Production backup schedule, off-site/independent copy, restore drill and RPO/RTO evidence.
-- EXTERNAL PENDING — Independent external uptime/error alert delivery verification beyond platform runtime-error inspection.
+- EXTERNAL PENDING — Independent external uptime/error alert delivery verification beyond platform runtime inspection.
 
 ## Commercial/support journey
 - CLOSED — Public commercial identity uses marcos@certactum.com.
@@ -54,7 +55,7 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - VERIFIED 2026-09-03 — Connected Stripe LIVE Checkout completed a symbolic EUR 1.00 card payment (`pi_3UBZtEABxblxoGAb1Oa3kP8V`), amount received EUR 1.00, status `succeeded`, metadata purpose `symbolic_live_validation`, statement descriptor suffix `CERTACTUM`.
 - TRUTH BOUNDARY — The LIVE EUR 1.00 transaction is a technical validation payment, not a commercial customer, subscription, sale validation or recovered revenue. It remains intentionally unrefunded at the owner's instruction because refunding it provides no additional live-flow evidence beyond the successful TEST refund.
 - PENDING — Final commercial price/plan and corresponding recurring subscription lifecycle exercise, including failed renewal and recovery against the final commercial configuration.
-- PENDING — Final onboarding walkthrough from fresh account to first verified dossier must be recorded against the canonical deployed application.
+- PENDING — Final browser-visible onboarding walkthrough from fresh account to first verified dossier must be recorded against the canonical deployed application. This cannot be marked CLOSED from HTTP/DB inspection alone.
 
 ## Security/legal truth boundary
 - CLOSED — No internal gate claims court acceptance, certification, liability or guaranteed recovery.
@@ -64,10 +65,10 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - EXTERNAL PENDING — Jurisdiction-specific legal review of evidentiary positioning.
 
 ## CI truth
-- VERIFIED 2026-09-03 — Exact-head validation for commit `7903e7df9277af38f4639e975906509c1b5fe349`, workflow run `33763408189`: Mobile SUCCESS; Python repository/Factory Cloud suite `1310 passed, 2 skipped, 2 warnings, 1 failed`.
-- The sole remaining failure is the unrelated Chile MercadoPublico assertion `tests/test_chile_mercadopublico.py::test_observation_uses_visible_amount_only_and_preserves_publisher_state`, expecting `is_actionable=True` while receiving `False`.
-- The two Certactum failures seen on the immediately preceding head were caused by fixed synthetic authorization dates expiring with the wall clock. Their fixtures were made clock-safe and both disappeared on exact-head `7903e7df...`.
-- No Certactum-caused failure was observed in the current exact-head run. The global workflow conclusion remains FAILURE solely because the unrelated Chile test is part of the repository-wide job; do not relabel the global workflow as green.
+- VERIFIED 2026-09-03 — Exact-head validation for commit `6fae35f4e2537eb534382616d0868faf6eb36734`, workflow run `33683326028`: Mobile SUCCESS; Python repository/Factory Cloud suite `1310 passed, 2 skipped, 2 warnings, 1 failed`.
+- The sole failure at that exact head is the unrelated Chile MercadoPublico assertion `tests/test_chile_mercadopublico.py::test_observation_uses_visible_amount_only_and_preserves_publisher_state`, expecting `is_actionable=True` while receiving `False`.
+- No Certactum-caused failure was observed in that exact-head run. The global workflow conclusion remains FAILURE solely because the unrelated Chile test is part of the repository-wide job; do not relabel the global workflow as green.
+- This register update is documentary only; it does not change executable Certactum code. Any later executable-code head must receive its own exact-head validation.
 
 ## Launch decision rule
 Internal launch readiness can be declared only when every non-external PENDING line above is CLOSED with evidence and exact-head Certactum tests show no Certactum-caused failure. External certification/trust upgrades can follow revenue where explicitly accepted, but production identity, access control, storage and data-handling controls cannot be bypassed for real confidential customer evidence.
