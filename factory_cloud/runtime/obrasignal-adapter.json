@@ -1,0 +1,15 @@
+{
+  "app_id": "obrasignal",
+  "mode": "repository_safe_execution",
+  "workspace": "/srv/factory-cloud/apps/obrasignal",
+  "command": [
+    "/usr/bin/python3",
+    "/opt/factory-cloud/current/factory_cloud/obrasignal_agent.py"
+  ],
+  "capabilities": [
+    "READ_REPOSITORY",
+    "RUN_TESTS",
+    "UPDATE_BATON"
+  ],
+  "timeout_seconds": 3600
+}

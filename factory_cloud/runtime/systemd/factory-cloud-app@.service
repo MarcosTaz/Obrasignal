@@ -1,0 +1,26 @@
+[Unit]
+Description=Factory Cloud isolated app worker (%i)
+After=network-online.target factory-cloud-control.service
+Wants=network-online.target
+Requires=factory-cloud-control.service
+
+[Service]
+Type=simple
+User=factory-cloud-%i
+Group=factory-cloud-%i
+WorkingDirectory=/opt/factory-cloud/current
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/factory-cloud/apps/%i.env
+ExecStart=/usr/bin/python3 -m factory_cloud.app_worker D --app-id %i --queue /var/lib/factory-cloud/queues/%i/queue.sqlite3 --adapter-config /etc/factory-cloud/apps/%i.json
+Restart=always
+RestartSec=5
+UMask=0007
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/factory-cloud/queues/%i
+InaccessiblePaths=-/var/lib/factory-cloud/state.sqlite3 -/var/lib/factory-cloud/state.sqlite3-wal -/var/lib/factory-cloud/state.sqlite3-shm
+
+[Install]
+WantedBy=factory-cloud.target

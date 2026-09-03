@@ -1,0 +1,125 @@
+{
+  "schema_version": 2,
+  "activation_code": "D",
+  "registry_scope": "application_development_only",
+  "rules": {
+    "include_only_kind": "application",
+    "exclude_research_factories": true,
+    "unknown_source_is_not_absent": true,
+    "no_automatic_merge": true,
+    "no_automatic_deploy": true,
+    "no_production_mutation": true,
+    "independent_trust_boundaries": true,
+    "no_shared_production_authority": true,
+    "metadata_only_persistence": true
+  },
+  "applications": [
+    {
+      "app_id": "obrasignal",
+      "name": "ObraSignal",
+      "kind": "application",
+      "mission": "Advance ObraSignal application development using repository-safe, exact-source, evidence-first execution while preserving all owner and production authorization boundaries.",
+      "development_state": "ACTIVE",
+      "source_truth": {
+        "provider": "github",
+        "repository": "MarcosTaz/Obrasignal",
+        "canonical_branch": "main",
+        "canonical_head": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+        "verified": true
+      },
+      "execution_source": {
+        "provider": "github",
+        "repository": "MarcosTaz/Obrasignal",
+        "branch": "integration/source-health-compensation-on-current-spine-20260828",
+        "head": "ea9f31b224ff7758bc28532acd3c5d4731971afa",
+        "verified": true,
+        "classification": "NONCANONICAL_DEVELOPMENT_GREEN",
+        "evidence": "PR #677 / ObraSignal Quality #2814 / run 33185013423"
+      },
+      "execution_adapter": {
+        "kind": "obrasignal_verification_v2_execution_source",
+        "configured": true,
+        "config_path": "factory_cloud/runtime/obrasignal-adapter.json",
+        "allowlisted_tasks": [
+          "verify:execution:compile",
+          "verify:execution:python",
+          "verify:execution:mobile",
+          "verify:execution:quality"
+        ],
+        "capabilities": [
+          "READ_REPOSITORY",
+          "RUN_TESTS",
+          "UPDATE_BATON"
+        ],
+        "repository_mutation_capability": false
+      },
+      "task_capabilities": {
+        "verify:execution:compile": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
+        "verify:execution:python": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
+        "verify:execution:mobile": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"],
+        "verify:execution:quality": ["READ_REPOSITORY", "RUN_TESTS", "UPDATE_BATON"]
+      },
+      "development_evidence": {
+        "last_green_candidate": "#677@ea9f31b224ff7758bc28532acd3c5d4731971afa",
+        "classification": "NONCANONICAL_CURRENT_SPINE_GREEN",
+        "scope": "temporal authority + source atomicity + best-effort source-health compensation + direct Persistence owner + current Mobile compatibility"
+      },
+      "baton": {
+        "active": "verify:execution:compile",
+        "next": [
+          "verify:execution:python",
+          "verify:execution:mobile",
+          "Continue source-to-canonical causal, normalization and historical provenance probes from GREEN current spine #677 while preserving UNKNOWN where authority is absent"
+        ],
+        "wait": [
+          "repository mutation/code-authoring tasks require a separately verified repository-safe coding adapter",
+          "canonical adoption",
+          "merge",
+          "deploy",
+          "production/provider/secrets/config/source activation"
+        ]
+      },
+      "activation": {
+        "enabled": true,
+        "mode": "repository_safe_execution",
+        "priority": 100
+      }
+    },
+    {
+      "app_id": "k3-fatality",
+      "name": "K3 Fatality / Probability Intelligence",
+      "kind": "application",
+      "mission": "Advance K3 Fatality only through source-safe work until canonical repository truth is resolved, then continue application development without crossing production authority boundaries.",
+      "development_state": "ACTIVE_RUNTIME_SOURCE_UNRESOLVED",
+      "source_truth": {
+        "provider": "vercel",
+        "project": "k3-fatality",
+        "canonical_repository": null,
+        "verified_runtime": true,
+        "verified_source": false
+      },
+      "baton": {
+        "active": "Resolve canonical source truth before repository mutations",
+        "next": ["Probability-model validation", "calibration/backtest evidence", "commercial MVP progression"],
+        "wait": ["repository writes until source truth is resolved", "production mutation"]
+      },
+      "activation": {
+        "enabled": true,
+        "mode": "read_only_until_source_resolved",
+        "priority": 80
+      }
+    }
+  ],
+  "explicitly_not_registered": {
+    "reason": "Research/business Factories are not applications and must not be mixed into the application-development cloud until promoted to a real app with canonical source/runtime truth.",
+    "examples": [
+      "Industrial Supplier Claims & Margin Recovery",
+      "ChangeLedger",
+      "Recovery Radar",
+      "Sourcing Recovery & Supplier Margin Control",
+      "Product Market Access / Legal Product Checker",
+      "EU Cloud Switching / Migration Capital Network",
+      "Recoverable Money Business Discovery"
+    ]
+  }
+}
