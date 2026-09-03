@@ -37,34 +37,45 @@ jobs:
         env:
           BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
           BUILD_GIT_SHA: 11cbc5a527680759fe003132a902aa8164f4b156
+          EAS_PROJECT_ID: c277466b-a418-45f7-b070-4fc3f96386b7
+          ANDROID_PACKAGE: pt.obrasignal.app
         run: |
           set -euo pipefail
-          eas build:list \
-            --platform android \
-            --build-profile production \
-            --git-commit-hash "$BUILD_GIT_SHA" \
-            --limit 50 \
-            --json \
-            --non-interactive > /tmp/eas-builds.json
+          eas build:view "$BUILD_ID" --json > /tmp/eas-build.json
           python - <<'PY'
           import json, os
-          payload = json.load(open('/tmp/eas-builds.json', encoding='utf-8'))
-          builds = payload if isinstance(payload, list) else payload.get('builds', []) if isinstance(payload, dict) else []
-          target = next((item for item in builds if str(item.get('id')) == os.environ['BUILD_ID']), None)
-          if target is None:
-              raise SystemExit(
-                  f"Android build {os.environ['BUILD_ID']} is not associated by EAS with production source {os.environ['BUILD_GIT_SHA']}"
-              )
+
+          target = json.load(open('/tmp/eas-build.json', encoding='utf-8'))
+          if not isinstance(target, dict):
+              raise SystemExit('EAS build:view did not return one build object')
+
+          build_id = str(target.get('id') or '')
           status = str(target.get('status') or '').upper().replace('-', '_')
           platform = str(target.get('platform') or '').upper()
           profile = str(target.get('buildProfile') or target.get('profile') or '').lower()
+          git_sha = str(target.get('gitCommitHash') or '')
+          project_id = str((target.get('app') or {}).get('id') or '')
+          app_identifier = str(target.get('appIdentifier') or '')
+
+          if build_id != os.environ['BUILD_ID']:
+              raise SystemExit(f"Wrong EAS build id: {build_id or 'missing'}")
           if status != 'FINISHED':
               raise SystemExit(f"Android production build not finished: {status or 'missing'}")
-          if platform and platform != 'ANDROID':
-              raise SystemExit(f"Wrong EAS platform: {platform}")
-          if profile and profile != 'production':
-              raise SystemExit(f"Wrong EAS build profile: {profile}")
-          print(f"ANDROID_BUILD_PROVENANCE_VERIFIED id={target.get('id')} source={os.environ['BUILD_GIT_SHA']}")
+          if platform != 'ANDROID':
+              raise SystemExit(f"Wrong EAS platform: {platform or 'missing'}")
+          if profile != 'production':
+              raise SystemExit(f"Wrong EAS build profile: {profile or 'missing'}")
+          if git_sha != os.environ['BUILD_GIT_SHA']:
+              raise SystemExit(f"Wrong EAS git commit: {git_sha or 'missing'}")
+          if project_id != os.environ['EAS_PROJECT_ID']:
+              raise SystemExit(f"Wrong EAS project: {project_id or 'missing'}")
+          if app_identifier != os.environ['ANDROID_PACKAGE']:
+              raise SystemExit(f"Wrong Android package: {app_identifier or 'missing'}")
+
+          print(
+              'ANDROID_BUILD_PROVENANCE_VERIFIED '
+              f"id={build_id} source={git_sha} project={project_id} package={app_identifier}"
+          )
           PY
 
       - name: Download and fingerprint exact Android production artifact
