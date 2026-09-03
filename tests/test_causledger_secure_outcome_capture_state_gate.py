@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime, timedelta, timezone
 
 from auth_context import RequestIdentity
 from vertical_apps.industrial_claims.proof_extensions import dual_digest
 from vertical_apps.industrial_claims.proof_storage import OriginalObjectReceipt
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 from vertical_apps.industrial_claims.web import create_app
+
+
+_TEST_NOW = datetime.now(timezone.utc)
+_AUTHORIZED_AT = (_TEST_NOW - timedelta(hours=1)).isoformat()
+_EXPIRES_AT = (_TEST_NOW + timedelta(days=1)).isoformat()
+_RETENTION_UNTIL = (_TEST_NOW + timedelta(days=366)).isoformat()
 
 
 class Store:
@@ -53,9 +60,9 @@ def _authorization() -> dict:
     return {
         "authorization_id": "outcome-state-gate-auth",
         "authorized_by_ref": "controller@example.test",
-        "authorized_at": "2026-09-01T00:00:00+00:00",
-        "expires_at": "2026-09-03T00:00:00+00:00",
-        "minimum_immutable_retention_until": "2027-09-03T00:00:00+00:00",
+        "authorized_at": _AUTHORIZED_AT,
+        "expires_at": _EXPIRES_AT,
+        "minimum_immutable_retention_until": _RETENTION_UNTIL,
         "transfer_channel_ref": "secure-outcome-channel",
         "data_terms_state": "SIGNED",
         "immutable_retention_acknowledged": True,
