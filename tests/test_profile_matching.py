@@ -108,6 +108,31 @@ def test_non_preferred_country_loses_bonus(profile_env):
     assert preferred > other
 
 
+def test_chile_iso2_profile_matches_iso3_tender():
+    from profile_scoring import personalized_score
+
+    profile = {
+        "keywords": [],
+        "exclude_keywords": [],
+        "countries": ["CL"],
+        "cpv_prefixes": [],
+        "min_value": None,
+        "max_value": None,
+    }
+    row = {
+        "score": 50,
+        "title": "Obra pública",
+        "description": "Construcción",
+        "buyer": "Municipalidad",
+        "country": "CHL",
+        "cpv": "",
+        "value": "",
+    }
+    score, _, _, reason = personalized_score(row, profile=profile)
+    assert score == 60
+    assert "mercado preferido" in reason
+
+
 def test_duplicate_identity_is_stable():
     from procurement_quality import opportunity_key
 
