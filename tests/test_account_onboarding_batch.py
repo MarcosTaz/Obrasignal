@@ -11,6 +11,9 @@ def test_bootstrap_reuses_profile_batches_writes_and_prefers_confirmed_open(monk
             id INTEGER PRIMARY KEY,
             source TEXT,
             external_id TEXT,
+            title TEXT,
+            description TEXT,
+            cpv TEXT,
             deadline TEXT,
             publication_date TEXT,
             first_seen TEXT,
@@ -19,15 +22,15 @@ def test_bootstrap_reuses_profile_batches_writes_and_prefers_confirmed_open(monk
         )"""
     )
     conn.executemany(
-        "INSERT INTO tenders VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO tenders VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             # This unknown-deadline row has the highest legacy score, but a
             # customer's default open-only Radar must not spend its bounded
             # first-value sample on it before confirmed-open work.
-            (4, "TEST", "unknown", None, "2098-12-04", "2098-12-04", 100, "PRT"),
-            (1, "TEST", "a", "2099-01-01", "2098-12-03", "2098-12-03", 90, "PRT"),
-            (2, "TEST", "b", "2099-01-02", "2098-12-02", "2098-12-02", 80, "PRT"),
-            (3, "TEST", "c", "2099-01-03", "2098-12-01", "2098-12-01", 70, "PRT"),
+            (4, "TEST", "unknown", "Construction unknown", "Works", "45", None, "2098-12-04", "2098-12-04", 100, "PRT"),
+            (1, "TEST", "a", "Construction A", "Works", "45", "2099-01-01", "2098-12-03", "2098-12-03", 90, "PRT"),
+            (2, "TEST", "b", "Construction B", "Works", "45", "2099-01-02", "2098-12-02", "2098-12-02", 80, "PRT"),
+            (3, "TEST", "c", "Construction C", "Works", "45", "2099-01-03", "2098-12-01", "2098-12-01", 70, "PRT"),
         ],
     )
     conn.commit()
