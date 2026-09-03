@@ -106,16 +106,26 @@ function sameOptionalNumber(expected, actual){
   return Number(expected)===Number(actual);
 }
 
+const RADAR_PROFILE_LIST_FIELDS=[
+  'contract_interests','countries','regions','cpv_prefixes','services','capability_tags',
+  'preferred_procedure_types','excluded_procedure_types','exclude_keywords','hard_exclusions',
+];
+const RADAR_PROFILE_NUMBER_FIELDS=['min_value','max_value','geographic_radius_km','economic_min_score','min_deadline_days','max_deadline_days'];
+const RADAR_PROFILE_TEXT_FIELDS=['coverage_mode'];
+
 function persistedProfileMatches(expected, actual){
   if(!actual||typeof actual!=='object')return false;
   if(String(expected?.name||'').trim()!==String(actual.name||'').trim())return false;
   if(String(expected?.activity||'').trim()!==String(actual.activity||'').trim())return false;
-  if(Object.prototype.hasOwnProperty.call(expected||{},'contract_interests')&&!sameList(expected.contract_interests,actual.contract_interests))return false;
-  if(Object.prototype.hasOwnProperty.call(expected||{},'coverage_mode')&&String(expected.coverage_mode||'')!==String(actual.coverage_mode||''))return false;
-  if(Object.prototype.hasOwnProperty.call(expected||{},'countries')&&!sameList(expected.countries,actual.countries))return false;
-  if(Object.prototype.hasOwnProperty.call(expected||{},'regions')&&!sameList(expected.regions,actual.regions))return false;
-  if(Object.prototype.hasOwnProperty.call(expected||{},'min_value')&&!sameOptionalNumber(expected.min_value,actual.min_value))return false;
-  if(Object.prototype.hasOwnProperty.call(expected||{},'max_value')&&!sameOptionalNumber(expected.max_value,actual.max_value))return false;
+  for(const field of RADAR_PROFILE_TEXT_FIELDS){
+    if(Object.prototype.hasOwnProperty.call(expected||{},field)&&String(expected[field]||'')!==String(actual[field]||''))return false;
+  }
+  for(const field of RADAR_PROFILE_LIST_FIELDS){
+    if(Object.prototype.hasOwnProperty.call(expected||{},field)&&!sameList(expected[field],actual[field]))return false;
+  }
+  for(const field of RADAR_PROFILE_NUMBER_FIELDS){
+    if(Object.prototype.hasOwnProperty.call(expected||{},field)&&!sameOptionalNumber(expected[field],actual[field]))return false;
+  }
   return true;
 }
 
