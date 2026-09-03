@@ -10,13 +10,9 @@ on:
 permissions:
   contents: read
 
-# This workflow and authenticated-e2e intentionally share the same permanent
-# production probe identity. They both exercise profile writes/restore, so they
-# must never run concurrently or one gate can restore a stale profile while the
-# other is proving Radar first value.
 concurrency:
-  group: obrasignal-production-e2e-account
-  cancel-in-progress: false
+  group: radar-production-readiness
+  cancel-in-progress: true
 
 env:
   SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
