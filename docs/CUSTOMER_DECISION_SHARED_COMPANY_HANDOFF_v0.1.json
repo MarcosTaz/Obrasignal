@@ -1,0 +1,72 @@
+{
+  "contract_version": "customer-decision-shared-company-handoff.v0.1",
+  "status": "REPOSITORY_ONLY_CANDIDATE_NOT_CANONICAL",
+  "dependency": {
+    "customer_journey_pr": 821,
+    "customer_journey_head": "b9c637071b9f29fc7b84d6b017e7234cf5d6240b",
+    "dependency_state": "CANDIDATE_NOT_CANONICAL"
+  },
+  "identity_model": {
+    "business_tenant": "account_id",
+    "human_actor": "actor_subject",
+    "rule": "business tenant scopes state; actor subject attributes the human action; never alias the two"
+  },
+  "cases": [
+    {
+      "id": "CDI-SC-001",
+      "scenario": "same_company_read_handoff",
+      "inputs": {"historical_actor": "user-A", "reader_actor": "user-B", "account_id": "company-A"},
+      "must": ["same authorized company decision state visible", "historical_actor remains user-A", "reader_actor does not overwrite attribution"]
+    },
+    {
+      "id": "CDI-SC-002",
+      "scenario": "same_company_new_decision",
+      "inputs": {"previous_actor": "user-A", "mutation_actor": "user-B", "account_id": "company-A"},
+      "must": ["new mutation attributed to user-B", "business state remains company-A scoped", "prior audit entry preserved"]
+    },
+    {
+      "id": "CDI-SC-003",
+      "scenario": "revoked_member_attempts_read_or_mutation",
+      "inputs": {"actor_subject": "user-B", "account_id": "company-A", "membership": "REVOKED"},
+      "must": ["fail closed", "no private company decision payload returned", "no decision mutation", "no synthetic DECLINE or NO_BID"]
+    },
+    {
+      "id": "CDI-SC-004",
+      "scenario": "cross_company_actor",
+      "inputs": {"actor_subject": "user-C", "actor_account": "company-B", "target_account": "company-A"},
+      "must": ["fail closed", "no company-A private state returned", "no company-A mutation", "no cross-tenant audit contamination"]
+    },
+    {
+      "id": "CDI-SC-005",
+      "scenario": "role_permission_denied",
+      "inputs": {"actor_subject": "user-B", "account_id": "company-A", "permission": "DENIED"},
+      "must": ["authorization failure remains authorization failure", "customer decision unchanged", "no DECLINE", "no NO_BID"]
+    },
+    {
+      "id": "CDI-SC-006",
+      "scenario": "membership_role_changes_after_historical_decision",
+      "inputs": {"historical_actor": "user-A", "historical_account": "company-A", "membership_now": "CHANGED"},
+      "must": ["historical decision preserved", "historical actor preserved", "current authorization evaluated independently", "no historical rewrite"]
+    },
+    {
+      "id": "CDI-SC-007",
+      "scenario": "audit_exists_without_review_telemetry",
+      "inputs": {"actor_audit_present": true, "review_event_present": false},
+      "must": ["customer review remains UNAVAILABLE", "usefulness remains UNAVAILABLE", "no optimization signal inferred"]
+    }
+  ],
+  "forbidden_aliases": [
+    "account_id=actor_subject",
+    "reader=historical_actor",
+    "authorization_failure=DECLINE",
+    "authorization_failure=NO_BID",
+    "membership_change=historical_decision_rewrite",
+    "audit_event=customer_review",
+    "same_company_access=cross_company_access"
+  ],
+  "governance": {
+    "canonical_adoption_claimed": false,
+    "merge_authorized": false,
+    "deployment_authorized": false
+  }
+}
