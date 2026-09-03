@@ -33,10 +33,10 @@ def test_canonical_real_login_workflows_do_not_treat_publishable_key_as_bearer_t
 def test_authenticated_e2e_auth_failure_path_remains_silent_and_non_sensitive():
     workflow = (WORKFLOWS / "authenticated-e2e.yml").read_text(encoding="utf-8")
 
-    # The consolidated production-contract step fails closed on a non-200
-    # provider login without dumping the provider body or derived credentials.
-    assert 'auth_status="$(curl' in workflow
-    assert 'test "$auth_status" = "200"' in workflow
+    # Provider login fails closed through curl --fail and never dumps the
+    # provider body, password derivatives or derived credentials.
+    assert 'curl --fail --silent --show-error --max-time 30' in workflow
+    assert 'token=json.load(open(\'/tmp/auth.json\'' in workflow
     assert "API_AUTH_BODY=" not in workflow
     assert "API_AUTH_HEALTH=" not in workflow
     assert "OBRASIGNAL_JWT_ISSUER" not in workflow
@@ -47,6 +47,19 @@ def test_authenticated_e2e_auth_failure_path_remains_silent_and_non_sensitive():
     assert "traceback" not in workflow.lower()
     assert "password_sha256" not in workflow
     assert "password_byte_length" not in workflow
+
+
+def test_authenticated_e2e_keeps_shared_profile_read_only():
+    workflow = (WORKFLOWS / "authenticated-e2e.yml").read_text(encoding="utf-8")
+
+    # Radar Production Readiness owns profile mutation/persistence proof. The
+    # general authenticated E2E may read the shared probe profile but must never
+    # mutate or restore it, otherwise concurrent gates can overwrite valid state.
+    assert '"$API_URL/profile" > /tmp/profile.json' in workflow
+    assert '-X POST "$API_URL/profile"' not in workflow
+    assert "profile-restore" not in workflow
+    assert "profile-write" not in workflow
+    assert "__e2e_" not in workflow
 
 
 def test_release_gates_and_manual_diagnostic_remain_separate():
