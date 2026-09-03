@@ -17,7 +17,7 @@ from auth_context import configured_identity
 from decision_dashboard import get_presented_decision
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
-from opportunity_web import render_opportunity_detail
+from account_registry import list_active_accounts
 from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
 
@@ -179,8 +179,15 @@ def radar_page():
         conn.close()
 
 
-def record_account_decisions(conn, *, list_active_accounts):
-    """Classify only effectively actionable rows from the just-completed sync."""
+def record_account_decisions(conn, *, list_active_accounts=list_active_accounts):
+    """Legacy lifecycle-aware classifier retained for compatibility/tests only.
+
+    Production no longer installs this as the sync decision owner. The canonical
+    production owner is ``decision_refresh.record_account_decisions`` which is
+    both lifecycle-aware and fingerprint-incremental. Keeping this callable lets
+    older direct callers retain the same semantic behavior without silently
+    replacing the production refresh strategy during WSGI composition.
+    """
     _ensure(conn)
     run = conn.execute("SELECT finished_at FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
     if not run or not run["finished_at"]:
@@ -233,16 +240,17 @@ def opportunity_detail(tender_id):
 
 
 def install(preload_module):
-    """Install lifecycle-aware compatibility without replacing canonical owners."""
+    """Install lifecycle-aware reads without replacing the decision refresh owner."""
     _app.commercial_score = commercial_score
     _app.query_tenders = query_tenders
     _app.stats_for = stats_for
-    preload_module._record_account_decisions = lambda conn: record_account_decisions(
-        conn, list_active_accounts=preload_module.list_active_accounts
-    )
 
     # Flask stores the route's original function object at decoration time, so
     # replace only the legacy view functions that must consume current lifecycle.
+    # Crucially, do NOT overwrite preload_module._record_account_decisions here:
+    # cors_app installs the fingerprint-incremental canonical refresh immediately
+    # before this compatibility layer. The previous override caused every source
+    # poll to rewrite all observed decisions and contend with customer Radar reads.
     replacements = {
         "api_radar": api_radar,
         "radar_page": radar_page,
