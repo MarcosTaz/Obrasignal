@@ -8,6 +8,9 @@ writes must never be held hostage by a full-corpus reclassification.
 """
 from __future__ import annotations
 
+import re
+import unicodedata
+
 from app import db
 from company_profile import load_profile
 from decision_log import ensure_decision_table
@@ -17,21 +20,27 @@ from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
 from opportunity_match_pipeline import evaluate_row
 
 # This runs inside POST /profile. Keep it a first-value sample, not a batch job.
-# 250 rows exceeded the real 30 s production contract even after batching.
+# 250 scored rows exceeded the real 30 s production contract. The two-stage
+# query below retrieves cheaply in SQL but never evaluates more than 120 rows.
 MAX_BOOTSTRAP_ROWS = 50
-MAX_BOOTSTRAP_CANDIDATES = 80
+MAX_BOOTSTRAP_CANDIDATES = 120
 BOOTSTRAP_COMMIT_BATCH = 25
 
 # A customer starts with "Apenas oportunidades abertas" enabled. Therefore the
 # bounded first-value sample must prefer tenders whose deadline is explicitly
-# still open. Unknown-deadline tenders remain eligible, but they no longer fill
-# all bootstrap slots while the customer's initial Radar appears empty.
+# still open. Unknown-deadline tenders remain eligible because the lifecycle
+# model treats missing time evidence as UNKNOWN rather than CLOSED.
 CONFIRMED_OPEN_SQL = """t.deadline IS NOT NULL AND TRIM(t.deadline)<>'' AND (
     (LENGTH(TRIM(t.deadline))=10 AND date(t.deadline)>=date('now')) OR
     (LENGTH(TRIM(t.deadline))<>10 AND datetime(t.deadline)>=datetime('now'))
 )"""
 
 _DECISION_ORDER = {"QUALIFIED": 0, "REVIEW": 1, "REJECT": 2}
+_STOPWORDS = {
+    "para", "com", "sem", "das", "dos", "uma", "uns", "nas", "nos",
+    "de", "da", "do", "em", "por", "serviços", "servicos", "trabalhos",
+    "trabalho", "empresa", "empresas", "contratos", "contrato",
+}
 
 
 def _bootstrap_rank(pair):
@@ -44,6 +53,54 @@ def _bootstrap_rank(pair):
         -int(item.get("score") or 0),
         str(item.get("external_id") or item.get("id") or ""),
     )
+
+
+def _fold(value: str) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "").casefold())
+    return "".join(ch for ch in text if not unicodedata.combining(ch))
+
+
+def _profile_text_hints(profile: dict) -> list[str]:
+    """Return a few discriminative words for SQL candidate discovery.
+
+    This stage is recall-only. The actual commercial decision is still made by
+    ``evaluate_row``. Hints merely stop the generic source score from deciding
+    which 80 rows an electrician/cleaner/software supplier is ever allowed to
+    be evaluated against.
+    """
+    values = [profile.get("activity")]
+    values.extend(profile.get("contract_interests") or [])
+    values.extend(profile.get("services") or [])
+    values.extend(profile.get("capability_tags") or [])
+    tokens = []
+    for value in values:
+        for token in re.findall(r"[A-Za-zÀ-ÿ0-9]+", str(value or "")):
+            folded = _fold(token).strip()
+            if len(folded) < 5 or folded in _STOPWORDS:
+                continue
+            # SQLite lower() is not a full Unicode case-folder. Keep original
+            # text hints conservative and let CPV hints cover known trades.
+            if token not in tokens:
+                tokens.append(token)
+            if len(tokens) >= 8:
+                return tokens
+    return tokens
+
+
+def _hint_clause(profile: dict):
+    clauses = []
+    params = []
+    # Specific CPV prefixes are high-value discovery evidence. Broad divisions
+    # are allowed too, but only as one signal among text hints and never as the
+    # final decision.
+    for prefix in [str(v).strip() for v in (profile.get("cpv_prefixes") or []) if str(v).strip()][:8]:
+        clauses.append("REPLACE(COALESCE(t.cpv,''),' ','') LIKE ?")
+        params.append(prefix + "%")
+    searchable = "LOWER(COALESCE(t.title,'') || ' ' || COALESCE(t.description,''))"
+    for token in _profile_text_hints(profile):
+        clauses.append(f"{searchable} LIKE LOWER(?)")
+        params.append("%" + token + "%")
+    return clauses, params
 
 
 def _emit_bootstrap_events(conn, account_id: str) -> int:
@@ -82,16 +139,58 @@ def _emit_bootstrap_events(conn, account_id: str) -> int:
     return created
 
 
-def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
-    """Classify a bounded first-value sample for one account quickly.
+def _candidate_rows(conn, profile: dict, countries: list[str], candidate_limit: int):
+    base_where = [actionable_predicate('lc', 't')]
+    base_params = []
+    if countries:
+        placeholders = ",".join("?" for _ in countries)
+        base_where.append(f"UPPER(COALESCE(t.country,'')) IN ({placeholders})")
+        base_params.extend(countries)
 
-    The database first supplies a small candidate pool biased toward the
-    account's countries and confirmed-open work. Crucially, those candidates are
-    then evaluated against the *saved company profile* before the final bootstrap
-    rows are chosen. This prevents a high generic/source score from consuming all
-    50 first-value slots with work that does not match the customer's stated
-    activity or specifications.
-    """
+    order = (
+        f"ORDER BY CASE WHEN {CONFIRMED_OPEN_SQL} THEN 0 ELSE 1 END, "
+        "COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC, "
+        "COALESCE(t.score,0) DESC"
+    )
+    from_sql = """FROM tenders t
+        LEFT JOIN opportunity_lifecycle lc
+          ON lc.source=t.source AND lc.external_id=t.external_id"""
+
+    # Profile-hinted candidates are deliberately queried first. This is the
+    # missing link that previously let a metal/works generic score consume the
+    # entire bounded sample before a specialist's own criteria were evaluated.
+    hint_clauses, hint_params = _hint_clause(profile)
+    hinted = []
+    if hint_clauses:
+        hint_limit = min(candidate_limit, max(MAX_BOOTSTRAP_ROWS, candidate_limit // 2))
+        hinted = conn.execute(
+            f"SELECT t.* {from_sql} WHERE {' AND '.join(base_where)} "
+            f"AND ({' OR '.join(hint_clauses)}) {order} LIMIT ?",
+            (*base_params, *hint_params, hint_limit),
+        ).fetchall()
+
+    # Fill remaining discovery capacity with the freshest/openest generic work.
+    # Deduplication happens in Python so hinted candidates never lose priority.
+    generic = conn.execute(
+        f"SELECT t.* {from_sql} WHERE {' AND '.join(base_where)} {order} LIMIT ?",
+        (*base_params, candidate_limit),
+    ).fetchall()
+
+    merged = []
+    seen = set()
+    for row in [*hinted, *generic]:
+        key = (str(row["source"]), str(row["external_id"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(row)
+        if len(merged) >= candidate_limit:
+            break
+    return merged
+
+
+def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
+    """Classify a bounded, profile-directed first-value sample for one account."""
     account_id = str(account_id or "").strip()
     if not account_id:
         return 0
@@ -101,28 +200,9 @@ def bootstrap_account(account_id: str, limit: int = MAX_BOOTSTRAP_ROWS) -> int:
         ensure_decision_table(conn)
         profile = load_profile(account_id)
         countries = [str(value).strip().upper() for value in (profile.get("countries") or []) if str(value).strip()]
-        where = [actionable_predicate('lc', 't')]
-        params = []
-        if countries:
-            placeholders = ",".join("?" for _ in countries)
-            where.append(f"UPPER(COALESCE(t.country,'')) IN ({placeholders})")
-            params.extend(countries)
-
         requested_limit = max(1, min(int(limit), MAX_BOOTSTRAP_ROWS))
         candidate_limit = min(MAX_BOOTSTRAP_CANDIDATES, max(requested_limit, requested_limit * 2))
-        params.append(candidate_limit)
-        rows = conn.execute(
-            f"""SELECT t.*
-               FROM tenders t
-               LEFT JOIN opportunity_lifecycle lc
-                 ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE {' AND '.join(where)}
-               ORDER BY CASE WHEN {CONFIRMED_OPEN_SQL} THEN 0 ELSE 1 END,
-                        COALESCE(t.score,0) DESC,
-                        COALESCE(NULLIF(t.publication_date,''), t.first_seen) DESC
-               LIMIT ?""",
-            params,
-        ).fetchall()
+        rows = _candidate_rows(conn, profile, countries, candidate_limit)
 
         prepared = []
         for row in rows:
