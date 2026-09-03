@@ -1,9 +1,11 @@
-"""Runtime integrity guards for the production Radar ingestion boundary.
+"""Runtime integrity guards for the production Radar boundary.
 
-These guards are deliberately additive. They repair two legacy behaviours without
+These guards are deliberately additive. They repair legacy behaviours without
 forking the source clients: multi-lot TED deadlines are collapsed to one valid
-calendar deadline for procedure-level actionability, and the TED publication
-cursor is staged until the enclosing sync has persisted successfully.
+calendar deadline for procedure-level actionability, the TED publication cursor
+is staged until the enclosing sync has persisted successfully, and API deadline
+state agrees with the database rule that a date-only deadline remains open for
+its entire calendar day.
 """
 from __future__ import annotations
 
@@ -42,7 +44,6 @@ def _date_tokens(value):
 
     out = [f"{y}-{m}-{d}" for y, m, d in _DATE_RE.findall(text)]
     out.extend(f"{y}-{m}-{d}" for y, m, d in _COMPACT_DATE_RE.findall(text))
-    # Deduplicate while retaining deterministic order before max().
     return list(dict.fromkeys(out))
 
 
@@ -70,6 +71,32 @@ def canonical_ted_deadline(notice, fallback=None):
     return max(fallback_dates) if fallback_dates else fallback
 
 
+def _install_api_deadline_consistency():
+    # api has already been imported by cors_app before this runtime installer is
+    # invoked. Importing it here therefore patches the live module rather than
+    # creating an alternate application object.
+    import api as api_module
+
+    original = api_module._deadline_state
+    if getattr(original, "_obrasignal_date_only_today_guard", False):
+        return original
+
+    def deadline_state(value):
+        result = dict(original(value))
+        raw = str(value or "").strip()
+        # Database open filters deliberately use date(deadline) >= date('now').
+        # Preserve that same contract in API/UI: exact time is unknown, but the
+        # opportunity is still valid through the stated calendar day.
+        if len(raw) == 10 and result.get("days_remaining") == 0 and result.get("state") == "unknown":
+            result["state"] = "urgent"
+        return result
+
+    deadline_state._obrasignal_date_only_today_guard = True
+    deadline_state._obrasignal_original = original
+    api_module._deadline_state = deadline_state
+    return deadline_state
+
+
 def install(preload_module, app_module):
     """Install idempotent production guards before the background writer starts."""
     original_normalize = app_module.normalize_ted
@@ -87,9 +114,6 @@ def install(preload_module, app_module):
     if not getattr(original_set_cursor, "_obrasignal_ted_cursor_guard", False):
         def set_source_cursor_after_persistence(conn, source, watermark, *, commit=True):
             if str(source or "").upper() == "TED":
-                # The enclosing sync wrapper discards staged state on any legacy
-                # persistence failure and commits it only after the tender write
-                # transaction has succeeded.
                 stage_source_sync("TED", [], watermark)
                 return None
             return original_set_cursor(conn, source, watermark, commit=commit)
@@ -98,7 +122,9 @@ def install(preload_module, app_module):
         set_source_cursor_after_persistence._obrasignal_original = original_set_cursor
         preload_module.set_source_cursor = set_source_cursor_after_persistence
 
+    deadline_state = _install_api_deadline_consistency()
     return {
         "normalize_ted": app_module.normalize_ted,
         "set_source_cursor": preload_module.set_source_cursor,
+        "deadline_state": deadline_state,
     }
