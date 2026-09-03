@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import os
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from typing import Any
@@ -21,6 +22,10 @@ from vertical_apps.industrial_claims.outcome_authorization import (
     OutcomeEvidenceAuthorization,
     capture_authorized_outcome_evidence,
 )
+from vertical_apps.industrial_claims.production_trust_gate import (
+    ProductionTrustGate,
+    ProductionTrustGateError,
+)
 from vertical_apps.industrial_claims.proof_storage import OriginalEvidenceStore
 from vertical_apps.industrial_claims.secure_capture import CaptureIdentity, SourceAuthenticationReceipt
 from vertical_apps.industrial_claims.secure_capture_registry import SecureCaptureRegistry, SecureCaptureRegistryError
@@ -32,6 +37,7 @@ class SecureIntakeWebError(ValueError):
 
 
 IdentityResolver = Callable[[], tuple[str, str]]
+ClaimsResolver = Callable[[], Mapping[str, object]]
 MAX_ROUTE_ORIGINAL_BYTES = 2_000_000
 _COMMON_AUTHORIZATION_KEYS = {
     "authorization_id", "authorized_by_ref", "authorized_at", "expires_at",
@@ -138,7 +144,39 @@ def _same_existing_capture(existing, *, content: bytes, content_type: str, actor
     )
 
 
-def create_secure_intake_blueprint(*, capture_registry: SecureCaptureRegistry, outcome_registry: SecureOutcomeRegistry, capture_identity: IdentityResolver, original_store: OriginalEvidenceStore | None, service=None) -> Blueprint:
+def _require_production_trust(
+    *,
+    production_trust_gate: ProductionTrustGate | None,
+    verified_claims: ClaimsResolver | None,
+) -> None:
+    """Automatically protect documentary ingress whenever provider auth is live.
+
+    Development/synthetic execution remains testable. In provider-auth production,
+    there is no manual "open intake" switch: a real gate and verified JWT claims
+    are mandatory, and the gate itself requires live WORM + qualified timestamp
+    control receipts in addition to AAL2 MFA.
+    """
+    auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
+    if auth_mode != "provider":
+        return
+    if production_trust_gate is None or verified_claims is None:
+        raise ProductionTrustGateError("real confidential intake blocked: production trust gate is not configured")
+    claims = verified_claims()
+    if not isinstance(claims, Mapping):
+        raise ProductionTrustGateError("real confidential intake blocked: verified JWT claims are unavailable")
+    production_trust_gate.require_ready(verified_claims=claims)
+
+
+def create_secure_intake_blueprint(
+    *,
+    capture_registry: SecureCaptureRegistry,
+    outcome_registry: SecureOutcomeRegistry,
+    capture_identity: IdentityResolver,
+    original_store: OriginalEvidenceStore | None,
+    service=None,
+    production_trust_gate: ProductionTrustGate | None = None,
+    verified_claims: ClaimsResolver | None = None,
+) -> Blueprint:
     if service is None:
         from vertical_apps.industrial_claims.service import IndustrialClaimsService
         service = IndustrialClaimsService(capture_registry.path)
@@ -148,6 +186,10 @@ def create_secure_intake_blueprint(*, capture_registry: SecureCaptureRegistry, o
     def capture_case_original():
         tenant_id, actor_id = capture_identity()
         try:
+            _require_production_trust(
+                production_trust_gate=production_trust_gate,
+                verified_claims=verified_claims,
+            )
             if original_store is None:
                 raise SecureIntakeWebError("secure intake immutable original store is not configured")
             payload = _json_object(); authorization_raw = _authorization_object(payload, allowed_keys=_CASE_AUTHORIZATION_KEYS)
@@ -181,6 +223,8 @@ def create_secure_intake_blueprint(*, capture_registry: SecureCaptureRegistry, o
             captured = capture_authorized_original_evidence(authorization=authorization, evidence_role=role, original_store=original_store, evidence_id=evidence_id, identity=_capture_identity(tenant_id, actor_id), source_ref=source_ref, content=content, content_type=content_type, source_authentication=_unverified_upload_receipt(), effective_at=effective_at, clock=lambda: now)
             capture_registry.record(evidence=captured.evidence, evidence_role=role, captured_by=actor_id)
             return jsonify(_result_body(captured.evidence, evidence_role=role, idempotent_replay=False)), 201
+        except ProductionTrustGateError as exc:
+            return jsonify({"error": "production_trust_not_ready", "message": str(exc)}), 503
         except (SecureIntakeWebError, ValueError, SecureCaptureRegistryError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
 
@@ -188,6 +232,10 @@ def create_secure_intake_blueprint(*, capture_registry: SecureCaptureRegistry, o
     def capture_outcome_original(finding_id: str):
         tenant_id, actor_id = capture_identity()
         try:
+            _require_production_trust(
+                production_trust_gate=production_trust_gate,
+                verified_claims=verified_claims,
+            )
             if original_store is None: raise SecureIntakeWebError("secure intake immutable original store is not configured")
             payload = _json_object(); authorization_raw = _authorization_object(payload, allowed_keys=_OUTCOME_AUTHORIZATION_KEYS)
             content, content_type = _strict_original(payload)
@@ -217,6 +265,8 @@ def create_secure_intake_blueprint(*, capture_registry: SecureCaptureRegistry, o
             captured = capture_authorized_outcome_evidence(authorization=authorization, original_store=original_store, evidence_id=evidence_id, identity=_capture_identity(tenant_id, actor_id), source_ref=source_ref, content=content, content_type=content_type, source_authentication=_unverified_upload_receipt(), effective_at=effective_at, clock=lambda: now)
             outcome_registry.record(evidence=captured.evidence, captured_by=actor_id)
             return jsonify(_result_body(captured.evidence, idempotent_replay=False)), 201
+        except ProductionTrustGateError as exc:
+            return jsonify({"error": "production_trust_not_ready", "message": str(exc)}), 503
         except (SecureIntakeWebError, ValueError, AssuranceOperationError, AssuranceStoreError, SecureOutcomeRegistryError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
     return blueprint
