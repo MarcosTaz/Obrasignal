@@ -17,6 +17,7 @@ from auth_context import configured_identity
 from decision_dashboard import get_presented_decision
 from funnel_integration import persist_and_classify
 from opportunity_lifecycle import actionable_predicate, ensure_lifecycle_table
+from opportunity_web import render_opportunity_detail
 from account_registry import list_active_accounts
 from radar_decision_feed import enrich_rows
 from radar_web import render_radar_page
