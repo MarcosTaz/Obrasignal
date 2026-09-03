@@ -2,6 +2,7 @@ import sqlite3
 
 from decision_log import ensure_decision_table, latest_decision
 from funnel_integration import persist_and_classify
+from opportunity_match_pipeline import RULE_VERSION
 
 
 def test_persist_and_classify_records_auditable_decision():
@@ -22,6 +23,6 @@ def test_persist_and_classify_records_auditable_decision():
     assert reason
     row = latest_decision(conn, 'TED', '2026-S-999')
     assert row['decision'] == decision
-    assert row['rule_version'] == 'commercial-v2+lot-v1+capability-v2+economic-fit-v3'
+    assert row['rule_version'] == RULE_VERSION
     assert 'profile_score' in row['features']
     assert 'economic_fit' in row['features']
