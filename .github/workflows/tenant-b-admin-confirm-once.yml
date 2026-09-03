@@ -1,10 +1,7 @@
 name: ObraSignal Tenant B Admin Confirm One-Shot
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/tenant-b-admin-confirm-once.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,6 +13,8 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
       API_URL: https://obrasignal.onrender.com/api/v1
@@ -25,45 +24,19 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Confirm tenant B with existing Supabase key if it has admin authority
+
+      - name: Confirm/provision tenant B with server-side Supabase admin credentials
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import json, os, urllib.request, urllib.error
-          base=os.environ['SUPABASE_URL'].rstrip('/')
-          if base.endswith('/rest/v1'): base=base[:-8]
-          key=os.environ['SUPABASE_KEY']
-          target='obrasignal.pt+e2e-b@gmail.com'
-          def req(url, method='GET', payload=None):
-              data=None if payload is None else json.dumps(payload).encode()
-              r=urllib.request.Request(url,data=data,method=method)
-              r.add_header('apikey',key); r.add_header('Authorization','Bearer '+key); r.add_header('Content-Type','application/json')
-              try:
-                  with urllib.request.urlopen(r,timeout=30) as x:
-                      raw=x.read().decode(); return x.status, json.loads(raw) if raw else {}
-              except urllib.error.HTTPError as e:
-                  raw=e.read().decode(errors='replace')
-                  try: body=json.loads(raw)
-                  except Exception: body={'raw':raw[:300]}
-                  return e.code,body
-          status, body=req(base+'/auth/v1/admin/users?page=1&per_page=1000')
-          if status!=200:
-              raise SystemExit(f'ADMIN_CONFIRM_BLOCKED existing publishable key has no admin authority (HTTP {status}).')
-          users=body.get('users', body if isinstance(body,list) else [])
-          user=next((u for u in users if str(u.get('email','')).lower()==target),None)
-          if not user: raise SystemExit('ADMIN_CONFIRM_BLOCKED tenant B user not found.')
-          uid=user.get('id')
-          if user.get('email_confirmed_at') or user.get('confirmed_at'):
-              print('TENANT_B_ALREADY_CONFIRMED')
-          else:
-              status, out=req(base+'/auth/v1/admin/users/'+uid,'PUT',{'email_confirm':True})
-              if status not in (200,201): raise SystemExit(f'ADMIN_CONFIRM_BLOCKED update failed HTTP {status}.')
-              print('TENANT_B_CONFIRMED_BY_ADMIN')
-          PY
+          if [ -z "${SUPABASE_SECRET_KEY:-}" ] && [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo '::error::ADMIN_CONFIRM_BLOCKED Configure SUPABASE_SECRET_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY as an Actions secret.'
+            exit 1
+          fi
+          python scripts/provision_ephemeral_tenant.py
+
       - name: Prove two-tenant production isolation immediately
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/provision_ephemeral_tenant.py
           python scripts/live_tenant_isolation_runner.py
