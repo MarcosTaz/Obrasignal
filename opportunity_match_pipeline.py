@@ -9,7 +9,7 @@ from lot_matcher import match_lot
 from economic_fit import evaluate_economic_fit, parse_contract_value
 from profile_scoring import personalized_score
 
-RULE_VERSION = "commercial-v2+lot-v1+capability-v2+economic-fit-v3"
+RULE_VERSION = "commercial-v2+lot-v1+capability-v3+economic-fit-v3"
 
 
 def _cpv_evidence(lot, capability):
@@ -21,9 +21,8 @@ def _cpv_evidence(lot, capability):
         return {"status": "UNKNOWN", "strength": "NONE", "matched_prefixes": [],
                 "reason": "sem correspondência CPV com o perfil"}
     matched_prefixes = sorted({prefix for _, prefix in matches}, key=lambda value: (-len(value), value))
-    # Two-digit divisions (45, 44, 42, 43) contain many unrelated trades.
-    # They are useful for recall, but are not proof that this company performs
-    # the work. Four or more digits identify a materially narrower group/class.
+    # Two-digit divisions contain many unrelated trades. They remain useful for
+    # recall but are not sufficient proof that the company performs this work.
     specific = any(len(prefix) >= 4 for prefix in matched_prefixes)
     return {
         "status": "MATCH" if specific else "PARTIAL",
@@ -49,20 +48,37 @@ def _lot_from_row(row):
     }
 
 
+def _deadline_is_past(value) -> bool:
+    """Return True only when the supplied deadline is provably in the past.
+
+    A calendar date without a time remains actionable for that whole calendar
+    day. Converting ``YYYY-MM-DD`` to midnight was previously rejecting valid
+    tenders during their closing day and disagreed with the API/lifecycle model.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return False
+    if len(raw) == 10:
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date() < datetime.now(timezone.utc).date()
+        except ValueError:
+            return False
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc) < datetime.now(timezone.utc)
+    except (TypeError, ValueError):
+        return False
+
+
 def _hard_capability_checks(lot, capability):
     """Return deterministic blockers; missing data stays UNKNOWN, not PASS."""
     blockers = []
     deadline = lot.get("deadline")
-    if deadline:
-        try:
-            parsed = datetime.fromisoformat(str(deadline).strip().replace("Z", "+00:00"))
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            if parsed.astimezone(timezone.utc) < datetime.now(timezone.utc):
-                blockers.append("prazo de apresentação terminado")
-        except (TypeError, ValueError):
-            # An invalid deadline remains UNKNOWN rather than being guessed.
-            pass
+    if deadline and _deadline_is_past(deadline):
+        blockers.append("prazo de apresentação terminado")
+
     amount = lot.get("value_numeric")
     try:
         amount = float(amount) if amount not in (None, "") else None
@@ -97,11 +113,32 @@ def _hard_capability_checks(lot, capability):
     return blockers
 
 
+def _account_evidence_floor(capability_evidence, cpv_evidence) -> int:
+    """Minimum relevance justified by explicit account-specific evidence.
+
+    The original global commercial score was created for a metal/construction
+    wedge. It remains useful as generic context, but it must never prevent an
+    electrician, cleaner, HVAC company or software supplier from reaching the
+    Radar when the tender explicitly describes the service the customer saved.
+    """
+    capability_match = bool(capability_evidence.get("matched"))
+    cpv_strength = cpv_evidence.get("strength")
+    if capability_match and cpv_strength == "STRONG":
+        return 85
+    if capability_match and cpv_strength == "WEAK":
+        return 80
+    if capability_match:
+        return 76
+    if cpv_strength == "STRONG":
+        return 65
+    return 0
+
+
 def _explain_evaluation(profile_score, lot_score, geo, capability_evidence, cpv_evidence, economics, hard_blockers):
     """Return structured evidence for UI/API while preserving the decision model."""
     factors = [
         {"key": "profile", "label": "Perfil comercial", "score": profile_score, "reason": "Compatibilidade com o perfil da empresa"},
-        {"key": "lot", "label": "Lote", "score": lot_score, "reason": "Compatibilidade do lote"},
+        {"key": "lot", "label": "Lote", "score": lot_score, "reason": "Qualidade/contexto geral do lote"},
         {"key": "geography", "label": "Geografia", "score": None, "reason": geo.get("reason") or "Geografia não determinada"},
         {"key": "capability", "label": "Capacidade", "score": None, "reason": capability_evidence.get("reason") or "Capacidade não determinada"},
         {"key": "cpv", "label": "CPV", "score": None, "reason": cpv_evidence["reason"]},
@@ -144,20 +181,19 @@ def evaluate_row(row, profile=None):
     if result["geography"].get("reason") == "região fora do perfil":
         hard_blockers.append("região fora da cobertura da empresa")
 
-    # The source `tenders.score` field is legacy presentation state from the
-    # original root application. The canonical product score is produced by
-    # commercial-v2 inside match_lot(). Never let stale source scoring alter
-    # the account-specific decision pipeline.
+    # The legacy/global commercial score is context, not the account's identity.
+    # Explicit evidence from the saved company profile is authoritative and gets
+    # a deterministic floor so all supported trades can reach the same Radar.
     global_score = result["commercial"]["score"]
     profile_score = personalized_score(source_row, base_score=global_score, profile=profile)[0]
+    evidence_floor = _account_evidence_floor(capability_evidence, cpv_evidence)
+    profile_score = max(profile_score, evidence_floor)
     positive_commercial_evidence = capability_evidence["matched"] or cpv_evidence["strength"] == "STRONG"
     # Country, an in-range value and a broad CPV division improve recall, but
     # cannot establish high relevance by themselves.
     if not positive_commercial_evidence:
         profile_score = min(profile_score, 59)
-    # A score shown to a customer must agree with deterministic eligibility
-    # rules.  Previously a CPV/value/deadline blocker could say REJECT while
-    # the same card still displayed e.g. 90/100.
+    # A score shown to a customer must agree with deterministic eligibility rules.
     if hard_blockers:
         profile_score = min(profile_score, 35)
     lot_score = int(result["score"])
@@ -165,9 +201,12 @@ def evaluate_row(row, profile=None):
 
     if hard_blockers:
         decision = "REJECT"
-    elif profile_score >= 75 and lot_score >= 65 and economics["status"] in ("FAVOURABLE", "REVIEW"):
+    elif profile_score >= 75 and economics["status"] in ("FAVOURABLE", "REVIEW"):
+        # Account-specific evidence is the qualification authority. The generic
+        # lot score no longer vetoes a specialist profile merely because the old
+        # commercial baseline was tuned for another trade.
         decision = "QUALIFIED"
-    elif profile_score >= 60 or lot_score >= 65:
+    elif profile_score >= 60:
         decision = "REVIEW"
     else:
         decision = "REJECT"
@@ -226,8 +265,6 @@ def evaluate_and_record(conn, row, profile=None, account_id="default"):
         rule_version=RULE_VERSION,
         account_id=account_id,
     )
-    # Real normalized market data has reached the account-specific decision path.
-    # Only QUALIFIED/REVIEW produces the first relevant shortlist activation event.
     try:
         from account_registry import ensure_account
         from evaluation_policy import record_evaluation_event
