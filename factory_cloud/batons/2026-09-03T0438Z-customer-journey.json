@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "command": "D",
+  "status": "ACTIVE",
+  "factory_id": "obrasignal-customer-journey",
+  "registry_entry_count": 33,
+  "observed_at": "2026-09-03T04:38:00Z",
+  "material_change": "CUSTOMER_JOURNEY_GREEN_SUCCESSOR_RECOVERED",
+  "evidence": {
+    "superseded_candidate": {
+      "pr": 701,
+      "head": "5b40013527ff7af109d189a68ce1bedaac759a42",
+      "quality_run": 33205358343,
+      "python": "SUCCESS",
+      "mobile": "FAILURE_AT_EXPO_DOCTOR",
+      "verification": "EXACT_HEAD_RED"
+    },
+    "successor_repair": {
+      "pr": 819,
+      "state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
+      "head": "52eefb70afd82f8646fb940591058dad7789b211",
+      "quality_run": 33271788157,
+      "python": "SUCCESS",
+      "mobile": "SUCCESS",
+      "verification": "EXACT_HEAD_GREEN_REPAIR_ONLY",
+      "scope": "test-fixture alignment with explicit relevance authority; no runtime weakening"
+    },
+    "causledger_inbound": {
+      "successfully_queried_accounts": 3,
+      "new_material_replies": 0,
+      "outbound_sent": 0
+    }
+  },
+  "truth_boundary": "PR #819 is a bounded GREEN repair candidate only. It is draft, unmerged and non-canonical and does not prove production, customer outcomes, WTP, payment or revenue.",
+  "active": "Global Market Entry, Localization & Country Launch Automation — reconstruct exact candidate/current truth; rotate immediately if blocked.",
+  "next": "Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey",
+  "holds": [
+    "Portugal outbound requires current DGC Article 13-B list screening immediately before send.",
+    "Spain unsolicited commercial email/follow-up hold remains active absent prior request/express authorization or clearly applicable lawful exception."
+  ]
+}
