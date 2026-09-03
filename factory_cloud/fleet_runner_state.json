@@ -6,27 +6,19 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 3,
-  "last_factory_id": "industrial-claims",
-  "last_run_at": "2026-09-03T13:38:53Z",
+  "cursor": 4,
+  "last_factory_id": "scopeledger",
+  "last_run_at": "2026-09-03T15:42:22Z",
   "last_material_change": {
-    "kind": "CERTACTUM_CURRENT_EXACT_HEAD_RED_PRODUCTION_EVIDENCE_COMMIT",
-    "summary": "Industrial Supplier Claims was reconstructed from current repository truth. PR #785 is OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at exact head b86730b9b35c5eec84ab8cdab3ffa7d6c20a9e41 and is now canonically named Certactum in its own PR truth boundary. Exact-head ObraSignal Quality run 33752991948 is FAILURE: Mobile passed, Python failed at repository and Factory Cloud tests. The head commit records canonical production deployment evidence, but the PR itself still explicitly does not establish complete production readiness, real-customer validation, recovery, paid audit, operator identity verification, or production WORM/TSA/HSM configuration. No merge or deploy was attempted. Gmail watch across all three connected accounts found no new material inbound; no outbound was sent.",
+    "kind": "SCOPELEDGER_AUTHORITY_NOT_RECOVERED_ROTATE_FAIL_CLOSED",
+    "summary": "ScopeLedger was reconstructed from the current control-plane registry and repository search. No open ScopeLedger PR and no default-branch code/document authority matching ScopeLedger were recovered, so no product, engineering, customer, revenue, deployment, or readiness claim was promoted. The lane remains registered but UNKNOWN rather than borrowing authority from adjacent Factories. Gmail watch across all three connected accounts found no new material inbound from the explicitly monitored CausLedger/association/DGC routes in the last day; no outbound was sent. The fleet remains ACTIVE and rotates immediately to ChangeLedger.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "industrial_claims": {
-        "canonical_product_identity": "Certactum",
-        "candidate_pr": 785,
-        "state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "mergeable": true,
-        "head": "b86730b9b35c5eec84ab8cdab3ffa7d6c20a9e41",
-        "verification": "EXACT_HEAD_RED",
-        "obrasignal_quality_run": 33752991948,
-        "mobile": "SUCCESS",
-        "python": "FAILURE_REPOSITORY_AND_FACTORY_CLOUD_TESTS",
-        "real_customer_validation_proven": false,
-        "real_recovery_proven": false,
-        "paid_audit_proven": false,
+      "scopeledger": {
+        "registry_present": true,
+        "open_pr_recovered": false,
+        "default_branch_authority_recovered": false,
+        "verification": "UNKNOWN_NO_DEDICATED_AUTHORITY_RECOVERED",
         "automatic_merge_authorized": false
       },
       "causledger_inbound_watch": {
@@ -35,11 +27,12 @@
         "outbound_sent": 0
       }
     },
-    "active": "ScopeLedger",
-    "next": "ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum",
+    "active": "ChangeLedger",
+    "next": "ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum -> ScopeLedger",
     "wait": [
       "Portugal outbound requires current DGC-list recipient screening immediately before send.",
       "Spain unsolicited commercial email/follow-up hold remains active.",
+      "ScopeLedger has no recovered dedicated open PR or default-branch repository authority; keep UNKNOWN and do not borrow adjacent Factory authority.",
       "Certactum PR #785 is exact-head RED: Mobile passes, Python repository/Factory Cloud tests fail; no merge/deploy is authorized.",
       "Certactum real-customer validation, real recovery, paid audit, independently verified operator identity and production WORM/TSA/HSM configuration remain unproved.",
       "ComplianceLedger has no recovered dedicated repository/source authority; do not borrow Documentary Billing authority.",
