@@ -38,4 +38,6 @@ jobs:
           python -m playwright install --with-deps chromium firefox webkit
 
       - name: Verify production customer journey in browser engines
-        run: python scripts/production_browser_e2e.py
+        run: |
+          python scripts/production_browser_e2e.py
+          python scripts/production_radar_journey_e2e.py
