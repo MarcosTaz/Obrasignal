@@ -38,6 +38,8 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - CLOSED — Vercel canonical project `changeclaim` currently has a READY production deployment and no runtime-error clusters in the inspected 24-hour window.
 - CLOSED — Canonical Vercel project currently carries both `certactum.com` and `www.certactum.com` domains.
 - VERIFIED 2026-09-03 — `https://certactum.com` permanently redirects to `https://www.certactum.com/`; the canonical `www` endpoint returned HTTP 200 through the connected Vercel fetch.
+- VERIFIED 2026-09-03 — `https://www.certactum.com/` and `https://www.certactum.com/dashboard` both returned HTTP 200 in the final pre-tour connected Vercel check.
+- VERIFIED 2026-09-03 — Vercel grouped runtime-error inspection found no production runtime error clusters in the preceding 24-hour window.
 - EXTERNAL PENDING — Production backup schedule, off-site/independent copy, restore drill and RPO/RTO evidence.
 - EXTERNAL PENDING — Independent external uptime/error alert delivery verification beyond platform runtime-error inspection.
 
@@ -62,10 +64,10 @@ This register is the internal launch gate. A control is only CLOSED when evidenc
 - EXTERNAL PENDING — Jurisdiction-specific legal review of evidentiary positioning.
 
 ## CI truth
-- CLOSED — Exact-head validation for commit 6fae35f4e2537eb534382616d0868faf6eb36734 completed: 1310 passed, 2 skipped, 2 warnings; Mobile passed.
-- The sole repository-wide failure in that validated run was `tests/test_chile_mercadopublico.py::test_observation_uses_visible_amount_only_and_preserves_publisher_state`, where an unrelated Chile MercadoPublico assertion expects `is_actionable=True` but receives `False`.
-- No Certactum-caused failure was observed in that exact-head run. The global workflow conclusion remained FAILURE because the unrelated Chile test is part of the same repository-wide job; do not relabel that workflow as green.
-- VERIFIED 2026-09-03 — Current PR head `b86730b9b35c5eec84ab8cdab3ffa7d6c20a9e41` has workflow run `33752991948`: Mobile completed SUCCESS; Python completed FAILURE at the repository/Factory Cloud test step. Do not infer a new Certactum regression without failure-level evidence.
+- VERIFIED 2026-09-03 — Exact-head validation for commit `7903e7df9277af38f4639e975906509c1b5fe349`, workflow run `33763408189`: Mobile SUCCESS; Python repository/Factory Cloud suite `1310 passed, 2 skipped, 2 warnings, 1 failed`.
+- The sole remaining failure is the unrelated Chile MercadoPublico assertion `tests/test_chile_mercadopublico.py::test_observation_uses_visible_amount_only_and_preserves_publisher_state`, expecting `is_actionable=True` while receiving `False`.
+- The two Certactum failures seen on the immediately preceding head were caused by fixed synthetic authorization dates expiring with the wall clock. Their fixtures were made clock-safe and both disappeared on exact-head `7903e7df...`.
+- No Certactum-caused failure was observed in the current exact-head run. The global workflow conclusion remains FAILURE solely because the unrelated Chile test is part of the repository-wide job; do not relabel the global workflow as green.
 
 ## Launch decision rule
 Internal launch readiness can be declared only when every non-external PENDING line above is CLOSED with evidence and exact-head Certactum tests show no Certactum-caused failure. External certification/trust upgrades can follow revenue where explicitly accepted, but production identity, access control, storage and data-handling controls cannot be bypassed for real confidential customer evidence.
