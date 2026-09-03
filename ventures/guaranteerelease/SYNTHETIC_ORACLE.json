@@ -1,0 +1,221 @@
+{
+  "oracle_version": "2026-08-29.1",
+  "purpose": "Independent ground truth for release/reduction engine testing. Application output must be graded against this file, never generated from its own predictions.",
+  "cases": [
+    {
+      "id": "GR-001",
+      "company": "ALPHA EPC",
+      "country": "Portugal",
+      "instrument_type": "ADVANCE_PAYMENT_GUARANTEE",
+      "currency": "EUR",
+      "initial_amount": 2000000,
+      "current_instrument_amount": 2000000,
+      "true_contract": {
+        "advance_payment": 2000000,
+        "repaid_to_date": 1200000,
+        "reduction_rule": "Guarantee may be progressively reduced by certified advance repayment.",
+        "claim_open": false
+      },
+      "evidence": {
+        "payment_certificates_prove_repayment": true,
+        "instrument_wording_supports_reduction": true,
+        "beneficiary_action_required": true,
+        "bank_action_required": true
+      },
+      "ground_truth": {
+        "state": "REDUCTION_EVIDENCE_SUPPORTED",
+        "potential_reduction": 1200000,
+        "potential_release": 0,
+        "verified_reduction": 0,
+        "verified_release": 0,
+        "collateral_released": 0,
+        "reason": "Repayment is proven and the instrument permits progressive reduction, but no beneficiary/bank implementation is yet verified."
+      }
+    },
+    {
+      "id": "GR-002",
+      "company": "NOVA CONSTRUCTION",
+      "country": "United Kingdom",
+      "instrument_type": "PERFORMANCE_BOND",
+      "currency": "GBP",
+      "initial_amount": 1000000,
+      "current_instrument_amount": 1000000,
+      "true_contract": {
+        "practical_completion": true,
+        "defects_period_active": true,
+        "final_certificate": false,
+        "reduction_rule": "50% returned after practical completion; balance after final certificate.",
+        "claim_open": false
+      },
+      "evidence": {
+        "practical_completion_certificate": true,
+        "final_certificate": false,
+        "beneficiary_action_required": true
+      },
+      "ground_truth": {
+        "state": "REDUCTION_EVIDENCE_SUPPORTED",
+        "potential_reduction": 500000,
+        "potential_release": 0,
+        "verified_reduction": 0,
+        "verified_release": 0,
+        "collateral_released": 0,
+        "reason": "First contractual reduction milestone is met; full release is not yet due."
+      }
+    },
+    {
+      "id": "GR-003",
+      "company": "TITAN ENERGY",
+      "country": "Germany",
+      "instrument_type": "WARRANTY_GUARANTEE",
+      "currency": "EUR",
+      "initial_amount": 750000,
+      "current_instrument_amount": 750000,
+      "true_contract": {
+        "defects_period_active": false,
+        "final_acceptance": false,
+        "valid_defect_open": true,
+        "release_rule": "Release after defects period and resolution of notified defects.",
+        "claim_open": true
+      },
+      "evidence": {
+        "defects_period_end_proven": true,
+        "open_defect_notice": true,
+        "defect_resolution": false
+      },
+      "ground_truth": {
+        "state": "RELEASE_NOT_YET_DUE",
+        "potential_reduction": 0,
+        "potential_release": 0,
+        "verified_reduction": 0,
+        "verified_release": 0,
+        "collateral_released": 0,
+        "reason": "Correct zero: a valid unresolved defect keeps the security contractually required."
+      }
+    },
+    {
+      "id": "GR-004",
+      "company": "PRIME INFRASTRUCTURE",
+      "country": "Australia",
+      "instrument_type": "PERFORMANCE_GUARANTEE",
+      "currency": "AUD",
+      "initial_amount": 1500000,
+      "current_instrument_amount": 1500000,
+      "true_contract": {
+        "practical_completion": true,
+        "final_certificate": true,
+        "expiry_date_passed": true,
+        "auto_extension": true,
+        "release_rule": "Return/release required after final certificate; expiry alone does not prove cancellation.",
+        "claim_open": false
+      },
+      "evidence": {
+        "final_certificate": true,
+        "beneficiary_release_letter": false,
+        "bank_cancellation": false,
+        "collateral_release_confirmation": false
+      },
+      "ground_truth": {
+        "state": "RELEASE_EVIDENCE_SUPPORTED",
+        "potential_reduction": 0,
+        "potential_release": 1500000,
+        "verified_reduction": 0,
+        "verified_release": 0,
+        "collateral_released": 0,
+        "reason": "Release condition is evidenced, but expiry must not be collapsed into bank cancellation or collateral release."
+      }
+    },
+    {
+      "id": "GR-005",
+      "company": "LEGACY INDUSTRIAL",
+      "country": "France",
+      "instrument_type": "RETENTION_GUARANTEE",
+      "currency": "EUR",
+      "initial_amount": 600000,
+      "current_instrument_amount": 0,
+      "true_contract": {
+        "release_condition_met": true,
+        "bank_cancelled": true,
+        "cash_collateral_original": 300000,
+        "cash_collateral_released": 300000
+      },
+      "evidence": {
+        "bank_cancellation_confirmation": true,
+        "bank_statement_collateral_release": true
+      },
+      "ground_truth": {
+        "state": "VERIFIED_RELEASE",
+        "potential_reduction": 0,
+        "potential_release": 0,
+        "verified_reduction": 0,
+        "verified_release": 600000,
+        "collateral_released": 300000,
+        "reason": "Historical outcome already completed; must not be presented as a new recovery opportunity."
+      }
+    },
+    {
+      "id": "GR-006",
+      "company": "REDTEAM CONTRACTING",
+      "country": "Spain",
+      "instrument_type": "ADVANCE_PAYMENT_GUARANTEE",
+      "currency": "EUR",
+      "initial_amount": 900000,
+      "current_instrument_amount": 900000,
+      "true_contract": {
+        "project_id": "P-RED-44",
+        "latest_amendment": "A3",
+        "advance_repaid_to_date": 500000
+      },
+      "evidence": {
+        "uploaded_payment_certificate_project_id": "P-RED-41",
+        "uploaded_contract_amendment": "A2",
+        "currency_conflict": true,
+        "contradictory_evidence": true
+      },
+      "ground_truth": {
+        "state": "UNKNOWN",
+        "potential_reduction": 0,
+        "potential_release": 0,
+        "verified_reduction": 0,
+        "verified_release": 0,
+        "collateral_released": 0,
+        "reason": "Wrong-project and superseded-document evidence must fail closed."
+      }
+    },
+    {
+      "id": "GR-007",
+      "company": "ALPHA EPC",
+      "country": "Portugal",
+      "instrument_type": "PERFORMANCE_GUARANTEE",
+      "currency": "EUR",
+      "initial_amount": 1250000,
+      "current_instrument_amount": 1250000,
+      "true_contract": {
+        "project_complete": false,
+        "practical_completion": false,
+        "release_rule": "Full amount required until practical completion.",
+        "claim_open": false
+      },
+      "evidence": {
+        "latest_progress_percent": 72,
+        "practical_completion_certificate": false
+      },
+      "ground_truth": {
+        "state": "REDUCTION_NOT_YET_DUE",
+        "potential_reduction": 0,
+        "potential_release": 0,
+        "verified_reduction": 0,
+        "verified_release": 0,
+        "collateral_released": 0,
+        "reason": "Correct zero: project progress does not create a reduction right where the contract has no progressive reduction clause."
+      }
+    }
+  ],
+  "p0_assertions": [
+    "Never infer RELEASED from expiry alone.",
+    "Never infer collateral release from bank cancellation alone.",
+    "Never infer a release right from project completion without the governing contractual condition.",
+    "Never treat potential release as verified release.",
+    "Never use evidence from a different tenant, project, contract or superseded amendment.",
+    "Correct zero is a passing outcome."
+  ]
+}
