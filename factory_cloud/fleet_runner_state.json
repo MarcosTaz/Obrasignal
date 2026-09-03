@@ -6,20 +6,20 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 27,
-  "last_factory_id": "obrasignal-customer-decision",
-  "last_run_at": "2026-09-03T08:41:20Z",
+  "cursor": 28,
+  "last_factory_id": "obrasignal-product-strategy",
+  "last_run_at": "2026-09-03T09:40:03Z",
   "last_material_change": {
-    "kind": "CUSTOMER_DECISION_EXACT_HEAD_RED_RECONFIRMED",
-    "summary": "Customer Decision & Outcome Intelligence PR #376 is OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at exact head 15b8bdd2e4e981a88ce3b70e2c4b7507b5c23d5f. Exact-head ObraSignal Quality run 33274301331 remains COMPLETED/FAILURE; the PR records Python SUCCESS and Mobile FAILURE at expo-doctor. No older GREEN is transported. Gmail watch across all three connected accounts found no new monitored inbound in the last day; no outbound was sent. All 33 registered Factories remain ACTIVE and rotation advances to Product Strategy, Capability & Roadmap Factory.",
+    "kind": "PRODUCT_STRATEGY_EXACT_HEAD_GREEN_BOUNDED",
+    "summary": "Product Strategy, Capability & Roadmap Factory has candidate PR #521 OPEN/DRAFT/NOT_MERGED/NOT_CANONICAL at exact head 74c23f15eed1b55dfff0742d9388c8f36230c49c. Exact-head ObraSignal Quality run 33336993718 is COMPLETED/SUCCESS. The candidate is strategy/documentation only and explicitly does not supersede canonical domain-owner semantics or the master queue; no runtime, deployment, customer, WTP or revenue truth is inferred. Gmail watch across all three connected accounts found no new monitored inbound in the last day; no outbound was sent. All 33 registered Factories remain ACTIVE and rotation advances to Data, Analytics & Learning System Factory.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "customer_decision": {"candidate_pr":376,"state":"OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL","head":"15b8bdd2e4e981a88ce3b70e2c4b7507b5c23d5f","changed_files":10,"verification":"EXACT_HEAD_RED","workflow_run":33274301331,"quality":"FAILURE","python":"SUCCESS","mobile":"FAILURE_EXPO_DOCTOR"},
+      "product_strategy": {"candidate_pr":521,"state":"OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL","head":"74c23f15eed1b55dfff0742d9388c8f36230c49c","verification":"EXACT_HEAD_GREEN_BOUNDED","workflow_run":33336993718,"quality":"SUCCESS","scope":"STRATEGY_DOCUMENTATION_ONLY"},
       "causledger_inbound": {"new_material_replies":0,"successfully_queried_accounts":3,"portugal_outbound_state":"HOLD_CURRENT_DGC_LIST_SCREEN_REQUIRED_BEFORE_SEND","spain_unsolicited_commercial_hold":"ACTIVE"}
     },
-    "active": "Product Strategy, Capability & Roadmap Factory",
-    "next": "Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision",
-    "wait": ["Portugal outbound requires current DGC-list recipient screening immediately before send.","Spain unsolicited commercial email/follow-up hold remains active.","Customer Decision PR #376 remains exact-head RED due Mobile expo-doctor failure; Python semantic evidence is bounded only.","ObraSignal GTM PR #822 is exact-head GREEN but non-canonical; real commercial evidence remains negative/zero and Cohort 2 is not sent.","Global Market Entry PR #519 remains exact-head RED and non-canonical.","Customer Journey PR #819 is GREEN repair-only and non-canonical.","WarrantyGuard and Capacity Commitment remain exact-head RED at last verified truth."]
+    "active": "Data, Analytics & Learning System Factory",
+    "next": "Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy",
+    "wait": ["Portugal outbound requires current DGC-list recipient screening immediately before send.","Spain unsolicited commercial email/follow-up hold remains active.","Product Strategy PR #521 is exact-head GREEN but strategy/documentation-only and non-canonical.","Customer Decision PR #376 remains exact-head RED due Mobile expo-doctor failure; Python semantic evidence is bounded only.","ObraSignal GTM PR #822 is exact-head GREEN but non-canonical; real commercial evidence remains negative/zero and Cohort 2 is not sent.","Global Market Entry PR #519 remains exact-head RED and non-canonical.","Customer Journey PR #819 is GREEN repair-only and non-canonical.","WarrantyGuard and Capacity Commitment remain exact-head RED at last verified truth." ]
   },
   "blocked": [],
   "rules": {"technical_window_is_not_stop":true,"other_owner_is_not_stop":true,"wait_is_not_global_stop":true,"no_false_progress":true,"no_automatic_merge":true,"move_to_next_factory_when_blocked":true,"persist_exact_baton_before_switch":true}
