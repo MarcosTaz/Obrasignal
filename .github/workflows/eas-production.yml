@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       platform:
-        description: Native platform to send to EAS
+        description: Native platform to build and verify on EAS
         required: true
         default: android
         type: choice
@@ -12,6 +12,10 @@ on:
           - android
           - ios
           - all
+
+concurrency:
+  group: obrasignal-production-build-${{ inputs.platform }}
+  cancel-in-progress: false
 
 jobs:
   android-production-build:
@@ -22,8 +26,13 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout exact revision
+        uses: actions/checkout@v7
+
+      - name: Record exact revision
+        run: |
+          echo "ObraSignal production Android source: $GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Require EAS token
         env:
@@ -31,9 +40,11 @@ jobs:
         run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
 
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
@@ -41,11 +52,14 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
 
-      - name: Build production binary
-        run: eas build --platform android --profile production --non-interactive --no-wait
+      - name: Verify Expo project before native build
+        run: npx expo-doctor
+
+      - name: Build and wait for production binary
+        run: eas build --platform android --profile production --non-interactive --wait
 
   ios-production-build:
     # iOS remains explicitly manual: Apple distribution credentials must be
@@ -57,8 +71,13 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout exact revision
+        uses: actions/checkout@v7
+
+      - name: Record exact revision
+        run: |
+          echo "ObraSignal production iOS source: $GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Require EAS token
         env:
@@ -66,9 +85,11 @@ jobs:
         run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
 
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
@@ -76,8 +97,11 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
 
-      - name: Build production binary
-        run: eas build --platform ios --profile production --non-interactive --no-wait
+      - name: Verify Expo project before native build
+        run: npx expo-doctor
+
+      - name: Build and wait for production binary
+        run: eas build --platform ios --profile production --non-interactive --wait
