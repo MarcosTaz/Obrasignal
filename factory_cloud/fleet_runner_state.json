@@ -6,26 +6,39 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 5,
-  "last_factory_id": "changeledger",
-  "last_run_at": "2026-09-03T17:38:44Z",
+  "cursor": 7,
+  "last_factory_id": "sourcing-recovery",
+  "last_run_at": "2026-09-03T18:40:57Z",
   "last_material_change": {
-    "kind": "CHANGELEDGER_UNKNOWN_NO_DEDICATED_AUTHORITY_RECOVERED",
-    "summary": "ChangeLedger was reconstructed fail-closed from current repository truth. No default-branch code match or matching pull request was recovered. Adjacent Factory authority is not borrowed. Fleet remains ACTIVE and rotates to Recovery Radar.",
+    "kind": "RECOVERY_RADAR_AND_SOURCING_RECOVERY_UNKNOWN_NO_DEDICATED_AUTHORITY_RECOVERED",
+    "summary": "Recovery Radar and Sourcing Recovery were reconstructed fail-closed from current repository truth. No default-branch code match or dedicated matching open pull request was recovered for either Factory. A generic Watchlist PR surfaced on the Sourcing Recovery PR search but is not treated as authority. Fleet remains ACTIVE and rotates to Product Market Access / Legal Product Checker.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "changeledger": {
+      "recovery_radar": {
         "default_branch_code_search_matches": 0,
-        "matching_pull_requests": 0,
+        "dedicated_matching_pull_requests": 0,
         "verification": "UNKNOWN_NO_DEDICATED_AUTHORITY_RECOVERED",
         "automatic_merge_authorized": false
+      },
+      "sourcing_recovery": {
+        "default_branch_code_search_matches": 0,
+        "dedicated_matching_pull_requests": 0,
+        "non_authoritative_search_collision": "PR #150 Opportunity Watchlist",
+        "verification": "UNKNOWN_NO_DEDICATED_AUTHORITY_RECOVERED",
+        "automatic_merge_authorized": false
+      },
+      "causledger_inbound_watch": {
+        "material_new_inbound": 0,
+        "outbound_sent": false
       }
     },
-    "active": "Recovery Radar",
-    "next": "Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum -> ScopeLedger -> ChangeLedger",
+    "active": "Product Market Access / Legal Product Checker",
+    "next": "Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery",
     "wait": [
       "Portugal outbound requires current DGC-list recipient screening immediately before send.",
       "Spain unsolicited commercial email/follow-up hold remains active.",
+      "Recovery Radar has no recovered dedicated open PR or default-branch repository authority; keep UNKNOWN and do not borrow adjacent Factory authority.",
+      "Sourcing Recovery has no recovered dedicated open PR or default-branch repository authority; keep UNKNOWN and do not treat the unrelated Watchlist PR as authority.",
       "ChangeLedger has no recovered dedicated open PR or default-branch repository authority; keep UNKNOWN and do not borrow adjacent Factory authority.",
       "ScopeLedger has no recovered dedicated open PR or default-branch repository authority; keep UNKNOWN and do not borrow adjacent Factory authority.",
       "Certactum PR #922 is exact-head GREEN at repository level but non-canonical; external provider activation/certification, production deployment, real-customer validation, real recovery, paid audit, WTP, payment and revenue remain unproved.",
