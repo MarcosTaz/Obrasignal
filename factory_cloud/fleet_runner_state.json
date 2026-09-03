@@ -6,32 +6,24 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 11,
-  "last_factory_id": "capacity-commitment",
-  "last_run_at": "2026-09-03T01:39:33Z",
+  "cursor": 15,
+  "last_factory_id": "warrantyguard",
+  "last_run_at": "2026-09-03T02:40:56Z",
   "last_material_change": {
-    "kind": "DGC_ARTICLE_13B_ACCESS_PROCEDURE_RESOLVED_PRIVATE_LOG_PERSISTED",
-    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. Official DGC Fiscalizacao inbound message 1a061e68bf66e4f8 received 2026-09-02 states that the Article 13-B corporate opt-out list is available on the official consumidor.gov.pt page, downloadable in Excel format, and updated whenever a new inclusion request is made. CausLedger private commercial operating log was updated with this verified procedure. Portugal compliance state changes from HOLD_ACCESS_PROCEDURE_UNKNOWN to HOLD_CURRENT_LIST_SCREEN_REQUIRED_IMMEDIATELY_BEFORE_EACH_SEND. The current list file/version was not retrievable through the available web runtime in this run, so no Portuguese recipient is cleared and no Portugal outbound is authorized. Spain unsolicited-commercial-email hold remains active. Capacity Commitment PR #729 remains OPEN/DRAFT/NOT_MERGED at exact head 0cc510c63219d50c153d1c09eb884f82c89c1247; exact-head ObraSignal Quality run 33625531311 is FAILURE with Mobile SUCCESS and Python repository-tests FAILURE. No new monitored buyer/association inbound after the DGC response was found across the three connected Gmail accounts; no outbound was sent. Fleet rotates to LongLead.",
+    "kind": "WARRANTYGUARD_DGC_PROCEDURE_GATE_UPDATED_FAIL_CLOSED",
+    "summary": "All 33 registered Factories remain preserved in ACTIVE rotation. LongLead and MachineRelease Safety exact PR/code searches produced no recoverable canonical/candidate authority and were rotated fail-closed. K3 search did not establish standalone canonical runtime/source authority. WarrantyGuard PR #805 remains OPEN/DRAFT/NOT_MERGED; its Portugal outreach compliance file was updated on branch factory/warrantyguard-debitproof-v084 at commit b3652c84f9b53a003d4a09b8f7acfe3aec322718 to replace stale LEGAL_HOLD_DGC_LIST_PENDING truth with HOLD_CURRENT_DGC_LIST_SCREEN_REQUIRED_BEFORE_SEND, reflecting the verified 2026-09-02 DGC response that the Article 13-B list is available on the official portal, downloadable as Excel, and updated when new inclusions occur. No outbound is authorized until the then-current list is retrieved/consulted and each intended recipient is screened immediately before send. No exact-head workflow run exists yet for the new WarrantyGuard commit, so it is NOT_FULLY_VERIFIED and no historical GREEN is inherited. Gmail watch across all three connected accounts found no new monitored buyer/association inbound beyond the already-processed DGC response; no outbound was sent. Fleet rotates to Paper-Laminate Works.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "dgc": {
-        "message_id": "1a061e68bf66e4f8",
-        "received_at": "2026-09-02T11:34:48Z",
-        "sender": "DGC.Fiscalizacao@dgconsumidor.gov.pt",
-        "procedure": "OFFICIAL_PAGE_PLUS_EXCEL_DOWNLOAD",
-        "update_semantics": "UPDATED_WHEN_NEW_INCLUSION_REQUEST_IS_MADE",
-        "private_drive_log_updated": true,
-        "current_list_file_retrieved": false,
-        "portugal_outbound_state": "HOLD_CURRENT_LIST_SCREEN_REQUIRED_BEFORE_SEND"
-      },
-      "capacity_commitment": {
-        "candidate_pr": 729,
+      "longlead": {"canonical_or_candidate_authority": "UNKNOWN", "rotation": "FAIL_CLOSED"},
+      "machine_release_safety": {"canonical_or_candidate_authority": "UNKNOWN", "rotation": "FAIL_CLOSED"},
+      "warrantyguard": {
+        "candidate_pr": 805,
         "state": "OPEN_DRAFT_NOT_MERGED_NOT_CANONICAL",
-        "head": "0cc510c63219d50c153d1c09eb884f82c89c1247",
-        "quality_run": 33625531311,
-        "quality": "FAILURE",
-        "mobile": "SUCCESS",
-        "python_repository_tests": "FAILURE"
+        "new_head": "b3652c84f9b53a003d4a09b8f7acfe3aec322718",
+        "change": "PORTUGAL_DGC_SCREENING_GATE_UPDATED",
+        "exact_head_workflow_runs": 0,
+        "verification": "NOT_FULLY_VERIFIED",
+        "portugal_outbound_state": "HOLD_CURRENT_DGC_LIST_SCREEN_REQUIRED_BEFORE_SEND"
       },
       "causledger_inbound": {
         "new_material_buyer_or_association_replies": 0,
@@ -39,17 +31,18 @@
         "spain_unsolicited_commercial_hold": "ACTIVE"
       }
     },
-    "active": "LongLead — reconstruct exact candidate/canonical truth and advance highest-value repository-safe milestone; rotate immediately if blocked.",
-    "next": "LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment.",
+    "active": "Paper-Laminate Works — reconstruct exact candidate/canonical truth and advance highest-value repository-safe milestone; rotate immediately if blocked.",
+    "next": "Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/CausLedger -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard.",
     "wait": [
-      "Portugal CausLedger outbound remains held until the then-current DGC Article 13-B Excel list is retrieved and each intended recipient is screened immediately before send.",
+      "Portugal CausLedger/WarrantyGuard outbound remains held until the then-current DGC Article 13-B list is retrieved/consulted and each intended recipient is screened immediately before send.",
       "Spain unsolicited commercial email/follow-up remains held absent prior request/express authorization or another clearly applicable lawful exception.",
-      "Capacity Commitment #729 remains exact-head RED: Mobile SUCCESS / Python repository tests FAILURE; stale PR-body GREEN must not be inherited.",
-      "ObraSignal exact-main Commercial Readiness remains RED at last verified truth: checkout configuration, backend billing reconciliation, and official-domain exact-release gate failed."
+      "WarrantyGuard new compliance head b3652c84f9b53a003d4a09b8f7acfe3aec322718 has no exact-head workflow run yet and must remain NOT_FULLY_VERIFIED.",
+      "Capacity Commitment #729 remains exact-head RED at last verified truth: Mobile SUCCESS / Python repository tests FAILURE.",
+      "ObraSignal exact-main Commercial Readiness remains RED at last verified truth."
     ]
   },
   "blocked": [
-    {"factory_id":"industrial-claims","blocker":"Portugal outbound requires current DGC-list recipient screening; Spain unsolicited commercial hold remains active. Private compliant research/inbound/channel work may continue.","global_stop":false},
+    {"factory_id":"industrial-claims","blocker":"Portugal outbound requires then-current DGC-list recipient screening; Spain unsolicited commercial hold remains active. Private compliant research/inbound/channel work may continue.","global_stop":false},
     {"factory_id":"scopeledger","blocker":"Standalone canonical implementation/production authority unproved.","global_stop":false},
     {"factory_id":"changeledger","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"recovery-radar","blocker":"Candidates #542/#545 draft/not merged/not canonical.","global_stop":false},
@@ -58,10 +51,10 @@
     {"factory_id":"eu-cloud-switching","blocker":"PR #802 exact-head GREEN but draft/not merged/not canonical; real WTP/outcome proof absent.","global_stop":false},
     {"factory_id":"aviation-lease-entitlement-recovery","blocker":"PR #787 exact-head GREEN but draft/not merged/not canonical; entitlement/recovery/customer proof absent.","global_stop":false},
     {"factory_id":"capacity-commitment","blocker":"PR #729 current head exact-head RED; Python repository tests failure.","global_stop":false},
-    {"factory_id":"longlead","blocker":"Exact canonical source identity UNKNOWN at last persisted truth; reconstruct now.","global_stop":false},
-    {"factory_id":"machine-release-safety","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
-    {"factory_id":"k3-fatality","blocker":"Documentation-only candidate exact-head RED; canonical runtime/source authority unproved.","global_stop":false},
-    {"factory_id":"warrantyguard","blocker":"Factory-specific GREEN but global quality RED; draft/not merged/not canonical.","global_stop":false},
+    {"factory_id":"longlead","blocker":"Exact canonical/candidate source identity UNKNOWN after current search.","global_stop":false},
+    {"factory_id":"machine-release-safety","blocker":"Exact canonical/candidate source identity UNKNOWN after current search.","global_stop":false},
+    {"factory_id":"k3-fatality","blocker":"Standalone canonical runtime/source authority unproved.","global_stop":false},
+    {"factory_id":"warrantyguard","blocker":"PR #805 draft/not merged/not canonical; new DGC compliance head has no exact-head workflow run; real WTP/customer/recovery proof absent.","global_stop":false},
     {"factory_id":"paper-laminate-works","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"documentary-billing","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
     {"factory_id":"recoverable-money","blocker":"Exact canonical source identity UNKNOWN.","global_stop":false},
