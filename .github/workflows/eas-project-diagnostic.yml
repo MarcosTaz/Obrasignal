@@ -1,0 +1,77 @@
+name: ObraSignal EAS Project Diagnostic
+
+on:
+  push:
+    branches:
+      - ci/eas-project-context-diagnostic-20260904
+    paths:
+      - '.github/workflows/eas-project-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-eas-project:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout exact diagnostic revision
+        uses: actions/checkout@v7
+
+      - name: Require EAS token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: test -n "$EXPO_TOKEN" || { echo '::error::MOBILE_BLOCKED EXPO_TOKEN is not configured.'; exit 1; }
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Prove resolved EAS project
+        env:
+          EAS_PROJECT_ID: c277466b-a418-45f7-b070-4fc3f96386b7
+          EAS_FULL_NAME: '@obrasignal/obrasignal'
+        run: |
+          set -euo pipefail
+          eas project:info 2>&1 | tee /tmp/eas-project-info.txt
+          grep -F "$EAS_PROJECT_ID" /tmp/eas-project-info.txt
+          grep -F "$EAS_FULL_NAME" /tmp/eas-project-info.txt
+          echo "EAS_PROJECT_CONTEXT_VERIFIED id=$EAS_PROJECT_ID fullName=$EAS_FULL_NAME"
+
+      - name: List Android builds visible to this project
+        env:
+          BUILD_ID: 33e3a915-1330-40ba-9e02-2c10c5a1e148
+        run: |
+          set -uo pipefail
+          if ! eas build:list --platform android --limit 50 --json --non-interactive > /tmp/eas-builds.json 2> /tmp/eas-builds.err; then
+            cat /tmp/eas-builds.err >&2
+            echo '::error::EAS build:list failed after project context verification.'
+            exit 1
+          fi
+          python - <<'PY'
+          import json, os
+          payload = json.load(open('/tmp/eas-builds.json', encoding='utf-8'))
+          builds = payload if isinstance(payload, list) else payload.get('builds', []) if isinstance(payload, dict) else []
+          print(f"ANDROID_BUILDS_VISIBLE count={len(builds)}")
+          for build in builds:
+              print(
+                  'EAS_BUILD '
+                  f"id={build.get('id')} status={build.get('status')} "
+                  f"profile={build.get('buildProfile') or build.get('profile')} "
+                  f"git={build.get('gitCommitHash') or build.get('gitCommit')}"
+              )
+          target = next((build for build in builds if str(build.get('id')) == os.environ['BUILD_ID']), None)
+          if target is None:
+              raise SystemExit(f"TARGET_BUILD_NOT_VISIBLE id={os.environ['BUILD_ID']}")
+          print(f"TARGET_BUILD_VISIBLE id={target.get('id')} status={target.get('status')}")
+          PY
