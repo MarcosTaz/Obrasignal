@@ -55,6 +55,8 @@ def _validate_revision_identity(parent: AssistedCaseState, child: AssistedCaseSt
         "company_id": (parent.company_id, child.company_id),
         "customer_id": (parent.customer_id, child.customer_id),
         "program_id": (parent.program_id, child.program_id),
+        "period_id": (parent.period_id, child.period_id),
+        "unit": (parent.unit, child.unit),
         "currency": (parent.recovery_case.currency, child.recovery_case.currency),
     }
     mismatches = [name for name, (before, after) in identity.items() if before != after]
