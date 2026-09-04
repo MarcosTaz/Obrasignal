@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!Caddyfile
+!vertical_apps/
+vertical_apps/*
+!vertical_apps/industrial_claims/
+vertical_apps/industrial_claims/*
+!vertical_apps/industrial_claims/public_site/
+!vertical_apps/industrial_claims/public_site/**
