@@ -1,9 +1,9 @@
 from vertical_apps.industrial_claims.dossier import AssistedRecoveryAssessment
 from vertical_apps.industrial_claims.leakage_reconciliation import reconcile_recovery_ledger
 from vertical_apps.industrial_claims.recovery_dossier import (
-    SUPPLIER_RECOVERY_DOSSIER,
-    build_supplier_recovery_dossier,
-    render_supplier_recovery_dossier_markdown,
+    VINDORUM_RECOVERY_DOSSIER,
+    build_vindorum_dossier,
+    render_vindorum_dossier_markdown,
 )
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
@@ -24,8 +24,8 @@ def _assessment():
     )
 
 
-def test_supplier_recovery_dossier_carries_reconciliation_without_promoting_gap_to_debt(tmp_path):
-    service = IndustrialClaimsService(tmp_path / "supplier-recovery-dossier.sqlite3")
+def test_vindorum_dossier_carries_reconciliation_without_promoting_gap_to_debt(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "vindorum-dossier.sqlite3")
     result = service.analyze(
         tenant_id="alpha", actor_id="analyst-1", customer_ref="oem", program_ref="program-a", event_ref="ecn-7",
         claim_family="NRE", commercial_basis_ref="po-change-7", cost_evidence_ref="ledger-7",
@@ -37,19 +37,19 @@ def test_supplier_recovery_dossier_carries_reconciliation_without_promoting_gap_
         documented_cost="120000", mitigation="20000", evidence_supported="80000", claimed="65000",
         approved="50000", settled="30000", currency="EUR",
     )
-    dossier = build_supplier_recovery_dossier(
+    dossier = build_vindorum_dossier(
         service, tenant_id="alpha", finding_id=result.finding.finding_id,
         assessment=_assessment(), reconciliation=reconciliation,
     )
-    assert dossier["deliverable"] == SUPPLIER_RECOVERY_DOSSIER
-    assert dossier["identity"]["company"] == "Supplier Recovery"
+    assert dossier["deliverable"] == VINDORUM_RECOVERY_DOSSIER
+    assert dossier["identity"]["company"] == "VINDORUM"
     assert dossier["identity"]["legacy_name_customer_facing"] is False
     assert dossier["recovery_reconciliation"]["supported_unclaimed"] == "15000"
     assert dossier["recovery_reconciliation"]["approved_unsettled"] == "20000"
     assert dossier["recovery_reconciliation"]["legal_entitlement_established"] is False
     assert dossier["recovery_reconciliation"]["economic_gap_is_automatically_money_owed"] is False
-    markdown = render_supplier_recovery_dossier_markdown(dossier)
-    assert markdown.startswith("# Supplier Recovery — Recovery Dossier")
+    markdown = render_vindorum_dossier_markdown(dossier)
+    assert markdown.startswith("# VINDORUM — Recovery Dossier")
     assert "# CausLedger" not in markdown
     assert "## Recovery reconciliation" in markdown
     assert "Supported but unclaimed: 15000 EUR" in markdown

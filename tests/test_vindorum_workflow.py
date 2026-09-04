@@ -4,7 +4,7 @@ from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.amendment import amend_case
 from vertical_apps.industrial_claims.dossier import AssistedRecoveryAssessment
 from vertical_apps.industrial_claims.recovery_reconciliation_store import RecoveryReconciliationStoreError
-from vertical_apps.industrial_claims.recovery_workflow import SupplierRecoveryWorkflow
+from vertical_apps.industrial_claims.recovery_workflow import VindorumWorkflow
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
@@ -43,10 +43,10 @@ def _case(service):
     )
 
 
-def test_current_case_reconciliation_is_persisted_and_rendered_into_supplier_recovery_dossier(tmp_path):
+def test_current_case_reconciliation_is_persisted_and_rendered_into_vindorum_dossier(tmp_path):
     service = IndustrialClaimsService(tmp_path / "workflow.sqlite3")
     result = _case(service)
-    workflow = SupplierRecoveryWorkflow(service)
+    workflow = VindorumWorkflow(service)
     record = workflow.record_reconciliation(
         tenant_id="alpha", finding_id=result.finding.finding_id, actor_id="reviewer-2",
         evidence_ref="reconciliation-pack-v1", documented_cost="120000", mitigation="20000",
@@ -55,18 +55,18 @@ def test_current_case_reconciliation_is_persisted_and_rendered_into_supplier_rec
     dossier = workflow.build_latest_dossier(tenant_id="alpha", finding_id=result.finding.finding_id, assessment=_assessment())
     markdown = workflow.render_latest_dossier_markdown(tenant_id="alpha", finding_id=result.finding.finding_id, assessment=_assessment())
     assert record.sequence == 1
-    assert dossier["deliverable"] == "SUPPLIER_RECOVERY_DOSSIER"
+    assert dossier["deliverable"] == "VINDORUM_RECOVERY_DOSSIER"
     assert dossier["recovery_reconciliation_persistence"]["append_only_history"] is True
     assert dossier["recovery_reconciliation_persistence"]["reconciliation_hash"] == record.reconciliation_hash
     assert dossier["recovery_reconciliation"]["supported_unclaimed"] == "15000"
-    assert markdown.startswith("# Supplier Recovery — Recovery Dossier")
+    assert markdown.startswith("# VINDORUM — Recovery Dossier")
     assert "## Recovery reconciliation" in markdown
 
 
 def test_superseded_finding_cannot_receive_or_render_new_reconciliation(tmp_path):
     service = IndustrialClaimsService(tmp_path / "revision-workflow.sqlite3")
     first = _case(service)
-    workflow = SupplierRecoveryWorkflow(service)
+    workflow = VindorumWorkflow(service)
     workflow.record_reconciliation(
         tenant_id="alpha", finding_id=first.finding.finding_id, actor_id="reviewer-2",
         evidence_ref="reconciliation-pack-v1", documented_cost="120000", mitigation="20000",
@@ -92,7 +92,7 @@ def test_superseded_finding_cannot_receive_or_render_new_reconciliation(tmp_path
 def test_reconciliation_regression_requires_documented_reason(tmp_path):
     service = IndustrialClaimsService(tmp_path / "reversal-workflow.sqlite3")
     result = _case(service)
-    workflow = SupplierRecoveryWorkflow(service)
+    workflow = VindorumWorkflow(service)
     workflow.record_reconciliation(
         tenant_id="alpha", finding_id=result.finding.finding_id, actor_id="reviewer-2", evidence_ref="settlement-v1",
         documented_cost="120000", mitigation="20000", evidence_supported="80000", claimed="70000",

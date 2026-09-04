@@ -17,6 +17,7 @@ def _json(path: Path) -> dict:
 
 def test_outbound_ledger_has_exactly_ten_unique_prepared_records():
     data = _json(LEDGER)
+    assert data["product"] == "VINDORUM"
     records = data["records"]
     assert len(records) == 10
     ids = [record["account_id"] for record in records]
@@ -32,11 +33,11 @@ def test_outbound_records_all_bind_to_known_contact_routes():
         assert record["route_account_id"] in route_ids
 
 
-def test_truth_state_machine_cannot_promote_delivery_reply_or_meeting():
+def test_truth_state_machine_cannot_promote_weak_signals_or_metadata():
     truth = _json(LEDGER)["truth_rules"]
     assert truth["delivery_is_interest"] is False
     assert truth["reply_is_qualification"] is False
-    assert truth["meeting_is_paid_customer"] is False
+    assert truth["check_started_is_paid_customer"] is False
     assert truth["metadata_is_leakage_proof"] is False
     assert truth["outbound_authorized"] is False
     assert truth["confidential_document_request_allowed"] is False
@@ -49,19 +50,23 @@ def test_role_and_route_rechecks_are_preserved():
         assert records[account]["route_recheck_required"] is True
 
 
-def test_message_pack_stays_metadata_only_and_document_free():
-    text = PACK.read_text(encoding="utf-8")
-    lower = text.lower()
-    assert "prepared_not_sendable" in lower
-    assert "não pedimos documentos" in lower or "no documents are requested" in lower
-    assert "no attachments" in lower
-    assert "no quantified recovery claim" in lower
-    assert "a delivery receipt is not buyer interest" in lower
-    assert "a reply is not qualification" in lower
-    assert "a meeting is not a paid customer" in lower
-
-
-def test_message_pack_has_no_cross_project_sender_identity():
+def test_message_pack_stays_metadata_only_document_free_and_zero_touch():
     lower = PACK.read_text(encoding="utf-8").lower()
+    assert "prepared_not_sendable" in lower
+    assert "metadata-only" in lower
+    assert "no attachments" in lower
+    assert "no quantified recovery promise" in lower
+    assert "no fake customers" in lower
+    assert "no documents" in lower
+    assert "no meeting" in lower
+    assert "delivery/open/click is not buyer interest" in lower
+    assert "a reply is not qualification" in lower
+    assert "free exposure check" in lower
+
+
+def test_message_pack_has_only_vindorum_product_identity():
+    text = PACK.read_text(encoding="utf-8")
+    assert "VINDORUM" in text
+    lower = text.lower()
     for forbidden in ("certactum.com", "varactum", "obrasignal.com", "contractcredit"):
         assert forbidden not in lower

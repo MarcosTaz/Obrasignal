@@ -3,9 +3,9 @@ import pytest
 from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.amendment import amend_case
 from vertical_apps.industrial_claims.recovery_portfolio import RecoveryPortfolioError
-from vertical_apps.industrial_claims.recovery_portfolio_workflow import SupplierRecoveryPortfolioWorkflow
+from vertical_apps.industrial_claims.recovery_portfolio_workflow import VindorumPortfolioWorkflow
 from vertical_apps.industrial_claims.recovery_reconciliation_store import RecoveryReconciliationStoreError
-from vertical_apps.industrial_claims.recovery_workflow import SupplierRecoveryWorkflow
+from vertical_apps.industrial_claims.recovery_workflow import VindorumWorkflow
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
@@ -40,11 +40,11 @@ def test_portfolio_workflow_uses_latest_verified_reconciliation_for_each_current
     service = IndustrialClaimsService(tmp_path / "portfolio-workflow.sqlite3")
     first = _case(service, event_ref="ecn-1")
     second = _case(service, event_ref="ecn-2", gross_cost="200")
-    case_workflow = SupplierRecoveryWorkflow(service)
+    case_workflow = VindorumWorkflow(service)
     _record(case_workflow, first, documented="100", supported="80", claimed="60", approved="50", settled="40", evidence="v1")
     latest_first = _record(case_workflow, first, documented="100", supported="90", claimed="70", approved="60", settled="50", evidence="v2")
     latest_second = _record(case_workflow, second, documented="200", supported="150", claimed="120", approved="100", settled="70", evidence="v1")
-    portfolio = SupplierRecoveryPortfolioWorkflow(service).build_current_portfolio(
+    portfolio = VindorumPortfolioWorkflow(service).build_current_portfolio(
         tenant_id="alpha", finding_ids=(first.finding.finding_id, second.finding.finding_id)
     )
     assert portfolio.rollup.case_count == 2
@@ -60,7 +60,7 @@ def test_portfolio_workflow_uses_latest_verified_reconciliation_for_each_current
 def test_superseded_finding_is_excluded_fail_closed(tmp_path):
     service = IndustrialClaimsService(tmp_path / "superseded-portfolio.sqlite3")
     first = _case(service, event_ref="ecn-1")
-    case_workflow = SupplierRecoveryWorkflow(service)
+    case_workflow = VindorumWorkflow(service)
     _record(case_workflow, first, documented="100", supported="80", claimed="60", approved="50", settled="40")
     amend_case(
         service, tenant_id="alpha", finding_id=first.finding.finding_id, actor_id="analyst-amend",
@@ -70,7 +70,7 @@ def test_superseded_finding_is_excluded_fail_closed(tmp_path):
         cost_evidence_content="corrected cost ledger", notice_deadline_not_applicable=True,
     )
     with pytest.raises(AssuranceStoreError, match="superseded"):
-        SupplierRecoveryPortfolioWorkflow(service).build_current_portfolio(
+        VindorumPortfolioWorkflow(service).build_current_portfolio(
             tenant_id="alpha", finding_ids=(first.finding.finding_id,)
         )
 
@@ -79,7 +79,7 @@ def test_current_case_without_reconciliation_is_not_silently_zeroed(tmp_path):
     service = IndustrialClaimsService(tmp_path / "missing-reconciliation.sqlite3")
     result = _case(service, event_ref="ecn-3")
     with pytest.raises(RecoveryReconciliationStoreError, match="no persisted recovery reconciliation"):
-        SupplierRecoveryPortfolioWorkflow(service).build_current_portfolio(
+        VindorumPortfolioWorkflow(service).build_current_portfolio(
             tenant_id="alpha", finding_ids=(result.finding.finding_id,)
         )
 
@@ -87,9 +87,9 @@ def test_current_case_without_reconciliation_is_not_silently_zeroed(tmp_path):
 def test_portfolio_workflow_rejects_duplicate_ids_before_aggregation(tmp_path):
     service = IndustrialClaimsService(tmp_path / "duplicate-portfolio.sqlite3")
     result = _case(service, event_ref="ecn-4")
-    case_workflow = SupplierRecoveryWorkflow(service)
+    case_workflow = VindorumWorkflow(service)
     _record(case_workflow, result, documented="100", supported="80", claimed="60", approved="50", settled="40")
     with pytest.raises(RecoveryPortfolioError, match="double count"):
-        SupplierRecoveryPortfolioWorkflow(service).build_current_portfolio(
+        VindorumPortfolioWorkflow(service).build_current_portfolio(
             tenant_id="alpha", finding_ids=(result.finding.finding_id, result.finding.finding_id)
         )

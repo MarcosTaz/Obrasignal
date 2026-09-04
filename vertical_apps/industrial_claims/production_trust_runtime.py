@@ -25,17 +25,17 @@ def _config() -> tuple[str, ...]:
     return tuple(
         _env(name)
         for name in (
-            "CERTACTUM_WORM_BUCKET",
+            "VINDORUM_WORM_BUCKET",
             "AWS_REGION",
-            "CERTACTUM_WORM_S3_ENDPOINT",
-            "CERTACTUM_AWS_EXPECTED_BUCKET_OWNER",
-            "CERTACTUM_TSA_ENDPOINT",
-            "CERTACTUM_TSA_PROVIDER_NAME",
-            "CERTACTUM_TSA_CERT_PEM",
-            "CERTACTUM_TSA_ROOT_CERTS_PEM",
-            "CERTACTUM_TSA_INTERMEDIATE_CERTS_PEM",
-            "CERTACTUM_EIDAS_TERRITORY",
-            "CERTACTUM_EU_LOTL_SIGNER_CERTS_PEM",
+            "VINDORUM_WORM_S3_ENDPOINT",
+            "VINDORUM_AWS_EXPECTED_BUCKET_OWNER",
+            "VINDORUM_TSA_ENDPOINT",
+            "VINDORUM_TSA_PROVIDER_NAME",
+            "VINDORUM_TSA_CERT_PEM",
+            "VINDORUM_TSA_ROOT_CERTS_PEM",
+            "VINDORUM_TSA_INTERMEDIATE_CERTS_PEM",
+            "VINDORUM_EIDAS_TERRITORY",
+            "VINDORUM_EU_LOTL_SIGNER_CERTS_PEM",
         )
     )
 
@@ -102,11 +102,11 @@ def _build_gate(values: tuple[str, ...]) -> ProductionTrustGate:
 
     def timestamp_probe() -> ControlReceipt:
         checked = datetime.now(timezone.utc)
-        payload = b"Certactum production trust control probe v1"
+        payload = b"VINDORUM production trust control probe v1"
         digest = hashlib.sha256(payload).hexdigest()
         attestation = timestamp_provider.attest(
             ProofRequest(
-                tenant_id="certactum-system",
+                tenant_id="vindorum-system",
                 subject_ref="production-trust-control",
                 digest_algorithm="SHA-256",
                 digest=digest,

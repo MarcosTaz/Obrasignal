@@ -1,128 +1,80 @@
-# SUPPLIER RECOVERY — OUTBOUND PLAYBOOK
+# VINDORUM — OUTBOUND PLAYBOOK
 
-Status: ready for human-authorized outbound. No message in this file is evidence that outreach was sent or that a prospect has a claim.
+Status: preparation only. No message in this file proves outreach was sent, buyer interest, leakage, a valid claim or willingness to pay.
 
 ## Objective
-Book a 20-minute metadata-only recovery process review with senior industrial-supplier buyers who fit the frozen customer/OEM-change + NRE mechanism.
+Route high-fit industrial-supplier buyers into the self-service **VINDORUM Free Exposure Check** using non-confidential metadata only.
 
-The outreach must not:
+The default CTA is not a meeting. The prospect should be able to understand the mechanism, test fit and continue without routine operator intervention from us.
+
+## Guardrails
+Outreach must not:
 - allege that the company is losing money;
-- promise a recovery amount or success rate;
-- ask the recipient to email confidential documents;
+- promise recovery amount, entitlement or success rate;
+- request confidential documents by email;
 - imply legal advice, audit certification or court acceptance;
-- widen the product into generic claims, warranty recovery or procurement-side vendor recovery.
+- widen VINDORUM into unrelated claims categories;
+- send before a dedicated VINDORUM sender identity and applicable authorization exist.
 
-## Primary buyer order
-1. Commercial Director / Program Director when recovery ownership is commercial/program-led.
-2. CFO / Finance Director / Head of Controlling when leakage reconciliation is finance-led.
-3. Engineering/Industrialization leader when NRE originates there and an economic owner can be introduced.
+## Buyer order
+1. Commercial / Program leadership when customer-change recovery is operationally owned there.
+2. CFO / Finance / Controlling when reconciliation is finance-led.
+3. Engineering / Industrialization only when it owns NRE evidence and can route the economic owner.
 
-Maximum initial targeting: 1–2 senior roles per account. Avoid blasting an organization.
+Maximum initial targeting: 1–2 senior roles per account.
 
-## Email 1 — process question
-Subject: `Customer-change NRE recovery`
-
-Hi {{first_name}},
-
-When a customer-driven engineering or program change creates incremental NRE, how does {{company}} reconcile what was documented, what the commercial basis supports, what was claimed, what was approved, and what was actually settled?
-
-Supplier Recovery is built specifically around that supplier-side evidence and recovery chain.
-
-Worth a 20-minute metadata-only review of the process? No documents needed for the first conversation.
-
-Marcos
-Supplier Recovery
-
-## Follow-up 1 — evidence fragmentation
-Subject: reply in same thread
+## First-contact message
+Subject: `Customer-change NRE reconciliation`
 
 Hi {{first_name}},
 
-The pattern we are testing is narrow: customer/OEM change → incremental engineering/tooling/rework cost → commercial basis → claim → approval → settlement.
+When a customer-driven engineering or program change creates incremental NRE, how does {{company}} reconcile what was documented, what the commercial basis supports, what was claimed, what was approved and what was actually settled?
 
-The first step is only to understand whether those states are reconciled in one place or split across program, engineering, finance and customer records.
+VINDORUM is built around that evidence and economic chain. You can test one historical case with non-confidential metadata in the Free Exposure Check — no documents or meeting required for the first step.
 
-If this sits with someone else at {{company}}, who owns it?
+{{vindorum_free_exposure_check_url}}
 
 Marcos
+VINDORUM
 
-## Follow-up 2 — true-null value
-Subject: reply in same thread
-
+## One follow-up
 Hi {{first_name}},
 
-One reason for the evidence-first approach is that the correct result is sometimes “no supported claim”. That is still useful if it closes a disputed internal exposure without inflating a recovery number.
+The scope is deliberately narrow: customer/OEM change → incremental engineering/tooling/rework cost → commercial basis → claim → approval → settlement.
 
-Would a short process review be relevant for one historical customer-change case?
+The Free Exposure Check only asks whether those evidence categories and states exist. It does not assume there is a claim or ask for confidential documents.
+
+{{vindorum_free_exposure_check_url}}
 
 Marcos
+VINDORUM
 
-## LinkedIn connection note
-I work on supplier-side customer-change/NRE recovery: evidence, incremental cost, claim/approval/settlement reconciliation. I’m comparing how industrial suppliers currently handle the process. Happy to connect.
+Until real response data proves another cadence is useful and compliant, do not add more follow-ups.
 
-## Call opener
-“I'm not calling to tell you that you have a claim. I'm trying to understand one narrow workflow: when an OEM or customer change creates incremental NRE, who reconciles the evidence, commercial basis, claimed amount, approved amount and final settlement?”
+## Objection truth
+**“We already use ERP/PLM.”** VINDORUM does not replace those systems; it reconciles the evidence and economic state across the customer-change chain.
 
-Then ask:
-1. “Is that owned by commercial, program management, controlling or somewhere else?”
-2. “Is the status visible in one system or reconstructed when a case becomes material?”
-3. “Would one historical case be enough to test whether a more structured reconciliation is useful?”
+**“We do not have claims.”** Do not challenge that assertion. The check is useful only where customer-driven changes create incremental positions requiring reconciliation.
 
-## Objection handling
-### “We already use SAP/ERP/PLM.”
-“That's expected. Supplier Recovery is not trying to replace those systems. The question is whether the evidence and economic state of a customer-change recovery are reconciled across them in a reviewable chain.”
+**“How much can you recover?”** Do not estimate recovery before evidence. Separate documented exposure, evidence-supported, claimed, approved and settled amounts first.
 
-### “We don't have claims.”
-“Understood. I would not assume otherwise. The process review is useful only if customer-driven changes create incremental positions that need to be checked. If that mechanism is not material for you, there is no fit.”
+**“Is this legal advice?”** No. Material legal interpretation remains with the customer or an appropriate independent specialist.
 
-### “Send information.”
-Send only the approved Supplier Recovery one-page explanation / site. Do not request source documents. CTA remains a metadata-only review.
+**“Can I email the contract?”** No at first contact. Confidential evidence uses the production secure-intake path only after its readiness gate is green.
 
-### “How much can you recover?”
-“We don't estimate recovery before evidence. First we separate documented exposure from evidence-supported, claimed, approved and settled amounts. Any commercial recovery conclusion comes after the documentary review.”
-
-### “Is this legal advice?”
-“No. Supplier Recovery is an evidence and commercial-reconciliation system. Material legal interpretation is escalated to the customer's legal counsel or an appropriate specialist.”
-
-### “Can I email the contract?”
-“Not at the first-contact stage. Please keep the first review metadata-only. Confidential documents use the controlled evidence path once that intake is authorized and verified.”
-
-## Discovery conversion
-A conversation becomes `METADATA_QUALIFIED` only through the executable Supplier Recovery triage. Do not upgrade a lead based on enthusiasm alone.
-
-After qualification:
-- confirm the bounded historical case;
-- confirm economic owner;
-- confirm which evidence categories exist without collecting them yet;
-- explain secure-intake gate;
-- propose a fixed-scope scan only when documentary review can be performed safely.
-
-## Commercial offer language
-### Recovery Triage
-“20-minute metadata-only review to decide whether a historical customer-change/NRE case is worth deeper work.”
-
-### Rapid Recovery Scan
-“Bounded review of one case to identify the documentary chain, evidence gaps and economic state. No recovery promise.”
-
-### Forensic Recovery Audit
-“Evidence-indexed reconstruction and Supplier Recovery Dossier, including documented cost, mitigation, evidence-supported amount, claimed/approved/settled reconciliation and next-action review.”
-
-## Measurement
-Track by account/contact:
-- contacted;
-- reply;
+## Conversion events
+Track separately:
+- outbound sent;
+- Free Exposure Check visit/start/completion;
+- metadata-qualified case;
 - correct-owner referral;
-- qualified conversation;
-- mechanism confirmed;
-- bounded historical case exists;
 - secure-data-path willingness;
-- paid-scan willingness;
-- paid diagnostic/audit;
+- verified paid Recovery Scan;
 - verified outcome;
 - customer payment;
 - repeat/monitoring intent.
 
-Do not optimize around open rate alone.
+Email opens/clicks alone are not commercial proof.
 
 ## Authorization boundary
-Preparing target lists, drafts and CRM segmentation is not permission to send. Real outbound, sequence activation or external claim activity requires the applicable sender/authority confirmation and must preserve opt-out/compliance requirements.
+Target research, drafts and CRM preparation do not authorize sending. Real outbound requires a dedicated VINDORUM sender identity plus applicable authority/compliance controls. External claim action remains separately customer-authorized.

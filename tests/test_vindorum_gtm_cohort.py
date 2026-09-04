@@ -11,7 +11,7 @@ def _payload():
 
 def test_cohort_preserves_market_truth_and_has_no_fake_validation():
     payload = _payload()
-    assert payload["product"] == "Supplier Recovery"
+    assert payload["product"] == "VINDORUM"
     truth = payload["commercial_truth"]
     assert truth == {
         "outbound_sent": False,
@@ -43,9 +43,8 @@ def test_cohort_contains_only_evidence_grounded_named_roles_and_no_guessed_conta
 
 
 def test_public_fit_is_a_discovery_hypothesis_not_a_claim_allegation():
-    targets = _payload()["targets"]
     forbidden = ("has leakage", "is owed", "recoverable amount", "guaranteed recovery", "confirmed claim")
-    for item in targets:
+    for item in _payload()["targets"]:
         text = item["public_fit"].lower()
         assert all(term not in text for term in forbidden)
         assert "outbound_authorized" in item

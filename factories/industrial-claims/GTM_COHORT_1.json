@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "product": "Supplier Recovery",
+  "schema_version": 2,
+  "product": "VINDORUM",
   "researched_as_of": "2026-09-04",
   "purpose": "metadata-only buyer research for the frozen customer/OEM-change and NRE recovery wedge",
   "commercial_truth": {
@@ -22,16 +22,8 @@
       "target_role": "CEO",
       "role_confidence": "HIGH_RECENT_MULTI_SOURCE",
       "role_sources": [
-        {
-          "url": "https://eco.sapo.pt/entrevista/a-reforma-do-estado-e-o-mais-importante-e-alguma-regionalizacao/",
-          "published": "2026-06-30",
-          "evidence": "ECO identifies Isabel Furtado as CEO of TMG Automotive."
-        },
-        {
-          "url": "https://www.linkedin.com/company/tmgautomotive/",
-          "observed": "2026-09-04",
-          "evidence": "Recent TMG Group update identifies Isabel Furtado as CEO."
-        }
+        {"url":"https://eco.sapo.pt/entrevista/a-reforma-do-estado-e-o-mais-importante-e-alguma-regionalizacao/","published":"2026-06-30","evidence":"ECO identifies Isabel Furtado as CEO of TMG Automotive."},
+        {"url":"https://www.linkedin.com/company/tmgautomotive/","observed":"2026-09-04","evidence":"Recent TMG Group update identifies Isabel Furtado as CEO."}
       ],
       "contact_route": "PUBLIC_LINKEDIN_OR_COMPANY_CHANNEL_ONLY",
       "email": null,
@@ -48,16 +40,8 @@
       "target_role": "Chief Operating Officer (COO), Simoldes Plastic Division",
       "role_confidence": "HIGH_CURRENT_MULTI_SOURCE",
       "role_sources": [
-        {
-          "url": "https://www.xing.com/profile/Hugo_GarciadeCarvalho",
-          "observed": "2026-09-04",
-          "evidence": "Current profile lists Chief Operating Officer (COO), Simoldes Plastic Division."
-        },
-        {
-          "url": "https://pt.linkedin.com/in/hugogarciacarvalho",
-          "observed": "2026-09-04",
-          "evidence": "Current Simoldes Plastics profile/activity; represents the company in OEM supplier relations and accepted the Volkswagen Group Award 2026 on its behalf."
-        }
+        {"url":"https://www.xing.com/profile/Hugo_GarciadeCarvalho","observed":"2026-09-04","evidence":"Current profile lists Chief Operating Officer (COO), Simoldes Plastic Division."},
+        {"url":"https://pt.linkedin.com/in/hugogarciacarvalho","observed":"2026-09-04","evidence":"Current Simoldes Plastics profile/activity; represents the company in OEM supplier relations and accepted the Volkswagen Group Award 2026 on its behalf."}
       ],
       "contact_route": "PUBLIC_LINKEDIN_OR_COMPANY_CHANNEL_ONLY",
       "email": null,
@@ -74,16 +58,8 @@
       "target_role": "CEO",
       "role_confidence": "HIGH_RECENT_COMPANY_SOURCE",
       "role_sources": [
-        {
-          "url": "https://www.linkedin.com/posts/fehst-componentes-lda_fehst-afia-automotiveindustryweek-activity-7396480345027620864-4gfA",
-          "observed": "2026-09-04",
-          "evidence": "FEHST company post identifies Alexandre Ferreira as CEO."
-        },
-        {
-          "url": "https://pt.linkedin.com/posts/fehst-componentes-lda_anualmente-a-revista-exame-portugal-em-parceria-activity-7161041064475213824-Y6nj",
-          "observed": "2026-09-04",
-          "evidence": "FEHST company post identifies Alexandre Ferreira as CEO and award recipient."
-        }
+        {"url":"https://www.linkedin.com/posts/fehst-componentes-lda_fehst-afia-automotiveindustryweek-activity-7396480345027620864-4gfA","observed":"2026-09-04","evidence":"FEHST company post identifies Alexandre Ferreira as CEO."},
+        {"url":"https://pt.linkedin.com/posts/fehst-componentes-lda_anualmente-a-revista-exame-portugal-em-parceria-activity-7161041064475213824-Y6nj","observed":"2026-09-04","evidence":"FEHST company post identifies Alexandre Ferreira as CEO and award recipient."}
       ],
       "contact_route": "PUBLIC_LINKEDIN_OR_COMPANY_CHANNEL_ONLY",
       "email": null,
@@ -100,11 +76,7 @@
       "target_role": "CEO",
       "role_confidence": "HIGH_CURRENT_PROFILE",
       "role_sources": [
-        {
-          "url": "https://pt.linkedin.com/in/s%C3%A9rgio-paulo-coelho-01a847",
-          "observed": "2026-09-04",
-          "evidence": "Current profile states CEO of HFA since March 2023."
-        }
+        {"url":"https://pt.linkedin.com/in/s%C3%A9rgio-paulo-coelho-01a847","observed":"2026-09-04","evidence":"Current profile states CEO of HFA since March 2023."}
       ],
       "public_company_contact_source": {
         "url": "https://inova-ria.pt/associados/hfa/",

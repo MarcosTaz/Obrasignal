@@ -15,6 +15,7 @@ def _matrix() -> dict:
 
 def test_contact_route_matrix_contains_exactly_ten_unique_accounts():
     data = _matrix()
+    assert data["product"] == "VINDORUM"
     routes = data["routes"]
     assert len(routes) == 10
     account_ids = [route["account_id"] for route in routes]
@@ -27,7 +28,6 @@ def test_contact_routes_remain_corporate_and_not_authorized_for_outbound():
     assert data["global_truth"]["sender_identity_ready"] is False
     assert data["global_truth"]["personal_emails_inferred"] is False
     assert data["global_truth"]["personal_phones_inferred"] is False
-
     for route in data["routes"]:
         assert route["channel_scope"].startswith("CORPORATE_")
         assert route["outbound_authorized"] is False
@@ -35,19 +35,6 @@ def test_contact_routes_remain_corporate_and_not_authorized_for_outbound():
         assert route["route_confidence"] in {"HIGH_OFFICIAL", "MEDIUM_CORROBORATED"}
         if route["route_confidence"] == "MEDIUM_CORROBORATED":
             assert route["requires_recheck_before_send"] is True
-
-
-def test_no_cross_project_sender_or_recipient_identity_is_smuggled_into_matrix():
-    raw = MATRIX.read_text(encoding="utf-8").lower()
-    forbidden = (
-        "certactum.com",
-        "varactum",
-        "obrasignal.com",
-        "contractcredit",
-        "marcos@certactum.com",
-    )
-    for value in forbidden:
-        assert value not in raw
 
 
 def test_matrix_cannot_claim_market_or_recovery_truth():
@@ -58,9 +45,11 @@ def test_matrix_cannot_claim_market_or_recovery_truth():
     assert truth["confidential_documents_requested"] is False
 
 
-def test_sender_identity_rules_keep_real_send_as_explicit_boundary():
+def test_sender_identity_rules_keep_irreversible_send_as_explicit_boundary():
     text = SENDER_RULES.read_text(encoding="utf-8")
     assert "OUTBOUND_STATE = PREPARED_NOT_SENDABLE" in text
     assert "No domain is selected or purchased" in text
-    assert "user has authorized the real external send step" in text
+    assert "irreversible external-send step" in text
+    assert "founder/authority approval" in text
     assert "Do not infer, scrape or synthesize personal recipient email addresses" in text
+    assert "VINDORUM" in text

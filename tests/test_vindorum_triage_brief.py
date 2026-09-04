@@ -22,7 +22,7 @@ def test_metadata_qualified_brief_is_sellable_without_claiming_recovery():
         economic_owner_named=True, exposure_exceeds_likely_audit_fee=True,
     ))
     brief = render_metadata_triage_brief(case=_case(), result=result)
-    assert brief.startswith("# Supplier Recovery — Metadata Recovery Triage")
+    assert brief.startswith("# VINDORUM — Metadata Recovery Triage")
     assert "Qualification: **METADATA_QUALIFIED**" in brief
     assert "Fit-routing score: 10/10" in brief
     assert "Recoverability scored: False" in brief
@@ -49,7 +49,8 @@ def test_out_of_scope_brief_preserves_factory_boundary():
     result = evaluate_metadata_triage(MetadataTriageInput(mechanism_in_scope=False))
     brief = render_metadata_triage_brief(case=_case(), result=result)
     assert "Qualification: **NO_FIT**" in brief
-    assert "Do not widen Supplier Recovery to force fit" in brief
+    assert "Do not widen VINDORUM to force fit" in brief
+    assert "without purchasing a scan" in brief
 
 
 def test_triage_brief_rejects_control_characters():

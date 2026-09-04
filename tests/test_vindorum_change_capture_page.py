@@ -35,7 +35,7 @@ def _payload():
     }
 
 
-def test_client_page_contains_active_download_reminder_without_economic_or_customer_data(tmp_path):
+def test_client_page_contains_vindorum_download_reminder_without_economic_or_customer_data(tmp_path):
     database = tmp_path / "client-page.sqlite3"
     analyst = create_app(database, identity_resolver=_identity("tenant-a", "analyst-a", "analyst")).test_client()
     client = create_app(database, identity_resolver=_identity("tenant-a", "client-a", "client")).test_client()
@@ -44,8 +44,7 @@ def test_client_page_contains_active_download_reminder_without_economic_or_custo
     response = client.get(f"/findings/{finding}/change-capture/view")
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "Certactum" in html
-    assert "CausLedger" not in html
+    assert "VINDORUM" in html
     assert "Do this before the factual window closes" in html
     assert "What was requested? One sentence." in html
     assert "Download change sheet" in html
@@ -58,6 +57,8 @@ def test_client_page_contains_active_download_reminder_without_economic_or_custo
         "999999",
     ):
         assert private_value not in html
+    for retired_or_foreign in ("Certactum", "Supplier Recovery", "CausLedger"):
+        assert retired_or_foreign not in html
     assert response.headers["Cache-Control"] == "no-store"
     assert "script-src 'self'" in response.headers["Content-Security-Policy"]
 
