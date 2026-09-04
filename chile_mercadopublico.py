@@ -122,7 +122,7 @@ def _observation(tender):
         "title": _text(tender.get("Nombre")),
         "description": _text(tender.get("Descripcion")) or " | ".join(descriptions),
         "buyer": _text(buyer.get("NombreOrganismo")),
-        "buyer_unit": _text(buyer.get("NombreUnidad")),
+        "buyer_unit": _text(buyer.get("NomeUnidad")),
         "country": COUNTRY,
         "cpv": "",
         "taxonomy": "UNSPSC",
@@ -152,7 +152,7 @@ def _observation(tender):
         "subcontracting_allowed": _text(tender.get("SubContratacion")) == "1",
         "lifecycle_status": _lifecycle(status_code),
         "lifecycle_reason": f"publisher_status_{status_code}" if status_code is not None else "publisher_status_unknown",
-        "is_actionable": status_code == 5 and (deadline is None or deadline > datetime.now(timezone.utc)),
+        "is_actionable": status_code == 5,
         "attribution": ATTRIBUTION,
         "source_api_url": API_BASE,
     }
