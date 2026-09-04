@@ -1,21 +1,25 @@
 {
-  "status": "LEGAL_HOLD_DGC_LIST_PENDING",
+  "status": "HOLD_CURRENT_DGC_LIST_SCREEN_REQUIRED_BEFORE_SEND",
   "current_cohort": 4,
   "earliest_controlled_followup": "2026-09-03T09:00:00+01:00",
   "followup_only_if": [
-    "current applicable DGC corporate opt-out list or authoritative procedure obtained",
-    "target checked against current DGC suppression list and not suppressed",
+    "then-current official DGC corporate opt-out list retrieved or consulted immediately before send",
+    "target checked against that current list and not suppressed",
     "no reply",
     "no bounce",
     "no rejection",
     "no reroute",
     "no direct opt-out",
-    "no portfolio suppression/collision"
+    "no portfolio suppression/collision",
+    "valid opt-out route preserved",
+    "no sensitive customer data requested through ordinary email"
   ],
   "dgc_compliance": {
     "required": true,
     "law_checked_at": "2026-09-01",
-    "list_status": "PENDING_DGC_RESPONSE",
+    "procedure_resolved_at": "2026-09-02",
+    "procedure_status": "RESOLVED_OFFICIAL_PORTAL_EXCEL",
+    "list_status": "MUST_REFRESH_AT_SEND_TIME",
     "target_checks_complete": false,
     "send_allowed": false
   },
@@ -24,6 +28,6 @@
     "no automatic resend",
     "no T3 from reply alone",
     "no sensitive data request before security/data-authorization gate",
-    "unknown compliance state means HOLD"
+    "unknown or stale list state means HOLD"
   ]
 }
