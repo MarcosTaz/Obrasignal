@@ -119,10 +119,10 @@ def test_download_with_unconfigured_provider_exports_sheet_but_never_claims_time
 
     response = client.get(f"/findings/{finding}/change-sheet")
     assert response.status_code == 200
-    assert response.headers["X-CausLedger-Timestamp-State"] == "UNAVAILABLE"
-    assert response.headers["X-CausLedger-Timestamp-Provider"] == "UNCONFIGURED"
-    assert response.headers["X-CausLedger-Transfer-Completion-Proven"] == "false"
-    digest = response.headers["X-CausLedger-Sheet-SHA256"]
+    assert response.headers["X-VINDORUM-Timestamp-State"] == "UNAVAILABLE"
+    assert response.headers["X-VINDORUM-Timestamp-Provider"] == "UNCONFIGURED"
+    assert response.headers["X-VINDORUM-Transfer-Completion-Proven"] == "false"
+    digest = response.headers["X-VINDORUM-Sheet-SHA256"]
     assert hashlib.sha256(response.data).hexdigest() == digest
     assert f"Snapshot SHA-256: {digest}" not in response.get_data(as_text=True)
     assert capture.status(tenant_id="tenant-a", finding_id=finding)["download_count"] == 1
@@ -135,11 +135,11 @@ def test_verified_provider_binds_http_export_to_exact_sheet_digest(tmp_path):
 
     response = client.get(f"/findings/{finding}/change-sheet")
     assert response.status_code == 200
-    assert response.headers["X-CausLedger-Timestamp-State"] == "VERIFIED"
-    assert response.headers["X-CausLedger-Timestamp-Provider"] == "qtsp-a"
-    assert response.headers["X-CausLedger-Timestamp-Attestation"].startswith("sheettsa_")
-    assert response.headers["X-CausLedger-Export-Receipt"].startswith("download_")
-    assert hashlib.sha256(response.data).hexdigest() == response.headers["X-CausLedger-Sheet-SHA256"]
+    assert response.headers["X-VINDORUM-Timestamp-State"] == "VERIFIED"
+    assert response.headers["X-VINDORUM-Timestamp-Provider"] == "qtsp-a"
+    assert response.headers["X-VINDORUM-Timestamp-Attestation"].startswith("sheettsa_")
+    assert response.headers["X-VINDORUM-Export-Receipt"].startswith("download_")
+    assert hashlib.sha256(response.data).hexdigest() == response.headers["X-VINDORUM-Sheet-SHA256"]
 
 
 def test_misbound_timestamp_fails_before_export_receipt_is_recorded(tmp_path):
@@ -162,7 +162,7 @@ def test_concurrent_fact_during_timestamp_cannot_rebind_export_to_newer_sheet(tm
 
     response = client.get(f"/findings/{finding}/change-sheet")
     assert response.status_code == 200
-    exported_digest = response.headers["X-CausLedger-Sheet-SHA256"]
+    exported_digest = response.headers["X-VINDORUM-Sheet-SHA256"]
     assert hashlib.sha256(response.data).hexdigest() == exported_digest
     assert provider.attested_digest == exported_digest
     assert provider.attested_payload == response.data
