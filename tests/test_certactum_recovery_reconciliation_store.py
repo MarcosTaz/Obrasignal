@@ -1,6 +1,9 @@
 import pytest
 
-from vertical_apps.industrial_claims.leakage_reconciliation import reconcile_recovery_ledger
+from vertical_apps.industrial_claims.leakage_reconciliation import (
+    LeakageReconciliationError,
+    reconcile_recovery_ledger,
+)
 from vertical_apps.industrial_claims.recovery_reconciliation_store import (
     RecoveryReconciliationStore,
     RecoveryReconciliationStoreError,
@@ -23,21 +26,21 @@ def test_append_only_reconciliation_history_and_latest_are_tenant_scoped(tmp_pat
     store = RecoveryReconciliationStore(tmp_path / "reconciliation.sqlite3")
     first = store.append(
         tenant_id="alpha",
-        finding_id="alpha:finding-1",
+        finding_id="finding-1",
         snapshot=_snapshot(),
         actor_id="reviewer-1",
         evidence_ref="review-pack-v1",
     )
     second = store.append(
         tenant_id="alpha",
-        finding_id="alpha:finding-1",
+        finding_id="finding-1",
         snapshot=_snapshot(claimed="60", approved="45", settled="35"),
         actor_id="reviewer-2",
         evidence_ref="claim-ledger-v2",
     )
     store.append(
         tenant_id="beta",
-        finding_id="alpha:finding-1",
+        finding_id="finding-1",
         snapshot=_snapshot(claimed="50", approved="40", settled="30"),
         actor_id="reviewer-beta",
         evidence_ref="beta-pack",
@@ -45,9 +48,9 @@ def test_append_only_reconciliation_history_and_latest_are_tenant_scoped(tmp_pat
 
     assert first.sequence == 1
     assert second.sequence == 2
-    assert store.latest(tenant_id="alpha", finding_id="alpha:finding-1").reconciliation_hash == second.reconciliation_hash
-    assert [item.sequence for item in store.history(tenant_id="alpha", finding_id="alpha:finding-1")] == [1, 2]
-    assert [item.sequence for item in store.history(tenant_id="beta", finding_id="alpha:finding-1")] == [1]
+    assert store.latest(tenant_id="alpha", finding_id="finding-1").reconciliation_hash == second.reconciliation_hash
+    assert [item.sequence for item in store.history(tenant_id="alpha", finding_id="finding-1")] == [1, 2]
+    assert [item.sequence for item in store.history(tenant_id="beta", finding_id="finding-1")] == [1]
 
 
 def test_exact_replay_is_idempotent_but_metadata_rebinding_fails(tmp_path):
@@ -116,7 +119,7 @@ def test_economic_decrease_requires_explicit_reversal_reason(tmp_path):
 
 def test_unsupported_or_unapproved_value_cannot_bypass_snapshot_invariants(tmp_path):
     store = RecoveryReconciliationStore(tmp_path / "invalid.sqlite3")
-    with pytest.raises(Exception):
+    with pytest.raises(LeakageReconciliationError, match="claimed amount cannot exceed evidence-supported amount"):
         reconcile_recovery_ledger(
             documented_cost="100",
             mitigation="0",
