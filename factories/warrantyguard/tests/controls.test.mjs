@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {approvalRequirement,makeReviewDecision,verifyReviewChain} from '../lib/controls.mjs';
+const base={tenantId:'t1',caseId:'C1',at:'2026-09-01T10:00:00Z',rationale:'Reviewed against evidence',evidenceHashes:['a'.repeat(64)]};
+
+test('ordinary review requires one reviewer',()=>assert.equal(approvalRequirement({amount:1000}).minimumReviewers,1));
+test('high value external submission requires dual control',()=>{const r=approvalRequirement({amount:50000,stage:'EXTERNAL_SUBMISSION_APPROVAL'});assert.equal(r.minimumReviewers,2);assert.equal(r.autoApprove,false);});
+test('review decision requires evidence for approval',()=>assert.throws(()=>makeReviewDecision({...base,evidenceHashes:[],stage:'ANALYSIS_REVIEW',decision:'APPROVE',actor:'a'}),/REVIEW_EVIDENCE_REQUIRED/));
+test('review decision is hashed',()=>{const d=makeReviewDecision({...base,stage:'ANALYSIS_REVIEW',decision:'APPROVE',actor:'a'});assert.equal(d.decisionHash.length,64);});
+test('review chain detects tampering',()=>{const d=makeReviewDecision({...base,stage:'ANALYSIS_REVIEW',decision:'APPROVE',actor:'a'});d.rationale='tampered';assert.equal(verifyReviewChain([d]).reason,'REVIEW_HASH_MISMATCH');});
+test('review chain detects broken linkage',()=>{const d1=makeReviewDecision({...base,stage:'ANALYSIS_REVIEW',decision:'APPROVE',actor:'a'});const d2=makeReviewDecision({...base,at:'2026-09-01T10:01:00Z',stage:'EXTERNAL_SUBMISSION_APPROVAL',decision:'APPROVE',actor:'b',previousDecisionHash:'wrong'});assert.equal(verifyReviewChain([d1,d2]).reason,'REVIEW_CHAIN_BREAK');});
+test('dual control rejects one approver',()=>{const req=approvalRequirement({amount:100000,stage:'EXTERNAL_SUBMISSION_APPROVAL'});const d=makeReviewDecision({...base,stage:'EXTERNAL_SUBMISSION_APPROVAL',decision:'APPROVE',actor:'a'});assert.equal(verifyReviewChain([d],{requirement:req}).reason,'INSUFFICIENT_APPROVERS');});
+test('dual control accepts two distinct approvers on chained decisions',()=>{const req=approvalRequirement({amount:100000,stage:'EXTERNAL_SUBMISSION_APPROVAL'});const d1=makeReviewDecision({...base,stage:'EXTERNAL_SUBMISSION_APPROVAL',decision:'APPROVE',actor:'a'});const d2=makeReviewDecision({...base,at:'2026-09-01T10:02:00Z',stage:'EXTERNAL_SUBMISSION_APPROVAL',decision:'APPROVE',actor:'b',previousDecisionHash:d1.decisionHash});const r=verifyReviewChain([d1,d2],{requirement:req});assert.equal(r.ok,true);assert.equal(r.externalEffectAuthorized,true);});

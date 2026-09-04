@@ -1,0 +1,55 @@
+{
+  "factory": "WarrantyGuard",
+  "commercial_working_name": "DebitProof",
+  "commercial_name_status": "PROVISIONAL_PENDING_FORMAL_CLEARANCE",
+  "version": "0.9.0",
+  "branch": "factory/warrantyguard-debitproof-v084",
+  "pr": 805,
+  "runtime": "Node.js >=20 / zero external npm dependencies",
+  "verified_executable_head": "343aef3206ffdd1a0e4348e978e51d24d685cb5b",
+  "github_actions_run_id": 33557506800,
+  "github_actions_artifact_id": 9819910373,
+  "github_actions_artifact_zip_digest": "sha256:80f6556b6e23ae661706ab4a2800da8c350f4e7b1855b177bf00880fa0e45d15",
+  "artifact": "warrantyguard-prototype-v0.9.0.tar.gz",
+  "artifact_sha256": "a7ed70cfe40f25a557473ac5f6461ee15d822234917a6b2f4c606e06d492d868",
+  "library_path": "/WarrantyGuard/warrantyguard-prototype-v0.9.0.tar.gz",
+  "verification": {
+    "tests": "187/187 PASS",
+    "redteam_debits": 10000,
+    "redteam_recovery": 1000,
+    "document_redteam_scenarios": 16,
+    "customer_e2e": "PASS_SYNTHETIC_ASSISTED",
+    "security_redteam": "PASS_ASSISTED_LOCAL",
+    "http": "PASS",
+    "operator": "PASS",
+    "workspace": "PASS_LOCAL_HMAC",
+    "resource_limits": "PASS",
+    "ci_clean_extraction_reverify": "PASS",
+    "independent_download_sha_check": "PASS",
+    "independent_download_clean_extraction_reverify": "PASS"
+  },
+  "product_boundary": {
+    "mode": "ASSISTED_LOCAL",
+    "public_multiuser_security_proven": false,
+    "shared_customer_persistence": false,
+    "autonomous_oem_submission": false,
+    "human_review_required": true
+  },
+  "commercial_truth": {
+    "terminal": "T2 — MARKET EXPOSED",
+    "next_terminal": "T3 — COMMERCIAL PROOF",
+    "real_customers": 0,
+    "paid_pilots": 0,
+    "verified_recovery_eur": 0,
+    "revenue_received_eur": 0,
+    "wtp": "UNPROVEN",
+    "latest_response_check": "2026-09-01",
+    "observable_replies_or_bounces": 0
+  },
+  "completion_truth": {
+    "project_complete": false,
+    "real_evidence_required_for": ["M_PILOT", "N_VALUE", "O_COMMERCIAL", "P_RETENTION", "Q_ECONOMICS"],
+    "current_real_evidence_status": "NOT_PROVEN"
+  },
+  "self_reference_note": "This pointer records the last independently verified executable head. Later state/pointer/README-only commits must be rechecked by exact-head CI but do not rewrite historical executable evidence."
+}
