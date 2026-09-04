@@ -67,7 +67,7 @@ def test_fully_reconciled_requires_supported_value_to_be_settled():
 @pytest.mark.parametrize(
     "overrides, message",
     [
-        ({"mitigation": "100001"}, "mitigation cannot exceed documented cost"),
+        ({"mitigation": "120001"}, "mitigation cannot exceed documented cost"),
         ({"evidence_supported": "100001"}, "evidence-supported amount cannot exceed net documented exposure"),
         ({"claimed": "80001"}, "claimed amount cannot exceed evidence-supported amount"),
         ({"approved": "65001"}, "approved amount cannot exceed claimed amount"),
