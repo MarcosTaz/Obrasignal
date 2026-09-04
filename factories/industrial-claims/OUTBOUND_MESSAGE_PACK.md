@@ -1,94 +1,74 @@
-# SUPPLIER RECOVERY — OUTBOUND MESSAGE PACK
+# VINDORUM — OUTBOUND MESSAGE PACK
 
 State: `PREPARED_NOT_SENDABLE`
 
-These templates are for metadata-only first contact. They do not claim that the recipient has leakage, that money is owed, that a legal entitlement exists, or that Supplier Recovery has found a recoverable amount. No confidential documents are requested in first contact.
+These templates are metadata-only first contact. They do not allege leakage, debt, legal entitlement or recoverable value. No confidential documents are requested.
 
-## Variant: CORPORATE_GENERAL_PT
-
-**Subject:** Custos de alterações de cliente/OEM — triagem sem documentos
+## CORPORATE_GENERAL_PT
+**Assunto:** Custos de alterações de cliente/OEM — verificação sem documentos
 
 Bom dia,
 
-Poderiam encaminhar esta mensagem a **{{target_person}} ({{target_role}})** ou à pessoa que acompanhe comercialmente alterações de cliente, engenharia/NRE e respetiva aprovação/liquidação?
+Poderiam encaminhar esta mensagem a **{{target_person}} ({{target_role}})** ou a quem acompanhe alterações de cliente, engenharia/NRE e respetiva aprovação/liquidação?
 
-A **Supplier Recovery** está a desenvolver uma abordagem para fornecedores industriais reconstruírem o percurso económico de alterações pedidas por clientes/OEM — pedido, engenharia/tooling, custo incremental, suporte documental, reclamação, aprovação e liquidação — sem confundir custo documentado com valor efetivamente recuperável.
+A **VINDORUM** reconcilia o percurso económico de alterações pedidas por clientes/OEM — alteração, custo incremental, suporte documental, reclamação, aprovação e liquidação — sem confundir custo documentado com valor devido.
 
-Nesta primeira conversa **não pedimos documentos**. O objetivo é apenas perceber como a **{{company}}** acompanha hoje este processo e onde normalmente surgem falhas de rastreabilidade entre alteração, custo e fecho comercial.
+A primeira etapa é o **Free Exposure Check**: usa apenas metadata não confidencial, não pede documentos e não exige reunião.
 
-Faria sentido uma conversa de 20 minutos?
+{{vindorum_free_exposure_check_url}}
 
 Marcos Moutinho  
-Supplier Recovery
+VINDORUM
 
 ---
 
-## Variant: CORPORATE_COMMERCIAL_PT
-
-**Subject:** Reconciliação de custos de alterações e NRE
+## CORPORATE_COMMERCIAL_PT
+**Assunto:** Reconciliação de custos de alterações e NRE
 
 Olá,
 
-Estou a desenvolver a **Supplier Recovery**, focada em fornecedores industriais que precisam reconciliar custos de engenharia, NRE/tooling e outras alterações originadas por pedidos de cliente/OEM com o respetivo percurso comercial até aprovação e liquidação.
+A **VINDORUM** foi criada para fornecedores industriais reconciliarem custos de engenharia/NRE/tooling originados por alterações de cliente/OEM com o respetivo percurso até reclamação, aprovação e liquidação.
 
-Não parto do pressuposto de que exista qualquer valor por recuperar na **{{company}}**. A primeira etapa é apenas uma conversa de 20 minutos, sem envio de documentos, para perceber como os pedidos de alteração, custos incrementais e fecho comercial são hoje acompanhados.
+Não parto do pressuposto de que exista qualquer valor por recuperar na **{{company}}**. Pode testar um caso histórico no **Free Exposure Check**, sem documentos e sem reunião:
 
-Se este tema ficar com **{{target_person}} ({{target_role}})** ou com outra pessoa de comercial/finanças/programas, agradeço o encaminhamento.
+{{vindorum_free_exposure_check_url}}
 
 Marcos Moutinho  
-Supplier Recovery
+VINDORUM
 
 ---
 
-## Variant: CONTACT_FORM_PT
-
-**Subject:** Alterações de cliente/OEM e custos NRE
-
-Bom dia. Estou a desenvolver a Supplier Recovery para ajudar fornecedores industriais a reconstruir o percurso económico de alterações pedidas por clientes/OEM — desde pedido e engenharia/NRE até aprovação e liquidação — sem assumir que exista qualquer valor por recuperar. Nesta fase não pedimos documentos; procuro apenas uma conversa de 20 minutos com {{target_person}} ({{target_role}}) ou com quem acompanhe comercial/finanças/programas para perceber como a {{company}} gere atualmente este processo. Obrigado, Marcos Moutinho — Supplier Recovery.
+## CONTACT_FORM_PT
+Bom dia. A VINDORUM ajuda fornecedores industriais a reconstruir o percurso económico de alterações pedidas por clientes/OEM sem assumir que exista valor por recuperar. O primeiro passo é um Free Exposure Check apenas com metadata não confidencial, sem documentos nem reunião: {{vindorum_free_exposure_check_url}}. Se o tema pertencer a {{target_person}} ({{target_role}}) ou a outra pessoa de comercial/finanças/programas, agradeço o encaminhamento. Marcos Moutinho — VINDORUM.
 
 ---
 
-## Variant: CORPORATE_GENERAL_EN
-
-**Subject:** Customer/OEM change costs — document-free first triage
+## CORPORATE_GENERAL_EN
+**Subject:** Customer/OEM change costs — document-free exposure check
 
 Hello,
 
-Could you please route this to **{{target_person}} ({{target_role}})** or whoever owns the commercial handling of customer changes, engineering/NRE and settlement?
+Could you route this to **{{target_person}} ({{target_role}})** or whoever owns the commercial handling of customer changes, engineering/NRE and settlement?
 
-**Supplier Recovery** is developing an evidence-first process for industrial suppliers to reconstruct the economics of customer/OEM-driven changes — request, engineering/tooling, incremental cost, evidence, claim, approval and settlement — without treating documented cost as automatically recoverable value.
+**VINDORUM** reconciles the economics of customer/OEM-driven changes — change, incremental cost, evidence, claim, approval and settlement — without treating documented cost as automatically owed.
 
-For the first conversation **no documents are requested**. The goal is simply to understand how **{{company}}** currently tracks this process and where traceability typically breaks between change, cost and commercial closure.
+The first step is a **Free Exposure Check** using non-confidential metadata only. No documents or meeting are required.
 
-Would a 20-minute conversation be useful?
+{{vindorum_free_exposure_check_url}}
 
 Marcos Moutinho  
-Supplier Recovery
+VINDORUM
 
-## First-contact guardrails
-- No attachments.
-- No confidential files or contract extracts requested.
-- No quantified recovery claim.
-- No language implying debt, entitlement or wrongdoing.
-- No claim that Supplier Recovery has audited the recipient.
-- No fake customer logos, references, outcomes or savings.
-- A delivery receipt is not buyer interest.
+## Guardrails
+- No attachments or confidential files.
+- No quantified recovery promise.
+- No implication of debt, wrongdoing or legal entitlement.
+- No fake customers, outcomes or savings.
+- Delivery/open/click is not buyer interest.
 - A reply is not qualification.
-- A meeting is not a paid customer.
-- If the recipient asks for secure document exchange, stop ordinary-email intake until the production evidence controls are genuinely ready.
+- Secure document exchange remains blocked until production intake controls are genuinely ready.
 
-## Follow-up 1 — only after a real first send with no reply
+## Follow-up policy
+At most one follow-up until real response evidence justifies another compliant cadence. Silence is never permission for repeated outreach.
 
-**Subject:** Re: Custos de alterações de cliente/OEM — triagem sem documentos
-
-Bom dia,
-
-Só volto a esta mensagem uma vez. O ponto que estou a tentar validar é simples: quando um cliente altera requisitos, timing, desenho, tooling ou industrialização, existe um caminho claro entre o pedido, o custo incremental, a decisão comercial e a liquidação final?
-
-A conversa inicial continua a ser sem documentos e sem compromisso. Se este tema não for relevante para a {{company}}, fecho por aqui.
-
-Marcos Moutinho  
-Supplier Recovery
-
-## Follow-up 2
-Do not automate a second follow-up until real response data from cohort 1 justifies it. Silence must not be converted into permission for repeated outreach.
+The follow-up repeats the Free Exposure Check CTA and the same truth boundaries; it does not request a meeting or confidential documents.
