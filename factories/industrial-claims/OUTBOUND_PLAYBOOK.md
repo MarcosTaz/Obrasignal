@@ -1,4 +1,4 @@
-# CERTACTUM — SUPPLIER RECOVERY OUTBOUND PLAYBOOK
+# SUPPLIER RECOVERY — OUTBOUND PLAYBOOK
 
 Status: ready for human-authorized outbound. No message in this file is evidence that outreach was sent or that a prospect has a claim.
 
@@ -26,12 +26,12 @@ Hi {{first_name}},
 
 When a customer-driven engineering or program change creates incremental NRE, how does {{company}} reconcile what was documented, what the commercial basis supports, what was claimed, what was approved, and what was actually settled?
 
-Certactum is built specifically around that supplier-side evidence and recovery chain.
+Supplier Recovery is built specifically around that supplier-side evidence and recovery chain.
 
 Worth a 20-minute metadata-only review of the process? No documents needed for the first conversation.
 
 Marcos
-Certactum
+Supplier Recovery
 
 ## Follow-up 1 — evidence fragmentation
 Subject: reply in same thread
@@ -70,25 +70,25 @@ Then ask:
 
 ## Objection handling
 ### “We already use SAP/ERP/PLM.”
-“That's expected. Certactum is not trying to replace those systems. The question is whether the evidence and economic state of a customer-change recovery are reconciled across them in a reviewable chain.”
+“That's expected. Supplier Recovery is not trying to replace those systems. The question is whether the evidence and economic state of a customer-change recovery are reconciled across them in a reviewable chain.”
 
 ### “We don't have claims.”
 “Understood. I would not assume otherwise. The process review is useful only if customer-driven changes create incremental positions that need to be checked. If that mechanism is not material for you, there is no fit.”
 
 ### “Send information.”
-Send only the public one-page explanation / site. Do not request source documents. CTA remains a metadata-only review.
+Send only the approved Supplier Recovery one-page explanation / site. Do not request source documents. CTA remains a metadata-only review.
 
 ### “How much can you recover?”
 “We don't estimate recovery before evidence. First we separate documented exposure from evidence-supported, claimed, approved and settled amounts. Any commercial recovery conclusion comes after the documentary review.”
 
 ### “Is this legal advice?”
-“No. Certactum is an evidence and commercial-reconciliation system. Material legal interpretation is escalated to the customer's legal counsel or an appropriate specialist.”
+“No. Supplier Recovery is an evidence and commercial-reconciliation system. Material legal interpretation is escalated to the customer's legal counsel or an appropriate specialist.”
 
 ### “Can I email the contract?”
 “Not at the first-contact stage. Please keep the first review metadata-only. Confidential documents use the controlled evidence path once that intake is authorized and verified.”
 
 ## Discovery conversion
-A conversation becomes `METADATA_QUALIFIED` only through the executable Certactum triage. Do not upgrade a lead based on enthusiasm alone.
+A conversation becomes `METADATA_QUALIFIED` only through the executable Supplier Recovery triage. Do not upgrade a lead based on enthusiasm alone.
 
 After qualification:
 - confirm the bounded historical case;
@@ -105,7 +105,7 @@ After qualification:
 “Bounded review of one case to identify the documentary chain, evidence gaps and economic state. No recovery promise.”
 
 ### Forensic Recovery Audit
-“Evidence-indexed reconstruction and Certactum Supplier Recovery Dossier, including documented cost, mitigation, evidence-supported amount, claimed/approved/settled reconciliation and next-action review.”
+“Evidence-indexed reconstruction and Supplier Recovery Dossier, including documented cost, mitigation, evidence-supported amount, claimed/approved/settled reconciliation and next-action review.”
 
 ## Measurement
 Track by account/contact:
