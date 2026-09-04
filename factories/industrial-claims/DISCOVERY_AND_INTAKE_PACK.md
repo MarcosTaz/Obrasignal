@@ -1,58 +1,101 @@
-# CAUSLEDGER — DISCOVERY & DOCUMENT INTAKE PACK
+# SUPPLIER RECOVERY — DISCOVERY & INTAKE PACK
 
 ## 20-minute discovery objective
-Determine whether one historical customer-caused engineering/change/NRE case is suitable for a bounded evidence-first rapid scan. Do not sell a recovery number before documents exist.
+Determine whether one historical customer/OEM-caused engineering/change/NRE case is suitable for a bounded evidence-first recovery scan. Do not sell a recovery number before evidence exists.
+
+## Phase A — metadata-only triage (safe before confidential intake)
+Until the real-document activation gate is genuinely GREEN, discovery must use only non-confidential metadata and buyer-described facts. Do not request or accept contracts, POs, ECNs, drawings, ledgers, invoices or other confidential source documents through ordinary email or an unverified runtime.
+
+Allowed triage fields:
+- supplier industry and approximate size band;
+- customer/OEM type or anonymized identifier;
+- program/change type;
+- approximate date range;
+- approximate gross-cost band;
+- whether a PO/contract/change document exists: YES / NO / UNKNOWN;
+- whether an engineering/NRE cost source exists: YES / NO / UNKNOWN;
+- whether any claim was submitted: YES / NO / UNKNOWN;
+- whether any value was approved/credited/paid: YES / NO / UNKNOWN;
+- whether notice/deadline rules may exist: YES / NO / UNKNOWN;
+- internal owner role;
+- desired outcome from a review.
+
+Phase A may qualify an opportunity. It may not manufacture evidence support, legal entitlement or a precise recoverable amount.
 
 ## Discovery questions
-1. What customer/OEM/program created the change or disruption?
-2. What exactly changed: drawing, scope, validation, timing, volume, launch requirement, tooling or other instruction?
-3. Was the change documented and by whom?
+1. What customer/OEM/program created the change or disruption? An anonymized label is sufficient at triage.
+2. What changed: drawing, scope, validation, timing, volume, launch requirement, tooling or another customer instruction?
+3. Is the change documented and which function holds the source?
 4. Which incremental costs arose only because of that change?
-5. How are those costs currently tracked and who owns recovery internally?
-6. What contract/PO/change-order language may support or limit customer responsibility?
-7. What credits, payments, settlements, reuse or mitigation have already occurred?
-8. Was notice required? If so, what date/method/recipient applies?
-9. What evidence would weaken or defeat the case?
-10. What would make a rapid scan useful even if the conclusion is NO CLAIM?
+5. How are those costs tracked and who owns recovery internally?
+6. Is there contract/PO/change-order language that may support or limit responsibility?
+7. Was any amount already claimed, approved, credited, paid, reused or mitigated?
+8. Could a notice/deadline rule apply?
+9. What evidence or fact could weaken or defeat the recovery hypothesis?
+10. What would make a scan useful even if the conclusion is NO CLAIM?
 
 ## Qualification result
 Choose one:
-- `NO_FIT`: no documentary customer/event/cost chain or economics too small;
-- `NEEDS_PREQUALIFICATION`: problem plausible but buyer/documents unclear;
-- `RAPID_SCAN_CANDIDATE`: bounded historical case + minimum evidence exists;
-- `SPECIALIST_REVIEW_FIRST`: legal/regulatory/technical interpretation is primary blocker.
+- `NO_FIT`: no customer/event/cost chain, economics too small, or mechanism outside the Factory;
+- `NEEDS_PREQUALIFICATION`: problem plausible but economic owner, evidence existence or process is unclear;
+- `METADATA_QUALIFIED`: buyer confirms a bounded case and the required evidence categories appear to exist, but confidential intake is not yet authorized;
+- `RAPID_SCAN_CANDIDATE`: secure documentary intake is authorized and minimum evidence can be supplied;
+- `SPECIALIST_REVIEW_FIRST`: legal/regulatory/technical interpretation is the primary blocker.
+
+## Metadata qualification score
+Score only observable buyer answers. Do not infer missing evidence.
+
+- +2 customer/OEM-driven change/event is clearly identifiable;
+- +2 incremental cost source is known to exist;
+- +2 commercial basis/PO/change documentation is known to exist;
+- +1 prior claim/approval/payment state can be reconstructed;
+- +1 notice/deadline process is known or can be checked;
+- +1 named internal economic owner exists;
+- +1 approximate exposure comfortably exceeds the likely audit fee.
+
+Interpretation:
+- `0–3`: weak fit / discovery only;
+- `4–6`: prequalification;
+- `7–10`: strong metadata-qualified opportunity.
+
+The score is a routing aid, not a recoverability score.
 
 ## Minimum document sample for NRE/change-cost rapid scan
-Request the smallest set that can falsify or support the hypothesis:
-1. relevant PO / contract / commercial terms or excerpt;
-2. customer ECN/change order/instruction/email/release/cancellation evidence;
+Request this only after secure intake is permitted:
+1. relevant PO / contract / commercial terms or bounded excerpt;
+2. customer ECN/change order/instruction/release/cancellation evidence;
 3. engineering/NRE cost source: time ledger, invoice, subcontractor charge, validation invoice or equivalent;
 4. prior credit/payment/settlement evidence or confirmation that reconciliation is pending;
-5. notice/deadline correspondence if available.
+5. notice/deadline correspondence if applicable.
 
 Do not request an entire ERP export, mailbox or contract library for the first scan.
 
 ## Data-handling gate before real documents
-Before receiving non-public customer documents into the product runtime:
-- identify the customer/prospect and authorized sender;
-- agree the permitted document set and purpose;
-- confirm a secure transfer channel;
-- confirm tenant/case separation;
-- avoid credentials, secrets and unrelated personal data;
-- record whether source content may be retained, or whether only hashes/metadata may persist;
-- do not upload real documents to an unverified external runtime;
-- delete/return temporary working copies according to the agreed handling rule;
-- escalate legal/NDA/DPA requirements when requested or materially necessary.
+Before receiving non-public customer documents into Supplier Recovery:
+- verified production authentication is active;
+- authorized sender and tenant/case are bound;
+- permitted document set and purpose are recorded;
+- secure transfer channel is verified;
+- immutable/WORM storage provider is declared and operationally verified for the intended use;
+- trusted timestamp provider is declared and operationally verified for the intended use;
+- tenant/case separation is confirmed;
+- credentials, secrets and unrelated personal data are excluded;
+- retention/deletion handling is explicit;
+- legal/NDA/DPA requirements are addressed when materially required;
+- the automated readiness output has `real_evidence_intake_enabled=true`.
 
-## Preferred early transfer pattern
-Until external runtime identity/session provisioning is verified:
+If any required control is false/unknown, remain in Phase A metadata-only triage.
+
+## Preferred early transfer pattern after the gate is GREEN
 1. prospect confirms willingness to share a bounded sample;
-2. create a prospect-specific authorized secure folder/channel;
+2. create a prospect-specific authorized secure channel;
 3. receive only the agreed sample;
-4. perform controlled human review;
-5. put only permitted metadata/hash lineage into CausLedger;
-6. deliver dossier through an agreed secure channel;
-7. do not reuse data for another prospect/case.
+4. preserve immutable original + source/custody metadata;
+5. perform controlled human review;
+6. reconcile documented cost → mitigation → evidence-supported → claimed → approved → settled;
+7. generate the Supplier Recovery Dossier;
+8. deliver through an agreed secure channel;
+9. do not reuse data for another prospect/case.
 
 ## Rapid scan checklist
 - [ ] customer/program/event identified
@@ -60,8 +103,12 @@ Until external runtime identity/session provisioning is verified:
 - [ ] event chronology plausible
 - [ ] causation tested against supplier/internal causes
 - [ ] customer responsibility basis located or marked unresolved
-- [ ] cost source reconciled
-- [ ] mitigation/prior recovery checked
+- [ ] documented cost source reconciled
+- [ ] mitigation checked
+- [ ] evidence-supported amount explicitly distinguished from unsupported exposure
+- [ ] claimed amount reconciled
+- [ ] approved amount reconciled
+- [ ] settled/credited/paid amount reconciled
 - [ ] currency explicit
 - [ ] notice/deadline known or marked unknown
 - [ ] contrary evidence recorded
@@ -74,7 +121,9 @@ One page maximum for the first commercial decision:
 - case hypothesis;
 - evidence present;
 - evidence missing;
-- preliminary net-potential reconstruction only if supported;
+- net documented exposure;
+- evidence-supported amount only when actually supported;
+- supported-unclaimed / claimed-unapproved / approved-unsettled split;
 - causation/responsibility state;
 - notice/deadline risk;
 - disposition: NO CLAIM / NEEDS REVIEW / FORENSIC AUDIT CANDIDATE;
