@@ -12,14 +12,18 @@ on:
           - android
           - ios
           - all
+  push:
+    branches: [main]
+    paths:
+      - '.eas-production-once'
 
 concurrency:
-  group: obrasignal-production-build-${{ inputs.platform }}
+  group: obrasignal-production-build-${{ github.event_name == 'push' && 'android' || inputs.platform }}
   cancel-in-progress: false
 
 jobs:
   android-production-build:
-    if: ${{ inputs.platform == 'android' || inputs.platform == 'all' }}
+    if: ${{ github.event_name == 'push' || inputs.platform == 'android' || inputs.platform == 'all' }}
     name: EAS production build (android)
     runs-on: ubuntu-latest
     defaults:
@@ -64,7 +68,7 @@ jobs:
   ios-production-build:
     # iOS remains explicitly manual: Apple distribution credentials must be
     # deliberately activated and must never be inferred from an Android build.
-    if: ${{ inputs.platform == 'ios' || inputs.platform == 'all' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.platform == 'ios' || inputs.platform == 'all') }}
     name: EAS production build (ios)
     runs-on: ubuntu-latest
     defaults:
