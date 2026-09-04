@@ -11,8 +11,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: radar-production-readiness
-  cancel-in-progress: true
+  # Radar readiness and Browser E2E write the same production probe profile.
+  # Never let their account recomputations race each other.
+  group: production-radar-e2e
+  cancel-in-progress: false
 
 env:
   SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
