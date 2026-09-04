@@ -1,7 +1,7 @@
-# CERTACTUM — COMMERCIAL OPERATING MODEL
+# SUPPLIER RECOVERY — COMMERCIAL OPERATING MODEL
 
 ## Direction
-Certactum is an assisted supplier-side recovery business that is automating itself. Software is a control/evidence layer; the first product is a defensible recovery dossier plus a reconciled recovery ledger.
+Supplier Recovery is an assisted supplier-side recovery business that is automating itself. Software is a control/evidence layer; the first product is a defensible recovery dossier plus a reconciled recovery ledger.
 
 ## Frozen initial wedge
 Until real commercial proof exists, the critical path is **supplier-side customer/OEM-caused cost and margin recovery**.
@@ -53,18 +53,18 @@ DOCUMENTS → CONTRACT/PO/CHANGE TRUTH → EVENT → CAUSATION → CUSTOMER RESP
 If the chain is incomplete, the output is **NO CLAIM / NEEDS REVIEW / EVIDENCE GAP**, never an inflated recovery number.
 
 ## Positioning
-Certactum is not an ERP/PLM replacement and is not an OEM warranty adjudication system. It occupies the evidence-and-recovery layer between customer-driven engineering/commercial events and the supplier's finance/commercial outcome.
+Supplier Recovery is not an ERP/PLM replacement and is not an OEM warranty adjudication system. It occupies the evidence-and-recovery layer between customer-driven engineering/commercial events and the supplier's finance/commercial outcome.
 
 The differentiating control point is:
 
 **customer change/event → causation → incremental cost → commercial basis → evidence → supported recovery amount → claim state → settlement truth → independently reviewable dossier.**
 
-Competitive products may start from supply-chain planning signals, warranty claims, pricing/rebate agreements or pre-approval engineering-change exposure. Certactum stays narrow around supplier-side customer-caused change/NRE recovery until real commercial evidence proves an expansion.
+Competitive products may start from supply-chain planning signals, warranty claims, pricing/rebate agreements or pre-approval engineering-change exposure. Supplier Recovery stays narrow around supplier-side customer-caused change/NRE recovery until real commercial evidence proves an expansion.
 
 ## Initial offer ladder — pricing hypotheses, not validated WTP
 1. **Recovery Triage** — 30–45 minute fit review using non-confidential metadata only. `€0` while building qualified pipeline; no document intake and no recovery promise.
 2. **Rapid Recovery Scan** — bounded assisted review of one case/sample after secure intake is permitted. Initial hypothesis: `€1,500–€3,500` fixed.
-3. **Forensic Recovery Audit** — reconstruct one material case and produce a Certactum evidence-indexed dossier + recovery reconciliation. Initial hypothesis: `€5,000–€15,000` fixed depending on document volume/complexity.
+3. **Forensic Recovery Audit** — reconstruct one material case and produce a Supplier Recovery evidence-indexed dossier + recovery reconciliation. Initial hypothesis: `€5,000–€15,000` fixed depending on document volume/complexity.
 4. **Recovery Support** — only with explicit customer authority after dossier approval. Initial hypothesis: `10–20%` of independently verified incremental recovery, with prior-recovery baseline and no double counting.
 5. **Continuous Leakage Monitoring** — only after repeated case patterns justify automation. Initial hypothesis: `€1,500–€5,000/month` per business unit/program portfolio plus bounded onboarding.
 
@@ -127,4 +127,4 @@ Commits, tests and screens are supporting evidence, not the business outcome.
 - No candidate is represented as legally recoverable without the required documentary/human/legal basis.
 - No real recovery, payment, customer or willingness-to-pay evidence may be fabricated.
 - Assisted commercial presentation and metadata-only triage can start before confidential intake is production-ready.
-- Real confidential documentary intake remains blocked until production identity/access/storage/data-handling controls and the explicit readiness gate are genuinely green.
+- Real confidential documentary intake remains blocked until Supplier Recovery's production identity/access/storage/data-handling controls and the explicit readiness gate are genuinely green.
