@@ -10,7 +10,7 @@ from typing import Optional, Tuple
 from .engine import CommitmentState, CostRecoveryMode, ExposureType, RecoveryCase
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 _STATE_PAYLOAD_FIELDS_V2 = {
     "schema_version",
     "tenant_id",
@@ -26,6 +26,7 @@ _STATE_PAYLOAD_FIELDS_V2 = {
     "deadline",
 }
 _STATE_PAYLOAD_FIELDS_V3 = _STATE_PAYLOAD_FIELDS_V2 | {"period_id", "unit"}
+_STATE_PAYLOAD_FIELDS_V4 = _STATE_PAYLOAD_FIELDS_V3 | {"fact_refs"}
 _PERSISTED_RECOVERY_CASE_FIELDS = set(RecoveryCase.__dataclass_fields__)
 
 
@@ -39,6 +40,7 @@ class AssistedCaseState:
     period_id: Optional[str] = None
     unit: Optional[str] = None
     evidence_refs: Tuple[str, ...] = ()
+    fact_refs: Tuple[str, ...] = ()
     missing_evidence: Tuple[str, ...] = ()
     deadline: Optional[str] = None
     contract_id: Optional[str] = None
@@ -95,8 +97,8 @@ def _validate_contract_anchor(contract_id: Optional[str], nomination_id: Optiona
 def _validate_reference_list(name: str, values) -> None:
     if not isinstance(values, (tuple, list)) or not all(isinstance(item, str) for item in values):
         raise ValueError(f"{name} must contain strings")
-    if len(values) > 100:
-        raise ValueError(f"{name} cannot exceed 100 references")
+    if len(values) > 200:
+        raise ValueError(f"{name} cannot exceed 200 references")
     normalized = [item.strip() for item in values]
     if any(not item for item in normalized):
         raise ValueError(f"{name} cannot contain blank references")
@@ -106,9 +108,11 @@ def _validate_reference_list(name: str, values) -> None:
         raise ValueError(f"{name} cannot contain duplicate references")
 
 
-def _validate_evidence_consistency(recovery_case: RecoveryCase, evidence_refs) -> None:
+def _validate_evidence_consistency(recovery_case: RecoveryCase, evidence_refs, fact_refs) -> None:
     if recovery_case.evidence_supported and not evidence_refs:
         raise ValueError("evidence_supported requires at least one persisted evidence reference")
+    if fact_refs and not evidence_refs:
+        raise ValueError("fact_refs require persisted evidence_refs")
 
 
 def _validate_deadline(deadline: Optional[str], recovery_case: RecoveryCase) -> None:
@@ -246,8 +250,9 @@ def dump_state(state: AssistedCaseState) -> str:
         if state.forecast_units < Decimal("0"):
             raise ValueError("forecast_units must be non-negative")
     _validate_reference_list("evidence_refs", state.evidence_refs)
+    _validate_reference_list("fact_refs", state.fact_refs)
     _validate_reference_list("missing_evidence", state.missing_evidence)
-    _validate_evidence_consistency(state.recovery_case, state.evidence_refs)
+    _validate_evidence_consistency(state.recovery_case, state.evidence_refs, state.fact_refs)
     _validate_deadline(state.deadline, state.recovery_case)
 
     payload = {
@@ -263,6 +268,7 @@ def dump_state(state: AssistedCaseState) -> str:
         "forecast_units": str(state.forecast_units) if state.forecast_units is not None else None,
         "recovery_case": recovery_case_to_payload(state.recovery_case),
         "evidence_refs": list(state.evidence_refs),
+        "fact_refs": list(state.fact_refs),
         "missing_evidence": list(state.missing_evidence),
         "deadline": state.deadline,
     }
@@ -289,6 +295,8 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
         expected_fields = _STATE_PAYLOAD_FIELDS_V2
     elif version == 3:
         expected_fields = _STATE_PAYLOAD_FIELDS_V3
+    elif version == 4:
+        expected_fields = _STATE_PAYLOAD_FIELDS_V4
     else:
         raise ValueError("unsupported state schema version")
     if set(payload) != expected_fields:
@@ -306,6 +314,7 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
         _validate_identifier(key, payload[key])
     period_id = payload.get("period_id") if version >= 3 else None
     unit = payload.get("unit") if version >= 3 else None
+    fact_refs = payload.get("fact_refs", []) if version >= 4 else []
     _validate_optional_context("period_id", period_id)
     _validate_optional_context("unit", unit)
     _validate_contract_anchor(payload["contract_id"], payload["nomination_id"])
@@ -313,6 +322,7 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
     evidence_refs = payload["evidence_refs"]
     missing_evidence = payload["missing_evidence"]
     _validate_reference_list("evidence_refs", evidence_refs)
+    _validate_reference_list("fact_refs", fact_refs)
     _validate_reference_list("missing_evidence", missing_evidence)
 
     forecast_raw = payload["forecast_units"]
@@ -327,7 +337,7 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
     if not isinstance(recovery_raw, dict) or set(recovery_raw) != _PERSISTED_RECOVERY_CASE_FIELDS:
         raise ValueError("persisted recovery_case fields do not match current schema")
     recovery_case = recovery_case_from_payload(recovery_raw)
-    _validate_evidence_consistency(recovery_case, evidence_refs)
+    _validate_evidence_consistency(recovery_case, evidence_refs, fact_refs)
     _validate_deadline(payload["deadline"], recovery_case)
 
     return AssistedCaseState(
@@ -339,6 +349,7 @@ def load_state(serialized: str, *, expected_tenant_id: str) -> AssistedCaseState
         unit=unit,
         recovery_case=recovery_case,
         evidence_refs=tuple(evidence_refs),
+        fact_refs=tuple(fact_refs),
         missing_evidence=tuple(missing_evidence),
         deadline=payload["deadline"],
         contract_id=payload["contract_id"],
