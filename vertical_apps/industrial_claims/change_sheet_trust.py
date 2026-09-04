@@ -39,10 +39,10 @@ def _digest(value: object) -> str:
 def _detached_payload(rendered_sheet: str, digest: str) -> bytes:
     """Return the exact export bytes covered by the renderer digest.
 
-    The legacy human-readable renderer appends a detached hash line after it
-    computes the digest. A file cannot contain its own full-file digest without
-    changing that digest, so trust/export operations strip that detached line and
-    verify the remaining bytes before any provider call or export receipt.
+    The human-readable renderer appends a detached hash line after it computes the
+    digest. A file cannot contain its own full-file digest without changing that
+    digest, so trust/export operations strip that detached line and verify the
+    remaining bytes before any provider call or export receipt.
     """
     normalized = _digest(digest)
     marker = f"\nSnapshot SHA-256: {normalized}\n"
@@ -116,7 +116,18 @@ class ChangeSheetTrustService:
 
     @staticmethod
     def _subject_ref(sheet_id: str, digest: str) -> str:
+        return f"vindorum:change-sheet:{sheet_id}:{digest}"
+
+    @staticmethod
+    def _legacy_subject_ref(sheet_id: str, digest: str) -> str:
+        # Historical receipts are append-only evidence. This compatibility value is
+        # accepted only while verifying an already persisted receipt; new requests
+        # are always emitted with the canonical VINDORUM subject reference above.
         return f"causledger:change-sheet:{sheet_id}:{digest}"
+
+    @classmethod
+    def _accepted_persisted_subject_refs(cls, sheet_id: str, digest: str) -> frozenset[str]:
+        return frozenset({cls._subject_ref(sheet_id, digest), cls._legacy_subject_ref(sheet_id, digest)})
 
     @staticmethod
     def _purpose() -> str:
@@ -170,8 +181,8 @@ class ChangeSheetTrustService:
             raise ChangeSheetTrustError("stored change sheet timestamp details are invalid")
         digest = _digest(row["sheet_sha256"])
         sheet_id = _required(row["sheet_id"], label="sheet_id", max_chars=128)
-        expected_subject = self._subject_ref(sheet_id, digest)
-        if str(row["subject_ref"] or "").strip() != expected_subject:
+        stored_subject = _required(row["subject_ref"], label="subject_ref", max_chars=4096)
+        if stored_subject not in self._accepted_persisted_subject_refs(sheet_id, digest):
             raise ChangeSheetTrustError("stored change sheet timestamp subject binding is invalid")
         try:
             attestation = ExternalAttestation(
@@ -182,10 +193,14 @@ class ChangeSheetTrustService:
             )
         except ValueError as exc:
             raise ChangeSheetTrustError("stored change sheet timestamp envelope is invalid") from exc
-        self._validate_attestation(attestation=attestation, expected_digest=digest, expected_subject_ref=expected_subject)
+        self._validate_attestation(
+            attestation=attestation,
+            expected_digest=digest,
+            expected_subject_ref=stored_subject,
+        )
         body = {
             "tenant_id": str(row["tenant_id"]), "finding_id": str(row["finding_id"]),
-            "sheet_id": sheet_id, "sheet_sha256": digest, "subject_ref": expected_subject,
+            "sheet_id": sheet_id, "sheet_sha256": digest, "subject_ref": stored_subject,
             "attestation": attestation.as_dict(), "recorded_at": str(row["recorded_at"]),
         }
         expected_hash = sha256_hex(body)
