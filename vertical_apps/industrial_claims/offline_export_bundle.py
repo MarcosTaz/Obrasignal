@@ -229,7 +229,7 @@ def build_offline_verification_export_bundle(
 
     bundle: dict[str, Any] = {
         "schema_version": 1,
-        "deliverable": "CAUSLEDGER_CONFIDENTIAL_OFFLINE_VERIFICATION_BUNDLE",
+        "deliverable": "VINDORUM_CONFIDENTIAL_OFFLINE_VERIFICATION_BUNDLE",
         "confidential": True,
         "core_package": dict(core_package),
         "proof_manifest": dict(manifest),
