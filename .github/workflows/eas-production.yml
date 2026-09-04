@@ -46,9 +46,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: '22.13.1'
           cache: npm
-          cache-dependency-path: mobile/package-lock.json
+          cache-dependency-path: mobile/package.json
 
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
@@ -56,11 +56,11 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Install locked dependencies
-        run: npm ci --no-audit --no-fund
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
 
       - name: Verify Expo project before native build
-        run: npx expo-doctor
+        run: npx expo-doctor@latest
 
       - name: Build and wait for production binary
         run: eas build --platform android --profile production --non-interactive --wait
@@ -91,9 +91,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: '22.13.1'
           cache: npm
-          cache-dependency-path: mobile/package-lock.json
+          cache-dependency-path: mobile/package.json
 
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
@@ -101,11 +101,11 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Install locked dependencies
-        run: npm ci --no-audit --no-fund
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
 
       - name: Verify Expo project before native build
-        run: npx expo-doctor
+        run: npx expo-doctor@latest
 
       - name: Build and wait for production binary
         run: eas build --platform ios --profile production --non-interactive --wait
