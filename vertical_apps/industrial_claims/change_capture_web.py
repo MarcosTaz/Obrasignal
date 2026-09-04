@@ -33,6 +33,21 @@ def _canonical_vindorum_sheet(sheet: str) -> tuple[str, str]:
     return f"{canonical_body}{marker} {digest}\n", digest
 
 
+class _VindorumChangeCaptureView:
+    """Expose canonical VINDORUM sheet bytes without rewriting legacy storage IDs."""
+
+    def __init__(self, delegate: ChangeCaptureStore) -> None:
+        self._delegate = delegate
+        self.path = delegate.path
+
+    def __getattr__(self, name: str):
+        return getattr(self._delegate, name)
+
+    def render_sheet(self, *, tenant_id: str, finding_id: str) -> tuple[str, str]:
+        sheet, _legacy_digest = self._delegate.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
+        return _canonical_vindorum_sheet(sheet)
+
+
 def create_change_capture_blueprint(
     *,
     store: ChangeCaptureStore,
@@ -42,19 +57,22 @@ def create_change_capture_blueprint(
     reminder_service: ChangeCaptureReminderService | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("causledger_change_capture", __name__)
+    canonical_store = _VindorumChangeCaptureView(store)
     active_trust = trust_service or ChangeSheetTrustService(
         store.path,
-        capture_store=store,
+        capture_store=canonical_store,
         qualified_timestamp_provider=ProofProviderBundle.fail_closed().qualified_timestamp,
     )
+    active_trust.capture_store = canonical_store
     supplements = supplement_store or LateChangeSupplementStore(
         store.path,
         capture_store=store,
     )
     reminders = reminder_service or ChangeCaptureReminderService(
         store.path,
-        capture_store=store,
+        capture_store=canonical_store,
     )
+    reminders.capture_store = canonical_store
 
     def json_object() -> dict[str, Any]:
         payload = request.get_json(force=True)
@@ -150,8 +168,7 @@ def create_change_capture_blueprint(
         try:
             tenant_id, actor_id = capture_identity()
             status = store.status(tenant_id=tenant_id, finding_id=finding_id)
-            sheet, _stored_digest = store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
-            sheet, digest = _canonical_vindorum_sheet(sheet)
+            sheet, digest = canonical_store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
             payload = active_trust.detached_export_payload(sheet, digest)
             timestamp = active_trust.attest_snapshot(
                 tenant_id=tenant_id,
