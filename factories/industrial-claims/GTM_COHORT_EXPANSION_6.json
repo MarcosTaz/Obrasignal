@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "product": "Supplier Recovery",
+  "researched_as_of": "2026-09-04",
+  "purpose": "expand the first four evidence-grounded buyer hypotheses to ten total named buyer targets without inventing contact or market proof",
+  "commercial_truth": {
+    "outbound_sent": false,
+    "buyer_interest_proven": false,
+    "customer_leakage_proven": false,
+    "recoverable_value_proven": false,
+    "paid_customer_proven": false,
+    "confidential_documents_requested": false,
+    "enrichment_credits_used": false
+  },
+  "targets": [
+    {
+      "account_id": "plastifa-pt",
+      "company": "PLASTIFA - Plásticos Técnicos, Lda.",
+      "country": "Portugal",
+      "public_fit": "Technical-plastics manufacturer with industrial/automotive supplier relevance; suitable for discovery of customer-driven program/change cost handling only, without assuming leakage.",
+      "target_person": "Manuel Carvalho",
+      "target_role": "Gerente / CEO",
+      "role_confidence": "HIGH_RECENT_PUBLIC_BUSINESS_SOURCE",
+      "role_sources": [
+        {
+          "url": "https://scoring.pt/empresas/plastifa/",
+          "observed": "2026-09-04",
+          "evidence": "Current SCORING company page identifies Manuel Carvalho as Gerente / CEO and records the company's 2025 Top 5% certification."
+        },
+        {
+          "url": "https://scoringiberia.pt/top10/",
+          "observed": "2026-09-04",
+          "evidence": "SCORING Iberia Top 10 page identifies Manuel Carvalho as CEO of PLASTIFA."
+        }
+      ],
+      "contact_route": "PUBLIC_LINKEDIN_OR_COMPANY_CHANNEL_ONLY",
+      "email": null,
+      "phone": null,
+      "role_recheck_required_before_outbound": false,
+      "metadata_triage_status": "ACCOUNT_FIT_RESEARCHED_PERSON_ROLE_CONFIRMED",
+      "outbound_authorized": false
+    },
+    {
+      "account_id": "swj-portugal-pt",
+      "company": "SWJ Portugal - Engineering Solutions, Unipessoal Lda.",
+      "country": "Portugal",
+      "public_fit": "Engineering-solutions company serving complex industrial programs; a strong discovery fit for customer-driven engineering/change cost workflows without assuming any unrecovered value.",
+      "target_person": "Stefan Hartmann",
+      "target_role": "Executive Director / Management",
+      "role_confidence": "HIGH_CURRENT_OFFICIAL_SOURCE",
+      "role_sources": [
+        {
+          "url": "https://swj-pt.com/en/the-swj/",
+          "published": "2026",
+          "observed": "2026-09-04",
+          "evidence": "Official SWJ Portugal site lists Stefan Hartmann as Executive Director of SWJ Portugal."
+        },
+        {
+          "url": "https://swj-pt.com/en/imprint/",
+          "published": "2026",
+          "observed": "2026-09-04",
+          "evidence": "Official SWJ Portugal imprint lists Stefan Hartmann under Management."
+        }
+      ],
+      "public_company_contact_source": {
+        "url": "https://swj-pt.com/en/imprint/",
+        "generic_email": "info@swj-pt.com",
+        "generic_phone": "+351 926136267",
+        "note": "Official generic company contact only; not a personal address and not authorization to send."
+      },
+      "contact_route": "PUBLIC_COMPANY_CHANNEL_AVAILABLE",
+      "email": null,
+      "phone": null,
+      "role_recheck_required_before_outbound": false,
+      "metadata_triage_status": "ACCOUNT_FIT_RESEARCHED_PERSON_ROLE_CONFIRMED",
+      "outbound_authorized": false
+    },
+    {
+      "account_id": "transformade-pt",
+      "company": "TRANSFORMADE",
+      "country": "Portugal",
+      "public_fit": "Vehicle-transformation and engineering business delivering tailored operational solutions; suitable for discovery of customer-directed engineering/change economics only.",
+      "target_person": "Ruben Lopes",
+      "target_role": "CEO (one of the company's CEOs)",
+      "role_confidence": "HIGH_RECENT_COMPANY_POST_PLUS_SECONDARY",
+      "role_sources": [
+        {
+          "url": "https://pt.linkedin.com/in/jorge-caldeira-823b4475",
+          "observed": "2026-09-04",
+          "evidence": "A recent TRANSFORMADE company update reproduced in the public LinkedIn result identifies Ruben Lopes as one of the company's CEOs and says he represented TRANSFORMADE at the AFIA 60-year event."
+        },
+        {
+          "url": "https://prospeo.io/c/transformade",
+          "observed": "2026-09-04",
+          "evidence": "Current business-directory result identifies Ruben Lopes as TRANSFORMADE CEO; used only as corroboration, not for email inference."
+        },
+        {
+          "url": "https://pt.linkedin.com/in/ruben-lopes-b91014118",
+          "observed": "2026-09-04",
+          "evidence": "Current public profile confirms Ruben Lopes remains associated with TRANSFORMADE and active in its 2026 industry activity."
+        }
+      ],
+      "contact_route": "PUBLIC_LINKEDIN_OR_COMPANY_CHANNEL_ONLY",
+      "email": null,
+      "phone": null,
+      "role_recheck_required_before_outbound": false,
+      "metadata_triage_status": "ACCOUNT_FIT_RESEARCHED_PERSON_ROLE_CONFIRMED",
+      "outbound_authorized": false
+    },
+    {
+      "account_id": "epalfer-pt",
+      "company": "EPALFER",
+      "country": "Portugal",
+      "public_fit": "Automotive tooling manufacturer developing and testing prototypes, progressive and transfer tools; directly compatible with discovery of customer/program change and incremental engineering/tooling cost workflows.",
+      "target_person": "Eduardo Oliveira",
+      "target_role": "General Manager and owner",
+      "role_confidence": "HIGH_CURRENT_MULTI_SOURCE",
+      "role_sources": [
+        {
+          "url": "https://pt.linkedin.com/in/eduardo-epalfer",
+          "observed": "2026-09-04",
+          "evidence": "Current public profile states Eduardo Oliveira is General Manager and owner of EPALFER."
+        },
+        {
+          "url": "https://www.intermetal.pt/Artigos/603131-Epalfer-uma-historia-de-sucesso-apoiada-pela-Autoform.html",
+          "published": "2025-07-21",
+          "observed": "2026-09-04",
+          "evidence": "InterMETAL identifies Eduardo Oliveira as founder and diretor-geral of EPALFER."
+        }
+      ],
+      "contact_route": "PUBLIC_LINKEDIN_OR_COMPANY_CHANNEL_ONLY",
+      "email": null,
+      "phone": null,
+      "role_recheck_required_before_outbound": false,
+      "metadata_triage_status": "ACCOUNT_FIT_RESEARCHED_PERSON_ROLE_CONFIRMED",
+      "outbound_authorized": false
+    },
+    {
+      "account_id": "vianaplasticos-pt",
+      "company": "VianaPlásticos",
+      "country": "Portugal",
+      "public_fit": "Plastics and molds supplier with automotive/electronics activity and ongoing industrial investment; suitable for a bounded process-discovery conversation only.",
+      "target_person": "Rene Galves",
+      "target_role": "Administrator",
+      "role_confidence": "HIGH_RECENT_COMPANY_SOURCE",
+      "role_sources": [
+        {
+          "url": "https://pt.linkedin.com/company/vianaplasticos",
+          "observed": "2026-09-04",
+          "evidence": "Current company LinkedIn page includes a recent company update identifying Rene Galves as 'our Administrator'."
+        },
+        {
+          "url": "https://vianaplasticos.com/sobre-viana/",
+          "observed": "2026-09-04",
+          "evidence": "Official company history identifies founder Rene Galves as having assumed Direcção Geral, corroborating longstanding leadership."
+        }
+      ],
+      "contact_route": "PUBLIC_LINKEDIN_OR_COMPANY_CHANNEL_ONLY",
+      "email": null,
+      "phone": null,
+      "role_recheck_required_before_outbound": false,
+      "metadata_triage_status": "ACCOUNT_FIT_RESEARCHED_PERSON_ROLE_CONFIRMED",
+      "outbound_authorized": false
+    },
+    {
+      "account_id": "mold-tech-portugal-pt",
+      "company": "Mold-Tech Portugal - Standex Engraving",
+      "country": "Portugal",
+      "public_fit": "Active Standex subsidiary in Portugal providing mold texturing/engraving and tooling-related services; relevant for discovery of customer/program-change economics without assuming any claim or leakage.",
+      "target_person": "Raul Souto",
+      "target_role": "General Manager (last explicit corporate title confirmation found in 2024; current company affiliation confirmed in 2026)",
+      "role_confidence": "MEDIUM_CURRENT_AFFILIATION_OLDER_TITLE",
+      "role_sources": [
+        {
+          "url": "https://pt.linkedin.com/in/raul-souto-69103a77",
+          "observed": "2026-09-04",
+          "evidence": "Current public profile, crawled recently, confirms Raul Souto remains with Mold-Tech Portugal."
+        },
+        {
+          "url": "https://www.linkedin.com/posts/standex-engraving-mold-tech_mold-tech-portugal-celebrates-international-activity-7172989567166214145-Hzns",
+          "observed": "2026-09-04",
+          "evidence": "Standex Engraving company post identifies Raul Souto as General Manager of Mold-Tech Portugal; title evidence is older than the current-affiliation evidence."
+        }
+      ],
+      "public_company_contact_source": {
+        "url": "https://www.mold-tech.com/contacts/",
+        "generic_email": "mtportugal@mold-tech.com",
+        "generic_phone": "+351 229 437 710",
+        "note": "Official Portugal office contact only; not a personal address and not authorization to send."
+      },
+      "contact_route": "PUBLIC_COMPANY_CHANNEL_AVAILABLE_ROLE_RECHECK_FIRST",
+      "email": null,
+      "phone": null,
+      "role_recheck_required_before_outbound": true,
+      "metadata_triage_status": "ACCOUNT_FIT_RESEARCHED_CURRENT_AFFILIATION_TITLE_RECHECK_REQUIRED",
+      "outbound_authorized": false
+    }
+  ]
+}
