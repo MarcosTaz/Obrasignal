@@ -10,10 +10,27 @@ from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, C
 from vertical_apps.industrial_claims.change_capture_reminder import ChangeCaptureReminderError, ChangeCaptureReminderService
 from vertical_apps.industrial_claims.change_sheet_trust import ChangeSheetTrustError, ChangeSheetTrustService
 from vertical_apps.industrial_claims.change_supplement import ChangeSupplementError, LateChangeSupplementStore
+from vertical_apps.industrial_claims.proof import sha256_hex
 from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
 
 
 IdentityResolver = Callable[[], tuple[str, str]]
+
+
+def _canonical_vindorum_sheet(sheet: str) -> tuple[str, str]:
+    marker = "\nSnapshot SHA-256:"
+    body, separator, _old_digest = sheet.rpartition(marker)
+    if not separator:
+        raise ChangeCaptureError("change sheet snapshot digest marker is missing")
+    canonical_body = body.replace(
+        "CAUSLEDGER — CHANGE CAPTURE SHEET",
+        "VINDORUM — CHANGE CAPTURE SHEET",
+    ).replace(
+        "CausLedger first recorded at:",
+        "VINDORUM first recorded at:",
+    )
+    digest = sha256_hex(canonical_body.encode("utf-8"))
+    return f"{canonical_body}{marker} {digest}\n", digest
 
 
 def create_change_capture_blueprint(
@@ -133,7 +150,8 @@ def create_change_capture_blueprint(
         try:
             tenant_id, actor_id = capture_identity()
             status = store.status(tenant_id=tenant_id, finding_id=finding_id)
-            sheet, digest = store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
+            sheet, _stored_digest = store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
+            sheet, digest = _canonical_vindorum_sheet(sheet)
             payload = active_trust.detached_export_payload(sheet, digest)
             timestamp = active_trust.attest_snapshot(
                 tenant_id=tenant_id,
