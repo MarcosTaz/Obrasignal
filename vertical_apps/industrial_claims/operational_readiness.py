@@ -54,8 +54,8 @@ def _declared(name: str) -> bool:
 
 
 def _external_proof_checks() -> tuple[ReadinessCheck, ReadinessCheck]:
-    worm = _declared("CERTACTUM_WORM_PROVIDER")
-    timestamp = _declared("CERTACTUM_TIMESTAMP_PROVIDER")
+    worm = _declared("SUPPLIER_RECOVERY_WORM_PROVIDER")
+    timestamp = _declared("SUPPLIER_RECOVERY_TIMESTAMP_PROVIDER")
     return (
         ReadinessCheck("worm_storage", "pass" if worm else "fail", "worm_provider_declared" if worm else "worm_provider_pending", True),
         ReadinessCheck("trusted_timestamp", "pass" if timestamp else "fail", "timestamp_provider_declared" if timestamp else "timestamp_provider_pending", True),
@@ -71,7 +71,7 @@ def build_operational_readiness(database: str | Path) -> dict[str, object]:
     database_ready = next(check.status == "pass" for check in checks if check.name == "database")
     real_evidence_intake_enabled = database_ready and auth_ready and external_proof_ready and not blocking_failures
     return {
-        "product": "Certactum",
+        "product": "Supplier Recovery",
         "status": "ready" if real_evidence_intake_enabled and not warnings else ("ready_with_warnings" if real_evidence_intake_enabled else "not_ready"),
         "blocking_failures": blocking_failures,
         "warnings": warnings,
