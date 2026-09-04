@@ -42,6 +42,25 @@ jobs:
             test -n "${!name}" || { echo "Missing required production E2E secret: $name"; exit 1; }
           done
 
+          # A push can start this workflow before Render has finished deploying
+          # the same commit. Never seed/validate Radar against an older backend
+          # and then attribute that result to TARGET_BUILD.
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 15 "$API_URL/health" > /tmp/health.json \
+              && TARGET_BUILD="$TARGET_BUILD" python - <<'PY'
+          import json, os
+          health=json.load(open('/tmp/health.json', encoding='utf-8'))
+          assert health.get('ok') is True
+          assert health.get('build') == os.environ['TARGET_BUILD'], (health.get('build'), os.environ['TARGET_BUILD'])
+          PY
+            then
+              echo "Exact production backend is live."
+              break
+            fi
+            test "$attempt" != 30 || { echo "Exact production backend never became live."; cat /tmp/health.json 2>/dev/null || true; exit 1; }
+            sleep 10
+          done
+
           BASE_URL="${SUPABASE_URL%/}"
           BASE_URL="${BASE_URL%/rest/v1}"
           BODY="$(python - <<'PY'
