@@ -6,37 +6,29 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 13,
-  "last_factory_id": "machine-release-safety",
-  "last_run_at": "2026-09-04T02:38:08Z",
+  "cursor": 16,
+  "last_factory_id": "paper-laminate-works",
+  "last_run_at": "2026-09-04T03:40:21Z",
   "last_material_change": {
-    "kind": "MACHINE_RELEASE_SAFETY_INTEGRATION_STALE",
-    "summary": "LongLead had no dedicated repository authority recovered, so rotation continued. MachineRelease Safety PR #345 is OPEN/NOT MERGED at exact head 672e535f0b04f27d967ae3c174bd871fc0a56893. Exact-head ObraSignal Quality run 32900014033 is SUCCESS, but GitHub currently reports mergeable=false while canonical main is cdcbf3454459d46a777361487fdfa0afab1c1fb7. Treat repository code evidence as GREEN but current integration readiness as NOT PROVED. No merge or deploy performed.",
+    "kind": "K3_WARRANTYGUARD_PAPER_LAMINATE_AUTHORITY_NOT_RECOVERED",
+    "summary": "Fleet rotation continued from K3 through WarrantyGuard and Paper-Laminate Works. Current default-branch code search recovered no dedicated repository authority for any of these three registered lanes, so no false engineering progress was claimed and no public-repo commercial truth was invented. Open-PR inventory confirms the repository is active and main remains cdcbf3454459d46a777361487fdfa0afab1c1fb7 on current PR bases, but no exact owner candidate for these three lanes was recovered in this run. Gmail inbound watch was attempted again and remains unavailable because the connector requires interactive authorization; no 'no replies' inference was made. No outbound, merge, deploy, payment, secret/config or customer-data mutation occurred.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "longlead": {
-        "dedicated_authority_recovered": false
-      },
-      "machine_release_safety": {
-        "pull_request": 345,
-        "exact_head": "672e535f0b04f27d967ae3c174bd871fc0a56893",
-        "quality_run": 32900014033,
-        "quality_conclusion": "success",
-        "mergeable": false,
-        "canonical_main": "cdcbf3454459d46a777361487fdfa0afab1c1fb7",
-        "automatic_merge_authorized": false
-      },
-      "causledger_inbound_watch": {
-        "status": "NOT_CHECKED_CONNECTOR_AUTH_REQUIRED",
-        "outbound_sent": false
-      }
+      "k3_fatality": {"dedicated_authority_recovered": false},
+      "warrantyguard": {"dedicated_authority_recovered": false, "prior_red_state_preserved": true},
+      "paper_laminate_works": {"dedicated_authority_recovered": false},
+      "repository": {"canonical_main_observed_on_current_open_pr_base": "cdcbf3454459d46a777361487fdfa0afab1c1fb7"},
+      "causledger_inbound_watch": {"status": "NOT_CHECKED_CONNECTOR_AUTH_REQUIRED", "outbound_sent": false}
     },
-    "active": "K3 Fatality / Probability Intelligence",
-    "next": "K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety",
+    "active": "Documentary Billing / Documentary Spend Intelligence",
+    "next": "Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works",
     "wait": [
       "Portugal outbound requires current DGC-list recipient screening immediately before send.",
       "Spain unsolicited commercial email/follow-up hold remains active.",
-      "Gmail inbound watch was not completed because connector authorization was unavailable in this run; do not infer no inbound.",
+      "Gmail inbound watch remains unavailable because connector authorization requires interactive user input; do not infer no inbound.",
+      "K3 Fatality dedicated repository authority was not recovered on current default-branch search.",
+      "WarrantyGuard dedicated repository authority was not recovered; prior RED state remains authoritative until an exact-head successor is recovered.",
+      "Paper-Laminate Works dedicated repository authority was not recovered on current default-branch search.",
       "LongLead dedicated repository authority was not recovered.",
       "MachineRelease Safety PR #345 exact-head CI is GREEN but current integration readiness is NOT PROVED because mergeable=false against advanced main.",
       "Capacity Commitment PR #729 remains exact-head RED until a successor proves otherwise.",
@@ -47,8 +39,7 @@
       "Factory Cloud persistent external host remains unproved provisioned.",
       "EU Switching Evidence Pack remains non-canonical and repository-repair-only.",
       "Release Safety rollback remains UNPROVEN.",
-      "Customer Decision and Global Market Entry retain prior RED/non-canonical blockers until exact-head successors prove otherwise.",
-      "WarrantyGuard retains prior RED state until exact-head successor proves otherwise."
+      "Customer Decision and Global Market Entry retain prior RED/non-canonical blockers until exact-head successors prove otherwise."
     ]
   },
   "blocked": [],
