@@ -13,6 +13,18 @@ const TRANSLATE_ELEMENT_ID = 'obrasignal-google-translate'
 const TRANSLATE_SCRIPT_ID = 'obrasignal-google-translate-script'
 const SUPPORT_EMAIL = 'obrasignal.pt@gmail.com'
 
+const PRIVATE_TENANT_BIND_TIMEOUT_MS = 4500
+
+function withTimeout(promise, ms, message) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms)
+    Promise.resolve(promise).then(
+      value => { clearTimeout(timer); resolve(value) },
+      error => { clearTimeout(timer); reject(error) },
+    )
+  })
+}
+
 const LEGAL_CONTENT = {
   privacy: {
     title: 'Privacidade',
@@ -171,7 +183,7 @@ export default function AuthGate({ children }) {
           const signedIn = nextState.status === 'signed-in'
           const accountId = signedIn ? nextState.session?.user?.id : null
           if (signedIn && !accountId) throw new Error('Authenticated session is missing user.id')
-          await storage.bindPrivateTenant(accountId)
+          await withTimeout(storage.bindPrivateTenant(accountId), PRIVATE_TENANT_BIND_TIMEOUT_MS, 'Private tenant binding timed out')
           if (!active || currentGeneration !== generation) return
           setAuthState(nextState)
           setTenantStatus('ready')

@@ -5,14 +5,24 @@ export default function WebIntro({ onComplete }) {
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    let completed = false;
+    const finish = () => {
+      if (completed) return;
+      completed = true;
+      onComplete?.();
+    };
     const animation = Animated.timing(progress, {
       toValue: 1,
       duration: 6500,
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     });
-    animation.start(({ finished }) => { if (finished) onComplete?.(); });
-    return () => animation.stop();
+    const watchdog = setTimeout(finish, 7200);
+    animation.start(({ finished }) => { if (finished) finish(); });
+    return () => {
+      clearTimeout(watchdog);
+      animation.stop();
+    };
   }, [onComplete, progress]);
 
   const dotX = progress.interpolate({ inputRange: [0, .11, .22, .33, .44, .52, .62, 1], outputRange: [-170, -75, 85, -85, 75, 0, 0, 0] });

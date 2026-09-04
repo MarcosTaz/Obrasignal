@@ -3,6 +3,7 @@ import fs from 'node:fs';
 const app = fs.readFileSync(new URL('./App.js', import.meta.url), 'utf8');
 const webApp = fs.readFileSync(new URL('./App.web.js', import.meta.url), 'utf8');
 const authGate = fs.readFileSync(new URL('./components/AuthGate.js', import.meta.url), 'utf8');
+const webIntro = fs.readFileSync(new URL('./components/WebIntro.js', import.meta.url), 'utf8');
 const authScreen = fs.readFileSync(new URL('./components/AuthScreen.tsx', import.meta.url), 'utf8');
 const passwordRecovery = fs.readFileSync(new URL('./components/PasswordRecovery.js', import.meta.url), 'utf8');
 const billingGate = fs.readFileSync(new URL('./components/BillingGate.js', import.meta.url), 'utf8');
@@ -61,6 +62,12 @@ requireMatch('native load-more uses next_offset', app, /offset:page\.next_offset
 requireMatch('native deduplicates appended opportunity ids', app, /new Map\(\[\.\.\.current,\.\.\.fresh\]/);
 requireMatch('native exposes load-more action', app, /Carregar mais oportunidades/);
 requireMatch('native separates draft search from applied search', app, /\[appliedSearch,setAppliedSearch\]/);
+
+// Startup must always converge even when Safari/browser storage or animation callbacks stall.
+requireMatch('private tenant binding has a bounded startup deadline', authGate, /PRIVATE_TENANT_BIND_TIMEOUT_MS\s*=\s*4500/);
+requireMatch('private tenant binding uses the bounded helper', authGate, /withTimeout\(storage\.bindPrivateTenant\(accountId\), PRIVATE_TENANT_BIND_TIMEOUT_MS/);
+requireMatch('web intro has an independent watchdog', webIntro, /setTimeout\(finish, 7200\)/);
+requireMatch('web intro watchdog is cleared on unmount', webIntro, /clearTimeout\(watchdog\)/);
 
 // Session utilities and recovery are permanently reachable from the authenticated shell.
 requireMatch('persistent web session bar contains logout', authGate, /Terminar sessão/);

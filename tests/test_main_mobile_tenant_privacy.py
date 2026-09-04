@@ -16,7 +16,8 @@ def test_all_customer_local_state_is_tenant_private_on_main():
 
 def test_authenticated_shell_waits_for_private_tenant_binding():
     assert "import { storage } from '../src/storage'" in AUTH_GATE
-    assert 'await storage.bindPrivateTenant(accountId)' in AUTH_GATE
+    assert 'withTimeout(storage.bindPrivateTenant(accountId), PRIVATE_TENANT_BIND_TIMEOUT_MS' in AUTH_GATE
+    assert "setTenantStatus('error')" in AUTH_GATE
     assert "setTenantStatus('loading')" in AUTH_GATE
     assert "tenantStatus === 'loading'" in AUTH_GATE
     assert "nextState.session?.user?.id" in AUTH_GATE
