@@ -6,6 +6,7 @@ import BillingGate from './BillingGate'
 import PasswordRecovery from './PasswordRecovery'
 import { supabase } from '../lib/supabase'
 import { ensureBackendReady } from '../src/api'
+import { trackTraffic } from '../src/analytics'
 import { authSession } from '../src/authSession'
 import { storage } from '../src/storage'
 
@@ -32,9 +33,10 @@ const LEGAL_CONTENT = {
     sections: [
       ['Que dados tratamos', 'A conta usa o email e a identidade técnica do fornecedor de autenticação. O produto guarda, por conta, o perfil da empresa, preferências, decisões, estados de workflow, notas e outros dados necessários para prestar o serviço. Os anúncios e concursos provenientes de fontes públicas não são dados privados da conta.'],
       ['Para que usamos os dados', 'Usamos os dados da conta para autenticação, isolamento entre clientes, personalização do Radar, persistência do trabalho, suporte, segurança e, quando aplicável, ativação e gestão comercial do plano. Não apresentamos dados sintéticos como dados reais.'],
+      ['Medição privada de acesso', 'Medimos de forma privada a utilização de obrasignal.com para perceber tráfego e desempenho comercial: página visitada, origem/referrer e campanha quando existam, dispositivo, idioma, fuso horário e, quando a infraestrutura a fornece, geografia aproximada como país, região ou cidade. Não guardamos o endereço IP bruto e não criamos cookie nem identificador em localStorage para esta medição. Os identificadores técnicos usados para estimar visitantes são HMAC rotativos e destinam-se apenas a métricas agregadas, segurança e melhoria do serviço. A contagem não é apresentada publicamente no site.'],
       ['Fornecedores e fronteiras externas', 'A autenticação é prestada através de Supabase. Quando a faturação automática estiver configurada, o estado de compra/subscrição pode ser processado através de RevenueCat e do respetivo canal de pagamento. O Google Translate só é carregado quando o utilizador ativa voluntariamente o tradutor na sessão Web.'],
       ['Exportação e eliminação', 'Depois de entrar, “Conta e privacidade” permite preparar uma exportação dos dados canónicos atuais do produto e pedir a eliminação dos dados privados. A aplicação não declara concluída a eliminação de identidade, sessões ou faturação externa sem confirmação desses fornecedores.'],
-      ['Segurança e retenção', 'Aplicamos separação por conta e controlos de autenticação no serviço. Conservamos dados enquanto forem necessários para operar a conta, preservar integridade/auditoria do serviço e cumprir obrigações aplicáveis; pedidos de eliminação são tratados pelos controlos autenticados e pelo suporte.'],
+      ['Segurança e retenção', 'Aplicamos separação por conta e controlos de autenticação no serviço. Conservamos dados enquanto forem necessários para operar a conta, preservar integridade/auditoria do serviço e cumprir obrigações aplicáveis; pedidos de eliminação são tratados pelos controlos autenticados e pelo suporte. A telemetria de acesso é minimizada e não conserva IP bruto.'],
       ['Contacto', `Para questões de privacidade, correções ou suporte: ${SUPPORT_EMAIL}.`],
     ],
   },
@@ -171,6 +173,7 @@ export default function AuthGate({ children }) {
   useEffect(() => {
     let active = true
     let generation = 0
+    let trackedAccountId = null
     let bindingQueue = Promise.resolve()
 
     const update = (nextState) => {
@@ -187,7 +190,15 @@ export default function AuthGate({ children }) {
           if (!active || currentGeneration !== generation) return
           setAuthState(nextState)
           setTenantStatus('ready')
-          if (signedIn) ensureBackendReady().catch(() => {})
+          if (signedIn) {
+            ensureBackendReady().catch(() => {})
+            if (accountId !== trackedAccountId) {
+              trackedAccountId = accountId
+              trackTraffic('authenticated_session').catch(() => {})
+            }
+          } else {
+            trackedAccountId = null
+          }
         })
         .catch(() => {
           if (!active || currentGeneration !== generation) return
