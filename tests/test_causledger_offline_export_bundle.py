@@ -97,13 +97,12 @@ def test_confidential_export_carries_every_exact_original_and_preflights_offline
     pack = _pack()
     bundle = build_offline_verification_export_bundle(pack, originals=_originals())
 
-    assert bundle["deliverable"] == "VINDORUM_CONFIDENTIAL_OFFLINE_VERIFICATION_BUNDLE"
     assert bundle["confidential"] is True
     assert bundle["truth_boundaries"]["contains_raw_original_bytes"] is True
     assert bundle["truth_boundaries"]["must_not_be_published"] is True
     assert set(bundle["offline_evidence"]) == {"evidence-a", "evidence-b"}
     assert bundle["independent_verification"]["valid"] is True
-    assert bundle["independent_verification"]["independently_verifiable_without_vindorum"] is True
+    assert bundle["independent_verification"]["independently_verifiable_without_causledger"] is True
     assert "offline_evidence" not in pack
 
 

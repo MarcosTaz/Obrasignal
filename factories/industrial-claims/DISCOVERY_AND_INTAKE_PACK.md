@@ -1,88 +1,84 @@
-# VINDORUM — DISCOVERY & INTAKE CONTRACT
+# CAUSLEDGER — DISCOVERY & DOCUMENT INTAKE PACK
 
-## Objective
-Qualify a bounded customer/OEM-caused engineering/change/NRE case without a meeting and without manufacturing a recovery number before evidence exists.
+## 20-minute discovery objective
+Determine whether one historical customer-caused engineering/change/NRE case is suitable for a bounded evidence-first rapid scan. Do not sell a recovery number before documents exist.
 
-## Phase A — Free Exposure Check
-Until real-document intake is genuinely GREEN, VINDORUM accepts only non-confidential metadata and customer-declared facts.
+## Discovery questions
+1. What customer/OEM/program created the change or disruption?
+2. What exactly changed: drawing, scope, validation, timing, volume, launch requirement, tooling or other instruction?
+3. Was the change documented and by whom?
+4. Which incremental costs arose only because of that change?
+5. How are those costs currently tracked and who owns recovery internally?
+6. What contract/PO/change-order language may support or limit customer responsibility?
+7. What credits, payments, settlements, reuse or mitigation have already occurred?
+8. Was notice required? If so, what date/method/recipient applies?
+9. What evidence would weaken or defeat the case?
+10. What would make a rapid scan useful even if the conclusion is NO CLAIM?
 
-Allowed fields:
-- supplier industry and approximate size band;
-- customer/OEM type or anonymized identifier;
-- program/change type and approximate date range;
-- approximate gross-cost band;
-- whether a PO/contract/change document exists: YES / NO / UNKNOWN;
-- whether an engineering/NRE cost source exists: YES / NO / UNKNOWN;
-- whether any claim was submitted: YES / NO / UNKNOWN;
-- whether any value was approved/credited/paid: YES / NO / UNKNOWN;
-- whether notice/deadline rules may exist: YES / NO / UNKNOWN;
-- internal owner role.
+## Qualification result
+Choose one:
+- `NO_FIT`: no documentary customer/event/cost chain or economics too small;
+- `NEEDS_PREQUALIFICATION`: problem plausible but buyer/documents unclear;
+- `RAPID_SCAN_CANDIDATE`: bounded historical case + minimum evidence exists;
+- `SPECIALIST_REVIEW_FIRST`: legal/regulatory/technical interpretation is primary blocker.
 
-Phase A may route fit. It may not establish evidence support, legal entitlement or a precise recoverable amount.
-
-## Metadata qualification score
-Score only observable answers:
-- +2 identifiable customer/OEM-driven change/event;
-- +2 incremental cost source known to exist;
-- +2 commercial basis/PO/change document known to exist;
-- +1 prior claim/approval/payment state reconstructable;
-- +1 notice/deadline process known or checkable;
-- +1 named internal economic owner;
-- +1 approximate exposure comfortably above the likely scan fee.
-
-Routing:
-- `0–3` → `NO_FIT` / weak fit;
-- `4–6` → `NEEDS_PREQUALIFICATION`;
-- `7–10` → `METADATA_QUALIFIED`.
-
-This is a routing score, not a recoverability score.
-
-## Phase B — Secure evidence intake
-Confidential source documents may be accepted only when the automated readiness result has `real_evidence_intake_enabled=true`.
-
-Required controls:
-- production authentication and account recovery;
-- authorized tenant/case binding;
-- secure case-bound transfer;
-- immutable/WORM storage actually configured and probed;
-- trusted timestamping actually configured and probed;
-- tenant/case separation;
-- retention/deletion policy;
-- exclusion of credentials, secrets and unrelated personal data;
-- required privacy/NDA/DPA/legal controls;
-- incident handling and security review appropriate to production use.
-
-If any required control is false or unknown, VINDORUM remains metadata-only.
-
-## Minimum bounded evidence set
-After the gate is green, request only what the case needs:
-1. relevant PO/contract/commercial terms or bounded excerpt;
-2. customer ECN/change order/instruction/release/cancellation evidence;
-3. engineering/NRE cost source or equivalent;
-4. prior credit/payment/settlement evidence, or explicit unknown state;
-5. notice/deadline evidence when applicable.
+## Minimum document sample for NRE/change-cost rapid scan
+Request the smallest set that can falsify or support the hypothesis:
+1. relevant PO / contract / commercial terms or excerpt;
+2. customer ECN/change order/instruction/email/release/cancellation evidence;
+3. engineering/NRE cost source: time ledger, invoice, subcontractor charge, validation invoice or equivalent;
+4. prior credit/payment/settlement evidence or confirmation that reconciliation is pending;
+5. notice/deadline correspondence if available.
 
 Do not request an entire ERP export, mailbox or contract library for the first scan.
 
-## Automated intake sequence
-1. create tenant/case-bound upload authority;
-2. receive only approved evidence categories;
-3. preserve immutable original, source metadata and hash;
-4. extract propositions with provenance;
-5. surface conflicts/missing evidence;
-6. ask the customer to confirm or correct extracted facts;
-7. reconcile `documented cost → mitigation → evidence-supported → claimed → approved → settled`;
-8. generate the VINDORUM Recovery Dossier;
-9. expose a bounded next action in the claim workspace.
+## Data-handling gate before real documents
+Before receiving non-public customer documents into the product runtime:
+- identify the customer/prospect and authorized sender;
+- agree the permitted document set and purpose;
+- confirm a secure transfer channel;
+- confirm tenant/case separation;
+- avoid credentials, secrets and unrelated personal data;
+- record whether source content may be retained, or whether only hashes/metadata may persist;
+- do not upload real documents to an unverified external runtime;
+- delete/return temporary working copies according to the agreed handling rule;
+- escalate legal/NDA/DPA requirements when requested or materially necessary.
 
-## Fail-closed outputs
-Allowed outputs include:
-- `NO CLAIM / INSUFFICIENT EVIDENCE`;
-- `NEEDS EVIDENCE`;
-- `DOCUMENTED CANDIDATE FOR CUSTOMER/INDEPENDENT REVIEW`;
-- `CUSTOMER-CONFIRMED WORKFLOW CANDIDATE`.
+## Preferred early transfer pattern
+Until external runtime identity/session provisioning is verified:
+1. prospect confirms willingness to share a bounded sample;
+2. create a prospect-specific authorized secure folder/channel;
+3. receive only the agreed sample;
+4. perform controlled human review;
+5. put only permitted metadata/hash lineage into CausLedger;
+6. deliver dossier through an agreed secure channel;
+7. do not reuse data for another prospect/case.
 
-A large cost number without causation/commercial-basis evidence is never enough to promote a case.
+## Rapid scan checklist
+- [ ] customer/program/event identified
+- [ ] contract/PO/change source identified
+- [ ] event chronology plausible
+- [ ] causation tested against supplier/internal causes
+- [ ] customer responsibility basis located or marked unresolved
+- [ ] cost source reconciled
+- [ ] mitigation/prior recovery checked
+- [ ] currency explicit
+- [ ] notice/deadline known or marked unknown
+- [ ] contrary evidence recorded
+- [ ] duplicate exposure checked
+- [ ] next missing document named
+- [ ] disposition chosen without inflation
 
-## Payment boundary
-A paid Recovery Scan unlocks only after server-side payment verification. Browser/client checkout success alone cannot authorize paid analysis or confidential processing.
+## Rapid scan output
+One page maximum for the first commercial decision:
+- case hypothesis;
+- evidence present;
+- evidence missing;
+- preliminary net-potential reconstruction only if supported;
+- causation/responsibility state;
+- notice/deadline risk;
+- disposition: NO CLAIM / NEEDS REVIEW / FORENSIC AUDIT CANDIDATE;
+- fixed-scope proposal if deeper work is justified.
+
+## Paid-audit conversion trigger
+Offer a paid audit only if the scan shows enough economic materiality and documentary support that a professional dossier could create decision value. A large gross-cost number without responsibility/causation evidence is not a conversion trigger.

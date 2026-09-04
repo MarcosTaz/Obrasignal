@@ -195,7 +195,7 @@ def verify_bundle(
     *,
     external_verifiers: Mapping[str, ExternalVerifier] | None = None,
 ) -> dict[str, Any]:
-    """Verify a VINDORUM Proof Pack without treating VINDORUM assertions as trust anchors.
+    """Verify a Proof Pack without treating CausLedger assertions as trust anchors.
 
     The JSON bundle may include ``offline_evidence`` keyed by evidence_id with exact
     ``content_base64`` bytes. External receipts marked VERIFIED/VALID require an
@@ -209,7 +209,7 @@ def verify_bundle(
         return {
             "valid": False,
             "manifest_integrity_valid": False,
-            "independently_verifiable_without_vindorum": False,
+            "independently_verifiable_without_causledger": False,
             "errors": ["BUNDLE_STRUCTURE_INVALID"],
             "warnings": [],
         }
@@ -241,7 +241,7 @@ def verify_bundle(
         **manifest_result,
         "valid": independent,
         "manifest_integrity_valid": manifest_integrity_valid,
-        "independently_verifiable_without_vindorum": independent,
+        "independently_verifiable_without_causledger": independent,
         "errors": errors,
         "warnings": warnings,
         "offline_originals": original_result,
@@ -255,12 +255,12 @@ def verify_bundle(
             "evidence_attestation_exact_digest_binding",
             "independent_external_attestation_verifiers",
         ],
-        "trust_model": "DO NOT TRUST VINDORUM STATE LABELS; REHASH ORIGINAL BYTES AND VERIFY EXTERNAL RECEIPTS WITH INDEPENDENT TRUST MATERIAL.",
+        "trust_model": "DO NOT TRUST CAUSLEDGER STATE LABELS; REHASH ORIGINAL BYTES AND VERIFY EXTERNAL RECEIPTS WITH INDEPENDENT TRUST MATERIAL.",
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Offline verifier for a VINDORUM Proof Pack JSON bundle")
+    parser = argparse.ArgumentParser(description="Offline verifier for a CausLedger Proof Pack JSON bundle")
     parser.add_argument("bundle", type=Path)
     args = parser.parse_args()
     try:
@@ -272,8 +272,8 @@ def main() -> int:
     print(json.dumps(result, indent=2, sort_keys=True))
     # The CLI is intentionally stricter than a manifest-only integrity checker: a
     # third party gets success only when every original and every VERIFIED external
-    # receipt was independently checked without trusting VINDORUM servers.
-    return 0 if result.get("independently_verifiable_without_vindorum") is True else 1
+    # receipt was independently checked without trusting CausLedger servers.
+    return 0 if result.get("independently_verifiable_without_causledger") is True else 1
 
 
 if __name__ == "__main__":

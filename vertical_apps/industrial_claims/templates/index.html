@@ -3,30 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VINDORUM — Recovery Console</title>
+  <title>Certactum — Industrial Claims</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='console.css') }}">
   <script src="{{ url_for('static', filename='console.js') }}" defer></script>
 </head>
 <body>
   <header>
-    <div class="eyebrow">Exception review control</div>
-    <h1>VINDORUM</h1>
-    <p>The normal customer journey is self-service. This console exists for bounded evidence, ambiguity and control exceptions: preserve UNKNOWN states, separate documented cost from recoverability, and record reviewed outcomes without upgrading them into legal conclusions.</p>
+    <div class="eyebrow">Assisted recovery assurance</div>
+    <h1>Certactum</h1>
+    <p>Industrial Claims operator console. Reconstruct potential recovery from documentary evidence, preserve UNKNOWN states, require independent review, and record documented outcomes without upgrading them into legal conclusions.</p>
   </header>
 
   <main>
     <section class="guardrails" aria-label="Safety guardrails">
       <div class="guardrail"><strong>Evidence-first analysis</strong><span>Documented cost, contractual basis and reviewed recovery position remain distinct.</span></div>
-      <div class="guardrail"><strong>Exception-only review</strong><span>Human review is reserved for ambiguity, material evidence conflicts or control gates; the creator cannot approve the same finding.</span></div>
+      <div class="guardrail"><strong>Four-eyes review</strong><span>The finding creator cannot approve the same finding.</span></div>
       <div class="guardrail"><strong>Secure documentary intake</strong><span>Real originals use the authorized secure-capture path with custody metadata and exact-version integrity.</span></div>
     </section>
 
     <div class="grid">
       <div>
         <section class="panel">
-          <span class="badge">Exception analyst</span>
+          <span class="badge">Analyst</span>
           <h2>Reconstruct a candidate</h2>
-          {% if config['CAUS' ~ 'LEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}
+          {% if config['CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}
           <p class="sub">Synthetic/local mode is active. Source content supplied here is hashed for deterministic test coverage; this mode must not be used for real confidential customer documents.</p>
           {% else %}
           <div class="guardrail"><strong>Reference-only intake</strong><span>This runtime accepts source references and economics here. Documentary originals are captured through the authorized secure evidence path before a case can reach the evidence-backed workflow.</span></div>
@@ -42,7 +42,7 @@
               </select></div>
               <div class="field"><label for="commercial_basis_ref">Commercial basis evidence reference</label><input id="commercial_basis_ref" name="commercial_basis_ref" required maxlength="512" autocomplete="off"></div>
               <div class="field"><label for="cost_evidence_ref">Cost evidence reference</label><input id="cost_evidence_ref" name="cost_evidence_ref" required maxlength="512" autocomplete="off"></div>
-              {% if config['CAUS' ~ 'LEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}
+              {% if config['CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}
               <div class="field full"><label for="commercial_basis_content">Synthetic commercial basis content</label><textarea id="commercial_basis_content" name="commercial_basis_content" required placeholder="Synthetic/local test content only."></textarea></div>
               <div class="field full"><label for="event_evidence_content">Synthetic event evidence content</label><textarea id="event_evidence_content" name="event_evidence_content" required placeholder="Synthetic/local test content only."></textarea></div>
               <div class="field full"><label for="cost_evidence_content">Synthetic cost evidence content</label><textarea id="cost_evidence_content" name="cost_evidence_content" required placeholder="Synthetic/local test content only."></textarea></div>
@@ -58,8 +58,8 @@
               <div class="field check"><input id="notice_deadline_not_applicable" name="notice_deadline_not_applicable" type="checkbox"><label for="notice_deadline_not_applicable">Declare for review: no notice deadline applies</label></div>
               <div class="field full"><label for="missing_evidence">Other missing evidence — comma separated</label><input id="missing_evidence" name="missing_evidence" placeholder="customer_authorization, tooling_ownership" autocomplete="off"></div>
             </div>
-            <p class="note">Notice date/no-deadline values are declarations for independent review, never inferred entitlement.</p>
-            <div class="actions"><button type="submit">{% if config['CAUS' ~ 'LEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}Analyze synthetic evidence{% else %}Create reference-only candidate{% endif %}</button></div>
+            <p class="note">Notice date/no-deadline values are analyst declarations for independent review.</p>
+            <div class="actions"><button type="submit">{% if config['CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}Analyze synthetic evidence{% else %}Create reference-only candidate{% endif %}</button></div>
           </form>
           <div id="analyze-result" class="result" aria-live="polite">No analysis submitted.</div>
         </section>
@@ -67,24 +67,24 @@
 
       <aside>
         <section class="panel">
-          <span class="badge warn">Tenant-safe exception queue</span>
+          <span class="badge warn">Tenant-safe work queue</span>
           <h2>Workflow findings</h2>
-          <p class="sub">Only findings requiring bounded review/control action belong here. Queue state and evidentiary status remain separately visible.</p>
+          <p class="sub">Reviewer identities receive documented candidates ready for review. Operator identities receive internally approved/actioned findings. Queue state and evidentiary status remain separately visible.</p>
           <div class="actions"><button id="refresh-queue" type="button" class="secondary">Refresh my queue</button></div>
           <div id="queue-result" class="result" aria-live="polite">Queue not loaded.</div>
           <div id="queue-list" class="queue-list" aria-label="Tenant-scoped finding workflow queue"></div>
           <h3>Selected dossier</h3>
-          <p class="sub">Select a queue item before deciding. The dossier exposes evidence hashes and source references, calculation lineage, timing risk, review history and documented outcomes; raw document content is not returned.</p>
+          <p class="sub">Select a queue item before deciding. The dossier exposes evidence hashes and source references, calculation lineage, notice timing risk, review history and documented outcomes; raw document content is not returned.</p>
           <div id="detail-result" class="result" aria-live="polite">No dossier selected.</div>
         </section>
 
         <section class="panel">
-          <span class="badge warn">Exception review workflow</span>
+          <span class="badge warn">Human-controlled workflow</span>
           <h2>Finding lifecycle</h2>
-          <p class="sub">Roles are verified server-side. A role mismatch fails closed. Review does not itself establish entitlement, customer liability or authorization to submit an external claim.</p>
+          <p class="sub">Roles are verified server-side. A role mismatch fails closed. Inspect the selected dossier before review.</p>
           <div class="workflow">
             <form id="review-form" class="step">
-              <h3>1. Independent exception review</h3><p>Reviewer role. The creator cannot self-approve. The decision and its reason are retained in the workflow history.</p>
+              <h3>1. Independent review</h3><p>Reviewer role. The creator cannot self-approve. The decision and its reason are retained in the workflow history.</p>
               <div class="field"><label for="review_finding_id">Finding ID</label><input id="review_finding_id" required maxlength="2048" autocomplete="off"></div>
               <div class="field"><label for="review_reason">Decision reason</label><textarea id="review_reason" required maxlength="4000"></textarea></div>
               <div class="actions"><button type="submit" data-approved="true">Approve for internal workflow</button><button type="submit" class="danger" data-approved="false">Reject candidate</button></div>
@@ -92,13 +92,13 @@
             </form>
 
             <form id="action-form" class="step">
-              <h3>2. Advance internally approved finding</h3><p>Operator role. This records the controlled workflow transition only.</p>
+              <h3>2. Advance internally approved finding</h3><p>Operator role. This records the controlled workflow transition.</p>
               <div class="field"><label for="action_finding_id">Finding ID</label><input id="action_finding_id" required maxlength="2048" autocomplete="off"></div>
               <div class="actions"><button type="submit">Mark internally actioned</button></div>
               <div id="action-result" class="result" aria-live="polite">Awaiting internally approved finding.</div>
             </form>
 
-            {% if config['CAUS' ~ 'LEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}
+            {% if config['CAUSLEDGER_INLINE_EVIDENCE_CONTENT_ENABLED'] %}
             <form id="resolve-form" class="step">
               <h3>3. Record synthetic final cumulative documented outcome</h3>
               <p>Explicit synthetic/local mode only.</p>
@@ -123,7 +123,7 @@
 
         <section class="panel">
           <h2>Truth rules</h2>
-          <p class="note">A reference without securely captured documentary content remains REFERENCE_ONLY. Currency is explicit and immutable across reviewed economics and recovery recording. A recovered outcome requires documentary evidence and a final cumulative record. Notice deadline values are declared for review rather than independently inferred. <code>READY_FOR_REVIEW</code> means documented candidate awaiting bounded exception review. <code>APPROVED</code> records the independent internal decision. The Recovery Dossier preserves evidence state, calculation lineage, review history and documented outcome separately.</p>
+          <p class="note">A reference without securely captured documentary content remains REFERENCE_ONLY. Currency is explicit and immutable across reviewed economics and recovery recording. A recovered outcome requires documentary evidence and a final cumulative record. Notice deadline values are declared for human review rather than independently inferred. <code>READY_FOR_REVIEW</code> means documented candidate ready for human review. <code>APPROVED</code> records the independent internal decision. The Proof Pack preserves evidence state, calculation lineage, review history and documented outcome separately.</p>
         </section>
       </aside>
     </div>

@@ -1,35 +1,71 @@
-# VINDORUM — COMMERCIAL OPERATING MODEL
+# CAUSLEDGER — COMMERCIAL OPERATING MODEL
 
-## Operating principle
-VINDORUM is designed as a global, self-service industrial recovery product. The normal customer journey must require **zero operator intervention** from us.
+## Direction
+CausLedger is an assisted supplier-side recovery business that is automating itself. Software is a control/evidence layer; the first product is a defensible recovery dossier.
 
-No mandatory meeting, manual proposal, manual onboarding or analyst-led case handling is part of the default path.
+## Frozen initial wedge
+Until real commercial proof exists, the critical path is **supplier-side customer-caused cost / margin recovery**.
 
-## Product ladder
-1. **Free Exposure Check** — metadata-only fit triage; no confidential documents and no recoverability promise.
-2. **Recovery Scan** — paid, remote, evidence-linked reconstruction of customer-driven change costs and support gaps.
-3. **Recovery Workspace** — customer-confirmed facts, dossier generation and claimed → approved → settled tracking.
-4. **Portfolio Monitoring** — recurring monitoring across programs/customers after the underlying workflow is production-safe.
+### Primary case type to close first
+**Customer-directed engineering/change cost (NRE / change-driven incremental cost).**
 
-## Zero-touch customer path
-`landing → metadata triage → account → case metadata → secure evidence intake → automated extraction → causation/cost reconciliation → evidence gaps → customer confirmation → verified payment → dossier → claim workspace → monitoring`
+A case is in-scope when there is a documentary chain linking:
+1. customer / contract / PO;
+2. customer-directed or customer-caused change/event;
+3. incremental engineering, validation, rework, launch, tooling-support or other NRE cost;
+4. a contractual/documentary basis for customer responsibility or reimbursement review;
+5. cost source and calculation;
+6. prior recovery/credit/payment check;
+7. notice/deadline truth;
+8. human review.
 
-When evidence is missing or ambiguous, VINDORUM asks the customer for the missing fact/evidence or marks it unsupported. It does not silently convert uncertainty into a claim.
+### Secondary categories after the first case type is operational
+- premium freight / expedite caused by customer change or disruption;
+- dedicated investment/tooling exposure;
+- customer-caused production disruption;
+- contractually supported volume shortfall;
+- clearly supported material/cost adjustments.
 
-## Economic truth
-`documented cost → mitigation → net documented exposure → evidence-supported → claimed → approved → settled`
+These are not reasons to widen the current build before the first case type has paid-case capability.
 
-Required invariant:
-`net documented exposure >= evidence-supported >= claimed >= approved >= settled`
+## Assisted-delivery default
+Early delivery uses **software + human review + evidence traceability + professional dossier**. Manual work is acceptable when controlled, recorded and reviewable. Repeated manual work becomes automation backlog only after it occurs in real/synthetic delivery.
 
-Cost is not automatically money owed. Evidence support is not a legal-entitlement conclusion.
+## Commercial deliverable
+The paid deliverable is an audit/recovery dossier that answers:
 
-## Pricing hypotheses — not validated willingness to pay
-- Free Exposure Check: €0
-- Recovery Scan: €1,500–€3,500 initial hypothesis
-- Portfolio Monitoring: later recurring tier after real usage evidence
+DOCUMENTS → CONTRACT/PO/CHANGE TRUTH → EVENT → CAUSATION → CUSTOMER RESPONSIBILITY BASIS → COST → CALCULATION → PRIOR RECOVERY CHECK → EVIDENCE → CONFIDENCE → NOTICE/DEADLINE → NEXT ACTION.
 
-No paid VINDORUM customer, validated willingness-to-pay or verified customer recovery is claimed until it actually occurs.
+If the chain is incomplete, the output is **NO CLAIM / NEEDS REVIEW**, never an inflated recovery number.
 
-## Production boundary
-Confidential evidence intake and paid-access unlock remain disabled until authentication, secure case-bound transfer, verified billing, WORM storage, trusted timestamping, retention/deletion and the required security/privacy controls are genuinely configured and tested.
+## Initial offer ladder
+1. **Rapid Recovery Scan** — bounded review of a small document sample; identify candidates, missing evidence and next questions. No promise of recovery.
+2. **Forensic Recovery Audit** — reconstruct one or more defensible cases and produce evidence-indexed dossiers.
+3. **Claim Support / Tracking** — customer-authorized support after the dossier exists; external claim activity requires explicit authority.
+4. **Continuous Leakage Monitoring** — only after repeated case patterns justify automation.
+
+## Execution priorities
+Every task must materially help detect, prove, deliver, recover or monetize a real case. Deprioritize cosmetic dashboards, broad taxonomies, optional integrations, new verticals and infrastructure not required for paid assisted delivery.
+
+## Progress metrics
+Primary metrics are:
+- cases processed;
+- dossiers produced/delivered;
+- qualified prospects;
+- document samples received;
+- pilots;
+- paid audits;
+- verified recovery value;
+- customer payments;
+- delivery hours/cost per case;
+- repeat engagements;
+- repeated manual steps automated.
+
+Commits, tests and screens are supporting evidence, not the business outcome.
+
+## Commercial truth
+- Pricing remains a hypothesis until tested externally.
+- No claim is money owed merely because cost exists.
+- No candidate is represented as legally recoverable without the required documentary/human/legal basis.
+- No real recovery, payment, customer or willingness-to-pay evidence may be fabricated.
+- Assisted delivery can begin before self-service software is complete, provided identity, document handling, evidence traceability and review controls are safe.

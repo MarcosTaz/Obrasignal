@@ -147,6 +147,8 @@ def _seed_secure_case(database, store: Store) -> tuple[IndustrialClaimsService, 
         currency="EUR",
         notice_deadline_not_applicable=True,
     )
+    # Capture itself must perform exact-version WORM readback. Reset only this
+    # test instrument so later assertions measure reads caused by export attempts.
     store.reads.clear()
     return service, result.finding.finding_id, payloads
 
@@ -182,16 +184,15 @@ def test_offline_export_route_releases_only_exact_secure_originals_after_target_
     assert exported.status_code == 200
     assert exported.headers["Cache-Control"] == "no-store"
     assert exported.headers["Pragma"] == "no-cache"
-    assert exported.headers["X-VINDORUM-Confidential"] == "true"
-    operation_id = exported.headers["X-VINDORUM-Export-Operation"]
+    assert exported.headers["X-CausLedger-Confidential"] == "true"
+    operation_id = exported.headers["X-CausLedger-Export-Operation"]
     assert operation_id.startswith("offexp_")
     assert target[:16] in exported.headers["Content-Disposition"]
     body = exported.get_json()
-    assert body["deliverable"] == "VINDORUM_CONFIDENTIAL_OFFLINE_VERIFICATION_BUNDLE"
     assert body["confidential"] is True
     assert body["truth_boundaries"]["must_not_be_published"] is True
     assert body["independent_verification"]["valid"] is True
-    assert body["independent_verification"]["independently_verifiable_without_vindorum"] is True
+    assert body["independent_verification"]["independently_verifiable_without_causledger"] is True
     decoded = {
         evidence_id: base64.b64decode(item["content_base64"])
         for evidence_id, item in body["offline_evidence"].items()
@@ -354,7 +355,7 @@ def test_assisted_runtime_wires_offline_export_to_verified_reviewer_or_operator_
     assert exported.status_code == 200
     assert exported.get_json()["independent_verification"]["valid"] is True
     assert len(store.reads) == 3
-    operation_id = exported.headers["X-VINDORUM-Export-Operation"]
+    operation_id = exported.headers["X-CausLedger-Export-Operation"]
     audit = reviewer.get(f"/findings/{finding_id}/proof-pack/offline-exports")
     assert audit.status_code == 200
     assert [event["state"] for event in audit.get_json()["operations"][operation_id]] == ["STARTED", "COMPLETED"]

@@ -225,7 +225,7 @@ class LateChangeSupplementStore:
     def render_sheet(self, *, tenant_id: str, finding_id: str) -> tuple[str, str]:
         status = self.status(tenant_id=tenant_id, finding_id=finding_id)
         lines = [
-            "VINDORUM — LATE CHANGE SUPPLEMENT",
+            "CAUSLEDGER — LATE CHANGE SUPPLEMENT",
             "",
             f"Finding reference: {status['finding_id']}",
             "Classification: LATE_SUPPLEMENT",

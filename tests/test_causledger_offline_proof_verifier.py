@@ -78,14 +78,14 @@ def test_offline_verifier_rehashes_every_original_without_server_trust():
     assert result["manifest_integrity_valid"] is True
     assert result["offline_originals"]["complete"] is True
     assert result["external_attestations"]["complete"] is True
-    assert result["independently_verifiable_without_vindorum"] is True
+    assert result["independently_verifiable_without_causledger"] is True
     assert result["valid"] is True
 
 
 def test_manifest_integrity_alone_is_not_an_independent_offline_success():
     result = verify_bundle(_bundle(offline_payload=None))
     assert result["manifest_integrity_valid"] is True
-    assert result["independently_verifiable_without_vindorum"] is False
+    assert result["independently_verifiable_without_causledger"] is False
     assert result["valid"] is False
     assert f"OFFLINE_ORIGINAL_MISSING:{EVIDENCE_ID}" in result["errors"]
 
@@ -94,7 +94,7 @@ def test_tampered_embedded_original_fails_closed():
     result = verify_bundle(_bundle(offline_payload=b"tampered bytes"))
     assert result["manifest_integrity_valid"] is True
     assert result["offline_originals"]["complete"] is False
-    assert result["independently_verifiable_without_vindorum"] is False
+    assert result["independently_verifiable_without_causledger"] is False
     assert f"OFFLINE_ORIGINAL_SHA256_MISMATCH:{EVIDENCE_ID}" in result["errors"]
 
 

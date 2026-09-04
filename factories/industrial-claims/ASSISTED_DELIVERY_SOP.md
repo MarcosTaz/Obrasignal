@@ -1,59 +1,85 @@
-# VINDORUM — ZERO-TOUCH OPERATING SOP
+# CAUSLEDGER — ASSISTED DELIVERY SOP
 
 ## Objective
-The normal VINDORUM customer journey is self-service and requires no routine operator intervention from us.
+Complete a safe customer case before full automation exists. Manual steps are allowed when bounded, recorded and independently reviewable.
 
-Canonical path:
-`metadata triage → account → case metadata → secure evidence intake → automated extraction → evidence gaps → customer confirmation → verified payment → reconciliation → dossier → claim workspace → portfolio monitoring`
+## Stage 0 — Qualification
+Accept a case for rapid scan only when there is a plausible customer-caused commercial event and at least one identifiable contract/PO/change source plus a cost source. If there is only an unsupported cost complaint, do not create a recovery expectation.
 
-Human involvement is an **exception path**, not the default delivery model. The product must fail closed when a decision cannot be made safely without specialist judgment.
+## Stage 1 — Secure intake
+Request only the minimum document sample needed for the first pass:
+- contract/PO/commercial terms relevant to the event;
+- customer change/order/release/cancellation/correspondence;
+- cost ledger/invoice/time/tooling/freight evidence;
+- prior credit/payment/settlement evidence;
+- notice/deadline correspondence if available.
 
-## Stage 0 — Metadata qualification
-The Free Exposure Check accepts non-confidential metadata only. It may classify fit; it may not claim recoverability, entitlement or a precise amount.
+Before real customer data is accepted into any runtime, the target environment must have verified tenant binding, authorization and approved data handling. Until then, use a controlled authorized channel outside the unprovisioned product runtime and record only permitted metadata/hashes in the product.
 
-## Stage 1 — Secure intake gate
-Confidential evidence remains blocked unless `real_evidence_intake_enabled=true` and production authentication, tenant/case binding, secure transfer, WORM storage, trusted timestamping, retention/deletion and required privacy/security controls are genuinely configured and tested.
+## Stage 2 — Rapid scan
+Human analyst answers:
+1. What changed?
+2. Who caused/directed it?
+3. What commercial document could make the customer responsible?
+4. What incremental cost is evidenced?
+5. What has already been recovered/credited/mitigated?
+6. Is notice/deadline known?
+7. What evidence would falsify the candidate?
 
-If the gate is not green, VINDORUM stays metadata-only.
+Output: NO CLAIM / NEEDS DOCUMENTS / CANDIDATE FOR FORENSIC AUDIT.
 
-## Stage 2 — Automated extraction
-The system extracts facts into explicit propositions with source references and confidence. Unknown, conflicting or missing facts stay UNKNOWN/UNSUPPORTED.
+## Stage 3 — Forensic reconstruction
+Build an evidence-indexed case in CausLedger. Preserve UNKNOWN states. Reconcile gross cost to mitigation and prior recovery. Never use a success-oriented estimate unsupported by sources.
 
-## Stage 3 — Customer confirmation
-The customer confirms or corrects extracted facts and supplies missing evidence through the approved secure channel. Confirmation is recorded with revision and actor identity.
+## Stage 4 — Human causation/responsibility review
+A human reviewer explicitly tests:
+- direct customer causation vs supplier/internal causes;
+- contractual/documentary responsibility basis;
+- prerequisites, caps, exclusions and notice;
+- duplicate/prior recovery;
+- calculation support;
+- contrary evidence.
 
-## Stage 4 — Economic reconciliation
-VINDORUM reconstructs:
-`documented cost → mitigation → net documented exposure → evidence-supported → claimed → approved → settled`
+The creator cannot self-approve the same finding.
 
-Required invariant:
-`net documented exposure >= evidence-supported >= claimed >= approved >= settled`
+## Stage 5 — Dossier production
+Produce the audit-grade dossier defined in `DOSSIER_STANDARD.md`. The dossier must expose evidence gaps and attack paths, not hide them.
 
-Any impossible ledger fails closed.
-
-## Stage 5 — Dossier
-The product generates the VINDORUM Recovery Dossier with evidence index, chronology, causation state, commercial basis, reconciliation, contrary evidence, deadlines, gaps and next action.
-
-Cost is not automatically money owed. Evidence support is not legal entitlement.
-
-## Stage 6 — Claim workspace
-The customer controls external action. VINDORUM may prepare a bounded communication only when the customer explicitly authorizes it and an approved channel exists. No external claim is silently sent.
+## Stage 6 — Customer review / external action
+No external claim is sent automatically. The customer reviews the dossier and decides whether to negotiate, notify, claim, seek legal review or close. External action requires explicit authority and an approved channel.
 
 ## Stage 7 — Outcome tracking
-Only evidenced cumulative outcomes move `claimed → approved → settled`. Installments are not treated as final settlement unless documented as such.
+Record only a documented final cumulative outcome with settlement/payment/credit/closure evidence. Do not treat an installment as a final outcome. Do not record recovered value above reviewed net potential.
 
-## Stage 8 — Portfolio monitoring
-Current, non-superseded findings with latest verified reconciliations may be aggregated. Cross-currency aggregation requires an explicit FX evidence layer.
+## Stage 8 — Commercial close
+Record:
+- audit fee invoiced/paid;
+- success fee if contractually agreed and triggered by documented recovery;
+- delivery hours;
+- external specialist cost;
+- customer acquisition cost where measurable;
+- gross margin on the case.
 
-## Exception routing
-VINDORUM routes to specialist/customer review only when deterministic processing cannot safely resolve:
-- contradictory or ambiguous commercial language;
-- legal/regulatory interpretation;
-- disputed causation that cannot be grounded in evidence;
-- expired/waived notice requiring judgment;
-- evidence-integrity or security incident.
+No revenue or recovery is counted without evidence.
 
-An exception must never be presented as normal operator work or as evidence that VINDORUM itself established legal entitlement.
+## Stage 9 — Learning / automation
+For every manual step, log:
+- frequency;
+- minutes/hours;
+- error risk;
+- evidence sensitivity;
+- whether deterministic automation is possible;
+- whether human judgment must remain.
 
-## Incident rule
-Stop external use of an affected case if tenant identity, evidence lineage, calculation, revision currentness or raw-document handling is suspect. Preserve evidence, isolate the case, create a corrected revision and disclose material impact before resuming external action.
+Automation priority = repeated + costly + safe to automate + commercially material.
+
+## Service-level operating targets for early assisted delivery
+These are operating targets, not promises:
+- acknowledge qualified document receipt within 1 business day;
+- rapid-scan disposition within 2 business days after a complete sample;
+- dossier plan/missing-evidence list immediately after scan;
+- forensic dossier target within 5 business days for a bounded single-case sample once required evidence is available;
+- material correction creates a new revision and fresh independent review.
+
+## Incident handling
+Stop external use of a case immediately if tenant identity, evidence lineage, calculation, revision currentness or raw-document handling is suspect. Preserve evidence, isolate the case, repair or recreate the affected revision, and disclose material impact before resuming external action.

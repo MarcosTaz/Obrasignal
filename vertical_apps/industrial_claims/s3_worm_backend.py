@@ -33,8 +33,8 @@ class S3ObjectLockBackend:
 
     The adapter deliberately refuses GOVERNANCE mode. Every immutable write sends
     the SHA-256 checksum, COMPLIANCE retain-until and private server-side encryption,
-    then the VINDORUM WORM layer independently HEADs and reads the exact returned
-    VersionId before accepting the evidence.
+    then the existing Certactum WORM layer independently HEADs and reads the exact
+    returned VersionId before accepting the evidence.
     """
 
     name = "AWS_S3_OBJECT_LOCK_COMPLIANCE"
