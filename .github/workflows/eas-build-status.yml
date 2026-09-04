@@ -44,7 +44,7 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Verify exact submitted production build
+      - name: Verify exact production build from filtered EAS inventory
         env:
           BUILD_ID: 8fb3b777-a52a-4c9c-b81d-2e87887e6c48
           BUILD_GIT_SHA: 916ed6203ad4f6750e862b9952f982dcbd3e63b9
@@ -52,13 +52,27 @@ jobs:
           ANDROID_PACKAGE: pt.obrasignal.app
         run: |
           set -euo pipefail
-          eas build:view "$BUILD_ID" --json > /tmp/eas-build.json
+          eas build:list \
+            --platform android \
+            --status finished \
+            --build-profile production \
+            --git-commit-hash "$BUILD_GIT_SHA" \
+            --app-identifier "$ANDROID_PACKAGE" \
+            --limit 10 \
+            --json \
+            --non-interactive > /tmp/eas-builds.json
           python - <<'PY'
           import json, os
 
-          target = json.load(open('/tmp/eas-build.json', encoding='utf-8'))
-          if not isinstance(target, dict):
-              raise SystemExit('EAS build:view did not return one build object')
+          builds = json.load(open('/tmp/eas-builds.json', encoding='utf-8'))
+          if not isinstance(builds, list):
+              raise SystemExit('EAS build:list did not return a build list')
+
+          matches = [b for b in builds if str(b.get('id') or '') == os.environ['BUILD_ID']]
+          if len(matches) != 1:
+              ids = [str(b.get('id') or '') for b in builds]
+              raise SystemExit(f"Exact Android build not present in filtered EAS inventory; returned={ids}")
+          target = matches[0]
 
           build_id = str(target.get('id') or '')
           status = str(target.get('status') or '').upper().replace('-', '_')
