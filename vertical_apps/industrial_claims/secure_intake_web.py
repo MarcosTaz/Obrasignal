@@ -83,7 +83,7 @@ def _strict_original(payload: Mapping[str, Any]) -> tuple[bytes, str]:
     if not content:
         raise SecureIntakeWebError("secure intake original must be non-empty")
     if len(content) > MAX_ROUTE_ORIGINAL_BYTES:
-        raise SecureIntakeWebError("secure intake original exceeds assisted route byte limit")
+        raise SecureIntakeWebError("secure intake original exceeds route byte limit")
     content_type = _required_text(payload.get("content_type"), label="content_type", maximum=128)
     if "/" not in content_type or any(ch.isspace() for ch in content_type):
         raise SecureIntakeWebError("secure intake content_type is invalid")
@@ -114,7 +114,7 @@ def _capture_identity(tenant_id: str, actor_id: str) -> CaptureIdentity:
 
 
 def _unverified_upload_receipt() -> SourceAuthenticationReceipt:
-    return SourceAuthenticationReceipt(state="UNVERIFIED", scheme="AUTHORIZED_UPLOAD", provider="certactum-assisted-intake")
+    return SourceAuthenticationReceipt(state="UNVERIFIED", scheme="AUTHORIZED_UPLOAD", provider="vindorum-secure-intake")
 
 
 def _result_body(evidence, *, evidence_role: str | None = None, idempotent_replay: bool) -> dict[str, Any]:
@@ -168,9 +168,6 @@ def _require_production_trust(
     if verified_claims is not None:
         claims = verified_claims()
     else:
-        # The normal production path already verified/cached this bearer identity
-        # through capture_identity. Re-resolving uses that immutable same-request
-        # cache and never trusts client-supplied tenant/role headers.
         from auth_context import configured_identity
         identity = configured_identity()
         claims = identity.claims if identity.authenticated else None
@@ -192,7 +189,7 @@ def create_secure_intake_blueprint(
     if service is None:
         from vertical_apps.industrial_claims.service import IndustrialClaimsService
         service = IndustrialClaimsService(capture_registry.path)
-    blueprint = Blueprint("certactum_secure_intake", __name__)
+    blueprint = Blueprint("vindorum_secure_intake", __name__)
 
     @blueprint.post("/secure-evidence/capture")
     def capture_case_original():
