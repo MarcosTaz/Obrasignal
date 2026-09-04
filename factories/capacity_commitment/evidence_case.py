@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Iterable, Mapping
 
 from .engine import CommitmentState, CostRecoveryMode, ExposureType, RecoveryCase
-from .evidence import ExtractedFact, FactType, normalize_confirmed_facts
+from .evidence import ExtractedFact, FactType, ReviewState, normalize_confirmed_facts
 from .state import AssistedCaseState
 
 
@@ -29,9 +29,6 @@ _OPTIONAL_ENTITLEMENT_FACTS = (
     FactType.DEADLINE,
 )
 
-# These controls are deliberately not inferred from extraction. Even when a
-# clause-level fact suggests a value, the operator must explicitly establish the
-# integrity gate against the bounded case before recoverability can become positive.
 _HUMAN_CONTROL_GATES = (
     "evidence_supported",
     "asset_dedicated",
@@ -77,12 +74,6 @@ class EvidenceCaseDraft:
 
 @dataclass(frozen=True)
 class HumanCaseControls:
-    """Explicit operator review gates for a source-backed case.
-
-    Required booleans are deliberately not defaulted. Optional tri-state gates may
-    remain None, which keeps the engine UNKNOWN instead of manufacturing recovery.
-    """
-
     evidence_supported: bool
     asset_dedicated: bool
     already_fully_amortized: bool
@@ -164,14 +155,6 @@ def _validate_controls(controls: HumanCaseControls) -> None:
 
 
 def build_case_draft(company_id: str, facts: Iterable[ExtractedFact]) -> EvidenceCaseDraft:
-    """Produce a source-backed draft, never an entitlement decision.
-
-    Only CONFIRMED facts participate. Conflicts and missing inputs remain visible.
-    Mitigation and prior recovery are required explicit facts, including explicit
-    zeroes, so absence can never silently become zero. Contract or nomination is
-    required as an anchor, but either may satisfy the minimum case identity.
-    """
-
     company_id = _required_company_id(company_id)
     normalized = normalize_confirmed_facts(facts)
     values = dict(normalized.singleton_values)
@@ -206,10 +189,8 @@ def build_state_from_confirmed_evidence(
 ) -> AssistedCaseState:
     """Commit reviewed source facts into the deterministic engine input shape.
 
-    Economic/identity values come only from CONFIRMED evidence. Human controls may
-    verify integrity but may not override committed units, actuals, currency, unit,
-    period, mitigation, prior payment or the source-backed recovery-right/notice
-    facts. Missing entitlement evidence therefore remains None/UNKNOWN.
+    Economic/identity values come only from CONFIRMED evidence. The immutable
+    snapshot also freezes the exact reviewed fact IDs used to build it.
     """
 
     if not isinstance(tenant_id, str) or not tenant_id.strip():
@@ -217,10 +198,15 @@ def build_state_from_confirmed_evidence(
     if not isinstance(case_id, str) or not case_id.strip():
         raise ValueError("case_id is required")
     _validate_controls(controls)
+    facts = tuple(facts)
     draft = build_case_draft(company_id, facts)
     if not draft.ready_for_human_case_creation:
         problems = list(draft.conflicts) + [f"missing {item}" for item in draft.missing_required]
         raise ValueError("evidence case draft is not ready: " + "; ".join(problems))
+
+    confirmed_fact_refs = tuple(sorted(fact.fact_id for fact in facts if fact.review_state is ReviewState.CONFIRMED))
+    if len(set(confirmed_fact_refs)) != len(confirmed_fact_refs):
+        raise ValueError("duplicate confirmed fact_id in case input")
 
     values = draft.case_inputs
     try:
@@ -285,6 +271,7 @@ def build_state_from_confirmed_evidence(
         unit=values[FactType.UNIT.value],
         recovery_case=recovery_case,
         evidence_refs=draft.evidence_refs,
+        fact_refs=confirmed_fact_refs,
         missing_evidence=missing_evidence,
         deadline=deadline,
         contract_id=values.get(FactType.CONTRACT_ID.value),
