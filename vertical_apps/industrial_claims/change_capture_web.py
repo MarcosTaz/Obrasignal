@@ -152,15 +152,15 @@ def create_change_capture_blueprint(
             response = make_response(payload)
             response.headers["Content-Type"] = "text/plain; charset=utf-8"
             response.headers["Content-Disposition"] = (
-                f'attachment; filename="CausLedger-change-{status["sheet_id"]}.txt"'
+                f'attachment; filename="vindorum-change-{status["sheet_id"]}.txt"'
             )
-            response.headers["X-CausLedger-Sheet-SHA256"] = digest
-            response.headers["X-CausLedger-Export-Receipt"] = export["download_id"]
-            response.headers["X-CausLedger-Transfer-Completion-Proven"] = "false"
-            response.headers["X-CausLedger-Timestamp-State"] = str(timestamp["state"])
-            response.headers["X-CausLedger-Timestamp-Provider"] = str(timestamp["provider"])
-            response.headers["X-CausLedger-Timestamp-Attestation"] = str(timestamp["attestation_id"])
-            response.headers["X-CausLedger-Reminder-Satisfied-For-Snapshot"] = "true"
+            response.headers["X-VINDORUM-Sheet-SHA256"] = digest
+            response.headers["X-VINDORUM-Export-Receipt"] = export["download_id"]
+            response.headers["X-VINDORUM-Transfer-Completion-Proven"] = "false"
+            response.headers["X-VINDORUM-Timestamp-State"] = str(timestamp["state"])
+            response.headers["X-VINDORUM-Timestamp-Provider"] = str(timestamp["provider"])
+            response.headers["X-VINDORUM-Timestamp-Attestation"] = str(timestamp["attestation_id"])
+            response.headers["X-VINDORUM-Reminder-Satisfied-For-Snapshot"] = "true"
             return response
         except (ChangeCaptureError, ChangeCaptureReminderError, ChangeSheetTrustError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
@@ -208,9 +208,9 @@ def create_change_capture_blueprint(
             sheet, digest = supplements.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
             response = make_response(sheet)
             response.headers["Content-Type"] = "text/plain; charset=utf-8"
-            response.headers["Content-Disposition"] = 'attachment; filename="CausLedger-late-change-supplement.txt"'
-            response.headers["X-CausLedger-Late-Supplement-SHA256"] = digest
-            response.headers["X-CausLedger-Conventional-Change-Sheet-Rewritten"] = "false"
+            response.headers["Content-Disposition"] = 'attachment; filename="vindorum-late-change-supplement.txt"'
+            response.headers["X-VINDORUM-Late-Supplement-SHA256"] = digest
+            response.headers["X-VINDORUM-Conventional-Change-Sheet-Rewritten"] = "false"
             return response
         except (ChangeCaptureError, ChangeSupplementError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
