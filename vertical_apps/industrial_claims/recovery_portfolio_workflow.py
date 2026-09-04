@@ -7,7 +7,7 @@ from vertical_apps.industrial_claims.recovery_portfolio import (
     RecoveryPortfolioError,
     rollup_recovery_portfolio,
 )
-from vertical_apps.industrial_claims.recovery_workflow import SupplierRecoveryWorkflow
+from vertical_apps.industrial_claims.recovery_workflow import VindorumWorkflow
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
@@ -39,12 +39,12 @@ class CurrentPortfolioSnapshot:
         }
 
 
-class SupplierRecoveryPortfolioWorkflow:
-    """Build a portfolio only from current findings and their latest verified reconciliations."""
+class VindorumPortfolioWorkflow:
+    """Build a VINDORUM portfolio only from current findings and their latest verified reconciliations."""
 
     def __init__(self, service: IndustrialClaimsService):
         self.service = service
-        self.case_workflow = SupplierRecoveryWorkflow(service)
+        self.case_workflow = VindorumWorkflow(service)
 
     def build_current_portfolio(
         self,
