@@ -1,9 +1,9 @@
 from vertical_apps.industrial_claims.dossier import AssistedRecoveryAssessment
 from vertical_apps.industrial_claims.leakage_reconciliation import reconcile_recovery_ledger
 from vertical_apps.industrial_claims.recovery_dossier import (
-    CERTACTUM_DOSSIER,
-    build_certactum_recovery_dossier,
-    render_certactum_recovery_dossier_markdown,
+    SUPPLIER_RECOVERY_DOSSIER,
+    build_supplier_recovery_dossier,
+    render_supplier_recovery_dossier_markdown,
 )
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
@@ -24,8 +24,8 @@ def _assessment():
     )
 
 
-def test_certactum_dossier_carries_reconciliation_without_promoting_gap_to_debt(tmp_path):
-    service = IndustrialClaimsService(tmp_path / "certactum-dossier.sqlite3")
+def test_supplier_recovery_dossier_carries_reconciliation_without_promoting_gap_to_debt(tmp_path):
+    service = IndustrialClaimsService(tmp_path / "supplier-recovery-dossier.sqlite3")
     result = service.analyze(
         tenant_id="alpha",
         actor_id="analyst-1",
@@ -52,7 +52,7 @@ def test_certactum_dossier_carries_reconciliation_without_promoting_gap_to_debt(
         currency="EUR",
     )
 
-    dossier = build_certactum_recovery_dossier(
+    dossier = build_supplier_recovery_dossier(
         service,
         tenant_id="alpha",
         finding_id=result.finding.finding_id,
@@ -60,16 +60,16 @@ def test_certactum_dossier_carries_reconciliation_without_promoting_gap_to_debt(
         reconciliation=reconciliation,
     )
 
-    assert dossier["deliverable"] == CERTACTUM_DOSSIER
-    assert dossier["identity"]["company"] == "Certactum"
+    assert dossier["deliverable"] == SUPPLIER_RECOVERY_DOSSIER
+    assert dossier["identity"]["company"] == "Supplier Recovery"
     assert dossier["identity"]["legacy_name_customer_facing"] is False
     assert dossier["recovery_reconciliation"]["supported_unclaimed"] == "15000"
     assert dossier["recovery_reconciliation"]["approved_unsettled"] == "20000"
     assert dossier["recovery_reconciliation"]["legal_entitlement_established"] is False
     assert dossier["recovery_reconciliation"]["economic_gap_is_automatically_money_owed"] is False
 
-    markdown = render_certactum_recovery_dossier_markdown(dossier)
-    assert markdown.startswith("# Certactum — Supplier Recovery Dossier")
+    markdown = render_supplier_recovery_dossier_markdown(dossier)
+    assert markdown.startswith("# Supplier Recovery — Recovery Dossier")
     assert "# CausLedger" not in markdown
     assert "## Recovery reconciliation" in markdown
     assert "Supported but unclaimed: 15000 EUR" in markdown
