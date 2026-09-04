@@ -71,14 +71,14 @@ def _text(value: object, *, label: str, limit: int = 512) -> str:
 
 
 class CommercialProofStore:
-    """Append-only proof ledger that keeps technical/test activity out of market truth."""
+    """Append-only Supplier Recovery proof ledger separating market truth from tests."""
 
     def __init__(self, database: str | Path):
         self.database = str(database)
         with sqlite3.connect(self.database) as connection:
             connection.execute(
                 """
-                CREATE TABLE IF NOT EXISTS certactum_commercial_proof_events (
+                CREATE TABLE IF NOT EXISTS supplier_recovery_commercial_proof_events (
                     event_id TEXT PRIMARY KEY,
                     account_id TEXT NOT NULL,
                     event_type TEXT NOT NULL,
@@ -91,8 +91,8 @@ class CommercialProofStore:
             )
             connection.execute(
                 """
-                CREATE INDEX IF NOT EXISTS idx_certactum_commercial_proof_account
-                ON certactum_commercial_proof_events (account_id, created_at, event_id)
+                CREATE INDEX IF NOT EXISTS idx_supplier_recovery_commercial_proof_account
+                ON supplier_recovery_commercial_proof_events (account_id, created_at, event_id)
                 """
             )
             connection.commit()
@@ -122,7 +122,7 @@ class CommercialProofStore:
             connection.row_factory = sqlite3.Row
             connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
-                "SELECT * FROM certactum_commercial_proof_events WHERE event_id=?",
+                "SELECT * FROM supplier_recovery_commercial_proof_events WHERE event_id=?",
                 (event,),
             ).fetchone()
             if existing is not None:
@@ -148,14 +148,14 @@ class CommercialProofStore:
 
             connection.execute(
                 """
-                INSERT INTO certactum_commercial_proof_events (
+                INSERT INTO supplier_recovery_commercial_proof_events (
                     event_id,account_id,event_type,evidence_class,evidence_ref,actor_id
                 ) VALUES (?,?,?,?,?,?)
                 """,
                 (event, account, kind, klass, reference, actor),
             )
             row = connection.execute(
-                "SELECT * FROM certactum_commercial_proof_events WHERE event_id=?",
+                "SELECT * FROM supplier_recovery_commercial_proof_events WHERE event_id=?",
                 (event,),
             ).fetchone()
             connection.commit()
@@ -178,7 +178,7 @@ class CommercialProofStore:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
                 """
-                SELECT * FROM certactum_commercial_proof_events
+                SELECT * FROM supplier_recovery_commercial_proof_events
                 WHERE account_id=? ORDER BY created_at ASC, event_id ASC
                 """,
                 (account,),
@@ -202,8 +202,6 @@ class CommercialProofStore:
         real_types = {event.event_type for event in events if event.evidence_class == REAL}
         test_types = {event.event_type for event in events if event.evidence_class == TEST}
 
-        # Commercial stages are derived only from REAL evidence and preserve the
-        # deliberate T0→T5 chain. A downstream event cannot skip missing upstream proof.
         stage = "T0_INTERNAL_ONLY"
         if "QUALIFIED_BUYER" in real_types:
             stage = "T1_QUALIFIED_BUYER"
