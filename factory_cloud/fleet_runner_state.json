@@ -6,48 +6,49 @@
   "policy": "highest-value-safe-work-first",
   "registry": "factory_cloud/factories.json",
   "registry_entry_count": 33,
-  "cursor": 11,
-  "last_factory_id": "capacity-commitment",
-  "last_run_at": "2026-09-03T22:40:59Z",
+  "cursor": 13,
+  "last_factory_id": "machine-release-safety",
+  "last_run_at": "2026-09-04T02:38:08Z",
   "last_material_change": {
-    "kind": "CAPACITY_COMMITMENT_EXACT_HEAD_RED_STALE_PR_DESCRIPTION",
-    "summary": "Capacity Commitment PR #729 remains OPEN/DRAFT/NOT MERGED at current exact head 0cc510c63219d50c153d1c09eb884f82c89c1247. Its PR description is stale: it claims exact head 0b1562 and GREEN, but current exact-head ObraSignal Quality run 33625531311 completed FAILURE. Mobile succeeded; Python failed at repository tests. Commercial T3 remains unproved. Fleet remains ACTIVE and rotates to LongLead.",
+    "kind": "MACHINE_RELEASE_SAFETY_INTEGRATION_STALE",
+    "summary": "LongLead had no dedicated repository authority recovered, so rotation continued. MachineRelease Safety PR #345 is OPEN/NOT MERGED at exact head 672e535f0b04f27d967ae3c174bd871fc0a56893. Exact-head ObraSignal Quality run 32900014033 is SUCCESS, but GitHub currently reports mergeable=false while canonical main is cdcbf3454459d46a777361487fdfa0afab1c1fb7. Treat repository code evidence as GREEN but current integration readiness as NOT PROVED. No merge or deploy performed.",
     "evidence": {
       "portfolio_registry_count": 33,
-      "capacity_commitment": {
-        "pull_request": 729,
-        "state": "OPEN_DRAFT_NOT_MERGED",
-        "current_exact_head": "0cc510c63219d50c153d1c09eb884f82c89c1247",
-        "pr_body_claimed_head": "0b156218ce427284d40583d4b7eb317622d95376",
-        "workflow_run": 33625531311,
-        "workflow_conclusion": "failure",
-        "mobile_job": "success",
-        "python_job": "failure",
-        "python_failure_step": "Run repository tests",
-        "verification": "EXACT_HEAD_RED",
-        "commercial_proof": "NOT_PROVED",
+      "longlead": {
+        "dedicated_authority_recovered": false
+      },
+      "machine_release_safety": {
+        "pull_request": 345,
+        "exact_head": "672e535f0b04f27d967ae3c174bd871fc0a56893",
+        "quality_run": 32900014033,
+        "quality_conclusion": "success",
+        "mergeable": false,
+        "canonical_main": "cdcbf3454459d46a777361487fdfa0afab1c1fb7",
         "automatic_merge_authorized": false
       },
       "causledger_inbound_watch": {
-        "material_new_inbound": 0,
+        "status": "NOT_CHECKED_CONNECTOR_AUTH_REQUIRED",
         "outbound_sent": false
       }
     },
-    "active": "LongLead",
-    "next": "LongLead -> MachineRelease Safety -> K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment",
+    "active": "K3 Fatality / Probability Intelligence",
+    "next": "K3 -> WarrantyGuard -> Paper-Laminate Works -> Documentary Billing -> Recoverable Money -> Private Freight -> Autonomous Revenue Recovery -> ObraSignal Data Runner -> Data Truth -> OS Side -> Customer Journey -> Global Market Entry -> GTM -> Customer Decision -> Product Strategy -> Analytics -> Release Safety -> Support Ops -> EU Switching Evidence Pack -> ComplianceLedger -> Factory Cloud -> ObraSignal -> Industrial Claims/Certactum -> ScopeLedger -> ChangeLedger -> Recovery Radar -> Sourcing Recovery -> Product Market Access -> EU Cloud Switching -> Aviation -> Capacity Commitment -> LongLead -> MachineRelease Safety",
     "wait": [
       "Portugal outbound requires current DGC-list recipient screening immediately before send.",
       "Spain unsolicited commercial email/follow-up hold remains active.",
-      "Capacity Commitment PR #729 is exact-head RED at 0cc510c63219d50c153d1c09eb884f82c89c1247; PR body is stale and Python repository tests fail. Do not treat earlier GREEN claim as current truth.",
-      "ObraSignal canonical-domain DNS/forwarding remains an external fail-closed gate until independently verified repaired.",
+      "Gmail inbound watch was not completed because connector authorization was unavailable in this run; do not infer no inbound.",
+      "LongLead dedicated repository authority was not recovered.",
+      "MachineRelease Safety PR #345 exact-head CI is GREEN but current integration readiness is NOT PROVED because mergeable=false against advanced main.",
+      "Capacity Commitment PR #729 remains exact-head RED until a successor proves otherwise.",
+      "ObraSignal canonical-domain DNS/forwarding remains an external fail-closed gate.",
       "Product Market Access, Recovery Radar, Sourcing Recovery, ChangeLedger and ScopeLedger remain without recovered dedicated default-branch authority.",
-      "Certactum PR #922 remains non-canonical; external provider activation/certification, production deployment, real-customer validation, recovery, paid audit, WTP, payment and revenue remain unproved.",
-      "ComplianceLedger has no recovered dedicated repository/source authority; do not borrow Documentary Billing authority.",
-      "Factory Cloud persistent autonomous agent host remains unproved provisioned.",
+      "Certactum PR #922 remains non-canonical and external commercial proof remains unproved.",
+      "ComplianceLedger has no recovered dedicated repository/source authority.",
+      "Factory Cloud persistent external host remains unproved provisioned.",
       "EU Switching Evidence Pack remains non-canonical and repository-repair-only.",
       "Release Safety rollback remains UNPROVEN.",
-      "Customer Decision and Global Market Entry retain previously recorded RED/non-canonical blockers until exact-head successors prove otherwise.",
-      "WarrantyGuard retains previously recorded RED state until exact-head successor proves otherwise."
+      "Customer Decision and Global Market Entry retain prior RED/non-canonical blockers until exact-head successors prove otherwise.",
+      "WarrantyGuard retains prior RED state until exact-head successor proves otherwise."
     ]
   },
   "blocked": [],
