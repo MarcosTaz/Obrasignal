@@ -19,10 +19,10 @@ class BillingState:
 
 
 class BillingStateStore:
-    """Minimal Stripe-event projection for sandbox and production parity.
+    """Server-verified billing projection for VINDORUM.
 
-    This store never trusts client-side checkout success. Access state changes only
-    from server-verified Stripe event payloads supplied by the webhook boundary.
+    Client-side checkout success never grants paid access. State changes only
+    from verified payment-provider events supplied by the webhook boundary.
     """
 
     def __init__(self, database: str | Path):
@@ -30,7 +30,7 @@ class BillingStateStore:
         with sqlite3.connect(self.database) as connection:
             connection.execute(
                 """
-                CREATE TABLE IF NOT EXISTS certactum_billing_state (
+                CREATE TABLE IF NOT EXISTS vindorum_billing_state (
                     account_id TEXT PRIMARY KEY,
                     customer_id TEXT,
                     subscription_id TEXT,
@@ -41,7 +41,7 @@ class BillingStateStore:
             )
             connection.execute(
                 """
-                CREATE TABLE IF NOT EXISTS certactum_billing_events (
+                CREATE TABLE IF NOT EXISTS vindorum_billing_events (
                     event_id TEXT PRIMARY KEY,
                     event_type TEXT NOT NULL,
                     account_id TEXT NOT NULL
@@ -72,9 +72,13 @@ class BillingStateStore:
         if not isinstance(obj, dict):
             raise BillingStateError("event object is required")
         metadata = obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {}
-        account_id = self._text(metadata.get("certactum_account_id"), "certactum_account_id")
+        account_id = self._text(metadata.get("vindorum_account_id"), "vindorum_account_id")
         customer_id = self._text(obj.get("customer"), "customer", optional=True)
-        subscription_id = self._text(obj.get("subscription") or obj.get("id" if event_type.startswith("customer.subscription.") else ""), "subscription", optional=True)
+        subscription_id = self._text(
+            obj.get("subscription") or obj.get("id" if event_type.startswith("customer.subscription.") else ""),
+            "subscription",
+            optional=True,
+        )
 
         transitions = {
             "checkout.session.completed": "PENDING_PAYMENT_CONFIRMATION",
@@ -90,14 +94,14 @@ class BillingStateStore:
         with sqlite3.connect(self.database) as connection:
             connection.execute("BEGIN IMMEDIATE")
             seen = connection.execute(
-                "SELECT event_type, account_id FROM certactum_billing_events WHERE event_id = ?",
+                "SELECT event_type, account_id FROM vindorum_billing_events WHERE event_id = ?",
                 (event_id,),
             ).fetchone()
             if seen:
                 if seen != (event_type, account_id):
                     raise BillingStateError("event id collision")
                 row = connection.execute(
-                    "SELECT account_id, customer_id, subscription_id, state, last_event_id FROM certactum_billing_state WHERE account_id = ?",
+                    "SELECT account_id, customer_id, subscription_id, state, last_event_id FROM vindorum_billing_state WHERE account_id = ?",
                     (account_id,),
                 ).fetchone()
                 if not row:
@@ -105,18 +109,18 @@ class BillingStateStore:
                 return BillingState(*row)
 
             current = connection.execute(
-                "SELECT customer_id, subscription_id FROM certactum_billing_state WHERE account_id = ?",
+                "SELECT customer_id, subscription_id FROM vindorum_billing_state WHERE account_id = ?",
                 (account_id,),
             ).fetchone()
             effective_customer = customer_id or (current[0] if current else None)
             effective_subscription = subscription_id or (current[1] if current else None)
             connection.execute(
-                "INSERT INTO certactum_billing_events(event_id, event_type, account_id) VALUES (?, ?, ?)",
+                "INSERT INTO vindorum_billing_events(event_id, event_type, account_id) VALUES (?, ?, ?)",
                 (event_id, event_type, account_id),
             )
             connection.execute(
                 """
-                INSERT INTO certactum_billing_state(account_id, customer_id, subscription_id, state, last_event_id)
+                INSERT INTO vindorum_billing_state(account_id, customer_id, subscription_id, state, last_event_id)
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(account_id) DO UPDATE SET
                     customer_id=excluded.customer_id,

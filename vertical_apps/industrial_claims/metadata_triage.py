@@ -48,7 +48,7 @@ _FIELDS = (
     ("prior_recovery_reconstructable", 1, "Can prior claim/approval/payment state be reconstructed?"),
     ("notice_process_known", 1, "Is the notice/deadline process known or checkable?"),
     ("economic_owner_named", 1, "Is there a named internal economic owner for recovery?"),
-    ("exposure_exceeds_likely_audit_fee", 1, "Is the approximate exposure comfortably above the likely audit fee?"),
+    ("exposure_exceeds_likely_audit_fee", 1, "Is the approximate exposure comfortably above the likely scan fee?"),
 )
 
 
@@ -72,7 +72,7 @@ def evaluate_metadata_triage(payload: MetadataTriageInput) -> MetadataTriageResu
             qualification="NO_FIT",
             observed_positive_signals=(),
             unknown_signals=(),
-            next_questions=("Route outside Supplier Recovery; do not widen this Factory.",),
+            next_questions=("This mechanism is outside VINDORUM's current industrial change-cost scope.",),
         )
 
     score = 0
