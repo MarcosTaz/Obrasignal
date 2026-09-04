@@ -33,14 +33,22 @@ def canonical(payload):
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def test_state_v3_roundtrip_preserves_period_and_unit():
+def legacy_v3_envelope(state):
+    payload = json.loads(dump_state(state))["payload"]
+    payload["schema_version"] = 3
+    payload.pop("fact_refs", None)
+    raw = canonical(payload)
+    return {"checksum": hashlib.sha256(raw.encode("utf-8")).hexdigest(), "payload": payload}
+
+
+def test_state_current_roundtrip_preserves_period_and_unit():
     restored = load_state(dump_state(v3_state()), expected_tenant_id="tenant-a")
     assert restored == v3_state()
     assert restored.period_id == "2026-Q2"
     assert restored.unit == "parts"
 
 
-def test_state_v3_rejects_blank_or_noncanonical_context():
+def test_state_rejects_blank_or_noncanonical_context():
     for field, value in (("period_id", ""), ("period_id", " 2026-Q2"), ("unit", " parts ")):
         kwargs = v3_state().__dict__.copy()
         kwargs[field] = value
@@ -71,10 +79,19 @@ def test_legacy_v2_snapshot_remains_readable_without_inventing_period_or_unit():
     restored = load_state(envelope, expected_tenant_id="tenant-a")
     assert restored.period_id is None
     assert restored.unit is None
+    assert restored.fact_refs == ()
     assert restored.recovery_case == original.recovery_case
 
 
-def test_v3_checksum_covers_period_and_unit():
+def test_legacy_v3_snapshot_remains_readable_without_inventing_fact_refs():
+    envelope = legacy_v3_envelope(v3_state())
+    restored = load_state(json.dumps(envelope), expected_tenant_id="tenant-a")
+    assert restored.period_id == "2026-Q2"
+    assert restored.unit == "parts"
+    assert restored.fact_refs == ()
+
+
+def test_current_checksum_covers_period_and_unit():
     envelope = json.loads(dump_state(v3_state()))
     envelope["payload"]["period_id"] = "2026-Q3"
     with pytest.raises(ValueError, match="checksum mismatch"):
@@ -82,7 +99,7 @@ def test_v3_checksum_covers_period_and_unit():
 
 
 def test_v3_schema_rejects_unknown_context_field_even_with_valid_checksum():
-    envelope = json.loads(dump_state(v3_state()))
+    envelope = legacy_v3_envelope(v3_state())
     envelope["payload"]["silent_period_override"] = "2026-Q4"
     raw = canonical(envelope["payload"])
     envelope["checksum"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
