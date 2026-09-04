@@ -35,12 +35,7 @@ class MetadataTriageCase:
 
 
 def render_metadata_triage_brief(*, case: MetadataTriageCase, result: MetadataTriageResult) -> str:
-    """Render a bounded pre-document commercial qualification brief.
-
-    This artifact is deliberately incapable of asserting a recoverable amount. It
-    records only metadata fit and the next questions required before documentary
-    intake or a paid forensic scan is appropriate.
-    """
+    """Render a bounded pre-document Supplier Recovery qualification brief."""
     if not isinstance(case, MetadataTriageCase):
         raise MetadataTriageBriefError("case must be MetadataTriageCase")
     if not isinstance(result, MetadataTriageResult):
@@ -72,7 +67,7 @@ def render_metadata_triage_brief(*, case: MetadataTriageCase, result: MetadataTr
 
     return "\n".join(
         [
-            "# Certactum — Metadata Recovery Triage",
+            "# Supplier Recovery — Metadata Recovery Triage",
             "",
             "> Pre-document qualification only. This brief does not establish recoverability, legal entitlement or money owed.",
             "",
