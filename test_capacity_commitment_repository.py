@@ -101,6 +101,40 @@ def test_repository_concurrent_duplicate_create_has_one_winner_and_no_overwrite(
     assert restored.recovery_case.actual_units == winning_actual
 
 
+def test_repository_rejects_non_string_case_ids_before_persistence(tmp_path):
+    repo = CapacityRepository(str(tmp_path / "capacity.db"))
+    for case_id in (None, 0, True, [], {}):
+        with pytest.raises(ValueError, match="case_id must be a non-empty string"):
+            repo.save(make_state("tenant-a", case_id))
+    assert repo.list_case_ids(tenant_id="tenant-a") == []
+
+
+@pytest.mark.parametrize(
+    "case_id",
+    ["case/with/slash", "case\\with\\backslash", "case with space", "case?query", "case#fragment"],
+)
+def test_repository_rejects_case_ids_that_cannot_be_addressed_by_assisted_api(case_id, tmp_path):
+    repo = CapacityRepository(str(tmp_path / "capacity.db"))
+
+    with pytest.raises(ValueError, match="case_id must be URL-addressable"):
+        repo.save(make_state("tenant-a", case_id))
+
+    assert repo.list_case_ids(tenant_id="tenant-a") == []
+
+
+def test_repository_load_fails_closed_on_stored_case_identity_mismatch(tmp_path):
+    db_path = tmp_path / "capacity.db"
+    repo = CapacityRepository(str(db_path))
+    repo.save(make_state("tenant-a", "source-case"))
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE capacity_commitment_cases SET case_id='alias-case' WHERE case_id='source-case'"
+        )
+
+    with pytest.raises(RuntimeError, match="case identity mismatch"):
+        repo.load(tenant_id="tenant-a", case_id="alias-case")
+
+
 def test_repository_engine_version_drift_requires_explicit_reassessment(tmp_path):
     db_path = tmp_path / "capacity.db"
     repo = CapacityRepository(str(db_path))
@@ -164,6 +198,50 @@ def test_repository_rejects_version_drift_backup_before_live_mutation(tmp_path):
         conn.execute("UPDATE capacity_commitment_cases SET engine_version='legacy-engine'")
 
     with pytest.raises(ValueError, match="engine reassessment"):
+        repo.restore_from(str(backup_path))
+
+    assert repo.load(tenant_id="tenant-a", case_id="case-original") == original
+
+
+def test_repository_restore_rejects_missing_required_schema_before_live_mutation(tmp_path):
+    live_path = tmp_path / "live.db"
+    backup_path = tmp_path / "incomplete-schema.db"
+    repo = CapacityRepository(str(live_path))
+    original = make_state("tenant-a", "case-original")
+    repo.save(original)
+
+    with sqlite3.connect(backup_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE capacity_commitment_cases (
+                tenant_id TEXT NOT NULL,
+                snapshot TEXT NOT NULL,
+                engine_version TEXT NOT NULL
+            )
+            """
+        )
+
+    with pytest.raises(ValueError, match="schema lacks required columns"):
+        repo.restore_from(str(backup_path))
+
+    assert repo.load(tenant_id="tenant-a", case_id="case-original") == original
+
+
+def test_repository_restore_rejects_case_identity_mismatch_before_live_mutation(tmp_path):
+    live_path = tmp_path / "live.db"
+    backup_path = tmp_path / "mismatched-identity.db"
+    repo = CapacityRepository(str(live_path))
+    original = make_state("tenant-a", "case-original")
+    repo.save(original)
+
+    bad = CapacityRepository(str(backup_path))
+    bad.save(make_state("tenant-a", "backup-source"))
+    with sqlite3.connect(backup_path) as conn:
+        conn.execute(
+            "UPDATE capacity_commitment_cases SET case_id='backup-alias' WHERE case_id='backup-source'"
+        )
+
+    with pytest.raises(ValueError, match="case identity mismatch"):
         repo.restore_from(str(backup_path))
 
     assert repo.load(tenant_id="tenant-a", case_id="case-original") == original

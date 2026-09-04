@@ -5,6 +5,11 @@ from factories.capacity_commitment.recovery_package import build_recovery_packag
 from factories.capacity_commitment.synthetic_cases import case
 
 
+EVIDENCE = ("contract:12",)
+DEADLINE = "2099-12-31"
+ASSESSMENT_DATE = "2026-08-29"
+
+
 def test_recovery_package_preserves_positive_truth_without_fabricating_payment():
     recovery_case = case("package-positive")
     result = evaluate_recoverability(recovery_case)
@@ -12,7 +17,8 @@ def test_recovery_package_preserves_positive_truth_without_fabricating_payment()
         recovery_case,
         result,
         evidence_refs=("contract:12", "forecast:7", "actuals:2026Q2"),
-        deadline="2026-09-30",
+        deadline="2099-09-30",
+        assessment_date=ASSESSMENT_DATE,
     )
 
     assert result.recoverability_state == RecoverabilityState.RECOVERABLE
@@ -26,7 +32,9 @@ def test_recovery_package_preserves_positive_truth_without_fabricating_payment()
     assert package.mitigation["mitigation_reviewed"] is True
     assert package.mitigation["prior_recovery_reviewed"] is True
     assert package.contractual_basis["notice_window_verified"] is True
-    assert package.audit_trail["deadline"] == "2026-09-30"
+    assert package.contractual_basis["duplicate_claim_reviewed"] is True
+    assert package.audit_trail["deadline"] == "2099-09-30"
+    assert package.audit_trail["assessment_date"] == ASSESSMENT_DATE
     assert package.audit_trail["engine_version"] == result.engine_version
     assert "obtain_authorized_human_review_before_external_submission" in package.next_actions
 
@@ -37,7 +45,10 @@ def test_recovery_package_unknown_state_never_becomes_positive():
     package = build_recovery_package(
         recovery_case,
         result,
+        evidence_refs=EVIDENCE,
         missing_evidence=("contract_mapping",),
+        deadline=DEADLINE,
+        assessment_date=ASSESSMENT_DATE,
     )
 
     assert result.recoverability_state == RecoverabilityState.UNKNOWN
@@ -51,7 +62,13 @@ def test_recovery_package_unknown_state_never_becomes_positive():
 def test_recovery_package_unreviewed_mitigation_is_visible_and_zero_claimable():
     recovery_case = case("package-mitigation-unknown", mitigation_reviewed=False)
     result = evaluate_recoverability(recovery_case)
-    package = build_recovery_package(recovery_case, result)
+    package = build_recovery_package(
+        recovery_case,
+        result,
+        evidence_refs=EVIDENCE,
+        deadline=DEADLINE,
+        assessment_date=ASSESSMENT_DATE,
+    )
 
     assert result.recoverability_state == RecoverabilityState.UNKNOWN
     assert package.mitigation["mitigation_reviewed"] is False
@@ -62,7 +79,13 @@ def test_recovery_package_unreviewed_mitigation_is_visible_and_zero_claimable():
 def test_recovery_package_zero_exposure_closes_without_claim_language():
     recovery_case = case("package-zero", actual_units=Decimal("100000"))
     result = evaluate_recoverability(recovery_case)
-    package = build_recovery_package(recovery_case, result)
+    package = build_recovery_package(
+        recovery_case,
+        result,
+        evidence_refs=EVIDENCE,
+        deadline=DEADLINE,
+        assessment_date=ASSESSMENT_DATE,
+    )
 
     assert result.recoverability_state == RecoverabilityState.ZERO_EXPOSURE
     assert package.recoverability["recoverable_amount"] == Decimal("0")
@@ -80,3 +103,16 @@ def test_recovery_package_rejects_mismatched_result():
         assert "does not belong" in str(exc)
     else:
         raise AssertionError("mismatched result must be rejected")
+
+
+def test_recovery_package_rejects_stale_result_with_same_case_id():
+    current_case = case("package-same-id", actual_units=Decimal("80000"))
+    stale_case = case("package-same-id", actual_units=Decimal("0"))
+    stale_result = evaluate_recoverability(stale_case)
+
+    try:
+        build_recovery_package(current_case, stale_result)
+    except ValueError as exc:
+        assert "does not match current case evaluation" in str(exc)
+    else:
+        raise AssertionError("same-id stale result must be rejected")

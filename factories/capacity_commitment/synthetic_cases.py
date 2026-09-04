@@ -50,6 +50,7 @@ def case(case_id: str, **overrides) -> RecoveryCase:
         contract_current=True,
         amendment_reviewed=True,
         amendment_matches=True,
+        duplicate_claim_reviewed=True,
         duplicate_claim=False,
     )
     values.update(overrides)
@@ -137,6 +138,8 @@ CASES = [
     (case("mitigation-partial", mitigation=D("30000")), expected(RecoverabilityState.RECOVERABLE, 100000, 70000, 70000)),
     (case("prior-customer-credit", prior_payment=D("40000")), expected(RecoverabilityState.RECOVERABLE, 100000, 60000, 60000)),
     (case("duplicate-claim", duplicate_claim=True), expected(RecoverabilityState.NON_RECOVERABLE, 100000, 100000, 0)),
+    (case("duplicate-claim-not-reviewed", duplicate_claim_reviewed=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
+    (case("duplicate-claim-review-unknown", duplicate_claim_reviewed=None), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
     (case("wrong-customer", customer_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
     (case("wrong-program", program_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),
     (case("wrong-period", period_matches=False), expected(RecoverabilityState.UNKNOWN, 100000, 100000, 0)),

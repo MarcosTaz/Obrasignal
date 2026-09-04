@@ -23,7 +23,7 @@ def request_payload(case_id: str, **case_overrides) -> dict:
         "recovery_case": recovery_case_to_payload(recovery_case),
         "evidence_refs": ["contract:lta-pilot-2026#volume", "actuals:pilot-period"],
         "missing_evidence": [],
-        "deadline": "2026-09-30",
+        "deadline": "2099-09-30",
     }
 
 
@@ -64,7 +64,8 @@ def test_assisted_api_end_to_end_matrix(tmp_path, case_id, overrides, expected_s
     assert body["result"]["claimable_amount"] == expected_claimable
     assert body["recovery_package"]["executive_summary"]["verified_recovery"] is False
     assert body["recovery_package"]["executive_summary"]["payment_received"] is False
-    assert body["recovery_package"]["audit_trail"]["deadline"] == "2026-09-30"
+    assert body["recovery_package"]["audit_trail"]["deadline"] == "2099-09-30"
+    assert body["recovery_package"]["assessment_date"]
 
     reopened = CapacityRepository(str(db_path))
     reopened_app = create_app(reopened, lambda req: req.headers.get("X-Test-Tenant"))

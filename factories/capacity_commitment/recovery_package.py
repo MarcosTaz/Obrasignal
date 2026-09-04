@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Optional, Tuple
 
-from .engine import RecoveryCase, RecoveryResult, RecoverabilityState
+from .engine import RecoveryCase, RecoveryResult, RecoverabilityState, evaluate_recoverability
 
 
 @dataclass(frozen=True)
@@ -21,8 +22,38 @@ class RecoveryPackage:
     evidence: Tuple[str, ...]
     missing_evidence: Tuple[str, ...]
     deadline: Optional[str]
+    assessment_date: Optional[str]
     next_actions: Tuple[str, ...]
     audit_trail: dict
+
+
+def _validate_reference_list(name: str, values) -> tuple[str, ...]:
+    if not isinstance(values, (tuple, list)) or not all(isinstance(item, str) for item in values):
+        raise ValueError(f"{name} must contain strings")
+    if len(values) > 100:
+        raise ValueError(f"{name} cannot exceed 100 references")
+    normalized = [item.strip() for item in values]
+    if any(not item for item in normalized):
+        raise ValueError(f"{name} cannot contain blank references")
+    if any(len(item) > 500 for item in normalized):
+        raise ValueError(f"{name} references must be at most 500 characters")
+    if len(set(normalized)) != len(normalized):
+        raise ValueError(f"{name} cannot contain duplicate references")
+    return tuple(values)
+
+
+def _canonical_date(value: Optional[str], *, field_name: str) -> date | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip() or value != value.strip():
+        raise ValueError(f"{field_name} must be canonical YYYY-MM-DD or null")
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be canonical YYYY-MM-DD or null") from exc
+    if parsed.isoformat() != value:
+        raise ValueError(f"{field_name} must be canonical YYYY-MM-DD or null")
+    return parsed
 
 
 def _next_actions(result: RecoveryResult, missing_evidence: Tuple[str, ...]) -> Tuple[str, ...]:
@@ -51,15 +82,45 @@ def build_recovery_package(
     evidence_refs: Tuple[str, ...] = (),
     missing_evidence: Tuple[str, ...] = (),
     deadline: Optional[str] = None,
+    assessment_date: Optional[str] = None,
+    deadline_expired_by_date: bool = False,
 ) -> RecoveryPackage:
     """Build a truth-preserving assisted-review package.
 
-    This function never upgrades the evaluator's truth state and never invents
-    evidence, deadlines, contractual rights, approvals, settlements, or payment.
+    The package is itself a truth boundary: direct callers cannot omit evidence
+    needed by a supported case, claim a verified notice window without its
+    canonical deadline/assessment date, or fabricate an expiry flag inconsistent
+    with the supplied temporal context and effective case.
     """
 
     if result.case_id != case.case_id:
         raise ValueError("result does not belong to case")
+    if result != evaluate_recoverability(case):
+        raise ValueError("result does not match current case evaluation")
+    if type(deadline_expired_by_date) is not bool:
+        raise ValueError("deadline_expired_by_date must be boolean")
+
+    evidence_refs = _validate_reference_list("evidence_refs", evidence_refs)
+    missing_evidence = _validate_reference_list("missing_evidence", missing_evidence)
+    if case.evidence_supported and not evidence_refs:
+        raise ValueError("evidence_supported requires at least one package evidence reference")
+
+    deadline_date = _canonical_date(deadline, field_name="deadline")
+    assessed_date = _canonical_date(assessment_date, field_name="assessment_date")
+    if case.notice_window_verified is True:
+        if deadline_date is None:
+            raise ValueError("notice_window_verified requires a canonical package deadline")
+        if assessed_date is None:
+            raise ValueError("notice_window_verified requires a canonical assessment_date")
+
+    if assessed_date is not None and deadline_date is not None and case.notice_window_verified is True:
+        expected_expired = deadline_date < assessed_date
+        if deadline_expired_by_date != expected_expired:
+            raise ValueError("deadline expiry context does not match assessment date")
+        if expected_expired and case.notice_valid is not False:
+            raise ValueError("deadline expiry context requires an expired effective case")
+    elif deadline_expired_by_date:
+        raise ValueError("deadline expiry context requires verified deadline and assessment date")
 
     state = result.recoverability_state
     positive_position = state is RecoverabilityState.RECOVERABLE
@@ -136,6 +197,7 @@ def build_recovery_package(
         "asset_dedicated": case.asset_dedicated,
         "evidence_supported": case.evidence_supported,
         "notice_valid": case.notice_valid,
+        "duplicate_claim_reviewed": case.duplicate_claim_reviewed,
         "duplicate_claim": case.duplicate_claim,
     }
     recoverability = {
@@ -151,6 +213,8 @@ def build_recovery_package(
         "source_evidence_refs": evidence_refs,
         "missing_evidence": missing_evidence,
         "deadline": deadline,
+        "assessment_date": assessment_date,
+        "deadline_expired_by_date": deadline_expired_by_date,
         "customer_matches": case.customer_matches,
         "contract_matches": case.contract_matches,
         "amendment_matches": case.amendment_matches,
@@ -158,6 +222,7 @@ def build_recovery_package(
         "mitigation_reviewed": case.mitigation_reviewed,
         "prior_recovery_reviewed": case.prior_recovery_reviewed,
         "notice_window_verified": case.notice_window_verified,
+        "duplicate_claim_reviewed": case.duplicate_claim_reviewed,
         "engine_reasons": result.reasons,
         "human_review_required_before_external_submission": positive_position,
     }
@@ -176,6 +241,7 @@ def build_recovery_package(
         evidence=evidence_refs,
         missing_evidence=missing_evidence,
         deadline=deadline,
+        assessment_date=assessment_date,
         next_actions=_next_actions(result, missing_evidence),
         audit_trail=audit_trail,
     )

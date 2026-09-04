@@ -60,6 +60,8 @@ RED_TEAM_CASE_IDS = {
     "contract-match-unknown",
     "wrong-amendment",
     "amendment-match-unknown",
+    "duplicate-claim-not-reviewed",
+    "duplicate-claim-review-unknown",
     "customer-match-unknown",
     "program-match-unknown",
     "period-match-unknown",
@@ -109,6 +111,7 @@ def test_capacity_commitment_unknown_integrity_fails_closed():
         ("notice_window_verified", "notice_window_not_verified"),
         ("contract_matches", "wrong_contract"),
         ("amendment_matches", "wrong_amendment"),
+        ("duplicate_claim_reviewed", "duplicate_claim_not_reviewed"),
         ("customer_matches", "wrong_customer"),
     ],
 )
@@ -155,3 +158,9 @@ def test_capacity_commitment_rejects_zero_unit_basis_for_amortized_cost():
                 amortization_basis_units=Decimal("0"),
             )
         )
+
+
+@pytest.mark.parametrize("currency", ["ＥＵＲ", "ΕΥΡ", "€UR", "EU1"])
+def test_capacity_commitment_rejects_non_ascii_or_non_alpha_currency_codes(currency):
+    with pytest.raises(ValueError, match="currency"):
+        evaluate_recoverability(case("spoofed-currency", currency=currency))

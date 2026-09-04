@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Context, Decimal, DecimalException, ROUND_HALF_EVEN, localcontext
 from enum import Enum
 from typing import Optional, Tuple
 
 
 ZERO = Decimal("0")
-ENGINE_VERSION = "capacity-recoverability-t1.5"
+ENGINE_VERSION = "capacity-recoverability-t1.12"
+ENGINE_DECIMAL_PRECISION = 60
+ENGINE_DECIMAL_EMAX = 999999
+ENGINE_DECIMAL_EMIN = -999999
 
 
 class CommitmentState(str, Enum):
@@ -76,6 +79,7 @@ class RecoveryCase:
     contract_current: Optional[bool] = None
     amendment_reviewed: Optional[bool] = None
     amendment_matches: Optional[bool] = None
+    duplicate_claim_reviewed: Optional[bool] = None
     duplicate_claim: bool = False
 
 
@@ -99,11 +103,27 @@ class RecoveryResult:
     reasons: Tuple[str, ...]
 
 
+def _engine_decimal_context() -> Context:
+    """Return a fresh arithmetic context so caller/global Decimal state is irrelevant."""
+
+    return Context(
+        prec=ENGINE_DECIMAL_PRECISION,
+        rounding=ROUND_HALF_EVEN,
+        Emin=ENGINE_DECIMAL_EMIN,
+        Emax=ENGINE_DECIMAL_EMAX,
+    )
+
+
 def _validate(case: RecoveryCase) -> None:
     if not isinstance(case.case_id, str) or not case.case_id.strip() or len(case.case_id) > 200:
         raise ValueError("case_id must be a non-empty string up to 200 characters")
-    if not isinstance(case.currency, str) or len(case.currency) != 3 or not case.currency.isalpha():
-        raise ValueError("currency must be a 3-letter alphabetic code")
+    if (
+        not isinstance(case.currency, str)
+        or len(case.currency) != 3
+        or not case.currency.isascii()
+        or not case.currency.isalpha()
+    ):
+        raise ValueError("currency must be a 3-letter ASCII alphabetic code")
     if not isinstance(case.commitment_state, CommitmentState):
         raise ValueError("commitment_state must be a valid CommitmentState")
     if not isinstance(case.exposure_type, ExposureType):
@@ -158,6 +178,7 @@ def _validate(case: RecoveryCase) -> None:
         "contract_current": case.contract_current,
         "amendment_reviewed": case.amendment_reviewed,
         "amendment_matches": case.amendment_matches,
+        "duplicate_claim_reviewed": case.duplicate_claim_reviewed,
     }
     for name, value in optional_bools.items():
         if value is not None and type(value) is not bool:
@@ -191,46 +212,139 @@ def _economic_exposure(case: RecoveryCase) -> tuple[Decimal, Decimal, Decimal]:
     return unit_amortization, recovered_via_actual_units, exposure
 
 
-def _integrity_gate(case: RecoveryCase) -> Optional[tuple[RecoverabilityState, str]]:
-    checks = (
-        (case.customer_matches, "customer_match_unknown", "wrong_customer"),
-        (case.program_matches, "program_match_unknown", "wrong_program"),
-        (case.period_matches, "period_match_unknown", "wrong_period"),
-        (case.currency_matches, "currency_match_unknown", "wrong_currency"),
-        (case.unit_matches, "unit_match_unknown", "wrong_unit"),
-        (case.actuals_complete, "actuals_completeness_unknown", "actuals_incomplete"),
-        (case.actuals_deduplicated, "actuals_deduplication_unknown", "duplicate_volume"),
-        (
-            case.cancelled_orders_excluded,
-            "cancelled_order_reconciliation_unknown",
-            "cancelled_order_in_actuals",
-        ),
-        (
-            case.amortization_verified,
-            "amortization_verification_unknown",
-            "amortization_basis_not_verified",
-        ),
-        (case.mitigation_reviewed, "mitigation_review_unknown", "mitigation_not_reviewed"),
-        (
-            case.prior_recovery_reviewed,
-            "prior_recovery_review_unknown",
-            "prior_recovery_not_reviewed",
-        ),
-        (
-            case.notice_window_verified,
-            "notice_window_verification_unknown",
-            "notice_window_not_verified",
-        ),
-        (case.contract_matches, "contract_match_unknown", "wrong_contract"),
-        (case.contract_current, "contract_current_unknown", "superseded_contract"),
-        (case.amendment_reviewed, "amendment_review_unknown", "customer_amendment_not_reconciled"),
-        (case.amendment_matches, "amendment_match_unknown", "wrong_amendment"),
-    )
+def _first_tri_state_failure(checks) -> Optional[tuple[RecoverabilityState, str]]:
     for value, unknown_reason, false_reason in checks:
         if value is None:
             return RecoverabilityState.UNKNOWN, unknown_reason
         if value is False:
             return RecoverabilityState.UNKNOWN, false_reason
+    return None
+
+
+def _zero_exposure_integrity_gate(
+    case: RecoveryCase,
+    economic_exposure: Decimal,
+) -> Optional[tuple[RecoverabilityState, str]]:
+    """Prevent an unverified input from being upgraded into a definitive zero.
+
+    Entitlement-only evidence (notice, recovery right, contract wording) is not
+    required to establish a structural economic zero. But when the zero depends
+    on amortization/actuals, mitigation or prior recovery, the inputs that caused
+    that zero must themselves be verified.
+    """
+
+    if case.dedicated_cost == ZERO:
+        return None
+
+    if case.already_fully_amortized:
+        if case.amortization_verified is None:
+            return RecoverabilityState.UNKNOWN, "amortization_verification_unknown"
+        if case.amortization_verified is False:
+            return RecoverabilityState.UNKNOWN, "amortization_basis_not_verified"
+        return None
+
+    if case.already_paid:
+        if case.prior_recovery_reviewed is None:
+            return RecoverabilityState.UNKNOWN, "prior_recovery_review_unknown"
+        if case.prior_recovery_reviewed is False:
+            return RecoverabilityState.UNKNOWN, "prior_recovery_not_reviewed"
+        return None
+
+    if (
+        case.cost_recovery_mode is CostRecoveryMode.UNIT_AMORTIZED
+        and economic_exposure == ZERO
+    ):
+        failure = _first_tri_state_failure(
+            (
+                (case.customer_matches, "customer_match_unknown", "wrong_customer"),
+                (case.program_matches, "program_match_unknown", "wrong_program"),
+                (case.period_matches, "period_match_unknown", "wrong_period"),
+                (case.currency_matches, "currency_match_unknown", "wrong_currency"),
+                (case.unit_matches, "unit_match_unknown", "wrong_unit"),
+                (case.actuals_complete, "actuals_completeness_unknown", "actuals_incomplete"),
+                (
+                    case.actuals_deduplicated,
+                    "actuals_deduplication_unknown",
+                    "duplicate_volume",
+                ),
+                (
+                    case.cancelled_orders_excluded,
+                    "cancelled_order_reconciliation_unknown",
+                    "cancelled_order_in_actuals",
+                ),
+                (
+                    case.amortization_verified,
+                    "amortization_verification_unknown",
+                    "amortization_basis_not_verified",
+                ),
+            )
+        )
+        if failure is not None:
+            return failure
+
+    if case.mitigation > ZERO:
+        if case.mitigation_reviewed is None:
+            return RecoverabilityState.UNKNOWN, "mitigation_review_unknown"
+        if case.mitigation_reviewed is False:
+            return RecoverabilityState.UNKNOWN, "mitigation_not_reviewed"
+
+    if case.prior_payment > ZERO:
+        if case.prior_recovery_reviewed is None:
+            return RecoverabilityState.UNKNOWN, "prior_recovery_review_unknown"
+        if case.prior_recovery_reviewed is False:
+            return RecoverabilityState.UNKNOWN, "prior_recovery_not_reviewed"
+
+    return None
+
+
+def _integrity_gate(case: RecoveryCase) -> Optional[tuple[RecoverabilityState, str]]:
+    failure = _first_tri_state_failure(
+        (
+            (case.customer_matches, "customer_match_unknown", "wrong_customer"),
+            (case.program_matches, "program_match_unknown", "wrong_program"),
+            (case.period_matches, "period_match_unknown", "wrong_period"),
+            (case.currency_matches, "currency_match_unknown", "wrong_currency"),
+            (case.unit_matches, "unit_match_unknown", "wrong_unit"),
+            (case.actuals_complete, "actuals_completeness_unknown", "actuals_incomplete"),
+            (case.actuals_deduplicated, "actuals_deduplication_unknown", "duplicate_volume"),
+            (
+                case.cancelled_orders_excluded,
+                "cancelled_order_reconciliation_unknown",
+                "cancelled_order_in_actuals",
+            ),
+            (
+                case.amortization_verified,
+                "amortization_verification_unknown",
+                "amortization_basis_not_verified",
+            ),
+            (case.mitigation_reviewed, "mitigation_review_unknown", "mitigation_not_reviewed"),
+            (
+                case.prior_recovery_reviewed,
+                "prior_recovery_review_unknown",
+                "prior_recovery_not_reviewed",
+            ),
+            (
+                case.notice_window_verified,
+                "notice_window_verification_unknown",
+                "notice_window_not_verified",
+            ),
+            (case.contract_matches, "contract_match_unknown", "wrong_contract"),
+            (case.contract_current, "contract_current_unknown", "superseded_contract"),
+            (
+                case.amendment_reviewed,
+                "amendment_review_unknown",
+                "customer_amendment_not_reconciled",
+            ),
+            (case.amendment_matches, "amendment_match_unknown", "wrong_amendment"),
+            (
+                case.duplicate_claim_reviewed,
+                "duplicate_claim_review_unknown",
+                "duplicate_claim_not_reviewed",
+            ),
+        )
+    )
+    if failure is not None:
+        return failure
     if case.duplicate_claim:
         return RecoverabilityState.NON_RECOVERABLE, "duplicate_claim"
     return None
@@ -246,9 +360,13 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
 
     _validate(case)
 
-    shortfall_units = max(case.committed_units - case.actual_units, ZERO)
-    unit_amortization, recovered_via_actual_units, economic_exposure = _economic_exposure(case)
-    net_exposure = max(economic_exposure - case.mitigation - case.prior_payment, ZERO)
+    try:
+        with localcontext(_engine_decimal_context()):
+            shortfall_units = max(case.committed_units - case.actual_units, ZERO)
+            unit_amortization, recovered_via_actual_units, economic_exposure = _economic_exposure(case)
+            net_exposure = max(economic_exposure - case.mitigation - case.prior_payment, ZERO)
+    except DecimalException as exc:
+        raise ValueError("numeric input exceeds engine arithmetic range") from exc
 
     reasons = []
     state: RecoverabilityState
@@ -256,8 +374,13 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
     claimable = ZERO
 
     if net_exposure == ZERO:
-        state = RecoverabilityState.ZERO_EXPOSURE
-        reasons.append("no_net_exposure_remaining")
+        zero_integrity = _zero_exposure_integrity_gate(case, economic_exposure)
+        if zero_integrity is not None:
+            state, reason = zero_integrity
+            reasons.append(reason)
+        else:
+            state = RecoverabilityState.ZERO_EXPOSURE
+            reasons.append("no_net_exposure_remaining")
     else:
         integrity = _integrity_gate(case)
         if integrity is not None:
@@ -279,7 +402,13 @@ def evaluate_recoverability(case: RecoveryCase) -> RecoveryResult:
             state = None
 
         if state is None:
-            if case.commitment_state is CommitmentState.FORECAST_ONLY:
+            if (
+                case.commitment_state in {CommitmentState.FIRM, CommitmentState.FLEX_WINDOW}
+                and case.committed_units == ZERO
+            ):
+                state = RecoverabilityState.NON_RECOVERABLE
+                reasons.append("zero_effective_commitment")
+            elif case.commitment_state is CommitmentState.FORECAST_ONLY:
                 state = RecoverabilityState.NON_RECOVERABLE
                 reasons.append("forecast_is_not_firm_commitment")
             elif case.commitment_state is CommitmentState.NONE:
