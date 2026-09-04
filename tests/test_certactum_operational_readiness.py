@@ -10,14 +10,14 @@ def _database(path):
 
 
 def test_readiness_is_secret_free_and_external_dependencies_block_real_intake(tmp_path, monkeypatch):
-    database = tmp_path / "certactum.sqlite3"
+    database = tmp_path / "supplier-recovery.sqlite3"
     _database(database)
     monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
-    monkeypatch.delenv("CERTACTUM_WORM_PROVIDER", raising=False)
-    monkeypatch.delenv("CERTACTUM_TIMESTAMP_PROVIDER", raising=False)
+    monkeypatch.delenv("SUPPLIER_RECOVERY_WORM_PROVIDER", raising=False)
+    monkeypatch.delenv("SUPPLIER_RECOVERY_TIMESTAMP_PROVIDER", raising=False)
 
     report = build_operational_readiness(database)
-    assert report["product"] == "Certactum"
+    assert report["product"] == "Supplier Recovery"
     assert report["status"] == "not_ready"
     assert "authentication" in report["warnings"]
     assert "worm_storage" in report["blocking_failures"]
@@ -40,11 +40,11 @@ def test_missing_database_is_blocking_and_fails_closed(tmp_path, monkeypatch):
 
 
 def test_declared_external_providers_do_not_invent_certification_or_bypass_auth(tmp_path, monkeypatch):
-    database = tmp_path / "certactum.sqlite3"
+    database = tmp_path / "supplier-recovery.sqlite3"
     _database(database)
     monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
-    monkeypatch.setenv("CERTACTUM_WORM_PROVIDER", "configured-provider")
-    monkeypatch.setenv("CERTACTUM_TIMESTAMP_PROVIDER", "configured-provider")
+    monkeypatch.setenv("SUPPLIER_RECOVERY_WORM_PROVIDER", "configured-provider")
+    monkeypatch.setenv("SUPPLIER_RECOVERY_TIMESTAMP_PROVIDER", "configured-provider")
 
     report = build_operational_readiness(database)
     worm = next(item for item in report["checks"] if item["name"] == "worm_storage")
