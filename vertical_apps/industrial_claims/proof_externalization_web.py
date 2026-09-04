@@ -99,16 +99,10 @@ def create_proof_externalization_blueprint(
     offline_export_audit_store: OfflineExportAuditStore | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("causledger_proof_externalization", __name__)
-    # Construction is intentionally an application-startup concern. Read paths below
-    # reuse these instances and never create schema while observing a Proof Pack.
     archive = attestation_archive or ProofAttestationArchive(audit_store.path)
     confidential_export_audit = offline_export_audit_store or OfflineExportAuditStore(audit_store.path)
     resolve_offline_export_identity = offline_export_identity or operator_identity
 
-    # The assisted runtime's only documentary-byte ingress is deliberately nested
-    # under this already operator-bound subsystem. It writes exact originals to the
-    # configured immutable store and the dedicated append-only registries; normal
-    # analyze/amend/resolve routes remain identifier-only by default.
     blueprint.register_blueprint(
         create_secure_intake_blueprint(
             capture_registry=SecureCaptureRegistry(audit_store.path),
@@ -194,7 +188,6 @@ def create_proof_externalization_blueprint(
 
     @blueprint.after_app_request
     def reconstruct_archived_attestations(response):
-        """Enrich successful Proof Pack reads from verified durable receipts only."""
         if request.method != "GET" or response.status_code != 200 or not request.path.endswith("/proof-pack"):
             return response
         base = response.get_json(silent=True)
@@ -330,10 +323,10 @@ def create_proof_externalization_blueprint(
             response.headers["Cache-Control"] = "no-store"
             response.headers["Pragma"] = "no-cache"
             response.headers["Content-Disposition"] = (
-                f'attachment; filename="causledger-offline-{actual[:16]}.json"'
+                f'attachment; filename="vindorum-offline-{actual[:16]}.json"'
             )
-            response.headers["X-CausLedger-Confidential"] = "true"
-            response.headers["X-CausLedger-Export-Operation"] = str(completed["operation_id"])
+            response.headers["X-VINDORUM-Confidential"] = "true"
+            response.headers["X-VINDORUM-Export-Operation"] = str(completed["operation_id"])
             return response
         except (
             ValueError,
