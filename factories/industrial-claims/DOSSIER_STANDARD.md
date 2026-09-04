@@ -1,115 +1,107 @@
-# CAUSLEDGER — AUDIT-GRADE DOSSIER STANDARD
+# VINDORUM — RECOVERY DOSSIER STANDARD
 
 ## Purpose
-The dossier is the initial product. It must let a finance/commercial/legal reviewer understand what happened, what is documented, what remains uncertain, how the amount was reconstructed and what action is justified next.
+The VINDORUM Recovery Dossier must let a finance, commercial or independent reviewer understand what happened, what is documented, what remains uncertain, how the economics were reconstructed and what bounded action is justified next.
 
-## Mandatory dossier structure
+The dossier is evidence-linked decision support. It does not establish legal entitlement merely because cost or documentary support exists.
+
+## Mandatory structure
 
 ### 1. Executive case sheet
 - case/finding ID and revision;
-- customer and program references;
-- claim family;
-- current workflow state;
-- net potential and currency;
-- confidence / unresolved evidence;
-- notice/deadline state and urgency;
-- one-sentence next action;
+- tenant/customer/program references;
+- claim family and current workflow state;
+- net documented exposure and currency;
+- evidence-supported / claimed / approved / settled amounts;
+- confidence and unresolved evidence;
+- notice/deadline state;
+- bounded next action;
 - explicit statement that candidate value is not automatically money owed.
 
 ### 2. Documentary index
-For each source:
-- source reference;
-- document type;
-- content hash / provenance state;
+For every source:
+- source reference and type;
+- content hash/provenance state;
 - relevant date;
-- what proposition the document is used to support;
-- raw document storage status.
+- proposition supported;
+- raw-document storage state.
 
-### 3. Contract / PO / change truth
-State only what the documents support:
-- commercial basis / PO / contract reference;
-- change-order, release, customer instruction or other event reference;
-- responsibility/reimbursement language located by the reviewer;
+### 3. Commercial basis
+Record only what evidence supports:
+- PO/contract/change reference;
+- customer instruction/event reference;
+- responsibility/reimbursement language identified by the system/customer;
 - limitations, exclusions, caps, prerequisites and notice requirements;
-- unresolved interpretation requiring specialist/legal review.
+- unresolved interpretation requiring customer or independent specialist review.
 
 ### 4. Event chronology
-A dated sequence of customer instruction/change/event → supplier response → incremental work/cost → notice/communication → any prior settlement/recovery.
+Dated sequence:
+`customer instruction/change → supplier response → incremental work/cost → notice/communication → prior recovery/credit/payment`.
 
 ### 5. Causation assessment
 Separate:
 - observed event;
-- claimed causal link;
-- evidence supporting the link;
-- competing causes / supplier-controlled causes;
-- reviewer conclusion: SUPPORTED / PARTIAL / UNRESOLVED.
+- proposed causal link;
+- supporting evidence;
+- competing/supplier-controlled causes;
+- state: `SUPPORTED / PARTIAL / UNRESOLVED`.
 
-### 6. Customer responsibility basis
-Never infer responsibility from cost alone. Record:
-- contractual/documentary basis;
-- relevant source references;
-- required conditions;
-- contrary language/evidence;
-- reviewer conclusion: SUPPORTED FOR COMMERCIAL REVIEW / PARTIAL / UNRESOLVED.
+### 6. Customer-responsibility basis
+Never infer responsibility from cost alone. Record source references, required conditions, contrary evidence and state:
+`SUPPORTED FOR COMMERCIAL REVIEW / PARTIAL / UNRESOLVED`.
 
-This is not a legal conclusion unless separately authorized and reviewed.
+This is not a legal conclusion.
 
-### 7. Cost reconstruction
-For every economic component:
-- gross cost;
-- cost source;
-- avoided cost;
-- resale/reuse;
-- third-party recovery;
-- prior payment/credit;
-- other mitigation;
-- resulting net potential;
-- currency;
-- formula/version and reproducibility hash.
+### 7. Economic reconciliation
+For each economic component expose source, mitigation and prior recovery, then reconcile:
+`documented cost → mitigation → net documented exposure → evidence-supported → claimed → approved → settled`.
 
-### 8. Prior recovery / duplicate check
-Explicitly state whether the same economic exposure is already represented by another case, payment, credit note, settlement or recovery. UNKNOWN is acceptable; omission is not.
+Required invariant:
+`net documented exposure >= evidence-supported >= claimed >= approved >= settled`.
+
+Also expose:
+- unsupported exposure;
+- supported-unclaimed;
+- claimed-unapproved;
+- approved-unsettled;
+- supported-unsettled.
+
+### 8. Duplicate / prior-recovery check
+State whether the same exposure is already represented by another case, credit note, payment, settlement or recovery. UNKNOWN is valid; omission is not.
 
 ### 9. Notice / deadline
-Record:
-- documentary/declared deadline truth state;
-- due date if supported for review;
-- timing state (OPEN / DUE_TODAY / EXPIRED / UNKNOWN);
-- required method/recipient if known;
-- human exception/waiver review if expired;
-- never equate expiry automatically with non-recoverability.
+Record evidence state, due date when supported, timing state (`OPEN / DUE_TODAY / EXPIRED / UNKNOWN`) and method/recipient when known. Expiry never automatically means non-recoverability.
 
 ### 10. Evidence gaps and attack list
-List missing documents, disputed assumptions, alternative explanations, duplicated costs, unsupported allocations, unclear responsibility, deadline uncertainty and any other reason the case may fail.
+List missing evidence, disputed assumptions, competing explanations, duplicated costs, unsupported allocations, unclear responsibility and deadline uncertainty.
 
-### 11. Confidence and disposition
+### 11. Customer confirmation
+Persist which extracted facts the customer confirmed, corrected or left unresolved, with actor, revision and timestamp/provenance.
+
+### 12. Disposition
 Allowed dispositions:
-- **NO CLAIM / INSUFFICIENT EVIDENCE**;
-- **NEEDS REVIEW / DOCUMENT REQUEST**;
-- **DOCUMENTED CANDIDATE FOR INDEPENDENT REVIEW**;
-- **INTERNALLY APPROVED FOR WORKFLOW**;
-- **ACTIONED INTERNALLY**;
-- **DOCUMENTED FINAL OUTCOME**.
+- `NO CLAIM / INSUFFICIENT EVIDENCE`;
+- `NEEDS EVIDENCE`;
+- `DOCUMENTED CANDIDATE FOR CUSTOMER/INDEPENDENT REVIEW`;
+- `CUSTOMER-CONFIRMED WORKFLOW CANDIDATE`;
+- `DOCUMENTED FINAL OUTCOME`.
 
-Do not label a dossier “recoverable”, “owed” or “overcharged” unless that conclusion is independently established under the applicable authority.
+Do not label value as recoverable, owed or overcharged unless that conclusion has been independently established under applicable authority.
 
-### 12. Next action
-One bounded next action with owner and required evidence, for example:
-- request signed change order and engineering time ledger;
-- reconcile prior credit notes;
-- obtain independent commercial/legal interpretation;
-- prepare customer-authorized claim communication;
-- close as insufficient evidence.
+### 13. Next action
+Exactly one bounded next action, such as requesting a missing source, reconciling prior credits, obtaining independent interpretation, preparing a customer-authorized communication or closing for insufficient evidence.
 
-## Release gate
-A dossier may leave internal review only when:
+## Automated release gate
+A dossier may be released to its authorized customer workspace only when:
 - tenant/case identity is correct;
 - revision is current;
-- raw evidence is not accidentally embedded in an unauthorized output;
 - evidence lineage is intact;
-- calculation reproduces;
-- prior-recovery check is recorded;
-- missing evidence and contrary evidence are visible;
+- raw evidence is not embedded in an unauthorized output;
+- calculations reproduce;
+- prior recovery is recorded;
+- missing/contrary evidence is visible;
 - deadline truth is visible;
-- human reviewer is identified;
-- external/customer action authority is explicit.
+- customer confirmation state is explicit;
+- external-action authority remains separate.
+
+A failed gate blocks release rather than creating an operator task on the normal path.
