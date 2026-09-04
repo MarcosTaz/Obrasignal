@@ -6,8 +6,8 @@ from typing import Any
 from vertical_apps.industrial_claims.dossier import AssistedRecoveryAssessment
 from vertical_apps.industrial_claims.leakage_reconciliation import reconcile_recovery_ledger
 from vertical_apps.industrial_claims.recovery_dossier import (
-    build_certactum_recovery_dossier,
-    render_certactum_recovery_dossier_markdown,
+    build_supplier_recovery_dossier,
+    render_supplier_recovery_dossier_markdown,
 )
 from vertical_apps.industrial_claims.recovery_reconciliation_store import (
     PersistedRecoveryReconciliation,
@@ -17,7 +17,7 @@ from vertical_apps.industrial_claims.recovery_reconciliation_store import (
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
-class CertactumRecoveryWorkflow:
+class SupplierRecoveryWorkflow:
     """Current-finding workflow from economic reconciliation to auditable dossier."""
 
     def __init__(self, service: IndustrialClaimsService):
@@ -111,7 +111,7 @@ class CertactumRecoveryWorkflow:
     ) -> dict[str, Any]:
         record = self.latest_reconciliation(tenant_id=tenant_id, finding_id=finding_id)
         snapshot = self._rehydrate(record)
-        dossier = build_certactum_recovery_dossier(
+        dossier = build_supplier_recovery_dossier(
             self.service,
             tenant_id=tenant_id,
             finding_id=finding_id,
@@ -144,4 +144,4 @@ class CertactumRecoveryWorkflow:
             assessment=assessment,
             as_of_date=as_of_date,
         )
-        return render_certactum_recovery_dossier_markdown(dossier)
+        return render_supplier_recovery_dossier_markdown(dossier)
