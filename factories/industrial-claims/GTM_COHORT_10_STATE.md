@@ -1,11 +1,11 @@
-# SUPPLIER RECOVERY — GTM COHORT 10 STATE
+# VINDORUM — GTM COHORT 10 STATE
 
 Date: 2026-09-04
 
 ## Milestone
-Supplier Recovery now has **10 unique named buyer research targets** across the first Portuguese industrial-supplier beachhead.
+VINDORUM has **10 unique named buyer research targets** across the first Portuguese industrial-supplier beachhead.
 
-The first four remain in `GTM_COHORT_1.json`. Six additional targets are in `GTM_COHORT_EXPANSION_6.json`.
+The first four remain in `GTM_COHORT_1.json`; six additional targets are in `GTM_COHORT_EXPANSION_6.json`.
 
 ## Ten named buyer targets
 1. TMG Automotive — Isabel Furtado — CEO.
@@ -17,10 +17,10 @@ The first four remain in `GTM_COHORT_1.json`. Six additional targets are in `GTM
 7. TRANSFORMADE — Ruben Lopes — CEO.
 8. EPALFER — Eduardo Oliveira — General Manager and owner.
 9. VianaPlásticos — Rene Galves — Administrator.
-10. Mold-Tech Portugal / Standex Engraving — Raul Souto — current affiliation confirmed; last explicit General Manager title evidence is older and must be rechecked before outbound.
+10. Mold-Tech Portugal / Standex Engraving — Raul Souto — current affiliation confirmed; current title must be rechecked before outbound.
 
 ## Truth boundary
-This milestone is **research readiness, not commercial validation**.
+This is research readiness, not commercial validation.
 
 Across both cohort files:
 - outbound sent: false;
@@ -34,31 +34,18 @@ Across both cohort files:
 - personal phone guessed: none;
 - outbound authorized: false for every target.
 
-Generic company contacts may be stored only when published by the company itself. They remain company channels, not personal contacts and not permission to send.
+Generic company contacts are routing metadata only; they are not personal contacts or permission to send.
 
-## Role confidence gate
-Nine targets have current/recent public role evidence considered sufficient for research routing.
+## Current GTM path
+`DEDICATED_VINDORUM_SENDER → AUTHORIZED_METADATA_OUTBOUND → FREE_EXPOSURE_CHECK → METADATA_QUALIFIED_CASE → VERIFIED_PAYMENT → SECURE_INTAKE_WHEN_GREEN → FIRST_PAID_SCAN`
 
-Mold-Tech Portugal is deliberately weaker:
-- current Raul Souto affiliation is confirmed by a recently crawled public profile;
-- the explicit `General Manager` title source is an older Standex company post;
-- therefore `role_recheck_required_before_outbound=true`.
-
-No weaker target may silently be upgraded to HIGH.
-
-## ACTIVE
-`EXACT_HEAD_VALIDATION → MERGE_COHORT_10 → VERIFY_SAFE_CONTACT_ROUTES → OWN_SENDER_IDENTITY → AUTHORIZED_METADATA_OUTBOUND`
-
-## NEXT
-1. Run exact-head CI for the cohort-10 branch.
-2. Merge only if Python + mobile are GREEN on the exact head.
-3. Verify current official company/contact routes for all ten; do not infer personal emails from formats.
-4. Recheck Raul Souto's current title before any Mold-Tech message.
-5. Establish Supplier Recovery's own sender identity/mailbox; never reuse another project's mailbox.
-6. Create/import Supplier Recovery's isolated Vercel project when tooling permits; keep generated Vercel hostname until a domain decision is explicitly required.
-7. Only after sender authority exists, execute a metadata-only outbound experiment and record each real action in the commercial-proof ledger.
-8. First external objective: a qualified buyer + bounded historical case, still without confidential document intake.
-9. Next economic objective: paid diagnostic/audit or equivalent costly commitment.
+## Remaining boundaries
+1. Do not send until a dedicated VINDORUM sender identity exists and real-send authority is satisfied.
+2. Recheck MEDIUM-confidence routes immediately before use.
+3. Recheck Raul Souto's current role before any Mold-Tech targeting.
+4. Do not request confidential evidence until secure intake is genuinely enabled.
+5. Do not count opens/clicks as commercial proof.
+6. The first customer CTA is self-service Free Exposure Check; no meeting is required.
 
 ## RESUME_AT
-`VERIFY_COHORT_10_HEAD → MERGE → CONTACT_ROUTE_MATRIX → SUPPLIER_RECOVERY_SENDER → AUTHORIZED_OUTBOUND → QUALIFIED_BUYER → PAID_DIAGNOSTIC`
+`IDENTITY_GREEN → VINDORUM_SENDER → AUTHORIZED_OUTBOUND → FREE_EXPOSURE_CHECK → PAID_SCAN`
