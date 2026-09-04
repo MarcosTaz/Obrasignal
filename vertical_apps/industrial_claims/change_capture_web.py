@@ -10,10 +10,42 @@ from vertical_apps.industrial_claims.change_capture import ChangeCaptureError, C
 from vertical_apps.industrial_claims.change_capture_reminder import ChangeCaptureReminderError, ChangeCaptureReminderService
 from vertical_apps.industrial_claims.change_sheet_trust import ChangeSheetTrustError, ChangeSheetTrustService
 from vertical_apps.industrial_claims.change_supplement import ChangeSupplementError, LateChangeSupplementStore
+from vertical_apps.industrial_claims.proof import sha256_hex
 from vertical_apps.industrial_claims.proof_providers import ProofProviderBundle
 
 
 IdentityResolver = Callable[[], tuple[str, str]]
+
+
+def _canonical_vindorum_sheet(sheet: str) -> tuple[str, str]:
+    marker = "\nSnapshot SHA-256:"
+    body, separator, _old_digest = sheet.rpartition(marker)
+    if not separator:
+        raise ChangeCaptureError("change sheet snapshot digest marker is missing")
+    canonical_body = body.replace(
+        "CAUSLEDGER — CHANGE CAPTURE SHEET",
+        "VINDORUM — CHANGE CAPTURE SHEET",
+    ).replace(
+        "CausLedger first recorded at:",
+        "VINDORUM first recorded at:",
+    )
+    digest = sha256_hex(canonical_body.encode("utf-8"))
+    return f"{canonical_body}{marker} {digest}\n", digest
+
+
+class _VindorumChangeCaptureView:
+    """Expose canonical VINDORUM sheet bytes without rewriting legacy storage IDs."""
+
+    def __init__(self, delegate: ChangeCaptureStore) -> None:
+        self._delegate = delegate
+        self.path = delegate.path
+
+    def __getattr__(self, name: str):
+        return getattr(self._delegate, name)
+
+    def render_sheet(self, *, tenant_id: str, finding_id: str) -> tuple[str, str]:
+        sheet, _legacy_digest = self._delegate.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
+        return _canonical_vindorum_sheet(sheet)
 
 
 def create_change_capture_blueprint(
@@ -25,19 +57,22 @@ def create_change_capture_blueprint(
     reminder_service: ChangeCaptureReminderService | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("causledger_change_capture", __name__)
+    canonical_store = _VindorumChangeCaptureView(store)
     active_trust = trust_service or ChangeSheetTrustService(
         store.path,
-        capture_store=store,
+        capture_store=canonical_store,
         qualified_timestamp_provider=ProofProviderBundle.fail_closed().qualified_timestamp,
     )
+    active_trust.capture_store = canonical_store
     supplements = supplement_store or LateChangeSupplementStore(
         store.path,
         capture_store=store,
     )
     reminders = reminder_service or ChangeCaptureReminderService(
         store.path,
-        capture_store=store,
+        capture_store=canonical_store,
     )
+    reminders.capture_store = canonical_store
 
     def json_object() -> dict[str, Any]:
         payload = request.get_json(force=True)
@@ -133,7 +168,7 @@ def create_change_capture_blueprint(
         try:
             tenant_id, actor_id = capture_identity()
             status = store.status(tenant_id=tenant_id, finding_id=finding_id)
-            sheet, digest = store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
+            sheet, digest = canonical_store.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
             payload = active_trust.detached_export_payload(sheet, digest)
             timestamp = active_trust.attest_snapshot(
                 tenant_id=tenant_id,
@@ -152,15 +187,15 @@ def create_change_capture_blueprint(
             response = make_response(payload)
             response.headers["Content-Type"] = "text/plain; charset=utf-8"
             response.headers["Content-Disposition"] = (
-                f'attachment; filename="CausLedger-change-{status["sheet_id"]}.txt"'
+                f'attachment; filename="vindorum-change-{status["sheet_id"]}.txt"'
             )
-            response.headers["X-CausLedger-Sheet-SHA256"] = digest
-            response.headers["X-CausLedger-Export-Receipt"] = export["download_id"]
-            response.headers["X-CausLedger-Transfer-Completion-Proven"] = "false"
-            response.headers["X-CausLedger-Timestamp-State"] = str(timestamp["state"])
-            response.headers["X-CausLedger-Timestamp-Provider"] = str(timestamp["provider"])
-            response.headers["X-CausLedger-Timestamp-Attestation"] = str(timestamp["attestation_id"])
-            response.headers["X-CausLedger-Reminder-Satisfied-For-Snapshot"] = "true"
+            response.headers["X-VINDORUM-Sheet-SHA256"] = digest
+            response.headers["X-VINDORUM-Export-Receipt"] = export["download_id"]
+            response.headers["X-VINDORUM-Transfer-Completion-Proven"] = "false"
+            response.headers["X-VINDORUM-Timestamp-State"] = str(timestamp["state"])
+            response.headers["X-VINDORUM-Timestamp-Provider"] = str(timestamp["provider"])
+            response.headers["X-VINDORUM-Timestamp-Attestation"] = str(timestamp["attestation_id"])
+            response.headers["X-VINDORUM-Reminder-Satisfied-For-Snapshot"] = "true"
             return response
         except (ChangeCaptureError, ChangeCaptureReminderError, ChangeSheetTrustError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422
@@ -208,9 +243,9 @@ def create_change_capture_blueprint(
             sheet, digest = supplements.render_sheet(tenant_id=tenant_id, finding_id=finding_id)
             response = make_response(sheet)
             response.headers["Content-Type"] = "text/plain; charset=utf-8"
-            response.headers["Content-Disposition"] = 'attachment; filename="CausLedger-late-change-supplement.txt"'
-            response.headers["X-CausLedger-Late-Supplement-SHA256"] = digest
-            response.headers["X-CausLedger-Conventional-Change-Sheet-Rewritten"] = "false"
+            response.headers["Content-Disposition"] = 'attachment; filename="vindorum-late-change-supplement.txt"'
+            response.headers["X-VINDORUM-Late-Supplement-SHA256"] = digest
+            response.headers["X-VINDORUM-Conventional-Change-Sheet-Rewritten"] = "false"
             return response
         except (ChangeCaptureError, ChangeSupplementError) as exc:
             return jsonify({"error": type(exc).__name__, "message": str(exc)}), 422

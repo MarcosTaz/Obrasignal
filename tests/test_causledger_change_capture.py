@@ -74,7 +74,7 @@ def test_simple_change_sheet_records_request_and_declared_time_without_calling_i
     assert status["declared_change_requested_at_is_externally_verified"] is False
 
     sheet, digest = store.render_sheet(tenant_id="tenant-a", finding_id=finding)
-    assert "CAUSLEDGER — CHANGE CAPTURE SHEET" in sheet
+    assert "VINDORUM — CHANGE CAPTURE SHEET" in sheet
     assert "Move bracket hole pattern 8 mm" in sheet
     assert "2026-08-31T13:35:00+00:00" in sheet
     assert "does not prove customer responsibility" in sheet

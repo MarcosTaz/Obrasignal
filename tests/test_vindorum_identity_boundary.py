@@ -99,6 +99,47 @@ def test_legacy_internal_name_is_bounded_and_never_customer_facing():
     assert legacy_files <= LEGACY_COMPATIBILITY_FILES
 
 
+def test_customer_visible_runtime_outputs_are_vindorum_only():
+    change_web = (VERTICAL_ROOT / "change_capture_web.py").read_text(encoding="utf-8")
+    change_capture = (VERTICAL_ROOT / "change_capture.py").read_text(encoding="utf-8")
+    supplement = (VERTICAL_ROOT / "change_supplement.py").read_text(encoding="utf-8")
+    proof_web = (VERTICAL_ROOT / "proof_externalization_web.py").read_text(encoding="utf-8")
+    offline_bundle = (VERTICAL_ROOT / "offline_export_bundle.py").read_text(encoding="utf-8")
+    verifier = (VERTICAL_ROOT / "proof_verifier.py").read_text(encoding="utf-8")
+    secure_web = (VERTICAL_ROOT / "secure_intake_web.py").read_text(encoding="utf-8")
+
+    legacy_title = "Caus" + "Ledger"
+    legacy_upper = "CAUS" + "LEDGER"
+    legacy_lower = "caus" + "ledger"
+    foreign_lower = "cert" + "actum"
+
+    for text in (change_web, proof_web):
+        assert f"X-{legacy_title}" not in text
+        assert f'filename="{legacy_title}' not in text
+        assert f'filename="{legacy_lower}' not in text
+
+    assert foreign_lower not in secure_web.lower()
+    assert 'provider="vindorum-secure-intake"' in secure_web
+    assert 'Blueprint("vindorum_secure_intake"' in secure_web
+
+    assert "X-VINDORUM-Sheet-SHA256" in change_web
+    assert 'filename="vindorum-change-' in change_web
+    assert 'filename="vindorum-late-change-supplement.txt' in change_web
+    assert "VINDORUM — CHANGE CAPTURE SHEET" in change_capture
+    assert legacy_upper + " — CHANGE CAPTURE SHEET" not in change_capture
+    assert "VINDORUM — LATE CHANGE SUPPLEMENT" in supplement
+    assert legacy_upper + " — LATE CHANGE SUPPLEMENT" not in supplement
+
+    assert "X-VINDORUM-Confidential" in proof_web
+    assert 'filename="vindorum-offline-' in proof_web
+    assert '"deliverable": "VINDORUM_CONFIDENTIAL_OFFLINE_VERIFICATION_BUNDLE"' in offline_bundle
+    assert legacy_upper + "_CONFIDENTIAL_OFFLINE_VERIFICATION_BUNDLE" not in offline_bundle
+    assert "independently_verifiable_without_vindorum" in verifier
+    assert "independently_verifiable_without_" + legacy_lower not in verifier
+    assert "DO NOT TRUST VINDORUM STATE LABELS" in verifier
+    assert "DO NOT TRUST " + legacy_upper + " STATE LABELS" not in verifier
+
+
 def test_canonical_vindorum_identity_exists_on_primary_customer_surfaces():
     primary = (
         Path("vertical_apps/industrial_claims/public_site/index.html"),
