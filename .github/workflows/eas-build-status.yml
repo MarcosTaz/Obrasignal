@@ -44,7 +44,7 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Verify exact production build from filtered EAS inventory
+      - name: Verify exact production build from EAS inventory
         env:
           BUILD_ID: 8fb3b777-a52a-4c9c-b81d-2e87887e6c48
           BUILD_GIT_SHA: 916ed6203ad4f6750e862b9952f982dcbd3e63b9
@@ -52,15 +52,11 @@ jobs:
           ANDROID_PACKAGE: pt.obrasignal.app
         run: |
           set -euo pipefail
-          eas build:list \
-            --platform android \
-            --status finished \
-            --build-profile production \
-            --git-commit-hash "$BUILD_GIT_SHA" \
-            --app-identifier "$ANDROID_PACKAGE" \
-            --limit 10 \
-            --json \
-            --non-interactive > /tmp/eas-builds.json
+          if ! eas build:list --platform android --limit 50 --json --non-interactive > /tmp/eas-builds.json 2> /tmp/eas-builds.err; then
+            cat /tmp/eas-builds.err >&2
+            echo '::error::EAS Android inventory query failed.'
+            exit 1
+          fi
           python - <<'PY'
           import json, os
 
@@ -71,7 +67,7 @@ jobs:
           matches = [b for b in builds if str(b.get('id') or '') == os.environ['BUILD_ID']]
           if len(matches) != 1:
               ids = [str(b.get('id') or '') for b in builds]
-              raise SystemExit(f"Exact Android build not present in filtered EAS inventory; returned={ids}")
+              raise SystemExit(f"Exact Android build not present in EAS inventory; returned={ids}")
           target = matches[0]
 
           build_id = str(target.get('id') or '')
@@ -82,20 +78,27 @@ jobs:
           project_id = str((target.get('app') or {}).get('id') or '')
           app_identifier = str(target.get('appIdentifier') or '')
 
-          if build_id != os.environ['BUILD_ID']:
-              raise SystemExit(f"Wrong EAS build id: {build_id or 'missing'}")
-          if status != 'FINISHED':
-              raise SystemExit(f"Android production build not finished: {status or 'missing'}")
-          if platform != 'ANDROID':
-              raise SystemExit(f"Wrong EAS platform: {platform or 'missing'}")
-          if profile != 'production':
-              raise SystemExit(f"Wrong EAS build profile: {profile or 'missing'}")
-          if git_sha != os.environ['BUILD_GIT_SHA']:
-              raise SystemExit(f"Wrong EAS git commit: {git_sha or 'missing'}")
-          if project_id != os.environ['EAS_PROJECT_ID']:
-              raise SystemExit(f"Wrong EAS project: {project_id or 'missing'}")
-          if app_identifier != os.environ['ANDROID_PACKAGE']:
-              raise SystemExit(f"Wrong Android package: {app_identifier or 'missing'}")
+          expected = {
+              'id': os.environ['BUILD_ID'],
+              'status': 'FINISHED',
+              'platform': 'ANDROID',
+              'profile': 'production',
+              'git_sha': os.environ['BUILD_GIT_SHA'],
+              'project_id': os.environ['EAS_PROJECT_ID'],
+              'app_identifier': os.environ['ANDROID_PACKAGE'],
+          }
+          actual = {
+              'id': build_id,
+              'status': status,
+              'platform': platform,
+              'profile': profile,
+              'git_sha': git_sha,
+              'project_id': project_id,
+              'app_identifier': app_identifier,
+          }
+          for key, want in expected.items():
+              if actual[key] != want:
+                  raise SystemExit(f"Wrong {key}: {actual[key] or 'missing'}; expected={want}")
 
           print(
               'ANDROID_EAS_BUILD_VERIFIED '
