@@ -71,14 +71,17 @@ def _text(value: object, *, label: str, limit: int = 512) -> str:
 
 
 class CommercialProofStore:
-    """Append-only Supplier Recovery proof ledger separating market truth from tests."""
+    """Append-only VINDORUM proof ledger separating market truth from tests."""
+
+    TABLE = "vindorum_commercial_proof_events"
+    ACCOUNT_INDEX = "idx_vindorum_commercial_proof_account"
 
     def __init__(self, database: str | Path):
         self.database = str(database)
         with sqlite3.connect(self.database) as connection:
             connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS supplier_recovery_commercial_proof_events (
+                f"""
+                CREATE TABLE IF NOT EXISTS {self.TABLE} (
                     event_id TEXT PRIMARY KEY,
                     account_id TEXT NOT NULL,
                     event_type TEXT NOT NULL,
@@ -90,23 +93,14 @@ class CommercialProofStore:
                 """
             )
             connection.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_supplier_recovery_commercial_proof_account
-                ON supplier_recovery_commercial_proof_events (account_id, created_at, event_id)
+                f"""
+                CREATE INDEX IF NOT EXISTS {self.ACCOUNT_INDEX}
+                ON {self.TABLE} (account_id, created_at, event_id)
                 """
             )
             connection.commit()
 
-    def append(
-        self,
-        *,
-        event_id: str,
-        account_id: str,
-        event_type: str,
-        evidence_class: str,
-        evidence_ref: str,
-        actor_id: str,
-    ) -> CommercialProofEvent:
+    def append(self, *, event_id: str, account_id: str, event_type: str, evidence_class: str, evidence_ref: str, actor_id: str) -> CommercialProofEvent:
         event = _text(event_id, label="event_id")
         account = _text(account_id, label="account_id")
         kind = _text(event_type, label="event_type").upper()
@@ -121,10 +115,7 @@ class CommercialProofStore:
         with sqlite3.connect(self.database) as connection:
             connection.row_factory = sqlite3.Row
             connection.execute("BEGIN IMMEDIATE")
-            existing = connection.execute(
-                "SELECT * FROM supplier_recovery_commercial_proof_events WHERE event_id=?",
-                (event,),
-            ).fetchone()
+            existing = connection.execute(f"SELECT * FROM {self.TABLE} WHERE event_id=?", (event,)).fetchone()
             if existing is not None:
                 same = (
                     str(existing["account_id"]) == account
@@ -136,39 +127,24 @@ class CommercialProofStore:
                 if not same:
                     raise CommercialProofError("commercial proof event id collision")
                 connection.commit()
-                return CommercialProofEvent(
-                    event_id=str(existing["event_id"]),
-                    account_id=str(existing["account_id"]),
-                    event_type=str(existing["event_type"]),
-                    evidence_class=str(existing["evidence_class"]),
-                    evidence_ref=str(existing["evidence_ref"]),
-                    actor_id=str(existing["actor_id"]),
-                    created_at=str(existing["created_at"]),
-                )
+                return self._event(existing)
 
             connection.execute(
-                """
-                INSERT INTO supplier_recovery_commercial_proof_events (
-                    event_id,account_id,event_type,evidence_class,evidence_ref,actor_id
-                ) VALUES (?,?,?,?,?,?)
-                """,
+                f"INSERT INTO {self.TABLE} (event_id,account_id,event_type,evidence_class,evidence_ref,actor_id) VALUES (?,?,?,?,?,?)",
                 (event, account, kind, klass, reference, actor),
             )
-            row = connection.execute(
-                "SELECT * FROM supplier_recovery_commercial_proof_events WHERE event_id=?",
-                (event,),
-            ).fetchone()
+            row = connection.execute(f"SELECT * FROM {self.TABLE} WHERE event_id=?", (event,)).fetchone()
             connection.commit()
 
         if row is None:
             raise CommercialProofError("commercial proof persistence failed")
+        return self._event(row)
+
+    @staticmethod
+    def _event(row: sqlite3.Row) -> CommercialProofEvent:
         return CommercialProofEvent(
-            event_id=str(row["event_id"]),
-            account_id=str(row["account_id"]),
-            event_type=str(row["event_type"]),
-            evidence_class=str(row["evidence_class"]),
-            evidence_ref=str(row["evidence_ref"]),
-            actor_id=str(row["actor_id"]),
+            event_id=str(row["event_id"]), account_id=str(row["account_id"]), event_type=str(row["event_type"]),
+            evidence_class=str(row["evidence_class"]), evidence_ref=str(row["evidence_ref"]), actor_id=str(row["actor_id"]),
             created_at=str(row["created_at"]),
         )
 
@@ -177,24 +153,9 @@ class CommercialProofStore:
         with sqlite3.connect(self.database) as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
-                """
-                SELECT * FROM supplier_recovery_commercial_proof_events
-                WHERE account_id=? ORDER BY created_at ASC, event_id ASC
-                """,
-                (account,),
+                f"SELECT * FROM {self.TABLE} WHERE account_id=? ORDER BY created_at ASC, event_id ASC", (account,)
             ).fetchall()
-        return tuple(
-            CommercialProofEvent(
-                event_id=str(row["event_id"]),
-                account_id=str(row["account_id"]),
-                event_type=str(row["event_type"]),
-                evidence_class=str(row["evidence_class"]),
-                evidence_ref=str(row["evidence_ref"]),
-                actor_id=str(row["actor_id"]),
-                created_at=str(row["created_at"]),
-            )
-            for row in rows
-        )
+        return tuple(self._event(row) for row in rows)
 
     def state(self, *, account_id: str) -> CommercialProofState:
         account = _text(account_id, label="account_id")
