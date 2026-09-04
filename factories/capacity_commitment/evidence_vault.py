@@ -96,6 +96,19 @@ class EvidenceVault:
     def _aad(tenant_id: str, evidence_id: str, sha256: str) -> bytes:
         return f"CCEV1|{tenant_id}|{evidence_id}|{sha256}".encode("utf-8")
 
+    def _idempotent_existing(self, *, tenant_id: str, evidence_id: str, sha256: str, content: bytes) -> StoredEvidence:
+        try:
+            existing = self.read(
+                tenant_id=tenant_id,
+                evidence_id=evidence_id,
+                expected_sha256=sha256,
+            )
+        except RuntimeError as exc:
+            raise FileExistsError("evidence object exists with different identity or content") from exc
+        if existing != content:
+            raise FileExistsError("evidence object exists with different plaintext")
+        return StoredEvidence(tenant_id, evidence_id, sha256, len(content), f"vault:{evidence_id}")
+
     def store(self, *, tenant_id: str, evidence_id: str, content: bytes) -> StoredEvidence:
         tenant_id = _safe_id(tenant_id, "tenant_id")
         evidence_id = _safe_id(evidence_id, "evidence_id")
@@ -110,14 +123,12 @@ class EvidenceVault:
         aad = self._aad(tenant_id, evidence_id, sha256)
 
         if path.exists():
-            existing = self.read(
+            return self._idempotent_existing(
                 tenant_id=tenant_id,
                 evidence_id=evidence_id,
-                expected_sha256=sha256,
+                sha256=sha256,
+                content=content,
             )
-            if existing != content:
-                raise FileExistsError("evidence object exists with different plaintext")
-            return StoredEvidence(tenant_id, evidence_id, sha256, len(content), f"vault:{evidence_id}")
 
         nonce = os.urandom(_NONCE_BYTES)
         ciphertext = self._aes.encrypt(nonce, content, aad)
@@ -129,7 +140,22 @@ class EvidenceVault:
                 handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(temporary, path)
+            try:
+                # Hard-link is create-only: it fails rather than replacing an object
+                # created concurrently under the same immutable evidence identity.
+                os.link(temporary, path)
+            except FileExistsError:
+                return self._idempotent_existing(
+                    tenant_id=tenant_id,
+                    evidence_id=evidence_id,
+                    sha256=sha256,
+                    content=content,
+                )
+            finally:
+                try:
+                    os.unlink(temporary)
+                except OSError:
+                    pass
             try:
                 os.chmod(path, 0o600)
             except OSError:
