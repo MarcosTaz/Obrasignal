@@ -7,7 +7,7 @@ from vertical_apps.industrial_claims.recovery_portfolio import (
     RecoveryPortfolioError,
     rollup_recovery_portfolio,
 )
-from vertical_apps.industrial_claims.recovery_workflow import CertactumRecoveryWorkflow
+from vertical_apps.industrial_claims.recovery_workflow import SupplierRecoveryWorkflow
 from vertical_apps.industrial_claims.service import IndustrialClaimsService
 
 
@@ -39,12 +39,12 @@ class CurrentPortfolioSnapshot:
         }
 
 
-class CertactumRecoveryPortfolioWorkflow:
+class SupplierRecoveryPortfolioWorkflow:
     """Build a portfolio only from current findings and their latest verified reconciliations."""
 
     def __init__(self, service: IndustrialClaimsService):
         self.service = service
-        self.case_workflow = CertactumRecoveryWorkflow(service)
+        self.case_workflow = SupplierRecoveryWorkflow(service)
 
     def build_current_portfolio(
         self,
@@ -61,8 +61,6 @@ class CertactumRecoveryPortfolioWorkflow:
         records = []
         cases = []
         for finding_id in ids:
-            # latest_reconciliation also verifies current revision and recalculates the
-            # persisted reconciliation hash before the record enters the portfolio.
             record = self.case_workflow.latest_reconciliation(
                 tenant_id=tenant_id,
                 finding_id=finding_id,
