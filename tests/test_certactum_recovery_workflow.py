@@ -1,5 +1,6 @@
 import pytest
 
+from factory_cloud.assurance_store import AssuranceStoreError
 from vertical_apps.industrial_claims.amendment import amend_case
 from vertical_apps.industrial_claims.dossier import AssistedRecoveryAssessment
 from vertical_apps.industrial_claims.recovery_reconciliation_store import RecoveryReconciliationStoreError
@@ -117,7 +118,7 @@ def test_superseded_finding_cannot_receive_or_render_new_reconciliation(tmp_path
         notice_deadline_not_applicable=True,
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(AssuranceStoreError, match="superseded"):
         workflow.record_reconciliation(
             tenant_id="alpha",
             finding_id=first.finding.finding_id,
@@ -131,7 +132,7 @@ def test_superseded_finding_cannot_receive_or_render_new_reconciliation(tmp_path
             settled="30000",
             currency="EUR",
         )
-    with pytest.raises(Exception):
+    with pytest.raises(AssuranceStoreError, match="superseded"):
         workflow.build_latest_dossier(
             tenant_id="alpha",
             finding_id=first.finding.finding_id,
