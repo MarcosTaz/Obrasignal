@@ -1,4 +1,4 @@
-# CERTACTUM — DISCOVERY & INTAKE PACK
+# SUPPLIER RECOVERY — DISCOVERY & INTAKE PACK
 
 ## 20-minute discovery objective
 Determine whether one historical customer/OEM-caused engineering/change/NRE case is suitable for a bounded evidence-first recovery scan. Do not sell a recovery number before evidence exists.
@@ -71,7 +71,7 @@ Request this only after secure intake is permitted:
 Do not request an entire ERP export, mailbox or contract library for the first scan.
 
 ## Data-handling gate before real documents
-Before receiving non-public customer documents into Certactum:
+Before receiving non-public customer documents into Supplier Recovery:
 - verified production authentication is active;
 - authorized sender and tenant/case are bound;
 - permitted document set and purpose are recorded;
@@ -93,7 +93,7 @@ If any required control is false/unknown, remain in Phase A metadata-only triage
 4. preserve immutable original + source/custody metadata;
 5. perform controlled human review;
 6. reconcile documented cost → mitigation → evidence-supported → claimed → approved → settled;
-7. generate the Certactum Supplier Recovery Dossier;
+7. generate the Supplier Recovery Dossier;
 8. deliver through an agreed secure channel;
 9. do not reuse data for another prospect/case.
 
