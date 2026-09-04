@@ -2,9 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from email.utils import parseaddr
+from hashlib import sha256
 
 
-FORBIDDEN_SENDER_DOMAINS = {"certactum.com", "obrasignal.com", "rapid-ox.primitive.email"}
+# Fingerprints intentionally avoid embedding identities/domains belonging to other products
+# inside the VINDORUM runtime while still failing closed when one is supplied.
+FORBIDDEN_SENDER_DOMAIN_SHA256 = {
+    "fc8c1bdca8f87e53b14580d069417680d240565bd7e47ad5ae2eba0cb900bafd",
+    "2666dd4ae482699793c64b9e999d5dab09ad7b5b11345a0f153fd2cee06cc4ff",
+    "4a00de4b1c952d229f33ca7077b847bb6478366c3a306e7728b6cf1c2e5e1983",
+}
+
+
+def _domain_fingerprint(domain: str) -> str:
+    return sha256(domain.strip().lower().encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -56,13 +67,20 @@ def evaluate_outbound_preflight(*, record: dict, route: dict, sender: SenderIden
     if sender is None:
         blockers.append("dedicated_sender_missing")
     else:
-        if sender.product != "VINDORUM": blockers.append("sender_product_mismatch")
-        if not sender.dedicated_to_product: blockers.append("sender_not_dedicated")
-        if not sender.reply_capable: blockers.append("sender_cannot_receive_replies")
-        if not sender.outbound_auth_verified: blockers.append("sender_auth_not_verified")
-        if not sender.suppression_ready: blockers.append("suppression_not_ready")
-        if not sender.domain: blockers.append("sender_domain_invalid")
-        elif sender.domain in FORBIDDEN_SENDER_DOMAINS: blockers.append("cross_project_or_generic_sender_forbidden")
+        if sender.product != "VINDORUM":
+            blockers.append("sender_product_mismatch")
+        if not sender.dedicated_to_product:
+            blockers.append("sender_not_dedicated")
+        if not sender.reply_capable:
+            blockers.append("sender_cannot_receive_replies")
+        if not sender.outbound_auth_verified:
+            blockers.append("sender_auth_not_verified")
+        if not sender.suppression_ready:
+            blockers.append("suppression_not_ready")
+        if not sender.domain:
+            blockers.append("sender_domain_invalid")
+        elif _domain_fingerprint(sender.domain) in FORBIDDEN_SENDER_DOMAIN_SHA256:
+            blockers.append("cross_project_or_generic_sender_forbidden")
 
     if blockers:
         return PreflightDecision(False, "PREPARED_NOT_SENDABLE", tuple(blockers))
