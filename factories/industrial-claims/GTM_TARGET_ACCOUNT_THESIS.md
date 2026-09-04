@@ -1,4 +1,4 @@
-# CERTACTUM — SUPPLIER RECOVERY GTM TARGET ACCOUNT THESIS
+# SUPPLIER RECOVERY — GTM TARGET ACCOUNT THESIS
 
 Status: research/qualification thesis only. No listed organization is represented as having leakage, a valid claim, willingness to buy, or recoverable value. Those facts require direct discovery and evidence.
 
@@ -92,7 +92,7 @@ Lead with a process question, not an accusation and not a recovery promise:
 The objective of the first call is metadata qualification only.
 
 ## Qualification before enrichment
-Do not spend contact-enrichment/search credits on an account until public research supports supplier/program-change fit. Then use the Certactum metadata triage to decide whether a specific buyer/contact is worth enriching.
+Do not spend contact-enrichment/search credits on an account until public research supports supplier/program-change fit. Then use the Supplier Recovery metadata triage to decide whether a specific buyer/contact is worth enriching.
 
 Minimum pre-enrichment account evidence:
 - supplier/program relationship is credible;
@@ -120,5 +120,5 @@ Experiment success is not opens/clicks. Record separately:
 ## Stop / pivot rules
 - If senior buyers consistently report that customer-change NRE is already fully reconciled with no material leakage, do not widen the Factory immediately. Re-test ICP/subsegment and case timing first.
 - If pain exists but documents are systematically unavailable, test whether the value proposition is earlier change-capture/reconciliation within the same mechanism; do not jump to unrelated claims categories.
-- If buyers demand legal representation as the primary service, partner/escalate rather than positioning Certactum as legal counsel.
+- If buyers demand legal representation as the primary service, partner/escalate rather than positioning Supplier Recovery as legal counsel.
 - If a different adjacent cost category repeatedly appears inside the same program/change chain, record it as adjacency evidence; automate only after repeated real cases.
