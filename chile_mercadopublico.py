@@ -122,7 +122,7 @@ def _observation(tender):
         "title": _text(tender.get("Nombre")),
         "description": _text(tender.get("Descripcion")) or " | ".join(descriptions),
         "buyer": _text(buyer.get("NombreOrganismo")),
-        "buyer_unit": _text(buyer.get("NomeUnidad")),
+        "buyer_unit": _text(buyer.get("NombreUnidad")),
         "country": COUNTRY,
         "cpv": "",
         "taxonomy": "UNSPSC",
