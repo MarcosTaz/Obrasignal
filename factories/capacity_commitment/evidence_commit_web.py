@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import g, jsonify, request
 
+from .atomic_commit import commit_case_and_link
 from .engine import CostRecoveryMode, ExposureType
 from .evidence import EvidenceRepository
 from .evidence_case import HumanCaseControls, build_state_from_confirmed_evidence
@@ -174,11 +175,6 @@ def register_evidence_commit_routes(app, capacity_repository):
             raise ValueError("confirmed evidence does not match engagement: " + ", ".join(mismatches))
 
         processed = process_state(state)
-        try:
-            created = capacity_repository.save(state)
-        except FileExistsError:
-            return jsonify({"error": "case_conflict"}), 409
-
         event = WorkflowEvent(
             tenant_id=g.capacity_tenant_id,
             event_id=f"{state.recovery_case.case_id}:linked",
@@ -190,9 +186,14 @@ def register_evidence_commit_routes(app, capacity_repository):
             note=_optional_text(payload, "review_note", max_len=2000),
         )
         try:
-            linked = workflow_repository.append_event(event)
-        except FileExistsError:
-            return jsonify({"error": "case_link_event_conflict", "case_created": created}), 409
+            created, linked = commit_case_and_link(
+                db_path=capacity_repository.db_path,
+                state=state,
+                engagement_id=engagement.engagement_id,
+                link_event=event,
+            )
+        except FileExistsError as exc:
+            return jsonify({"error": "reviewed_case_commit_conflict", "detail": str(exc)}), 409
 
         return jsonify(
             {
