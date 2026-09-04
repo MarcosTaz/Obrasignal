@@ -61,6 +61,7 @@ VINDORUM
 
 ## Guardrails
 - No attachments or confidential files.
+- No meeting is required for the Free Exposure Check.
 - No quantified recovery promise.
 - No implication of debt, wrongdoing or legal entitlement.
 - No fake customers, outcomes or savings.
