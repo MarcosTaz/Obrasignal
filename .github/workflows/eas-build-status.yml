@@ -36,7 +36,12 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: '22.13.1'
+          cache: npm
+          cache-dependency-path: mobile/package.json
+
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
 
       - name: Setup EAS
         uses: expo/expo-github-action@v8
