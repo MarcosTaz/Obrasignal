@@ -7,10 +7,12 @@ TEXT_SUFFIXES = {".py", ".md", ".json", ".html", ".txt", ".toml", ".yml", ".yaml
 
 # Build retired/foreign identities from fragments so this regression test does not
 # itself become a searchable copy of a retired brand phrase.
-RETIRED = (
+RETIRED_PRODUCT = (
     "Supplier" + " Recovery",
     "SUPPLIER" + "_RECOVERY",
     "supplier" + "_recovery",
+)
+LEGACY_INTERNAL = (
     "Caus" + "Ledger",
     "CAUS" + "LEDGER",
     "caus" + "ledger",
@@ -24,6 +26,46 @@ FOREIGN = (
     "obra" + "signal.com",
 )
 
+# Historical internal implementation/schema names may remain only in these modules
+# until they can be migrated without breaking stored proof/API compatibility. They
+# are never accepted as company identity or on customer-facing surfaces. The list
+# is intentionally explicit so legacy naming cannot spread to new files.
+LEGACY_COMPATIBILITY_FILES = {
+    VERTICAL_ROOT / "change_capture.py",
+    VERTICAL_ROOT / "change_capture_reminder.py",
+    VERTICAL_ROOT / "change_capture_web.py",
+    VERTICAL_ROOT / "change_chronology_reader.py",
+    VERTICAL_ROOT / "change_sheet_trust.py",
+    VERTICAL_ROOT / "change_supplement.py",
+    VERTICAL_ROOT / "counterparty_acknowledgement.py",
+    VERTICAL_ROOT / "dossier.py",
+    VERTICAL_ROOT / "durable_proof.py",
+    VERTICAL_ROOT / "evidence_escrow_provider.py",
+    VERTICAL_ROOT / "offline_export_audit.py",
+    VERTICAL_ROOT / "offline_export_bundle.py",
+    VERTICAL_ROOT / "original_worm_store.py",
+    VERTICAL_ROOT / "proof.py",
+    VERTICAL_ROOT / "proof_attestation_archive.py",
+    VERTICAL_ROOT / "proof_extensions.py",
+    VERTICAL_ROOT / "proof_externalization.py",
+    VERTICAL_ROOT / "proof_externalization_audit.py",
+    VERTICAL_ROOT / "proof_externalization_integrity.py",
+    VERTICAL_ROOT / "proof_externalization_web.py",
+    VERTICAL_ROOT / "proof_package.py",
+    VERTICAL_ROOT / "proof_service.py",
+    VERTICAL_ROOT / "proof_verifier.py",
+    VERTICAL_ROOT / "public_verification.py",
+    VERTICAL_ROOT / "public_verification_store.py",
+    VERTICAL_ROOT / "public_verification_web.py",
+    VERTICAL_ROOT / "recovery_dossier.py",
+    VERTICAL_ROOT / "s3_worm_backend.py",
+    VERTICAL_ROOT / "secure_capture_registry.py",
+    VERTICAL_ROOT / "secure_outcome_registry.py",
+    VERTICAL_ROOT / "semantic_diff_signature.py",
+    VERTICAL_ROOT / "web.py",
+    VERTICAL_ROOT / "worm_lock_provider.py",
+}
+
 
 def _surface_files():
     for root in (FACTORY_ROOT, VERTICAL_ROOT):
@@ -32,14 +74,29 @@ def _surface_files():
                 yield path
 
 
-def test_vindorum_is_the_only_company_identity_across_its_factory_and_vertical():
+def test_foreign_and_retired_company_identities_are_absent_everywhere():
     violations = []
     for path in _surface_files():
         text = path.read_text(encoding="utf-8")
-        for forbidden in RETIRED + FOREIGN:
+        for forbidden in RETIRED_PRODUCT + FOREIGN:
             if forbidden in text:
                 violations.append(f"{path}:{forbidden}")
     assert violations == []
+
+
+def test_legacy_internal_name_is_bounded_and_never_customer_facing():
+    violations = []
+    legacy_files = set()
+    for path in _surface_files():
+        text = path.read_text(encoding="utf-8")
+        if any(value in text for value in LEGACY_INTERNAL):
+            legacy_files.add(path)
+            if path not in LEGACY_COMPATIBILITY_FILES:
+                violations.append(f"legacy identity outside compatibility allowlist: {path}")
+            if path.is_relative_to(FACTORY_ROOT) or "public_site" in path.parts or "templates" in path.parts:
+                violations.append(f"legacy identity on customer-facing surface: {path}")
+    assert violations == []
+    assert legacy_files <= LEGACY_COMPATIBILITY_FILES
 
 
 def test_canonical_vindorum_identity_exists_on_primary_customer_surfaces():
