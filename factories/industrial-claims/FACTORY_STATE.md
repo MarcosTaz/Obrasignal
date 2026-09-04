@@ -1,82 +1,136 @@
-# CERTACTUM — FACTORY STATE
+# CERTACTUM — SUPPLIER RECOVERY FACTORY STATE
 
 ## Canonical identity
-**Product/company name: Certactum.** CausLedger is a retired working name and may appear only in legacy internal identifiers where changing it could damage compatibility or evidence lineage. No current public, commercial, domain, email or operating instruction may use the retired name.
+**Product/company: Certactum.**
+
+`Industrial Supplier Claims & Margin Recovery` → `CausLedger` → **Certactum** is one continuous Factory lineage, not three companies. CausLedger is a retired working name and remains only where legacy identifiers/schemas must be preserved for compatibility or evidence lineage.
 
 Canonical domain: `certactum.com` / `www.certactum.com`.
 Canonical business mailbox: `marcos@certactum.com`.
 
-## Mission
-Certactum is an evidence-first assisted recovery and proof system. It reconstructs customer-driven commercial/change events, preserves evidence lineage, separates documented cost from recoverability, requires human review before action, and produces independently verifiable dossiers. Source authenticity and recoverability are separate truth dimensions.
+## Mission and hard scope
+Certactum reconstructs **supplier-side customer/OEM-caused engineering/change cost and NRE recovery** from evidence to economic outcome.
 
-## Five-layer hardening state
-1. Identity/authentication — **INTERNAL CLOSED / EXTERNAL PENDING**.
-2. Immutable originals/WORM/custody — **INTERNAL CLOSED / EXTERNAL PENDING**.
-3. External timestamp/signature/attestation — **INTERNAL CLOSED / EXTERNAL PENDING**.
-4. Proof Pack/independent verification — **INTERNAL CLOSED / EXTERNAL PENDING**.
-5. Operational/legal security — **INTERNAL CLOSED TO CURRENT TOOL BOUNDARY / EXTERNAL PENDING**.
+Core chain:
 
-External dependencies do not stop executable internal work. They remain explicit and may not be represented as completed before evidence exists.
+`CUSTOMER/PO → CHANGE/EVENT → CAUSATION → INCREMENTAL COST → MITIGATION → COMMERCIAL BASIS → EVIDENCE → HUMAN REVIEW → EVIDENCE-SUPPORTED AMOUNT → CLAIMED → APPROVED → SETTLED → DOSSIER/PROOF`
+
+Cost is not money owed. Evidence support is not legal entitlement. Claim, approval and settlement are separate truth states.
+
+Direct adjacencies are allowed only when bound to the same customer/program/change mechanism: change-driven premium freight/expedite, tooling/dedicated investment, rework/production disruption, contractually supported volume shortfall and clearly supported material/cost adjustments. Warranty supplier recovery, procurement-side vendor recovery, generic rebates/pricing, M&A/debt/utility recovery and unrelated claims software are outside this Factory.
 
 ## Current product truth
-- Tenant identity is derived from verified authentication context, not request body.
-- JWT tenant identity can use a provider-managed signed claim independently from user subject and fails closed when required but absent/invalid.
-- Analyst/reviewer/operator separation and cross-tenant denial are tested.
-- Secure real-document capture is authorization-scoped, actor-bound, byte-bounded and immutable-store bound.
-- Source authentication remains UNVERIFIED unless independently established; upload does not manufacture authenticity.
-- Semantic replay/rebinding changes fail closed before duplicate immutable-provider writes.
-- Independent review precedes action.
-- Final outcome evidence has separate authorization and is bound into durable Proof Pack lineage.
-- Confidential offline export retrieves exact originals, rehashes them independently and is audit logged.
-- Backup/restore performs integrity validation, explicit SHA-256 binding, tamper rejection and atomic restore.
-- Readiness diagnostics, customer-zero abuse tests and repeated tenant-scoped queue reads exist.
-- Help content exists in PT/EN/FR/ES; confidential documents must not be sent by ordinary email without authorized intake.
+Existing durable capabilities include:
+- tenant/auth separation and cross-tenant denial controls;
+- secure authorization-scoped evidence capture;
+- immutable-original/WORM abstractions and exact-version readback;
+- source-authenticity state kept separate from recoverability;
+- independent reviewer-before-action workflow;
+- outcome evidence and recovery-state lineage;
+- Proof Pack/offline verification and tamper checks;
+- revision/supersession integrity;
+- deadline/notice truth;
+- duplicate recovery fingerprints;
+- backup/restore with integrity/tamper rejection;
+- public/help surfaces and multilingual help lineage;
+- billing lifecycle logic;
+- synthetic/adversarial NRE cases and customer-zero tests.
 
-## Stripe / commercial-flow truth — verified 2026-09-03
-- Connected Stripe business identity is Certactum.
-- Stripe TEST Checkout completed a symbolic EUR 1.00 card payment and the payment was fully refunded successfully.
-- Stripe LIVE Checkout completed a symbolic EUR 1.00 card payment with status `succeeded` and `CERTACTUM` statement descriptor suffix.
-- The LIVE EUR 1.00 payment remains intentionally unrefunded by owner decision.
-- The LIVE EUR 1.00 payment is technical validation only: it is not a paid customer, commercial subscription, validated sale, or recovered customer value.
-- Billing state logic covers checkout completion, activation, failed renewal/past-due, recovery, cancellation and refund, with idempotency/collision gates.
-- Final commercial plan/price and a recurring lifecycle exercise against that deliberate final plan remain pending; no price is invented merely to close a checklist.
+## Supplier Recovery Master delta — 2026-09-04
+A clean continuation branch was created from current `main` because the legacy `apps/industrial-claims` branch had diverged materially and must not be merged wholesale.
 
-## Production hosting/data truth — verified 2026-09-03
-- Vercel canonical project: `changeclaim` (`prj_4mQZatta2MbhIPlnnyqhiD2eDbXT`). The legacy Vercel project slug is not the public product identity.
-- Current production deployment `dpl_2h8zFm6WwodPHonK6VTV7BCznNXw` is READY.
-- Domains attached include `certactum.com` and `www.certactum.com`; canonical www endpoint returns HTTP 200.
-- Production root is a lightweight Vercel shell loading the application document from an external endpoint. Vercel READY/domain health is therefore not equivalent to browser-visible customer-journey validation.
-- Connected Neon `certactum-core` schema contains organizations, projects, memberships, changes, notices, decisions, evidence, audit log and upload-token tables.
-- Current database checkpoint: 1 organization, 1 project, 1 membership, 2 change records, 0 evidence records. No real confidential evidence is present in the evidence table at this checkpoint.
+New/continued work on `certactum/supplier-recovery-master`:
+1. **Real-evidence activation gate hardened** — real documentary intake stays disabled unless database integrity, production authentication, declared WORM storage and declared trusted timestamp controls all pass. Provider declaration does not claim certification.
+2. **Recovery leakage reconciliation added** — fail-closed monotonic ledger:
+   `net documented exposure >= evidence-supported >= claimed >= approved >= settled`.
+3. Reconciliation exposes distinct buckets:
+   - `unsupported_exposure`;
+   - `supported_unclaimed`;
+   - `claimed_unapproved`;
+   - `approved_unsettled`;
+   - `supported_unsettled`.
+4. Every reconciliation receives a deterministic SHA-256 hash.
+5. Impossible economic chains fail closed instead of being silently reshaped.
+6. **Certactum Supplier Recovery Dossier v2** added as canonical customer-facing layer over the legacy dossier schema, carrying the reconciliation while explicitly refusing to promote a gap into debt/legal entitlement.
+7. Commercial operating model renamed to Certactum and narrowed around the primary NRE/change wedge, with direct-adjacency controls, ICP, offer ladder, pricing hypotheses and commercial proof gates.
 
-## Repository truth
+## Repository truth — verified 2026-09-04
 Repository: `MarcosTaz/Obrasignal`.
-Branch: `apps/industrial-claims`.
-PR: `#785` — OPEN, DRAFT, not merged. Keep DRAFT; no merge/deploy from this PR without an explicit production decision.
 
-Exact executable validation at `6fae35f4e2537eb534382616d0868faf6eb36734`, workflow `33683326028`: Mobile SUCCESS; Python `1310 passed, 2 skipped, 2 warnings, 1 failed`. The sole failure is the unrelated Chile MercadoPublico assertion; no Certactum-caused failure was observed. Later commits that only update state/evidence documentation do not alter executable Certactum code.
+Current `main` observed before this state update: `a8a930dc653fa17817b5986c496fa8a917a8c501`.
 
-## Production data boundary
-Do not accept real confidential customer documentary evidence until production identity/access/storage/data-handling controls required for that use are genuinely configured and verified. Do not claim production WORM/TSA/HSM, certification, court acceptance, guaranteed recovery, paid customer validation or real recovered value without external evidence.
+Legacy branch `apps/industrial-claims` observed at `e39d3f42fd49864be29f0afe90b832ea728b746a` and is **909 commits ahead / 218 behind** current main at the observed comparison. It is historical development lineage, not a safe whole-branch merge source.
 
-## Remaining owner-visible / external gates
-These are not silently closable by repository/database/HTTP inspection:
-- Browser-visible verification of the canonical deployed application: approved final logo/favicon, navigation, login, Help, PT/EN/FR/ES and desktop/tablet/mobile behavior.
-- Fresh-account production customer-zero walkthrough from onboarding to first verifiable dossier. This must not be simulated as completed from database state alone.
-- Deliberate final commercial price/plan decision, followed by recurring Stripe lifecycle validation against that actual configuration.
-- Explicit production release decision before merge/deploy from PR #785.
+PR `#785` is **MERGED** (2026-09-03), despite stale historical Factory files that still described it as draft/open. Repository/API truth outranks those stale documents.
 
-## External pending
-- Production IdP configuration and privileged MFA/account recovery evidence.
-- Production WORM/Object Lock provider receipts and DR exercise.
-- Real qualified/trusted timestamp/signature provider and historical validation.
-- Independent pentest/remediation.
-- GDPR/DPA/privacy/retention/incident review.
-- Jurisdiction-specific evidentiary/legal review where required.
+Active clean branch: `certactum/supplier-recovery-master`.
+Executable/product head before this state-only update: `110daf1bb1e19cd2cb3eaa42b1f9367417667416`.
+Active PR: `#947` — **OPEN / DRAFT / NOT MERGED**.
 
-## ACTIVE → NEXT
-ACTIVE: internal executable hardening is exhausted to the current tool/evidence boundary without a known Certactum-caused test failure.
-NEXT: browser-visible customer-zero verification → deliberate price/plan → explicit production release decision → external trust upgrades.
+## Validation truth
+`STATE = NOT_FULLY_VERIFIED` for the current clean branch.
 
-## Release boundary
-The application may be used for commercial presentation and lead capture. Real confidential documentary intake remains blocked until the required production identity/access/storage/data-handling controls are genuinely configured and verified. External certification/trust upgrades may follow revenue where appropriate; core production identity, access control, secure storage and data-handling controls cannot be bypassed.
+Reason: no GitHub Actions workflow run/check was observed for the current clean-branch HEAD during this execution. The repository workflow is configured for pull requests, but absence of an observed run means no GREEN claim may be made.
+
+Historical Certactum validation remains evidence only for the exact historical SHAs where it ran; it does not automatically validate the current Supplier Recovery Master delta.
+
+## Five-layer trust state
+1. Identity/authentication — internal controls exist; production IdP/MFA/account-recovery evidence remains external/pending.
+2. Immutable originals/WORM/custody — internal abstractions/tests exist; production provider receipts/retention/DR remain external/pending.
+3. Timestamp/signature/attestation — internal fail-closed interfaces exist; real trusted provider/key custody/historical validation remain external/pending.
+4. Proof Pack/independent verification — internal proof and offline verification exist; independent third-party validation remains external/pending.
+5. Operational/legal security — internal hardening exists; pentest, GDPR/DPA/privacy/retention/incident and jurisdiction-specific legal review remain external/pending.
+
+## Production/data boundary
+Commercial presentation, lead capture and **metadata-only triage** may proceed.
+
+Do **not** accept real confidential customer documents until the live production identity/access/storage/data-handling controls required by the real-evidence activation gate are genuinely configured and verified. Do not route confidential evidence through ordinary email.
+
+No production WORM/TSA/HSM certification, court acceptance, guaranteed recovery, legal entitlement or real-customer validation may be inferred from internal tests or provider names.
+
+## Commercial truth
+A symbolic LIVE EUR 1.00 Stripe payment was historically recorded as technical payment validation; it is not customer revenue, WTP proof or recovered customer value.
+
+Real commercial validation remains separate:
+- real paid customer: not proven in this state;
+- real paid recovery audit: not proven;
+- independently verified customer recovery: not proven;
+- repeat monitoring revenue: not proven.
+
+Pricing in `COMMERCIAL_OPERATING_MODEL.md` is explicitly hypothesis-only until costly buyer behavior validates it.
+
+## Offer now
+1. Metadata-only Recovery Triage.
+2. Rapid Recovery Scan once secure documentary intake is allowed.
+3. Forensic Recovery Audit producing Certactum dossier + evidence index + recovery reconciliation.
+4. Customer-authorized Recovery Support with independently verified baseline/outcome.
+5. Continuous Leakage Monitoring only after repeated patterns justify it.
+
+## ACTIVE
+`EXACT_HEAD_VALIDATION + ECONOMIC_RECONCILIATION_INTEGRATION + COMMERCIAL_ACTIVATION_WITHOUT_CONFIDENTIAL_INTAKE`
+
+## NEXT
+1. Obtain exact-head CI/check evidence for PR #947; repair any Certactum-caused regression without weakening truth gates.
+2. Integrate recovery reconciliation into workflow/API surfaces where it can be persisted/audited rather than remaining only a pure calculation module.
+3. Add adversarial lifecycle tests covering evidence-supported → claimed → approved → settled transitions and regression/reversal handling.
+4. Add portfolio-level leakage roll-up with strict same-currency/no-double-count controls.
+5. Prepare metadata-only diagnostic workflow and qualification assets against the frozen ICP.
+6. Seek real buyer/problem evidence and a bounded paid diagnostic without accepting confidential documents through an unsafe channel.
+7. Configure/verify production identity + WORM + timestamp/data-handling controls before real-document intake.
+8. Only after real cases prove repeat patterns, automate monitoring and direct adjacencies.
+
+## COMPLETION GATES
+Supplier Recovery is not called commercially complete until all are true:
+- current exact-head tests are GREEN;
+- no P0/P1 truth/security regression;
+- canonical Certactum dossier and recovery reconciliation are end-to-end persisted/auditable;
+- safe production documentary intake exists;
+- fresh-account customer-zero journey is verified;
+- deliberate price/plan is tested with a real buyer;
+- at least one paid diagnostic/audit or equivalent costly commercial commitment exists;
+- at least one real case reaches independently documented recovery or defensible true-null outcome;
+- customer payment truth is recorded without counting synthetic/test payments;
+- repeatable delivery workflow and handoff are documented.
+
+## RESUME_AT
+`VERIFY_PR_947_EXACT_HEAD → PERSIST_RECONCILIATION → LIFECYCLE_ADVERSARIAL_TESTS → PORTFOLIO_LEAKAGE_ROLLUP → METADATA_TRIAGE_GTM → SECURE_PRODUCTION_INTAKE → PAID_CASE → VERIFIED_OUTCOME`
