@@ -371,13 +371,13 @@ class ChangeCaptureStore:
         if not factual_lines:
             factual_lines.append("- No additional factual entries recorded.")
         lines = [
-            "CAUSLEDGER — CHANGE CAPTURE SHEET",
+            "VINDORUM — CHANGE CAPTURE SHEET",
             "",
             f"Sheet ID: {status['sheet_id']}",
             f"Change reference: {status['event_ref']}",
             f"Requested change: {status['requested_change']}",
             f"Declared request date/time: {status['declared_change_requested_at'] or 'NOT DECLARED'}",
-            f"CausLedger first recorded at: {status['recorded_at']}",
+            f"VINDORUM first recorded at: {status['recorded_at']}",
             f"Factual input window closes at: {status['factual_window_closes_at']}",
             f"Factual window status at download: {status['window_state']}",
             "",
