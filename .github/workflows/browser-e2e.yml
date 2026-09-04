@@ -11,8 +11,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-browser-e2e
-  cancel-in-progress: true
+  # Browser E2E and Radar readiness write the same production probe profile.
+  # Serialize them so one gate cannot invalidate the other's recomputation.
+  group: production-radar-e2e
+  cancel-in-progress: false
 
 env:
   PUBLIC_URL: https://obrasignal.com/
