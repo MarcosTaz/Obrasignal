@@ -19,18 +19,120 @@ env:
   FALLBACK_PUBLIC_URL: https://marcostaz.github.io/Obrasignal/
   E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
   E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+  SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  API_URL: https://obrasignal.onrender.com/api/v1
   TARGET_BUILD: ${{ github.sha }}
 
 jobs:
   browser-matrix:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+
+      - name: Seed deterministic production Radar profile
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_URL SUPABASE_KEY E2E_EMAIL E2E_PASSWORD; do
+            test -n "${!name}" || { echo "Missing required production E2E secret: $name"; exit 1; }
+          done
+
+          BASE_URL="${SUPABASE_URL%/}"
+          BASE_URL="${BASE_URL%/rest/v1}"
+          BODY="$(python - <<'PY'
+          import json, os
+          print(json.dumps({'email': os.environ['E2E_EMAIL'], 'password': os.environ['E2E_PASSWORD']}))
+          PY
+          )"
+          curl --fail --silent --show-error --max-time 30 \
+            -X POST "$BASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' \
+            --data "$BODY" > /tmp/auth.json
+          python - <<'PY'
+          import json
+          token=json.load(open('/tmp/auth.json', encoding='utf-8')).get('access_token')
+          assert token
+          open('/tmp/access_token','w',encoding='utf-8').write(token)
+          PY
+          AUTH="Authorization: Bearer $(cat /tmp/access_token)"
+
+          python - <<'PY'
+          import json
+          profile = {
+              'name': 'ObraSignal E2E Reabilitação',
+              'activity': 'Reabilitação de edifícios, coberturas e fachadas',
+              'contract_interests': ['reabilitação de edifícios', 'coberturas', 'fachadas'],
+              'services': ['reabilitação de edifícios', 'coberturas', 'fachadas'],
+              'capability_tags': ['reabilitação', 'coberturas', 'fachadas'],
+              'keywords': ['reabilitação', 'cobertura', 'fachada', 'empreitada'],
+              'cpv_prefixes': ['4526', '4545', '4521'],
+              'countries': ['PRT', 'ESP', 'FRA'],
+              'regions': [],
+              'exclude_keywords': ['arquitetura', 'fiscalização', 'consultoria'],
+              'hard_exclusions': ['serviços de arquitetura'],
+              'min_value': None,
+              'max_value': None,
+          }
+          json.dump(profile, open('/tmp/e2e-profile.json','w',encoding='utf-8'), ensure_ascii=False)
+          PY
+
+          profile_saved=0
+          for attempt in $(seq 1 4); do
+            status="$(curl --silent --show-error --output /tmp/profile-post.json --write-out '%{http_code}' --max-time 60 \
+              -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+              --data-binary @/tmp/e2e-profile.json "$API_URL/profile" || true)"
+            if test "$status" = "200"; then
+              profile_saved=1
+              break
+            fi
+            echo "Profile save retry $attempt/4 (HTTP $status)…"
+            sleep 5
+          done
+          test "$profile_saved" = "1" || { cat /tmp/profile-post.json 2>/dev/null || true; exit 1; }
+
+          curl --fail --silent --show-error --max-time 30 -H "$AUTH" "$API_URL/profile" > /tmp/profile-get.json
+          python - <<'PY'
+          import json
+          expected=json.load(open('/tmp/e2e-profile.json', encoding='utf-8'))
+          payload=json.load(open('/tmp/profile-get.json', encoding='utf-8'))
+          profile=payload.get('profile') or {}
+          assert payload.get('account_id')
+          assert profile.get('account_id') == payload.get('account_id')
+          for field in ('name','activity'):
+              assert profile.get(field) == expected[field], (field, profile.get(field))
+          for field in ('contract_interests','services','capability_tags','countries','regions','exclude_keywords','hard_exclusions'):
+              assert profile.get(field) == expected[field], (field, profile.get(field))
+          for field in ('keywords','cpv_prefixes'):
+              assert set(expected[field]).issubset(set(profile.get(field) or [])), (field, profile.get(field))
+          print('profile_verified=1')
+          PY
+
+          for attempt in $(seq 1 24); do
+            status="$(curl --silent --show-error --output /tmp/opportunities.json --write-out '%{http_code}' --max-time 30 \
+              -H "$AUTH" "$API_URL/opportunities?limit=1&minscore=60&open=1" || true)"
+            if test "$status" = "200" && python - <<'PY'
+          import json
+          payload=json.load(open('/tmp/opportunities.json', encoding='utf-8'))
+          items=payload.get('items') or []
+          assert items
+          item=items[0]
+          assert item.get('is_open') is True
+          score=item.get('decision_score') if item.get('decision_score') is not None else item.get('score')
+          assert float(score or 0) >= 60
+          print('browser_precondition_score=' + str(score))
+          PY
+            then
+              echo "Browser E2E Radar precondition is ready."
+              break
+            fi
+            test "$attempt" != 24 || { echo "No open 60+ opportunity after deterministic profile seed."; cat /tmp/opportunities.json 2>/dev/null || true; exit 1; }
+            sleep 10
+          done
 
       - name: Install pinned Playwright
         run: |
