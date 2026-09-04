@@ -35,7 +35,7 @@ class MetadataTriageCase:
 
 
 def render_metadata_triage_brief(*, case: MetadataTriageCase, result: MetadataTriageResult) -> str:
-    """Render a bounded pre-document Supplier Recovery qualification brief."""
+    """Render a bounded pre-document VINDORUM qualification brief."""
     if not isinstance(case, MetadataTriageCase):
         raise MetadataTriageBriefError("case must be MetadataTriageCase")
     if not isinstance(result, MetadataTriageResult):
@@ -55,50 +55,25 @@ def render_metadata_triage_brief(*, case: MetadataTriageCase, result: MetadataTr
     questions = [f"- {item}" for item in result.next_questions] or ["- No additional metadata question required before routing."]
 
     if result.qualification == "METADATA_QUALIFIED":
-        route = "Prepare a bounded commercial scope. Documentary work remains gated behind the verified secure-intake path."
+        route = "Create the case workspace. Documentary work remains gated behind verified secure intake."
     elif result.qualification == "NEEDS_PREQUALIFICATION":
-        route = "Resolve the open metadata questions before proposing a documentary recovery scan."
+        route = "Resolve the open metadata questions in the self-service flow before documentary analysis."
     elif result.qualification == "WEAK_FIT":
         route = "Do not request documents yet. Confirm mechanism, evidence existence and economic ownership first."
     elif result.qualification == "NO_FIT":
-        route = "Do not widen Supplier Recovery to force fit. Route or close the opportunity."
+        route = "Do not widen VINDORUM to force fit. Close this path without purchasing a scan."
     else:
         raise MetadataTriageBriefError("unsupported metadata qualification")
 
-    return "\n".join(
-        [
-            "# Supplier Recovery — Metadata Recovery Triage",
-            "",
-            "> Pre-document qualification only. This brief does not establish recoverability, legal entitlement or money owed.",
-            "",
-            "## Case metadata",
-            f"- Industry: {industry}",
-            f"- Customer/OEM type: {customer_type}",
-            f"- Change/event type: {change_type}",
-            f"- Approximate exposure band: {exposure_band}",
-            f"- Economic owner role: {owner}",
-            f"- Desired review outcome: {outcome}",
-            "",
-            "## Routing result",
-            f"- Qualification: **{result.qualification}**",
-            f"- Fit-routing score: {result.score}/10",
-            "- Recoverability scored: False",
-            "- Confidential document intake required for this triage: False",
-            "",
-            "## Confirmed positive signals",
-            *positives,
-            "",
-            "## Unknown metadata",
-            *unknowns,
-            "",
-            "## Next questions",
-            *questions,
-            "",
-            "## Commercial route",
-            route,
-            "",
-            "## Data boundary",
-            "Do not attach or email confidential contracts, POs, drawings, ECNs, invoices or ledgers at this stage.",
-            "",
-        ]
-    )
+    return "\n".join([
+        "# VINDORUM — Metadata Recovery Triage", "",
+        "> Pre-document qualification only. This brief does not establish recoverability, legal entitlement or money owed.", "",
+        "## Case metadata", f"- Industry: {industry}", f"- Customer/OEM type: {customer_type}",
+        f"- Change/event type: {change_type}", f"- Approximate exposure band: {exposure_band}",
+        f"- Economic owner role: {owner}", f"- Desired review outcome: {outcome}", "",
+        "## Routing result", f"- Qualification: **{result.qualification}**", f"- Fit-routing score: {result.score}/10",
+        "- Recoverability scored: False", "- Confidential document intake required for this triage: False", "",
+        "## Confirmed positive signals", *positives, "", "## Unknown metadata", *unknowns, "",
+        "## Next questions", *questions, "", "## Self-service route", route, "", "## Data boundary",
+        "Do not attach or email confidential contracts, POs, drawings, ECNs, invoices or ledgers at this stage.", "",
+    ])
