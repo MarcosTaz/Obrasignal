@@ -19,12 +19,14 @@
         "backgroundColor": "#0A1020"
       }
     },
-    "plugins": ["expo-notifications"],
+    "plugins": [
+      "expo-notifications"
+    ],
     "web": {
       "bundler": "metro"
     },
     "experiments": {
-      "baseUrl": "/Obrasignal"
+      "baseUrl": ""
     },
     "extra": {
       "eas": {

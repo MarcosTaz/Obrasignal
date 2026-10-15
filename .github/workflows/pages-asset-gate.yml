@@ -1,0 +1,25 @@
+name: Canonical Pages asset gate
+on:
+  pull_request:
+    paths:
+      - 'mobile/app.json'
+      - 'scripts/verify_pages_bundle_paths.py'
+      - '.github/workflows/web-preview.yml'
+      - '.github/workflows/pages-asset-gate.yml'
+permissions:
+  contents: read
+jobs:
+  asset-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+      - run: npm install --no-audit --no-fund
+      - run: npm run smoke:web
+      - run: python ../scripts/verify_pages_bundle_paths.py .smoke-dist
