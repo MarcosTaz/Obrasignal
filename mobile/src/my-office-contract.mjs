@@ -1,6 +1,8 @@
 // ObraSignal My Office bridge — opt-in integration, no demo authentication or fake tenders.
 // This feature is intentionally gated until visual fidelity and E2E validation are complete.
-export const MY_OFFICE_ENABLED = false;
+// This opt-in is compiled into the web bundle only when deliberately enabled.
+// Default deployments remain disabled until approved original assets and E2E pass.
+export const MY_OFFICE_ENABLED = process.env.EXPO_PUBLIC_MY_OFFICE_ENABLED === 'true';
 
 export const MODULES = Object.freeze([
   { id: 'radar', target: 'radar', status: 'existing' },
