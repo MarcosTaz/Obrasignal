@@ -39,6 +39,6 @@ def install(archive, directory):
         os.replace(tmp,dest/name)
     print(f"Verified and installed {len(verified)} original assets in {dest}")
 if __name__=='__main__':
-    if len(sys.argv)!=3:raise SystemExit("Usage: python scripts/import_my_office_assets.py <zip> mobile/assets/my-office")
+    if len(sys.argv)!=3:raise SystemExit("Usage: python scripts/import_my_office_assets.py <zip> mobile/public/assets/my-office")
     try:install(sys.argv[1],sys.argv[2])
     except (ValueError,zipfile.BadZipFile) as e:raise SystemExit(str(e))
