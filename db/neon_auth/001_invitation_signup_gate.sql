@@ -21,7 +21,7 @@ CREATE OR REPLACE FUNCTION public.obrasignal_validate_invited_signup()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $body$
 DECLARE v_code text; v_name text; v_count integer;
 BEGIN
- IF NEW.email IS NULL OR lower(btrim(NEW.email)) <> NEW.email OR NEW.name IS NULL OR NEW.name !~ '^OS-[0-9a-f]{48}\\|' THEN
+ IF NEW.email IS NULL OR lower(btrim(NEW.email)) <> NEW.email OR NEW.name IS NULL OR NEW.name !~ '^OS-[0-9a-f]{48}\|' THEN
   RAISE EXCEPTION 'invitation_required' USING ERRCODE='42501';
  END IF;
  v_code:=split_part(NEW.name,'|',1);
@@ -47,7 +47,7 @@ CREATE OR REPLACE FUNCTION public.obrasignal_issue_auth_invite(p_email text,p_cr
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $body$
 DECLARE e text:=lower(btrim(coalesce(p_email,''))); token text; v_id uuid; expires timestamptz;
 BEGIN
- IF e !~ '^[a-z0-9_+.%!-]+@[a-z0-9.-]+\\.[a-z]{2,}$' OR length(e)>254 THEN RAISE EXCEPTION 'invalid_email' USING ERRCODE='22023'; END IF;
+ IF e !~ '^[a-z0-9_+.%!-]+@[a-z0-9.-]+\.[a-z]{2,}$' OR length(e)>254 THEN RAISE EXCEPTION 'invalid_email' USING ERRCODE='22023'; END IF;
  IF p_created_by IS NULL OR length(btrim(p_created_by)) NOT BETWEEN 1 AND 128 THEN RAISE EXCEPTION 'invalid_issuer' USING ERRCODE='22023'; END IF;
  IF p_hours IS NULL OR p_hours NOT BETWEEN 1 AND 168 THEN RAISE EXCEPTION 'invalid_ttl' USING ERRCODE='22023'; END IF;
  IF EXISTS(SELECT 1 FROM neon_auth."user" WHERE lower(email)=e) THEN RAISE EXCEPTION 'already_registered' USING ERRCODE='22023'; END IF;
