@@ -1,0 +1,23 @@
+name: Invite-only public site preflight
+on:
+  pull_request:
+    paths:
+      - 'mobile/components/AuthScreen.tsx'
+      - 'mobile/src/invite-only-public.test.mjs'
+      - '.github/workflows/invite-only-public.yml'
+permissions:
+  contents: read
+jobs:
+  client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test mobile/src/invite-only-public.test.mjs
+      - working-directory: mobile
+        run: npm ci --no-audit --no-fund
+      - working-directory: mobile
+        run: npm run smoke:web
