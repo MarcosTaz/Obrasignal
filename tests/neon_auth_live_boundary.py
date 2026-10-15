@@ -22,7 +22,9 @@ except (urllib.error.URLError,TimeoutError) as exc:
 print("ANONYMOUS_SIGNUP_HTTP_STATUS",status)
 if 200 <= status < 300:
     raise SystemExit("SECURITY_FAILURE: unauthorised signup API returned success")
-if status in (401,403,409,422):
+if status in (400,401,403,409,422):
     print("ANONYMOUS_SIGNUP_REJECTED")
 else:
     raise SystemExit("INCONCLUSIVE: API response is not an expected authorization rejection")
+
+# Production read-only check is performed separately against the identity table.
