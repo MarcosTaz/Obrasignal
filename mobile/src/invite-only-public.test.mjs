@@ -25,9 +25,9 @@ test('transparent official vector assets are in the web public root',()=>{
  const svg=readFileSync(new URL('../public/obrasignal-logo.svg',import.meta.url),'utf8');
  const monogram=readFileSync(new URL('../public/obrasignal-monogram.svg',import.meta.url),'utf8');
  for(const asset of [svg,monogram]){
-   assert.match(asset,/<svg\\b/);
-   assert.match(asset,/<path\\b|<polygon\\b|<rect\\b/);
-   assert.doesNotMatch(asset,/<image\\b/i);
+   assert.ok(asset.includes('<svg '));
+   assert.ok(asset.includes('<path ') || asset.includes('<polygon ') || asset.includes('<rect '));
+   assert.ok(!asset.includes('<image '));
  }
 });
 test('release workflow blocks publishing if provider signup is not proved disabled',()=>{
