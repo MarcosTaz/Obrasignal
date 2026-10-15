@@ -39,3 +39,11 @@ test('release workflow blocks publishing if provider signup is not proved disabl
  const publish=workflow.indexOf('Deploy to GitHub Pages');
  assert.ok(gate>0 && publish>gate);
 });
+
+test('ObraSignal public contact and invitations use company domain only',()=>{
+ const gate=readFileSync(new URL('../components/AuthGate.js',import.meta.url),'utf8');
+ for(const page of [source,gate]){
+  assert.ok(page.includes('hello@obrasignal.com'));
+  assert.ok(!page.includes('obrasignal.pt@gmail.com'));
+ }
+});
