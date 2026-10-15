@@ -29,7 +29,7 @@ export default function MyOfficeScene({sceneSource, onNavigate, locale='pt'}) {
           accessibilityLabel={translate(locale,module.id)}
           accessibilityState={{disabled:!target}}
           disabled={!target}
-          onPress={()=>{setFocused(index);if(target&&onNavigate)onNavigate(target);}}
+          onPress={()=>{if(target&&onNavigate)onNavigate(target);}}
           onHoverIn={()=>setFocused(index)}
           onHoverOut={()=>setFocused(value=>value===index?null:value)}
           style={[styles.hotspot,{left:x,top:y,width:w,height:h,clipPath:`polygon(${polygon})`},focused===index&&styles.active]}
