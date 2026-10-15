@@ -40,7 +40,7 @@ function ProductPreview() {
   </View>;
 }
 
-function Landing({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => void }) {
+function Landing({ onLogin }: { onLogin: () => void }) {
   const { width } = useWindowDimensions();
   const wide = width >= 980;
   const medium = width >= 720;
@@ -65,7 +65,7 @@ function Landing({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => v
           <Text style={styles.eyebrow}>RADAR COMERCIAL PARA CONTRATAÇÃO PÚBLICA</Text>
           <Text style={[styles.heroTitle, !medium && styles.heroTitleSmall]}>Encontra os concursos que merecem o teu tempo.</Text>
           <Text style={styles.heroBody}>A ObraSignal filtra oportunidades públicas para o perfil da tua empresa, explica o encaixe e transforma pesquisa dispersa num processo comercial claro.</Text>
-          <View style={[styles.heroActions, !medium && styles.actionsStack]}><Button onPress={askSample}>Receber uma amostra</Button><Button secondary onPress={onSignup}>Criar conta</Button></View>
+          <View style={[styles.heroActions, !medium && styles.actionsStack]}><Button onPress={askSample}>Receber uma amostra</Button><Button secondary onPress={() => Linking.openURL(`mailto:${CONTACT}?subject=Pedido%20de%20convite%20ObraSignal`)}>Pedir convite</Button></View>
           <Text style={styles.microcopy}>Sem feed genérico. Poucas oportunidades, com razão de encaixe e fonte oficial.</Text>
         </View>
         <View style={[styles.heroVisual, !wide && styles.fullWidth]}><ProductPreview/></View>
@@ -98,13 +98,13 @@ function Landing({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => v
 
 function AuthForm({ initialMode, onBack }: { initialMode: 'signin' | 'signup'; onBack: () => void }) {
   const { width } = useWindowDimensions();
-  const [mode, setMode] = useState(initialMode);
+  const [mode, setMode] = useState<'signin'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const signup = mode === 'signup';
+  const signup = false;
   const redirectTo = useMemo(() => Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin + window.location.pathname : undefined, []);
 
   const submit = async () => {
@@ -114,14 +114,8 @@ function AuthForm({ initialMode, onBack }: { initialMode: 'signin' | 'signup'; o
     if (password.length < 6) { setError('A palavra-passe deve ter pelo menos 6 caracteres.'); return; }
     setBusy(true);
     try {
-      if (signup) {
-        const { error: authError } = await supabase.auth.signUp({ email: normalizedEmail, password, options: redirectTo ? { emailRedirectTo: redirectTo } : undefined });
-        if (authError) throw authError;
-        setMessage('Conta criada. Se a confirmação por email estiver ativa, confirma o endereço antes de entrar.');
-      } else {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
-        if (authError) throw authError;
-      }
+      const { error: authError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+      if (authError) throw authError;
     } catch (e: any) { setError(e?.message || 'Não foi possível autenticar.'); }
     finally { setBusy(false); }
   };
@@ -149,7 +143,7 @@ function AuthForm({ initialMode, onBack }: { initialMode: 'signin' | 'signup'; o
     <TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={signup ? 'new-password' : 'current-password'} placeholder="••••••••" placeholderTextColor="#607590" style={styles.input}/>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{message ? <Text style={styles.success}>{message}</Text> : null}
     <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={({pressed})=>[styles.authPrimary, pressed&&styles.pressed, busy&&styles.disabled]}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.authPrimaryText}>{signup ? 'Criar conta' : 'Entrar'}</Text>}</Pressable>
-    <Pressable accessibilityRole="button" disabled={busy} onPress={()=>{setMode(signup?'signin':'signup');setError('');setMessage('')}}><Text style={styles.switchText}>{signup ? 'Já tens conta? Entrar' : 'Ainda não tens conta? Criar conta'}</Text></Pressable>
+    <Pressable accessibilityRole="button" disabled={busy} onPress={()=>Linking.openURL(`mailto:${CONTACT}?subject=Pedido%20de%20convite%20ObraSignal`)}><Text style={styles.switchText}>Ainda não tens acesso? Solicitar convite</Text></Pressable>
     <Text style={styles.authTrust}>As oportunidades permanecem ligadas à fonte oficial. O ObraSignal ajuda a priorizar; não substitui a documentação do procedimento.</Text>
   </View></View>;
 }
@@ -157,7 +151,7 @@ function AuthForm({ initialMode, onBack }: { initialMode: 'signin' | 'signup'; o
 export default function AuthScreen() {
   const [showAuth, setShowAuth] = useState(Platform.OS !== 'web');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  if (!showAuth) return <Landing onLogin={()=>{setMode('signin');setShowAuth(true)}} onSignup={()=>{setMode('signup');setShowAuth(true)}}/>;
+  if (!showAuth) return <Landing onLogin={()=>{setMode('signin');setShowAuth(true)}}/>;
   return <AuthForm initialMode={mode} onBack={()=>setShowAuth(false)}/>;
 }
 
