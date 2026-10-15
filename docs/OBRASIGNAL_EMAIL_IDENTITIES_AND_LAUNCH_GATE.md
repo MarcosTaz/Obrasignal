@@ -25,3 +25,10 @@
 7. Only then switch frontend and Render JWT issuer; never switch secrets blindly.
 
 **STATUS: not yet approved for production switch.** No claim that the listed domain mailboxes exist.
+
+## Approved domain-only ObraSignal identity policy (2026-10-16)
+- Public UI contact and request-invite: `hello@obrasignal.com` (code changed on integration PR).
+- Official authentication sender target: `auth@obrasignal.com`; notification sender target: `notifications@obrasignal.com`; support target: `support@obrasignal.com`; security target: `security@obrasignal.com`; noreply target: `noreply@obrasignal.com`; owner/admin target: `marcos@obrasignal.com`.
+- Existing external addresses listed above are **historical configuration evidence**, not approved final identities. Do not remove historical evidence or overwrite real customer emails.
+- Provider currently still uses `auth@mail.myneon.app`; cannot claim official sender configured until DNS/provider verification.
+- Domain addresses may not yet receive or send mail; verify routing and sender domain before publishing them as operational.
