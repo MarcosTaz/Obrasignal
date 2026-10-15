@@ -18,6 +18,6 @@ jobs:
           node-version: '22'
       - run: node --test mobile/src/invite-only-public.test.mjs
       - working-directory: mobile
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
       - working-directory: mobile
         run: npm run smoke:web
