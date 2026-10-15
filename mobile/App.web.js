@@ -9,6 +9,7 @@ import { EUROPE_MARKETS } from './src/markets';
 import { DEFAULT_SETTINGS, storage } from './src/storage';
 import { syncUnreadOpportunityAlerts } from './src/notifications';
 import { MY_OFFICE_ENABLED, MODULES, routeFor, translate } from './src/my-office-contract.mjs';
+import MyOfficeScene from './components/MyOfficeScene';
 
 const FONT = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 const PAGE_SIZE = 80;
@@ -136,7 +137,7 @@ function WebMain(){
     <StatusBar style="light"/>
     <View style={s.pageContent}><View style={[s.shell,compact&&s.shellCompact]}>
       <Header onRefresh={()=>load({criteria:settings,query:appliedSearch})}/><Nav tab={tab} setTab={setTab}/>
-      {MY_OFFICE_ENABLED && tab==='office' ? <View style={s.bodyWrap} accessibilityLabel="My Office navigation"><Text style={s.sectionTitle}>{translate('pt','office')}</Text>{MODULES.map(module => <Pressable key={module.id} accessibilityRole="button" disabled={!routeFor(module.id)} accessibilityState={{disabled: !routeFor(module.id)}} onPress={()=>{const target=routeFor(module.id);if(target)setTab(target);}} style={[s.navItem,{marginVertical:6,padding:16,opacity:routeFor(module.id)?1:0.55}]}><Text style={s.navText}>{translate('pt',module.id)} — {module.status==='existing'?'Abrir':'Integração pendente'}</Text></Pressable>)}</View> : null}
+      {MY_OFFICE_ENABLED && tab==='office' ? <View style={s.bodyWrap} accessibilityLabel="My Office navigation"><MyOfficeScene sceneSource={null} onNavigate={setTab} /><Text style={s.sectionTitle}>{translate('pt','office')}</Text>{MODULES.map(module => <Pressable key={module.id} accessibilityRole="button" disabled={!routeFor(module.id)} accessibilityState={{disabled: !routeFor(module.id)}} onPress={()=>{const target=routeFor(module.id);if(target)setTab(target);}} style={[s.navItem,{marginVertical:6,padding:16,opacity:routeFor(module.id)?1:0.55}]}><Text style={s.navText}>{translate('pt',module.id)} — {module.status==='existing'?'Abrir':'Integração pendente'}</Text></Pressable>)}</View> : null}
       {MY_OFFICE_ENABLED && tab==='office' ? null : tab==='profile'
         ? <ProfilePanel profile={profile} profileLoading={profileLoading} error={profileError} settings={settings} setSettings={setSettings} onOpenOnlyChange={value=>applyCriteria({openOnly:value})} onSave={saveProfile} saving={saving} notice={notice} onRetry={()=>load({criteria:settings,query:appliedSearch})}/>
         : <RadarPanel compact={compact} items={items} stats={stats} settings={settings} search={search} setSearch={setSearch} appliedSearch={appliedSearch} loading={loading} loadingMore={loadingMore} page={page} error={radarError} notice={notice} onRefresh={()=>load({criteria:settings,query:appliedSearch})} onSearch={submitSearch} onClearSearch={clearSearch} onMinScore={value=>applyCriteria({minScore:value})} onLoadMore={loadMore} onOpen={setSelected}/>} 
