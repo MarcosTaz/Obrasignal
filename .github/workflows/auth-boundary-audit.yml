@@ -22,7 +22,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os, urllib.parse, urllib.request, urllib.error
+          import json, os, urllib.parse, urllib.request, urllib.error, socket
           u=os.environ.get('AUTH_URL','').strip()
           key=os.environ.get('AUTH_PUBLISHABLE_KEY','').strip()
           if not u or not key:
@@ -41,6 +41,11 @@ jobs:
                   body=json.load(response)
           except urllib.error.HTTPError as e:
               raise SystemExit('AUTH_SETTINGS_HTTP='+str(e.code))
+          except urllib.error.URLError as e:
+              reason=e.reason
+              if isinstance(reason,socket.gaierror):
+                  raise SystemExit('AUTH_BOUNDARY=DNS_UNRESOLVED; live settings not verified')
+              raise SystemExit('AUTH_BOUNDARY=NETWORK_UNREACHABLE; live settings not verified')
           disable=body.get('disable_signup')
           print('AUTH_DISABLE_SIGNUP='+('true' if disable is True else 'false' if disable is False else 'unknown'))
           print('AUTH_EMAIL_PROVIDER='+str((body.get('external') or {}).get('email')))
