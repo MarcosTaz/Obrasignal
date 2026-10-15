@@ -10,7 +10,9 @@ on:
       - 'development/my-office-v24-integration'
     paths:
       - 'mobile/src/my-office-contract.mjs'
-      - 'mobile/src/my-office-contract.test.mjs'
+      - 'mobile/src/my-office-*.test.mjs'
+      - 'mobile/components/MyOfficeScene.js'
+      - 'scripts/import_my_office_assets.py'
       - '.github/workflows/my-office-contract.yml'
 permissions:
   contents: read
@@ -24,4 +26,4 @@ jobs:
         with:
           node-version: '22'
       - name: Verify My Office module contract
-        run: node --test mobile/src/my-office-contract.test.mjs mobile/src/my-office-wiring.test.mjs mobile/src/my-office-geometry.test.mjs
+        run: node --test mobile/src/my-office-contract.test.mjs mobile/src/my-office-wiring.test.mjs mobile/src/my-office-geometry.test.mjs mobile/src/my-office-scene.test.mjs
