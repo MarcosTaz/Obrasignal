@@ -17,6 +17,6 @@ test('review stage is NOT claimed to be backend invitation enforcement',()=>{
 });
 
 test('official vector is the only landing brand artwork',()=>{
- assert.match(source,/obrasignal-logo\\.svg/);
- assert.doesNotMatch(source,/Obra<Text style=\\{styles\\.brandAccent\\}>Signal/);
+ assert.ok(source.includes('/obrasignal-logo.svg'));
+ assert.ok(!source.includes('Obra<Text style='));
 });
