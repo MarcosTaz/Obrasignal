@@ -129,6 +129,9 @@ jobs:
           grep -q "${GITHUB_SHA:0:7}" .smoke-dist/index.html
           test -n "$(find .smoke-dist -type f | wc -l)"
 
+      - name: Fail closed on missing canonical asset paths
+        run: python ../scripts/verify_pages_bundle_paths.py .smoke-dist
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
