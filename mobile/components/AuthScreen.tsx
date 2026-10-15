@@ -98,7 +98,7 @@ function Landing({ onLogin }: { onLogin: () => void }) {
 
 function AuthForm({ initialMode, onBack }: { initialMode: 'signin' | 'signup'; onBack: () => void }) {
   const { width } = useWindowDimensions();
-  const [mode, setMode] = useState<'signin'>('signin');
+  const mode: 'signin' = 'signin';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -136,13 +136,13 @@ function AuthForm({ initialMode, onBack }: { initialMode: 'signin' | 'signup'; o
   return <View style={styles.authPage}><View style={[styles.authShell, width < 560 && styles.authShellSmall]}>
     {Platform.OS === 'web' ? <Pressable accessibilityRole="button" onPress={onBack} style={styles.backButton}><Text style={styles.backText}>← Voltar ao site</Text></Pressable> : null}
     <View style={styles.authBrand}><Brand/><View style={styles.accessPill}><Text style={styles.accessText}>ACESSO</Text></View></View>
-    <Text style={styles.authTitle}>{signup ? 'Cria o teu radar.' : 'Bem-vindo de volta.'}</Text>
-    <Text style={styles.authSubtitle}>{signup ? 'Define o perfil da empresa e começa a transformar fontes públicas em decisões comerciais.' : 'Entra para ver o Radar, o acompanhamento e o perfil da tua empresa.'}</Text>
+    <Text style={styles.authTitle}>{'Bem-vindo de volta.'}</Text>
+    <Text style={styles.authSubtitle}>{'Entra com a tua conta previamente autorizada. Novos acessos são feitos por convite.'}</Text>
     <Text style={styles.fieldLabel}>EMAIL</Text><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="nome@empresa.pt" placeholderTextColor="#607590" style={styles.input}/>
     <View style={styles.passwordRow}><Text style={styles.fieldLabel}>PALAVRA-PASSE</Text>{!signup ? <Pressable accessibilityRole="button" onPress={reset} disabled={busy}><Text style={styles.forgot}>Recuperar acesso</Text></Pressable> : null}</View>
     <TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={signup ? 'new-password' : 'current-password'} placeholder="••••••••" placeholderTextColor="#607590" style={styles.input}/>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{message ? <Text style={styles.success}>{message}</Text> : null}
-    <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={({pressed})=>[styles.authPrimary, pressed&&styles.pressed, busy&&styles.disabled]}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.authPrimaryText}>{signup ? 'Criar conta' : 'Entrar'}</Text>}</Pressable>
+    <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={({pressed})=>[styles.authPrimary, pressed&&styles.pressed, busy&&styles.disabled]}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.authPrimaryText}>{'Entrar'}</Text>}</Pressable>
     <Pressable accessibilityRole="button" disabled={busy} onPress={()=>Linking.openURL(`mailto:${CONTACT}?subject=Pedido%20de%20convite%20ObraSignal`)}><Text style={styles.switchText}>Ainda não tens acesso? Solicitar convite</Text></Pressable>
     <Text style={styles.authTrust}>As oportunidades permanecem ligadas à fonte oficial. O ObraSignal ajuda a priorizar; não substitui a documentação do procedimento.</Text>
   </View></View>;
@@ -150,8 +150,8 @@ function AuthForm({ initialMode, onBack }: { initialMode: 'signin' | 'signup'; o
 
 export default function AuthScreen() {
   const [showAuth, setShowAuth] = useState(Platform.OS !== 'web');
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  if (!showAuth) return <Landing onLogin={()=>{setMode('signin');setShowAuth(true)}}/>;
+  const mode: 'signin' = 'signin';
+  if (!showAuth) return <Landing onLogin={()=>{setShowAuth(true)}}/>;
   return <AuthForm initialMode={mode} onBack={()=>setShowAuth(false)}/>;
 }
 
