@@ -1,0 +1,50 @@
+name: ObraSignal Production Auth Boundary
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/auth-boundary-audit.yml'
+      - 'mobile/components/AuthScreen.tsx'
+      - 'mobile/src/invite-only-public.test.mjs'
+      - 'docs/OBRASIGNAL_CANONICAL_SERVICES_CLEANUP_AUDIT.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-supabase-project:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AUTH_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      AUTH_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - name: Validate actual provider configuration without exposing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request, urllib.error
+          u=os.environ.get('AUTH_URL','').strip()
+          key=os.environ.get('AUTH_PUBLISHABLE_KEY','').strip()
+          if not u or not key:
+              raise SystemExit('AUTH_BOUNDARY=CONFIG_MISSING')
+          p=urllib.parse.urlsplit(u)
+          if p.scheme!='https' or not p.hostname:
+              raise SystemExit('AUTH_BOUNDARY=INVALID_URL')
+          host=p.hostname.lower()
+          if not (host.endswith('.supabase.co') or host.endswith('.supabase.in')):
+              raise SystemExit('AUTH_BOUNDARY=UNRECOGNIZED_PROVIDER_HOST')
+          print('AUTH_PROJECT_HOST='+host)
+          url=urllib.parse.urlunsplit(('https',host,'/auth/v1/settings','',''))
+          req=urllib.request.Request(url,headers={'apikey':key,'Accept':'application/json'})
+          try:
+              with urllib.request.urlopen(req,timeout=25) as response:
+                  body=json.load(response)
+          except urllib.error.HTTPError as e:
+              raise SystemExit('AUTH_SETTINGS_HTTP='+str(e.code))
+          disable=body.get('disable_signup')
+          print('AUTH_DISABLE_SIGNUP='+('true' if disable is True else 'false' if disable is False else 'unknown'))
+          print('AUTH_EMAIL_PROVIDER='+str((body.get('external') or {}).get('email')))
+          if disable is not True:
+              raise SystemExit('INVITE_ONLY_GATE=BLOCKED_PUBLIC_SIGNUP_NOT_PROVEN_DISABLED')
+          print('INVITE_ONLY_GATE=PROVIDER_REGISTRATION_CLOSED')
+          PY
