@@ -59,4 +59,5 @@ class MassInvitationTests(unittest.TestCase):
     new=issue_invite(c,email=email,created_by="admin",now=T)
     self.assertFalse(consume_invite(c,email=email,code=old["code"],now=T))
     self.assertTrue(consume_invite(c,email=email,code=new["code"],now=T))
- if __name__=="__main__": unittest.main()
+
+if __name__=="__main__": unittest.main()
