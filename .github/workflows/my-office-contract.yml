@@ -1,0 +1,27 @@
+name: My Office contract regression
+on:
+  pull_request:
+    paths:
+      - 'mobile/src/my-office-contract.mjs'
+      - 'mobile/src/my-office-contract.test.mjs'
+      - '.github/workflows/my-office-contract.yml'
+  push:
+    branches:
+      - 'development/my-office-v24-integration'
+    paths:
+      - 'mobile/src/my-office-contract.mjs'
+      - 'mobile/src/my-office-contract.test.mjs'
+      - '.github/workflows/my-office-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify My Office module contract
+        run: node --test mobile/src/my-office-contract.test.mjs
