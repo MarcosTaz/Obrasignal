@@ -15,3 +15,9 @@ test('existing authenticated Radar and Profile UI remain',()=>{
   assert.match(file,/<ProfilePanel /);
   assert.match(file,/<OpportunityDetail /);
 });
+
+test('approved Champagne image uses canonical Expo public path, gated and checked',()=>{
+  assert.match(file,/officeSceneReady\?\{uri:'\/assets\/my-office\/champagne-v23\.png'\}:null/);
+  assert.match(file,/fetch\('\/assets\/my-office\/champagne-v23\.png'/);
+  assert.match(file,/if\(!MY_OFFICE_ENABLED\) return/);
+});
