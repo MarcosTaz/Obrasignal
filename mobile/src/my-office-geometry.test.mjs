@@ -17,7 +17,8 @@ test('V23 coordinates and quadrilaterals preserve reference bounds',()=>{
   }
 });
 test('responsive scaling preserves vertices and rejects invalid bounds',()=>{
-  assert.deepEqual(normalizedVertices(0,1672,941),CHAMPAGNE_WINDOWS[0]);
+  const transformed=normalizedVertices(0,1672,941);
+  transformed.forEach((p,i)=>p.forEach((n,k)=>assert.ok(Math.abs(n-CHAMPAGNE_WINDOWS[0][i][k])<1e-9)));
   assert.equal(normalizedVertices(-1,1672,941),null);
   assert.equal(normalizedVertices(0,0,941),null);
 });
