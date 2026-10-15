@@ -6,7 +6,7 @@ import urllib.request
 from uuid import uuid4
 
 BASE="https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech/obrasignal_auth/auth"
-email=f"no-invite-{uuid4().hex}@example.test"
+email=f"no-invite-{uuid4().hex}@example.com"
 payload={"name":"Unauthorized Synthetic", "email":email,"password":"LongUnsharedSynthetic2026!Aa"}
 req=urllib.request.Request(BASE+"/sign-up/email",data=json.dumps(payload).encode(),method="POST",headers={"Content-Type":"application/json","Origin":"https://obrasignal.com"})
 try:
