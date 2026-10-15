@@ -24,4 +24,4 @@ jobs:
         with:
           node-version: '22'
       - name: Verify My Office module contract
-        run: node --test mobile/src/my-office-contract.test.mjs mobile/src/my-office-wiring.test.mjs
+        run: node --test mobile/src/my-office-contract.test.mjs mobile/src/my-office-wiring.test.mjs mobile/src/my-office-geometry.test.mjs
