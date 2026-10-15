@@ -1,0 +1,32 @@
+name: My Office contract regression
+on:
+  pull_request:
+    paths:
+      - 'mobile/src/my-office-contract.mjs'
+      - 'mobile/src/my-office-*.test.mjs'
+      - '.github/workflows/my-office-contract.yml'
+  push:
+    branches:
+      - 'development/my-office-v24-integration'
+    paths:
+      - 'mobile/src/my-office-contract.mjs'
+      - 'mobile/src/my-office-*.test.mjs'
+      - 'mobile/components/MyOfficeScene.js'
+      - 'scripts/import_my_office_assets.py'
+      - 'scripts/test_import_my_office_assets.py'
+      - '.github/workflows/my-office-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify My Office module contract
+        run: node --test mobile/src/my-office-contract.test.mjs mobile/src/my-office-wiring.test.mjs mobile/src/my-office-geometry.test.mjs mobile/src/my-office-scene.test.mjs
+      - name: Reject missing and altered original artwork
+        run: python -m unittest discover -s scripts -p 'test_import_my_office_assets.py'
