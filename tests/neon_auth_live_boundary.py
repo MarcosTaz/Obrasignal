@@ -26,6 +26,11 @@ except (ValueError,UnicodeDecodeError):
 error_text=" ".join(str(parsed.get(k) or "") for k in ("code","message","error")).lower() if isinstance(parsed,dict) else ""
 reason="INVITE_GATE" if "invitation" in error_text else "UPSTREAM_VALIDATION_OR_UNKNOWN"
 print("ANONYMOUS_SIGNUP_REJECTION_CLASS",reason)
+if isinstance(parsed,dict):
+    code=str(parsed.get("code") or "").strip()
+    if code and len(code)<=64 and all(ch.isupper() or ch.isdigit() or ch in "_-" for ch in code):
+        print("ANONYMOUS_SIGNUP_PROVIDER_CODE",code)
+
 print("ANONYMOUS_SIGNUP_HTTP_STATUS",status)
 if 200 <= status < 300:
     raise SystemExit("SECURITY_FAILURE: unauthorised signup API returned success")
