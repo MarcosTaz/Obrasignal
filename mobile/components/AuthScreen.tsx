@@ -6,7 +6,7 @@ const COLORS = {
   bg: '#07111C', bgSoft: '#0A1725', panel: '#0D1A29', panelSoft: '#101F31', line: '#22364F',
   text: '#F4F7FB', muted: '#9BAABD', blue: '#5F8DF7', blueSoft: '#15294C', green: '#72DFA1', red: '#FF8B9A',
 };
-const CONTACT = 'obrasignal.pt@gmail.com';
+const CONTACT = 'hello@obrasignal.com';
 
 function Brand() {
   return <Image source={{uri:'/obrasignal-logo.svg'}} style={{width:192,height:74}} resizeMode="contain" accessibilityLabel="ObraSignal — logótipo oficial vetorial" />;
