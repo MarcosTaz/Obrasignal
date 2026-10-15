@@ -17,7 +17,7 @@ import {
 } from '../src/billing';
 
 const COLORS = { bg: '#07111C', panel: '#0D1A29', panel2: '#101F31', line: '#22364F', text: '#F4F7FB', muted: '#9BAABD', blue: '#5F8DF7', green: '#72DFA1', amber: '#EFCB78', red: '#FF8B9A' };
-const SUPPORT_EMAIL = 'obrasignal.pt@gmail.com';
+const SUPPORT_EMAIL = 'support@obrasignal.com';
 const SERVER_PLANS = new Set(['evaluation', 'pro', 'expired', 'pilot']);
 
 export default function BillingGate({ children }) {
