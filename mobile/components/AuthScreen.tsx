@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 const COLORS = {
@@ -9,7 +9,7 @@ const COLORS = {
 const CONTACT = 'obrasignal.pt@gmail.com';
 
 function Brand() {
-  return <Text style={styles.brand}>Obra<Text style={styles.brandAccent}>Signal</Text></Text>;
+  return <Image source={{uri:'/obrasignal-logo.svg'}} style={{width:192,height:74}} resizeMode="contain" accessibilityLabel="ObraSignal — logótipo oficial vetorial" />;
 }
 
 function Button({ children, onPress, secondary = false, disabled = false, compact = false }: any) {
