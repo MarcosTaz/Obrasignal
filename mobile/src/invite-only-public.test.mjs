@@ -15,3 +15,8 @@ test('existing customers retain authentication and recovery',()=>{
 test('review stage is NOT claimed to be backend invitation enforcement',()=>{
  assert.doesNotMatch(source,/convite verificado no servidor/i);
 });
+
+test('official vector is the only landing brand artwork',()=>{
+ assert.match(source,/obrasignal-logo\\.svg/);
+ assert.doesNotMatch(source,/Obra<Text style=\\{styles\\.brandAccent\\}>Signal/);
+});
