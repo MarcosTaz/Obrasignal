@@ -14,7 +14,7 @@ RECORDS = {
  "approved_assets/4K_web/04_verde_petroleo.webp":("emerald-4k.webp","3e2694fabf7bdf1096f4f617317eded081f6b477f670189d2bb6e4323a638b9a"),
  "approved_assets/4K_web/05_gelo_prata.webp":("ivory-4k.webp","a7301d09499b20634fbc4f31ceea283e31ab7e0b9c3d543fc7cc3b24e7369b90"),
  "approved_assets/4K_web/06_rubi_carbono.webp":("crimson-4k.webp","7acd6443240b80ea7676fd036b18bf26fc6ebb6e7216b172b911190ae2dabe28"),
- "approved_assets/4K_web/07_ametista_nocturna.webp":("violet-4k.webp","17626ad9c9adab2bc1d6f96dc5f7a733d5ef0c8f221659c3ca94b1dc"),
+ "approved_assets/4K_web/07_ametista_nocturna.webp":("violet-4k.webp","17626ad9c9adab2bc1d6f96dc5f7474da5f7a733d5ef0c8f221659c3ca94b1dc"),
 }
 def install(archive, directory):
     archive=Path(archive)
