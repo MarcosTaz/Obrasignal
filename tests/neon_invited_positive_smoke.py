@@ -24,8 +24,10 @@ def main():
     status, body=post("/sign-in/email",{"email":email,"password":password})
     if not 200<=status<300: print("SIGNIN_NOT_PROVEN",status);return 1
     print("SIGNIN_ACCEPTED")
-    if not isinstance(body,dict) or not(body.get("token") or body.get("user")):
-        print("SESSION_FORMAT_NOT_PROVEN");return 1
-    print("SESSION_RESPONSE_PRESENT; backend bearer verification remains separate")
+    if not isinstance(body,dict) or not body.get("token"):
+        print("BEARER_TOKEN_NOT_PROVEN");return 1
+    if not isinstance(body.get("user"),dict) or body["user"].get("email") != email:
+        print("AUTHENTICATED_IDENTITY_NOT_PROVEN");return 1
+    print("BEARER_AND_AUTHENTICATED_IDENTITY_PRESENT; backend API verification remains separate")
     return 0
 if __name__=="__main__":sys.exit(main())
