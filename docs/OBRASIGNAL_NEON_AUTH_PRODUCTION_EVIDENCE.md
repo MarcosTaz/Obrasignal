@@ -23,3 +23,9 @@ This is NOT the CERTACTUM project.
 
 ## Key security note
 The Neon provider currently advertises allow_sign_up=true. The database trigger protects the identity INSERT boundary, **but native API denial and account/provider side effects must still be tested**. Do not infer full end-to-end readiness from SQL checks alone.
+
+## Live HTTP findings after provider setup
+- Synthetic no-invite POST `/sign-up/email` returned HTTP 422 repeatedly (GitHub workflow `ObraSignal Live Neon Auth Denial` PASS).
+- The bounded diagnostic classified the response `UPSTREAM_VALIDATION_OR_UNKNOWN`, **not** a proven trigger rejection. Do not claim that provider-level invitation denial has passed until a valid invited POST succeeds and a corresponding uninvited POST is demonstrably refused by the database gate.
+- Verified canonical redirect origin `https://obrasignal.com` is trusted; project display name is `ObraSignal`.
+- Read-only DB verification after probes: zero users, zero invitations; signup trigger remains enabled.
