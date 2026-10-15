@@ -60,4 +60,32 @@ class MassInvitationTests(unittest.TestCase):
     self.assertFalse(consume_invite(c,email=email,code=old["code"],now=T))
     self.assertTrue(consume_invite(c,email=email,code=new["code"],now=T))
 
+ def test_128_parallel_invalid_guesses_never_consume(self):
+  with self.connect() as c:
+   invited=issue_invite(c,email="target@example.test",created_by="admin",now=T)
+  def guess(i):
+   with self.connect() as c:
+    return consume_invite(c,email=invited["email"],code="OS-"+format(i,"048x"),now=T)
+  with concurrent.futures.ThreadPoolExecutor(max_workers=24) as pool:
+   self.assertEqual(sum(pool.map(guess,range(128))),0)
+  with self.connect() as c:
+   self.assertTrue(consume_invite(c,email=invited["email"],code=invited["code"],now=T))
+
+ def test_32_redeem_vs_revoke_races_never_both_win(self):
+  for i in range(32):
+   with self.connect() as c:
+    invite=issue_invite(c,email=f"race{i}@example.test",created_by="admin",now=T)
+   def consume():
+    with self.connect() as c:
+     return consume_invite(c,email=invite["email"],code=invite["code"],now=T)
+   def revoke():
+    with self.connect() as c:
+     return revoke_invite(c,identifier=invite["id"],now=T)
+   with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+    a=pool.submit(consume)
+    b=pool.submit(revoke)
+    self.assertEqual(int(a.result())+int(b.result()),1)
+   with self.connect() as c:
+    self.assertFalse(consume_invite(c,email=invite["email"],code=invite["code"],now=T))
+
 if __name__=="__main__": unittest.main()
