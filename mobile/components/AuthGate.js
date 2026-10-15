@@ -12,7 +12,7 @@ import { storage } from '../src/storage'
 
 const TRANSLATE_ELEMENT_ID = 'obrasignal-google-translate'
 const TRANSLATE_SCRIPT_ID = 'obrasignal-google-translate-script'
-const SUPPORT_EMAIL = 'obrasignal.pt@gmail.com'
+const SUPPORT_EMAIL = 'hello@obrasignal.com'
 
 const PRIVATE_TENANT_BIND_TIMEOUT_MS = 4500
 
