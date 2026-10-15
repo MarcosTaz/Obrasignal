@@ -19,6 +19,13 @@ except urllib.error.HTTPError as exc:
 except (urllib.error.URLError,TimeoutError) as exc:
     print("NEON_AUTH_UNREACHABLE; test inconclusive")
     raise SystemExit(2)
+try:
+    parsed=json.loads(body.decode("utf-8"))
+except (ValueError,UnicodeDecodeError):
+    parsed={}
+error_text=" ".join(str(parsed.get(k) or "") for k in ("code","message","error")).lower() if isinstance(parsed,dict) else ""
+reason="INVITE_GATE" if "invitation" in error_text else "UPSTREAM_VALIDATION_OR_UNKNOWN"
+print("ANONYMOUS_SIGNUP_REJECTION_CLASS",reason)
 print("ANONYMOUS_SIGNUP_HTTP_STATUS",status)
 if 200 <= status < 300:
     raise SystemExit("SECURITY_FAILURE: unauthorised signup API returned success")
