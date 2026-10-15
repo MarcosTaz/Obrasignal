@@ -34,9 +34,8 @@ if isinstance(parsed,dict):
 print("ANONYMOUS_SIGNUP_HTTP_STATUS",status)
 if 200 <= status < 300:
     raise SystemExit("SECURITY_FAILURE: unauthorised signup API returned success")
-if status in (400,401,403,409,422):
-    print("ANONYMOUS_SIGNUP_REJECTED")
-else:
-    raise SystemExit("INCONCLUSIVE: API response is not an expected authorization rejection")
+if status != 422 or not isinstance(parsed, dict) or parsed.get("code") != "FAILED_TO_CREATE_USER":
+    raise SystemExit("INCONCLUSIVE: Neon provider did not return expected identity-creation denial")
+print("ANONYMOUS_SIGNUP_REJECTED_AT_IDENTITY_CREATION")
 
 # Production read-only check is performed separately against the identity table.
