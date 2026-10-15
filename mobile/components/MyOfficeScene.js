@@ -21,6 +21,8 @@ export default function MyOfficeScene({sceneSource, onNavigate, locale='pt'}) {
         const x=Math.min(...xs)/1672*width,y=Math.min(...ys)/941*height;
         const w=(Math.max(...xs)-Math.min(...xs))/1672*width,h=(Math.max(...ys)-Math.min(...ys))/941*height;
         const module=MODULES[index],target=routeFor(module.id);
+        const left=Math.min(...xs),top=Math.min(...ys),spanX=Math.max(...xs)-left,spanY=Math.max(...ys)-top;
+        const polygon=quad.map(([px,py])=>`${((px-left)/spanX*100).toFixed(4)}% ${((py-top)/spanY*100).toFixed(4)}%`).join(', ');
         return <Pressable key={module.id}
           testID={'my-office-'+module.id}
           accessibilityRole="button"
@@ -30,7 +32,7 @@ export default function MyOfficeScene({sceneSource, onNavigate, locale='pt'}) {
           onPress={()=>{setFocused(index);if(target&&onNavigate)onNavigate(target);}}
           onHoverIn={()=>setFocused(index)}
           onHoverOut={()=>setFocused(value=>value===index?null:value)}
-          style={[styles.hotspot,{left:x,top:y,width:w,height:h},focused===index&&styles.active]}
+          style={[styles.hotspot,{left:x,top:y,width:w,height:h,clipPath:`polygon(${polygon})`},focused===index&&styles.active]}
         ><Text style={styles.hotspotLabel}>{translate(locale,module.id)}{!target?' · indisponível':''}</Text></Pressable>;
       })}
     </View>
