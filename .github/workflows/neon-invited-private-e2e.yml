@@ -6,23 +6,22 @@ permissions:
 jobs:
   invited-registration:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 7
     environment: neon-auth-private-test
     env:
-      OS_TEST_EMAIL: ${{ secrets.OS_TEST_EMAIL }}
-      OS_TEST_INVITE: ${{ secrets.OS_TEST_INVITE }}
-      OS_TEST_PASSWORD: ${{ secrets.OS_TEST_PASSWORD }}
+      OS_NEON_TEST_DATABASE_URL: ${{ secrets.OS_NEON_TEST_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Require private synthetic credentials
+      - name: Require isolated test database connection
         shell: bash
         run: |
-          if [[ -z "$OS_TEST_EMAIL" || -z "$OS_TEST_INVITE" || -z "$OS_TEST_PASSWORD" ]]; then
-            echo "BLOCKED: missing private synthetic test credentials"
+          if [[ -z "$OS_NEON_TEST_DATABASE_URL" ]]; then
+            echo "BLOCKED: OS_NEON_TEST_DATABASE_URL not set in protected environment"
             exit 1
           fi
-      - name: Invited registration and login
-        run: python tests/neon_invited_positive_smoke.py
+      - run: python -m pip install 'psycopg[binary]>=3.2,<4'
+      - name: Synthetic invitation, signup, signin and session proof
+        run: python tests/neon_invited_automated_private_e2e.py
