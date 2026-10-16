@@ -1,33 +1,67 @@
-"""Opt-in live invited Neon authentication smoke check.
-
-Run ONLY in a private runner with OS_TEST_EMAIL, OS_TEST_INVITE and OS_TEST_PASSWORD.
-Never print request bodies, tokens, credentials or provider responses.
-This is intentionally NOT executed on untrusted pull requests.
+"""Private invitation-only Better Auth E2E. Requires protected synthetic env inputs.
+Never logs credentials or tokens. No customer mail or payment.
 """
-import json, os, sys, urllib.request, urllib.error
-BASE="https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech/obrasignal_auth/auth"
-def post(path, body):
-    request=urllib.request.Request(BASE+path, data=json.dumps(body).encode(),method="POST",headers={"Content-Type":"application/json","Origin":"https://obrasignal.com"})
+import http.cookiejar
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+BASE = "https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech/obrasignal_auth/auth"
+cookies = http.cookiejar.CookieJar()
+http = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookies))
+
+def call(path, payload=None, method=None):
+    body = None if payload is None else json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        BASE + path,
+        data=body,
+        method=method or ("POST" if body is not None else "GET"),
+        headers={"Accept":"application/json","Content-Type":"application/json",
+                 "Origin":"https://obrasignal.com"},
+    )
     try:
-        with urllib.request.urlopen(request,timeout=25) as r: return r.status,json.load(r)
-    except urllib.error.HTTPError as error: return error.code,{}
+        with http.open(req, timeout=25) as response:
+            return response.status, json.load(response)
+    except urllib.error.HTTPError as exc:
+        return exc.code, {}
+
 def main():
-    email=os.environ.get("OS_TEST_EMAIL","").strip().lower()
-    invite=os.environ.get("OS_TEST_INVITE","")
-    password=os.environ.get("OS_TEST_PASSWORD","")
-    if not(email.endswith("@example.com") and invite.startswith("OS-") and len(invite)==51 and len(password)>=12):
-        print("SKIP: private synthetic test inputs unavailable or invalid")
+    email = os.environ.get("OS_TEST_EMAIL", "").strip().lower()
+    invitation = os.environ.get("OS_TEST_INVITE", "")
+    password = os.environ.get("OS_TEST_PASSWORD", "")
+    if not (email.endswith("@example.com") and len(invitation) == 51
+            and invitation.startswith("OS-") and len(password) >= 12):
+        print("PRIVATE_SYNTHETIC_INPUTS_UNAVAILABLE")
         return 2
-    status, body=post("/sign-up/email",{"name":invite+"|Synthetic ObraSignal","email":email,"password":password})
-    if not 200<=status<300: print("INVITED_SIGNUP_NOT_PROVEN",status);return 1
+    code, signup = call("/sign-up/email", {"name":invitation + "|Synthetic ObraSignal",
+        "email":email, "password":password})
+    if not 200 <= code < 300:
+        print("INVITED_SIGNUP_NOT_PROVEN", code)
+        return 1
     print("INVITED_SIGNUP_ACCEPTED")
-    status, body=post("/sign-in/email",{"email":email,"password":password})
-    if not 200<=status<300: print("SIGNIN_NOT_PROVEN",status);return 1
+    # Fresh login proof: avoid relying solely on automatic signup session.
+    cookies.clear()
+    code, signin = call("/sign-in/email", {"email":email,"password":password})
+    if not 200 <= code < 300:
+        print("SIGNIN_NOT_PROVEN", code)
+        return 1
     print("SIGNIN_ACCEPTED")
-    if not isinstance(body,dict) or not body.get("token"):
-        print("BEARER_TOKEN_NOT_PROVEN");return 1
-    if not isinstance(body.get("user"),dict) or body["user"].get("email") != email:
-        print("AUTHENTICATED_IDENTITY_NOT_PROVEN");return 1
-    print("BEARER_AND_AUTHENTICATED_IDENTITY_PRESENT; backend API verification remains separate")
+    code, session = call("/get-session")
+    user = session.get("user", {}) if isinstance(session, dict) else {}
+    if code != 200 or user.get("email", "").lower() != email:
+        print("SESSION_IDENTITY_NOT_PROVEN", code)
+        return 1
+    print("SESSION_IDENTITY_VERIFIED")
+    # A valid session must not allow guessing another password.
+    cookies.clear()
+    code, _ = call("/sign-in/email", {"email":email,"password":password + "-wrong"})
+    if 200 <= code < 300:
+        print("WRONG_PASSWORD_ACCEPTED")
+        return 1
+    print("WRONG_PASSWORD_REJECTED")
     return 0
-if __name__=="__main__":sys.exit(main())
+
+if __name__ == "__main__":
+    sys.exit(main())
