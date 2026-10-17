@@ -12,6 +12,7 @@ def test_neon_radar_company_gate_disabled_by_default(monkeypatch):
 def test_neon_radar_company_gate_denies_untrusted_issuer(monkeypatch):
     from jwt import InvalidTokenError
     monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "staging")
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
     monkeypatch.setenv("OBRASIGNAL_NEON_STAGING_ISSUER", "https://trusted-neon")
     monkeypatch.setattr(api, "configured_identity", lambda: SimpleNamespace(
         authenticated=True, subject="11111111-1111-4111-8111-111111111111",
