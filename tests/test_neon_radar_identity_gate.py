@@ -68,3 +68,17 @@ def test_development_identity_still_available_locally(monkeypatch):
     monkeypatch.delenv("RENDER", raising=False)
     identity = configured_identity()
     assert identity.authenticated is False
+
+
+def test_development_auth_rejected_on_supported_cloud_hosts(monkeypatch):
+    import pytest
+    from auth_context import configured_identity
+
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
+    monkeypatch.setenv("OBRASIGNAL_ENV", "test")
+    monkeypatch.delenv("RENDER", raising=False)
+    for variable in ("RENDER_EXTERNAL_HOSTNAME", "RENDER_SERVICE_ID", "VERCEL", "K_SERVICE", "DYNO"):
+        with monkeypatch.context() as hosted:
+            hosted.setenv(variable, "synthetic-host-value")
+            with pytest.raises(RuntimeError, match="forbidden"):
+                configured_identity()
