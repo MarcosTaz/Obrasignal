@@ -8,7 +8,8 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from auth_context_jwt import JwtVerifier
 
-NEON_ISSUER="https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech"\nNEON_JWKS=NEON_ISSUER+"/obrasignal_auth/auth/.well-known/jwks.json"
+NEON_ISSUER="https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech"
+NEON_JWKS=NEON_ISSUER+"/obrasignal_auth/auth/.well-known/jwks.json"
 
 def test_new_identity_provider_accepts_correctly_signed_neon_issuer(monkeypatch):
     key=ed25519.Ed25519PrivateKey.generate()
@@ -26,3 +27,23 @@ def test_new_identity_provider_accepts_correctly_signed_neon_issuer(monkeypatch)
         try: verifier.verify(token(altered))
         except jwt.InvalidTokenError: pass
         else: raise AssertionError(f"{field} tamper accepted")
+
+def test_neon_token_cannot_claim_another_identity(monkeypatch):
+    """Signed JWTs bind account identity to their signed subject, not request headers."""
+    key=ed25519.Ed25519PrivateKey.generate()
+    jwk=json.loads(jwt.algorithms.OKPAlgorithm.to_jwk(key.public_key()))
+    jwk.update({"kid":"tenant-identity-key","use":"sig","alg":"EdDSA"})
+    verifier=JwtVerifier(issuer=NEON_ISSUER,audience=NEON_ISSUER,jwks_url=NEON_JWKS)
+    monkeypatch.setattr(verifier,"_key_for",lambda kid:jwk if kid=="tenant-identity-key" else None)
+    now=int(time.time())
+    def signed(subject):
+        return jwt.encode({"sub":subject,"iss":NEON_ISSUER,"aud":NEON_ISSUER,
+                           "iat":now-5,"exp":now+300},key,algorithm="EdDSA",
+                          headers={"kid":"tenant-identity-key"})
+    user_a=verifier.verify(signed("tenant-user-A"))
+    user_b=verifier.verify(signed("tenant-user-B"))
+    assert user_a.account_id == "tenant-user-A"
+    assert user_b.account_id == "tenant-user-B"
+    assert user_a.account_id != user_b.account_id
+    # A user-A bearer remains bound to A; changing an untrusted caller hint cannot make it B.
+    assert verifier.verify(signed("tenant-user-A")).account_id != user_b.account_id
