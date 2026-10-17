@@ -6,6 +6,8 @@ on:
       - 'mobile/src/invite-only-public.test.mjs'
       - 'mobile/src/neon-invite-client.mjs'
       - 'mobile/src/neon-invite-client.test.mjs'
+      - 'mobile/src/neon-session-adapter.mjs'
+      - 'mobile/src/neon-session-adapter.test.mjs'
       - '.github/workflows/invite-only-public.yml'
 permissions:
   contents: read
@@ -18,7 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test mobile/src/invite-only-public.test.mjs mobile/src/neon-invite-client.test.mjs
+      - run: node --test mobile/src/invite-only-public.test.mjs mobile/src/neon-invite-client.test.mjs mobile/src/neon-session-adapter.test.mjs
       - working-directory: mobile
         run: npm install --no-audit --no-fund
       - working-directory: mobile
