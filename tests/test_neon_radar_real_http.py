@@ -223,3 +223,16 @@ def test_read_endpoints_fail_closed_before_db_access(client):
         response = http.get(path, headers=headers)
         assert response.status_code == 401, (path, response.status_code)
     assert seen == []
+
+
+def test_membership_database_outage_returns_503_without_account_fallback(client, monkeypatch):
+    http, current, memberships, seen = client
+
+    def offline(*args, **kwargs):
+        raise psycopg.OperationalError("synthetic connection failure")
+
+    monkeypatch.setattr(psycopg, "connect", offline)
+    response = http.get("/api/v1/sources", headers={"X-ObraSignal-Company-ID": ORG_A})
+    assert response.status_code == 503
+    assert response.json == {"error": "company_authorization_unavailable"}
+    assert seen == []
