@@ -133,3 +133,24 @@ def test_staging_neon_tenant_gate_cannot_be_enabled_in_production(monkeypatch):
     ))
     with pytest.raises(RuntimeError, match="cannot run in production"):
         api._identity()
+
+
+def test_invalid_tenant_auth_mode_rejected_before_identity_lookup(monkeypatch):
+    import pytest
+    monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "stagging")
+    monkeypatch.setattr(api, "configured_identity", lambda: (_ for _ in ()).throw(
+        AssertionError("Identity provider unexpectedly called")
+    ))
+    with pytest.raises(RuntimeError, match="Invalid OBRASIGNAL_NEON_COMPANY_AUTH"):
+        api._identity()
+
+
+def test_staging_without_provider_rejected_before_identity_lookup(monkeypatch):
+    import pytest
+    monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "staging")
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
+    monkeypatch.setattr(api, "configured_identity", lambda: (_ for _ in ()).throw(
+        AssertionError("Identity provider unexpectedly called")
+    ))
+    with pytest.raises(RuntimeError, match="requires provider"):
+        api._identity()
