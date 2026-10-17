@@ -42,8 +42,12 @@ def _iso_now():
 
 
 def _identity():
-    identity = configured_identity()
     company_auth_mode = os.getenv("OBRASIGNAL_NEON_COMPANY_AUTH", "").strip()
+    # Reject invalid deployment modes before evaluating any legacy identity.
+    # Production must never silently fall back to legacy tenant authorization.
+    if (os.getenv("OBRASIGNAL_ENV") or "").strip().lower() in {"production", "prod"} and company_auth_mode == "staging":
+        raise RuntimeError("Staging Neon company authorization cannot run in production")
+    identity = configured_identity()
     if company_auth_mode not in {"", "staging"}:
         # A misspelled staging flag must never silently disable the company gate.
         raise RuntimeError("Invalid OBRASIGNAL_NEON_COMPANY_AUTH")
