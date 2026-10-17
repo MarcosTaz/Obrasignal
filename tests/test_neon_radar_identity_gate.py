@@ -154,3 +154,22 @@ def test_staging_without_provider_rejected_before_identity_lookup(monkeypatch):
     ))
     with pytest.raises(RuntimeError, match="requires provider"):
         api._identity()
+
+
+def test_provider_cors_requires_https_canonical_origin(monkeypatch):
+    import pytest
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    for origin in (
+        "http://example.com",
+        "javascript://example.com",
+        "https://user:password@example.com",
+        "https://example.com/unexpected/path",
+        "https://example.com/?token=secret",
+        "https://example.com/#fragment",
+        "https://example.com:badport",
+    ):
+        monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", origin)
+        with pytest.raises(RuntimeError, match="OBRASIGNAL_CORS_ORIGIN"):
+            api._cors_origin()
+    monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "https://obrasignal.com")
+    assert api._cors_origin() == "https://obrasignal.com"
