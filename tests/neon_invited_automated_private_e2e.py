@@ -97,7 +97,18 @@ def main():
             print("NEON_JWT_SUBJECT_MISMATCH")
             return 1
         print("NEON_JWT_SIGNATURE_ISSUER_SUBJECT_PASS")
-        print("NEON_JWT_AUDIENCE_PRESENT", bool(verified.get("aud")))
+        audience = verified.get("aud")
+        if audience == "authenticated" or audience == ["authenticated"]:
+            print("NEON_JWT_AUDIENCE_AUTHENTICATED_PASS")
+            jwt.decode(candidate, key.key, algorithms=["RS256", "ES256", "EdDSA"],
+                       issuer="https://" + urlsplit(BASE).hostname, audience="authenticated",
+                       options={"require": ["exp", "iat", "iss", "sub", "aud"]})
+            print("NEON_JWT_STRICT_AUDIENCE_PASS")
+        else:
+            print("NEON_JWT_AUDIENCE_CATEGORY", "missing" if audience is None else
+                  "other_string" if isinstance(audience, str) else
+                  "other_list" if isinstance(audience, list) else "other_type")
+            return 1
 
         wrong = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         status, _ = request(wrong, "/sign-in/email", {"email":email,"password":password+"wrong"})
