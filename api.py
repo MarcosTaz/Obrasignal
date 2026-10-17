@@ -142,8 +142,12 @@ def _require_identity():
         return _apply_cors(APP.response_class("", status=204, mimetype="text/plain"))
     try:
         identity = _identity()
-    except (RuntimeError, InvalidTokenError):
+    except InvalidTokenError:
         return jsonify({"error": "authentication_required"}), 401
+    except RuntimeError:
+        # Configuration faults are service failures, never bad user credentials.
+        # Avoid leaking issuer, token, database or environment configuration.
+        return jsonify({"error": "authentication_configuration_unavailable"}), 503
     request.obrasignal_identity = identity
     conn = _db()
     try:
