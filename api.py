@@ -119,8 +119,21 @@ def _cors_origin():
     if not origin or origin == "*":
         raise RuntimeError("OBRASIGNAL_CORS_ORIGIN must be configured for provider mode")
     parsed = urlsplit(origin)
-    if not parsed.scheme or not parsed.netloc:
-        raise RuntimeError("OBRASIGNAL_CORS_ORIGIN must be a valid browser origin")
+    # Provider mode must not authorize unencrypted or malformed browser origins.
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise RuntimeError("OBRASIGNAL_CORS_ORIGIN must be a valid HTTPS origin")
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise RuntimeError("OBRASIGNAL_CORS_ORIGIN has an invalid port") from exc
     return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
 
 
