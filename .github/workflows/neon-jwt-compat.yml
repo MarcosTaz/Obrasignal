@@ -20,7 +20,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt 'pytest>=8,<10' 'psycopg[binary]>=3.2,<4'
       - name: Compile authorization and tenant-boundary modules
-        run: python -m py_compile api.py auth_context.py auth_context_jwt.py neon_company_access.py neon_company_probe.py tests/test_neon_company_probe.py tests/test_neon_radar_real_http.py
+        run: python -m py_compile api.py auth_context.py auth_context_jwt.py neon_company_access.py neon_company_probe.py tests/test_neon_company_probe.py tests/test_neon_radar_real_http.py tests/neon_candidate_jwt_verifier.py tests/neon_invited_automated_private_e2e.py
       - name: Run staged Neon identity and real Radar HTTP regressions
         run: python -m pytest -q --junitxml=neon-radar-tests.xml tests/test_neon_jwt_compat.py tests/test_neon_company_access.py tests/test_neon_company_probe.py tests/test_neon_radar_identity_gate.py tests/test_neon_radar_routes.py tests/test_neon_radar_real_http.py
       - name: Preserve synthetic test evidence
