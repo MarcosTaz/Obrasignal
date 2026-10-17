@@ -101,3 +101,19 @@ def test_probe_rejects_missing_signed_identity_claims_before_database_access():
         )
         assert result.status_code == 401
         assert called == []
+
+
+def test_probe_rejects_invalid_company_ids_without_database_access():
+    app = Flask(__name__)
+    calls = []
+    app.register_blueprint(build_neon_company_probe(
+        Verifier(), lambda: (calls.append(True), Connection())[1]
+    ))
+    client = app.test_client()
+    for identifier in ("not-a-uuid", "00000000-0000-0000-0000-000000000000x", "other-company"):
+        response = client.get(
+            "/__staging/neon/companies/" + identifier + "/access",
+            headers={"Authorization": "Bearer valid"},
+        )
+        assert response.status_code == 403
+    assert calls == []
