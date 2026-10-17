@@ -15,6 +15,7 @@ import uuid
 
 import psycopg
 import jwt
+from auth_context_jwt import JwtVerifier
 
 BASE = "https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech/obrasignal_auth/auth"
 ORIGIN = "https://obrasignal.com"
@@ -105,6 +106,26 @@ def main():
                    issuer=expected_identity_url, audience=expected_identity_url,
                    options={"require": ["exp", "iat", "iss", "sub", "aud"]})
         print("NEON_JWT_STRICT_ISSUER_AUDIENCE_PASS")
+        # Exercise the actual ObraSignal API JWT verifier, not just a standalone decoder.
+        verifier = JwtVerifier(
+            issuer=expected_identity_url,
+            audience=expected_identity_url,
+            jwks_url=BASE + "/.well-known/jwks.json",
+        )
+        identity = verifier.verify(candidate)
+        if identity.subject != str(session["user"]["id"]):
+            print("OBRASIGNAL_API_VERIFIER_IDENTITY_MISMATCH")
+            return 1
+        print("OBRASIGNAL_API_JWT_VERIFIER_PASS")
+        parts = candidate.split(".")
+        altered = parts[0] + "." + ("A" if parts[1][0] != "A" else "B") + parts[1][1:] + "." + parts[2]
+        try:
+            verifier.verify(altered)
+        except jwt.InvalidTokenError:
+            print("OBRASIGNAL_API_TAMPERED_JWT_REJECTED")
+        else:
+            print("OBRASIGNAL_API_TAMPERED_JWT_ACCEPTED")
+            return 1
 
         wrong = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         status, _ = request(wrong, "/sign-in/email", {"email":email,"password":password+"wrong"})
