@@ -83,3 +83,15 @@ def test_development_auth_rejected_on_supported_cloud_hosts(monkeypatch):
             hosted.setenv(variable, "synthetic-host-value")
             with pytest.raises(RuntimeError, match="forbidden"):
                 configured_identity()
+
+
+def test_neon_gate_requires_provider_mode_even_with_verified_identity_stub(monkeypatch):
+    import pytest
+    monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "staging")
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
+    monkeypatch.setattr(api, "configured_identity", lambda: SimpleNamespace(
+        account_id="untrusted", authenticated=True,
+        subject="11111111-1111-4111-8111-111111111111", claims={"iss": "neon-test"}
+    ))
+    with pytest.raises(RuntimeError, match="requires provider"):
+        api._identity()
