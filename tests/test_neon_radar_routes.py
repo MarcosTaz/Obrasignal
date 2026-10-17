@@ -27,6 +27,7 @@ class Connection:
 def test_radar_profile_company_isolation(monkeypatch, tmp_path):
     monkeypatch.setenv("OBRASIGNAL_DB", str(tmp_path / "radar.db"))
     monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "staging")
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
     monkeypatch.setenv("OBRASIGNAL_NEON_STAGING_ISSUER", ISSUER)
     monkeypatch.setenv("OBRASIGNAL_NEON_STAGING_DATABASE_URL", "staging-secret-not-used")
     monkeypatch.setattr(psycopg, "connect", lambda *args, **kwargs: nullcontext(Connection()))
