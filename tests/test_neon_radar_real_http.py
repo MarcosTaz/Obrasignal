@@ -59,6 +59,7 @@ class FakeRadarConnection:
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "staging")
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
     monkeypatch.setenv("OBRASIGNAL_NEON_STAGING_ISSUER", ISSUER)
     monkeypatch.setenv("OBRASIGNAL_NEON_STAGING_DATABASE_URL", "synthetic-only")
     current = {"user": USER, "issuer": ISSUER, "authenticated": True}
