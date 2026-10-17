@@ -152,6 +152,27 @@ def main():
                 if organizations != {org_a}:
                     print("NEON_MEMBERSHIP_CROSS_COMPANY_FAILURE")
                     return 1
+                # Real Neon JWT through staging Flask HTTP route and live membership rows.
+                # The app exists only in this process and is never exposed publicly.
+                from contextlib import nullcontext
+                from flask import Flask
+                from neon_company_probe import build_neon_company_probe
+                app = Flask("obrasignal_neon_private_e2e")
+                app.register_blueprint(build_neon_company_probe(verifier, lambda: nullcontext(conn)))
+                client = app.test_client()
+                url = lambda organization: "/__staging/neon/companies/" + str(organization) + "/access"
+                valid = {"Authorization": "Bearer " + candidate}
+                accepted = client.get(url(org_a), headers=valid)
+                forbidden = client.get(url(org_b), headers=valid)
+                anonymous = client.get(url(org_a))
+                tampered = client.get(url(org_a), headers={"Authorization": "Bearer " + altered})
+                if (accepted.status_code, forbidden.status_code, anonymous.status_code,
+                        tampered.status_code) != (200, 403, 401, 401):
+                    print("NEON_REAL_JWT_HTTP_COMPANY_ISOLATION_FAILED",
+                          accepted.status_code, forbidden.status_code,
+                          anonymous.status_code, tampered.status_code)
+                    return 1
+                print("NEON_REAL_JWT_HTTP_COMPANY_ISOLATION_PASS")
                 cur.execute(
                     'DELETE FROM neon_auth.member WHERE "organizationId" = %s AND "userId" = %s',
                     (org_a, uuid.UUID(identity.subject)),
