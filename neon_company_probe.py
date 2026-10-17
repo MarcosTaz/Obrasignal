@@ -20,8 +20,11 @@ def build_neon_company_probe(verifier, connection_factory):
             return jsonify(error="unauthorized"), 401
         try:
             identity = verifier.verify(bearer.strip())
-            issuer = identity.claims.get("iss")
-            subject = identity.subject
+            claims = getattr(identity, "claims", None)
+            issuer = claims.get("iss") if isinstance(claims, dict) else None
+            subject = getattr(identity, "subject", None)
+            if not isinstance(issuer, str) or not issuer.strip() or not isinstance(subject, str) or not subject.strip():
+                raise InvalidTokenError("verified identity missing required claims")
             with connection_factory() as connection:
                 permitted = authorize_company(
                     issuer, subject, company_id,
