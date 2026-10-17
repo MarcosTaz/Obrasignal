@@ -1,0 +1,34 @@
+"""Staging-only HTTP contract for verified Neon company access.
+
+Not registered by production app. A caller injects a trusted verifier and
+server-owned membership connection factory. No application secret or database
+URL is read here.
+"""
+from flask import Blueprint, jsonify, request
+from jwt import InvalidTokenError
+from neon_company_access import authorize_company, lookup_neon_membership, CompanyAccessDenied
+
+def build_neon_company_probe(verifier, connection_factory):
+    blueprint = Blueprint("neon_company_probe", __name__)
+
+    @blueprint.get("/__staging/neon/companies/<company_id>/access")
+    def probe(company_id):
+        scheme, separator, bearer = request.headers.get("Authorization", "").partition(" ")
+        if scheme.lower() != "bearer" or not separator or not bearer.strip():
+            return jsonify(error="unauthorized"), 401
+        try:
+            identity = verifier.verify(bearer.strip())
+            issuer = identity.claims.get("iss")
+            subject = identity.subject
+            with connection_factory() as connection:
+                permitted = authorize_company(
+                    issuer, subject, company_id,
+                    lambda i, s, c: lookup_neon_membership(connection, i, s, c),
+                )
+        except InvalidTokenError:
+            return jsonify(error="unauthorized"), 401
+        except CompanyAccessDenied:
+            return jsonify(error="forbidden"), 403
+        return jsonify(company_id=permitted, authorized=True), 200
+
+    return blueprint
