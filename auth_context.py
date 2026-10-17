@@ -127,8 +127,17 @@ def configured_identity() -> RequestIdentity:
 
     if auth_mode == "development":
         deployment = (os.getenv("OBRASIGNAL_ENV") or os.getenv("FLASK_ENV") or "").strip().lower()
-        render_hosted = (os.getenv("RENDER") or "").strip().lower() in {"true", "1"}
-        if deployment in {"production", "prod"} or render_hosted:
+        render_hosted = (
+            (os.getenv("RENDER") or "").strip().lower() in {"true", "1"}
+            or bool((os.getenv("RENDER_EXTERNAL_HOSTNAME") or "").strip())
+            or bool((os.getenv("RENDER_SERVICE_ID") or "").strip())
+        )
+        cloud_hosted = (
+            bool((os.getenv("VERCEL") or "").strip())
+            or bool((os.getenv("K_SERVICE") or "").strip())
+            or bool((os.getenv("DYNO") or "").strip())
+        )
+        if deployment in {"production", "prod"} or render_hosted or cloud_hosted:
             raise RuntimeError("Development authentication is forbidden on a production deployment")
         return RequestIdentity(
             account_id=_valid_account(os.getenv("OBRASIGNAL_ACCOUNT_ID") or "default"),
