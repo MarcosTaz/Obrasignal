@@ -23,6 +23,10 @@ on:
       - 'neon_company_probe.py'
       - 'tests/test_neon_company_access.py'
       - 'tests/test_neon_company_probe.py'
+      - 'tests/test_neon_radar_real_http.py'
+      - 'tests/test_neon_radar_routes.py'
+      - 'tests/test_neon_radar_identity_gate.py'
+      - 'api.py'
       - '.github/workflows/neon-jwt-compat.yml'
 permissions:
   contents: read
