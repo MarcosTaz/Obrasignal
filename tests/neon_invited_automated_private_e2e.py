@@ -123,6 +123,9 @@ def main():
             verifier.verify(altered)
         except jwt.InvalidTokenError:
             print("OBRASIGNAL_API_TAMPERED_JWT_REJECTED")
+        else:
+            print("OBRASIGNAL_API_TAMPERED_JWT_ACCEPTED")
+            return 1
         # Two temporary organizations in a rolled-back transaction. This checks
         # server-side membership lookup isolation, not a deployed Radar HTTP API.
         with conn.transaction() as membership_tx:
@@ -151,9 +154,6 @@ def main():
                     return 1
             membership_tx.rollback()
         print("NEON_TWO_COMPANY_MEMBERSHIP_ISOLATION_PASS")
-        else:
-            print("OBRASIGNAL_API_TAMPERED_JWT_ACCEPTED")
-            return 1
 
         wrong = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         status, _ = request(wrong, "/sign-in/email", {"email":email,"password":password+"wrong"})
