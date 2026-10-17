@@ -121,3 +121,15 @@ def test_obrasignal_mfa_rejects_ambiguous_configuration(monkeypatch):
     monkeypatch.setenv("OBRASIGNAL_REQUIRE_MFA", "maybe")
     with pytest.raises(RuntimeError, match="OBRASIGNAL_REQUIRE_MFA"):
         _mfa_required()
+
+
+def test_staging_neon_tenant_gate_cannot_be_enabled_in_production(monkeypatch):
+    import pytest
+    monkeypatch.setenv("OBRASIGNAL_ENV", "production")
+    monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "staging")
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setattr(api, "configured_identity", lambda: (_ for _ in ()).throw(
+        AssertionError("identity provider must not run for forbidden staging mode")
+    ))
+    with pytest.raises(RuntimeError, match="cannot run in production"):
+        api._identity()
