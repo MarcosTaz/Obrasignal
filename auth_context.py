@@ -75,12 +75,12 @@ def _verified_tenant_id(claims: dict, subject: str) -> str:
 
 
 def _mfa_required() -> bool:
-    value = (os.getenv("CERTACTUM_REQUIRE_MFA") or "").strip().lower()
+    value = (os.getenv("OBRASIGNAL_REQUIRE_MFA") or "").strip().lower()
     if value in {"1", "true", "yes", "on"}:
         return True
     if value in {"0", "false", "no", "off", ""}:
         return False
-    raise RuntimeError("CERTACTUM_REQUIRE_MFA is invalid")
+    raise RuntimeError("OBRASIGNAL_REQUIRE_MFA is invalid")
 
 
 def _enforce_mfa_assurance(claims: dict) -> None:
@@ -88,7 +88,7 @@ def _enforce_mfa_assurance(claims: dict) -> None:
 
     Supabase Auth encodes the authenticator assurance level in the signed ``aal``
     JWT claim. We deliberately do not inspect user_metadata or a caller header.
-    Missing or non-AAL2 assurance fails closed once CERTACTUM_REQUIRE_MFA is on.
+    Missing or non-AAL2 assurance fails closed once OBRASIGNAL_REQUIRE_MFA is on.
     """
     if not _mfa_required():
         return
