@@ -43,7 +43,11 @@ def _iso_now():
 
 def _identity():
     identity = configured_identity()
-    if os.getenv("OBRASIGNAL_NEON_COMPANY_AUTH", "").strip() != "staging":
+    company_auth_mode = os.getenv("OBRASIGNAL_NEON_COMPANY_AUTH", "").strip()
+    if company_auth_mode not in {"", "staging"}:
+        # A misspelled staging flag must never silently disable the company gate.
+        raise RuntimeError("Invalid OBRASIGNAL_NEON_COMPANY_AUTH")
+    if not company_auth_mode:
         return identity
     # Staging-only: the verified JWT identity alone is never a tenant grant.
     # No fallback to the user's subject or an untrusted account-id header.
