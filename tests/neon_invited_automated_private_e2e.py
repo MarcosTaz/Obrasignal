@@ -13,6 +13,7 @@ import urllib.request
 import uuid
 
 import psycopg
+import jwt
 
 BASE = "https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech/obrasignal_auth/auth"
 ORIGIN = "https://obrasignal.com"
@@ -66,6 +67,25 @@ def main():
             print("SESSION_IDENTITY_FAILED_HTTP", status)
             return 1
         print("SESSION_IDENTITY_PASS")
+        status, token_result = request(opener, "/token")
+        candidate = token_result.get("token") if isinstance(token_result, dict) else None
+        if status != 200 or not isinstance(candidate, str) or candidate.count(".") != 2:
+            print("NEON_JWT_ENDPOINT_NOT_PROVEN", status)
+            return 1
+        try:
+            keyset = jwt.PyJWKClient(BASE + "/.well-known/jwks.json")
+            key = keyset.get_signing_key_from_jwt(candidate)
+            verified = jwt.decode(candidate, key.key, algorithms=["RS256", "ES256", "EdDSA"], issuer=BASE,
+                                  options={"verify_aud": False, "require": ["exp", "iat", "iss", "sub"]})
+        except (jwt.PyJWTError, ValueError):
+            print("NEON_JWT_SIGNATURE_OR_ISSUER_REJECTED")
+            return 1
+        if str(verified.get("sub")) != str(session["user"].get("id")):
+            print("NEON_JWT_SUBJECT_MISMATCH")
+            return 1
+        print("NEON_JWT_SIGNATURE_ISSUER_SUBJECT_PASS")
+        print("NEON_JWT_AUDIENCE_PRESENT", bool(verified.get("aud")))
+
         wrong = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         status, _ = request(wrong, "/sign-in/email", {"email":email,"password":password+"wrong"})
         if 200 <= status < 300:
