@@ -123,6 +123,34 @@ def main():
             verifier.verify(altered)
         except jwt.InvalidTokenError:
             print("OBRASIGNAL_API_TAMPERED_JWT_REJECTED")
+        # Two temporary organizations in a rolled-back transaction. This checks
+        # server-side membership lookup isolation, not a deployed Radar HTTP API.
+        with conn.transaction() as membership_tx:
+            with conn.cursor() as cur:
+                org_a = uuid.uuid4()
+                org_b = uuid.uuid4()
+                for org, label in ((org_a, "a"), (org_b, "b")):
+                    cur.execute(
+                        'INSERT INTO neon_auth.organization (id, name, slug, "createdAt") '
+                        'VALUES (%s, %s, %s, NOW())',
+                        (org, "Synthetic Organization " + label, "private-e2e-" + uuid.uuid4().hex),
+                    )
+                cur.execute(
+                    'INSERT INTO neon_auth.member (id, "organizationId", "userId", role, "createdAt") '
+                    'VALUES (%s, %s, %s, %s, NOW())',
+                    (uuid.uuid4(), org_a, uuid.UUID(identity.subject), "member"),
+                )
+                cur.execute(
+                    'SELECT "organizationId" FROM neon_auth.member '
+                    'WHERE "userId" = %s AND "organizationId" IN (%s, %s)',
+                    (uuid.UUID(identity.subject), org_a, org_b),
+                )
+                organizations = {row[0] for row in cur.fetchall()}
+                if organizations != {org_a}:
+                    print("NEON_MEMBERSHIP_CROSS_COMPANY_FAILURE")
+                    return 1
+            membership_tx.rollback()
+        print("NEON_TWO_COMPANY_MEMBERSHIP_ISOLATION_PASS")
         else:
             print("OBRASIGNAL_API_TAMPERED_JWT_ACCEPTED")
             return 1
