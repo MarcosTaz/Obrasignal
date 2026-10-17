@@ -126,6 +126,10 @@ def configured_identity() -> RequestIdentity:
         raise RuntimeError("Invalid OBRASIGNAL_AUTH_MODE")
 
     if auth_mode == "development":
+        deployment = (os.getenv("OBRASIGNAL_ENV") or os.getenv("FLASK_ENV") or "").strip().lower()
+        render_hosted = (os.getenv("RENDER") or "").strip().lower() in {"true", "1"}
+        if deployment in {"production", "prod"} or render_hosted:
+            raise RuntimeError("Development authentication is forbidden on a production deployment")
         return RequestIdentity(
             account_id=_valid_account(os.getenv("OBRASIGNAL_ACCOUNT_ID") or "default"),
             authenticated=False,
