@@ -15,7 +15,7 @@ import uuid
 
 import psycopg
 import jwt
-from tests.neon_candidate_jwt_verifier import JwtVerifier
+from neon_candidate_jwt_verifier import JwtVerifier
 
 BASE = "https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech/obrasignal_auth/auth"
 ORIGIN = "https://obrasignal.com"
