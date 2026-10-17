@@ -5,6 +5,7 @@ server-owned membership connection factory. No application secret or database
 URL is read here.
 """
 from flask import Blueprint, jsonify, request
+from uuid import UUID
 from jwt import InvalidTokenError
 from auth_context_jwt import JwksUnavailableError
 import psycopg
@@ -19,6 +20,11 @@ def build_neon_company_probe(verifier, connection_factory):
         if scheme.lower() != "bearer" or not separator or not bearer.strip():
             return jsonify(error="unauthorized"), 401
         try:
+            # Normalize tenant UUID before opening a database connection.
+            try:
+                company_id = str(UUID(company_id))
+            except (TypeError, ValueError, AttributeError):
+                return jsonify(error="forbidden"), 403
             identity = verifier.verify(bearer.strip())
             claims = getattr(identity, "claims", None)
             issuer = claims.get("iss") if isinstance(claims, dict) else None
