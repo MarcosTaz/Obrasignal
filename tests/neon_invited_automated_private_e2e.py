@@ -15,7 +15,7 @@ import uuid
 
 import psycopg
 import jwt
-from auth_context_jwt import JwtVerifier
+from neon_candidate_jwt_verifier import JwtVerifier
 
 BASE = "https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech/obrasignal_auth/auth"
 ORIGIN = "https://obrasignal.com"
@@ -126,6 +126,59 @@ def main():
         else:
             print("OBRASIGNAL_API_TAMPERED_JWT_ACCEPTED")
             return 1
+        # Two temporary organizations in a rolled-back transaction. This checks
+        # server-side membership lookup isolation, not a deployed Radar HTTP API.
+        with conn.transaction():
+            with conn.cursor() as cur:
+                org_a = uuid.uuid4()
+                org_b = uuid.uuid4()
+                for org, label in ((org_a, "a"), (org_b, "b")):
+                    cur.execute(
+                        'INSERT INTO neon_auth.organization (id, name, slug, "createdAt") '
+                        'VALUES (%s, %s, %s, NOW())',
+                        (org, "Synthetic Organization " + label, "private-e2e-" + uuid.uuid4().hex),
+                    )
+                cur.execute(
+                    'INSERT INTO neon_auth.member (id, "organizationId", "userId", role, "createdAt") '
+                    'VALUES (%s, %s, %s, %s, NOW())',
+                    (uuid.uuid4(), org_a, uuid.UUID(identity.subject), "member"),
+                )
+                cur.execute(
+                    'SELECT "organizationId" FROM neon_auth.member '
+                    'WHERE "userId" = %s AND "organizationId" IN (%s, %s)',
+                    (uuid.UUID(identity.subject), org_a, org_b),
+                )
+                organizations = {row[0] for row in cur.fetchall()}
+                if organizations != {org_a}:
+                    print("NEON_MEMBERSHIP_CROSS_COMPANY_FAILURE")
+                    return 1
+                # Real Neon JWT through staging Flask HTTP route and live membership rows.
+                # The app exists only in this process and is never exposed publicly.
+                from contextlib import nullcontext
+                from flask import Flask
+                from neon_company_probe import build_neon_company_probe
+                app = Flask("obrasignal_neon_private_e2e")
+                app.register_blueprint(build_neon_company_probe(verifier, lambda: nullcontext(conn)))
+                client = app.test_client()
+                url = lambda organization: "/__staging/neon/companies/" + str(organization) + "/access"
+                valid = {"Authorization": "Bearer " + candidate}
+                accepted = client.get(url(org_a), headers=valid)
+                forbidden = client.get(url(org_b), headers=valid)
+                anonymous = client.get(url(org_a))
+                tampered = client.get(url(org_a), headers={"Authorization": "Bearer " + altered})
+                if (accepted.status_code, forbidden.status_code, anonymous.status_code,
+                        tampered.status_code) != (200, 403, 401, 401):
+                    print("NEON_REAL_JWT_HTTP_COMPANY_ISOLATION_FAILED",
+                          accepted.status_code, forbidden.status_code,
+                          anonymous.status_code, tampered.status_code)
+                    return 1
+                print("NEON_REAL_JWT_HTTP_COMPANY_ISOLATION_PASS")
+                cur.execute(
+                    'DELETE FROM neon_auth.member WHERE "organizationId" = %s AND "userId" = %s',
+                    (org_a, uuid.UUID(identity.subject)),
+                )
+                cur.execute('DELETE FROM neon_auth.organization WHERE id IN (%s, %s)', (org_a, org_b))
+        print("NEON_TWO_COMPANY_MEMBERSHIP_ISOLATION_PASS")
 
         wrong = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         status, _ = request(wrong, "/sign-in/email", {"email":email,"password":password+"wrong"})
