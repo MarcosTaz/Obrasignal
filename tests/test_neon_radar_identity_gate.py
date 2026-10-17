@@ -201,3 +201,23 @@ def test_flask_production_rejects_staging_tenant_auth_before_identity_lookup(mon
     ))
     with pytest.raises(RuntimeError, match="cannot run in production"):
         api._identity()
+
+
+def test_cors_does_not_authorize_unlisted_browser_origin(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "https://obrasignal.com")
+    client = api.APP.test_client()
+    path = "/api/v1/sources"
+    allowed = client.options(path, headers={
+        "Origin": "https://obrasignal.com",
+        "Access-Control-Request-Method": "GET",
+    })
+    assert allowed.status_code == 204
+    assert allowed.headers["Access-Control-Allow-Origin"] == "https://obrasignal.com"
+    denied = client.options(path, headers={
+        "Origin": "https://attacker.invalid",
+        "Access-Control-Request-Method": "GET",
+    })
+    assert denied.status_code == 204
+    assert "Access-Control-Allow-Origin" not in denied.headers
+    assert denied.headers["Vary"] == "Origin"
