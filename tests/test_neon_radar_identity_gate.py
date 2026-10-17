@@ -95,3 +95,29 @@ def test_neon_gate_requires_provider_mode_even_with_verified_identity_stub(monke
     ))
     with pytest.raises(RuntimeError, match="requires provider"):
         api._identity()
+
+
+def test_obrasignal_mfa_policy_is_independent_of_certactum(monkeypatch):
+    import pytest
+    from jwt import InvalidTokenError
+    from auth_context import _mfa_required, _enforce_mfa_assurance
+
+    monkeypatch.setenv("CERTACTUM_REQUIRE_MFA", "true")
+    monkeypatch.delenv("OBRASIGNAL_REQUIRE_MFA", raising=False)
+    assert _mfa_required() is False
+    _enforce_mfa_assurance({})
+
+    monkeypatch.setenv("CERTACTUM_REQUIRE_MFA", "false")
+    monkeypatch.setenv("OBRASIGNAL_REQUIRE_MFA", "true")
+    assert _mfa_required() is True
+    with pytest.raises(InvalidTokenError, match="mfa assurance"):
+        _enforce_mfa_assurance({"aal": "aal1"})
+    _enforce_mfa_assurance({"aal": "aal2"})
+
+
+def test_obrasignal_mfa_rejects_ambiguous_configuration(monkeypatch):
+    import pytest
+    from auth_context import _mfa_required
+    monkeypatch.setenv("OBRASIGNAL_REQUIRE_MFA", "maybe")
+    with pytest.raises(RuntimeError, match="OBRASIGNAL_REQUIRE_MFA"):
+        _mfa_required()
