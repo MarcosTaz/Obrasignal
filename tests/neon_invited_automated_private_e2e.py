@@ -97,23 +97,14 @@ def main():
             print("NEON_JWT_SUBJECT_MISMATCH")
             return 1
         print("NEON_JWT_SIGNATURE_ISSUER_SUBJECT_PASS")
-        audience = verified.get("aud")
-        if audience == "authenticated" or audience == ["authenticated"]:
-            print("NEON_JWT_AUDIENCE_AUTHENTICATED_PASS")
-            jwt.decode(candidate, key.key, algorithms=["RS256", "ES256", "EdDSA"],
-                       issuer="https://" + urlsplit(BASE).hostname, audience="authenticated",
-                       options={"require": ["exp", "iat", "iss", "sub", "aud"]})
-            print("NEON_JWT_STRICT_AUDIENCE_PASS")
-        else:
-            # JWT audience is public verification metadata, not a credential.
-            # Reveal only short safe characters; never log JWT itself.
-            if isinstance(audience,str) and 0 < len(audience) < 128 and all(
-                ch.isalnum() or ch in ":/._-" for ch in audience
-            ):
-                print("NEON_JWT_AUDIENCE_VALUE", audience)
-            else:
-                print("NEON_JWT_AUDIENCE_CATEGORY", "missing" if audience is None else "unexpected_format")
+        expected_identity_url = "https://" + urlsplit(BASE).hostname
+        if verified.get("aud") != expected_identity_url:
+            print("NEON_JWT_AUDIENCE_MISMATCH")
             return 1
+        jwt.decode(candidate, key.key, algorithms=["RS256", "ES256", "EdDSA"],
+                   issuer=expected_identity_url, audience=expected_identity_url,
+                   options={"require": ["exp", "iat", "iss", "sub", "aud"]})
+        print("NEON_JWT_STRICT_ISSUER_AUDIENCE_PASS")
 
         wrong = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         status, _ = request(wrong, "/sign-in/email", {"email":email,"password":password+"wrong"})
