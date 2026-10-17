@@ -1,35 +1,12 @@
 name: ObraSignal Neon JWT Compatibility
 on:
   pull_request:
-    paths:
-      - 'tests/test_neon_jwt_compat.py'
-      - 'auth_context_jwt.py'
-      - 'auth_context.py'
-      - 'neon_company_access.py'
-      - 'tests/test_neon_company_access.py'
-      - 'neon_company_probe.py'
-      - 'api.py'
-      - 'tests/test_neon_radar_identity_gate.py'
-      - 'tests/test_neon_radar_routes.py'
-      - 'tests/test_neon_radar_real_http.py'
-      - 'tests/test_neon_company_probe.py'
-      - '.github/workflows/neon-jwt-compat.yml'
   workflow_dispatch:
   push:
-    branches: [feature/invite-only-v27-public]
-    paths:
-      - 'tests/test_neon_jwt_compat.py'
-      - 'auth_context_jwt.py'
-      - 'auth_context.py'
-      - 'neon_company_access.py'
-      - 'neon_company_probe.py'
-      - 'tests/test_neon_company_access.py'
-      - 'tests/test_neon_company_probe.py'
-      - 'tests/test_neon_radar_real_http.py'
-      - 'tests/test_neon_radar_routes.py'
-      - 'tests/test_neon_radar_identity_gate.py'
-      - 'api.py'
-      - '.github/workflows/neon-jwt-compat.yml'
+    branches:
+      - feature/invite-only-v27-public
+# No file-path filter: every update to the integration branch must run this
+# tenant-isolation security regression, even if only frontend files change.
 permissions:
   contents: read
 jobs:
