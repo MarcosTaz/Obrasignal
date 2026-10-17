@@ -35,6 +35,15 @@ export function makeNeonSessionAdapter({fetcher = fetch, baseUrl = NEON_AUTH_BAS
       const result = await call('/sign-out',{});
       return {ok:result.ok};
     },
+    async candidateJwt() {
+      // Better Auth JWT plugin endpoint; returning a candidate is NOT authorization.
+      // The backend must independently verify signature, issuer and audience.
+      const session = await this.getSession();
+      if (!session.authenticated) return null;
+      const result = await call('/token');
+      const value = result.ok ? result.data?.token : null;
+      return typeof value === 'string' && value.split('.').length === 3 ? value : null;
+    },
     async authorizationHeader() {
       // Deliberate deny-by-default: Neon cookie sessions cannot impersonate a
       // validated JWT. Enable only after live token exchange + backend tests.
