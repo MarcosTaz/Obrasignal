@@ -128,7 +128,7 @@ def main():
             return 1
         # Two temporary organizations in a rolled-back transaction. This checks
         # server-side membership lookup isolation, not a deployed Radar HTTP API.
-        with conn.transaction() as membership_tx:
+        with conn.transaction():
             with conn.cursor() as cur:
                 org_a = uuid.uuid4()
                 org_b = uuid.uuid4()
@@ -152,7 +152,11 @@ def main():
                 if organizations != {org_a}:
                     print("NEON_MEMBERSHIP_CROSS_COMPANY_FAILURE")
                     return 1
-            membership_tx.rollback()
+                cur.execute(
+                    'DELETE FROM neon_auth.member WHERE "organizationId" = %s AND "userId" = %s',
+                    (org_a, uuid.UUID(identity.subject)),
+                )
+                cur.execute('DELETE FROM neon_auth.organization WHERE id IN (%s, %s)', (org_a, org_b))
         print("NEON_TWO_COMPANY_MEMBERSHIP_ISOLATION_PASS")
 
         wrong = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
