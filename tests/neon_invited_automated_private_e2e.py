@@ -94,6 +94,7 @@ def main():
                 print("NEON_JWT_ISSUER_PATH_MATCHES_BASE", actual.path == expected.path)
                 print("NEON_JWT_ISSUER_PATH_SUFFIX_AUTH", actual.path.endswith("/auth"))
                 print("NEON_JWT_ISSUER_PATH_SUFFIX_JWT", actual.path.endswith("/jwt"))
+                print("NEON_JWT_ISSUER_PATH", actual.path if actual.path.startswith("/obrasignal_auth/") and len(actual.path)<180 else "unexpected_path")
             except (jwt.PyJWTError, ValueError, KeyError):
                 print("NEON_JWT_ISSUER_DIAGNOSTIC_FAILED")
             return 1
