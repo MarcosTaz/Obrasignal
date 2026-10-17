@@ -45,4 +45,12 @@ jobs:
       - name: Compile authorization and tenant-boundary modules
         run: python -m py_compile api.py auth_context.py auth_context_jwt.py neon_company_access.py tests/test_neon_radar_real_http.py
       - name: Run staged Neon identity and real Radar HTTP regressions
-        run: python -m pytest -q tests/test_neon_jwt_compat.py tests/test_neon_company_access.py tests/test_neon_company_probe.py tests/test_neon_radar_identity_gate.py tests/test_neon_radar_routes.py tests/test_neon_radar_real_http.py
+        run: python -m pytest -q --junitxml=neon-radar-tests.xml tests/test_neon_jwt_compat.py tests/test_neon_company_access.py tests/test_neon_company_probe.py tests/test_neon_radar_identity_gate.py tests/test_neon_radar_routes.py tests/test_neon_radar_real_http.py
+      - name: Preserve synthetic test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: neon-radar-synthetic-test-evidence
+          path: neon-radar-tests.xml
+          if-no-files-found: warn
+          retention-days: 14
