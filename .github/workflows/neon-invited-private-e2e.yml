@@ -24,4 +24,4 @@ jobs:
           fi
       - run: python -m pip install 'psycopg[binary]>=3.2,<4' 'PyJWT[crypto]>=2.10,<3'
       - name: Synthetic invitation, signup, signin and session proof
-        run: PYTHONPATH=. python tests/neon_invited_automated_private_e2e.py
+        run: PYTHONPATH=.:tests python tests/neon_invited_automated_private_e2e.py
