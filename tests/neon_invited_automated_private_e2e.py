@@ -1,0 +1,92 @@
+"""Private isolated Neon E2E with ephemeral, automatically generated test credentials.
+
+A protected workflow injects OS_NEON_TEST_DATABASE_URL. Never output connection
+details, tokens, passwords, response bodies or cookies. No customer email sent.
+"""
+import http.cookiejar
+import json
+import os
+import secrets
+import sys
+import urllib.error
+import urllib.request
+import uuid
+
+import psycopg
+
+BASE = "https://ep-crimson-wildflower-b9rztglz.neonauth.c-7.eu-central-1.aws.neon.tech/obrasignal_auth/auth"
+ORIGIN = "https://obrasignal.com"
+
+def request(opener, path, data=None):
+    req = urllib.request.Request(
+        BASE + path,
+        data=json.dumps(data).encode() if data is not None else None,
+        headers={"Accept": "application/json", "Content-Type": "application/json", "Origin": ORIGIN},
+        method="POST" if data is not None else "GET",
+    )
+    try:
+        with opener.open(req, timeout=25) as res:
+            return res.status, json.load(res)
+    except urllib.error.HTTPError as exc:
+        return exc.code, {}
+
+def main():
+    dsn = os.getenv("OS_NEON_TEST_DATABASE_URL")
+    if not dsn:
+        print("BLOCKED_MISSING_NEON_TEST_DATABASE_URL")
+        return 2
+    email = "obrasignal-e2e-" + uuid.uuid4().hex + "@example.com"
+    password = secrets.token_urlsafe(36) + "Aa1!"
+    conn = psycopg.connect(dsn, connect_timeout=15)
+    invited_id = None
+    try:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("SELECT public.obrasignal_issue_auth_invite(%s,%s,%s)",
+                            (email, "private-github-actions-e2e", 1))
+                issued = cur.fetchone()[0]
+                invited_id = issued["id"]
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        status, _ = request(opener, "/sign-up/email",
+                            {"email":email, "password":password,
+                             "name":issued["code"]+"|Synthetic Registration"})
+        if not 200 <= status < 300:
+            print("INVITED_REGISTRATION_FAILED_HTTP", status)
+            return 1
+        print("INVITED_REGISTRATION_PASS")
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        status, payload = request(opener, "/sign-in/email", {"email":email, "password":password})
+        if not 200 <= status < 300:
+            print("SIGNIN_FAILED_HTTP", status)
+            return 1
+        print("SIGNIN_PASS")
+        status, session = request(opener, "/get-session")
+        if status != 200 or not isinstance(session,dict) or (
+           session.get("user") or {}).get("email","").lower() != email:
+            print("SESSION_IDENTITY_FAILED_HTTP", status)
+            return 1
+        print("SESSION_IDENTITY_PASS")
+        wrong = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        status, _ = request(wrong, "/sign-in/email", {"email":email,"password":password+"wrong"})
+        if 200 <= status < 300:
+            print("WRONG_PASSWORD_SECURITY_FAILURE")
+            return 1
+        print("WRONG_PASSWORD_DENIAL_PASS")
+        return 0
+    finally:
+        # Clean up ONLY this newly generated isolated test identity.
+        # Child records must be handled by provider cascades; failed cleanup is a release blocker.
+        try:
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    cur.execute('DELETE FROM neon_auth."user" WHERE email = %s', (email,))
+                    cur.execute("DELETE FROM public.obrasignal_auth_invites WHERE id = %s", (invited_id,))
+            print("SYNTHETIC_CLEANUP_PASS")
+        except Exception:
+            print("SYNTHETIC_CLEANUP_FAILURE_MANUAL_REVIEW_REQUIRED")
+            raise
+        finally:
+            conn.close()
+
+if __name__ == "__main__":
+    sys.exit(main())
