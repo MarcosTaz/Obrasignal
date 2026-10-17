@@ -19,9 +19,18 @@ from account_onboarding import bootstrap_account
 bp = Blueprint("mobile_api", __name__, url_prefix="/api/v1")
 
 
+class CompanyMembershipUnavailable(Exception):
+    """Staging membership backend cannot establish tenant authorization."""
+
+
 @APP.errorhandler(JwksUnavailableError)
 def _jwks_unavailable(_error):
     return jsonify({"error": "authentication_service_unavailable"}), 503
+
+
+@APP.errorhandler(CompanyMembershipUnavailable)
+def _membership_unavailable(_error):
+    return jsonify({"error": "company_authorization_unavailable"}), 503
 
 
 def _db():
@@ -58,14 +67,19 @@ def _identity():
     if not database_url:
         raise RuntimeError("Neon staging company database is not configured")
     import psycopg
-    with psycopg.connect(database_url, connect_timeout=5) as connection:
-        try:
-            authorized = authorize_company(
-                issuer, subject, company,
-                lambda i, s, c: lookup_neon_membership(connection, i, s, c),
-            )
-        except CompanyAccessDenied as exc:
-            raise InvalidTokenError("company_membership_denied") from exc
+    try:
+        with psycopg.connect(database_url, connect_timeout=5) as connection:
+            try:
+                authorized = authorize_company(
+                    issuer, subject, company,
+                    lambda i, s, c: lookup_neon_membership(connection, i, s, c),
+                )
+            except CompanyAccessDenied as exc:
+                raise InvalidTokenError("company_membership_denied") from exc
+    except psycopg.Error as exc:
+        # Never use the legacy subject/account fallback when Neon is unavailable.
+        # Do not expose provider connection details in HTTP responses.
+        raise CompanyMembershipUnavailable() from exc
     return RequestIdentity(
         account_id=authorized, authenticated=True,
         subject=identity.subject, claims=identity.claims,
