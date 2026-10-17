@@ -237,3 +237,21 @@ def test_membership_database_outage_returns_503_without_account_fallback(client,
     assert response.status_code == 503
     assert response.json == {"error": "company_authorization_unavailable"}
     assert seen == []
+
+
+def test_invalid_auth_configuration_returns_sanitized_503(client, monkeypatch):
+    http, current, memberships, seen = client
+    monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "invalid-typo")
+    response = http.get("/api/v1/sources", headers={"X-ObraSignal-Company-ID": ORG_A})
+    assert response.status_code == 503
+    assert response.json == {"error": "authentication_configuration_unavailable"}
+    assert seen == []
+
+
+def test_invalid_token_returns_401_not_misconfiguration_503(client):
+    http, current, memberships, seen = client
+    current["issuer"] = "https://wrong-provider.invalid"
+    response = http.get("/api/v1/sources", headers={"X-ObraSignal-Company-ID": ORG_A})
+    assert response.status_code == 401
+    assert response.json == {"error": "authentication_required"}
+    assert seen == []
