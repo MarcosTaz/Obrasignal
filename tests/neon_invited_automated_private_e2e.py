@@ -77,8 +77,20 @@ def main():
             key = keyset.get_signing_key_from_jwt(candidate)
             verified = jwt.decode(candidate, key.key, algorithms=["RS256", "ES256", "EdDSA"], issuer=BASE,
                                   options={"verify_aud": False, "require": ["exp", "iat", "iss", "sub"]})
-        except (jwt.PyJWTError, ValueError):
-            print("NEON_JWT_SIGNATURE_OR_ISSUER_REJECTED")
+        except (jwt.PyJWTError, ValueError) as exc:
+            # Diagnose without printing actual tokens, provider URLs or claims.
+            if isinstance(exc, jwt.InvalidIssuerError):
+                print("NEON_JWT_ISSUER_MISMATCH")
+            elif isinstance(exc, jwt.InvalidSignatureError):
+                print("NEON_JWT_SIGNATURE_INVALID")
+            elif isinstance(exc, jwt.PyJWKClientError):
+                print("NEON_JWT_SIGNING_KEY_UNAVAILABLE")
+            elif isinstance(exc, jwt.MissingRequiredClaimError):
+                print("NEON_JWT_REQUIRED_CLAIM_MISSING")
+            elif isinstance(exc, jwt.InvalidAlgorithmError):
+                print("NEON_JWT_ALGORITHM_UNSUPPORTED")
+            else:
+                print("NEON_JWT_VERIFICATION_FAILED")
             return 1
         if str(verified.get("sub")) != str(session["user"].get("id")):
             print("NEON_JWT_SUBJECT_MISMATCH")
