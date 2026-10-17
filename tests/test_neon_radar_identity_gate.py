@@ -37,3 +37,34 @@ def test_unknown_neon_mode_fails_closed(monkeypatch):
         assert "OBRASIGNAL_NEON_COMPANY_AUTH" in str(exc)
     else:
         raise AssertionError("misspelled Neon mode silently bypassed tenant authorization")
+
+
+def test_development_auth_forbidden_on_production_hosts(monkeypatch):
+    from auth_context import configured_identity
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.delenv("OBRASIGNAL_ENV", raising=False)
+    try:
+        configured_identity()
+    except RuntimeError as exc:
+        assert "forbidden" in str(exc)
+    else:
+        raise AssertionError("unauthenticated development identity accepted on Render")
+
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.setenv("OBRASIGNAL_ENV", "production")
+    try:
+        configured_identity()
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("unauthenticated development identity accepted in production")
+
+
+def test_development_identity_still_available_locally(monkeypatch):
+    from auth_context import configured_identity
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
+    monkeypatch.setenv("OBRASIGNAL_ENV", "test")
+    monkeypatch.delenv("RENDER", raising=False)
+    identity = configured_identity()
+    assert identity.authenticated is False
