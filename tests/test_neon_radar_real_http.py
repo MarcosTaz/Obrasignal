@@ -139,3 +139,87 @@ def test_real_radar_profile_write_isolated_by_membership(client, monkeypatch):
     rejected_again = http.post(url, headers=headers(ORG_A), json={"name": "not allowed"})
     assert rejected_again.status_code == 401
     assert writes == [ORG_A]
+
+
+def test_workflow_write_does_not_cross_company_boundary(client, monkeypatch):
+    http, current, memberships, seen = client
+    writes = []
+
+    class TenderConnection:
+        def execute(self, query, params):
+            assert "FROM tenders" in query
+            assert params == (42,)
+            return self
+
+        def fetchone(self):
+            return {"source": "synthetic", "external_id": "T-42"}
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(api, "_db", lambda: TenderConnection())
+    monkeypatch.setattr(api, "set_workflow", lambda connection, account, source, external, status, note: (
+        writes.append((account, source, external, status)) or {"status": status}
+    ))
+    url = "/api/v1/opportunities/42/workflow"
+    headers = lambda org: {"X-ObraSignal-Company-ID": org}
+    assert http.post(url, headers=headers(ORG_B), json={"status": "REVIEW"}).status_code == 401
+    assert writes == []
+    ok = http.post(url, headers=headers(ORG_A), json={"status": "REVIEW"})
+    assert ok.status_code == 200
+    assert ok.json["account_id"] == ORG_A
+    assert writes == [(ORG_A, "synthetic", "T-42", "REVIEW")]
+    current["user"] = OTHER_USER
+    assert http.post(url, headers=headers(ORG_A), json={"status": "REJECT"}).status_code == 401
+    assert len(writes) == 1
+
+
+def test_alert_delivery_updates_only_authorized_company(client, monkeypatch):
+    http, current, memberships, seen = client
+    updates = []
+
+    class UpdateResult:
+        rowcount = 1
+
+    class EventConnection:
+        def execute(self, sql, params):
+            assert "UPDATE opportunity_events" in sql
+            assert "account_id=?" in sql
+            updates.append(params)
+            return UpdateResult()
+
+        def commit(self):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(api, "_db", lambda: EventConnection())
+    url = "/api/v1/alerts/77/delivered"
+    headers = lambda org: {"X-ObraSignal-Company-ID": org}
+    assert http.post(url, headers=headers(ORG_B)).status_code == 401
+    assert updates == []
+    ok = http.post(url, headers=headers(ORG_A))
+    assert ok.status_code == 200
+    assert len(updates) == 1
+    assert updates[0][1:] == (77, ORG_A)
+    current["issuer"] = "https://impostor.invalid"
+    assert http.post(url, headers=headers(ORG_A)).status_code == 401
+    assert len(updates) == 1
+
+
+def test_read_endpoints_fail_closed_before_db_access(client):
+    http, current, memberships, seen = client
+    protected_paths = (
+        "/api/v1/stats",
+        "/api/v1/workflow/stats",
+        "/api/v1/opportunities",
+        "/api/v1/opportunities/42",
+        "/api/v1/opportunities/42/workflow",
+        "/api/v1/alerts",
+    )
+    headers = {"X-ObraSignal-Company-ID": ORG_B}
+    for path in protected_paths:
+        response = http.get(path, headers=headers)
+        assert response.status_code == 401, (path, response.status_code)
+    assert seen == []
