@@ -130,7 +130,7 @@ forbidMatch('profile API must not accept ambiguous fallback payload', api, /data
 // Branding + market coverage are consistent across public/authenticated/onboarding/native.
 requireMatch('authenticated web uses refined ObraSignal wordmark', webApp, /Obra<Text style=\{s\.brandSignal\}>Signal/);
 requireMatch('authenticated web uses shared font system', webApp, /fontFamily:FONT/);
-requireMatch('public landing uses refined ObraSignal wordmark', authScreen, /Obra<Text style=\{styles\.brandAccent\}>Signal/);
+requireMatch('public landing uses approved transparent vector ObraSignal identity', authScreen, /obrasignal-logo\.svg/);
 requireMatch('onboarding uses refined ObraSignal wordmark', onboarding, /Obra<Text style=\{styles\.brandBlue\}>Signal/);
 requireMatch('native shell uses refined ObraSignal wordmark', app, /Obra<Text style=\{s\.logoSignal\}>Signal/);
 forbidMatch('public landing must not regress to all-caps prototype wordmark', authScreen, />OBRA<Text/);
