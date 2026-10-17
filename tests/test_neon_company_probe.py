@@ -47,3 +47,34 @@ def test_http_company_probe_fail_closed():
     assert yes.status_code == 200
     assert yes.json["company_id"] == ORG_A
     assert client.get(url(ORG_B), headers=headers).status_code == 403
+
+
+def test_probe_sanitizes_neon_database_outage():
+    import psycopg
+    app = Flask(__name__)
+    def offline():
+        raise psycopg.OperationalError("synthetic database secret must not leak")
+    app.register_blueprint(build_neon_company_probe(Verifier(), offline))
+    result = app.test_client().get(
+        "/__staging/neon/companies/" + ORG_A + "/access",
+        headers={"Authorization": "Bearer valid"},
+    )
+    assert result.status_code == 503
+    assert result.json == {"error": "authorization_service_unavailable"}
+
+
+def test_probe_sanitizes_jwks_outage():
+    from auth_context_jwt import JwksUnavailableError
+
+    class OfflineVerifier:
+        def verify(self, token):
+            raise JwksUnavailableError("synthetic provider secret must not leak")
+
+    app = Flask(__name__)
+    app.register_blueprint(build_neon_company_probe(OfflineVerifier(), lambda: Connection()))
+    result = app.test_client().get(
+        "/__staging/neon/companies/" + ORG_A + "/access",
+        headers={"Authorization": "Bearer valid"},
+    )
+    assert result.status_code == 503
+    assert result.json == {"error": "authorization_service_unavailable"}
