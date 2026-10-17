@@ -105,9 +105,14 @@ def main():
                        options={"require": ["exp", "iat", "iss", "sub", "aud"]})
             print("NEON_JWT_STRICT_AUDIENCE_PASS")
         else:
-            print("NEON_JWT_AUDIENCE_CATEGORY", "missing" if audience is None else
-                  "other_string" if isinstance(audience, str) else
-                  "other_list" if isinstance(audience, list) else "other_type")
+            # JWT audience is public verification metadata, not a credential.
+            # Reveal only short safe characters; never log JWT itself.
+            if isinstance(audience,str) and 0 < len(audience) < 128 and all(
+                ch.isalnum() or ch in ":/._-" for ch in audience
+            ):
+                print("NEON_JWT_AUDIENCE_VALUE", audience)
+            else:
+                print("NEON_JWT_AUDIENCE_CATEGORY", "missing" if audience is None else "unexpected_format")
             return 1
 
         wrong = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
