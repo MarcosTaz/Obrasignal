@@ -10,6 +10,16 @@ on:
       - 'tests/test_neon_company_probe.py'
       - '.github/workflows/neon-jwt-compat.yml'
   workflow_dispatch:
+  push:
+    branches: [feature/invite-only-v27-public]
+    paths:
+      - 'tests/test_neon_jwt_compat.py'
+      - 'auth_context_jwt.py'
+      - 'neon_company_access.py'
+      - 'neon_company_probe.py'
+      - 'tests/test_neon_company_access.py'
+      - 'tests/test_neon_company_probe.py'
+      - '.github/workflows/neon-jwt-compat.yml'
 permissions:
   contents: read
 jobs:
