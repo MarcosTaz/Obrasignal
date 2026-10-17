@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/neon-invited-private-e2e.yml'
+      - 'tests/neon_candidate_jwt_verifier.py'
+      - 'tests/neon_invited_automated_private_e2e.py'
 permissions:
   contents: read
 jobs:
