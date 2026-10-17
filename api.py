@@ -33,7 +33,43 @@ def _iso_now():
 
 
 def _identity():
-    return configured_identity()
+    identity = configured_identity()
+    if os.getenv("OBRASIGNAL_NEON_COMPANY_AUTH", "").strip() != "staging":
+        return identity
+    # Staging-only: the verified JWT identity alone is never a tenant grant.
+    # No fallback to the user's subject or an untrusted account-id header.
+    from auth_context import RequestIdentity
+    from neon_company_access import authorize_company, lookup_neon_membership, CompanyAccessDenied
+    from uuid import UUID
+    if not identity.authenticated or not isinstance(identity.claims, dict):
+        raise InvalidTokenError("neon_company_auth_requires_verified_identity")
+    issuer = identity.claims.get("iss")
+    subject = identity.subject
+    company = request.headers.get("X-ObraSignal-Company-ID", "")
+    trusted_issuer = os.getenv("OBRASIGNAL_NEON_STAGING_ISSUER", "")
+    if not trusted_issuer or issuer != trusted_issuer:
+        raise InvalidTokenError("neon_staging_issuer_mismatch")
+    try:
+        company = str(UUID(company))
+        subject = str(UUID(subject))
+    except (ValueError, TypeError, AttributeError):
+        raise InvalidTokenError("neon_company_identifier_invalid")
+    database_url = os.getenv("OBRASIGNAL_NEON_STAGING_DATABASE_URL", "")
+    if not database_url:
+        raise RuntimeError("Neon staging company database is not configured")
+    import psycopg
+    with psycopg.connect(database_url, connect_timeout=5) as connection:
+        try:
+            authorized = authorize_company(
+                issuer, subject, company,
+                lambda i, s, c: lookup_neon_membership(connection, i, s, c),
+            )
+        except CompanyAccessDenied as exc:
+            raise InvalidTokenError("company_membership_denied") from exc
+    return RequestIdentity(
+        account_id=authorized, authenticated=True,
+        subject=identity.subject, claims=identity.claims,
+    )
 
 
 def _bounded_query_int(name, default, minimum, maximum, *, optional=False):
