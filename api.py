@@ -47,15 +47,16 @@ def _identity():
     # Production must never silently fall back to legacy tenant authorization.
     if (os.getenv("OBRASIGNAL_ENV") or "").strip().lower() in {"production", "prod"} and company_auth_mode == "staging":
         raise RuntimeError("Staging Neon company authorization cannot run in production")
-    identity = configured_identity()
     if company_auth_mode not in {"", "staging"}:
-        # A misspelled staging flag must never silently disable the company gate.
+        # Reject invalid config before contacting the identity provider.
         raise RuntimeError("Invalid OBRASIGNAL_NEON_COMPANY_AUTH")
+    if company_auth_mode == "staging" and (
+        (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower() != "provider"
+    ):
+        raise RuntimeError("Neon company authorization requires provider authentication")
+    identity = configured_identity()
     if not company_auth_mode:
         return identity
-    # Staged Neon requires a verified provider token, never development identity.
-    if (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower() != "provider":
-        raise RuntimeError("Neon company authorization requires provider authentication")
     # Staging-only: the verified JWT identity alone is never a tenant grant.
     # No fallback to the user's subject or an untrusted account-id header.
     from auth_context import RequestIdentity
