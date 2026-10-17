@@ -188,3 +188,16 @@ def test_staging_neon_rejected_on_managed_hosts_before_identity_lookup(monkeypat
             hosted.setenv(variable, "true" if variable == "RENDER" else "synthetic-host")
             with pytest.raises(RuntimeError, match="cannot run in production"):
                 api._identity()
+
+
+def test_flask_production_rejects_staging_tenant_auth_before_identity_lookup(monkeypatch):
+    import pytest
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.setenv("OBRASIGNAL_ENV", "test")
+    monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "staging")
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setattr(api, "configured_identity", lambda: (_ for _ in ()).throw(
+        AssertionError("No identity provider calls permitted for staging mode on production")
+    ))
+    with pytest.raises(RuntimeError, match="cannot run in production"):
+        api._identity()
