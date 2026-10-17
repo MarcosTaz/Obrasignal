@@ -173,3 +173,18 @@ def test_provider_cors_requires_https_canonical_origin(monkeypatch):
             api._cors_origin()
     monkeypatch.setenv("OBRASIGNAL_CORS_ORIGIN", "https://obrasignal.com")
     assert api._cors_origin() == "https://obrasignal.com"
+
+
+def test_staging_neon_rejected_on_managed_hosts_before_identity_lookup(monkeypatch):
+    import pytest
+    monkeypatch.setenv("OBRASIGNAL_ENV", "test")
+    monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "staging")
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setattr(api, "configured_identity", lambda: (_ for _ in ()).throw(
+        AssertionError("identity provider should not be contacted")
+    ))
+    for variable in ("RENDER", "RENDER_EXTERNAL_HOSTNAME", "RENDER_SERVICE_ID", "VERCEL", "K_SERVICE", "DYNO"):
+        with monkeypatch.context() as hosted:
+            hosted.setenv(variable, "true" if variable == "RENDER" else "synthetic-host")
+            with pytest.raises(RuntimeError, match="cannot run in production"):
+                api._identity()
