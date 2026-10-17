@@ -45,8 +45,14 @@ def _identity():
     company_auth_mode = os.getenv("OBRASIGNAL_NEON_COMPANY_AUTH", "").strip()
     # Reject invalid deployment modes before evaluating any legacy identity.
     # Production must never silently fall back to legacy tenant authorization.
-    if (os.getenv("OBRASIGNAL_ENV") or "").strip().lower() in {"production", "prod"} and company_auth_mode == "staging":
-        raise RuntimeError("Staging Neon company authorization cannot run in production")
+    if company_auth_mode == "staging":
+        production_environment = (os.getenv("OBRASIGNAL_ENV") or "").strip().lower() in {"production", "prod"}
+        hosted_environment = any(
+            (os.getenv(name) or "").strip()
+            for name in ("RENDER_EXTERNAL_HOSTNAME", "RENDER_SERVICE_ID", "VERCEL", "K_SERVICE", "DYNO")
+        ) or (os.getenv("RENDER") or "").strip().lower() in {"true", "1"}
+        if production_environment or hosted_environment:
+            raise RuntimeError("Staging Neon company authorization cannot run in production")
     if company_auth_mode not in {"", "staging"}:
         # Reject invalid config before contacting the identity provider.
         raise RuntimeError("Invalid OBRASIGNAL_NEON_COMPANY_AUTH")
