@@ -114,3 +114,28 @@ def test_bad_company_identifiers_fail_closed(client):
         result = http.get("/api/v1/sources", headers={"X-ObraSignal-Company-ID": candidate})
         assert result.status_code == 401
     assert seen == []
+
+
+def test_real_radar_profile_write_isolated_by_membership(client, monkeypatch):
+    http, current, memberships, seen = client
+    writes = []
+    profile = {"name": "Synthetic Company A", "activity": "building"}
+    monkeypatch.setattr(api, "load_profile", lambda account_id: dict(profile, account_id=account_id))
+    monkeypatch.setattr(api, "derive_profile", lambda activity, merged: dict(merged))
+    monkeypatch.setattr(api, "save_profile", lambda normalized, account_id: (
+        writes.append(account_id) or dict(normalized)
+    ))
+    monkeypatch.setattr(api, "bootstrap_account", lambda account_id: {"account_id": account_id})
+    url = "/api/v1/profile"
+    headers = lambda org: {"X-ObraSignal-Company-ID": org}
+    rejected = http.post(url, headers=headers(ORG_B), json={"name": "not allowed"})
+    assert rejected.status_code == 401
+    assert writes == []
+    allowed = http.post(url, headers=headers(ORG_A), json={"name": "synthetic update"})
+    assert allowed.status_code == 200
+    assert allowed.json["account_id"] == ORG_A
+    assert writes == [ORG_A]
+    current["user"] = OTHER_USER
+    rejected_again = http.post(url, headers=headers(ORG_A), json={"name": "not allowed"})
+    assert rejected_again.status_code == 401
+    assert writes == [ORG_A]
