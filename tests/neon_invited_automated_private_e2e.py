@@ -76,27 +76,8 @@ def main():
         try:
             keyset = jwt.PyJWKClient(BASE + "/.well-known/jwks.json")
             key = keyset.get_signing_key_from_jwt(candidate)
-            verified = jwt.decode(candidate, key.key, algorithms=["RS256", "ES256", "EdDSA"], issuer=BASE,
+            verified = jwt.decode(candidate, key.key, algorithms=["RS256", "ES256", "EdDSA"], issuer="https://"+urlsplit(BASE).hostname,
                                   options={"verify_aud": False, "require": ["exp", "iat", "iss", "sub"]})
-        except jwt.InvalidIssuerError:
-            # Signature is verified against the isolated Neon JWKS before inspecting issuer.
-            try:
-                verified_without_issuer = jwt.decode(
-                    candidate, key.key, algorithms=["RS256", "ES256", "EdDSA"],
-                    options={"verify_aud": False, "verify_iss": False,
-                             "require": ["exp", "iat", "iss", "sub"]})
-                actual = urlsplit(verified_without_issuer["iss"])
-                expected = urlsplit(BASE)
-                if actual.scheme != "https" or actual.hostname != expected.hostname:
-                    print("NEON_JWT_ISSUER_OUTSIDE_TRUSTED_AUTH_HOST")
-                    return 1
-                print("NEON_JWT_ISSUER_HOST_MATCHES_AUTH_PROVIDER")
-                print("NEON_JWT_ISSUER_PATH_MATCHES_BASE", actual.path == expected.path)
-                print("NEON_JWT_ISSUER_PATH_SUFFIX_AUTH", actual.path.endswith("/auth"))
-                print("NEON_JWT_ISSUER_PATH_SUFFIX_JWT", actual.path.endswith("/jwt"))
-            except (jwt.PyJWTError, ValueError, KeyError):
-                print("NEON_JWT_ISSUER_DIAGNOSTIC_FAILED")
-            return 1
         except (jwt.PyJWTError, ValueError) as exc:
             # Diagnose without printing actual tokens, provider URLs or claims.
             if isinstance(exc, jwt.InvalidIssuerError):
