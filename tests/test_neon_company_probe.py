@@ -78,3 +78,26 @@ def test_probe_sanitizes_jwks_outage():
     )
     assert result.status_code == 503
     assert result.json == {"error": "authorization_service_unavailable"}
+
+
+def test_probe_rejects_missing_signed_identity_claims_before_database_access():
+    from types import SimpleNamespace
+    class IncompleteVerifier:
+        def __init__(self, claims, subject):
+            self.claims, self.subject = claims, subject
+        def verify(self, token):
+            return SimpleNamespace(claims=self.claims, subject=self.subject)
+
+    for claims, subject in ((None, USER), ({}, USER), ({"iss": "neon-test"}, None)):
+        app = Flask(__name__)
+        called = []
+        app.register_blueprint(build_neon_company_probe(
+            IncompleteVerifier(claims, subject),
+            lambda: (called.append(True), Connection())[1],
+        ))
+        result = app.test_client().get(
+            "/__staging/neon/companies/" + ORG_A + "/access",
+            headers={"Authorization": "Bearer valid"},
+        )
+        assert result.status_code == 401
+        assert called == []
