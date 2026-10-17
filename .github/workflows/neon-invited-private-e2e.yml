@@ -1,6 +1,10 @@
 name: ObraSignal Private Neon Invited E2E
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/neon-invited-private-e2e.yml'
 permissions:
   contents: read
 jobs:
