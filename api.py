@@ -46,7 +46,10 @@ def _identity():
     # Reject invalid deployment modes before evaluating any legacy identity.
     # Production must never silently fall back to legacy tenant authorization.
     if company_auth_mode == "staging":
-        production_environment = (os.getenv("OBRASIGNAL_ENV") or "").strip().lower() in {"production", "prod"}
+        production_environment = any(
+            (os.getenv(name) or "").strip().lower() in {"production", "prod"}
+            for name in ("OBRASIGNAL_ENV", "FLASK_ENV")
+        )
         hosted_environment = any(
             (os.getenv(name) or "").strip()
             for name in ("RENDER_EXTERNAL_HOSTNAME", "RENDER_SERVICE_ID", "VERCEL", "K_SERVICE", "DYNO")
