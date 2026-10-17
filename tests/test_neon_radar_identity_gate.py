@@ -24,3 +24,16 @@ def test_neon_radar_company_gate_denies_untrusted_issuer(monkeypatch):
         except InvalidTokenError:
             return
         raise AssertionError("untrusted provider accepted")
+
+
+def test_unknown_neon_mode_fails_closed(monkeypatch):
+    from jwt import InvalidTokenError
+    monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "stagng")
+    identity = SimpleNamespace(account_id="legacy-account", authenticated=True)
+    monkeypatch.setattr(api, "configured_identity", lambda: identity)
+    try:
+        api._identity()
+    except RuntimeError as exc:
+        assert "OBRASIGNAL_NEON_COMPANY_AUTH" in str(exc)
+    else:
+        raise AssertionError("misspelled Neon mode silently bypassed tenant authorization")
