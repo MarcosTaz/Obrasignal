@@ -22,6 +22,6 @@ jobs:
             echo "BLOCKED: OS_NEON_TEST_DATABASE_URL not set in protected environment"
             exit 1
           fi
-      - run: python -m pip install 'psycopg[binary]>=3.2,<4'
+      - run: python -m pip install 'psycopg[binary]>=3.2,<4' 'PyJWT[crypto]>=2.10,<3'
       - name: Synthetic invitation, signup, signin and session proof
         run: python tests/neon_invited_automated_private_e2e.py
