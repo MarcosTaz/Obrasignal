@@ -24,3 +24,23 @@ test('signout calls only trusted Neon provider; errors fail closed',async()=>{
  assert.throws(()=>makeNeonSessionAdapter({baseUrl:'https://evil.example'}),/untrusted/);
  assert.deepEqual(await client.getSession(),{authenticated:false});
 });
+
+test('candidate token is never mistaken for already-authorized API access',async()=>{
+ const seen=[];
+ const client=makeNeonSessionAdapter({fetcher:async url=>{
+   seen.push(url);
+   if(url.endsWith('/get-session')) return {ok:true,status:200,json:async()=>({user:{id:'test',email:'synthetic@example.com'}})};
+   return {ok:true,status:200,json:async()=>({token:'a.b.c'})};
+ }});
+ assert.equal(await client.candidateJwt(),'a.b.c');
+ assert.ok(seen.includes(NEON_AUTH_BASE+'/token'));
+ await assert.rejects(()=>client.authorizationHeader(),/not_yet_verified/);
+});
+test('no candidate token for signed-out users',async()=>{
+ let calls=0;
+ const client=makeNeonSessionAdapter({fetcher:async()=>{
+   calls++;return {ok:true,status:200,json:async()=>({user:null})};
+ }});
+ assert.equal(await client.candidateJwt(),null);
+ assert.equal(calls,1);
+});
