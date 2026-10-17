@@ -266,7 +266,7 @@ class JwtVerifier:
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
         alg = header.get("alg")
-        if not kid or alg not in {"RS256", "ES256"}:
+        if not kid or alg not in {"RS256", "ES256", "EdDSA"}:
             raise InvalidTokenError("unsupported JWT header")
         jwk = self._key_for(str(kid))
         if jwk.get("alg") and jwk["alg"] != alg:
