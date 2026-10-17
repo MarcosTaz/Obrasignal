@@ -151,9 +151,12 @@ def _apply_cors(response):
         origin = _cors_origin()
     except RuntimeError:
         origin = None
-    if origin:
+    request_origin = request.headers.get("Origin")
+    # A configured origin is an allowlist, not an instruction to grant CORS
+    # to unrelated callers. In particular, deny mismatched preflight origins.
+    if origin and (not request_origin or origin == "*" or request_origin == origin):
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Vary"] = "Origin"
+    response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-ObraSignal-Version, X-ObraSignal-Company-ID, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Max-Age"] = "600"
