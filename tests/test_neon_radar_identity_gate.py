@@ -1,0 +1,26 @@
+"""The existing Radar API identity boundary must stay disabled by default."""
+from types import SimpleNamespace
+from flask import Flask
+import api
+
+def test_neon_radar_company_gate_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("OBRASIGNAL_NEON_COMPANY_AUTH", raising=False)
+    identity = SimpleNamespace(account_id="legacy-account", authenticated=True)
+    monkeypatch.setattr(api, "configured_identity", lambda: identity)
+    assert api._identity() is identity
+
+def test_neon_radar_company_gate_denies_untrusted_issuer(monkeypatch):
+    from jwt import InvalidTokenError
+    monkeypatch.setenv("OBRASIGNAL_NEON_COMPANY_AUTH", "staging")
+    monkeypatch.setenv("OBRASIGNAL_NEON_STAGING_ISSUER", "https://trusted-neon")
+    monkeypatch.setattr(api, "configured_identity", lambda: SimpleNamespace(
+        authenticated=True, subject="11111111-1111-4111-8111-111111111111",
+        claims={"iss":"https://other-provider"}, account_id="old-account"))
+    app = Flask(__name__)
+    with app.test_request_context("/", headers={
+        "X-ObraSignal-Company-ID": "22222222-2222-4222-8222-222222222222"}):
+        try:
+            api._identity()
+        except InvalidTokenError:
+            return
+        raise AssertionError("untrusted provider accepted")
