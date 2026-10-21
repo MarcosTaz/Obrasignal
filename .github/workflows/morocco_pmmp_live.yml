@@ -1,0 +1,53 @@
+name: Morocco PMMP Live Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'morocco_pmmp.py'
+      - 'test_morocco_pmmp.py'
+      - 'test_morocco_pmmp_pagination_safety.py'
+      - '.github/workflows/morocco_pmmp_live.yml'
+      - 'research/MENA_MOROCCO_PMMP_IMPLEMENTATION_RECORD_20260825.md'
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'requests>=2.32,<3'
+      - name: Fetch construction category parse paginate normalize
+        run: |
+          python - <<'PY'
+          from morocco_pmmp import fetch_current_construction_consultations, normalize_consultations
+
+          rows = fetch_current_construction_consultations(timeout=25, max_pages=2)
+          assert rows, 'official PMMP construction category yielded no consultations'
+          signals = normalize_consultations(rows)
+          ids = [s['external_id'] for s in signals]
+          assert len(ids) == len(set(ids)), 'PMMP identity collision'
+          for signal in signals:
+              assert signal['source'] == 'MA_PMMP'
+              assert signal['signal_type'] == 'TENDER'
+              assert signal['source_reference']
+              assert signal['country'] == 'MAR'
+              assert signal['publication_date']
+              assert signal['deadline']
+              assert signal['buyer']
+              assert signal['title']
+          print(f"LIVE_OK construction={len(signals)} sample={[s['source_reference'] for s in signals[:8]]}")
+          PY
