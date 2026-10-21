@@ -1,0 +1,31 @@
+name: Operational Eligibility Readiness Integration
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact candidate HEAD
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest
+      - name: Run operational integration acceptance
+        run: |
+          PYTHONPATH=. pytest -q \
+            tests/test_opportunity_readiness.py \
+            tests/test_operational_readiness_integration.py \
+            tests/test_operational_readiness_semantic_hardening.py \
+            tests/test_readiness_company_state_api.py \
+            tests/test_operational_readiness_architecture.py \
+            tests/test_golden_gp02_requirements_readiness.py
