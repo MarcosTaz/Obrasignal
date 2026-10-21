@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EarnedCash — Historical Closeout Cash Audit</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0f14;
+      --panel: #121922;
+      --panel-2: #17212d;
+      --text: #edf3f8;
+      --muted: #97a6b5;
+      --line: #273545;
+      --accent: #7ee0b8;
+      --warn: #f2c46d;
+      --danger: #ff8d8d;
+      --info: #86b7ff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 56px; }
+    header { display: flex; gap: 24px; align-items: end; justify-content: space-between; margin-bottom: 24px; }
+    .eyebrow { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 5px 0 6px; font-size: clamp(28px, 5vw, 48px); line-height: 1.05; }
+    p { color: var(--muted); margin: 0; }
+    .truth { border: 1px solid var(--line); background: var(--panel); padding: 10px 12px; border-radius: 10px; color: var(--muted); white-space: nowrap; }
+    .truth strong { color: var(--text); }
+    .grid { display: grid; gap: 16px; }
+    .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 18px 0; }
+    .metric, .card { border: 1px solid var(--line); background: var(--panel); border-radius: 14px; }
+    .metric { padding: 16px; }
+    .metric span { display:block; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
+    .metric strong { display:block; margin-top:8px; font-size:26px; font-variant-numeric: tabular-nums; }
+    .metric.verified strong { color: var(--accent); }
+    .metric.unknown strong { color: var(--warn); }
+    .card { padding: 18px; margin-top: 16px; }
+    h2 { margin: 0 0 12px; font-size: 18px; }
+    label { display:block; font-weight:700; margin-bottom:8px; }
+    textarea { width:100%; min-height:240px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#091019; color:#dce8f3; padding:14px; font:13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .actions { display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+    button { border:0; border-radius:9px; padding:10px 14px; background:var(--accent); color:#062118; font-weight:800; cursor:pointer; }
+    button.secondary { background:var(--panel-2); color:var(--text); border:1px solid var(--line); }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    #status { color:var(--muted); }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+    td.amount { font-variant-numeric:tabular-nums; font-weight:800; }
+    .pill { display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px; padding:2px 8px; font-size:11px; font-weight:800; }
+    .pill.high { color:var(--accent); }
+    .pill.p0 { color:var(--danger); }
+    .pill.p1 { color:var(--warn); }
+    .empty { color:var(--muted); padding:18px 0; }
+    .note { margin-top:14px; padding:12px; border-left:3px solid var(--info); background:#101926; color:var(--muted); }
+    .error { color:var(--danger); }
+    .two { grid-template-columns: 1.35fr .65fr; align-items:start; }
+    code { color:#cad9e7; }
+    @media (max-width: 850px) {
+      header { align-items:flex-start; flex-direction:column; }
+      .truth { white-space:normal; }
+      .metrics, .two { grid-template-columns:1fr 1fr; }
+    }
+    @media (max-width: 560px) { .metrics, .two { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="eyebrow">Historical Closeout Cash Audit</div>
+      <h1>EarnedCash</h1>
+      <p>Reconcile raw project records without letting the browser declare evidence, due-state or cash truth.</p>
+    </div>
+    <div class="truth" id="health">Loading truth policy…</div>
+  </header>
+
+  <section class="grid metrics" aria-label="Reconciliation metrics">
+    <div class="metric verified"><span>Verified cash</span><strong id="verifiedCash">—</strong></div>
+    <div class="metric"><span>Due & unpaid</span><strong id="dueUnpaid">—</strong></div>
+    <div class="metric"><span>Not yet due</span><strong id="notYetDue">—</strong></div>
+    <div class="metric unknown"><span>Unknown</span><strong id="unknownValue">—</strong></div>
+  </section>
+
+  <section class="grid two">
+    <div class="card">
+      <h2>Raw ledger input</h2>
+      <label for="records">Customer-supplied records</label>
+      <textarea id="records" spellcheck="false" aria-describedby="input-help">[
+  {"record_id":"app-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"APPLICATION","amount":"100000"},
+  {"record_id":"cert-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"CERTIFICATE","amount":"100000","relates_to":"app-1"},
+  {"record_id":"inv-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"INVOICE","amount":"100000","relates_to":"cert-1"},
+  {"record_id":"pay-1","customer_id":"customer-1","project_id":"project-1","currency":"GBP","kind":"PAYMENT","amount":"60000","relates_to":"inv-1"}
+]</textarea>
+      <p id="input-help">Tenant, evidence verification and due-state are server/operator-controlled. Raw browser input cannot create an evidence-supported recovery case by itself.</p>
+      <div class="actions">
+        <button id="run" type="button">Classify raw input</button>
+        <button id="reset" class="secondary" type="button">Reset output</button>
+        <span id="status" role="status"></span>
+      </div>
+      <div class="note">Expected raw-input behavior is conservative: unsupported values remain UNKNOWN. Evidence review and due-date determination happen in the assisted operator workflow, not in this browser form.</div>
+    </div>
+
+    <div class="card">
+      <h2>Truth guardrails</h2>
+      <p><strong>Never collapsed:</strong></p>
+      <p><code>earned ≠ certified ≠ invoiced ≠ due ≠ paid</code></p>
+      <br>
+      <p><strong>Client cannot assert:</strong></p>
+      <p><code>tenant_id</code>, <code>verified</code> or <code>due</code>.</p>
+      <br>
+      <p><strong>Fail closed on:</strong></p>
+      <p>cross-tenant references, mixed currencies, missing lineage, unknown due dates, unsupported evidence and overmatched invoices.</p>
+      <br>
+      <p><strong>Correct £0 is a pass.</strong></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Recovery review queue</h2>
+    <div id="queueEmpty" class="empty">Raw browser input cannot self-create an evidence-supported recovery queue.</div>
+    <div style="overflow:auto">
+      <table id="queueTable" hidden>
+        <thead><tr><th>Case</th><th>Category</th><th>Amount</th><th>Evidence</th><th>Action</th></tr></thead>
+        <tbody id="queueBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Anomalies / review blockers</h2>
+    <div id="anomalyEmpty" class="empty">No reconciliation run yet.</div>
+    <div style="overflow:auto">
+      <table id="anomalyTable" hidden>
+        <thead><tr><th>Severity</th><th>Code</th><th>Record</th><th>Detail</th></tr></thead>
+        <tbody id="anomalyBody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script>
+  const money = (value, currency) => {
+    if (value === undefined || value === null || currency === null) return value ?? '—';
+    const number = Number(value);
+    if (!Number.isFinite(number)) return String(value);
+    try { return new Intl.NumberFormat(undefined, {style:'currency', currency}).format(number); }
+    catch { return `${currency || ''} ${number.toLocaleString()}`.trim(); }
+  };
+
+  async function loadHealth() {
+    try {
+      const response = await fetch('./health');
+      const data = await response.json();
+      document.getElementById('health').innerHTML = `<strong>${data.truth_policy}</strong> · tenant ${data.tenant_id} · persistence ${data.persistence}`;
+    } catch {
+      document.getElementById('health').textContent = 'Health unavailable';
+    }
+  }
+
+  function clearOutput() {
+    ['verifiedCash','dueUnpaid','notYetDue','unknownValue'].forEach(id => document.getElementById(id).textContent = '—');
+    document.getElementById('queueTable').hidden = true;
+    document.getElementById('queueBody').replaceChildren();
+    document.getElementById('queueEmpty').hidden = false;
+    document.getElementById('anomalyTable').hidden = true;
+    document.getElementById('anomalyBody').replaceChildren();
+    document.getElementById('anomalyEmpty').hidden = false;
+    document.getElementById('status').textContent = '';
+    document.getElementById('status').className = '';
+  }
+
+  function render(data) {
+    document.getElementById('verifiedCash').textContent = money(data.verified_cash, data.currency);
+    document.getElementById('dueUnpaid').textContent = money(data.due_unpaid, data.currency);
+    document.getElementById('notYetDue').textContent = money(data.not_yet_due, data.currency);
+    document.getElementById('unknownValue').textContent = money(data.unknown_value, data.currency);
+
+    const qBody = document.getElementById('queueBody');
+    qBody.replaceChildren();
+    for (const item of data.recovery_queue || []) {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td>${item.case_id}</td><td>${item.category}</td><td class="amount">${money(item.amount, item.currency)}</td><td><span class="pill high">${item.evidence_quality}</span></td><td>${item.action}</td>`;
+      qBody.appendChild(row);
+    }
+    const hasQueue = (data.recovery_queue || []).length > 0;
+    document.getElementById('queueTable').hidden = !hasQueue;
+    document.getElementById('queueEmpty').hidden = hasQueue;
+    if (!hasQueue) document.getElementById('queueEmpty').textContent = 'No evidence-supported recovery case. £0 can be the correct result.';
+
+    const aBody = document.getElementById('anomalyBody');
+    aBody.replaceChildren();
+    for (const item of data.anomalies || []) {
+      const row = document.createElement('tr');
+      const klass = item.severity === 'P0' ? 'p0' : item.severity === 'P1' ? 'p1' : '';
+      row.innerHTML = `<td><span class="pill ${klass}">${item.severity}</span></td><td>${item.code}</td><td>${item.record_id}</td><td>${item.detail}</td>`;
+      aBody.appendChild(row);
+    }
+    const hasAnomalies = (data.anomalies || []).length > 0;
+    document.getElementById('anomalyTable').hidden = !hasAnomalies;
+    document.getElementById('anomalyEmpty').hidden = hasAnomalies;
+    if (!hasAnomalies) document.getElementById('anomalyEmpty').textContent = 'No structural anomalies detected in this input.';
+  }
+
+  document.getElementById('run').addEventListener('click', async () => {
+    const button = document.getElementById('run');
+    const status = document.getElementById('status');
+    let records;
+    try { records = JSON.parse(document.getElementById('records').value); }
+    catch { status.textContent = 'Invalid JSON.'; status.className = 'error'; return; }
+    button.disabled = true;
+    status.textContent = 'Classifying…';
+    status.className = '';
+    try {
+      const response = await fetch('./reconcile-ledger', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({records})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Reconciliation failed');
+      render(data);
+      status.textContent = `Complete · P0 ${data.p0_count}`;
+    } catch (error) {
+      status.textContent = error.message;
+      status.className = 'error';
+    } finally { button.disabled = false; }
+  });
+  document.getElementById('reset').addEventListener('click', clearOutput);
+  clearOutput();
+  loadHealth();
+</script>
+</body>
+</html>
