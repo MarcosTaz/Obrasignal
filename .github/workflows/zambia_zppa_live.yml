@@ -1,0 +1,37 @@
+name: Zambia ZPPA Live Smoke
+
+on:
+  pull_request:
+    paths:
+      - 'ocds_jsonl_snapshot.py'
+      - 'zambia_zppa.py'
+      - 'zambia_zppa_runtime.py'
+      - 'test_zambia_live_contract.py'
+      - '.github/workflows/zambia_zppa_live.yml'
+  workflow_dispatch:
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  live-zppa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest
+      - name: Live-validate bounded Zambia ZPPA/OCDS snapshot
+        env:
+          OBRASIGNAL_LIVE_SOURCE_TESTS: '1'
+        run: PYTHONPATH=. pytest -q test_zambia_live_contract.py
