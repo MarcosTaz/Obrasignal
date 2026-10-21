@@ -1,0 +1,92 @@
+name: International Coverage Audit
+
+on:
+  pull_request:
+    paths:
+      - 'international_coverage_audit.py'
+      - 'international_coverage_audit_core.py'
+      - 'international_country_codes.py'
+      - 'international_audit_provenance.py'
+      - 'international_portfolio_states.py'
+      - 'international_candidate_evidence.json'
+      - 'test_international_coverage_audit.py'
+      - 'test_international_coverage_audit_regressions.py'
+      - 'test_international_audit_provenance.py'
+      - 'test_international_portfolio_states.py'
+      - 'international_coverage_audit_manifest.json'
+      - '.github/workflows/international-coverage-audit.yml'
+  workflow_dispatch:
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+          fetch-depth: 0
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install repository and auditor test dependencies
+        run: python -m pip install -r requirements.txt pytest
+      - name: Run auditor regressions
+        run: >-
+          python -m pytest -q
+          test_international_coverage_audit.py
+          test_international_coverage_audit_regressions.py
+          test_international_audit_provenance.py
+          test_international_portfolio_states.py
+      - name: Generate repository-state audit
+        run: |
+          python international_coverage_audit.py --json > international_coverage_audit.json
+          python international_coverage_audit.py --markdown > international_coverage_audit.generated.md
+      - name: Validate generated audit contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('international_coverage_audit.json').read_text(encoding='utf-8'))
+          assert report['audit_contract'] == 'OBRASIGNAL_REPOSITORY_STATE_INTERNATIONAL_COVERAGE_AUDIT_V1'
+          assert isinstance(report['countries'], list)
+          assert isinstance(report['source_portfolio'], list)
+          assert isinstance(report['candidate_evidence'], dict)
+          assert isinstance(report['candidate_evidence']['rejected_proofs'], list)
+          assert isinstance(report['contradictions'], list)
+          assert isinstance(report['missing_integrations'], list)
+          assert isinstance(report['capabilities'], list)
+          assert isinstance(report['research_only_countries'], list)
+          assert isinstance(report['explicit_pr_references'], list)
+          assert report['pr_provenance']['history_available'] is True
+          assert report['summary']['country_count'] == len(report['countries'])
+          assert report['summary']['contradiction_count'] == len(report['contradictions'])
+          assert report['summary']['missing_integration_count'] == len(report['missing_integrations'])
+          assert report['summary']['research_only_countries'] == len(report['research_only_countries'])
+          assert report['summary']['explicit_pr_reference_count'] == len(report['explicit_pr_references'])
+          required = {
+              'REGISTERED', 'IMPLEMENTED', 'TESTED', 'LIVE_VALIDATED', 'RUNTIME_WIRED',
+              'PRODUCTION_ACTIVE', 'READY', 'PLANNED', 'GATED_RIGHTS',
+              'GATED_MACHINE_ACCESS', 'GATED_CREDENTIAL', 'GATED_COMPLETENESS',
+              'TECH_LAB', 'SUPERSEDED',
+          }
+          for source in report['source_portfolio']:
+              assert required <= set(source)
+          PY
+      - name: Upload deterministic audit artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: international-coverage-audit
+          path: |
+            international_coverage_audit.json
+            international_coverage_audit.generated.md
+          if-no-files-found: error
+          retention-days: 30
