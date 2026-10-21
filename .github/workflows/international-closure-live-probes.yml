@@ -1,0 +1,104 @@
+name: International Closure Live Probes
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/international-closure-live-probes.yml'
+      - 'research/INTERNATIONAL_LIVE_CLOSURE_20260825.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact revision
+        shell: bash
+        run: |
+          expected='${{ github.event.pull_request.head.sha || github.sha }}'
+          actual="$(git rev-parse HEAD)"
+          echo "expected=$expected"
+          echo "actual=$actual"
+          test "$actual" = "$expected"
+      - name: Run bounded official-source probes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, ssl, urllib.parse, urllib.request, urllib.error
+          from datetime import date, timedelta
+
+          ctx = ssl.create_default_context()
+          UA = {'User-Agent': 'ObraSignal-research-live-gate/1.0', 'Accept': 'application/json, */*'}
+
+          def probe(name, url, *, max_bytes=2000000, timeout=25):
+              req = urllib.request.Request(url, headers=UA, method='GET')
+              out = {'name': name, 'url': url}
+              try:
+                  with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+                      body = r.read(max_bytes + 1)
+                      out['status'] = r.status
+                      out['content_type'] = r.headers.get('content-type')
+                      out['bytes_read'] = min(len(body), max_bytes)
+                      out['truncated'] = len(body) > max_bytes
+                      sample = body[:max_bytes]
+                      try:
+                          data = json.loads(sample.decode('utf-8'))
+                          out['json'] = True
+                          if isinstance(data, dict):
+                              out['top_keys'] = sorted(map(str, data.keys()))[:30]
+                              for k in ('totalRegistros','totalPaginas','numeroPagina','paginasRestantes','count','next','previous'):
+                                  if k in data:
+                                      out[k] = data[k]
+                              for k in ('data','items','results','records','releases'):
+                                  v = data.get(k)
+                                  if isinstance(v, list):
+                                      out[k + '_count'] = len(v)
+                                      if v and isinstance(v[0], dict):
+                                          out[k + '_sample_keys'] = sorted(map(str, v[0].keys()))[:30]
+                          elif isinstance(data, list):
+                              out['json'] = True
+                              out['list_count'] = len(data)
+                              if data and isinstance(data[0], dict):
+                                  out['sample_keys'] = sorted(map(str, data[0].keys()))[:30]
+                      except Exception as exc:
+                          out['json'] = False
+                          out['decode_error'] = type(exc).__name__
+                  print(json.dumps(out, ensure_ascii=False, sort_keys=True))
+              except urllib.error.HTTPError as exc:
+                  print(json.dumps({**out, 'status': exc.code, 'error': 'HTTPError'}, sort_keys=True))
+              except Exception as exc:
+                  print(json.dumps({**out, 'status': None, 'error': type(exc).__name__, 'detail': str(exc)[:240]}, sort_keys=True))
+
+          # Brazil PNCP: official open-data discovery contract. Probe two tiny date windows and
+          # the two date encodings historically observed by the project. No retries/bypass.
+          today = date.today()
+          for days_back in (1, 7):
+              start = today - timedelta(days=days_back)
+              for mode in ('iso','compact'):
+                  if mode == 'iso':
+                      a, b = start.isoformat(), today.isoformat()
+                  else:
+                      a, b = start.strftime('%Y%m%d'), today.strftime('%Y%m%d')
+                  q = urllib.parse.urlencode({'dataInicio': a, 'dataFim': b, 'pagina': 1})
+                  probe(f'BR_PNCP_PCA_UPDATE_{days_back}D_{mode}', 'https://pncp.gov.br/api/consulta/v1/pca/atualizacao?' + q)
+
+          probe('BR_PNCP_OPENAPI', 'https://pncp.gov.br/api/consulta/v3/api-docs', max_bytes=4000000)
+
+          # Honduras: documented public OCDS API, HTTPS only. Page 1/2 checks paging and
+          # descargas gives publisher-controlled bulk/checksum options.
+          probe('HN_OCDS_RECORD_PAGE1', 'https://contratacionesabiertas.gob.hn/api/v1/record/?page=1')
+          probe('HN_OCDS_RECORD_PAGE2', 'https://contratacionesabiertas.gob.hn/api/v1/record/?page=2')
+          probe('HN_OCDS_DOWNLOADS', 'https://contratacionesabiertas.gob.hn/api/v1/descargas/')
+
+          # Peru: exact official machine route previously returning hosted-runner 403.
+          probe('PE_OECE_FILES', 'https://contratacionesabiertas.oece.gob.pe/api/v1/files')
+          probe('PE_OECE_ROOT', 'https://contratacionesabiertas.oece.gob.pe/')
+          PY
