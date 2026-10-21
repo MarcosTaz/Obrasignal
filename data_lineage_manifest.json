@@ -1,0 +1,102 @@
+{
+  "schema_version": "data-lineage-registry.v1",
+  "mode": "observation_only",
+  "canonical_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "status_vocabulary": [
+    "PROVEN_END_TO_END",
+    "PROVEN_PARTIAL",
+    "DISCOVERED_UNKNOWN",
+    "BROKEN",
+    "ORPHANED",
+    "STALE",
+    "PREBUILD",
+    "TEST_ONLY"
+  ],
+  "principles": [
+    "UNKNOWN != PROVEN",
+    "VALUE_PRESENT != PROVENANCE_PRESENT",
+    "PROVENANCE_COMPLETE != PRIVACY_SAFE"
+  ],
+  "data_elements": [
+    {
+      "data_element": "company_profile.current",
+      "owner": "Company Profile",
+      "tenant_scope": "account_id",
+      "origin": "authenticated customer profile input",
+      "raw_identifier": "N/A",
+      "source_identifier": "account_id",
+      "canonical_identifier": "company_profiles.account_id",
+      "transformation": "validation -> normalization -> derive_profile",
+      "derived_from": "customer profile payload or bounded legacy import",
+      "algorithm_rule_version": "UNVERSIONED_PROFILE_NORMALIZATION",
+      "schema_contract": "company_profiles(profile_json, updated_at)",
+      "persisted_location": "company_profiles",
+      "consumers": ["funnel_integration.persist_and_classify"],
+      "retention_class": "PRIVACY_OWNER_REQUIRED",
+      "privacy_class": "PRIVATE",
+      "current_test": "tests/test_data_lineage_registry.py",
+      "current_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "lineage_status": "PROVEN_PARTIAL"
+    },
+    {
+      "data_element": "opportunity_decision.account_scoped",
+      "owner": "Decision Intelligence",
+      "tenant_scope": "account_id",
+      "origin": "canonical opportunity + normalized account profile",
+      "raw_identifier": "UNKNOWN",
+      "source_identifier": "source + external_id",
+      "canonical_identifier": "opportunity_decisions.id",
+      "transformation": "opportunity_match_pipeline.evaluate_row",
+      "derived_from": "opportunity + profile",
+      "algorithm_rule_version": "opportunity_decisions.rule_version",
+      "schema_contract": "opportunity_decisions",
+      "persisted_location": "opportunity_decisions",
+      "consumers": ["Radar", "notification owner candidates"],
+      "retention_class": "OWNER_POLICY_REQUIRED",
+      "privacy_class": "PRIVATE_DERIVED",
+      "current_test": "tests/test_data_lineage_registry.py",
+      "current_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "lineage_status": "PROVEN_PARTIAL"
+    },
+    {
+      "data_element": "opportunity_event.new_high_match",
+      "owner": "Notification Delivery",
+      "tenant_scope": "account_id",
+      "origin": "canonical main currently selects recent actionable tenders by tenders.score",
+      "raw_identifier": "N/A",
+      "source_identifier": "source + tender_id/event_key",
+      "canonical_identifier": "opportunity_events.id",
+      "transformation": "notification_events.record_new_opportunities",
+      "derived_from": "tenders row on canonical main; no durable decision parent reference",
+      "algorithm_rule_version": "UNVERSIONED_EVENT_CREATOR",
+      "schema_contract": "opportunity_events",
+      "persisted_location": "opportunity_events",
+      "consumers": ["alerts", "notification owner candidates"],
+      "retention_class": "PRIVACY_OWNER_REQUIRED",
+      "privacy_class": "PRIVATE_DERIVED",
+      "current_test": "tests/test_data_lineage_registry.py",
+      "current_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "lineage_status": "BROKEN"
+    }
+  ],
+  "edges": [
+    {
+      "from": "company_profile.current",
+      "to": "opportunity_decision.account_scoped",
+      "type": "DERIVED_FROM",
+      "canonical_main_status": "BROKEN",
+      "reason": "company_profiles overwrites prior profile content and canonical decision rows carry no profile version/fingerprint",
+      "candidate_repair": "PREBUILD fingerprint-only metadata; reconstruction remains PARTIAL",
+      "owner_route": "Data Lineage owns derivation metadata; Privacy owns any historical private-input retention"
+    },
+    {
+      "from": "opportunity_decision.account_scoped",
+      "to": "opportunity_event.new_high_match",
+      "type": "TRIGGERED_BY",
+      "canonical_main_status": "BROKEN",
+      "reason": "canonical event creation does not persist a decision id/reference and currently selects by legacy tenders.score",
+      "candidate_repair": "OTHER_OWNER_REQUIRED",
+      "owner_route": "Notification Delivery / Decision Intelligence"
+    }
+  ]
+}
