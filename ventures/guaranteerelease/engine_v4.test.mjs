@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {assessSecurity,STATES} from './engine_v4.mjs';
+let pass=0;const ok=(c,m)=>{assert.ok(c,m);pass++};
+const base={instrumentId:'G',originalAmount:100,currentAmount:100,baselineEvidenceVerified:true};
+let r=assessSecurity({...base,reductionMode:'ADVANCE_REPAYMENT',instrumentWordingSupportsReduction:true,repaymentEvidenceVerified:true,repaidToDate:40});ok(r.state===STATES.REDUCTION_EVIDENCE_SUPPORTED,'candidate reduction state');ok(r.potentialReduction===40&&r.verifiedReduction===0,'candidate vs verified reduction separate');
+r=assessSecurity({...base,reductionImplementationVerified:true,reductionFromAmount:100,reductionToAmount:60,currentAmount:60});ok(r.state===STATES.REDUCED,'verified reduction state');ok(r.verifiedReduction===40&&r.potentialReduction===0,'verified reduction amount');ok(r.verifiedRelease===0&&r.collateralReleased===0,'reduction not release/collateral');
+r=assessSecurity({...base,reductionImplementationVerified:true,reductionFromAmount:120,reductionToAmount:60});ok(r.state===STATES.UNKNOWN,'reduction from > original unknown');
+r=assessSecurity({...base,reductionImplementationVerified:true,reductionFromAmount:80,reductionToAmount:90});ok(r.state===STATES.UNKNOWN,'reduction to > from unknown');
+r=assessSecurity({...base,reductionImplementationVerified:true,reductionFromAmount:-1,reductionToAmount:0});ok(r.state===STATES.UNKNOWN,'negative reduction unknown');
+r=assessSecurity({...base,currentAmount:0,reductionImplementationVerified:true,reductionFromAmount:100,reductionToAmount:60,bankCancelled:true,cancelledAmount:60});ok(r.state===STATES.BANK_CANCELLED,'cancellation final lifecycle state');ok(r.verifiedReduction===40&&r.verifiedRelease===60,'prior reduction and later cancellation separately tracked');ok(r.collateralReleased===0,'cancel no collateral inference');
+r=assessSecurity({...base,currentAmount:0,reductionImplementationVerified:true,reductionFromAmount:100,reductionToAmount:60,bankCancelled:true,cancelledAmount:60,collateralReleaseVerified:true,collateralReleasedAmount:25});ok(r.state===STATES.VERIFIED_RELEASE,'collateral verified release');ok(r.verifiedReduction===40&&r.verifiedRelease===60&&r.collateralReleased===25,'three economic dimensions separate');
+r=assessSecurity({...base,expiryDatePassed:true});ok(r.state===STATES.RELEASE_MAY_BE_DUE&&r.potentialRelease===0&&r.verifiedRelease===0,'expiry zero release');
+r=assessSecurity({...base,validOpenDefect:true,releaseConditionMet:true,releaseConditionEvidenceVerified:true});ok(r.state===STATES.RELEASE_NOT_YET_DUE&&r.potentialRelease===0,'defect blocker');
+r=assessSecurity({...base,evidenceConflict:true,reductionImplementationVerified:true,reductionFromAmount:100,reductionToAmount:50});ok(r.state===STATES.UNKNOWN&&r.verifiedReduction===0,'conflict blocks verified reduction');
+r=assessSecurity({...base,baselineEvidenceVerified:false,reductionImplementationVerified:true,reductionFromAmount:100,reductionToAmount:50});ok(r.state===STATES.UNKNOWN,'unverified baseline blocks verified reduction');
+console.log(`PASS ${pass}/${pass} engine_v4 assertions`);

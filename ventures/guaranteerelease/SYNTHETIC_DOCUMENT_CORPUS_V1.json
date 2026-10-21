@@ -1,0 +1,271 @@
+{
+  "corpusVersion": "2026-08-29.1",
+  "purpose": "Independent document-first synthetic case oracle. Expected outcomes are defined outside the extraction/assessment implementation.",
+  "reviewModel": "All synthetically supplied extracted facts are approved by the test reviewer unless a case intentionally contains contradictory evidence.",
+  "cases": [
+    {
+      "id": "DOC-GR-001",
+      "documents": [
+        {
+          "documentId": "g1",
+          "type": "SECURITY_INSTRUMENT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P1\nContract ID: C1\nGuarantee No: APG-1\nInstrument Type: ADVANCE_PAYMENT_GUARANTEE\nOriginal Amount: EUR 2,000,000\nCurrent Amount: EUR 2,000,000\nExpiry Date: 2027-02-01"
+            }
+          ]
+        },
+        {
+          "documentId": "c1",
+          "type": "CONTRACT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P1\nContract ID: C1\nThe guarantee may be progressively reduced by certified advance repayment."
+            }
+          ]
+        },
+        {
+          "documentId": "pc7",
+          "type": "PAYMENT_CERTIFICATE",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P1\nContract ID: C1\nCertified Advance Repaid To Date: EUR 1,200,000"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "state": "REDUCTION_EVIDENCE_SUPPORTED",
+        "potentialReduction": 1200000,
+        "potentialRelease": 0,
+        "verifiedRelease": 0,
+        "collateralReleased": 0
+      }
+    },
+    {
+      "id": "DOC-GR-002",
+      "documents": [
+        {
+          "documentId": "g2",
+          "type": "SECURITY_INSTRUMENT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P2\nContract ID: C2\nBond No: PB-2\nInstrument Type: PERFORMANCE_BOND\nOriginal Amount: GBP 1,000,000\nCurrent Amount: GBP 1,000,000"
+            }
+          ]
+        },
+        {
+          "documentId": "c2",
+          "type": "CONTRACT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P2\nContract ID: C2\n50% returned after practical completion."
+            }
+          ]
+        },
+        {
+          "documentId": "pc2",
+          "type": "COMPLETION_CERTIFICATE",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P2\nContract ID: C2\nPractical Completion: ACHIEVED"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "state": "REDUCTION_EVIDENCE_SUPPORTED",
+        "potentialReduction": 500000,
+        "potentialRelease": 0,
+        "verifiedRelease": 0,
+        "collateralReleased": 0
+      }
+    },
+    {
+      "id": "DOC-GR-003",
+      "documents": [
+        {
+          "documentId": "g3",
+          "type": "SECURITY_INSTRUMENT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P3\nContract ID: C3\nGuarantee No: WG-3\nInstrument Type: WARRANTY_GUARANTEE\nOriginal Amount: EUR 750,000\nCurrent Amount: EUR 750,000"
+            }
+          ]
+        },
+        {
+          "documentId": "def3",
+          "type": "DEFECT_NOTICE",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P3\nContract ID: C3\nValid Open Defect: YES"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "state": "RELEASE_NOT_YET_DUE",
+        "potentialReduction": 0,
+        "potentialRelease": 0,
+        "verifiedRelease": 0,
+        "collateralReleased": 0
+      }
+    },
+    {
+      "id": "DOC-GR-004",
+      "documents": [
+        {
+          "documentId": "g4",
+          "type": "SECURITY_INSTRUMENT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P4\nContract ID: C4\nGuarantee No: PG-4\nInstrument Type: PERFORMANCE_GUARANTEE\nOriginal Amount: AUD 1,500,000\nCurrent Amount: AUD 1,500,000\nExpiry Date: 2026-01-01"
+            }
+          ]
+        },
+        {
+          "documentId": "c4",
+          "type": "CONTRACT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P4\nContract ID: C4\nThe security is released after final certificate."
+            }
+          ]
+        },
+        {
+          "documentId": "fc4",
+          "type": "FINAL_CERTIFICATE",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P4\nContract ID: C4\nFinal Certificate: ISSUED"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "state": "RELEASE_EVIDENCE_SUPPORTED",
+        "potentialReduction": 0,
+        "potentialRelease": 1500000,
+        "verifiedRelease": 0,
+        "collateralReleased": 0
+      }
+    },
+    {
+      "id": "DOC-GR-005",
+      "documents": [
+        {
+          "documentId": "g5",
+          "type": "SECURITY_INSTRUMENT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P5\nContract ID: C5\nGuarantee No: RG-5\nInstrument Type: RETENTION_GUARANTEE\nOriginal Amount: EUR 600,000\nCurrent Amount: EUR 0"
+            }
+          ]
+        },
+        {
+          "documentId": "bank5",
+          "type": "BANK_CONFIRMATION",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P5\nContract ID: C5\nBank Cancellation Confirmed: YES\nCancelled Amount: EUR 600,000"
+            }
+          ]
+        },
+        {
+          "documentId": "coll5",
+          "type": "COLLATERAL_STATEMENT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P5\nContract ID: C5\nCollateral Released: EUR 300,000"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "state": "VERIFIED_RELEASE",
+        "potentialReduction": 0,
+        "potentialRelease": 0,
+        "verifiedRelease": 600000,
+        "collateralReleased": 300000
+      }
+    },
+    {
+      "id": "DOC-GR-006",
+      "documents": [
+        {
+          "documentId": "g6",
+          "type": "SECURITY_INSTRUMENT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P6\nContract ID: C6\nGuarantee No: APG-6\nInstrument Type: ADVANCE_PAYMENT_GUARANTEE\nOriginal Amount: EUR 900,000\nCurrent Amount: EUR 900,000"
+            }
+          ]
+        },
+        {
+          "documentId": "c6",
+          "type": "CONTRACT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P6\nContract ID: C6\nThe guarantee may be progressively reduced by certified advance repayment."
+            }
+          ]
+        },
+        {
+          "documentId": "wrong6",
+          "type": "PAYMENT_CERTIFICATE",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P-WRONG\nContract ID: C6\nCertified Advance Repaid To Date: EUR 500,000"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "state": "UNKNOWN",
+        "potentialReduction": 0,
+        "potentialRelease": 0,
+        "verifiedRelease": 0,
+        "collateralReleased": 0
+      }
+    },
+    {
+      "id": "DOC-GR-007",
+      "documents": [
+        {
+          "documentId": "g7",
+          "type": "SECURITY_INSTRUMENT",
+          "pages": [
+            {
+              "pageNumber": 1,
+              "text": "Project ID: P7\nContract ID: C7\nGuarantee No: PG-7\nInstrument Type: PERFORMANCE_GUARANTEE\nOriginal Amount: EUR 1,250,000\nCurrent Amount: EUR 1,250,000"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "state": "REDUCTION_NOT_YET_DUE",
+        "potentialReduction": 0,
+        "potentialRelease": 0,
+        "verifiedRelease": 0,
+        "collateralReleased": 0
+      }
+    }
+  ]
+}
