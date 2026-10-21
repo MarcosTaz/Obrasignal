@@ -1,0 +1,141 @@
+name: DGCP Discovery Probe
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'dominican_republic_dgcp*.py'
+      - 'test_dominican_republic_dgcp*.py'
+      - '.github/workflows/dgcp-discovery-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact revision
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest
+      - name: Run DGCP focused contract tests
+        run: |
+          PYTHONPATH=. pytest -q \
+            test_dominican_republic_dgcp.py \
+            test_dominican_republic_dgcp_discovery.py \
+            test_dominican_republic_dgcp_lifecycle.py \
+            test_dominican_republic_dgcp_pacc.py \
+            test_dominican_republic_dgcp_runtime.py
+      - name: Probe documented DGCP process/article/OCDS identity contracts
+        shell: bash
+        run: |
+          python - <<'PY'
+          import collections, json, ssl, urllib.parse, urllib.request
+          from datetime import date, timedelta
+
+          ROOT = 'https://datosabiertos.dgcp.gob.do/api-dgcp/v1'
+          CTX = ssl.create_default_context()
+          HEADERS = {'User-Agent': 'ObraSignal-DGCP-completeness-probe/1.0', 'Accept': 'application/json'}
+
+          def raw_json(path, params):
+              url = ROOT + path + '?' + urllib.parse.urlencode(params)
+              req = urllib.request.Request(url, headers=HEADERS, method='GET')
+              with urllib.request.urlopen(req, timeout=30, context=CTX) as response:
+                  payload = json.load(response)
+                  assert response.status == 200
+              return payload
+
+          def content(path, params):
+              payload = raw_json(path, params)
+              assert payload.get('code') == 200 and payload.get('hasError') is False
+              body = payload.get('payload') or {}
+              rows = body.get('content')
+              assert isinstance(rows, list)
+              return payload, rows
+
+          processes_payload, processes = content('/procesos', {'page': 1, 'limit': 1000})
+          object_counts = collections.Counter(str(p.get('objeto_proceso') or '').strip() for p in processes)
+          subobject_counts = collections.Counter(str(p.get('subobjeto_proceso') or '').strip() for p in processes)
+          works = [p for p in processes if str(p.get('objeto_proceso') or '').strip().casefold() == 'obras']
+          print(json.dumps({
+              'process_meta': {k: processes_payload.get(k) for k in ('page','pages','limit','totalResults')},
+              'process_count': len(processes),
+              'object_counts': dict(sorted(object_counts.items())),
+              'subobject_top': subobject_counts.most_common(15),
+              'works_count': len(works),
+              'works_samples': [{k: p.get(k) for k in ('codigo_proceso','objeto_proceso','subobjeto_proceso','estado_proceso','fecha_publicacion','titulo')} for p in works[:5]],
+          }, ensure_ascii=False, sort_keys=True))
+          if not works:
+              raise AssertionError('bounded 1000-process sample contained no publisher-native Obras process')
+
+          for process in works[:3]:
+              code = str(process.get('codigo_proceso') or '').strip()
+              articles_payload, articles = content('/procesos/articulos', {'proceso': code, 'page': 1, 'limit': 1000})
+              print(json.dumps({
+                  'works_process_code': code,
+                  'article_meta': {k: articles_payload.get(k) for k in ('page','pages','limit','totalResults')},
+                  'article_count': len(articles),
+                  'article_classes': sorted({str(a.get('clase_unspsc') or '').strip() for a in articles if a.get('clase_unspsc')})[:30],
+                  'article_families': sorted({str(a.get('familia_unspsc') or '').strip() for a in articles if a.get('familia_unspsc')})[:30],
+              }, ensure_ascii=False, sort_keys=True))
+
+          sample = works[0]
+          code = str(sample['codigo_proceso']).strip()
+          derived = 'ocds-6550wx-' + code
+          ocds = raw_json('/ocds/releases', {'ocid': derived})
+          if isinstance(ocds, dict) and isinstance(ocds.get('payload'), dict):
+              ocds = ocds['payload'].get('content', ocds['payload'])
+          releases = ocds.get('releases') if isinstance(ocds, dict) else None
+          assert isinstance(releases, list) and releases
+          actual_ocids = sorted({str(r.get('ocid') or '').strip() for r in releases if isinstance(r, dict)})
+          print(json.dumps({'process_code': code, 'derived_ocid': derived, 'release_ocids': actual_ocids}, ensure_ascii=False, sort_keys=True))
+          assert actual_ocids == [derived]
+
+          today = date.today(); start = today - timedelta(days=2)
+          bounded, bounded_rows = content('/procesos', {'page': 1, 'limit': 1000, 'startdate': start.isoformat(), 'enddate': today.isoformat()})
+          assert int(bounded.get('pages') or 0) >= 1
+          assert all(start.isoformat() <= str(row.get('fecha_publicacion') or '')[:10] <= today.isoformat() for row in bounded_rows)
+          print(json.dumps({'bounded_meta': {k: bounded.get(k) for k in ('page','pages','limit','totalResults')}, 'bounded_rows': len(bounded_rows)}, sort_keys=True))
+          PY
+      - name: Execute complete DGCP connector on bounded live day
+        run: |
+          python - <<'PY'
+          from dataclasses import replace
+          from datetime import datetime, timezone
+          import json
+
+          from dominican_republic_dgcp import DGCP_CONFIG
+          from dominican_republic_dgcp_discovery import DGCPProcessDiscoveryConnector, fetch_dgcp_signals_complete
+
+          config = replace(
+              DGCP_CONFIG,
+              page_size=1000,
+              initial_lookback_days=0,
+              overlap_days=0,
+              max_windows_per_sync=1,
+              max_pages_per_window=5,
+              max_hydrations_per_window=100,
+          )
+          rows, cursor = fetch_dgcp_signals_complete(
+              connector=DGCPProcessDiscoveryConnector(config),
+              now=datetime.now(timezone.utc),
+          )
+          assert isinstance(rows, list)
+          assert all(row.get('source') == 'DO_DGCP' for row in rows)
+          assert all(row.get('signal_type') in {'TENDER','AWARD','CONTRACT'} for row in rows)
+          assert len({(row.get('signal_type'), row.get('external_id')) for row in rows}) == len(rows)
+          print(json.dumps({
+              'signals': len(rows),
+              'types': {kind: sum(row.get('signal_type') == kind for row in rows) for kind in ('TENDER','AWARD','CONTRACT')},
+              'cursor': cursor,
+          }, sort_keys=True))
+          PY
