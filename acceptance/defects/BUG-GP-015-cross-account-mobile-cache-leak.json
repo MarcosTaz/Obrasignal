@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "bug_id": "BUG-GP-015",
+  "customer_journey": "ACCOUNT_A -> RETURN/CACHE -> SIGN_OUT -> ACCOUNT_B -> FIRST_RENDER",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "classification": [
+    "TENANT_ISOLATION_BUG",
+    "LOCAL_DATA_LEAK",
+    "MOBILE",
+    "CROSS_ACCOUNT_STATE"
+  ],
+  "severity": "CRITICAL",
+  "owners": ["MOBILE_SESSION_OWNER", "MOBILE_TENANT_STATE_OWNER"],
+  "reproduction": [
+    "Sign in as Account A and load a personalized profile/Radar so profile and opportunity cache are persisted.",
+    "Sign out using the current profile action.",
+    "Sign in as Account B on the same device before clearing application storage.",
+    "Observe Main hydration before the Account B network refresh completes."
+  ],
+  "observed_result": [
+    "AsyncStorage keys for profile and opportunities cache are global (`@obrasignal/v1/profile`, `@obrasignal/v1/opportunities-cache`) and contain no tenant namespace.",
+    "Sign-out calls Supabase signOut without purging or rebinding private cached state.",
+    "After any signed-in Main mounts, it hydrates cached profile/items immediately before network reconciliation.",
+    "Therefore Account B can transiently receive Account A's private personalized profile/opportunity state on first render."
+  ],
+  "expected_truth": [
+    "Private mobile cache is tenant-bound, or is completely purged before a different authenticated account can render it.",
+    "Cached profile/opportunities must be validated against the authenticated account identity before display.",
+    "Account switching never exposes another tenant's personalized data, even transiently or while offline/network-failing.",
+    "Shared device settings may remain shared only when explicitly non-private; private workflow/profile/Radar state may not."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: Account A cache cannot be returned/rendered for Account B identity.",
+    "PROVEN_AUTOMATED: sign-out/account-change invalidates or isolates private cache before Main hydration.",
+    "PROVEN_AUTOMATED: Account B network failure after sign-in does not fall back to Account A private state.",
+    "PROVEN_REAL_DEVICE: A loads data -> signs out -> B signs in offline/slow network -> zero A private content is visible."
+  ],
+  "hard_boundary": "Golden Path owns acceptance/regression only. Cache/session implementation repair remains with Mobile specialist owners."
+}

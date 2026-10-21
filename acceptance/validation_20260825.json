@@ -1,0 +1,58 @@
+{
+  "schema_version": 4,
+  "recorded_at": "2026-08-25",
+  "canonical_main": {
+    "sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+    "tree": "28dc0119113a39d9179919e07de541e54d189062",
+    "change": "PR #214 merged; current main revalidated",
+    "quality": "PASS",
+    "production_smoke": "PASS",
+    "authenticated_e2e": "PASS",
+    "product_status": "NOT_FULLY_ACCEPTED"
+  },
+  "current_main_deployed_truth": {
+    "exact_merge_sha_deployed": true,
+    "supabase_authentication": "PASS",
+    "unauthenticated_boundary": "PASS_401",
+    "malformed_bearer_boundary": "PASS_401",
+    "authenticated_api_identity": "PASS",
+    "profile_persistence_round_trip": "PASS",
+    "opportunity_access_account_scoping": "PASS",
+    "stats_and_workflow_stats": "PASS",
+    "detail_workflow_round_trip_when_data_exists": "PASS",
+    "production_smoke": "PASS",
+    "authenticated_e2e_run": 32867427570,
+    "production_smoke_run": 32867427628,
+    "quality_run": 32867427685,
+    "root_cause": "RESOLVED_FOR_CURRENT_MAIN"
+  },
+  "acceptance_infrastructure": {
+    "canonical_pr": 212,
+    "branch": "acceptance/golden-path-system-v2",
+    "baseline_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+    "automatic_merge": false
+  },
+  "gp01_historical_combination": {
+    "classification": "HISTORICAL_EXACT_HEAD_INTEGRATION_CANDIDATE_EVIDENCE",
+    "acceptance_pr": 208,
+    "tested_head": "2a8ab11c392d7d9ca64065ab89329f67f9b1bc92",
+    "positive_path_result": "PASS_L4_FIXTURE_CANDIDATE",
+    "full_golden_path_result": "FAIL",
+    "full_golden_path_blocker": "BUG-GP-001_AT_HISTORICAL_HEAD",
+    "not_current_main_acceptance": true
+  },
+  "current_gp01": {
+    "AUTH": "PRODUCTION_VALIDATED",
+    "DISCOVER_DETAIL": "IMPLEMENTED_MAIN",
+    "SOURCE_PROVENANCE": "PARTIAL_CURRENT_MAIN",
+    "OPEN_CLOSED_TRUTH": "PASS_PR_214_REGRESSION",
+    "WORKFLOW": "PRODUCTION_VALIDATED_WHEN_DATA_EXISTS",
+    "WATCHLIST_SAVE": "GATED_BY_INTEGRATION_WATCHLIST",
+    "overall": "GATED"
+  },
+  "resolved_defects": {
+    "BUG-GP-001": "PR #214 merged; permanent regression now passes",
+    "BUG-GP-003": "current exact-main Production Smoke and Authenticated E2E pass"
+  },
+  "remaining_sellability_blockers": ["SELL-002","SELL-003","SELL-004","SELL-005"]
+}

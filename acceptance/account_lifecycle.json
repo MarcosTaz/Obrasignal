@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "baseline_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "status": "IMPLEMENTATION_MISSING_OR_UNPROVEN",
+  "owner": "ACCOUNT_PRIVACY_AUTH",
+  "contracts": {
+    "PASSWORD_RECOVERY": {
+      "implementation_state": "MISSING_CUSTOMER_SURFACE",
+      "expected_truths": [
+        "recovery_does_not_bypass_provider_authentication",
+        "recovery_response_does_not_need_to_reveal_whether_an_email_is_registered",
+        "expired_or_invalid_recovery_credential_fails_closed",
+        "successful_recovery_does_not_change_tenant_identity"
+      ],
+      "forbidden_claims": [
+        "password_recovered_without_provider_proof",
+        "unknown_or_invalid_recovery_token_success",
+        "client_selected_account_becomes_authority"
+      ]
+    },
+    "DATA_EXPORT": {
+      "implementation_state": "MISSING_OR_UNPROVEN",
+      "expected_truths": [
+        "export_requires_authenticated_account_identity",
+        "export_contains_only_requesting_account_private_state_plus_explicitly_public_references",
+        "export_never_includes_other_tenant_private_state",
+        "export_does_not_claim_completeness_for_data_the_product_does_not_own"
+      ],
+      "forbidden_claims": [
+        "cross_tenant_export",
+        "export_includes_secrets_or_provider_credentials",
+        "partial_export_called_complete_without_contract"
+      ]
+    },
+    "ACCOUNT_DELETION": {
+      "implementation_state": "MISSING_OR_UNPROVEN",
+      "expected_truths": [
+        "deletion_requires_authenticated_account_identity_and_explicit_destructive_confirmation",
+        "deleted_account_cannot_continue_reading_or_writing_private_state",
+        "one_tenant_deletion_never_deletes_another_tenant_private_state",
+        "tenant_exit_does_not_silently_delete_shared_public_procurement_facts",
+        "deletion_result_distinguishes_completed_pending_and_failed_states"
+      ],
+      "forbidden_claims": [
+        "account_deleted_when_cleanup_failed",
+        "client_supplied_tenant_selector_authorizes_deletion",
+        "shared_public_procurement_destroyed_as_private_account_cleanup",
+        "deletion_success_without_postcondition_proof"
+      ]
+    }
+  },
+  "legal_boundary": "This acceptance contract defines product truth and tenant-safety behavior only. It does not assert GDPR, statutory retention, tax, accounting, consumer-law or other legal compliance.",
+  "handoff_required": true
+}

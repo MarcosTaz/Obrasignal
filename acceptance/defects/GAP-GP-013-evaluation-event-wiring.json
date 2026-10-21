@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "bug_id": "GAP-GP-013",
+  "customer_journey": "ACCOUNT -> PROFILE -> PERSONALIZED_RADAR -> EVALUATION -> BILLING_GATE",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "classification": [
+    "CUSTOMER_LIFECYCLE_INTEGRATION_GAP",
+    "EVALUATION_ACTIVATION_UNPROVEN",
+    "COMMERCIAL_TRUTH_GAP"
+  ],
+  "severity": "CRITICAL",
+  "owners": ["EVALUATION_PRODUCT_LIFECYCLE_OWNER", "PROFILE_RADAR_INTEGRATION_OWNER", "INTEGRATION_LAB"],
+  "proven_policy_truth": [
+    "New account begins ONBOARDING/EXPOSURE_PENDING with no evaluation end timestamp.",
+    "The policy activates only after profile_ready + market_data_available + first_shortlist_generated.",
+    "Self-service activation duration is 21 days and signup alone does not consume days.",
+    "Paid Pro entitlement takes precedence over Evaluation."
+  ],
+  "observed_customer_path": [
+    "POST /api/v1/profile persists a valid profile and executes bootstrap_account for the same authenticated account.",
+    "bootstrap_account classifies current actionable opportunities and can emit high-match opportunity events.",
+    "The inspected profile/bootstrap/classification customer path does not record Evaluation activation events.",
+    "Therefore policy-level tests that manually call record_evaluation_event do not prove that a real customer can ever advance from ONBOARDING to EVALUATION_ACTIVE."
+  ],
+  "customer_risk": [
+    "A customer may receive a profile and Radar value while the Evaluation remains ONBOARDING with expires_at=null.",
+    "The product can truthfully say the 21-day window has not started, but cannot yet prove that normal value delivery will start it automatically.",
+    "Commercial conversion timing/retention metrics are not trustworthy until real customer events drive the lifecycle."
+  ],
+  "expected_truth": [
+    "A successfully completed customer profile records profile_ready for that authenticated tenant.",
+    "market_data_available is recorded only from evidence that usable market data is actually available; empty/error/unknown source state cannot satisfy it.",
+    "first_shortlist_generated is recorded only when a relevant shortlist is actually generated for the same tenant; zero/unknown is not success.",
+    "The 21-day clock begins exactly once when all three conditions become true, not at signup and not before value readiness.",
+    "Replays/restarts are idempotent enough not to restart or extend the clock accidentally."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: profile save -> billing status shows activation_requirements.profile_ready=true while activated_at remains null until the other two requirements exist.",
+    "PROVEN_AUTOMATED: no market data / source failure does not set market_data_available.",
+    "PROVEN_AUTOMATED: relevant shortlist generation sets first_relevant_shortlist_generated for the same tenant only.",
+    "PROVEN_AUTOMATED: all three events start exactly one 21-day window and repeated requests do not reset it.",
+    "PROVEN_PRODUCTION_API: a real newly-created customer account traverses the same state transition on deployed production."
+  ],
+  "hard_boundary": "Golden Path owns acceptance only. Event production/wiring and canonical integration remain with Evaluation/Profile/Radar/Integration owners."
+}

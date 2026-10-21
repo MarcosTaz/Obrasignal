@@ -1,0 +1,42 @@
+{
+  "schema_version": 4,
+  "baseline_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "product_status": "NOT_YET_SELF_SERVICE_SELLABLE",
+  "minimum_sellable_spine": ["SIGNUP","AUTH","PROFILE","FIRST_RELEVANT_SHORTLIST","OPPORTUNITY_DETAIL","OFFICIAL_SOURCE","WORKFLOW_SAVE","RETURNING_USER","EVALUATION","PRO_ENTITLEMENT"],
+  "customer_lifecycle": {
+    "SIGNUP": "IMPLEMENTED",
+    "AUTH": "PRODUCTION_VALIDATED",
+    "FIRST_SESSION": "IMPLEMENTED",
+    "ONBOARDING": "IMPLEMENTED",
+    "COMPANY_PROFILE": "PRODUCTION_VALIDATED",
+    "FIRST_RELEVANT_SHORTLIST": "IMPLEMENTED_RUNTIME_UNPROVEN",
+    "OPPORTUNITY_DETAIL": "PRODUCTION_VALIDATED_WHEN_DATA_EXISTS",
+    "OFFICIAL_SOURCE": "IMPLEMENTED",
+    "WORKFLOW_SAVE": "PRODUCTION_VALIDATED_WHEN_DATA_EXISTS",
+    "RETURNING_USER": "PARTIAL_PRODUCTION_VALIDATION",
+    "EVALUATION": "POLICY_AND_PRODUCT_SURFACE",
+    "ENTITLEMENT": "IMPLEMENTED_EXTERNAL_CONFIG_REQUIRED",
+    "PAYMENT": "IMPLEMENTED_CLIENT_EXTERNAL_CONFIG_UNPROVEN",
+    "RENEWAL": "EXTERNALLY_MANAGED_UNPROVEN",
+    "FAILED_PAYMENT": "UNPROVEN",
+    "CANCELLATION": "PARTIAL_UNPROVEN",
+    "RESTORE_PURCHASE": "IMPLEMENTED_UNPROVEN_REAL_STORE",
+    "PASSWORD_RECOVERY": "MISSING_CUSTOMER_SURFACE_ACCEPTANCE_DEFINED",
+    "DATA_EXPORT": "MISSING_OR_UNPROVEN_ACCEPTANCE_DEFINED",
+    "ACCOUNT_DELETION": "MISSING_OR_UNPROVEN_ACCEPTANCE_DEFINED",
+    "SUPPORT_RECOVERY": "PARTIAL_OR_MISSING"
+  },
+  "proven_acceptance": [
+    {"id":"SELL-001","scope":"deployed authenticated customer spine","main_sha":"66d43f6fd51cf9cea08016dad335aaa04b711a24","authenticated_e2e_run":32867427570,"production_smoke_run":32867427628,"quality_run":32867427685,"proof":["supabase_authentication","authenticated_api_identity","profile_persistence_round_trip","opportunity_account_scoping","stats_and_workflow_stats","detail_and_workflow_round_trip_when_data_exists"],"status":"PASS_EXACT_MAIN"},
+    {"id":"SELL-004-CONTRACT","scope":"account recovery/export/deletion truth and tenant safety","contract":"acceptance/account_lifecycle.json","proof":["provider_auth_boundary","tenant_scoped_export","deletion_postconditions","shared_public_facts_not_private_cleanup","no_legal_compliance_claim"],"status":"ACCEPTANCE_CONTRACT_IMPLEMENTED_PENDING_EXACT_HEAD_GATE"},
+    {"id":"SELL-005-CONTRACT","scope":"source coverage false-claim prevention","proof":["registered_not_active","ready_not_active","source_presence_not_national_completeness","capability_scope_not_full_market_claim"],"status":"ACCEPTANCE_CONTRACT_IMPLEMENTED_PENDING_EXACT_HEAD_GATE"}
+  ],
+  "commercial_truth": {"evaluation_days":21,"evaluation_starts_at_signup":false,"evaluation_activation_requires":["profile_ready","market_data_available","first_relevant_shortlist_generated"],"credit_card_before_evaluation":false,"paid_entitlement":"pro","paid_product":"obrasignal_pro_monthly","store_price_must_be_localized":true,"web_checkout_supported":false},
+  "blocking_acceptance": [
+    {"id":"SELL-002","owner":"BILLING","required_proof":"RevenueCat webhook authority and product/entitlement gating are safe on current main-derived code","current_candidate_pr":83,"current_candidate_head":"3c00cff49211dad2cd54650aeb838dc5f5301f3f","current_candidate_base":"66d43f6fd51cf9cea08016dad335aaa04b711a24","current_gates":{"billing_security":"FAIL","quality":"FAIL"},"status":"BLOCKED_EXTERNAL_OWNER_REPAIRABLE"},
+    {"id":"SELL-003","owner":"BILLING","required_proof":"real store purchase -> backend entitlement -> cancellation/grace/expiry -> restore -> second-device consistency","status":"BLOCKED_EXTERNAL_CONFIGURATION_AND_OWNER"},
+    {"id":"SELL-004","owner":"ACCOUNT_PRIVACY_AUTH","required_proof":"implement password recovery, account deletion and data export against acceptance/account_lifecycle.json and return exact-head tenant-safe evidence","status":"IMPLEMENTATION_HANDOFF_AFTER_ACCEPTANCE_CONTRACT"},
+    {"id":"SELL-005","owner":"SOURCE_PRODUCT","required_proof":"customer-visible source/coverage wording consumes the bounded coverage contract and never implies national/full-market completeness","status":"IMPLEMENTATION_HANDOFF_AFTER_ACCEPTANCE_CONTRACT"}
+  ],
+  "forbidden_commercial_claims": ["production_ready_without_current_production_acceptance","complete_market_coverage_without_explicit_coverage_contract","all_portuguese_tenders_without_proof","billing_secure_while_known_authority_repair_is_unmerged","evaluation_starts_at_signup","web_processes_store_subscription_purchase","branch_only_capability_is_customer_available","missing_evidence_means_negative_evidence"]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "bug_id": "BUG-GP-012",
+  "customer_journey": "PERSONALIZED_RADAR -> OPPORTUNITY -> WHY",
+  "current_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "classification": ["FALSE_CLAIM", "FABRICATED_EXPLANATION", "MOBILE", "WHY_EVIDENCE"],
+  "severity": "HIGH",
+  "owner": "MOBILE_PRODUCT_OWNER / MATCH_EXPLANATION_OWNER",
+  "observed_result": "Opportunity cards render `Correspondência com o perfil` whenever both `decision_reason` and `match_reason` are absent.",
+  "expected_truth": [
+    "Missing explanation evidence remains explicitly unavailable/unknown; the UI must not invent a positive match reason.",
+    "A score may be displayed only with its own proven semantics; absence of a reason is not evidence that profile correspondence was established.",
+    "WHY surfaces must distinguish observed/explained factors from generic product copy."
+  ],
+  "required_retest": [
+    "PROVEN_AUTOMATED: card with no decision_reason/match_reason cannot show a fabricated positive explanation.",
+    "PROVEN_AUTOMATED: absence of explanation remains unknown/unavailable while genuine explanation evidence is preserved.",
+    "PROVEN_REAL_DEVICE: a deliberately explanation-less opportunity does not tell the customer it matches their profile."
+  ],
+  "hard_boundary": "Golden Path owns acceptance/regression only; explanation generation/presentation repair remains with its specialist owner."
+}
