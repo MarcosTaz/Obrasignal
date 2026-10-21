@@ -1,0 +1,68 @@
+name: UK Find a Tender Planning Live Contract
+
+on:
+  pull_request:
+    paths:
+      - 'uk_find_tender_planning.py'
+      - 'uk_find_tender_lifecycle.py'
+      - 'uk_runtime.py'
+      - 'source_registry.py'
+      - 'test_uk_find_tender_planning.py'
+      - 'test_uk_find_tender_lifecycle_contract.py'
+      - '.github/workflows/uk_find_tender_planning_live.yml'
+  workflow_dispatch:
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  live-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+      - name: Confirm exact revision under test
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'requests>=2.32,<3'
+      - name: Validate official immutable UK3 construction planning notice contract
+        run: |
+          python - <<'PY'
+          import requests
+          from uk_find_tender import FTS_HEADERS, FTS_RELEASE_URL
+          from uk_find_tender_planning import normalize_uk3_releases
+
+          notice_id = '016962-2026'
+          response = requests.get(
+              f'{FTS_RELEASE_URL}/{notice_id}',
+              headers=FTS_HEADERS,
+              timeout=30,
+          )
+          response.raise_for_status()
+          payload = response.json()
+          releases = payload.get('releases')
+          assert isinstance(releases, list), 'FTS release package must contain releases list'
+          rows = normalize_uk3_releases(releases)
+          assert len(rows) == 1, f'expected one canonical construction UK3 plan, got {len(rows)}'
+          row = rows[0]
+          assert row['source'] == 'UK_PROCUREMENT'
+          assert row['signal_type'] == 'PROCUREMENT_PLAN'
+          assert row['notice_type'] == 'UK3'
+          assert row['ocid'] == 'ocds-h6vhtk-0512ab'
+          assert row['external_id'] == 'ocds-h6vhtk-0512ab:notice:UK3'
+          assert row['source_reference'] == notice_id
+          assert row['construction_relevant'] is True
+          assert row['url'].startswith('https://www.find-tender.service.gov.uk/')
+          print(
+              'LIVE_OK source=UK_PROCUREMENT notice=UK3 '
+              f'ocid={row["ocid"]} target_date={row["target_date"]} '
+              f'cpv={row["category_code"]}'
+          )
+          PY

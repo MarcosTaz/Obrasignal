@@ -117,13 +117,15 @@ def test_lv_registry_declares_only_implemented_daily_tender_contract():
     assert "awards" not in source["capabilities"]
 
 
-def test_uk_registry_declares_only_proven_release_record_tender_contract():
+def test_uk_registry_declares_only_proven_release_record_lifecycle_contract():
     source = SOURCES["UK_PROCUREMENT"]
     assert source["kind"] == "OCDS_RELEASE_RECORD_API"
     assert source["access"] == "public_release_record_api"
-    assert source["adapter"] == "UKFindTenderConnector"
-    assert source["signal_types"] == ("TENDER",)
-    assert set(source["capabilities"]) == {"search", "incremental_sync", "detail", "lots"}
+    assert source["adapter"] == "UKFindTenderLifecycleConnector"
+    assert source["signal_types"] == ("PROCUREMENT_PLAN", "TENDER")
+    assert set(source["capabilities"]) == {
+        "search", "incremental_sync", "detail", "lots", "plans", "lifecycle"
+    }
     assert source["realtime_capable"] is True
     assert "awards" not in source["capabilities"]
     assert "contracts" not in source["capabilities"]
