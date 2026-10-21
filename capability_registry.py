@@ -140,6 +140,13 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         dependencies=("OFFICE", "SHADOW", "ACTION", "SUPPLY_EDGE"),
         feature_flag="mobilize",
     ),
+    "BANGS": _c(
+        "BANGS", "RESEARCH", "SHADOW",
+        contract_versions=("bangs.v0",),
+        feature_flag="bangs_field_intelligence_v0",
+        kill_switch_required=True,
+        private_data_owner="BANGS",
+    ),
     "SITE_READY": _c(
         "SITE_READY", "RESEARCH", "COMMAND",
         dependencies=("EVIDENCE", "OFFICE", "MOBILIZE"),
