@@ -1,0 +1,75 @@
+{
+  "contract_version": "data-integrity-evidence.v1",
+  "canonical_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "evidence": [
+    {
+      "invariant": "SOURCE_HEALTH_MUST_NOT_OUTLIVE_FAILED_CANONICAL_INGEST",
+      "classification": "PROVEN_INTEGRATION_DRIFT_NOT_CANONICAL",
+      "severity": "HIGH",
+      "owners": [
+        "Source Health",
+        "Persistence/Data Reliability",
+        "Resilience",
+        "Integration Lab"
+      ],
+      "stores": [
+        "source_health",
+        "source_cursor",
+        "canonical signal/metadata/lifecycle persistence"
+      ],
+      "expected": "fresh/current source health cannot remain authoritative evidence of durable ingestion when the corresponding canonical ingest transaction fails and rolls back",
+      "observed": "after fetch success and an intentionally failed canonical ingest commit, the durable cursor remains absent but Source Health still reports healthy + fresh + stats_state=current",
+      "probe": {
+        "pr": 444,
+        "base_sha": "4d6acf0075328565f7fb4fa900e687b2c9c5276e",
+        "head_sha": "d9103c14380a2a8b831cedb250aaca585b080aaa",
+        "quality_run_id": 32899455353,
+        "quality_conclusion": "failure",
+        "python_result": "2 failed / 1197 passed / 2 skipped",
+        "tree_classification": "SOURCE_HEALTH_X_PERSISTENCE_INTEGRATION_PROBE"
+      },
+      "canonical_main_status": "UNKNOWN",
+      "canonical_main_claim": "NO_CANONICAL_DEFECT_CLAIM_FROM_NONCANONICAL_PROBE",
+      "authority": "OWNER_CONTRACT_REQUIRED",
+      "repair_direction": "UNDEFINED_FAIL_CLOSED",
+      "automatic_repair": false,
+      "routed": {
+        "source_health_pr": 327,
+        "source_health_comment_id": 5417036202
+      },
+      "handoff": "Source Health owns freshness/health meaning; Persistence owns durable commit/checkpoint mechanics; Resilience owns partial-failure behavior; Integration Lab owns exact combined-tree proof. Integrity owns the invariant and classification only.",
+      "reopen_condition": "re-evaluate canonical status when the relevant Source Health and durable-ingest contracts coexist on one exact current-main-derived tree"
+    },
+    {
+      "invariant": "ADDITIVE_MIGRATION_MUST_BE_REGISTERED_ON_COMPOSED_TREE",
+      "classification": "PROVEN_INTEGRATION_DRIFT_NOT_CANONICAL",
+      "severity": "HIGH",
+      "owners": [
+        "Persistence/Data Reliability",
+        "Source Health",
+        "Integration Lab"
+      ],
+      "stores": ["source_health", "storage_contract additive migration registry"],
+      "expected": "every root additive ALTER participating in the composed persistence tree is classified in the strict registered migration contract",
+      "observed": "the exact #444 composed tree root scan detects source_health as altered while source_health is absent from REGISTERED_ADDITIVE_MIGRATIONS",
+      "probe": {
+        "pr": 444,
+        "base_sha": "4d6acf0075328565f7fb4fa900e687b2c9c5276e",
+        "head_sha": "d9103c14380a2a8b831cedb250aaca585b080aaa",
+        "quality_run_id": 32899455353,
+        "failing_test": "tests/test_storage_reliability_hardening.py::test_root_persistence_owners_and_alters_must_be_registered"
+      },
+      "canonical_main_status": "UNKNOWN",
+      "canonical_main_claim": "NO_CANONICAL_DEFECT_CLAIM_FROM_NONCANONICAL_COMPOSITION",
+      "authority": "Persistence registration contract",
+      "repair_direction": "REGISTER_CLASSIFY_ON_OWNER_COMPOSITION_DO_NOT_WEAKEN_GUARD",
+      "automatic_repair": false,
+      "routed": {
+        "persistence_pr": 238,
+        "persistence_comment_id": 5417034789
+      },
+      "handoff": "Persistence owns registration/classification; Source Health owns its additive fields; Integration Lab must retest the exact composition. Integrity does not modify either owner's migration semantics.",
+      "reopen_condition": "rerun exact combined-tree Quality after Persistence registers/classifies the Source Health additive migration without weakening discovery"
+    }
+  ]
+}
