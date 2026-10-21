@@ -1,0 +1,41 @@
+{
+  "registry_version": 1,
+  "authority": "observation_only",
+  "business_authority": "executable_domain_owners",
+  "compatibility_classes": [
+    "ADDITIVE_SAFE",
+    "ADDITIVE_RISKY",
+    "SEMANTIC_CHANGE",
+    "BREAKING",
+    "SECURITY_RELEVANT",
+    "TENANT_RELEVANT",
+    "UNKNOWN"
+  ],
+  "contracts": {
+    "opportunity_workflow.v1": {
+      "owner": "Opportunity Workflow/API",
+      "producer": "api.py",
+      "consumers": [
+        "mobile/src/api.js",
+        ".github/workflows/authenticated-e2e.yml"
+      ],
+      "version": "v1",
+      "canonicality": "CANONICAL",
+      "tenant_field": "account_id",
+      "tenant_authority": "authenticated server identity",
+      "identity": "opportunity_id resolves internally to source+external_id",
+      "backward_compatibility": "response envelope/status/error/tenant semantics require explicit review",
+      "baseline_main_head": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+      "expected_fingerprint": "a8e19258101c8bbec792af9e05490fce33dfcf672fa76b8970bad3c391a66dfc",
+      "acknowledged_findings": [
+        {
+          "id": "opportunity_workflow.auth_e2e.flat_response_parser",
+          "classification": "BREAKING",
+          "owner": "Auth/#289",
+          "state": "ROUTED",
+          "reopen_condition": "Auth consumer parses the nested workflow envelope and exact-head integration proof is rerun"
+        }
+      ]
+    }
+  }
+}
