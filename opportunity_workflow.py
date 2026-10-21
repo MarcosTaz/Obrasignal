@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import sqlite3
 
 STATUSES = ("NEW", "REVIEWING", "PREPARING", "SUBMITTED", "WON", "LOST")
+MAX_WORKFLOW_BATCH_KEYS = 100
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS opportunity_workflow (
@@ -42,6 +43,11 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _default_workflow(account_id, source, external_id):
+    return {"account_id": str(account_id or "default"), "source": source, "external_id": external_id,
+            "status": "NEW", "note": None, "updated_at": None}
+
+
 def get_workflow(conn, account_id, source, external_id):
     ensure_workflow_table(conn)
     row = conn.execute(
@@ -51,9 +57,49 @@ def get_workflow(conn, account_id, source, external_id):
         (str(account_id or "default"), source, external_id),
     ).fetchone()
     if row is None:
-        return {"account_id": str(account_id or "default"), "source": source, "external_id": external_id,
-                "status": "NEW", "note": None, "updated_at": None}
+        return _default_workflow(account_id, source, external_id)
     return dict(row)
+
+
+def get_workflows(conn, account_id, opportunity_keys):
+    """Return bounded account-scoped workflows for one collection read."""
+    account_id = str(account_id or "default")
+    keys = []
+    seen = set()
+    for source, external_id in opportunity_keys or []:
+        key = (source, external_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        keys.append(key)
+    if not keys:
+        return {}
+    if len(keys) > MAX_WORKFLOW_BATCH_KEYS:
+        raise ValueError(f"workflow batch exceeds bounded limit {MAX_WORKFLOW_BATCH_KEYS}")
+
+    ensure_workflow_table(conn)
+    result = {
+        key: _default_workflow(account_id, key[0], key[1])
+        for key in keys
+    }
+    values_sql = ",".join("(?, ?)" for _ in keys)
+    params = []
+    for source, external_id in keys:
+        params.extend((source, external_id))
+    params.append(account_id)
+    rows = conn.execute(
+        f'''WITH requested(source, external_id) AS (VALUES {values_sql})
+            SELECT w.account_id, w.source, w.external_id, w.status, w.note, w.updated_at
+            FROM opportunity_workflow w
+            JOIN requested r
+              ON r.source=w.source AND r.external_id=w.external_id
+            WHERE w.account_id=?''',
+        params,
+    ).fetchall()
+    for row in rows:
+        item = dict(row)
+        result[(item["source"], item["external_id"])] = item
+    return result
 
 
 def set_workflow(conn, account_id, source, external_id, status, note=None):
