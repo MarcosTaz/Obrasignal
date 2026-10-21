@@ -131,6 +131,45 @@ def stats_for(market):
         conn.close()
 
 
+def _ranked_radar_rows(conn, account_id, minscore, limit):
+    """Select Radar candidates by the same account score the surface presents.
+
+    ``tenders.score`` is legacy global presentation state. The decision-aware
+    Radar presents the latest account-specific decision score, so candidate
+    selection, min-score filtering and ordering must use that same authority.
+    A missing account decision stays UNKNOWN: at minscore=0 it remains visible
+    after scored rows, while any positive score threshold excludes it rather
+    than silently borrowing another score. Stable technical keys break true
+    semantic ties deterministically.
+    """
+    account_id = str(account_id or "default")
+    minscore = max(0, min(100, int(minscore or 0)))
+    limit = max(1, min(100, int(limit or 20)))
+    return conn.execute(
+        f"""SELECT t.* FROM tenders t
+           LEFT JOIN opportunity_lifecycle lc
+             ON lc.source=t.source AND lc.external_id=t.external_id
+           LEFT JOIN (
+               SELECT source, external_id, MAX(id) AS max_id
+               FROM opportunity_decisions
+               WHERE account_id=?
+               GROUP BY source, external_id
+           ) latest
+             ON latest.source=t.source AND latest.external_id=t.external_id
+           LEFT JOIN opportunity_decisions d ON d.id=latest.max_id
+           WHERE {actionable_predicate('lc', 't')}
+             AND (?=0 OR d.score>=?)
+           ORDER BY CASE WHEN d.score IS NULL THEN 1 ELSE 0 END ASC,
+                    d.score DESC,
+                    t.publication_date DESC,
+                    t.source ASC,
+                    t.external_id ASC,
+                    t.id ASC
+           LIMIT ?""",
+        (account_id, minscore, minscore, limit),
+    ).fetchall()
+
+
 def api_radar():
     identity = getattr(_app.request, "obrasignal_identity", None) or configured_identity()
     limit = max(1, min(100, int(_app.request.args.get("limit", 20) or 20)))
@@ -138,14 +177,7 @@ def api_radar():
     conn = _app.db()
     try:
         _ensure(conn)
-        rows = conn.execute(
-            f"""SELECT t.* FROM tenders t
-               LEFT JOIN opportunity_lifecycle lc
-                 ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE t.score >= ? AND {actionable_predicate('lc', 't')}
-               ORDER BY t.score DESC, t.publication_date DESC LIMIT ?""",
-            (minscore, limit),
-        ).fetchall()
+        rows = _ranked_radar_rows(conn, identity.account_id, minscore, limit)
         items = enrich_rows(conn, rows, account_id=identity.account_id)
         return _app.jsonify(
             items=items,
@@ -167,14 +199,7 @@ def radar_page():
     conn = _app.db()
     try:
         _ensure(conn)
-        rows = conn.execute(
-            f"""SELECT t.* FROM tenders t
-               LEFT JOIN opportunity_lifecycle lc
-                 ON lc.source=t.source AND lc.external_id=t.external_id
-               WHERE t.score >= ? AND {actionable_predicate('lc', 't')}
-               ORDER BY t.score DESC, t.publication_date DESC LIMIT 100""",
-            (minscore,),
-        ).fetchall()
+        rows = _ranked_radar_rows(conn, identity.account_id, minscore, 100)
         items = enrich_rows(conn, rows, account_id=identity.account_id)
         return render_radar_page(items, minscore=minscore)
     finally:
