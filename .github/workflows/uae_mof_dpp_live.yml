@@ -1,0 +1,45 @@
+name: UAE MoF DPP Live Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'uae_mof_dpp.py'
+      - 'test_uae_mof_dpp.py'
+      - '.github/workflows/uae_mof_dpp_live.yml'
+      - 'research/MENA_UAE_MOF_DPP_IMPLEMENTATION_RECORD_20260825.md'
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'requests>=2.32,<3'
+      - name: Fetch pages parse filter identity normalize
+        run: |
+          python - <<'PY'
+          from uae_mof_dpp import fetch_current_opportunities, normalize_construction_opportunities
+
+          rows = fetch_current_opportunities(timeout=20, max_pages=10)
+          assert rows, 'official federal opportunities returned no RFQs'
+          ids = [r.rfq_number for r in rows]
+          assert len(ids) == len(set(ids)), 'RFQ collision after pagination'
+          signals = normalize_construction_opportunities(rows)
+          assert signals, 'no construction tenders admitted from public federal opportunities'
+          for signal in signals:
+              assert signal['source'] == 'AE_MOF_DPP'
+              assert signal['signal_type'] == 'TENDER'
+              assert signal['source_reference'] == signal['external_id']
+              assert signal['country'] == 'ARE'
+              assert signal['publication_date']
+              assert signal['deadline']
+              assert signal['title']
+          print(f"LIVE_OK rfqs={len(rows)} construction={len(signals)} sample={[s['external_id'] for s in signals[:8]]}")
+          PY
