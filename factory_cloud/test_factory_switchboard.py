@@ -24,6 +24,12 @@ class FactorySwitchboardTests(unittest.TestCase):
         self.assertTrue(packet["payload"].startswith("D — RESUME THE EXISTING FACTORY"))
         self.assertNotIn("Ω", packet["payload"])
 
+    def test_historical_changeledger_alias_resolves_to_scopeledger(self) -> None:
+        packet = start_packet("changeledger", load_switchboard())
+        self.assertEqual(packet["requested_factory_id"], "changeledger")
+        self.assertEqual(packet["factory_id"], "scopeledger")
+        self.assertEqual(packet["name"], "ScopeLedger")
+
     def test_unknown_factory_fails_closed(self) -> None:
         with self.assertRaises(Exception):
             start_packet("not-registered", load_switchboard())
