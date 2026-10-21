@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from company_profile import load_profile, derive_profile
 
 _COUNTRY_ALIASES = {
@@ -13,8 +14,23 @@ _COUNTRY_ALIASES = {
 }
 
 
+def _normalize_match_text(value):
+    """Normalize text equivalence without inventing semantic similarity."""
+    folded = unicodedata.normalize("NFKD", str(value or "").casefold())
+    folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", folded).strip()
+
+
 def _text(row):
-    return re.sub(r"\s+", " ", " ".join(str(row.get(k) or "") for k in ("title", "description", "buyer")).lower())
+    return _normalize_match_text(" ".join(str(row.get(k) or "") for k in ("title", "description", "buyer")))
+
+
+def _contains_term(text, term):
+    """Match a normalized term on token boundaries, not arbitrary substrings."""
+    normalized = _normalize_match_text(term)
+    if not normalized:
+        return False
+    return re.search(rf"(?<!\w){re.escape(normalized)}(?!\w)", text) is not None
 
 
 def _value(row):
@@ -51,15 +67,15 @@ def personalized_score(row, base_score=None, profile=None):
     hits, excludes = [], []
 
     for keyword in profile.get("keywords", []):
-        k = str(keyword).lower().strip()
-        if k and k in text:
+        raw = re.sub(r"\s+", " ", str(keyword).casefold()).strip()
+        if raw and _contains_term(text, raw):
             score += 6
-            hits.append(k)
+            hits.append(raw)
     for keyword in profile.get("exclude_keywords", []):
-        k = str(keyword).lower().strip()
-        if k and k in text:
+        raw = re.sub(r"\s+", " ", str(keyword).casefold()).strip()
+        if raw and _contains_term(text, raw):
             score -= 12
-            excludes.append(k)
+            excludes.append(raw)
 
     countries = {_country_code(x) for x in profile.get("countries", []) if x}
     country = _country_code(row.get("country"))
