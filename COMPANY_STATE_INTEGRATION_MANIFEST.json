@@ -1,0 +1,122 @@
+{
+  "CELL": "OBRASIGNAL — Q090 COMPANY OPERATIONAL STATE & OFFICE FOUNDATION CELL",
+  "MODULE": "Q090_COMPANY_STATE_CONTRACT / company-state.v1",
+  "CONTRACT VERSION": "company-state.v1",
+  "BRANCH": "feature/q090-company-state-contract",
+  "PR": 223,
+  "BASE": "fce51d5b5524e09691f9187f7619ea0166217487",
+  "HEAD": "RESOLVE_FROM_PR_HEAD_AT_VALIDATION_TIME",
+  "HEAD POLICY": "The commit SHA is not embedded because changing this file would change the SHA. Exact final HEAD and CI run are recorded in PR metadata/final evidence.",
+  "EXACT-HEAD RUNS": "Recorded in PR metadata/final evidence after the final immutable HEAD. Embedding a post-run identifier here would itself change HEAD and invalidate that evidence.",
+  "OWNS": [
+    "company operational fact contract",
+    "explicit unknown/time/freshness/provenance/epistemic semantics",
+    "tenant-private company-state snapshots",
+    "single Company Profile projection seam",
+    "neutral downstream fact/constraint adapters",
+    "narrow trusted OFFICE/registry/integration provider ingestion seam"
+  ],
+  "DOES NOT OWN": [
+    "Company Profile commercial preferences",
+    "Opportunity Requirements extraction or eligibility",
+    "Readiness decisions",
+    "Bid Economics calculations",
+    "MOBILIZE calculations",
+    "BANGS price/cost intelligence",
+    "SHADOW optimization",
+    "COMMAND decisions",
+    "ACTION authorization",
+    "ERP, HR, payroll, accounting, CRM, fleet management"
+  ],
+  "PUBLIC CONTRACTS PROVIDED": [
+    "CompanyState / CompanyFact / Money / Provenance (company-state.v1)",
+    "CompanyStateService trusted-tenant voluntary DECLARED read/write/history boundary",
+    "CompanyStateService.ingest_trusted_facts",
+    "company_state_from_profile",
+    "requirements_facts",
+    "readiness_inputs",
+    "economics_constraints",
+    "mobilize_inputs",
+    "bangs_inputs"
+  ],
+  "PUBLIC CONTRACTS CONSUMED": [
+    "existing Company Profile mapping/load seam (optional adapter)",
+    "caller-provided canonical sqlite3 connection",
+    "trusted account identity supplied by the future canonical auth/transport adapter"
+  ],
+  "CONSUMER MATRIX": {
+    "capability.*": {"consumers": ["Requirements", "Readiness"], "semantics": "company capability evidence; never eligibility", "dependency": "OPTIONAL"},
+    "qualification.*": {"consumers": ["Requirements", "Readiness"], "semantics": "known/unknown qualification evidence with validity/provenance preserved", "dependency": "OPTIONAL"},
+    "geography.base": {"consumers": ["MOBILIZE", "BANGS", "Readiness"], "semantics": "operational base only; never inferred from preferred markets", "dependency": "OPTIONAL"},
+    "geography.operating_countries": {"consumers": ["Requirements", "Readiness"], "semantics": "operational geography evidence; profile preference cannot satisfy it", "dependency": "OPTIONAL"},
+    "geography.preferred_*": {"consumers": ["Company Profile/UI only"], "semantics": "commercial preference; excluded from Requirements eligibility seam", "dependency": "OPTIONAL"},
+    "crew.total_count": {"consumers": ["Readiness", "BANGS", "future Q130"], "semantics": "known total operational capacity; not available crew", "dependency": "OPTIONAL"},
+    "crew.available_count": {"consumers": ["MOBILIZE", "Readiness", "BANGS", "future Q130"], "semantics": "time-scoped available workers; zero distinct from unknown", "dependency": "OPTIONAL"},
+    "vehicle.available_count": {"consumers": ["MOBILIZE", "BANGS"], "semantics": "available vehicles; ownership alone is insufficient", "dependency": "OPTIONAL"},
+    "equipment.*": {"consumers": ["Requirements", "Readiness", "BANGS"], "semantics": "decision-relevant owned/access/availability facts; no supplier pricing", "dependency": "OPTIONAL"},
+    "finance.maximum_cash_exposure": {"consumers": ["Bid Economics", "Readiness"], "semantics": "explicit Money constraint only; Q090 performs no opportunity comparison", "dependency": "OPTIONAL"},
+    "finance.working_capital_limit": {"consumers": ["Bid Economics", "Readiness"], "semantics": "explicit Money constraint only; no accounting inference", "dependency": "OPTIONAL"},
+    "finance.guarantee_limit": {"consumers": ["Bid Economics", "Readiness"], "semantics": "explicit guarantee-capacity constraint; not cash or insurance premium", "dependency": "OPTIONAL"}
+  },
+  "OPTIONAL DEPENDENCIES": [
+    "Q080 public Evidence/provenance references when canonical",
+    "existing Company Profile for initial projection",
+    "future OFFICE/registry/integration trusted provider implementations"
+  ],
+  "HARD DEPENDENCIES": [
+    "Q080 queue dependency for canonical promotion/integration authorization",
+    "trusted tenant identity at application boundary",
+    "canonical SQLite persistence connection if persistence is activated"
+  ],
+  "CANONICAL FILES TOUCHED": [],
+  "MIGRATIONS": "Additive runtime ensure_company_state_schema creates company_state_snapshots + index in the caller-provided canonical SQLite connection; no destructive migration and no second DB. Existing incompatible/partial schemas fail closed, and the tenant+version uniqueness invariant is verified.",
+  "FEATURE FLAGS": "None added; Q090 remains QUEUED and is not runtime-enabled.",
+  "RUNTIME REGISTRATION": "NONE",
+  "AUTH/TENANT IMPACT": "No new verifier. Future HTTP adapter must derive account_id from canonical configured_identity(); payload/query tenant identity is forbidden. Voluntary writes are server-labeled DECLARED and cannot self-promote to VERIFIED, PUBLIC_REGISTRY, INTEGRATION or LEARNED provenance or forge verification/audit anchors. Voluntary revocation/supersession affects only manual DECLARED facts. Trusted provider ingestion also receives tenant identity only from its trusted server caller.",
+  "PERSISTENCE": "Append-only bounded tenant-scoped snapshots with deterministic fingerprint, history, consecutive replay idempotency, optimistic concurrency, row/snapshot metadata consistency checks, verified account_id+state_version uniqueness and explicit rollback on persistence failures. Manual redeclarations supersede only prior current manual declarations of the same semantic fact. Trusted providers supersede only their own prior current observation for the same semantic key+basis+source. Future-dated replacement facts do not suppress the prior current fact until effective_from is reached; once effective, supersession prevents historical truth from silently resurrecting after the replacement later becomes stale/expired. Historical snapshots remain immutable.",
+  "LIVE EXTERNAL DEPENDENCIES": [],
+  "TEST STATUS": "Focused Company State coverage includes domain epistemics, zero-vs-unknown, stale/current/conflict semantics, future-effective supersession, malformed money/control-character validation, profile projection, consumer metadata, persistence/history, migration/schema failure, tenancy, concurrent/stale writes, voluntary mutation boundaries, trusted provider ingestion, privacy, architecture and realistic minimal-data product acceptance. The authoritative completion claim is the exact final PR HEAD ObraSignal Quality run recorded outside this self-referential manifest.",
+  "LIVE STATUS": "NOT LIVE VALIDATED; no live external company-state provider or Q090 runtime endpoint exists in this queued prebuild.",
+  "PRODUCTION STATUS": "NOT DEPLOYED / NOT PRODUCTION VALIDATED",
+  "CONFLICT RISKS": [
+    "Readiness PR #153 currently overloads a profile-like company_state mapping for economic_fit fallback; Integration Lab must keep Q090 operational facts separate.",
+    "Q080 Evidence contract is not canonical on current main; evidence references remain adapter-friendly strings until authorized integration.",
+    "Parallel Bid Economics PR #169 defines a contract-local Money type. Q090 also requires Decimal+currency because no canonical Money exists on main; future integration must translate through public amount/currency representations rather than coupling private Money classes."
+  ],
+  "KNOWN OVERLAPS": [
+    "Company Profile supplies stable/commercial fields but is not operational state; profile countries/regions are projected only as geography.preferred_* and cannot prove operating geography.",
+    "Requirements #152 may match company facts but owns requirement assessment; requirements_facts intentionally excludes geography.preferred_*.",
+    "Readiness #153 consumes company context but owns readiness status.",
+    "Bid Economics #169 owns financial calculation.",
+    "MOBILIZE #146 owns mobilization calculation.",
+    "BANGS #195 owns field cost/supply intelligence.",
+    "Future Outcome/DNA may submit learned observations, but LEARNED is constrained to INFERENCE rather than FACT."
+  ],
+  "SUPERSEDES": [],
+  "SUPERSEDED BY": [],
+  "REQUIRED MERGE ORDER": [
+    "Do not merge automatically.",
+    "Preserve canonical Master Queue; Q080 must satisfy its dependency/promotion gate before Q090 canonical promotion.",
+    "Integrate Q090 contract/persistence only when authorized.",
+    "Then combine one consumer at a time through public adapters: Requirements/Readiness, Bid Economics, MOBILIZE, BANGS/OFFICE as separately authorized."
+  ],
+  "ROLLBACK": "Before merge: close PR/delete branch. After a future authorized merge: revert Q090 commits. Leave additive table inert unless a separately reviewed privacy/data-retention migration authorizes removal.",
+  "SAFE INTEGRATION PROCEDURE": [
+    "Recheck main HEAD and Master Queue immediately before integration.",
+    "Reconcile/cherry-pick semantically without modifying CURRENT_ITEM_ID or promoting Q090; never resolve canonical conflicts with blind ours/theirs.",
+    "Run fresh/existing/partial/repeated SQLite schema tests and full exact-head Quality.",
+    "Bind any HTTP layer only to canonical configured_identity().account_id; never accept client tenant authority.",
+    "Keep voluntary HTTP/user facts on the DECLARED/manual boundary; do not permit them to forge provenance, audit anchors or trusted supersession.",
+    "Use ingest_trusted_facts only from trusted server adapters. Require explicit provider source_ref and observed_at; reject future audit timestamps and empty evidence batches.",
+    "Trusted provider supersession is same semantic fact + same provenance basis + same source only. Cross-source disagreement remains CONFLICT unless a separate canonical precedence contract is authorized.",
+    "A future-effective superseding fact must not hide the prior current fact before its effective_from; after that boundary, do not resurrect the old fact when the replacement later goes stale or expires.",
+    "Keep LEARNED observations as INFERENCE and UNAVAILABLE observations as UNKNOWN.",
+    "Keep Company Profile and Company State separate; profile market geography is preference, not operational eligibility/capacity.",
+    "Preserve knowledge_states and provenance_bases from scalar consumer envelopes; KNOWN means a usable value exists, not that it is necessarily externally verified FACT.",
+    "Translate Q090 and Bid Economics monetary values through public amount/currency semantics; do not import either module's private Money class into the other.",
+    "Wire only public consumer adapters; never import another capability's private storage/internals.",
+    "Consumers must not read Company State private storage directly, infer zero from missing data, mutate state during evaluation or invent facts.",
+    "Run Integration Lab combinations and Golden Path tenant/unknown/stale/conflict/provider scenarios before any promotion.",
+    "Keep rollback/revert available and do not deploy as a side effect of integration."
+  ]
+}
