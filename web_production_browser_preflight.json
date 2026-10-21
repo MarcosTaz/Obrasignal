@@ -1,0 +1,267 @@
+{
+  "contract_version": "production-browser-preflight.v1",
+  "snapshot": {
+    "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+    "observed_at": "2026-08-25T20:49:00+01:00",
+    "stale_if_main_moves": true
+  },
+  "policy": {
+    "real_browser_observation_required": true,
+    "exact_deployed_build_required": true,
+    "unknown_fails_closed": true,
+    "conditional_skip_fails_closed": true,
+    "tenant_isolation_is_blocking": true,
+    "evidence_must_be_privacy_safe": true,
+    "saved_watch_is_conditional_scope": true,
+    "operational_web_gate_is_not_commercial_completion": true
+  },
+  "config_requirements": [
+    {
+      "id": "EXACT_DEPLOYED_BUILD",
+      "required": true,
+      "requirement": "Browser evidence must identify the deployed Web/API build and prove it corresponds to the intended canonical SHA; historical green from another SHA cannot transfer.",
+      "owner": "WEB_PRODUCT + RELEASE + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": [
+        "main@66d43f6 Web Preview is green and Production Smoke proves exact API build plus Web shell, but the real browser acceptance session has not yet captured the exact deployed build identity"
+      ],
+      "reopen_condition": "Record the exact deployed build SHA during the sanitized browser session and match it to the intended canonical release tree."
+    },
+    {
+      "id": "WEB_ORIGIN",
+      "required": true,
+      "requirement": "Use the production HTTPS browser origin https://marcostaz.github.io/Obrasignal/ with no localhost/dev fallback.",
+      "owner": "WEB_PRODUCT",
+      "result": "PASS",
+      "evidence": [
+        "#68 records the GitHub Pages production deployment at https://marcostaz.github.io/Obrasignal/"
+      ],
+      "reopen_condition": "Any Web origin or Pages deployment topology change."
+    },
+    {
+      "id": "WEB_PUBLIC_AUTH_CONFIG",
+      "required": true,
+      "requirement": "Web Preview environment must provide EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY without recording their values in acceptance artifacts.",
+      "owner": "WEB_PRODUCT + AUTH_CONFIG",
+      "result": "PASS",
+      "evidence": [
+        "#68 states the Web deployment requires production Supabase public configuration and current-main Web Preview is green"
+      ],
+      "reopen_condition": "Any Web build/config change or failed production-configured Web Preview."
+    },
+    {
+      "id": "WEB_API_ORIGIN",
+      "required": true,
+      "requirement": "EXPO_PUBLIC_API_URL must resolve to the production HTTPS API origin, not localhost/dev/staging, and the value must be inspected without committing credentials or private data.",
+      "owner": "WEB_PRODUCT + RELEASE",
+      "result": "UNKNOWN",
+      "evidence": [
+        "mobile/.env.example defines EXPO_PUBLIC_API_URL but current #68 browser evidence has not recorded the resolved production browser runtime target"
+      ],
+      "reopen_condition": "Sanitized browser/runtime evidence proves the bundle targets the intended production API origin."
+    },
+    {
+      "id": "SUPABASE_REDIRECT",
+      "required": true,
+      "requirement": "Supabase Site URL / allowed redirect URL must include the production Web origin so signup/email-confirmation/session return is truthful.",
+      "owner": "AUTH_CONFIG + WEB_PRODUCT",
+      "result": "UNKNOWN",
+      "evidence": [
+        "#68 lists production Site URL / allowed redirect configuration as required; no real-browser confirmation redirect evidence is yet recorded"
+      ],
+      "reopen_condition": "Observe successful configured signup/login return on the production origin, including email confirmation redirect when enabled."
+    },
+    {
+      "id": "BACKEND_PROVIDER_AUTH",
+      "required": true,
+      "requirement": "Production backend must run OBRASIGNAL_AUTH_MODE=provider with valid OBRASIGNAL_JWT_ISSUER, OBRASIGNAL_JWT_AUDIENCE and effective JWKS configuration; no config values are captured.",
+      "owner": "PRODUCTION_AUTH",
+      "result": "PASS",
+      "evidence": [
+        "current-main Production Smoke and Authenticated E2E are green; public health metadata proves provider-mode configuration/readiness without exposing provider identifiers"
+      ],
+      "reopen_condition": "Any provider/auth/runtime change or provider-health regression."
+    },
+    {
+      "id": "CORS_BROWSER_ORIGIN",
+      "required": true,
+      "requirement": "OBRASIGNAL_CORS_ORIGIN must exactly allow the production browser origin in provider mode; wildcard or missing origin fails closed.",
+      "owner": "SECURITY_OPERABILITY + WEB_PRODUCT",
+      "result": "PASS",
+      "evidence": [
+        "#68 records the production GitHub Pages origin in backend configuration and current-main Production Smoke verifies CORS"
+      ],
+      "reopen_condition": "Any browser/API origin or CORS implementation/config change."
+    },
+    {
+      "id": "DETERMINISTIC_CUSTOMER_DATA",
+      "required": true,
+      "requirement": "The acceptance account must have deterministic tenant-safe opportunity data sufficient for Radar -> detail -> source -> workflow; a no-data conditional skip is not acceptance.",
+      "owner": "E2E_FIXTURE_277 + AUTH_E2E + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": [
+        "#335 current HEAD 91d3fd53 provides a test-only isolated tenant-safe fixture seam and exact-head Quality+CodeQL are green",
+        "#335 is not canonical; #289 still has an Auth-owned nested workflow response parser mismatch and FULL no-skip consumption is not proven"
+      ],
+      "reopen_condition": "Canonical or accepted composed fixture path plus repaired #289 consumer and Golden/browser evidence guarantee detail/workflow coverage without conditional skipping in an explicitly allowed test environment."
+    },
+    {
+      "id": "ACCOUNT_A_B_PRINCIPALS",
+      "required": true,
+      "requirement": "Use isolated Account A and Account B test principals for negative tenant-isolation proof; artifacts refer only to aliases A/B and never expose credentials or raw private account identifiers.",
+      "owner": "GOLDEN + AUTH_E2E",
+      "result": "UNKNOWN",
+      "evidence": [
+        "No completed #68 real-browser A/B acceptance evidence is recorded yet"
+      ],
+      "reopen_condition": "Golden records sanitized A/B browser isolation evidence on the exact deployed build."
+    }
+  ],
+  "journey_matrix": [
+    {
+      "id": "SIGNUP_LOGIN",
+      "required": true,
+      "requirement": "Signup/login succeeds in the real production browser, including confirmation redirect when enabled, with truthful customer-visible errors on failure.",
+      "owner": "WEB_PRODUCT + PRODUCTION_AUTH + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": ["#68 remains open because the real browser path has not been observed"],
+      "reopen_condition": "Record sanitized real-browser signup/login evidence on the exact deployed build."
+    },
+    {
+      "id": "SESSION_RELOAD",
+      "required": true,
+      "requirement": "Authenticated session survives a hard reload according to the intended production session contract and does not silently fall back to another identity.",
+      "owner": "WEB_PRODUCT + PRODUCTION_AUTH + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": ["No #68 real-browser session reload evidence is recorded"],
+      "reopen_condition": "Observe hard reload/session restoration and identity continuity in production browser."
+    },
+    {
+      "id": "PROFILE_ONBOARDING",
+      "required": true,
+      "requirement": "Company onboarding/profile save succeeds and the customer receives a truthful success/error state.",
+      "owner": "WEB_PRODUCT + COMPANY_PROFILE + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": ["Current API synchronously recalculates Radar after profile save, but #68 real-browser observation remains absent"],
+      "reopen_condition": "Observe profile save in browser and record the resulting customer-visible state."
+    },
+    {
+      "id": "FIRST_TRUTHFUL_RADAR",
+      "required": true,
+      "requirement": "After profile save, the first Radar shown is classified from that saved profile and does not present stale/empty/unknown source state as a zero-market fact.",
+      "owner": "WEB_PRODUCT + SOURCE_HEALTH + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": ["Profile save -> bootstrap is synchronous on current main; synthetic 25-row first-value measurement is p50 245 ms / p95 514 ms and 250-row bound is p50 2342 ms / p95 4375 ms; this is benchmark evidence, not a production SLO; source-health canonical/Golden composition remains incomplete"],
+      "reopen_condition": "Observe the first post-save Radar with deterministic data and truthful source-state presentation on the exact deployed browser build."
+    },
+    {
+      "id": "DETAIL_SOURCE",
+      "required": true,
+      "requirement": "Open a deterministic opportunity detail, verify account-specific score/explanation and open the intended source link without cross-tenant private evidence.",
+      "owner": "WEB_PRODUCT + GOLDEN + E2E_FIXTURE_277",
+      "result": "UNKNOWN",
+      "conditional_skip": false,
+      "evidence": ["#335 supplies a candidate deterministic fixture seam, but it is noncanonical and current Auth/Golden/browser no-skip consumption is not yet proven"],
+      "reopen_condition": "Record one deterministic real-browser detail/source path with no conditional skip."
+    },
+    {
+      "id": "WORKFLOW_PERSISTENCE",
+      "required": true,
+      "requirement": "Change a canonical workflow state and prove the same account sees it persist after reload; another account must not see or mutate it.",
+      "owner": "WEB_PRODUCT + WORKFLOW + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": ["Canonical workflow states are NEW/REVIEWING/PREPARING/SUBMITTED/WON/LOST; no real-browser #68 persistence evidence yet"],
+      "reopen_condition": "Record workflow update, reload persistence and cross-account negative proof."
+    },
+    {
+      "id": "SAVED_WATCH",
+      "required": false,
+      "requirement": "Prove save/watch only if a canonical save/watch contract has actually landed; do not use #68 to pull Watchlist #150 into current scope.",
+      "owner": "PRODUCT_STRATEGY + WEB_PRODUCT",
+      "result": "NOT_IN_SCOPE",
+      "scope_note": "Product Strategy reconciled this #68 line as conditional/stale; current canonical workflow has no saved state and #150 is non-canonical.",
+      "evidence": ["#68 Product Strategy gate reconciliation explicitly marks saved/watch conditional unless canonical scope changes"],
+      "reopen_condition": "A canonical save/watch capability is integrated into the release target."
+    },
+    {
+      "id": "TENANT_A_B_ISOLATION",
+      "required": true,
+      "requirement": "Account A private profile/decisions/workflow never appear to Account B across login/logout/reload/navigation; unauthenticated browser/API access is rejected.",
+      "owner": "WEB_PRODUCT + PRODUCTION_AUTH + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": ["Automated account-scoping exists and #335 proves candidate fixture cross-tenant rejection, but #68 still requires real-browser A/B proof"],
+      "reopen_condition": "Golden records real-browser A/B negative isolation evidence on the exact build."
+    },
+    {
+      "id": "LOGOUT_RELOGIN_RETURN",
+      "required": true,
+      "requirement": "Logout removes authenticated customer state; relogin restores only the same account's intended persisted state and returning-customer navigation remains truthful.",
+      "owner": "WEB_PRODUCT + PRODUCTION_AUTH + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": ["No complete #68 real-browser logout/relogin/return evidence is recorded"],
+      "reopen_condition": "Observe logout, unauthenticated state, relogin and returning customer state."
+    },
+    {
+      "id": "ERROR_DEGRADED_OFFLINE",
+      "required": true,
+      "requirement": "Exercise loading plus bounded auth/API/source unavailable/degraded/partial/offline states; customer UI must not convert UNKNOWN into success/zero-data truth and must expose a safe recovery path.",
+      "owner": "WEB_PRODUCT + SECURITY_OPERABILITY + SOURCE_HEALTH + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": ["#68 has no recorded real-browser degraded/offline/partial-data acceptance; operability readiness is separately UNKNOWN"],
+      "reopen_condition": "Record sanitized browser evidence for required degraded/error/offline/partial scenarios and recovery behavior."
+    },
+    {
+      "id": "RESPONSIVE_ACCESSIBILITY",
+      "required": true,
+      "requirement": "Primary journey is usable at representative desktop/tablet/mobile viewport widths with keyboard navigation, visible focus, readable labels and no blocking layout overflow.",
+      "owner": "WEB_PRODUCT + GOLDEN",
+      "result": "UNKNOWN",
+      "evidence": ["Build/shell success is not responsive or accessibility acceptance"],
+      "reopen_condition": "Record representative viewport and keyboard/focus acceptance evidence."
+    },
+    {
+      "id": "WEB_BILLING_INFORMATIONAL",
+      "required": true,
+      "requirement": "Current Web billing gate remains truthful and informational/non-purchasable; passing this step must not be represented as self-service commercial completion.",
+      "owner": "WEB_PRODUCT + BILLING + PRODUCT_STRATEGY",
+      "result": "UNKNOWN",
+      "evidence": ["#68 scope allows informational/non-purchasable billing; #352 separately owns future Web Evaluation -> purchase -> server-confirmed Pro"],
+      "reopen_condition": "Observe the current canonical informational billing state in browser without requiring #352 for this operational gate."
+    }
+  ],
+  "evidence_template": {
+    "required_fields": [
+      "timestamp",
+      "browser_version",
+      "os",
+      "deployed_build_sha",
+      "web_origin",
+      "api_origin",
+      "account_alias",
+      "action",
+      "expected",
+      "observed",
+      "result",
+      "sanitized_artifact_ref",
+      "owner",
+      "reopen_condition"
+    ],
+    "optional_fields": [
+      "viewport",
+      "correlation_id",
+      "source_state",
+      "notes"
+    ],
+    "allowed_results": ["PASS", "FAIL", "UNKNOWN", "BLOCKED_EXTERNAL", "NOT_IN_SCOPE"],
+    "privacy_rules": [
+      "Never capture passwords, bearer tokens, JWTs, refresh tokens, provider secrets or authorization headers.",
+      "Use Account A / Account B aliases instead of raw account identifiers in screenshots, HARs and notes.",
+      "Redact profile payloads, workflow notes and confidential company state unless a minimal synthetic value is necessary for the test.",
+      "If correlation_id exists, it must be opaque and safe to share with support; otherwise record UNKNOWN rather than inventing one."
+    ]
+  },
+  "go_no_go": {
+    "GO": "All required config requirements and required journey rows PASS on the same exact deployed canonical build, with no conditional skip and no tenant/privacy leak. This is #68 operational browser GO only, not release/commercial GO.",
+    "NO_GO": "Any required FAIL, UNKNOWN, BLOCKED_EXTERNAL, conditional skip, exact-build mismatch, tenant leak, unsafe evidence capture or untruthful degraded/empty state."
+  }
+}

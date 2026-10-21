@@ -1,0 +1,48 @@
+{
+  "contract_version": "production-operability-acceptance.v1",
+  "snapshot": {
+    "canonical_main": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+    "observed_at": "2026-08-25T20:45:00+01:00",
+    "stale_if_main_moves": true
+  },
+  "policy": {
+    "liveness_is_not_readiness": true,
+    "unknown_fails_closed": true,
+    "degraded_fails_closed": true,
+    "critical_dependency_unknown_fails_closed": true,
+    "support_evidence_must_be_privacy_safe": true,
+    "operability_ready_is_not_release_go": true
+  },
+  "probes": {
+    "liveness": {
+      "state": "UP",
+      "evidence": "current main /api/v1/health returns ok=true with service/version/build/time and auth decoration"
+    },
+    "database": {
+      "state": "UNKNOWN",
+      "evidence": "current canonical health response does not execute or report a bounded database readiness probe"
+    },
+    "worker": {
+      "state": "UNKNOWN",
+      "evidence": "current worker catches sync exceptions, prints them and sleeps; no canonical heartbeat/stalled/degraded readiness state is exposed"
+    },
+    "dependencies": [
+      {
+        "name": "critical_upstreams",
+        "critical": true,
+        "state": "UNKNOWN",
+        "evidence": "no canonical aggregate critical-dependency readiness contract proves unavailable/degraded upstream state separately from liveness"
+      }
+    ],
+    "support_correlation": {
+      "state": "UNKNOWN",
+      "evidence": "no canonical request/support correlation identifier contract is proven on the customer API path",
+      "safety": {
+        "opaque_identifier": null,
+        "excludes_bearer_jwt_secrets": null,
+        "excludes_profile_notes_private_payloads": null,
+        "excludes_raw_account_identifier": null
+      }
+    }
+  }
+}

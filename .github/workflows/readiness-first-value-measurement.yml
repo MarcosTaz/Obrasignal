@@ -1,0 +1,44 @@
+name: Readiness First Value Measurement
+
+on:
+  pull_request:
+    paths:
+      - 'production_readiness_manifest.json'
+      - 'measure_first_value_latency.py'
+      - 'measure_bootstrap_phases.py'
+      - '.github/workflows/readiness-first-value-measurement.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OBRASIGNAL_TEST_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.OBRASIGNAL_TEST_SHA }}
+          persist-credentials: false
+      - name: Confirm exact revision under measurement
+        run: test "$(git rev-parse HEAD)" = "$OBRASIGNAL_TEST_SHA"
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Measure profile save to first truthful Radar
+        run: python measure_first_value_latency.py --iterations 20 --output first_value_latency_measurement.json
+      - name: Measure synchronous bootstrap phase dominance
+        run: python measure_bootstrap_phases.py --iterations 12 --output bootstrap_phase_measurement.json
+      - name: Upload measurement evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: first-value-latency-${{ env.OBRASIGNAL_TEST_SHA }}
+          path: |
+            first_value_latency_measurement.json
+            bootstrap_phase_measurement.json
+          if-no-files-found: error
+          retention-days: 14
