@@ -1,0 +1,45 @@
+name: Oman Esnad Live Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'oman_esnad.py'
+      - 'test_oman_esnad.py'
+      - '.github/workflows/oman_esnad_live.yml'
+      - 'research/MENA_OMAN_ESNAD_IMPLEMENTATION_RECORD_20260825.md'
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'requests>=2.32,<3'
+      - name: Fetch upcoming parse filter identity normalize
+        run: |
+          python - <<'PY'
+          from oman_esnad import fetch_upcoming_tenders, normalize_construction_plans
+
+          rows = fetch_upcoming_tenders(timeout=25)
+          assert rows, 'official Upcoming Tender view yielded no rows'
+          ids = [r.internal_id for r in rows]
+          assert len(ids) == len(set(ids)), 'publisher internal-id collision'
+          plans = normalize_construction_plans(rows)
+          assert plans, 'no construction/public-works upcoming signals classified'
+          for signal in plans:
+              assert signal['source'] == 'OM_ESNAD'
+              assert signal['signal_type'] == 'PROCUREMENT_PLAN'
+              assert signal['external_id'].isdigit()
+              assert signal['source_reference']
+              assert signal['country'] == 'OMN'
+              assert signal['title']
+              assert signal['buyer']
+          print(f"LIVE_OK upcoming={len(rows)} construction_plans={len(plans)} sample={[(p['external_id'], p['source_reference']) for p in plans[:5]]}")
+          PY
