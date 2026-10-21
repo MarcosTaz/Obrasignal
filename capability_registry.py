@@ -68,6 +68,14 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         publishes_events=("opportunity.updated", "signal.lifecycle_changed"),
         private_data_owner="SIGNAL",
     ),
+    "OPPORTUNITY_CHANGE_HISTORY": _c(
+        "OPPORTUNITY_CHANGE_HISTORY", "RESEARCH", "SIGNAL",
+        contract_versions=("opportunity_change_history.v0",),
+        publishes_events=("opportunity.changed",),
+        dependencies=("SIGNAL",),
+        feature_flag="opportunity_change_history_v0",
+        private_data_owner="SIGNAL",
+    ),
     "EVIDENCE": _c(
         "EVIDENCE", "EXPERIMENT", "COMMAND",
         contract_versions=("evidence.v1-draft",),
