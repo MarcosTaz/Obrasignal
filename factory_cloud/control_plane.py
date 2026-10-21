@@ -13,6 +13,7 @@ from factory_cloud.capabilities import (
     parse_capabilities,
     require_capabilities,
 )
+from factory_cloud.portfolio_priority import PortfolioPriorityError, priority_for_app
 
 REGISTRY_PATH = Path(__file__).with_name("apps.json")
 ACTIVATION_CODE = "D"
@@ -101,6 +102,30 @@ def _validate_capability_contract(app: dict[str, Any], mode: str) -> None:
         raise RegistryError(f"repository_mutation_capability disagrees with declared capabilities: {app_id}")
 
 
+def _validate_portfolio_priority(app: dict[str, Any]) -> None:
+    try:
+        priority_for_app(app)
+    except PortfolioPriorityError as exc:
+        raise RegistryError(f"invalid portfolio priority for {app['app_id']}: {exc}") from exc
+
+
+def _validate_runtime_wait_app(app: dict[str, Any]) -> None:
+    app_id = app["app_id"]
+    activation = app.get("activation") or {}
+    if activation.get("enabled") is not False or activation.get("mode") != "runtime_provisioning_wait":
+        raise RegistryError(f"runtime wait app must be disabled and explicit: {app_id}")
+    if not str(app.get("development_state") or "").endswith("RUNTIME_PROVISIONING_WAIT"):
+        raise RegistryError(f"runtime wait development_state required: {app_id}")
+    baton = app.get("baton") or {}
+    if str(baton.get("active") or "") != "runtime:provision":
+        raise RegistryError(f"runtime wait baton must remain on runtime:provision: {app_id}")
+    # Validate the repository-safe contract that would become active after host
+    # provisioning, without granting activation merely because metadata exists.
+    _validate_execution_source(app, "repository_safe_execution")
+    _validate_capability_contract(app, "repository_safe_execution")
+    _validate_portfolio_priority(app)
+
+
 def validate_registry(registry: dict[str, Any]) -> None:
     if registry.get("activation_code") != ACTIVATION_CODE:
         raise RegistryError("activation_code must be D")
@@ -136,12 +161,15 @@ def validate_registry(registry: dict[str, Any]) -> None:
             raise RegistryError(f"application mission required: {app_id}")
         activation = app.get("activation") or {}
         if activation.get("enabled") is not True:
+            if activation.get("mode") == "runtime_provisioning_wait":
+                _validate_runtime_wait_app(app)
             continue
         mode = activation.get("mode")
         if mode not in {"repository_safe_execution", "read_only_until_source_resolved"}:
             raise RegistryError(f"unsupported activation mode for {app_id}: {mode}")
         _validate_execution_source(app, mode)
         _validate_capability_contract(app, mode)
+        _validate_portfolio_priority(app)
 
 
 def build_queue(registry: dict[str, Any]) -> list[AppWorkItem]:
@@ -151,11 +179,12 @@ def build_queue(registry: dict[str, Any]) -> list[AppWorkItem]:
         if activation.get("enabled") is not True:
             continue
         baton = app.get("baton") or {}
+        effective_priority = priority_for_app(app).score
         queue.append(
             AppWorkItem(
                 app_id=app["app_id"],
                 name=app["name"],
-                priority=int(activation.get("priority", 0)),
+                priority=effective_priority,
                 mode=activation["mode"],
                 active=str(baton.get("active") or ""),
                 next_items=tuple(str(x) for x in baton.get("next", [])),
@@ -178,6 +207,7 @@ def activation_plan(code: str, registry: dict[str, Any]) -> dict[str, Any]:
             "blocked_app": "freeze baton and continue with next eligible app",
             "turn_boundary": "freeze exact baton; next execution slice resumes from RESUME_AT",
             "status_is_not_execution": True,
+            "priority_is_not_authority": True,
         },
         "safety": {
             "automatic_merge": False,
@@ -192,6 +222,7 @@ def activation_plan(code: str, registry: dict[str, Any]) -> dict[str, Any]:
                 "app_id": item.app_id,
                 "name": item.name,
                 "priority": item.priority,
+                "portfolio_priority": dict(app_by_id[item.app_id].get("portfolio_priority") or {}),
                 "mode": item.mode,
                 "active": item.active,
                 "next": list(item.next_items),
