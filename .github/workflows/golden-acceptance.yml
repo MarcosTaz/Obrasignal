@@ -1,0 +1,32 @@
+name: Golden Acceptance
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+      - name: Prove exact tested head
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          echo "PRODUCT_ACCEPTANCE_HEAD=$EXPECTED_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest
+      - name: Run deterministic golden acceptance
+        run: >-
+          PYTHONPATH=. pytest -q --import-mode=importlib
+          tests/test_system_acceptance_golden.py
+          tests/test_acceptance_integration_manifest.py

@@ -1,0 +1,284 @@
+{
+  "schema_version": 2,
+  "manifest_version": "acceptance-integration.v2",
+  "baseline": {
+    "branch": "main",
+    "head_sha": "fce51d5b5524e09691f9187f7619ea0166217487",
+    "tree_sha": "eac97dee4390ffba831241b7465df9e1e04f2fcc",
+    "acceptance_scope": "CURRENT_MAIN_PLUS_EXPLICITLY_NAMED_BRANCH_CANDIDATES",
+    "automatic_merge": false,
+    "production_mutation": false,
+    "master_queue_mutation": false
+  },
+  "main_change_observed_during_lab": {
+    "change": "Auth repair PR #198 merged by authorized external integration while this lab was running",
+    "effect": "AUTH implementation is now canonical on main; all pre-merge acceptance evidence remains historical exact-head evidence only",
+    "post_merge_quality": "PASS",
+    "post_merge_production_smoke": "FAIL",
+    "post_merge_authenticated_e2e": "FAIL",
+    "authenticated_e2e_failure_step": "Verify authenticated API identity",
+    "production_smoke_failure_step": "Wake and check exact API deployment health",
+    "root_cause": "UNKNOWN"
+  },
+  "product_journey": [
+    "DISCOVER", "SAVE", "COMPARE", "REQUIREMENTS", "DOCUMENTS", "READINESS",
+    "EVIDENCE", "MILESTONES", "ECONOMICS", "MOBILIZATION", "BANGS",
+    "DECISION", "WORKSPACE", "OUTCOME", "BUYER", "LIFECYCLE"
+  ],
+  "product_completeness": {
+    "DISCOVER": {"implementation": "IMPLEMENTED", "acceptance": "FAIL", "reason": "expired opportunity can remain is_actionable=true in the default actionable feed"},
+    "SAVE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "Watchlist PR #150", "historical_combination_evidence": "PR #208 positive L4 fixture path on pre-current-main integration base"},
+    "COMPARE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "FAIL", "candidate": "PR #151", "reason": "monetary adversarial failures reproduced by bisection PRs #201/#202"},
+    "REQUIREMENTS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #152"},
+    "DOCUMENTS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #156"},
+    "READINESS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #153"},
+    "EVIDENCE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #147/#194; registry experiment state is not product acceptance"},
+    "MILESTONES": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #170"},
+    "ECONOMICS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #169"},
+    "MOBILIZATION": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #146"},
+    "BANGS": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #195"},
+    "DECISION": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #160"},
+    "WORKSPACE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #172"},
+    "OUTCOME": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #163"},
+    "BUYER": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #164"},
+    "LIFECYCLE": {"implementation": "INTEGRATION_BLOCKED", "acceptance": "GATED", "candidate": "PR #167/#166/#168"}
+  },
+  "cross_cutting_capabilities": {
+    "AUTH": {
+      "implementation": "IMPLEMENTED",
+      "main_sha": "fce51d5b5524e09691f9187f7619ea0166217487",
+      "domain_api_quality": "PASS",
+      "deployed_acceptance": "FAIL",
+      "evidence": [
+        "ObraSignal Quality push run 32844542420 succeeded",
+        "ObraSignal Authenticated E2E run 32844542527 failed at Verify authenticated API identity",
+        "ObraSignal Production Smoke run 32844542604 failed at Wake and check exact API deployment health"
+      ]
+    }
+  },
+  "acceptance_matrix_scope": "CURRENT_MAIN",
+  "acceptance_matrix": [
+    {
+      "journey": "AUTH_LIST_DETAIL_PROVENANCE",
+      "domain": "NOT_APPLICABLE",
+      "combination": "NOT_APPLICABLE",
+      "api": "FAIL",
+      "tenant": "PASS",
+      "system": "GATED",
+      "live": "FAIL",
+      "notes": [
+        "Auth is implemented on current main",
+        "closed/actionability false claim remains current",
+        "server-derived tenant semantics have deterministic coverage",
+        "Save is not canonical on current main",
+        "current deployed authenticated identity verification fails"
+      ]
+    },
+    {
+      "journey": "SAVE_TENANT_READBACK",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Watchlist is branch-only; historical #208 positive path does not establish current-main acceptance"]
+    },
+    {
+      "journey": "COMPARE",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "FAIL",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Compare is branch-only and fails non-finite/precision monetary adversarial bisections"]
+    },
+    {
+      "journey": "REQUIREMENTS_READINESS",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Requirements #152 and Readiness #153 individually tested but not accepted in one current-main controlled tree"]
+    },
+    {
+      "journey": "DOCUMENTS_CHANGE_EVIDENCE",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_APPLICABLE",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Documents #156, Change History #155 and Evidence #147/#194 require controlled combination"]
+    },
+    {
+      "journey": "MILESTONES",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_APPLICABLE",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Milestones #170 is branch-only"]
+    },
+    {
+      "journey": "ECONOMICS_MOBILIZATION_BANGS",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Bid Economics #169, Mobilize #146 and BANGS #195 require combination acceptance"]
+    },
+    {
+      "journey": "DECISION_WORKSPACE_OUTCOME",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_IMPLEMENTED",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Decision #160, Workspace #172 and Outcome #163 remain branch-only"]
+    },
+    {
+      "journey": "PROCUREMENT_LIFECYCLE",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_APPLICABLE",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Plan #167, Lineage #166 and Contract Expiry #168 remain branch-only"]
+    },
+    {
+      "journey": "BUYER_PROFILE",
+      "domain": "NOT_IMPLEMENTED",
+      "combination": "GATED",
+      "api": "NOT_IMPLEMENTED",
+      "tenant": "NOT_APPLICABLE",
+      "system": "GATED",
+      "live": "NOT_IMPLEMENTED",
+      "notes": ["Buyer Profile #164 remains branch-only"]
+    }
+  ],
+  "release_golden_subset": [
+    {"id": "RELEASE_GOLDEN_01", "journey": "authenticated discover/detail", "status": "FAIL", "blocking": ["BUG-GP-001 closed/actionability contradiction", "current deployed authenticated identity verification failure", "current production smoke health failure"]},
+    {"id": "RELEASE_GOLDEN_02", "journey": "tenant save/read isolation", "status": "GATED", "blocking": ["Watchlist not integrated on current main"]},
+    {"id": "RELEASE_GOLDEN_03", "journey": "unknown-vs-zero", "status": "PASS", "scope": "deterministic API fixture"},
+    {"id": "RELEASE_GOLDEN_04", "journey": "closed opportunity protection", "status": "FAIL", "blocking": ["expired opportunity may remain is_actionable=true"]},
+    {"id": "RELEASE_GOLDEN_05", "journey": "decision/outcome separation", "status": "GATED", "blocking": ["Decision and Outcome not integrated on current main"]},
+    {"id": "RELEASE_GOLDEN_06", "journey": "evidence/provenance", "status": "GATED", "scope": "source identity/source URL are testable; full Evidence product contract is not current-main accepted", "blocking": ["Evidence combination not canonical/product accepted"]}
+  ],
+  "defects": [
+    {
+      "id": "BUG-GP-001",
+      "classification": ["FALSE-CLAIM BUG", "DATA SEMANTICS BUG", "PRODUCT BUG"],
+      "scenario": "ADV_CLOSED_OPPORTUNITY",
+      "expected": "expired opportunity is not open or actionable without stronger current source evidence",
+      "observed": "current main can combine deadline_status=closed/is_open=false with is_actionable=true; default list, alerts and decision stats rely on COALESCE lifecycle actionability",
+      "root_cause": "legacy missing-lifecycle compatibility defaults actionability to true while deadline truth is evaluated separately",
+      "owner_cell": "SIGNAL / OPPORTUNITY LIFECYCLE + OPPORTUNITY API",
+      "fix_required": "define canonical precedence and apply it to list/detail/alerts/stats while retaining historical records",
+      "retest": ["ADV_CLOSED_OPPORTUNITY", "GP01A_DISCOVER_DETAIL_TRUTH", "RELEASE_GOLDEN_04"],
+      "issue": 210
+    },
+    {
+      "id": "GAP-GP-002",
+      "classification": ["CONTRACT BUG", "ACCEPTANCE TESTABILITY GAP"],
+      "scenario": "temporal replayability",
+      "expected": "all temporal product acceptance can use one explicit injected clock",
+      "observed": "Opportunity API presentation still derives current time internally; Readiness branch has an injected domain clock but it is not canonical",
+      "root_cause": "no canonical clock seam at the current Opportunity read-model boundary",
+      "owner_cell": "ASSEMBLY / SIGNAL API CONTRACT",
+      "fix_required": "add a narrow injectable clock seam without changing source deadline precision or lifecycle ownership",
+      "retest": ["GP01A_DISCOVER_DETAIL_TRUTH", "ADV_CLOSED_OPPORTUNITY", "ADV_STALE_DATA"]
+    },
+    {
+      "id": "BUG-GP-003",
+      "classification": ["AUTH BUG", "DEPLOYED ACCEPTANCE BUG"],
+      "scenario": "GP15_REAL_AUTH_DEPLOYED",
+      "expected": "deployed API accepts a real Supabase token and returns authenticated identity; production smoke proves the exact target deployment healthy",
+      "observed": "on current main fce51d5b, Supabase authentication/no-token/malformed-token checks pass but authenticated API identity fails; production smoke separately fails exact API deployment health",
+      "root_cause": "UNKNOWN; do not reduce to JWT verification without deployment/runtime evidence",
+      "owner_cell": "PRODUCTION CLOSURE & AUTHENTICATION INTEGRATION",
+      "fix_required": "diagnose deployed API revision/health and authenticated profile boundary, then rerun post-merge production smoke and authenticated E2E on the exact deployed revision",
+      "retest": ["GP15_REAL_AUTH_DEPLOYED", "RELEASE_GOLDEN_01"]
+    },
+    {
+      "id": "GAP-GP-004",
+      "classification": ["INTEGRATION BUG"],
+      "scenario": "GP01B_SAVE_TENANT_READBACK",
+      "expected": "first Golden Path includes real Watchlist Save and tenant-safe readback on current main",
+      "observed": "Watchlist remains branch-only; historical PR #208 passed the positive L4 fixture path on a prior integration base",
+      "root_cause": "Watchlist has not been integrated/revalidated on the new current main",
+      "owner_cell": "INTEGRATION LAB + WATCHLIST OWNER",
+      "fix_required": "build the minimum current-main + Watchlist combination and overlay the GP01 acceptance contract",
+      "retest": ["GP01B_SAVE_TENANT_READBACK", "RELEASE_GOLDEN_02"]
+    },
+    {
+      "id": "BUG-GP-005",
+      "classification": ["DATA SEMANTICS BUG", "INTEGRATION BUG"],
+      "scenario": "COMPARE",
+      "expected": "money comparison fails closed for non-finite and unsafe-precision inputs",
+      "observed": "Quality fails on adversarial bisection PR #201 for non-finite values and #202 for precision boundary",
+      "root_cause": "Compare-owned monetary normalization/precision contract under investigation",
+      "owner_cell": "COMPARE OWNER; INTEGRATION LAB validates corrected combination",
+      "fix_required": "correct money parsing/comparison before any product ranking or best-opportunity language",
+      "retest": ["COMPARE", "ADV_MULTI_CURRENCY"]
+    }
+  ],
+  "integration_lab_handoffs": [
+    {
+      "handoff_id": "INT-GP-01",
+      "purpose": "First current-main Golden Path",
+      "required_modules": ["current main fce51d5b with canonical Auth", "Watchlist PR #150", "Golden acceptance harness PR #207"],
+      "minimum_combination": "current main + Watchlist only; historical #203/#208 are evidence, not the current validation target",
+      "acceptance_tests": ["GP01A_DISCOVER_DETAIL_TRUTH", "GP01B_SAVE_TENANT_READBACK", "ADV_CLOSED_OPPORTUNITY", "ADV_ZERO_UNKNOWN", "GP14_AUTH_TENANT"],
+      "expected_contracts": ["server-derived tenant", "closed not actionable", "unknown remains unknown", "Save tenant isolated", "source/provenance preserved"],
+      "do_not_include": ["Compare until BUG-GP-005 is corrected"]
+    },
+    {
+      "handoff_id": "INT-GP-02",
+      "purpose": "Requirements to Readiness",
+      "required_modules": ["current main", "Requirements PR #152", "Readiness PR #153", "Golden acceptance harness"],
+      "minimum_combination": "Requirements + Readiness public contracts on one current-main-derived tree",
+      "acceptance_tests": ["GP02_REQUIREMENTS_READINESS"],
+      "expected_contracts": ["missing company facts UNKNOWN", "partial coverage cannot READY", "known blocker remains blocker", "Readiness never auto-PURSUE"]
+    },
+    {
+      "handoff_id": "INT-GP-03",
+      "purpose": "Economics and operational truth",
+      "required_modules": ["current main", "Bid Economics PR #169", "Mobilize PR #146", "BANGS PR #195", "Golden acceptance harness"],
+      "minimum_combination": "public/domain contracts first; provider calls remain optional and fail closed",
+      "acceptance_tests": ["GP05_ECONOMICS", "GP06_MOBILIZATION", "GP07_BANGS_KNOWN_EXECUTION_COST", "ADV_MULTI_CURRENCY", "ADV_PROVIDER_FAILURE"],
+      "expected_contracts": ["unknown cost not zero", "mixed currency fail closed", "observed price not quote", "listed not available", "partial known cost not total"]
+    },
+    {
+      "handoff_id": "INT-GP-04",
+      "purpose": "Procurement lifecycle truth",
+      "required_modules": ["current main", "Procurement Plan PR #167", "Lineage PR #166", "Expiring Contract PR #168", "Golden acceptance harness"],
+      "minimum_combination": "canonical lifecycle contracts before live-source expansion",
+      "acceptance_tests": ["GP11_PROCUREMENT_LIFECYCLE", "ADV_SIMILAR_TITLES"],
+      "expected_contracts": ["plan not tender", "tender not award", "award not contract", "expiry not retender", "same title never sufficient lineage"]
+    }
+  ],
+  "historical_exact_head_evidence": {
+    "acceptance_infrastructure_old_main": {"head": "f36f4ec2a114a9d6f5f3abe827bddc3514036e4e", "Golden Acceptance": "PASS", "ObraSignal Quality": "PASS"},
+    "gp01_auth_watchlist_candidate": {"pr": 208, "head": "2a8ab11c392d7d9ca64065ab89329f67f9b1bc92", "tree": "282cc87bc339165b92c5ebe67afe01f605cb7e53", "Golden GP01 Combination": "PASS", "ObraSignal Quality": "PASS", "full_gp01": "FAIL due BUG-GP-001"},
+    "requirements_candidate": {"pr": 205, "head": "20d2f2526941808de48d298edf63e2afda1fe679", "ObraSignal Quality": "PASS", "JWT Verifier Live Gate": "PASS"},
+    "readiness_candidate": {"pr": 153, "head": "f9a6ae2fe55e4fc6291e7eb5fd2e502579a9bab0", "ObraSignal Quality": "PASS"}
+  },
+  "release_policy": {
+    "release_gate_must_be_fast": true,
+    "full_suite_broader_than_release_gate": true,
+    "product_accepted_requires_exact_tested_head": true,
+    "branch_candidate_is_not_available_in_product": true,
+    "fixture_pass_is_not_live_pass": true,
+    "live_pass_is_not_deployed_pass": true,
+    "historical_pass_is_not_current_main_pass": true
+  }
+}
