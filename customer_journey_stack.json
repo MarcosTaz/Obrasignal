@@ -1,0 +1,70 @@
+{
+  "factory_title": "Customer Journey, First Value & Outcome Integrity",
+  "canonical_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "ACTIVE": [
+    {
+      "step": "FIRST_VALUE_ACCEPTANCE_CORPUS",
+      "goal": "Convert the deterministic outcome corpus into executable composition proof without stealing Decision or Source semantics.",
+      "current_evidence": "customer_first_value_corpus.json distinguishes GOOD_MATCH, truthful NO_MATCH, insufficient information, stale source, partial coverage, closed opportunity, incomplete profile and system failure; only GOOD_MATCH is a first-value candidate.",
+      "next_material_proof": "Bind corpus scenarios to owner public contracts and supported Web render/Golden evidence; do not promote non-canonical #399 or owner semantics into canonical truth."
+    },
+    {
+      "step": "REPEAT_VALUE_ACCEPTANCE_CORPUS",
+      "goal": "Turn second/repeat-value candidates into executable current-truth journeys rather than engagement metrics.",
+      "current_evidence": "customer_repeat_value_corpus.json separates materially new opportunity/change/recovered coverage from notification delivery, return visits, cache hydration and billing-only changes; Saved remains PREBUILD and workflow continuation remains owner-semantics-required.",
+      "next_material_proof": "Prove one Web-first second-value scenario on current owner contracts after source-currentness and durable continuation dependencies are composition-safe."
+    },
+    {
+      "step": "PROFILE_TO_RADAR_CAUSALITY",
+      "goal": "Extend exact-head backend/API profile-mutation proof through the actual supported Web render/Golden boundary without converting Decision score into a journey-owned classification.",
+      "current_evidence": "Synthetic tenant-safe test proves profile mutation -> new account decision -> immediate Radar/detail convergence using real profile/bootstrap/Decision code.",
+      "next_material_proof": "Customer-facing render/Golden remains separate evidence."
+    }
+  ],
+  "NEXT": [
+    {
+      "step": "CUSTOMER_VALUE_METRICS",
+      "owner": "Evaluation lifecycle + Product Analytics",
+      "state": "BROKEN_FALSE_FIRST_VALUE_OTHER_OWNER",
+      "input": "canonical evaluation_policy.py; routed to #333 comment 5418496096",
+      "action": "Require TIME_TO_FIRST_VALUE_SECONDS to use an explicitly meaningful customer-outcome event; alert_delivered alone must not establish first value. Activation/access semantics remain distinct from outcome metrics."
+    },
+    {
+      "step": "SAVE_REVIEW",
+      "owner": "Watchlist/Saved",
+      "state": "PREBUILD_OWNER_REANCHOR_REQUIRED",
+      "input": "#150@879ef88233d9b86f9905e7281409b8897e4f4a89",
+      "action": "Re-evaluate only after owner reanchors on current main; do not build a parallel saved truth."
+    },
+    {
+      "step": "WORKFLOW_PURSUIT",
+      "owner": "State Machine/Workflow",
+      "state": "PARTIAL_TRANSITION_SEMANTICS_UNPROVEN",
+      "input": "canonical detail/actionability + workflow routes; routed to #488 comment 5418534353",
+      "action": "Owner must define lifecycle/actionability-aware legal transition/precondition matrix. Web/Mobile must not present an impossible next action, but Customer Journey must not invent which historical/progress transitions remain valid after source closure."
+    },
+    {
+      "step": "REPEAT_VALUE_RUNTIME_COMPOSITION",
+      "owner": "Customer Journey composition",
+      "state": "CORPUS_DEFINED_CANONICAL_JOURNEY_UNPROVEN",
+      "input": "customer_repeat_value_corpus.json",
+      "action": "Select highest-leverage Web-first scenario once owner currentness/continuation contracts are canonical or exact-tree integration evidence is available; notification count and return visits remain non-value."
+    }
+  ],
+  "WAIT": [
+    {
+      "step": "RADAR_ZERO_STATE",
+      "boundary": "GOLDEN",
+      "input": "#399@44ca24fbe2862e1a79231ec1f2b811bcbdbbbb3b",
+      "reason": "Exact integration is Quality-green but non-canonical; customer-visible fresh/aging/stale/unknown and false-zero behavior needs independent Golden acceptance.",
+      "reopen_condition": "Golden accepts/rejects #399, any #298/#327/#399 input head moves, or canonical main changes this dependency surface."
+    },
+    {
+      "step": "NOTIFICATION_RETURN",
+      "boundary": "REAL_DEVICE_GOLDEN",
+      "input": "#263 as referenced by #298",
+      "reason": "Background/closed-app delivery and tap-return cannot be established from repository-only evidence.",
+      "reopen_condition": "Physical-device Golden supplies a deterministic pass/fail reproducer or a relevant owner candidate changes the tap-return contract."
+    }
+  ]
+}

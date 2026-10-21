@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "factory_title": "Customer Journey, First Value & Outcome Integrity",
+  "canonical_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "purpose": "Journey-level outcome scenarios only. Specialist owners remain authoritative for matching, source health, lifecycle, billing, notification, auth and analytics semantics.",
+  "first_value_candidate_contract": {
+    "required_customer_outcome": [
+      "authenticated legitimate account",
+      "usable current company profile",
+      "source/data currentness sufficient for the customer claim being made",
+      "account-specific opportunity intelligence resolved by owner authority",
+      "customer can inspect why the opportunity matters without fabricated score/reason semantics",
+      "current actionability is known enough for the next action shown",
+      "at least one meaningful next action or intentional valid defer path exists"
+    ],
+    "not_sufficient_alone": [
+      "login",
+      "profile_saved",
+      "radar_loaded",
+      "page_view",
+      "first_shortlist_generated",
+      "notification_sent",
+      "alert_delivered",
+      "notification_opened",
+      "score_present",
+      "subscription_active"
+    ]
+  },
+  "allowed_outcomes": [
+    "FIRST_VALUE_CANDIDATE",
+    "TRUTHFUL_NO_MATCH",
+    "EDIT_PROFILE_REQUIRED",
+    "CURRENTNESS_UNCONFIRMED",
+    "INSUFFICIENT_INFORMATION",
+    "NO_LONGER_ACTIONABLE",
+    "RETRY_SYSTEM_FAILURE"
+  ],
+  "scenarios": [
+    {
+      "id": "GOOD_MATCH",
+      "profile_state": "VALID_CURRENT",
+      "source_state": "CURRENT_SUFFICIENT_FOR_CLAIM",
+      "opportunity_state": "CURRENT",
+      "decision_state": "OWNER_RESOLVED_ACCOUNT_SPECIFIC",
+      "actionability_state": "CURRENT_ACTIONABLE",
+      "expected_outcome": "FIRST_VALUE_CANDIDATE",
+      "customer_truth": "The customer can inspect a current account-specific opportunity, understand owner-provided relevance evidence, and take a meaningful currently available next action.",
+      "next_action": "INSPECT_AND_ACT_OR_DEFER",
+      "forbidden_claims": [
+        "score_is_probability",
+        "high_score_guarantees_qualification",
+        "source_found_means_market_complete"
+      ],
+      "owner_dependencies": ["Auth", "Profile", "Source Health", "Data Integrity", "Decision Intelligence", "Lifecycle/Actionability"]
+    },
+    {
+      "id": "NO_MATCH",
+      "profile_state": "VALID_CURRENT",
+      "source_state": "CURRENT_SUFFICIENT_FOR_NO_MATCH_CLAIM",
+      "opportunity_state": "NO_RELEVANT_CURRENT_MATCH",
+      "decision_state": "OWNER_RESOLVED",
+      "actionability_state": "N/A",
+      "expected_outcome": "TRUTHFUL_NO_MATCH",
+      "customer_truth": "No current relevant match was found within the explicitly supported current coverage; this is valid product behavior but is not silently generalized to zero market.",
+      "next_action": "RETURN_LATER_OR_EDIT_PROFILE",
+      "forbidden_claims": ["zero_market", "all_sources_complete_unless_proven", "first_value_from_empty_list_alone"],
+      "owner_dependencies": ["Source Health", "Decision Intelligence"]
+    },
+    {
+      "id": "INSUFFICIENT_INFORMATION",
+      "profile_state": "VALID_OR_PARTIAL",
+      "source_state": "CURRENT_OR_UNKNOWN",
+      "opportunity_state": "PARTIAL_DATA",
+      "decision_state": "UNKNOWN_OR_PARTIAL",
+      "actionability_state": "UNKNOWN",
+      "expected_outcome": "INSUFFICIENT_INFORMATION",
+      "customer_truth": "The product does not have enough authoritative information to turn uncertainty into relevance, irrelevance or actionability.",
+      "next_action": "REVIEW_AVAILABLE_FACTS_OR_RETURN_LATER",
+      "forbidden_claims": ["unknown_is_medium_score", "unknown_is_irrelevant", "unknown_is_actionable", "first_value"],
+      "owner_dependencies": ["Data Integrity", "Decision Intelligence", "Lifecycle/Actionability"]
+    },
+    {
+      "id": "STALE_SOURCE",
+      "profile_state": "VALID_CURRENT",
+      "source_state": "STALE",
+      "opportunity_state": "EMPTY_OR_RETAINED_HISTORY",
+      "decision_state": "MAY_BE_HISTORICAL",
+      "actionability_state": "MUST_RESOLVE_CURRENT_AUTHORITY",
+      "expected_outcome": "CURRENTNESS_UNCONFIRMED",
+      "customer_truth": "Stale source coverage cannot prove current market absence; retained historical opportunities remain distinguishable from current coverage.",
+      "next_action": "RETRY_OR_REVIEW_WITH_STALENESS_DISCLOSURE",
+      "forbidden_claims": ["zero_market", "healthy", "complete", "first_value_from_stale_empty"],
+      "owner_dependencies": ["Source Health", "Temporal Correctness", "Data Integrity"]
+    },
+    {
+      "id": "PARTIAL_COVERAGE",
+      "profile_state": "VALID_CURRENT",
+      "source_state": "PARTIAL_OR_DEGRADED",
+      "opportunity_state": "ZERO_OR_SOME_RESULTS",
+      "decision_state": "BOUNDED_TO_AVAILABLE_DATA",
+      "actionability_state": "PER_OPPORTUNITY_CURRENTNESS_REQUIRED",
+      "expected_outcome": "CURRENTNESS_UNCONFIRMED",
+      "customer_truth": "Available results may be useful, but partial coverage cannot be presented as complete market truth and an empty result cannot become zero market.",
+      "next_action": "INSPECT_AVAILABLE_RESULTS_WITH_COVERAGE_DISCLOSURE_OR_RETRY",
+      "forbidden_claims": ["coverage_complete", "zero_market", "all_relevant_opportunities_seen"],
+      "owner_dependencies": ["Source Health", "Data Integrity"]
+    },
+    {
+      "id": "CLOSED_OPPORTUNITY",
+      "profile_state": "VALID_CURRENT",
+      "source_state": "CURRENT_ENOUGH_FOR_LIFECYCLE",
+      "opportunity_state": "CURRENT_NON_ACTIONABLE",
+      "decision_state": "HISTORICAL_OR_CURRENT_RELEVANCE_MAY_EXIST",
+      "actionability_state": "NON_ACTIONABLE",
+      "expected_outcome": "NO_LONGER_ACTIONABLE",
+      "customer_truth": "A relevant opportunity that is now closed/cancelled/expired must not look like a currently pursuable opportunity; historical workflow/progress remains a separate owner-defined concept.",
+      "next_action": "REVIEW_HISTORY_OR_OWNER_ALLOWED_WORKFLOW_ONLY",
+      "forbidden_claims": ["pursue_now", "open", "deadline_available_when_closed", "automatic_workflow_transition_permission"],
+      "owner_dependencies": ["Lifecycle/Actionability", "State Machine/Workflow", "Web/Mobile presentation"]
+    },
+    {
+      "id": "PROFILE_INCOMPLETE",
+      "profile_state": "INCOMPLETE_OR_INVALID",
+      "source_state": "IRRELEVANT_TO_THIS_OUTCOME",
+      "opportunity_state": "MUST_NOT_BE_PRESENTED_AS_PERSONALIZED_VALUE",
+      "decision_state": "NOT_READY_FOR_CUSTOMER_CLAIM",
+      "actionability_state": "N/A",
+      "expected_outcome": "EDIT_PROFILE_REQUIRED",
+      "customer_truth": "The product tells the customer what profile information is required and does not present apparently personalized current relevance as if a usable profile existed.",
+      "next_action": "EDIT_PROFILE",
+      "forbidden_claims": ["personalized_value_received", "first_value", "profile_saved_when_invalid"],
+      "owner_dependencies": ["Profile", "Decision Intelligence"]
+    },
+    {
+      "id": "SYSTEM_FAILURE",
+      "profile_state": "ANY",
+      "source_state": "UNKNOWN_DUE_TO_SYSTEM_FAILURE",
+      "opportunity_state": "UNKNOWN_OR_STALE_CACHE",
+      "decision_state": "UNKNOWN_OR_PREVIOUSLY_CACHED",
+      "actionability_state": "UNKNOWN_UNLESS_CURRENTLY_PROVEN",
+      "expected_outcome": "RETRY_SYSTEM_FAILURE",
+      "customer_truth": "A system/network/API failure is disclosed as failure or possible staleness; cached information may aid continuity but is not relabeled current authority.",
+      "next_action": "RETRY",
+      "forbidden_claims": ["zero_market", "current", "healthy", "complete", "first_value_from_cached_or_failed_load"],
+      "owner_dependencies": ["Observability", "Resilience", "Web/Mobile", "Source Health where relevant"]
+    }
+  ]
+}

@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "factory_title": "Customer Journey, First Value & Outcome Integrity",
+  "canonical_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "purpose": "Define repeat-value journey outcomes without treating notification delivery, return visits, cache hydration or subscription state as value by themselves.",
+  "repeat_value_candidate_contract": {
+    "precondition": "A legitimate first useful outcome has already occurred; this corpus does not infer that precondition from login, exposure or billing.",
+    "required_customer_outcome": [
+      "new or newly useful current truth OR durable continuation that materially reduces customer effort",
+      "same authenticated tenant/account context",
+      "currentness sufficient for the claim shown",
+      "customer can understand what changed or what work can be continued",
+      "a meaningful next action, review decision or intentional defer path exists"
+    ],
+    "not_sufficient_alone": [
+      "app_opened",
+      "web_returned",
+      "radar_refreshed",
+      "cache_hydrated",
+      "notification_sent",
+      "alert_delivered",
+      "notification_opened",
+      "page_view",
+      "subscription_active",
+      "workflow_state_present",
+      "saved_record_present"
+    ]
+  },
+  "allowed_outcomes": [
+    "REPEAT_VALUE_CANDIDATE",
+    "CONTINUITY_ONLY",
+    "NO_NEW_VALUE",
+    "CURRENTNESS_UNCONFIRMED",
+    "PREBUILD_DEPENDENCY",
+    "OWNER_SEMANTICS_REQUIRED"
+  ],
+  "scenarios": [
+    {
+      "id": "NEW_RELEVANT_OPPORTUNITY",
+      "prior_state": "FIRST_USEFUL_OUTCOME_ALREADY_RECEIVED",
+      "change": "A genuinely new current opportunity receives current account-specific owner decision evidence.",
+      "currentness": "CURRENT_SUFFICIENT_FOR_CLAIM",
+      "expected_outcome": "REPEAT_VALUE_CANDIDATE",
+      "customer_benefit": "Customer learns about materially useful new work without repeating manual market discovery.",
+      "next_action": "INSPECT_AND_ACT_OR_DEFER",
+      "forbidden_claims": ["notification_delivery_is_repeat_value", "duplicate_record_is_new_value", "score_change_alone_is_new_opportunity"],
+      "owner_dependencies": ["Source", "Source Health", "Data Integrity", "Decision Intelligence"]
+    },
+    {
+      "id": "CURRENT_OPPORTUNITY_MATERIAL_CHANGE",
+      "prior_state": "KNOWN_OPPORTUNITY",
+      "change": "Authoritative opportunity truth changes materially, such as lifecycle/actionability or another customer-relevant source update.",
+      "currentness": "CURRENT_AUTHORITY_RESOLVED",
+      "expected_outcome": "REPEAT_VALUE_CANDIDATE",
+      "customer_benefit": "Customer avoids acting on old assumptions and can adjust the next step to current truth.",
+      "next_action": "REVIEW_CHANGE_AND_ADAPT",
+      "forbidden_claims": ["any_timestamp_change_is_value", "stale_update_is_current", "closed_opportunity_is_pursuable"],
+      "owner_dependencies": ["Source", "Temporal Correctness", "Lifecycle/Actionability", "Data Integrity"]
+    },
+    {
+      "id": "WORKFLOW_CONTINUATION",
+      "prior_state": "CUSTOMER_HAS_DURABLE_PURSUIT_OR_REVIEW_WORK",
+      "change": "Customer returns to durable workflow context and can continue legitimate work without reconstructing prior state manually.",
+      "currentness": "WORKFLOW_CURRENT_AND_OPPORTUNITY_TRUTH_RECONCILED",
+      "expected_outcome": "OWNER_SEMANTICS_REQUIRED",
+      "customer_benefit": "Potential repeat value is avoided manual reconstruction and enabled continuation, but only if workflow semantics and current actionability permit the next action.",
+      "next_action": "OWNER_ALLOWED_WORKFLOW_CONTINUATION",
+      "forbidden_claims": ["workflow_state_present_is_repeat_value", "system_state_proves_real_world_progress", "closed_means_no_historical_progress"],
+      "owner_dependencies": ["State Machine/Workflow", "Lifecycle/Actionability", "Persistence"]
+    },
+    {
+      "id": "SAVED_OPPORTUNITY_CHANGE",
+      "prior_state": "CUSTOMER_SAVED_OPPORTUNITY",
+      "change": "A saved opportunity has materially changed and the customer can review the current truth.",
+      "currentness": "CURRENT_OPPORTUNITY_REQUIRED",
+      "expected_outcome": "PREBUILD_DEPENDENCY",
+      "customer_benefit": "Would create repeat value by reconnecting durable intent to changed current truth, but Saved is not canonical on current main.",
+      "next_action": "WAIT_FOR_CURRENT_SAVED_CONTRACT",
+      "forbidden_claims": ["stale_watchlist_candidate_is_canonical", "saved_record_alone_is_repeat_value"],
+      "owner_dependencies": ["Watchlist/Saved #150 reanchor", "Source", "Lifecycle/Actionability"]
+    },
+    {
+      "id": "SOURCE_COVERAGE_RECOVERED",
+      "prior_state": "PRIOR_COVERAGE_DEGRADED_STALE_UNAVAILABLE_OR_UNKNOWN",
+      "change": "Source coverage returns to a current owner-proven state and yields materially useful current market truth.",
+      "currentness": "SOURCE_HEALTH_OWNER_REQUIRED",
+      "expected_outcome": "REPEAT_VALUE_CANDIDATE",
+      "customer_benefit": "Customer receives trustworthy current market information that was previously unavailable or unconfirmed.",
+      "next_action": "REVIEW_NEWLY_CURRENT_MARKET_TRUTH",
+      "forbidden_claims": ["health_status_change_alone_is_customer_value", "recovery_proves_complete_market", "noncanonical_source_health_is_canonical"],
+      "owner_dependencies": ["Source Health", "Source", "Data Integrity"]
+    },
+    {
+      "id": "NOTIFICATION_DELIVERED_ONLY",
+      "prior_state": "ANY_POST_FIRST_VALUE_STATE",
+      "change": "Notification transport reports delivered but customer outcome is not resolved.",
+      "currentness": "UNRESOLVED",
+      "expected_outcome": "NO_NEW_VALUE",
+      "customer_benefit": "None established by delivery alone.",
+      "next_action": "NONE_PROVEN",
+      "forbidden_claims": ["repeat_value", "customer_informed", "customer_acted", "notification_opened_is_current_truth"],
+      "owner_dependencies": ["Notification"]
+    },
+    {
+      "id": "RETURN_NO_MATERIAL_CHANGE",
+      "prior_state": "CUSTOMER_RETURNS_TO_PRODUCT",
+      "change": "Radar/detail current truth is unchanged and no durable work is newly enabled.",
+      "currentness": "CURRENT",
+      "expected_outcome": "CONTINUITY_ONLY",
+      "customer_benefit": "Continuity/trust may be preserved, but no second value event is fabricated.",
+      "next_action": "CONTINUE_NORMAL_USE_OR_RETURN_LATER",
+      "forbidden_claims": ["app_open_is_repeat_value", "radar_refresh_is_repeat_value", "page_view_is_repeat_value"],
+      "owner_dependencies": ["Web/Mobile"]
+    },
+    {
+      "id": "STALE_CACHE_RETURN",
+      "prior_state": "CUSTOMER_REOPENS_WITH_LOCAL_CACHE",
+      "change": "Cached prior state renders before current authority is confirmed or current refresh fails.",
+      "currentness": "STALE_OR_UNCONFIRMED",
+      "expected_outcome": "CURRENTNESS_UNCONFIRMED",
+      "customer_benefit": "Cache may aid continuity, but cannot establish repeat value or current opportunity truth.",
+      "next_action": "RETRY_CURRENT_AUTHORITY",
+      "forbidden_claims": ["cache_is_authority", "repeat_value", "current", "new_truth"],
+      "owner_dependencies": ["Persistence/Storage", "Web/Mobile", "Source Health where relevant"]
+    },
+    {
+      "id": "BILLING_STATE_CHANGED_ONLY",
+      "prior_state": "ANY_POST_FIRST_VALUE_STATE",
+      "change": "Subscription/entitlement state changes without a new or continued customer outcome.",
+      "currentness": "BILLING_AUTHORITY_REQUIRED",
+      "expected_outcome": "NO_NEW_VALUE",
+      "customer_benefit": "Commercial/access state may change, but billing state is not product value by itself.",
+      "next_action": "FOLLOW_BILLING_JOURNEY_IF_REQUIRED",
+      "forbidden_claims": ["subscription_is_repeat_value", "paid_is_product_market_fit", "billing_event_is_customer_outcome"],
+      "owner_dependencies": ["Billing"]
+    }
+  ]
+}
