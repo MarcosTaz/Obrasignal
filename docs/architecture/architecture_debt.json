@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "baseline_main_sha": "66d43f6fd51cf9cea08016dad335aaa04b711a24",
+  "items": [
+    {
+      "id": "ARCH-001",
+      "module": "sitecustomize.py / cors_app.py -> sync_funnel_hook.py",
+      "owner": "ARCHITECTURE",
+      "violation": "Python startup previously made sync_funnel_hook production-reachable, installing a process-wide threading.Thread.start monkeypatch to solve a worker-import race that no longer exists in the current app startup path.",
+      "blast_radius": "PROCESS_WIDE_STARTUP",
+      "customer_risk": "STARTUP_ORDER_AND_BACKGROUND_WORKER",
+      "change_frequency": "UNKNOWN",
+      "proof": ["sitecustomize.py", "sync_funnel_hook.py", "app.py", "cors_app.py", "tests/test_architecture_startup_boundary.py"],
+      "repair_path": "Remove production imports of sync_funnel_hook and preserve the explicit WSGI invariant preload/runtime composition -> start_background_worker. Keep the hook module itself until dead-code reachability is separately proven.",
+      "status": "REPAIR_CANDIDATE_PR_457"
+    },
+    {
+      "id": "ARCH-002",
+      "module": "sitecustomize.py",
+      "owner": "ARCHITECTURE_WEB_BOUNDARY",
+      "violation": "Interpreter startup still monkeypatches flask.render_template_string process-wide to replace dashboard presentation.",
+      "blast_radius": "PROCESS_WIDE_FLASK_PRESENTATION",
+      "customer_risk": "PRESENTATION_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["sitecustomize.py"],
+      "repair_path": "Stage an explicit Flask presentation registration or template migration with behavior-preserving tests before removing the compatibility patch.",
+      "status": "ACKNOWLEDGED_DEBT"
+    },
+    {
+      "id": "ARCH-003",
+      "module": "preload.py",
+      "owner": "ARCHITECTURE_COMPOSITION",
+      "violation": "Legacy production composition shim spans Sources, Configuration, Observability, Auth, Account, Decision and Web and mutates app runtime seams after import.",
+      "blast_radius": "PRODUCTION_INGESTION_AND_REQUEST_COMPOSITION",
+      "customer_risk": "CROSS_DOMAIN_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["preload.py", "cors_app.py"],
+      "repair_path": "Freeze the existing direct app mutation surface; decompose only through staged explicit seams with compatibility proof.",
+      "status": "ACKNOWLEDGED_BASELINE"
+    },
+    {
+      "id": "ARCH-004",
+      "module": "app.py:init_db",
+      "owner": "PERSISTENCE_WITH_BILLING_HANDOFF",
+      "violation": "Application startup composes multiple domain schema owners and directly creates the Billing webhook event table.",
+      "blast_radius": "DATABASE_STARTUP_SCHEMA",
+      "customer_risk": "STARTUP_AND_PERSISTENCE_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["app.py", "cors_app.py"],
+      "repair_path": "Persistence/Billing should own any semantic storage move; Architecture only freezes new cross-domain schema edges until an owner-approved staged migration exists.",
+      "status": "ROUTED_OTHER_OWNER"
+    },
+    {
+      "id": "ARCH-005",
+      "module": "api.py -> preload.py",
+      "owner": "ARCHITECTURE_API_BOUNDARY",
+      "violation": "The API facade depends on private preload implementation details, including _preload._app.db() and the private _deadline_dt helper.",
+      "blast_radius": "MOBILE_API_AND_PRODUCTION_COMPOSITION",
+      "customer_risk": "API_STARTUP_AND_BOUNDARY_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["api.py", "preload.py", "cors_app.py"],
+      "repair_path": "Introduce or reuse an explicit public runtime/persistence seam, then remove private preload access with exact API behavior and startup-order proof.",
+      "status": "ACKNOWLEDGED_DEBT"
+    },
+    {
+      "id": "ARCH-006",
+      "module": "app.py <-> company_profile.py -> account_registry.py -> app.py",
+      "owner": "ARCHITECTURE_WITH_ACCOUNT_BILLING_COMPANY_STATE_HANDOFF",
+      "violation": "Runtime SCC spans app, company_profile and account_registry. app.init_db lazily imports both profile/account schema owners; company_profile.save_profile lazily writes into Account/Evaluation; account_registry imports app.APP at module load and dynamically reimports app for db(). Domain modules therefore depend upward on the root application while the root depends back on them.",
+      "blast_radius": "STARTUP_COMPANY_PROFILE_ACCOUNT_AUTH_BILLING_API",
+      "customer_risk": "IMPORT_ORDER_STARTUP_PROFILE_AND_ENTITLEMENT_REGRESSION",
+      "change_frequency": "UNKNOWN",
+      "proof": ["app.py", "company_profile.py", "account_registry.py", "tools/architecture_graph.py"],
+      "repair_path": "Keep the exact three-module SCC frozen. Stage explicit framework registration and persistence seams before removing upward app dependencies; route Company Profile -> Account/Evaluation semantic writes to Company State/Account owners; Account/Billing own entitlement semantics; Architecture owns dependency direction and cycle removal.",
+      "status": "ACKNOWLEDGED_CYCLE_BASELINE"
+    },
+    {
+      "id": "ARCH-007",
+      "module": "mobile/src/billing.js -> mobile/components/BillingGate.js",
+      "owner": "ARCHITECTURE_WITH_BILLING_HANDOFF",
+      "violation": "The Mobile billing adapter is the sole direct react-native-purchases SDK importer, but raw RevenueCat model details still escape into BillingGate.js through managementURL, expirationDate, availablePackages, priceString and userCancelled.",
+      "blast_radius": "MOBILE_BILLING_UI_AND_PROVIDER_REPLACEMENT",
+      "customer_risk": "BILLING_UI_REGRESSION_AND_PROVIDER_LOCK_IN",
+      "change_frequency": "UNKNOWN",
+      "proof": ["mobile/src/billing.js", "mobile/components/BillingGate.js", "tests/test_architecture_mobile_provider_boundary.py"],
+      "repair_path": "Preserve the existing SDK import boundary and freeze the exact leaked provider-model surface. Billing should add behavioral proof for native purchase/restore/cancel flows before Architecture normalizes provider objects into a provider-neutral Mobile billing surface.",
+      "status": "ACKNOWLEDGED_PROVIDER_LEAK_BASELINE"
+    },
+    {
+      "id": "ARCH-008",
+      "module": "sync_funnel_hook.py",
+      "owner": "MULTI_OWNER_LEGACY",
+      "violation": "The bounded production import graph now has no inbound edge to sync_funnel_hook.py. The module still contains funnel/decision logic and auto-installs a global Thread.start hook if imported, so it is a dead-module candidate rather than proven removable code.",
+      "blast_radius": "NONE_IN_CURRENT_STATIC_RUNTIME_GRAPH_IF_UNIMPORTED",
+      "customer_risk": "UNKNOWN_DYNAMIC_OR_EXTERNAL_REACHABILITY",
+      "change_frequency": "UNKNOWN",
+      "proof": ["sync_funnel_hook.py", "tools/architecture_graph.py", "tests/test_architecture_startup_boundary.py"],
+      "repair_path": "Before deletion prove no workflow/script/dynamic/external entrypoint references record_sync_decisions or imports the module. Do not delete solely from zero static inbound imports.",
+      "status": "DEAD_MODULE_CANDIDATE"
+    }
+  ]
+}
