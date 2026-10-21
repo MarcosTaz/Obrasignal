@@ -1,5 +1,6 @@
 import preload
 from source_runtime import discard_staged_source_syncs, staged_source_syncs
+from uruguay_arce_runtime import ARCERuntimeBatch
 
 
 class FakeConn:
@@ -67,24 +68,40 @@ def test_dncp_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
     discard_staged_source_syncs()
 
 
-def test_arce_fetch_stages_cursor_instead_of_committing_it(monkeypatch):
+def test_arce_fetch_stages_tender_and_pac_but_projects_only_tender_to_legacy(monkeypatch):
     discard_staged_source_syncs()
     monkeypatch.setattr(preload._app, 'db', lambda: FakeConn())
     monkeypatch.setattr(preload, 'get_source_cursor', lambda conn, source: 'uy-old')
-    record = {'source': 'UY_ARCE', 'external_id': 'ocds-yfs5dr-100', 'taxonomy': 'UNSPSC'}
+    tender = {
+        'source': 'UY_ARCE',
+        'signal_type': 'TENDER',
+        'external_id': 'ocds-yfs5dr-100',
+        'taxonomy': 'UNSPSC',
+    }
+    plan = {
+        'source': 'UY_ARCE',
+        'signal_type': 'PROCUREMENT_PLAN',
+        'external_id': 'pac:100',
+        'taxonomy': 'ARCE_PAC_FAMILY',
+    }
 
-    def fake_fetch(*, watermark=None):
+    def fake_batch(*, watermark=None):
         assert watermark == 'uy-old'
-        return [record], 'uy-new'
+        return ARCERuntimeBatch(
+            legacy_tenders=(tender,),
+            signals=(tender, plan),
+            cursor='uy-new',
+        )
 
-    monkeypatch.setattr(preload._uruguay_arce, 'fetch_arce_tenders', fake_fetch)
+    monkeypatch.setattr(preload._uruguay_arce_runtime, 'fetch_arce_runtime_batch', fake_batch)
     rows = preload._fetch_arce_staged()
 
-    assert rows == [record]
+    assert rows == [tender]
     staged = staged_source_syncs()
     assert len(staged) == 1
     assert staged[0].source == 'UY_ARCE'
     assert staged[0].cursor == 'uy-new'
+    assert staged[0].records == [tender, plan]
     discard_staged_source_syncs()
 
 

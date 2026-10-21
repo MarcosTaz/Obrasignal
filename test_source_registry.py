@@ -87,14 +87,14 @@ def test_ecuador_registry_declares_only_proven_bulk_record_tender_contract():
     assert "plans" not in source["capabilities"]
 
 
-def test_arce_registry_describes_actual_rss_record_release_architecture():
+def test_arce_registry_describes_rss_cursor_plus_pac_snapshot_architecture():
     source = SOURCES["UY_ARCE"]
     assert source["kind"] == "OCDS_RSS_RECORD_API"
-    assert source["access"] == "rss_record_release_api"
-    assert source["adapter"] == "ARCEOCDSRSSAdapter"
-    assert source["signal_types"] == ("TENDER",)
+    assert source["access"] == "rss_record_release_api_and_pac_snapshot"
+    assert source["adapter"] == "ARCEOCDSRSSAdapter+ARCEPACConnector"
+    assert source["signal_types"] == ("PROCUREMENT_PLAN", "TENDER")
     assert source["realtime_capable"] is True
-    assert {"incremental_sync", "detail", "historical_data", "amendments"} <= set(source["capabilities"])
+    assert {"incremental_sync", "detail", "historical_data", "amendments", "plans"} <= set(source["capabilities"])
 
 
 def test_za_registry_declares_only_implemented_tender_api_contract():
