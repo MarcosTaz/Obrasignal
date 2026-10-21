@@ -86,6 +86,14 @@ CAPABILITIES: dict[str, CapabilitySpec] = {
         contract_versions=("outcome.v1-draft",),
         feature_flag="contractor_dna_v1",
     ),
+    "BID_ECONOMICS": _c(
+        "BID_ECONOMICS", "RESEARCH", "COMMAND",
+        dependencies=("SIGNAL",),
+        contract_versions=("bid-economics.v0",),
+        feature_flag="bid_economics_v0",
+        kill_switch_required=True,
+        private_data_owner="BID_ECONOMICS",
+    ),
     "SHADOW": _c(
         "SHADOW", "RESEARCH", "SHADOW",
         dependencies=("OFFICE", "DNA", "EVIDENCE"),
