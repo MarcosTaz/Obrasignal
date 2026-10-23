@@ -37,7 +37,7 @@ export default function WebIntro({ onComplete }) {
   const brandOpacity = progress.interpolate({ inputRange: [0, .59, .615, 1], outputRange: [0, 0, 1, 1] });
   const brandY = progress.interpolate({ inputRange: [0, .59, .615, 1], outputRange: [12, 12, 0, 0] });
 
-  return <View style={styles.root} accessibilityLabel="ObraSignal — Veja antes. Aja primeiro.">
+  return <View style={styles.root} accessibilityLabel="ObraSignal — Global procurement intelligence">
     <View style={styles.stage}>
       <Animated.View style={[styles.radar, { opacity: radarOpacity }]}>
         <View style={[styles.ring, styles.ring1]}/><View style={[styles.ring, styles.ring2]}/><View style={[styles.ring, styles.ring3]}/>
@@ -47,7 +47,7 @@ export default function WebIntro({ onComplete }) {
       <Animated.View style={[styles.dot, { transform: [{ translateX: dotX }, { translateY: dotY }, { scale: dotScale }] }]}/>
       <Animated.View style={[styles.brandWrap, narrow && styles.brandWrapNarrow, { opacity: brandOpacity, transform: [{ translateY: brandY }] }]}>
         <BrandLogo variant={narrow ? 'vertical' : 'horizontal'} markSize={narrow ? 58 : 65} textSize={narrow ? 29 : 35} tagline/>
-        <Text style={styles.slogan}>VEJA ANTES. AJA PRIMEIRO.</Text>
+        <Text style={styles.slogan}>DISCOVER. EVALUATE. ACT.</Text>
       </Animated.View>
     </View>
   </View>;
