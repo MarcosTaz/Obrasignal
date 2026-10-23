@@ -72,7 +72,9 @@ test('browser emblem and opening use the central brand palette, never old electr
   const mark=readFileSync(new URL('./webBranding.js',import.meta.url),'utf8');
   const intro=readFileSync(new URL('../components/WebIntro.js',import.meta.url),'utf8');
   assert.match(mark,/BRAND\.slate/);
-  assert.match(mark,/BRAND\.copper/);
+  assert.match(mark,/brandMarkDataUri/);
+  const geometry=readFileSync(new URL('./logo-geometry.mjs',import.meta.url),'utf8');
+  assert.match(geometry,/BRAND\.copper/);
   assert.doesNotMatch(mark,/#0A58FF|ELECTRIC_BLUE/);
   assert.match(intro,/BRAND\.copper/);
 });
