@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DEFAULT_THEME,THEMES,resolveTheme,createThemeColors} from './theme-system.mjs';
+import {BRAND} from './brand-palette.mjs';
+import {readFileSync} from 'node:fs';
 
 function luminance(hex) {
   const rgb=hex.match(/[0-9a-f]{2}/gi).map(bit=>parseInt(bit,16)/255);
@@ -46,4 +48,31 @@ test('preferences are never identity, permission, scoring or billing controls',(
     assert.ok(!('score' in tokens));
     assert.ok(!('billing' in tokens));
   }
+});
+
+test('fixed corporate colours exactly match latest approved brief',()=>{
+  assert.deepEqual(BRAND, {
+    slate:'#2A3439', mineral:'#5C6B73', mistBlue:'#9DB2BF',
+    fog:'#DBE2EF', paper:'#F8FAFC', copper:'#C87D55', ink:'#0F172A',
+  });
+  assert.deepEqual(resolveTheme(DEFAULT_THEME).swatches,[
+    BRAND.paper,BRAND.fog,BRAND.mistBlue,BRAND.mineral,BRAND.slate
+  ]);
+  assert.equal(createThemeColors(DEFAULT_THEME).text,BRAND.ink);
+});
+test('copper action contrast is accessible; copper must not be used as small text on white',()=>{
+  assert.ok(contrast(BRAND.ink,BRAND.copper)>=4.5);
+  assert.ok(contrast(BRAND.slate,BRAND.paper)>=7);
+  assert.ok(contrast(BRAND.mineral,BRAND.paper)>=4.5);
+  assert.ok(contrast(BRAND.copper,BRAND.paper)<4.5);
+  assert.equal(createThemeColors(DEFAULT_THEME).action,BRAND.copper);
+  assert.equal(createThemeColors(DEFAULT_THEME).onAction,BRAND.ink);
+});
+test('browser emblem and opening use the central brand palette, never old electric blue',()=>{
+  const mark=readFileSync(new URL('./webBranding.js',import.meta.url),'utf8');
+  const intro=readFileSync(new URL('../components/WebIntro.js',import.meta.url),'utf8');
+  assert.match(mark,/BRAND\.slate/);
+  assert.match(mark,/BRAND\.copper/);
+  assert.doesNotMatch(mark,/#0A58FF|ELECTRIC_BLUE/);
+  assert.match(intro,/BRAND\.copper/);
 });
