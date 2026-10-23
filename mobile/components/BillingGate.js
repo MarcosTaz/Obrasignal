@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, Modal, Platform, Pressable, StyleSheet, Tex
 import { supabase } from '../lib/supabase';
 import { api } from '../src/api';
 import { BRAND } from '../src/brand-palette.mjs';
+import {getContact,contactLink,CONTACT_UNVERIFIED_MESSAGE} from '../src/public-contacts.mjs';
 import {
   activeEntitlement,
   BILLING_RESTORE_SUPPORTED,
@@ -18,7 +19,7 @@ import {
 } from '../src/billing';
 
 const COLORS = { bg:'#06111D',panel:'#0B1C2D',panel2:'#10283D',line:'#2B4760',text:'#F4F8FE',muted:'#A4BFD5',blue:'#78BEFB',green:'#9AE8C7',amber:'#F0C78B',red:'#FFB0B8' };
-const SUPPORT_EMAIL = 'obrasignal.pt@gmail.com';
+const SUPPORT_EMAIL=getContact('support');
 const SERVER_PLANS = new Set(['evaluation', 'pro', 'expired', 'pilot']);
 
 export default function BillingGate({ children }) {
@@ -176,7 +177,7 @@ export default function BillingGate({ children }) {
             : <View style={styles.setupBox}>
                 <Text style={styles.setupTitle}>{clientCheckoutConfigured && !billing.providerReady ? 'Pagamentos ainda protegidos' : !checkoutConfigured ? 'Ativação assistida disponível' : 'Plano Pro ainda não publicado no checkout'}</Text>
                 <Text style={styles.setup}>{clientCheckoutConfigured && !billing.providerReady ? 'O checkout existe, mas o servidor ainda não confirmou que consegue sincronizar e verificar subscrições. Por segurança, nenhum pagamento automático é iniciado até essa reconciliação estar pronta.' : !checkoutConfigured ? 'O checkout automático ainda não está disponível neste canal. Durante a avaliação podes continuar a usar o produto; para ativação comercial, contacta a equipa ObraSignal.' : 'A configuração de pagamentos está ligada, mas o produto obrasignal_pro_monthly ainda não está disponível no offering atual. Nenhuma compra é permitida até o produto correto estar publicado.'}</Text>
-                <Pressable onPress={()=>Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Ativar%20ObraSignal%20Pro`)} style={styles.contact}><Text style={styles.contactText}>Pedir ativação →</Text></Pressable>
+                {SUPPORT_EMAIL?<Pressable onPress={()=>Linking.openURL(contactLink('support','ObraSignal Pro activation'))} style={styles.contact}><Text style={styles.contactText}>Request activation →</Text></Pressable>:<Text style={styles.setup}>{CONTACT_UNVERIFIED_MESSAGE} Plan activation is not confirmed.</Text>}
               </View>}
         {checkoutReady ? <Pressable disabled={busy} onPress={refresh} style={styles.secondary}><Text style={styles.secondaryText}>Já paguei · atualizar estado</Text></Pressable> : null}
         {BILLING_RESTORE_SUPPORTED ? <Pressable disabled={busy} onPress={restore} style={styles.secondary}><Text style={styles.secondaryText}>Restaurar compra</Text></Pressable> : null}
