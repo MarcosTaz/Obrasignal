@@ -66,11 +66,11 @@ requireMatch('native separates draft search from applied search', app, /\[applie
 // Startup must always converge even when Safari/browser storage or animation callbacks stall.
 requireMatch('private tenant binding has a bounded startup deadline', authGate, /PRIVATE_TENANT_BIND_TIMEOUT_MS\s*=\s*4500/);
 requireMatch('private tenant binding uses the bounded helper', authGate, /withTimeout\(storage\.bindPrivateTenant\(accountId\), PRIVATE_TENANT_BIND_TIMEOUT_MS/);
-requireMatch('web intro has an independent watchdog', webIntro, /setTimeout\(finish, 7200\)/);
+requireMatch('web intro has an independent watchdog', webIntro, /setTimeout\(finish,DURATION\+1200\)/);
 requireMatch('web intro watchdog is cleared on unmount', webIntro, /clearTimeout\(watchdog\)/);
 
 // Session utilities and recovery are permanently reachable from the authenticated shell.
-requireMatch('persistent web session bar contains logout', authGate, /Terminar sessão/);
+requireMatch('persistent web session bar contains logout', authGate, /accessibilityLabel="Sign out"/);
 requireMatch('persistent logout calls Supabase signOut', authGate, /supabase\.auth\.signOut\(\)/);
 requireMatch('web session bar exposes on-demand translator', authGate, /function WebTranslator/);
 requireMatch('translator is loaded only after activation', authGate, /if \(!enabled/);
@@ -82,14 +82,14 @@ requireMatch('password recovery updates authenticated user password', passwordRe
 
 // Public legal/support controls remain visible and factually aligned with real architecture.
 requireMatch('signed-out Web shell exposes public legal bar', authGate, /<PublicLegalBar\s*\/>/);
-requireMatch('public privacy control exists', authGate, /accessibilityLabel="Privacidade"/);
-requireMatch('public terms control exists', authGate, /accessibilityLabel="Termos de utilização"/);
-requireMatch('public support control exists', authGate, /accessibilityLabel="Contactar suporte"/);
-requireMatch('public privacy names Supabase auth boundary', authGate, /A autenticação é prestada através de Supabase/);
-requireMatch('public privacy discloses conditional RevenueCat boundary', authGate, /faturação automática estiver configurada[\s\S]*RevenueCat/);
-requireMatch('public privacy discloses opt-in translator', authGate, /Google Translate só é carregado quando o utilizador ativa/);
-requireMatch('public terms preserve official-source authority', authGate, /devem ser confirmados na fonte oficial/);
-requireMatch('public terms preserve assisted billing truth', authGate, /checkout automático só é oferecido quando o canal de pagamento correto estiver efetivamente configurado/);
+requireMatch('public privacy control exists', authGate, /accessibilityLabel="Privacy"/);
+requireMatch('public terms control exists', authGate, /accessibilityLabel="Terms of use"/);
+requireMatch('public support control exists', authGate, /accessibilityLabel="Contact support"/);
+requireMatch('public privacy names Supabase auth boundary', authGate, /currently uses Supabase for identity/);
+requireMatch('public privacy discloses conditional RevenueCat boundary', authGate, /Where configured[\s\S]*RevenueCat/);
+requireMatch('public privacy discloses opt-in translator', authGate, /Google Translate is loaded only after the visitor explicitly enables it/);
+requireMatch('public terms preserve official-source authority', authGate, /Always verify deadlines, requirements, documents, eligibility, contacts and tender status/);
+requireMatch('public terms preserve assisted billing truth', authGate, /Automatic checkout is offered only if its payment channel is genuinely configured/);
 forbidMatch('public legal must not invent a legal company number', authGate, /NIF|VAT ID|sociedade por quotas|Lda\./i);
 
 // Privacy rights are available independently of paid/evaluation product access.
@@ -135,7 +135,7 @@ requireMatch('cinematic introduction uses responsive shared brand mark',webIntro
 requireMatch('authenticated web uses official brand component', webApp, /<BrandLogo markSize=\{38\}/);
 requireMatch('authenticated web uses shared font system', webApp, /fontFamily:FONT/);
 requireMatch('public landing uses official brand component', authScreen, /<BrandLogo markSize=\{38\}/);
-requireMatch('onboarding uses official brand component', onboarding, /<BrandLogo markSize=\{42\}/);
+requireMatch('onboarding uses official brand component', onboarding, /<BrandLogo inverse markSize=\{42\}/);
 requireMatch('native shell uses official brand component', app, /<BrandLogo markSize=\{38\}/);
 forbidMatch('public landing must not regress to all-caps prototype wordmark', authScreen, />OBRA<Text/);
 forbidMatch('onboarding must not regress to all-caps prototype wordmark', onboarding, />OBRA<Text/);
