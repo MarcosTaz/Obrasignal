@@ -1,7 +1,9 @@
-const ELECTRIC_BLUE = '#0A58FF';
-const THEME_COLOR = '#07111C';
+import { BRAND } from './brand-palette.mjs';
 
-const MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M52.35 19.28A24 24 0 1 1 46.78 12.99" fill="none" stroke="${ELECTRIC_BLUE}" stroke-width="8" stroke-linecap="round"/><circle cx="32" cy="32" r="6.5" fill="${ELECTRIC_BLUE}"/></svg>`;
+const THEME_COLOR = BRAND.slate;
+
+// Single flat mark for favicon and interface — no gradients or theme-dependent hue.
+const MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${BRAND.paper}"/><path d="M52.35 19.28A24 24 0 1 1 46.78 12.99" fill="none" stroke="${BRAND.slate}" stroke-width="8" stroke-linecap="round"/><circle cx="32" cy="32" r="6.5" fill="${BRAND.copper}"/></svg>`;
 const MARK_DATA_URI = `data:image/svg+xml,${encodeURIComponent(MARK_SVG)}`;
 
 function ensureFavicon() {
@@ -49,11 +51,7 @@ function decorateWordmarks() {
     if (node.style.paddingLeft !== expectedPadding) node.style.paddingLeft = expectedPadding;
     if (node.style.minHeight !== `${markSize}px`) node.style.minHeight = `${markSize}px`;
 
-    node.querySelectorAll('span').forEach((child) => {
-      if ((child.textContent || '').trim() === 'Signal' && child.style.color !== ELECTRIC_BLUE) {
-        child.style.color = ELECTRIC_BLUE;
-      }
-    });
+    // Never override per-account theme colours. Branding only supplies the icon.
     node.setAttribute('data-obrasignal-brand', 'wordmark');
   });
 }
