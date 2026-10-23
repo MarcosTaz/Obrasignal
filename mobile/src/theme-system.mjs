@@ -1,9 +1,10 @@
 // ObraSignal's identity is constant; each theme is a user preference.
  // Five stops preserve the original submitted palette order (light -> dark).
+import { BRAND } from './brand-palette.mjs';
 export const DEFAULT_THEME = 'signature';
 
 export const THEMES = Object.freeze([
-  {id:'signature',name:'Assinatura ObraSignal',description:'Marfim técnico · grafite · vinho profundo',swatches:['#FAF9F6','#E6E2DC','#B6B9BB','#535A61','#121619'],accent:'#841B25',mode:'light'},
+  {id:'signature',name:'Assinatura ObraSignal',description:'Ardósia · mineral · azul bruma · cobre',swatches:[BRAND.paper,BRAND.fog,BRAND.mistBlue,BRAND.mineral,BRAND.slate],accent:BRAND.slate,mode:'light'},
   {id:'glass-graphite',name:'Vidro e Grafite',swatches:['#F5F7FA','#D9DEE7','#AEB7C6','#4B5563','#111827'],accent:'#364D72',mode:'light'},
   {id:'warm-linen',name:'Linho Quente',swatches:['#FAF3E7','#E7D9C6','#C8B39A','#6B5B4B','#2B2621'],accent:'#835034',mode:'light'},
   {id:'sage',name:'Sálvia Sóbria',swatches:['#F2F5F1','#D7E2D2','#9BB59A','#4C6A54','#1F2D24'],accent:'#305E49',mode:'light'},
@@ -27,7 +28,7 @@ export function createThemeColors(id) {
     panel:isDark?fourth:'#FFFFFF',
     panel2:isDark?dark:second,
     line:isDark?third:third,
-    text:isDark?light:dark,
+    text:t.id==='signature'?BRAND.ink:(isDark?light:dark),
     muted:isDark?second:fourth,
     muted2:isDark?second:fourth,
     blue:t.accent,
@@ -37,6 +38,9 @@ export function createThemeColors(id) {
     amber:isDark?'#F1C87E':'#80500D',
     red:isDark?'#FF9BA5':'#A02B3B',
     onAccent:isDark?dark:'#FFFFFF',
+    action:t.id==='signature'?BRAND.copper:t.accent,
+    onAction:t.id==='signature'?BRAND.ink:(isDark?dark:'#FFFFFF'),
+    brandCopper:BRAND.copper,
     input:isDark?dark:'#FFFFFF',
     subtle:isDark?fourth:second,
     navActive:isDark?fourth:second,
