@@ -1,11 +1,12 @@
 name: ObraSignal Live Tenant Isolation
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["ObraSignal Production Smoke"]
+    types: [completed]
   workflow_dispatch:
   schedule:
-    - cron: "11 3 * * *"
+    - cron: "11 3 * * 5"
 
 permissions:
   contents: read
@@ -24,10 +25,14 @@ env:
   E2E_EMAIL_B: ${{ secrets.E2E_EMAIL_B }}
   E2E_PASSWORD_B: ${{ secrets.E2E_PASSWORD_B }}
   API_URL: https://obrasignal.onrender.com/api/v1
-  TARGET_BUILD: ${{ github.sha }}
+  TARGET_BUILD: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   adversarial-a-b:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

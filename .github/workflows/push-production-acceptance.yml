@@ -1,11 +1,12 @@
 name: ObraSignal Push Production Acceptance
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["ObraSignal Production Smoke"]
+    types: [completed]
   workflow_dispatch:
   schedule:
-    - cron: "17 4 * * *"
+    - cron: "17 4 * * 6"
 
 permissions:
   contents: read
@@ -23,6 +24,10 @@ env:
 
 jobs:
   closed-app-push-contract:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -34,7 +39,7 @@ jobs:
 
       - name: Wait for exact backend build
         env:
-          TARGET_BUILD: ${{ github.sha }}
+          TARGET_BUILD: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           for attempt in $(seq 1 24); do

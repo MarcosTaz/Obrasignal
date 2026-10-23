@@ -1,17 +1,16 @@
 name: ObraSignal Commercial Readiness
 
 on:
-  workflow_run:
-    workflows: ["ObraSignal Web Preview"]
-    types: [completed]
   workflow_dispatch:
+  schedule:
+    - cron: "7 6 * * 0"
 
 permissions:
   contents: read
 
 jobs:
   checkout-configuration:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ true }}
     runs-on: ubuntu-latest
     env:
       EXPO_PUBLIC_REVENUECAT_WEB_KEY: ${{ secrets.EXPO_PUBLIC_REVENUECAT_WEB_KEY }}
@@ -38,7 +37,7 @@ jobs:
           echo 'Automatic Web checkout configuration is present.'
 
   official-domain:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ true }}
     runs-on: ubuntu-latest
     steps:
       - name: Resolve expected build
@@ -76,7 +75,7 @@ jobs:
           echo "Canonical customer domain serves exact commercially configured release $EXPECTED_SHA."
 
   backend-billing:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ true }}
     runs-on: ubuntu-latest
     steps:
       - name: Stagger backend billing probe behind primary production gates

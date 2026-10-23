@@ -1,11 +1,12 @@
 name: ObraSignal Production Browser E2E
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["ObraSignal Production Smoke"]
+    types: [completed]
   workflow_dispatch:
   schedule:
-    - cron: "23 3 * * *"
+    - cron: "23 3 * * 2"
 
 permissions:
   contents: read
@@ -24,10 +25,14 @@ env:
   SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
   SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
   API_URL: https://obrasignal.onrender.com/api/v1
-  TARGET_BUILD: ${{ github.sha }}
+  TARGET_BUILD: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   browser-matrix:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

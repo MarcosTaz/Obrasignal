@@ -1,8 +1,9 @@
 name: ObraSignal Canonical Domain Readiness
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["ObraSignal Web Preview"]
+    types: [completed]
   workflow_dispatch:
   schedule:
     - cron: "37 8 * * *"
@@ -16,10 +17,14 @@ concurrency:
 
 env:
   CANONICAL_URL: https://obrasignal.com/
-  TARGET_BUILD: ${{ github.sha }}
+  TARGET_BUILD: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   canonical-domain:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
