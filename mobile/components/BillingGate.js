@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { api } from '../src/api';
+import { BRAND } from '../src/brand-palette.mjs';
 import {
   activeEntitlement,
   BILLING_RESTORE_SUPPORTED,
@@ -16,7 +17,7 @@ import {
   webPurchaseUrl,
 } from '../src/billing';
 
-const COLORS = { bg: '#07111C', panel: '#0D1A29', panel2: '#101F31', line: '#22364F', text: '#F4F7FB', muted: '#9BAABD', blue: '#5F8DF7', green: '#72DFA1', amber: '#EFCB78', red: '#FF8B9A' };
+const COLORS = { bg: BRAND.paper, panel: '#FFFFFF', panel2: BRAND.fog, line: BRAND.fog, text: BRAND.ink, muted: BRAND.mineral, blue: BRAND.slate, green: '#21674A', amber: '#895024', red: '#A33131' };
 const SUPPORT_EMAIL = 'obrasignal.pt@gmail.com';
 const SERVER_PLANS = new Set(['evaluation', 'pro', 'expired', 'pilot']);
 
@@ -189,17 +190,17 @@ export default function BillingGate({ children }) {
 
 const styles = StyleSheet.create({
   shell:{flex:1,backgroundColor:COLORS.bg},
-  planBar:{minHeight:58,paddingHorizontal:18,paddingVertical:10,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:14,backgroundColor:'#091522',borderBottomWidth:1,borderBottomColor:'#1D2D43'},
-  planBarCopy:{flex:1},planKicker:{fontSize:8,fontWeight:'900',letterSpacing:1.3,color:'#607795'},planSummary:{fontSize:12,fontWeight:'800',color:COLORS.text,marginTop:2},
-  planButton:{flexDirection:'row',alignItems:'center',gap:7,paddingHorizontal:11,paddingVertical:7,borderRadius:999,backgroundColor:'#12233A',borderWidth:1,borderColor:'#29486D'},planText:{fontSize:9,fontWeight:'900',letterSpacing:1,color:'#B9CAFF'},planArrow:{fontSize:16,lineHeight:16,color:'#8EABFF'},
-  evalCard:{marginHorizontal:18,marginTop:12,padding:14,borderRadius:14,backgroundColor:'#0D1B2E',borderWidth:1,borderColor:'#24466D',flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',gap:12},
+  planBar:{minHeight:58,paddingHorizontal:18,paddingVertical:10,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:14,backgroundColor:BRAND.paper,borderBottomWidth:1,borderBottomColor:BRAND.fog},
+  planBarCopy:{flex:1},planKicker:{fontSize:8,fontWeight:'900',letterSpacing:1.3,color:BRAND.mineral},planSummary:{fontSize:12,fontWeight:'800',color:COLORS.text,marginTop:2},
+  planButton:{flexDirection:'row',alignItems:'center',gap:7,paddingHorizontal:11,paddingVertical:7,borderRadius:999,backgroundColor:BRAND.fog,borderWidth:1,borderColor:BRAND.mineral},planText:{fontSize:9,fontWeight:'900',letterSpacing:1,color:BRAND.slate},planArrow:{fontSize:16,lineHeight:16,color:BRAND.slate},
+  evalCard:{marginHorizontal:18,marginTop:12,padding:14,borderRadius:14,backgroundColor:BRAND.fog,borderWidth:1,borderColor:BRAND.mineral,flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',gap:12},
   evalTitle:{fontSize:9,fontWeight:'900',letterSpacing:1.2,color:COLORS.blue},evalText:{fontSize:15,fontWeight:'900',color:COLORS.text,marginTop:4},evalMetaWrap:{flexShrink:1,maxWidth:520},evalMeta:{fontSize:10,lineHeight:15,color:COLORS.muted,marginTop:2},
   blocked:{flex:1,alignItems:'center',justifyContent:'center',padding:28,backgroundColor:COLORS.bg},blockedTitle:{fontSize:26,fontWeight:'900',color:COLORS.text,textAlign:'center'},blockedText:{fontSize:13,lineHeight:20,color:COLORS.muted,textAlign:'center',marginTop:8,marginBottom:20,maxWidth:460},
-  overlay:{flex:1,justifyContent:'flex-end',backgroundColor:'#000000AA'},sheet:{width:'100%',maxWidth:680,alignSelf:'center',backgroundColor:COLORS.panel,borderTopLeftRadius:24,borderTopRightRadius:24,borderWidth:1,borderColor:COLORS.line,padding:24,paddingBottom:30},sheetHandle:{width:40,height:4,borderRadius:999,backgroundColor:'#334861',alignSelf:'center',marginBottom:20},
+  overlay:{flex:1,justifyContent:'flex-end',backgroundColor:'#000000AA'},sheet:{width:'100%',maxWidth:680,alignSelf:'center',backgroundColor:COLORS.panel,borderTopLeftRadius:24,borderTopRightRadius:24,borderWidth:1,borderColor:COLORS.line,padding:24,paddingBottom:30},sheetHandle:{width:40,height:4,borderRadius:999,backgroundColor:BRAND.mineral,alignSelf:'center',marginBottom:20},
   eyebrow:{fontSize:10,fontWeight:'900',letterSpacing:1.3,color:COLORS.blue},title:{fontSize:26,fontWeight:'900',lineHeight:32,color:COLORS.text,marginTop:7},body:{fontSize:13,lineHeight:20,color:COLORS.muted,marginTop:9,maxWidth:560},
-  priceBox:{marginTop:18,padding:16,borderRadius:14,backgroundColor:COLORS.panel2,borderWidth:1,borderColor:'#2A476C'},price:{fontSize:25,fontWeight:'900',color:COLORS.text},priceNote:{fontSize:10,lineHeight:16,color:COLORS.muted,marginTop:4},terms:{fontSize:10,lineHeight:16,color:COLORS.muted,marginTop:12},
-  primary:{marginTop:16,minHeight:48,borderRadius:11,backgroundColor:COLORS.text,alignItems:'center',justifyContent:'center',paddingHorizontal:16},primaryText:{fontSize:13,fontWeight:'900',color:COLORS.bg},secondary:{marginTop:8,minHeight:42,alignItems:'center',justifyContent:'center'},secondaryText:{fontSize:12,fontWeight:'800',color:'#91ACFF'},
+  priceBox:{marginTop:18,padding:16,borderRadius:14,backgroundColor:COLORS.panel2,borderWidth:1,borderColor:BRAND.mineral},price:{fontSize:25,fontWeight:'900',color:COLORS.text},priceNote:{fontSize:10,lineHeight:16,color:COLORS.muted,marginTop:4},terms:{fontSize:10,lineHeight:16,color:COLORS.muted,marginTop:12},
+  primary:{marginTop:16,minHeight:48,borderRadius:11,backgroundColor:COLORS.text,alignItems:'center',justifyContent:'center',paddingHorizontal:16},primaryText:{fontSize:13,fontWeight:'900',color:COLORS.bg},secondary:{marginTop:8,minHeight:42,alignItems:'center',justifyContent:'center'},secondaryText:{fontSize:12,fontWeight:'800',color:BRAND.slate},
   loadingCheckout:{marginTop:16,minHeight:48,borderRadius:11,borderWidth:1,borderColor:COLORS.line,alignItems:'center',justifyContent:'center',flexDirection:'row',gap:9},loadingCheckoutText:{fontSize:12,fontWeight:'800',color:COLORS.text},
-  setupBox:{marginTop:16,padding:14,borderRadius:12,backgroundColor:'#171D28',borderWidth:1,borderColor:'#51442A'},setupTitle:{fontSize:11,fontWeight:'900',color:COLORS.amber},setup:{fontSize:11,lineHeight:17,color:'#C8B989',marginTop:5},contact:{alignSelf:'flex-start',marginTop:10},contactText:{fontSize:11,fontWeight:'900',color:'#9DB4FF'},
+  setupBox:{marginTop:16,padding:14,borderRadius:12,backgroundColor:BRAND.paper,borderWidth:1,borderColor:BRAND.mineral},setupTitle:{fontSize:11,fontWeight:'900',color:COLORS.amber},setup:{fontSize:11,lineHeight:17,color:BRAND.ink,marginTop:5},contact:{alignSelf:'flex-start',marginTop:10},contactText:{fontSize:11,fontWeight:'900',color:BRAND.slate},
   error:{fontSize:11,lineHeight:17,color:COLORS.red,marginTop:10},close:{marginTop:4,minHeight:38,alignItems:'center',justifyContent:'center'},closeText:{fontSize:12,fontWeight:'800',color:COLORS.muted},
 });
