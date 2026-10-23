@@ -5,7 +5,7 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "37 8 * * *"
 
 permissions:
   contents: read
@@ -28,4 +28,17 @@ jobs:
         with:
           python-version: "3.12"
       - name: Require DNS, HTTPS and exact build on canonical domain
-        run: python scripts/canonical_domain_readiness.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if python scripts/canonical_domain_readiness.py; then
+              exit 0
+            fi
+            if [ "$attempt" = 12 ]; then
+              echo "Canonical domain did not converge to the exact build."
+              exit 1
+            fi
+            echo "Waiting for Pages/CDN convergence ($attempt/12)…"
+            sleep 15
+          done
