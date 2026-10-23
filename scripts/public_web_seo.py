@@ -38,6 +38,8 @@ def stamp_public_seo(html: str) -> str:
         if (_attribute(tag, "name") or "").lower() in ("robots", "googlebot"):
             if "noindex" in (_attribute(tag, "content") or "").lower():
                 raise ValueError("Refusing to publish indexable canonical on a noindex page")
+    if "<!-- Stable official public identity; commit SHA only in release metadata. -->" in html:
+        return html  # Idempotent when stamping an existing verified build.
     html = re.sub(r"<title\b[^>]*>.*?</title\s*>", "", html, flags=re.I | re.S)
 
     def remove_prior_meta(match):
