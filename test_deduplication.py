@@ -1,5 +1,6 @@
 """Tests for the real notification-event deduplication implementation."""
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
 from decision_log import record_decision
 from notification_events import _key, ensure_event_table, record_new_opportunities
@@ -20,7 +21,11 @@ def test_recording_same_personalized_opportunity_twice_creates_one_event():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE tenders (id INTEGER PRIMARY KEY, source TEXT, external_id TEXT, title TEXT, buyer TEXT, deadline TEXT, country TEXT, first_seen TEXT, score INTEGER, url TEXT)")
-    conn.execute("INSERT INTO tenders VALUES (1,'TED','2026/S-123456','Estrutura metálica','Município','2099-09-30','ES',datetime('now'),90,'https://example.test/1')")
+    deadline = (datetime.now(timezone.utc).date() + timedelta(days=30)).isoformat()
+    conn.execute(
+        "INSERT INTO tenders VALUES (1,'TED','2026/S-123456','Estrutura metálica','Município',?,'ES',datetime('now'),90,'https://example.test/1')",
+        (deadline,),
+    )
     ensure_event_table(conn)
     record_decision(
         conn, 'TED', '2026/S-123456', 'QUALIFIED', 'tenant-specific high match',
@@ -32,4 +37,23 @@ def test_recording_same_personalized_opportunity_twice_creates_one_event():
     assert first[0]['score'] == 90
     assert len(second) == 0
     assert conn.execute("SELECT COUNT(*) FROM opportunity_events").fetchone()[0] == 1
+    conn.close()
+
+
+def test_expired_personalized_opportunity_does_not_create_event():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE tenders (id INTEGER PRIMARY KEY, source TEXT, external_id TEXT, title TEXT, buyer TEXT, deadline TEXT, country TEXT, first_seen TEXT, score INTEGER, url TEXT)")
+    expired_deadline = (datetime.now(timezone.utc).date() - timedelta(days=2)).isoformat()
+    conn.execute(
+        "INSERT INTO tenders VALUES (1,'TED','2026/S-123456','Estrutura metálica','Município',?,'ES',datetime('now'),90,'https://example.test/1')",
+        (expired_deadline,),
+    )
+    ensure_event_table(conn)
+    record_decision(
+        conn, 'TED', '2026/S-123456', 'QUALIFIED', 'tenant-specific high match',
+        score=90, account_id='default',
+    )
+    assert record_new_opportunities(conn, min_score=75) == []
+    assert conn.execute("SELECT COUNT(*) FROM opportunity_events").fetchone()[0] == 0
     conn.close()

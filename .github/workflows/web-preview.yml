@@ -86,7 +86,10 @@ jobs:
           python - <<'PY'
           import os
           import re
+          import sys
           from pathlib import Path
+          sys.path.insert(0, str(Path('../scripts').resolve()))
+          from public_web_seo import stamp_public_seo, write_public_discovery_files, validate_public_seo
           p = Path('.smoke-dist/index.html')
           s = p.read_text(encoding='utf-8')
           full_build = os.environ['GITHUB_SHA']
@@ -106,12 +109,13 @@ jobs:
               s = s.replace('</head>', f'  {checkout_marker}</head>', 1)
           else:
               s = checkout_marker + s
-          if re.search(r'<title>.*?</title>', s, flags=re.S):
-              s = re.sub(r'<title>.*?</title>', f'<title>ObraSignal • {build}</title>', s, count=1, flags=re.S)
           beacon = f'''<script id="obrasignal-private-traffic">(function(){{try{{var p=new URLSearchParams(location.search||'');var w=window.innerWidth||0;var payload={{event:'page_view',path:location.pathname||'/',referrer:document.referrer||'',utm_source:p.get('utm_source')||'',utm_medium:p.get('utm_medium')||'',utm_campaign:p.get('utm_campaign')||'',timezone:(Intl.DateTimeFormat().resolvedOptions().timeZone||''),language:(navigator.language||''),device:w<760?'mobile':w<1100?'tablet':'desktop',build_id:'{build}'}};fetch('https://obrasignal.onrender.com/api/v1/analytics/event',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload),credentials:'omit',keepalive:true}}).catch(function(){{}});}}catch(e){{}}}})();</script>'''
           if 'id="obrasignal-private-traffic"' not in s:
               s = s.replace('</body>', beacon + '</body>', 1) if '</body>' in s else s + beacon
+          s = stamp_public_seo(s)
           p.write_text(s, encoding='utf-8')
+          write_public_discovery_files(Path('.smoke-dist'))
+          validate_public_seo(Path('.smoke-dist'))
           Path('.smoke-dist/release-source.txt').write_text(full_build + '\n', encoding='utf-8')
           PY
 
@@ -127,6 +131,7 @@ jobs:
           grep -q "obrasignal-private-traffic" .smoke-dist/index.html
           grep -q "analytics/event" .smoke-dist/index.html
           grep -q "${GITHUB_SHA:0:7}" .smoke-dist/index.html
+          python ../scripts/public_web_seo.py .smoke-dist
           test -n "$(find .smoke-dist -type f | wc -l)"
 
       - name: Fail closed on missing canonical asset paths

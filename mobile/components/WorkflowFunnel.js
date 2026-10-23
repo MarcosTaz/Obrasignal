@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { api } from '../src/api';
+import { BRAND } from '../src/brand-palette.mjs';
 
 const COLORS = {
-  panel: '#10182B',
-  line: '#253553',
-  text: '#F3F6FF',
-  muted: '#9BA8C0',
-  blue: '#5E8BFF',
-  green: '#6FE39A',
-  amber: '#FFD66B',
-  red: '#FF8998',
+  panel: '#FFFFFF',
+  line: BRAND.fog,
+  text: BRAND.ink,
+  muted: BRAND.mineral,
+  blue: BRAND.slate,
+  green: '#21674A',
+  amber: BRAND.copper,
+  red: '#A33131',
 };
 
 const STEPS = [
@@ -61,7 +62,7 @@ export default function WorkflowFunnel({ refreshKey }) {
             <Text style={{ color: COLORS.muted, fontSize: 11, fontWeight: '700' }}>{label}</Text>
             <Text style={{ color: tone, fontSize: 12, fontWeight: '900' }}>{value}</Text>
           </View>
-          <View style={{ height: 7, borderRadius: 4, backgroundColor: '#1A263E', marginTop: 5, overflow: 'hidden' }}>
+          <View style={{ height: 7, borderRadius: 4, backgroundColor: BRAND.fog, marginTop: 5, overflow: 'hidden' }}>
             <View style={{ width: `${width}%`, height: 7, borderRadius: 4, backgroundColor: tone }} />
           </View>
         </View>;

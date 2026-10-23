@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import AccountPrivacyControls from './AccountPrivacyControls'
 import AuthScreen from './AuthScreen'
+import BrandLogo from './BrandLogo';
 import BillingGate from './BillingGate'
 import PasswordRecovery from './PasswordRecovery'
 import { supabase } from '../lib/supabase'
@@ -9,6 +10,7 @@ import { ensureBackendReady } from '../src/api'
 import { trackTraffic } from '../src/analytics'
 import { authSession } from '../src/authSession'
 import { storage } from '../src/storage'
+import { BRAND } from '../src/brand-palette.mjs'
 
 const TRANSLATE_ELEMENT_ID = 'obrasignal-google-translate'
 const TRANSLATE_SCRIPT_ID = 'obrasignal-google-translate-script'
@@ -227,10 +229,10 @@ export default function AuthGate({ children }) {
   }, [])
 
   if (authState.status === 'loading' || tenantStatus === 'loading') {
-    return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><ActivityIndicator size="small" color="#5F8DF7"/><Text style={styles.message}>A recuperar a sessão…</Text></View>
+    return <View style={styles.loading}><BrandLogo markSize={42} textSize={25}/><ActivityIndicator size="small" color={BRAND.slate}/><Text style={styles.message}>A recuperar a sessão…</Text></View>
   }
   if (tenantStatus === 'error') {
-    return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
+    return <View style={styles.loading}><BrandLogo markSize={42} textSize={25}/><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
   }
   if (authState.status !== 'signed-in') {
     if (Platform.OS !== 'web') return <AuthScreen />
@@ -256,27 +258,27 @@ export default function AuthGate({ children }) {
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: '#07111C' },
-  brand: { fontSize: 25, fontWeight: '800', letterSpacing: -0.8, color: '#F4F7FB' }, blue: { color: '#7FA2FF' },
-  message: { color: '#9BAABD', fontSize: 12 }, error: { color: '#FF8998', fontSize: 12, textAlign: 'center', paddingHorizontal: 24 },
-  publicShell: { flex: 1, minHeight: 0, backgroundColor: '#07111C' }, publicContent: { flex: 1, minHeight: 0 },
-  publicLegalBar: { minHeight: 42, paddingHorizontal: 18, paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#182A3E', backgroundColor: '#08131F', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  publicLegalBrand: { color: '#7489A5', fontSize: 10, fontWeight: '900', letterSpacing: 0.4 }, publicLegalActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  publicLegalButton: { minHeight: 28, justifyContent: 'center', paddingHorizontal: 9, borderRadius: 999, borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B' }, publicLegalText: { color: '#B8C6D7', fontSize: 9, fontWeight: '800' },
-  legalModal: { flex: 1, backgroundColor: '#07111C' }, legalHeader: { paddingHorizontal: 20, paddingVertical: 17, borderBottomWidth: 1, borderBottomColor: '#22364F', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14 }, legalHeaderCopy: { flex: 1 }, legalTitle: { color: '#F4F7FB', fontSize: 25, fontWeight: '900' }, legalUpdated: { color: '#7C91AC', fontSize: 10, marginTop: 4 }, legalClose: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 9, borderWidth: 1, borderColor: '#314763' }, legalCloseText: { color: '#C7D2E1', fontSize: 10, fontWeight: '800' },
-  legalContent: { width: '100%', maxWidth: 860, alignSelf: 'center', padding: 22, paddingBottom: 60, gap: 14 }, legalSection: { padding: 17, borderRadius: 13, borderWidth: 1, borderColor: '#1F314B', backgroundColor: '#0D1A29' }, legalHeading: { color: '#F4F7FB', fontSize: 14, fontWeight: '900' }, legalBody: { color: '#B6C4D5', fontSize: 12, lineHeight: 19, marginTop: 7 }, legalContact: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 9, backgroundColor: '#15294C' }, legalContactText: { color: '#ABC0FF', fontSize: 11, fontWeight: '900' },
-  webShell: { flex: 1, minHeight: 0, backgroundColor: '#07111C' }, webContent: { flex: 1, minHeight: 0 },
-  sessionBar: { minHeight: 44, paddingHorizontal: 18, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#182A3E', backgroundColor: '#091522', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: BRAND.paper },
+  brand: { fontSize: 25, fontWeight: '800', letterSpacing: -0.8, color: BRAND.ink }, blue: { color: BRAND.mineral },
+  message: { color: BRAND.mineral, fontSize: 12 }, error: { color: '#A33131', fontSize: 12, textAlign: 'center', paddingHorizontal: 24 },
+  publicShell: { flex: 1, minHeight: 0, backgroundColor: BRAND.paper }, publicContent: { flex: 1, minHeight: 0 },
+  publicLegalBar: { minHeight: 42, paddingHorizontal: 18, paddingVertical: 7, borderTopWidth: 1, borderTopColor: BRAND.fog, backgroundColor: BRAND.paper, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  publicLegalBrand: { color: BRAND.mineral, fontSize: 10, fontWeight: '900', letterSpacing: 0.4 }, publicLegalActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  publicLegalButton: { minHeight: 28, justifyContent: 'center', paddingHorizontal: 9, borderRadius: 999, borderWidth: 1, borderColor: BRAND.fog, backgroundColor: BRAND.fog }, publicLegalText: { color: BRAND.slate, fontSize: 9, fontWeight: '800' },
+  legalModal: { flex: 1, backgroundColor: BRAND.paper }, legalHeader: { paddingHorizontal: 20, paddingVertical: 17, borderBottomWidth: 1, borderBottomColor: BRAND.fog, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14 }, legalHeaderCopy: { flex: 1 }, legalTitle: { color: BRAND.ink, fontSize: 25, fontWeight: '900' }, legalUpdated: { color: BRAND.mineral, fontSize: 10, marginTop: 4 }, legalClose: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 9, borderWidth: 1, borderColor: BRAND.mineral }, legalCloseText: { color: BRAND.ink, fontSize: 10, fontWeight: '800' },
+  legalContent: { width: '100%', maxWidth: 860, alignSelf: 'center', padding: 22, paddingBottom: 60, gap: 14 }, legalSection: { padding: 17, borderRadius: 13, borderWidth: 1, borderColor: BRAND.fog, backgroundColor: '#FFFFFF' }, legalHeading: { color: BRAND.ink, fontSize: 14, fontWeight: '900' }, legalBody: { color: BRAND.slate, fontSize: 12, lineHeight: 19, marginTop: 7 }, legalContact: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 9, backgroundColor: BRAND.fog }, legalContactText: { color: BRAND.slate, fontSize: 11, fontWeight: '900' },
+  webShell: { flex: 1, minHeight: 0, backgroundColor: BRAND.paper }, webContent: { flex: 1, minHeight: 0 },
+  sessionBar: { minHeight: 44, paddingHorizontal: 18, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: BRAND.fog, backgroundColor: BRAND.paper, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   dateTime: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
-  date: { color: '#8497AD', fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  timePill: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-  time: { color: '#C7D2E1', fontSize: 10, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  translateArea: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: 7, borderLeftWidth: 1, borderLeftColor: '#263B56', paddingLeft: 10 },
-  translateButton: { borderWidth: 1, borderColor: '#263B56', backgroundColor: '#0D1B2B', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  translatePressed: { opacity: 0.75 }, translateButtonText: { color: '#C7D2E1', fontSize: 10, fontWeight: '800' },
-  translateLabel: { color: '#8497AD', fontSize: 10, fontWeight: '800' }, translateWidget: { minWidth: 128, minHeight: 24, justifyContent: 'center' }, translateUnavailable: { color: '#8497AD', fontSize: 10, fontWeight: '700' },
+  date: { color: BRAND.mineral, fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
+  timePill: { borderWidth: 1, borderColor: BRAND.fog, backgroundColor: BRAND.fog, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  time: { color: BRAND.ink, fontSize: 10, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  translateArea: { minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: 7, borderLeftWidth: 1, borderLeftColor: BRAND.fog, paddingLeft: 10 },
+  translateButton: { borderWidth: 1, borderColor: BRAND.fog, backgroundColor: BRAND.fog, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  translatePressed: { opacity: 0.75 }, translateButtonText: { color: BRAND.ink, fontSize: 10, fontWeight: '800' },
+  translateLabel: { color: BRAND.mineral, fontSize: 10, fontWeight: '800' }, translateWidget: { minWidth: 128, minHeight: 24, justifyContent: 'center' }, translateUnavailable: { color: BRAND.mineral, fontSize: 10, fontWeight: '700' },
   sessionActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
-  sessionError: { color: '#FF9DAA', fontSize: 9, fontWeight: '700' },
-  logoutButton: { minHeight: 30, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 999, borderWidth: 1, borderColor: '#5A3440', backgroundColor: '#1A1118' },
-  logoutText: { color: '#FFB6C0', fontSize: 10, fontWeight: '800' }, disabled: { opacity: 0.55 },
+  sessionError: { color: '#A33131', fontSize: 9, fontWeight: '700' },
+  logoutButton: { minHeight: 30, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 999, borderWidth: 1, borderColor: '#A33131', backgroundColor: '#FFF0F1' },
+  logoutText: { color: '#A33131', fontSize: 10, fontWeight: '800' }, disabled: { opacity: 0.55 },
 })

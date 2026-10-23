@@ -22,10 +22,10 @@ const forbidMatch = (name, source, pattern) => { if (pattern.test(source)) failu
 requireMatch('native detail receives selected opportunity', app, /<Detail\s+item=\{selected\}/);
 requireMatch('native detail owns local opportunity state', app, /function Detail\(\{item,/);
 requireMatch('native workflow action calls API', app, /api\.setWorkflow\(current\.id,next/);
-requireMatch('native official-source action is rendered', app, /Abrir fonte oficial/);
-requireMatch('native detail warns when official link is missing', app, /ligação à publicação oficial não está disponível/);
-requireMatch('onboarding asks for business interests', onboarding, /Que trabalhos ou contratos procuras/);
-requireMatch('CPV stays an advanced option', onboarding, /Opção avançada: rever códigos CPV/);
+requireMatch('native official-source action is rendered', app, /Open official source and documents/);
+requireMatch('native detail warns when official link is missing', app, /No source link is available for this record/);
+requireMatch('onboarding asks for business interests', onboarding, /Which contracts or services do you target/);
+requireMatch('CPV stays an advanced option', onboarding, /Advanced: review CPV codes/);
 requireMatch('onboarding validates authoritative save', onboarding, /sameCoreProfile\(draft,saved\)/);
 requireMatch('onboarding verifies server readback', onboarding, /const persisted=await api\.profile\(\)/);
 requireMatch('onboarding caches only confirmed profile', onboarding, /await storage\.setProfile\(persisted\)/);
@@ -55,7 +55,7 @@ requireMatch('API sends offset query parameter', api, /offset:String\(offset\)/)
 requireMatch('web retains server page metadata', webApp, /\[page,setPage\]/);
 requireMatch('web load-more uses next_offset', webApp, /offset:page\.next_offset/);
 requireMatch('web deduplicates appended opportunity ids', webApp, /const merged=new Map\(/);
-requireMatch('web exposes load-more action', webApp, /Carregar mais oportunidades/);
+requireMatch('web exposes load-more action', webApp, /Load more opportunities/);
 requireMatch('web separates draft search from applied search', webApp, /\[appliedSearch,setAppliedSearch\]/);
 requireMatch('native retains server page metadata', app, /\[page,setPage\]/);
 requireMatch('native load-more uses next_offset', app, /offset:page\.next_offset/);
@@ -128,11 +128,15 @@ requireMatch('profile API requires canonical response envelope', api, /Object\.p
 forbidMatch('profile API must not accept ambiguous fallback payload', api, /data\?\.profile\|\|data\|\|null/);
 
 // Branding + market coverage are consistent across public/authenticated/onboarding/native.
-requireMatch('authenticated web uses refined ObraSignal wordmark', webApp, /Obra<Text style=\{s\.brandSignal\}>Signal/);
+const logoComponent=fs.readFileSync(new URL('./components/BrandLogo.js', import.meta.url),'utf8');
+requireMatch('shared vector mark is rendered with react-native-svg',logoComponent,/from 'react-native-svg'/);
+requireMatch('the mark preserves the decision-copper shape',logoComponent,/BRAND\.copper/);
+requireMatch('cinematic introduction uses responsive shared brand mark',webIntro,/<BrandLogo variant=\{narrow/);
+requireMatch('authenticated web uses official brand component', webApp, /<BrandLogo markSize=\{38\}/);
 requireMatch('authenticated web uses shared font system', webApp, /fontFamily:FONT/);
-requireMatch('public landing uses refined ObraSignal wordmark', authScreen, /Obra<Text style=\{styles\.brandAccent\}>Signal/);
-requireMatch('onboarding uses refined ObraSignal wordmark', onboarding, /Obra<Text style=\{styles\.brandBlue\}>Signal/);
-requireMatch('native shell uses refined ObraSignal wordmark', app, /Obra<Text style=\{s\.logoSignal\}>Signal/);
+requireMatch('public landing uses official brand component', authScreen, /<BrandLogo markSize=\{38\}/);
+requireMatch('onboarding uses official brand component', onboarding, /<BrandLogo markSize=\{42\}/);
+requireMatch('native shell uses official brand component', app, /<BrandLogo markSize=\{38\}/);
 forbidMatch('public landing must not regress to all-caps prototype wordmark', authScreen, />OBRA<Text/);
 forbidMatch('onboarding must not regress to all-caps prototype wordmark', onboarding, />OBRA<Text/);
 const europeanMarketCount = (markets.match(/^\s*\['[A-Z]{3}',/gm) || []).length;
@@ -140,13 +144,13 @@ if (europeanMarketCount !== 32) failures.push(`European market registry must exp
 requireMatch('web profile uses canonical Europe registry', webApp, /EUROPE_MARKETS\.map/);
 requireMatch('native profile uses canonical Europe registry', app, /EUROPE_MARKETS\.map/);
 requireMatch('onboarding uses canonical Europe registry', onboarding, /EUROPE_MARKETS\.map/);
-if (!/32 mercados europeus (ativos|activos)/.test(webApp) || !/32 mercados europeus (ativos|activos)/.test(onboarding) || !/32 mercados europeus (ativos|activos)/.test(app)) failures.push('customer copy must state the active 32-market Europe scope');
+if (!/Available coverage: 32 European markets/.test(webApp) || !/32 supported European markets/.test(onboarding) || !/Available coverage: 32 European markets/.test(app)) failures.push('customer copy must state the active 32-market Europe scope');
 
 // Public landing responsiveness + factual privacy disclosure.
 forbidMatch('public landing must avoid flex-basis responsive overlap regression', authScreen, /flexBasis/);
 requireMatch('public landing must have explicit wide breakpoint', authScreen, /width >= 980/);
 requireMatch('public landing must have stacked compact hero', authScreen, /heroStack/);
-requireMatch('public landing discloses authenticated data controls', authScreen, /exportação e pedido de eliminação dos dados privados/);
+requireMatch('public landing discloses authenticated data controls', authScreen, /private data export and privacy controls/);
 
 if (failures.length) {
   for (const name of failures) console.error(`FAIL: ${name}`);

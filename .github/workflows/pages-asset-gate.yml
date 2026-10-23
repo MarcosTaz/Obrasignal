@@ -20,6 +20,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.13.1'
-      - run: npm install --no-audit --no-fund
+      - name: Install dependencies with bounded retries for transient registry resets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if npm install --no-audit --no-fund --prefer-offline; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Dependency installation failed after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 8))
+          done
       - run: npm run smoke:web
       - run: python ../scripts/verify_pages_bundle_paths.py .smoke-dist

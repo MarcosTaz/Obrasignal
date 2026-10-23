@@ -4,7 +4,7 @@
     "slug": "obrasignal",
     "version": "0.3.0",
     "orientation": "default",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "scheme": "obrasignal",
     "ios": {
       "supportsTablet": true,
@@ -16,7 +16,7 @@
     "android": {
       "package": "pt.obrasignal.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0A1020"
+        "backgroundColor": "#F8FAFC"
       }
     },
     "plugins": [
