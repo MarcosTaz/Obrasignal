@@ -1,9 +1,10 @@
 // ObraSignal's identity is constant; each theme is a user preference.
  // Five stops preserve the original submitted palette order (light -> dark).
 import { BRAND } from './brand-palette.mjs';
-export const DEFAULT_THEME = 'signature';
+export const DEFAULT_THEME = 'command-night';
 
 export const THEMES = Object.freeze([
+  {id:'command-night',name:'Command Night',description:'Deep navy · blue steel · copper',swatches:['#F4F8FE','#BDD0E4','#7294B4','#102A42','#06111D'],accent:'#78BEFB',mode:'dark'},
   {id:'signature',name:'ObraSignal Signature',description:'Slate · mineral · mist blue · copper',swatches:[BRAND.paper,BRAND.fog,BRAND.mistBlue,BRAND.mineral,BRAND.slate],accent:BRAND.slate,mode:'light'},
   {id:'glass-graphite',name:'Glass & Graphite',swatches:['#F5F7FA','#D9DEE7','#AEB7C6','#4B5563','#111827'],accent:'#364D72',mode:'light'},
   {id:'warm-linen',name:'Warm Linen',swatches:['#FAF3E7','#E7D9C6','#C8B39A','#6B5B4B','#2B2621'],accent:'#835034',mode:'light'},
