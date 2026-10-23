@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { createTenantStorage } from './tenantStorage';
 import { DEFAULT_THEME, resolveTheme } from './theme-system.mjs';
+import { DEFAULT_LANGUAGE, normalizeLanguage } from './ui-language.mjs';
 
 const DEFAULT_SETTINGS = {
   notifications: false,
@@ -9,6 +10,7 @@ const DEFAULT_SETTINGS = {
   openOnly: true,
   source: '',
   theme: DEFAULT_THEME,
+  language: DEFAULT_LANGUAGE,
 };
 
 const privateStorage = createTenantStorage(AsyncStorage);
@@ -26,7 +28,8 @@ function isDefaultSettings(settings) {
     && settings.minScore === DEFAULT_SETTINGS.minScore
     && settings.openOnly === DEFAULT_SETTINGS.openOnly
     && (settings.source || '') === DEFAULT_SETTINGS.source
-    && (settings.theme || DEFAULT_THEME) === DEFAULT_THEME;
+    && (settings.theme || DEFAULT_THEME) === DEFAULT_THEME
+    && (settings.language || DEFAULT_LANGUAGE) === DEFAULT_LANGUAGE;
 }
 
 async function mirrorNotificationPreference(settings) {
@@ -61,7 +64,7 @@ export const storage = {
   getSaved: () => activePrivateTenant ? privateStorage.getSaved(activePrivateTenant) : Promise.resolve([]),
   setSaved: (ids) => privateStorage.setSaved(requirePrivateTenant(), ids),
   getSettings: () => activePrivateTenant
-    ? privateStorage.getSettings(activePrivateTenant).then((settings) => ({ ...DEFAULT_SETTINGS, ...settings, theme: resolveTheme(settings?.theme).id }))
+    ? privateStorage.getSettings(activePrivateTenant).then((settings) => ({ ...DEFAULT_SETTINGS, ...settings, theme: resolveTheme(settings?.theme).id, language: normalizeLanguage(settings?.language) }))
     : Promise.resolve({ ...DEFAULT_SETTINGS }),
   async setSettings(settings) {
     requirePrivateTenant();
