@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AuthGate from './components/AuthGate';
+import BrandLogo from './components/BrandLogo';
 import OpportunityExplanation from './components/OpportunityExplanation';
 import ProfileOnboarding from './components/ProfileOnboarding';
 import { api } from './src/api';
@@ -16,7 +17,7 @@ const ThemeContext = React.createContext(null);
 const STATES = [['NEW','Novo'],['REVIEWING','Em análise'],['PREPARING','A preparar'],['SUBMITTED','Proposta enviada'],['WON','Ganho'],['LOST','Perdido']];
 
 export default function App(){ return <AuthGate><WebMain/></AuthGate>; }
-function Brand(){const {C,s}=React.useContext(ThemeContext); return <Text style={s.brand}>Obra<Text style={s.brandSignal}>Signal</Text></Text>; }
+function Brand(){return <BrandLogo markSize={38} textSize={24}/>; }
 
 function useDocumentScroll(){
   useEffect(()=>{

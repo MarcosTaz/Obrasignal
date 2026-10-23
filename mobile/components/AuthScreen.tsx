@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { BRAND } from '../src/brand-palette.mjs';
+import BrandLogo from './BrandLogo';
 
 const COLORS = {
   bg:BRAND.paper,bgSoft:BRAND.fog,panel:'#FFFFFF',panelSoft:BRAND.fog,
@@ -11,7 +12,7 @@ const COLORS = {
 const CONTACT = 'obrasignal.pt@gmail.com';
 
 function Brand() {
-  return <Text style={styles.brand}>Obra<Text style={styles.brandAccent}>Signal</Text></Text>;
+  return <BrandLogo markSize={38} textSize={23}/>;
 }
 
 function Button({ children, onPress, secondary = false, disabled = false, compact = false }: any) {

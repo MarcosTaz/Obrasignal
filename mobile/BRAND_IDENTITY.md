@@ -36,3 +36,11 @@ Source of truth: `mobile/src/brand-palette.mjs`. Theme tokens and defaults: `mob
 
 ## Release boundary
 The current flat-ring favicon and introductory mark are **palette adaptations of the existing symbol, not legal or creative approval of a final timeless master logo**. Before logo finalization, select an independently reviewed master vector and produce exact derivatives (favicon/PWA/native app/store/docs). No real production deployment is implied by changing these files in a draft PR.
+
+## Official reusable logo component — October 23
+- `mobile/src/logo-geometry.mjs`: exact reusable five-path flat-vector geometry (monogram metaphor: evidence/structures converging to a copper decision threshold).
+- `mobile/components/BrandLogo.js`: one React Native SVG component for public/secure Web, native header, login, onboarding, recovery and animated Web intro. Layout variants horizontal/vertical/mark; high-contrast inverse mode.
+- `mobile/public/obrasignal-monogram.svg` and `mobile/public/obrasignal-logo.svg`: standalone Web/download derivatives. Favicon generated from geometry, no runtime DOM surgery.
+- Expo SVG dependency pinned to recommended SDK 57 compatible version `15.15.4`.
+- SVG uses flat corporate slate/mineral/copper. The user's current `settings.theme` NEVER changes the official geometry or corporate logo colours.
+- **No legal trademark clearance or final typographic outline approval is implied by visual acceptance.** Native store splash icons (PNG raster exports) still require dedicated EAS asset packaging, not an unsupported SVG passed as app-icon PNG.

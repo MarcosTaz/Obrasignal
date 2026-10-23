@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import AccountPrivacyControls from './AccountPrivacyControls'
 import AuthScreen from './AuthScreen'
+import BrandLogo from './BrandLogo';
 import BillingGate from './BillingGate'
 import PasswordRecovery from './PasswordRecovery'
 import { supabase } from '../lib/supabase'
@@ -228,10 +229,10 @@ export default function AuthGate({ children }) {
   }, [])
 
   if (authState.status === 'loading' || tenantStatus === 'loading') {
-    return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><ActivityIndicator size="small" color={BRAND.slate}/><Text style={styles.message}>A recuperar a sessão…</Text></View>
+    return <View style={styles.loading}><BrandLogo markSize={42} textSize={25}/><ActivityIndicator size="small" color={BRAND.slate}/><Text style={styles.message}>A recuperar a sessão…</Text></View>
   }
   if (tenantStatus === 'error') {
-    return <View style={styles.loading}><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
+    return <View style={styles.loading}><BrandLogo markSize={42} textSize={25}/><Text style={styles.error}>Não foi possível validar o armazenamento privado desta sessão.</Text></View>
   }
   if (authState.status !== 'signed-in') {
     if (Platform.OS !== 'web') return <AuthScreen />

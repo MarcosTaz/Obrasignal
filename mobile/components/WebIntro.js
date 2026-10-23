@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { BRAND } from '../src/brand-palette.mjs';
+import BrandLogo from './BrandLogo';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 export default function WebIntro({ onComplete }) {
@@ -43,7 +44,7 @@ export default function WebIntro({ onComplete }) {
       <Animated.View style={[styles.trail, { opacity: trailOpacity }]}/>
       <Animated.View style={[styles.dot, { transform: [{ translateX: dotX }, { translateY: dotY }, { scale: dotScale }] }]}/>
       <Animated.View style={[styles.brandWrap, { opacity: brandOpacity, transform: [{ translateY: brandY }] }]}>
-        <View style={styles.logoRow}><View style={styles.mark}><View style={styles.markCore}/></View><Text style={styles.brand}>Obra<Text style={styles.blue}>Signal</Text></Text></View>
+        <BrandLogo markSize={65} textSize={35} tagline/>
         <Text style={styles.slogan}>VEJA ANTES. AJA PRIMEIRO.</Text>
       </Animated.View>
     </View>

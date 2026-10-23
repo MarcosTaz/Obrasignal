@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { BRAND } from '../src/brand-palette.mjs';
+import BrandLogo from './BrandLogo';
 
 const C={bg:BRAND.paper,panel:'#FFFFFF',line:BRAND.fog,text:BRAND.ink,muted:BRAND.mineral,blue:BRAND.slate,green:'#21674A',red:'#A33131'};
 
@@ -33,7 +34,7 @@ export default function PasswordRecovery({onComplete,onCancel}){
   };
 
   return <View style={s.page}><View style={s.card}>
-    <Text style={s.brand}>Obra<Text style={s.brandBlue}>Signal</Text></Text>
+    <BrandLogo markSize={40} textSize={23}/>
     <Text style={s.eyebrow}>RECUPERAÇÃO DE ACESSO</Text>
     <Text style={s.title}>Define uma nova palavra-passe.</Text>
     <Text style={s.body}>O link de recuperação já confirmou a sessão temporária. Agora escolhe a nova palavra-passe antes de continuar para os dados privados da conta.</Text>
