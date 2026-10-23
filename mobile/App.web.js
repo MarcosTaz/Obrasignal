@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, Text, TextIn
 import { StatusBar } from 'expo-status-bar';
 import AuthGate from './components/AuthGate';
 import BrandLogo from './components/BrandLogo';
+import {WorldAnalytics,WorldHero,WorldSidebar,WorldToolbar,WorldMarkets} from './components/WorldExperience';
 import OpportunityExplanation from './components/OpportunityExplanation';
 import ProfileOnboarding from './components/ProfileOnboarding';
 import { api } from './src/api';
@@ -32,7 +33,8 @@ function useDocumentScroll(){
 function WebMain(){
   useDocumentScroll();
   const { width } = useWindowDimensions();
-  const compact = width < 760;
+  const compact = width < 930;
+  const panelsCompact = width < 1350;
   const [tab,setTab] = useState('radar');
   const [items,setItems] = useState([]);
   const [stats,setStats] = useState({});
@@ -136,31 +138,34 @@ function WebMain(){
   if(selected)return <ThemeContext.Provider value={themed}><OpportunityDetail item={selected} compact={compact} onBack={()=>setSelected(null)} onChanged={next=>{setSelected(next);setItems(old=>old.map(item=>item.id===next.id?next:item));}}/></ThemeContext.Provider>;
 
   return <ThemeContext.Provider value={themed}><View style={s.documentPage}>
-    <StatusBar style="auto"/>
-    <View style={s.pageContent}><View style={[s.shell,compact&&s.shellCompact]}>
-      <Header onRefresh={()=>load({criteria:settings,query:appliedSearch})}/><Nav tab={tab} setTab={setTab}/>
-      {tab==='settings'
-        ? <ThemeSettings settings={settings} setSettings={setSettings} onOpenOnlyChange={value=>applyCriteria({openOnly:value})} notice={notice}/>
-        : tab==='profile'
-        ? <ProfilePanel profile={profile} profileLoading={profileLoading} error={profileError} settings={settings} setSettings={setSettings} onOpenOnlyChange={value=>applyCriteria({openOnly:value})} onSave={saveProfile} saving={saving} notice={notice} onRetry={()=>load({criteria:settings,query:appliedSearch})}/>
-        : <RadarPanel compact={compact} items={items} stats={stats} settings={settings} search={search} setSearch={setSearch} appliedSearch={appliedSearch} loading={loading} loadingMore={loadingMore} page={page} error={radarError} notice={notice} onRefresh={()=>load({criteria:settings,query:appliedSearch})} onSearch={submitSearch} onClearSearch={clearSearch} onMinScore={value=>applyCriteria({minScore:value})} onLoadMore={loadMore} onOpen={setSelected}/>} 
-    </View></View>
+    <StatusBar style="light"/>
+    <View style={{width:'100%',flexDirection:compact?'column':'row',minHeight:'100vh',backgroundColor:'#06111D'}}>
+      <WorldSidebar tab={tab} onTab={setTab} compact={compact}/>
+      <View style={{flex:1,minWidth:0,paddingHorizontal:compact?12:25,paddingBottom:58}}>
+        <WorldToolbar tab={tab} onRefresh={()=>load({criteria:settings,query:appliedSearch})}/>
+        {tab==='radar'||tab==='analytics'?<><WorldHero compact={compact}/><WorldAnalytics items={items} stats={stats} compact={panelsCompact} onOpen={setSelected}/></>:null}
+        {tab==='markets'?<WorldMarkets/>:null}
+        {tab==='settings'?<ThemeSettings settings={settings} setSettings={setSettings} onOpenOnlyChange={value=>applyCriteria({openOnly:value})} notice={notice}/>:null}
+        {tab==='profile'?<ProfilePanel profile={profile} profileLoading={profileLoading} error={profileError} settings={settings} setSettings={setSettings} onOpenOnlyChange={value=>applyCriteria({openOnly:value})} onSave={saveProfile} saving={saving} notice={notice} onRetry={()=>load({criteria:settings,query:appliedSearch})}/>:null}
+        {tab==='radar'||tab==='opportunities'?<RadarPanel compact={compact} hideOverview={true} items={items} stats={stats} settings={settings} search={search} setSearch={setSearch} appliedSearch={appliedSearch} loading={loading} loadingMore={loadingMore} page={page} error={radarError} notice={notice} onRefresh={()=>load({criteria:settings,query:appliedSearch})} onSearch={submitSearch} onClearSearch={clearSearch} onMinScore={value=>applyCriteria({minScore:value})} onLoadMore={loadMore} onOpen={setSelected}/>:null}
+      </View>
+    </View>
   </View></ThemeContext.Provider>;
 }
 
 function Header({onRefresh}){const {C,s}=React.useContext(ThemeContext);return <View style={s.header}><View><Brand/><Text style={s.headerSubtitle}>Public procurement intelligence</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Refresh radar" onPress={onRefresh} style={({pressed})=>[s.refreshButton,pressed&&s.pressed]}><Text style={s.refreshIcon}>↻</Text><Text style={s.refreshText}>Refresh</Text></Pressable></View>;}
 function Nav({tab,setTab}){const {C,s}=React.useContext(ThemeContext);return <View style={s.nav}>{['radar','profile','settings'].map(key=><Pressable accessibilityRole="button" key={key} onPress={()=>setTab(key)} style={[s.navItem,tab===key&&s.navItemOn]}><Text style={[s.navText,tab===key&&s.navTextOn]}>{key==='radar'?'Radar':key==='profile'?'Profile':'Settings'}</Text></Pressable>)}</View>;}
 
-function RadarPanel({compact,items,stats,settings,search,setSearch,appliedSearch,loading,loadingMore,page,error,notice,onRefresh,onSearch,onClearSearch,onMinScore,onLoadMore,onOpen}){const {C,s}=React.useContext(ThemeContext);
+function RadarPanel({compact,hideOverview=false,items,stats,settings,search,setSearch,appliedSearch,loading,loadingMore,page,error,notice,onRefresh,onSearch,onClearSearch,onMinScore,onLoadMore,onOpen}){const {C,s}=React.useContext(ThemeContext);
   const visible=useMemo(()=>items,[items]);
   const statValues=[['Opportunities',stats.total],['Open',stats.open],['New in 24h',stats.new24],['High relevance',stats.high]];
   return <View style={s.bodyWrap}>
-    <View style={[s.workspaceIntro,compact&&s.stack]}><View style={s.workspaceCopy}><Text style={s.eyebrow}>COMMERCIAL RADAR</Text><Text style={[s.workspaceTitle,compact&&s.workspaceTitleCompact]}>Opportunities worth your attention.</Text><Text style={s.workspaceBody}>Prioritised for your company, with explainable matches and original source links.</Text></View><View style={[s.workspaceMeta,compact&&s.workspaceMetaCompact]}><Text style={s.metaKicker}>LAST UPDATE</Text><Text style={s.metaValue}>{stats.last_sync?new Date(stats.last_sync).toLocaleString('en-GB'):'Syncing'}</Text></View></View>
-    <View style={[s.statsGrid,compact&&s.statsGridCompact]}>{statValues.map(([label,value])=><View style={s.stat} key={label}><Text style={s.statValue}>{value??0}</Text><Text style={s.statLabel}>{label}</Text></View>)}</View>
+    <View style={[s.workspaceIntro,compact&&s.stack,hideOverview&&{display:'none'}]}><View style={s.workspaceCopy}><Text style={s.eyebrow}>COMMERCIAL RADAR</Text><Text style={[s.workspaceTitle,compact&&s.workspaceTitleCompact]}>Opportunities worth your attention.</Text><Text style={s.workspaceBody}>Prioritised for your company, with explainable matches and original source links.</Text></View><View style={[s.workspaceMeta,compact&&s.workspaceMetaCompact]}><Text style={s.metaKicker}>LAST UPDATE</Text><Text style={s.metaValue}>{stats.last_sync?new Date(stats.last_sync).toLocaleString('en-GB'):'Syncing'}</Text></View></View>
+    <View style={[s.statsGrid,compact&&s.statsGridCompact,hideOverview&&{display:'none'}]}>{statValues.map(([label,value])=><View style={s.stat} key={label}><Text style={s.statValue}>{value??0}</Text><Text style={s.statLabel}>{label}</Text></View>)}</View>
     <View style={[s.tools,compact&&s.stack]}><View style={s.search}><Text style={s.searchIcon}>⌕</Text><TextInput value={search} onChangeText={setSearch} onSubmitEditing={onSearch} returnKeyType="search" placeholder="Search projects, authorities or CPV…" placeholderTextColor={C.muted2} style={s.input}/><Pressable accessibilityRole="button" onPress={onSearch} style={s.searchButton}><Text style={s.searchButtonText}>Search</Text></Pressable>{appliedSearch?<Pressable accessibilityRole="button" onPress={onClearSearch} style={s.clearButton}><Text style={s.clearButtonText}>Clear</Text></Pressable>:null}</View><View style={s.filters}>{[60,75,90].map(v=><Pressable key={v} onPress={()=>onMinScore(v)} style={[s.filter,settings.minScore===v&&s.filterOn]}><Text style={[s.filterText,settings.minScore===v&&s.filterTextOn]}>{v}+ relevance</Text></Pressable>)}</View></View>
     {notice?<Text style={s.notice}>{notice}</Text>:null}{error?<ErrorNotice message={error} onRetry={onRefresh}/>:null}
     <View style={s.listHead}><Text style={s.sectionTitle}>Radar</Text><Text style={s.listCount}>{visible.length}{page?.has_more?'+':''} results loaded</Text></View>
-    {loading?<Skeleton/>:visible.length?<View style={s.opportunityGrid}>{visible.map(item=><OpportunityCard key={String(item.id)} item={item} onOpen={()=>onOpen(item)}/>)}</View>:<Text style={s.empty}>Sem resultados com estes filtros. Reduz a relevance mínima ou ajusta os critérios da empresa.</Text>}
+    {loading?<Skeleton/>:visible.length?<View style={s.opportunityGrid}>{visible.map(item=><OpportunityCard key={String(item.id)} item={item} onOpen={()=>onOpen(item)}/>)}</View>:<Text style={s.empty}>No matching opportunities for these criteria. Adjust the filters or company profile.</Text>}
     {!loading&&page?.has_more?<Pressable disabled={loadingMore} accessibilityRole="button" onPress={onLoadMore} style={[s.loadMore,loadingMore&&s.disabled]}>{loadingMore?<ActivityIndicator color={C.text}/>:<Text style={s.loadMoreText}>Load more opportunities</Text>}</Pressable>:null}
     {!loading&&visible.length>0&&!page?.has_more?<Text style={s.endOfList}>End of results for the current criteria.</Text>:null}
   </View>;
