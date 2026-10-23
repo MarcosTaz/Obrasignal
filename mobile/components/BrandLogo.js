@@ -28,7 +28,7 @@ export default function BrandLogo({
     {mark}
     <View style={{alignItems:variant==='vertical'?'center':'flex-start'}}>
       {words}
-      {tagline?<Text style={{fontSize:Math.max(7,textSize*.33),letterSpacing:1.25,color:mineral,marginTop:2}}>CONTRATAÇÃO PÚBLICA INTELIGENTE</Text>:null}
+      {tagline?<Text style={{fontSize:Math.max(7,textSize*.33),letterSpacing:1.25,color:mineral,marginTop:2}}>PROCUREMENT INTELLIGENCE</Text>:null}
     </View>
   </View>;
 }
