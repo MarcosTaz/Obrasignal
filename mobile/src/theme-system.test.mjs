@@ -10,11 +10,11 @@ function luminance(hex) {
 }
 function contrast(a,b){const la=luminance(a),lb=luminance(b);return (Math.max(la,lb)+.05)/(Math.min(la,lb)+.05);}
 test('default identity is explicit and not the old midnight palette',()=>{
-  assert.equal(DEFAULT_THEME,'signature');
+  assert.equal(DEFAULT_THEME,'command-night');
   assert.notEqual(createThemeColors(DEFAULT_THEME).bg,'#07111C');
 });
 test('all user-submitted palette choices are available without duplication',()=>{
-  const expected=['signature','glass-graphite','warm-linen','sage','modern-moss','minimal-beige','slate-circuit','steel-lavender','midnight-blue','original-night'];
+  const expected=['command-night','signature','glass-graphite','warm-linen','sage','modern-moss','minimal-beige','slate-circuit','steel-lavender','midnight-blue','original-night'];
   assert.deepEqual(THEMES.map(t=>t.id),expected);
 });
 test('theme fallback does not trust a persisted unknown identifier',()=>{
@@ -55,18 +55,18 @@ test('fixed corporate colours exactly match latest approved brief',()=>{
     slate:'#2A3439', mineral:'#5C6B73', mistBlue:'#9DB2BF',
     fog:'#DBE2EF', paper:'#F8FAFC', copper:'#C87D55', ink:'#0F172A',
   });
-  assert.deepEqual(resolveTheme(DEFAULT_THEME).swatches,[
+  assert.deepEqual(resolveTheme('signature').swatches,[
     BRAND.paper,BRAND.fog,BRAND.mistBlue,BRAND.mineral,BRAND.slate
   ]);
-  assert.equal(createThemeColors(DEFAULT_THEME).text,BRAND.ink);
+  assert.equal(createThemeColors('signature').text,BRAND.ink);
 });
 test('copper action contrast is accessible; copper must not be used as small text on white',()=>{
   assert.ok(contrast(BRAND.ink,BRAND.copper)>=4.5);
   assert.ok(contrast(BRAND.slate,BRAND.paper)>=7);
   assert.ok(contrast(BRAND.mineral,BRAND.paper)>=4.5);
   assert.ok(contrast(BRAND.copper,BRAND.paper)<4.5);
-  assert.equal(createThemeColors(DEFAULT_THEME).action,BRAND.copper);
-  assert.equal(createThemeColors(DEFAULT_THEME).onAction,BRAND.ink);
+  assert.equal(createThemeColors('signature').action,BRAND.copper);
+  assert.equal(createThemeColors('signature').onAction,BRAND.ink);
 });
 test('browser emblem and opening use the central brand palette, never old electric blue',()=>{
   const mark=readFileSync(new URL('./webBranding.js',import.meta.url),'utf8');
