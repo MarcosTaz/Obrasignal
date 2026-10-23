@@ -17,7 +17,7 @@ const ThemeContext = React.createContext(null);
 const STATES = [['NEW','Novo'],['REVIEWING','Em análise'],['PREPARING','A preparar'],['SUBMITTED','Proposta enviada'],['WON','Ganho'],['LOST','Perdido']];
 
 export default function App(){ return <AuthGate><WebMain/></AuthGate>; }
-function Brand(){return <BrandLogo markSize={38} textSize={24}/>; }
+function Brand(){const {inverseBrand}=React.useContext(ThemeContext);return <BrandLogo markSize={38} textSize={24} inverse={inverseBrand}/>; }
 
 function useDocumentScroll(){
   useEffect(()=>{
@@ -38,7 +38,7 @@ function WebMain(){
   const [stats,setStats] = useState({});
   const [page,setPage] = useState({limit:PAGE_SIZE,offset:0,has_more:false,next_offset:null});
   const [settings,setSettings] = useState(DEFAULT_SETTINGS);
-  const themed = useMemo(() => { const C=createThemeColors(settings.theme); return {C,s:buildStyles(C)}; },[settings.theme]);
+  const themed = useMemo(() => { const C=createThemeColors(settings.theme); return {C,s:buildStyles(C),inverseBrand:resolveTheme(settings.theme).mode==='dark'}; },[settings.theme]);
   const {C,s}=themed;
   const [profile,setProfile] = useState(undefined);
   const [selected,setSelected] = useState(null);
