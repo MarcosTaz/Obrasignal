@@ -17,7 +17,7 @@ export function installWebBranding() {
   if(typeof document==='undefined')return ()=>{};
   ensureFavicon();
   ensureThemeColor();
-  // The official mark now lives in explicit React components. No MutationObserver,
+  // The official mark lives in explicit React components, not DOM observers.
   // no unsolicited DOM decoration, no recolouring of user-selected UI themes.
   return ()=>{};
 }
