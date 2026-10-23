@@ -39,3 +39,12 @@ test('brand is theme invariant and has no DOM mutations to coloured wordmark',()
   assert.match(component,/BRAND_MARK_PATHS/);
   assert.match(component,/accessible accessibilityLabel="ObraSignal"/);
 });
+
+test('mobile intro switches to a smaller stacked lockup rather than overflowing on narrow screens',()=>{
+ const intro=readFileSync(new URL('../components/WebIntro.js',import.meta.url),'utf8');
+ assert.match(intro,/useWindowDimensions/);
+ assert.match(intro,/width < 480/);
+ assert.match(intro,/variant=\{narrow \? 'vertical' : 'horizontal'\}/);
+ assert.match(intro,/markSize=\{narrow \? 58 : 65\}/);
+ assert.match(intro,/brandWrapNarrow/);
+});
