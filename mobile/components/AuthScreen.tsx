@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet
 import { supabase } from '../lib/supabase';
 import { BRAND } from '../src/brand-palette.mjs';
 import BrandLogo from './BrandLogo';
+import {WorldLanding} from './WorldExperience';
 
 const COLORS = {
   bg:BRAND.paper,bgSoft:BRAND.fog,panel:'#FFFFFF',panelSoft:BRAND.fog,
@@ -153,7 +154,7 @@ function AuthForm({ onBack }: { onBack: () => void }) {
 
 export default function AuthScreen() {
   const [showAuth, setShowAuth] = useState(Platform.OS !== 'web');
-  if (!showAuth) return <Landing onLogin={()=>setShowAuth(true)}/>;
+  if (!showAuth) return <WorldLanding onLogin={()=>setShowAuth(true)}/>;
   return <AuthForm onBack={()=>setShowAuth(false)}/>;
 }
 
