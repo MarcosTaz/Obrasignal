@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { BRAND } from '../src/brand-palette.mjs';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 export default function WebIntro({ onComplete }) {
@@ -50,12 +51,12 @@ export default function WebIntro({ onComplete }) {
 }
 
 const styles = StyleSheet.create({
-  root:{position:'absolute',inset:0,zIndex:9999,backgroundColor:'#07111C',alignItems:'center',justifyContent:'center'},
+  root:{position:'absolute',inset:0,zIndex:9999,backgroundColor:BRAND.paper,alignItems:'center',justifyContent:'center'},
   stage:{width:420,height:300,maxWidth:'92%',alignItems:'center',justifyContent:'center'},
-  radar:{position:'absolute',width:220,height:220,borderRadius:110,borderWidth:2,borderColor:'#1768FF',alignItems:'center',justifyContent:'center'},
-  ring:{position:'absolute',borderWidth:1,borderColor:'#174A91',borderRadius:999},ring1:{width:165,height:165},ring2:{width:110,height:110},ring3:{width:55,height:55},
-  axisH:{position:'absolute',width:260,height:1,backgroundColor:'#174A91'},axisV:{position:'absolute',height:260,width:1,backgroundColor:'#174A91'},
-  trail:{position:'absolute',width:280,height:110,borderRadius:999,borderWidth:2,borderColor:'#1674FF',transform:[{rotate:'-8deg'}]},
-  dot:{position:'absolute',width:18,height:18,borderRadius:9,backgroundColor:'#63E8FF',shadowColor:'#1674FF',shadowOpacity:1,shadowRadius:14,shadowOffset:{width:0,height:0}},
-  brandWrap:{position:'absolute',top:210,alignItems:'center'},logoRow:{flexDirection:'row',alignItems:'center',gap:12},mark:{width:40,height:40,borderRadius:20,borderWidth:7,borderColor:'#1768FF',alignItems:'center',justifyContent:'center'},markCore:{width:8,height:8,borderRadius:4,backgroundColor:'#1768FF'},brand:{fontSize:34,fontWeight:'900',letterSpacing:-1.2,color:'#F4F7FB'},blue:{color:'#1768FF'},slogan:{marginTop:9,fontSize:12,fontWeight:'800',letterSpacing:2.1,color:'#AFC8EB'}
+  radar:{position:'absolute',width:220,height:220,borderRadius:110,borderWidth:2,borderColor:BRAND.slate,alignItems:'center',justifyContent:'center'},
+  ring:{position:'absolute',borderWidth:1,borderColor:BRAND.mineral,borderRadius:999},ring1:{width:165,height:165},ring2:{width:110,height:110},ring3:{width:55,height:55},
+  axisH:{position:'absolute',width:260,height:1,backgroundColor:BRAND.mineral},axisV:{position:'absolute',height:260,width:1,backgroundColor:BRAND.mineral},
+  trail:{position:'absolute',width:280,height:110,borderRadius:999,borderWidth:2,borderColor:BRAND.copper,transform:[{rotate:'-8deg'}]},
+  dot:{position:'absolute',width:18,height:18,borderRadius:9,backgroundColor:BRAND.copper,shadowColor:BRAND.copper,shadowOpacity:1,shadowRadius:14,shadowOffset:{width:0,height:0}},
+  brandWrap:{position:'absolute',top:210,alignItems:'center'},logoRow:{flexDirection:'row',alignItems:'center',gap:12},mark:{width:40,height:40,borderRadius:20,borderWidth:7,borderColor:BRAND.slate,alignItems:'center',justifyContent:'center'},markCore:{width:8,height:8,borderRadius:4,backgroundColor:BRAND.copper},brand:{fontSize:34,fontWeight:'900',letterSpacing:-1.2,color:BRAND.ink},blue:{color:BRAND.mineral},slogan:{marginTop:9,fontSize:12,fontWeight:'800',letterSpacing:2.1,color:BRAND.mineral}
 });
