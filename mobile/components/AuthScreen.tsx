@@ -23,53 +23,53 @@ function Button({ children, onPress, secondary = false, disabled = false, compac
 
 function ProductPreview() {
   return <View style={styles.preview}>
-    <View style={styles.previewTop}><View><Text style={styles.previewKicker}>RADAR</Text><Text style={styles.previewTitle}>Oportunidades priorizadas</Text></View><View style={styles.examplePill}><Text style={styles.exampleText}>EXEMPLO</Text></View></View>
+    <View style={styles.previewTop}><View><Text style={styles.previewKicker}>RADAR</Text><Text style={styles.previewTitle}>Prioritised opportunities</Text></View><View style={styles.examplePill}><Text style={styles.exampleText}>ILLUSTRATION</Text></View></View>
     <View style={styles.metrics}>
-      {[['12','abertas'],['7','relevantes'],['3','prioritárias']].map(([value,label]) => <View style={styles.metric} key={label}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>)}
+      {[['12','open'],['7','relevant'],['3','priority']].map(([value,label]) => <View style={styles.metric} key={label}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>)}
     </View>
-    <View style={styles.searchMock}><Text style={styles.searchIcon}>⌕</Text><Text style={styles.searchText}>instalações · Portugal</Text><View style={styles.filterPill}><Text style={styles.filterText}>75+</Text></View></View>
+    <View style={styles.searchMock}><Text style={styles.searchIcon}>⌕</Text><Text style={styles.searchText}>Infrastructure · International</Text><View style={styles.filterPill}><Text style={styles.filterText}>75+</Text></View></View>
     <View style={styles.opportunity}>
-      <View style={styles.opportunityTop}><Text style={styles.source}>FONTE OFICIAL</Text><Text style={styles.score}>92/100</Text></View>
-      <Text style={styles.opportunityTitle}>Empreitada de reabilitação e instalações técnicas</Text>
-      <Text style={styles.opportunityMeta}>Prazo identificado · entidade adjudicante visível</Text>
-      <Text style={styles.opportunityReason}>Forte correspondência com atividade, localização e dimensão habitual.</Text>
-      <Text style={styles.opportunityLink}>Ver oportunidade →</Text>
+      <View style={styles.opportunityTop}><Text style={styles.source}>OFFICIAL SOURCE</Text><Text style={styles.score}>92/100</Text></View>
+      <Text style={styles.opportunityTitle}>Building renovation and technical installations</Text>
+      <Text style={styles.opportunityMeta}>Published deadline · authority identified</Text>
+      <Text style={styles.opportunityReason}>Matched to sector, location and typical project size.</Text>
+      <Text style={styles.opportunityLink}>View opportunity →</Text>
     </View>
     <View style={styles.opportunityMuted}>
       <View style={styles.opportunityTop}><Text style={styles.source}>FONTE OFICIAL</Text><Text style={styles.scoreBlue}>84/100</Text></View>
-      <Text style={styles.opportunityTitleSmall}>Manutenção de edifícios e sistemas técnicos</Text>
-      <Text style={styles.opportunityMeta}>Razão de encaixe explicada · próximo passo registável</Text>
+      <Text style={styles.opportunityTitleSmall}>Facilities maintenance and technical systems</Text>
+      <Text style={styles.opportunityMeta}>Transparent relevance · clear next step</Text>
     </View>
   </View>;
 }
 
-function Landing({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => void }) {
+function Landing({ onLogin }: { onLogin: () => void }) {
   const { width } = useWindowDimensions();
   const wide = width >= 980;
   const medium = width >= 720;
-  const askSample = () => Linking.openURL(`mailto:${CONTACT}?subject=Quero%20uma%20amostra%20ObraSignal`);
+  const askSample = () => Linking.openURL(`mailto:${CONTACT}?subject=ObraSignal%20sample%20request`);
   const proof = [
-    ['01','Fontes oficiais','A oportunidade mantém ligação à publicação que manda.'],
-    ['02','Encaixe explicado','Vês porque apareceu e onde o perfil encaixa.'],
-    ['03','Próximo passo','Do sinal ao acompanhamento comercial sem perder contexto.'],
-    ['04','Menos ruído','Priorização para trabalhar poucas oportunidades melhores.'],
+    ['01','Official sources','Trace each opportunity to its original publication.'],
+    ['02','Explainable fit','Know why each opportunity matches your business.'],
+    ['03','Next action','Keep your commercial workflow connected to evidence.'],
+    ['04','Less noise','Prioritise what deserves your attention.'],
   ];
   const steps = [
-    ['01','Define o perfil','Atividade, trabalhos procurados, geografia e dimensão comercial.'],
-    ['02','Recebe o Radar','O ObraSignal filtra, ordena e explica as oportunidades que passam os critérios.'],
-    ['03','Transforma sinal em ação','Analisa, regista notas e acompanha cada oportunidade até à decisão.'],
+    ['01','Set your profile','Capabilities, target markets and typical contract values.'],
+    ['02','Review your radar','See prioritised opportunities against your criteria.'],
+    ['03','Take action','Evaluate, add notes and follow decisions.'],
   ];
   return <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
     <View style={styles.shell}>
-      <View style={styles.nav}><Brand/><Text style={[styles.navDescriptor, !medium && styles.hide]}>Radar · Decisão · Acompanhamento</Text><Pressable accessibilityRole="button" onPress={onLogin} style={styles.loginButton}><Text style={styles.loginText}>Entrar</Text></Pressable></View>
+      <View style={styles.nav}><Brand/><Text style={[styles.navDescriptor, !medium && styles.hide]}>Discover · Evaluate · Act</Text><Pressable accessibilityRole="button" onPress={onLogin} style={styles.loginButton}><Text style={styles.loginText}>Sign in</Text></Pressable></View>
 
       <View style={[styles.hero, !wide && styles.heroStack]}>
         <View style={[styles.heroCopy, !wide && styles.fullWidth]}>
-          <Text style={styles.eyebrow}>RADAR COMERCIAL PARA CONTRATAÇÃO PÚBLICA</Text>
-          <Text style={[styles.heroTitle, !medium && styles.heroTitleSmall]}>Encontra os concursos que merecem o teu tempo.</Text>
-          <Text style={styles.heroBody}>A ObraSignal filtra oportunidades públicas para o perfil da tua empresa, explica o encaixe e transforma pesquisa dispersa num processo comercial claro.</Text>
-          <View style={[styles.heroActions, !medium && styles.actionsStack]}><Button onPress={askSample}>Receber uma amostra</Button><Button secondary onPress={onSignup}>Criar conta</Button></View>
-          <Text style={styles.microcopy}>Sem feed genérico. Poucas oportunidades, com razão de encaixe e fonte oficial.</Text>
+          <Text style={styles.eyebrow}>GLOBAL PROCUREMENT INTELLIGENCE</Text>
+          <Text style={[styles.heroTitle, !medium && styles.heroTitleSmall]}>Find opportunities worth pursuing.</Text>
+          <Text style={styles.heroBody}>ObraSignal helps organisations discover public tenders, understand their relevance and turn fragmented research into confident decisions.</Text>
+          <View style={[styles.heroActions, !medium && styles.actionsStack]}><Button onPress={askSample}>Request a sample</Button><Button secondary onPress={() => Linking.openURL(`mailto:${CONTACT}?subject=ObraSignal%20access%20request`)}>Request access</Button></View>
+          <Text style={styles.microcopy}>Official sources. Explainable relevance. Better decisions.</Text>
         </View>
         <View style={[styles.heroVisual, !wide && styles.fullWidth]}><ProductPreview/></View>
       </View>
@@ -77,91 +77,84 @@ function Landing({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => v
       <View style={[styles.proofRow, !wide && styles.stack]}>{proof.map(([n,title,copy]) => <View style={styles.proofItem} key={n}><Text style={styles.proofNumber}>{n}</Text><View style={styles.proofCopy}><Text style={styles.proofTitle}>{title}</Text><Text style={styles.proofBody}>{copy}</Text></View></View>)}</View>
 
       <View style={styles.section}>
-        <View style={styles.sectionLabel}><Text style={styles.sectionIndex}>01</Text><View style={styles.sectionLine}/><Text style={styles.sectionLabelText}>COMO FUNCIONA</Text></View>
-        <View style={[styles.sectionIntro, !wide && styles.stack]}><Text style={[styles.sectionTitle, !medium && styles.sectionTitleSmall]}>Um fluxo comercial, não outra lista de concursos.</Text><Text style={styles.sectionCopy}>A experiência foi desenhada para reduzir pesquisa manual e manter a decisão ligada à evidência original.</Text></View>
+        <View style={styles.sectionLabel}><Text style={styles.sectionIndex}>01</Text><View style={styles.sectionLine}/><Text style={styles.sectionLabelText}>HOW IT WORKS</Text></View>
+        <View style={[styles.sectionIntro, !wide && styles.stack]}><Text style={[styles.sectionTitle, !medium && styles.sectionTitleSmall]}>A decision workflow, not another tender directory.</Text><Text style={styles.sectionCopy}>Spend less time searching and keep each decision tied to original evidence.</Text></View>
         <View style={[styles.cardRow, !wide && styles.stack]}>{steps.map(([n,title,copy]) => <View style={styles.stepCard} key={n}><Text style={styles.stepNumber}>{n}</Text><Text style={styles.stepTitle}>{title}</Text><Text style={styles.stepCopy}>{copy}</Text></View>)}</View>
       </View>
 
       <View style={styles.section}>
-        <View style={styles.sectionLabel}><Text style={styles.sectionIndex}>02</Text><View style={styles.sectionLine}/><Text style={styles.sectionLabelText}>PRODUTO</Text></View>
+        <View style={styles.sectionLabel}><Text style={styles.sectionIndex}>02</Text><View style={styles.sectionLine}/><Text style={styles.sectionLabelText}>PLATFORM</Text></View>
         <View style={[styles.featureRow, !wide && styles.stack]}>
-          <View style={styles.featureLarge}><Text style={styles.cardKicker}>RADAR</Text><Text style={styles.featureTitle}>Clareza primeiro. Volume depois.</Text><Text style={styles.featureCopy}>Pesquisa, relevância e estado num único lugar. O foco é saber onde vale a pena gastar tempo comercial.</Text><View style={styles.miniRadar}><Text style={styles.miniTitle}>Reabilitação de edifício municipal</Text><Text style={styles.goodScore}>91/100</Text></View></View>
-          <View style={styles.featureCard}><Text style={styles.cardKicker}>EXPLICABILIDADE</Text><Text style={styles.featureTitleSmall}>Sabes porque apareceu.</Text><Text style={styles.featureCopy}>O score não substitui a decisão: mostra o contexto usado para priorizar.</Text></View>
-          <View style={styles.featureCard}><Text style={styles.cardKicker}>WORKFLOW</Text><Text style={styles.featureTitleSmall}>Do “novo” ao “ganho”.</Text><Text style={styles.featureCopy}>Estado comercial e notas ficam junto da oportunidade, sem depender de memória ou folhas soltas.</Text><View style={styles.statuses}>{['Novo','Análise','Preparar','Enviado'].map((x,i)=><View key={x} style={[styles.status, i===1 && styles.statusOn]}><Text style={styles.statusText}>{x}</Text></View>)}</View></View>
+          <View style={styles.featureLarge}><Text style={styles.cardKicker}>RADAR</Text><Text style={styles.featureTitle}>Clarity before volume.</Text><Text style={styles.featureCopy}>Research, relevance and workflow in one place.</Text><View style={styles.miniRadar}><Text style={styles.miniTitle}>Municipal facilities renovation</Text><Text style={styles.goodScore}>91/100</Text></View></View>
+          <View style={styles.featureCard}><Text style={styles.cardKicker}>EXPLAINABILITY</Text><Text style={styles.featureTitleSmall}>Know why it matters.</Text><Text style={styles.featureCopy}>A score supports your judgement; it does not replace it.</Text></View>
+          <View style={styles.featureCard}><Text style={styles.cardKicker}>WORKFLOW</Text><Text style={styles.featureTitleSmall}>From discovery to outcome.</Text><Text style={styles.featureCopy}>Track status and notes alongside the opportunity.</Text><View style={styles.statuses}>{['New','Review','Prepare','Submitted'].map((x,i)=><View key={x} style={[styles.status, i===1 && styles.statusOn]}><Text style={styles.statusText}>{x}</Text></View>)}</View></View>
         </View>
       </View>
 
-      <View style={[styles.trustPanel, !wide && styles.stack]}><View style={styles.trustCopy}><Text style={styles.trustTitle}>A ObraSignal recomenda. A fonte oficial manda.</Text><Text style={styles.trustBody}>Prazo, requisitos, documentos e contactos devem ser confirmados na publicação oficial. A plataforma mantém essa fronteira explícita.</Text></View><View style={styles.checklist}>{['Origem visível','Prazo destacado','Razão de encaixe','Estado comercial','Notas internas'].map(x=><View style={styles.checkRow} key={x}><Text style={styles.check}>✓</Text><Text style={styles.checkText}>{x}</Text></View>)}</View></View>
+      <View style={[styles.trustPanel, !wide && styles.stack]}><View style={styles.trustCopy}><Text style={styles.trustTitle}>ObraSignal advises. Official sources prevail.</Text><Text style={styles.trustBody}>Always confirm deadlines, requirements, documents and contacts against the official notice.</Text></View><View style={styles.checklist}>{['Source traceability','Visible deadlines','Fit rationale','Workflow status','Internal notes'].map(x=><View style={styles.checkRow} key={x}><Text style={styles.check}>✓</Text><Text style={styles.checkText}>{x}</Text></View>)}</View></View>
 
-      <View style={[styles.finalCta, !wide && styles.stack]}><View style={styles.finalCopy}><Text style={styles.finalEyebrow}>VÊ O QUE A OBRASIGNAL ENCONTRA PARA A TUA EMPRESA</Text><Text style={[styles.finalTitle, !medium && styles.sectionTitleSmall]}>Começa por uma amostra pequena. Decide com dados reais.</Text></View><View style={[styles.finalActions, !medium && styles.fullWidth]}><Button onPress={askSample}>Pedir amostra</Button><Button secondary onPress={onLogin}>Já sou cliente</Button></View></View>
-      <View style={[styles.footer, !medium && styles.stack]}><Brand/><View style={styles.footerCopy}><Text style={styles.footerText}>Radar comercial para contratação pública · Portugal + Europa</Text><Text style={styles.footerText}>Depois de autenticação: exportação e pedido de eliminação dos dados privados da conta.</Text></View><Text style={styles.footerText}>{CONTACT}</Text></View>
+      <View style={[styles.finalCta, !wide && styles.stack]}><View style={styles.finalCopy}><Text style={styles.finalEyebrow}>DISCOVER WHAT MATTERS TO YOUR BUSINESS</Text><Text style={[styles.finalTitle, !medium && styles.sectionTitleSmall]}>Start with a focused sample. Decide with evidence.</Text></View><View style={[styles.finalActions, !medium && styles.fullWidth]}><Button onPress={askSample}>Request a sample</Button><Button secondary onPress={onLogin}>Existing customer</Button></View></View>
+      <View style={[styles.footer, !medium && styles.stack]}><Brand/><View style={styles.footerCopy}><Text style={styles.footerText}>International outlook · available markets depend on official sources</Text><Text style={styles.footerText}>After sign-in: private data export and privacy controls.</Text></View><Text style={styles.footerText}>{CONTACT}</Text></View>
     </View>
   </ScrollView>;
 }
 
-function AuthForm({ initialMode, onBack }: { initialMode: 'signin' | 'signup'; onBack: () => void }) {
+function AuthForm({ onBack }: { onBack: () => void }) {
   const { width } = useWindowDimensions();
-  const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const signup = mode === 'signup';
   const redirectTo = useMemo(() => Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin + window.location.pathname : undefined, []);
 
   const submit = async () => {
     setError(''); setMessage('');
     const normalizedEmail=email.trim().toLowerCase();
-    if (!normalizedEmail || !normalizedEmail.includes('@')) { setError('Indica um email válido.'); return; }
-    if (password.length < 6) { setError('A palavra-passe deve ter pelo menos 6 caracteres.'); return; }
+    if (!normalizedEmail || !normalizedEmail.includes('@')) { setError('Enter a valid email address.'); return; }
+    if (password.length < 6) { setError('Use at least six password characters.'); return; }
     setBusy(true);
     try {
-      if (signup) {
-        const { error: authError } = await supabase.auth.signUp({ email: normalizedEmail, password, options: redirectTo ? { emailRedirectTo: redirectTo } : undefined });
-        if (authError) throw authError;
-        setMessage('Conta criada. Se a confirmação por email estiver ativa, confirma o endereço antes de entrar.');
-      } else {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
-        if (authError) throw authError;
-      }
-    } catch (e: any) { setError(e?.message || 'Não foi possível autenticar.'); }
+      const {error:authError}=await supabase.auth.signInWithPassword({email:normalizedEmail,password});
+      if(authError) throw authError;
+    } catch (error: any) {
+      setError('Sign-in was not completed. If the authentication service is unavailable, try again later.');
+    }
     finally { setBusy(false); }
   };
 
   const reset = async () => {
     setError(''); setMessage('');
     const normalizedEmail=email.trim().toLowerCase();
-    if (!normalizedEmail || !normalizedEmail.includes('@')) { setError('Indica primeiro um email válido da conta.'); return; }
+    if (!normalizedEmail || !normalizedEmail.includes('@')) { setError('Enter a valid account email first.'); return; }
     setBusy(true);
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, redirectTo ? { redirectTo } : undefined);
       if (resetError) throw resetError;
-      setMessage('Enviámos as instruções de recuperação para o teu email.');
-    } catch (e: any) { setError(e?.message || 'Não foi possível enviar a recuperação.'); }
+      setMessage('Recovery instructions requested. Check your email if the provider confirms delivery.');
+    } catch (e: any) { setError(e?.message || 'Password recovery is unavailable.'); }
     finally { setBusy(false); }
   };
 
   return <View style={styles.authPage}><View style={[styles.authShell, width < 560 && styles.authShellSmall]}>
-    {Platform.OS === 'web' ? <Pressable accessibilityRole="button" onPress={onBack} style={styles.backButton}><Text style={styles.backText}>← Voltar ao site</Text></Pressable> : null}
+    {Platform.OS === 'web' ? <Pressable accessibilityRole="button" onPress={onBack} style={styles.backButton}><Text style={styles.backText}>← Back to website</Text></Pressable> : null}
     <View style={styles.authBrand}><Brand/><View style={styles.accessPill}><Text style={styles.accessText}>ACESSO</Text></View></View>
-    <Text style={styles.authTitle}>{signup ? 'Cria o teu radar.' : 'Bem-vindo de volta.'}</Text>
-    <Text style={styles.authSubtitle}>{signup ? 'Define o perfil da empresa e começa a transformar fontes públicas em decisões comerciais.' : 'Entra para ver o Radar, o acompanhamento e o perfil da tua empresa.'}</Text>
-    <Text style={styles.fieldLabel}>EMAIL</Text><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="nome@empresa.pt" placeholderTextColor="#607590" style={styles.input}/>
-    <View style={styles.passwordRow}><Text style={styles.fieldLabel}>PALAVRA-PASSE</Text>{!signup ? <Pressable accessibilityRole="button" onPress={reset} disabled={busy}><Text style={styles.forgot}>Recuperar acesso</Text></Pressable> : null}</View>
-    <TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={signup ? 'new-password' : 'current-password'} placeholder="••••••••" placeholderTextColor="#607590" style={styles.input}/>
+    <Text style={styles.authTitle}>Welcome back.</Text>
+    <Text style={styles.authSubtitle}>Sign in with an existing account. New accounts are invitation-only.</Text>
+    <Text style={styles.fieldLabel}>EMAIL</Text><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="name@company.com" placeholderTextColor="#607590" style={styles.input}/>
+    <View style={styles.passwordRow}><Text style={styles.fieldLabel}>PASSWORD</Text><Pressable accessibilityRole="button" onPress={reset} disabled={busy}><Text style={styles.forgot}>Reset password</Text></Pressable></View>
+    <TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" placeholder="••••••••" placeholderTextColor="#607590" style={styles.input}/>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{message ? <Text style={styles.success}>{message}</Text> : null}
-    <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={({pressed})=>[styles.authPrimary, pressed&&styles.pressed, busy&&styles.disabled]}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.authPrimaryText}>{signup ? 'Criar conta' : 'Entrar'}</Text>}</Pressable>
-    <Pressable accessibilityRole="button" disabled={busy} onPress={()=>{setMode(signup?'signin':'signup');setError('');setMessage('')}}><Text style={styles.switchText}>{signup ? 'Já tens conta? Entrar' : 'Ainda não tens conta? Criar conta'}</Text></Pressable>
-    <Text style={styles.authTrust}>As oportunidades permanecem ligadas à fonte oficial. O ObraSignal ajuda a priorizar; não substitui a documentação do procedimento.</Text>
+    <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={({pressed})=>[styles.authPrimary, pressed&&styles.pressed, busy&&styles.disabled]}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.authPrimaryText}>Sign in</Text>}</Pressable>
+    <Pressable accessibilityRole="button" disabled={busy} onPress={()=>Linking.openURL(`mailto:${CONTACT}?subject=ObraSignal%20access%20request`)}><Text style={styles.switchText}>Need access? Request an invitation</Text></Pressable>
+    <Text style={styles.authTrust}>Official tender documents remain authoritative. ObraSignal supports, but does not replace, your assessment.</Text>
   </View></View>;
 }
 
 export default function AuthScreen() {
   const [showAuth, setShowAuth] = useState(Platform.OS !== 'web');
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  if (!showAuth) return <Landing onLogin={()=>{setMode('signin');setShowAuth(true)}} onSignup={()=>{setMode('signup');setShowAuth(true)}}/>;
-  return <AuthForm initialMode={mode} onBack={()=>setShowAuth(false)}/>;
+  if (!showAuth) return <Landing onLogin={()=>setShowAuth(true)}/>;
+  return <AuthForm onBack={()=>setShowAuth(false)}/>;
 }
 
 const styles = StyleSheet.create({
