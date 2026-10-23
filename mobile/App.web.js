@@ -1,4 +1,3 @@
-import '@fontsource-variable/manrope/wght.css';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
