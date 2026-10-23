@@ -50,6 +50,52 @@ def test_provider_mode_requires_bearer_token(monkeypatch):
             auth_context.configured_identity()
 
 
+def test_neon_eddsa_okp_jwt_is_verified(monkeypatch):
+    pytest.importorskip("cryptography")
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    raw_public = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    jwk = {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": _b64url(raw_public),
+        "kid": "neon-test-key",
+        "use": "sig",
+        "alg": "EdDSA",
+    }
+    issuer = "https://ep-example.neonauth.example"
+    verifier = JwtVerifier(
+        issuer=issuer,
+        audience=issuer,
+        jwks_url="https://auth.example/neondb/auth/.well-known/jwks.json",
+    )
+    monkeypatch.setattr(verifier, "_key_for", lambda kid: jwk)
+
+    now = int(time.time())
+    token = jwt.encode(
+        {
+            "sub": "neon-user-123",
+            "iss": issuer,
+            "aud": issuer,
+            "iat": now - 10,
+            "exp": now + 900,
+        },
+        private_key,
+        algorithm="EdDSA",
+        headers={"kid": "neon-test-key"},
+    )
+
+    identity = verifier.verify(token)
+    assert identity.subject == "neon-user-123"
+    assert identity.account_id == "neon-user-123"
+    assert identity.claims["aud"] == issuer
+
+
 def test_jwt_verifier_uses_verified_sub(monkeypatch):
     pytest.importorskip("cryptography")
     from cryptography.hazmat.primitives.asymmetric import rsa

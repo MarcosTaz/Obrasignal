@@ -175,9 +175,9 @@ class JwtVerifier:
         for item in payload["keys"]:
             if not isinstance(item, dict) or not item.get("kid"):
                 raise ValueError("each JWK must have a kid")
-            if private_fields.intersection(item) or item.get("kty") not in {"RSA", "EC"}:
+            if private_fields.intersection(item) or item.get("kty") not in {"RSA", "EC", "OKP"}:
                 raise ValueError("bootstrap JWKs must be asymmetric public keys")
-            if item.get("alg") and item["alg"] not in {"RS256", "ES256"}:
+            if item.get("alg") and item["alg"] not in {"RS256", "ES256", "EdDSA"}:
                 raise ValueError("bootstrap JWK uses an unsupported algorithm")
             jwt.PyJWK(item)
             kid = str(item["kid"])
@@ -266,7 +266,7 @@ class JwtVerifier:
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
         alg = header.get("alg")
-        if not kid or alg not in {"RS256", "ES256"}:
+        if not kid or alg not in {"RS256", "ES256", "EdDSA"}:
             raise InvalidTokenError("unsupported JWT header")
         jwk = self._key_for(str(kid))
         if jwk.get("alg") and jwk["alg"] != alg:
