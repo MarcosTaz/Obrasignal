@@ -1,9 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { BRAND } from '../src/brand-palette.mjs';
 import BrandLogo from './BrandLogo';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 export default function WebIntro({ onComplete }) {
+  const { width } = useWindowDimensions();
+  const narrow = width < 480;
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -43,8 +45,8 @@ export default function WebIntro({ onComplete }) {
       </Animated.View>
       <Animated.View style={[styles.trail, { opacity: trailOpacity }]}/>
       <Animated.View style={[styles.dot, { transform: [{ translateX: dotX }, { translateY: dotY }, { scale: dotScale }] }]}/>
-      <Animated.View style={[styles.brandWrap, { opacity: brandOpacity, transform: [{ translateY: brandY }] }]}>
-        <BrandLogo markSize={65} textSize={35} tagline/>
+      <Animated.View style={[styles.brandWrap, narrow && styles.brandWrapNarrow, { opacity: brandOpacity, transform: [{ translateY: brandY }] }]}>
+        <BrandLogo variant={narrow ? 'vertical' : 'horizontal'} markSize={narrow ? 58 : 65} textSize={narrow ? 29 : 35} tagline/>
         <Text style={styles.slogan}>VEJA ANTES. AJA PRIMEIRO.</Text>
       </Animated.View>
     </View>
@@ -59,5 +61,5 @@ const styles = StyleSheet.create({
   axisH:{position:'absolute',width:260,height:1,backgroundColor:BRAND.mineral},axisV:{position:'absolute',height:260,width:1,backgroundColor:BRAND.mineral},
   trail:{position:'absolute',width:280,height:110,borderRadius:999,borderWidth:2,borderColor:BRAND.copper,transform:[{rotate:'-8deg'}]},
   dot:{position:'absolute',width:18,height:18,borderRadius:9,backgroundColor:BRAND.copper,shadowColor:BRAND.copper,shadowOpacity:1,shadowRadius:14,shadowOffset:{width:0,height:0}},
-  brandWrap:{position:'absolute',top:210,alignItems:'center'},logoRow:{flexDirection:'row',alignItems:'center',gap:12},mark:{width:40,height:40,borderRadius:20,borderWidth:7,borderColor:BRAND.slate,alignItems:'center',justifyContent:'center'},markCore:{width:8,height:8,borderRadius:4,backgroundColor:BRAND.copper},brand:{fontSize:34,fontWeight:'900',letterSpacing:-1.2,color:BRAND.ink},blue:{color:BRAND.mineral},slogan:{marginTop:9,fontSize:12,fontWeight:'800',letterSpacing:2.1,color:BRAND.mineral}
+  brandWrap:{position:'absolute',top:210,alignItems:'center',width:'100%'},brandWrapNarrow:{top:174},logoRow:{flexDirection:'row',alignItems:'center',gap:12},mark:{width:40,height:40,borderRadius:20,borderWidth:7,borderColor:BRAND.slate,alignItems:'center',justifyContent:'center'},markCore:{width:8,height:8,borderRadius:4,backgroundColor:BRAND.copper},brand:{fontSize:34,fontWeight:'900',letterSpacing:-1.2,color:BRAND.ink},blue:{color:BRAND.mineral},slogan:{marginTop:9,fontSize:12,fontWeight:'800',letterSpacing:2.1,color:BRAND.mineral}
 });
