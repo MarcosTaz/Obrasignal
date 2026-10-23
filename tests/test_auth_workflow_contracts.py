@@ -70,7 +70,9 @@ def test_release_gates_and_manual_diagnostic_remain_separate():
     smoke = (WORKFLOWS / "production-smoke.yml").read_text(encoding="utf-8")
     diagnostic = (WORKFLOWS / "auth-diagnostic.yml").read_text(encoding="utf-8")
 
-    assert "branches: [main]" in authenticated
+    assert 'workflows: ["ObraSignal Production Smoke"]' in authenticated
+    assert "github.event.workflow_run.conclusion == 'success'" in authenticated
+    assert "github.event.workflow_run.head_branch == 'main'" in authenticated
     assert "branches: [main]" in smoke
     assert "branches: [main]" not in diagnostic
     assert "API_URL: https://obrasignal.onrender.com/api/v1" in authenticated

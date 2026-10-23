@@ -5,7 +5,9 @@ def test_live_tenant_workflow_requires_two_distinct_identity_sources():
     workflow = Path('.github/workflows/tenant-isolation-live.yml').read_text(encoding='utf-8')
     assert 'E2E_EMAIL_B: ${{ secrets.E2E_EMAIL_B }}' in workflow
     assert 'E2E_PASSWORD_B: ${{ secrets.E2E_PASSWORD_B }}' in workflow
-    assert 'TARGET_BUILD: ${{ github.sha }}' in workflow
+    assert 'TARGET_BUILD: ${{ github.event.workflow_run.head_sha || github.sha }}' in workflow
+    assert 'workflows: ["ObraSignal Production Smoke"]' in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
     assert 'python scripts/provision_ephemeral_tenant.py' in workflow
     assert 'python scripts/live_tenant_isolation_runner.py' in workflow
 

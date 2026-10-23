@@ -14,7 +14,7 @@ def test_authenticated_e2e_waits_for_exact_deployment_before_identity_requests()
     authenticated_profile_probe = workflow.index('"$API_URL/profile" > /tmp/profile.json', contract_probe)
 
     assert deployment_gate < contract_probe < unauthenticated_probe < authenticated_profile_probe
-    assert "TARGET_BUILD: ${{ github.sha }}" in workflow
+    assert "TARGET_BUILD: ${{ github.event.workflow_run.head_sha || github.sha }}" in workflow
     assert "health.get('service') == 'obrasignal-api'" in workflow
     assert "health.get('build') == os.environ['TARGET_BUILD']" in workflow
     assert '-X POST "$API_URL/profile"' not in workflow
