@@ -20,7 +20,7 @@ def test_recording_same_personalized_opportunity_twice_creates_one_event():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE tenders (id INTEGER PRIMARY KEY, source TEXT, external_id TEXT, title TEXT, buyer TEXT, deadline TEXT, country TEXT, first_seen TEXT, score INTEGER, url TEXT)")
-    conn.execute("INSERT INTO tenders VALUES (1,'TED','2026/S-123456','Estrutura metálica','Município','2026-09-30','ES',datetime('now'),90,'https://example.test/1')")
+    conn.execute("INSERT INTO tenders VALUES (1,'TED','2026/S-123456','Estrutura metálica','Município','2099-09-30','ES',datetime('now'),90,'https://example.test/1')")
     ensure_event_table(conn)
     record_decision(
         conn, 'TED', '2026/S-123456', 'QUALIFIED', 'tenant-specific high match',
