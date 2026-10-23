@@ -131,7 +131,7 @@ forbidMatch('profile API must not accept ambiguous fallback payload', api, /data
 const logoComponent=fs.readFileSync(new URL('./components/BrandLogo.js', import.meta.url),'utf8');
 requireMatch('shared vector mark is rendered with react-native-svg',logoComponent,/from 'react-native-svg'/);
 requireMatch('the mark preserves the decision-copper shape',logoComponent,/BRAND\.copper/);
-requireMatch('cinematic introduction uses responsive shared brand mark',webIntro,/<BrandLogo variant=\{narrow/);
+requireMatch('cinematic introduction uses responsive shared brand mark',webIntro,/<BrandLogo variant=\{small/);
 requireMatch('authenticated web uses official brand component', webApp, /<BrandLogo markSize=\{38\}/);
 requireMatch('authenticated web uses shared font system', webApp, /fontFamily:FONT/);
 requireMatch('public landing uses official brand component', authScreen, /<BrandLogo markSize=\{38\}/);

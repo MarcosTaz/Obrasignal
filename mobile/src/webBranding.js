@@ -11,7 +11,7 @@ function ensureFavicon() {
 function ensureThemeColor() {
   let node=document.querySelector('meta[name="theme-color"]');
   if(!node){node=document.createElement('meta');node.name='theme-color';document.head.appendChild(node);}
-  node.content=BRAND.slate;
+  node.content='#06111D';
 }
 export function installWebBranding() {
   if(typeof document==='undefined')return ()=>{};

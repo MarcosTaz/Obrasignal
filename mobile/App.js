@@ -10,11 +10,12 @@ import { api } from './src/api';
 import { EUROPE_MARKETS } from './src/markets';
 import { DEFAULT_SETTINGS, storage } from './src/storage';
 import { BRAND } from './src/brand-palette.mjs';
+import {FONT_BODY,FONT_DISPLAY} from './src/typography.mjs';
 import { createThemeColors, DEFAULT_THEME } from './src/theme-system.mjs';
 import { syncUnreadOpportunityAlerts } from './src/notifications';
 
 const PAGE_SIZE=80;
-const C={...createThemeColors(DEFAULT_THEME),bgSoft:BRAND.fog};
+const C={...createThemeColors(DEFAULT_THEME),bgSoft:'#10283D'};
 const STATES=[['NEW','Novo'],['REVIEWING','Em análise'],['PREPARING','A preparar'],['SUBMITTED','Proposta enviada'],['WON','Ganho'],['LOST','Perdido']];
 
 function App(){return <AuthGate><Main/></AuthGate>}
