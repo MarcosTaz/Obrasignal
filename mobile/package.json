@@ -9,7 +9,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "smoke:web": "expo export --platform web --output-dir .smoke-dist",
-    "smoke:detail": "node smoke-detail.mjs && node tenant-storage-regression.mjs && node push-regressions.test.mjs && node billing-web-regression.test.mjs && node trust-claims-regression.test.mjs && node profile-persistence-regression.test.mjs && node --test src/theme-system.test.mjs && node --test src/logo-geometry.test.mjs && node --test src/ui-language.test.mjs",
+    "smoke:detail": "node smoke-detail.mjs && node tenant-storage-regression.mjs && node push-regressions.test.mjs && node billing-web-regression.test.mjs && node trust-claims-regression.test.mjs && node profile-persistence-regression.test.mjs && node --test src/theme-system.test.mjs && node --test src/logo-geometry.test.mjs && node --test src/ui-language.test.mjs && node --test src/world-experience.test.mjs",
     "test:p0": "node --test p0-regressions.test.mjs"
   },
   "dependencies": {
