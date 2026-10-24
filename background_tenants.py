@@ -9,12 +9,13 @@ from __future__ import annotations
 import os
 
 
-def eligible_background_accounts(conn) -> list[str]:
-    from account_registry import list_active_accounts
+def eligible_background_accounts(conn, *, existing_accounts=None) -> list[str]:
+    if existing_accounts is None:
+        from account_registry import list_active_accounts
 
-    accounts = list_active_accounts(conn)
-    if accounts:
-        return accounts
+        existing_accounts = list_active_accounts(conn)
+    if existing_accounts:
+        return list(existing_accounts)
 
     mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
     if mode == "provider":
