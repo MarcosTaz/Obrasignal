@@ -66,7 +66,9 @@ requireMatch('native separates draft search from applied search', app, /\[applie
 // Startup must always converge even when Safari/browser storage or animation callbacks stall.
 requireMatch('private tenant binding has a bounded startup deadline', authGate, /PRIVATE_TENANT_BIND_TIMEOUT_MS\s*=\s*4500/);
 requireMatch('private tenant binding uses the bounded helper', authGate, /withTimeout\(storage\.bindPrivateTenant\(accountId\), PRIVATE_TENANT_BIND_TIMEOUT_MS/);
-requireMatch('web intro has an independent watchdog', webIntro, /setTimeout\(finish,DURATION\+1200\)/);
+requireMatch('web intro has an independent watchdog', webIntro, /setTimeout\(finish,INTRO_WATCHDOG_MS\)/);
+const introTimeline=fs.readFileSync(new URL('./src/intro-timeline.mjs', import.meta.url),'utf8');
+requireMatch('intro watchdog includes held-logo and exit time', introTimeline, /INTRO_TOTAL_MS \+ INTRO_WATCHDOG_GRACE_MS/);
 requireMatch('web intro watchdog is cleared on unmount', webIntro, /clearTimeout\(watchdog\)/);
 
 // Session utilities and recovery are permanently reachable from the authenticated shell.
