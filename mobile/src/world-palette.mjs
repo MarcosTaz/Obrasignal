@@ -22,6 +22,7 @@ export function createWorldPalette(theme = DEFAULT_THEME) {
     radar: C.panel2,
     secondaryButton: C.panel2,
     secondaryBorder: C.borderStrong,
-    accentLabel: isDark ? C.brandCopper : '#85401E',
+    // Lighter copper is reserved for small text; the permanent brand copper remains unchanged.
+    accentLabel: isDark ? '#DDA17C' : '#85401E',
   });
 }
