@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import AuthGate from './components/AuthGate';
 import BrandLogo from './components/BrandLogo';
 import {FONT_BODY,FONT_DISPLAY} from './src/typography.mjs';
-import {WorldAnalytics,WorldHero,WorldSidebar,WorldToolbar,WorldMarkets} from './components/WorldExperience';
+import {WorldAnalytics,WorldHero,WorldSidebar,WorldToolbar,WorldMarkets,WorldThemeProvider} from './components/WorldExperience';
 import OpportunityExplanation from './components/OpportunityExplanation';
 import ProfileOnboarding from './components/ProfileOnboarding';
 import { api } from './src/api';
@@ -70,7 +70,7 @@ function WebMain(){
       if(profileResult.status==='fulfilled'){
         setProfile(profileResult.value);
         if(profileResult.value)storage.setProfile(profileResult.value).catch(()=>{});
-      }else setProfileError(profileResult.reason?.message||'Unable to update o perfil.');
+      }else setProfileError(profileResult.reason?.message||'Unable to refresh company profile.');
       if(opResult.status==='fulfilled'){
         const nextItems=opResult.value?.items||[];
         const nextStats=statsResult.status==='fulfilled'?(statsResult.value||{}):stats;
@@ -79,7 +79,7 @@ function WebMain(){
         storage.setCache({items:nextItems,stats:nextStats}).catch(()=>{});
       }else{
         if(statsResult.status==='fulfilled')setStats(statsResult.value||{});
-        setRadarError(opResult.reason?.message||'Unable to update o Radar.');
+        setRadarError(opResult.reason?.message||'Unable to refresh the radar.');
       }
     }finally{
       if(mounted.current&&id===requestId.current){setLoading(false);setProfileLoading(false);}
@@ -121,7 +121,7 @@ function WebMain(){
   useEffect(()=>{storage.setSettings(settings).catch(()=>{});},[settings]);
   useEffect(()=>{
     if(!settings.notifications){setNotice('');return;}
-    let active=true;(async()=>{try{const delivered=await syncUnreadOpportunityAlerts();if(active)setNotice(delivered>0?`${delivered} new alert(s).`:'Notifications ativadas.');}catch(_){if(active)setNotice('Web notifications enabled; push requires the native app.');}})();
+    let active=true;(async()=>{try{const delivered=await syncUnreadOpportunityAlerts();if(active)setNotice(delivered>0?`${delivered} new alert(s).`:'Notifications enabled.');}catch(_){if(active)setNotice('Web notifications enabled; push requires the native app.');}})();
     return()=>{active=false;};
   },[settings.notifications]);
 
@@ -139,8 +139,9 @@ function WebMain(){
   if(selected)return <ThemeContext.Provider value={themed}><OpportunityDetail item={selected} compact={compact} onBack={()=>setSelected(null)} onChanged={next=>{setSelected(next);setItems(old=>old.map(item=>item.id===next.id?next:item));}}/></ThemeContext.Provider>;
 
   return <ThemeContext.Provider value={themed}><View style={s.documentPage}>
-    <StatusBar style="light"/>
-    <View style={{width:'100%',flexDirection:compact?'column':'row',minHeight:'100vh',backgroundColor:'#06111D'}}>
+    <StatusBar style={resolveTheme(settings.theme).mode==='dark'?'light':'dark'}/>
+    <View style={{width:'100%',flexDirection:compact?'column':'row',minHeight:'100vh',backgroundColor:C.bg}}>
+      <WorldThemeProvider theme={settings.theme}>
       <WorldSidebar tab={tab} onTab={setTab} compact={compact}/>
       <View style={{flex:1,minWidth:0,paddingHorizontal:compact?12:25,paddingBottom:58}}>
         <WorldToolbar tab={tab} onRefresh={()=>load({criteria:settings,query:appliedSearch})}/>
@@ -150,6 +151,7 @@ function WebMain(){
         {tab==='profile'?<ProfilePanel profile={profile} profileLoading={profileLoading} error={profileError} settings={settings} setSettings={setSettings} onOpenOnlyChange={value=>applyCriteria({openOnly:value})} onSave={saveProfile} saving={saving} notice={notice} onRetry={()=>load({criteria:settings,query:appliedSearch})}/>:null}
         {tab==='radar'||tab==='opportunities'?<RadarPanel compact={compact} hideOverview={true} items={items} stats={stats} settings={settings} search={search} setSearch={setSearch} appliedSearch={appliedSearch} loading={loading} loadingMore={loadingMore} page={page} error={radarError} notice={notice} onRefresh={()=>load({criteria:settings,query:appliedSearch})} onSearch={submitSearch} onClearSearch={clearSearch} onMinScore={value=>applyCriteria({minScore:value})} onLoadMore={loadMore} onOpen={setSelected}/>:null}
       </View>
+      </WorldThemeProvider>
     </View>
   </View></ThemeContext.Provider>;
 }
