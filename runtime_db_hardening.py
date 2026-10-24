@@ -27,8 +27,7 @@ def _enable_wal(app_module) -> str:
 
 
 def _optimized_account_decision_recorder(preload_module):
-    from account_registry import list_active_accounts
-    from auth_context import configured_identity
+    from background_tenants import eligible_background_accounts
     from company_profile import load_profile
     from decision_log import ensure_decision_table
     from funnel_integration import persist_and_classify
@@ -45,7 +44,7 @@ def _optimized_account_decision_recorder(preload_module):
         if not run or not run["finished_at"]:
             return 0
         rows = conn.execute("SELECT * FROM tenders WHERE last_seen=?", (run["finished_at"],)).fetchall()
-        accounts = list_active_accounts(conn) or [configured_identity().account_id]
+        accounts = eligible_background_accounts(conn)
         ensure_decision_table(conn)
 
         recorded = 0
