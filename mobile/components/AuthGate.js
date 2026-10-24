@@ -176,7 +176,10 @@ export default function AuthGate({ children }) {
   const [tenantStatus, setTenantStatus] = useState('loading')
   const [passwordRecovery, setPasswordRecovery] = useState(() => Platform.OS === 'web' && typeof window !== 'undefined' && isRecoveryReturn(window.location.href))
   const recoveryRef = useRef(passwordRecovery)
-  const finishRecovery = () => { recoveryRef.current=false; clearRecoveryUrl(); setPasswordRecovery(false) }
+  // URL parameters alone are not authority to change a password. Supabase must
+  // emit PASSWORD_RECOVERY after validating its temporary session.
+  const [verifiedRecovery,setVerifiedRecovery] = useState(false)
+  const finishRecovery = () => { recoveryRef.current=false; setVerifiedRecovery(false); clearRecoveryUrl(); setPasswordRecovery(false) }
 
   useEffect(() => {
     let active = true
@@ -238,7 +241,7 @@ export default function AuthGate({ children }) {
     // Keep this listener independent from the generic session coordinator so a
     // temporary recovery session never falls through into private product data.
     const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') { recoveryRef.current=true; setPasswordRecovery(true) }
+      if (event === 'PASSWORD_RECOVERY') { recoveryRef.current=true; setPasswordRecovery(true); setVerifiedRecovery(true) }
     })
     return () => data?.subscription?.unsubscribe()
   }, [])
@@ -261,7 +264,10 @@ export default function AuthGate({ children }) {
     return <View style={styles.publicShell}><View style={styles.publicContent}><AuthScreen /></View><PublicLegalBar /></View>
   }
 
-  if (passwordRecovery) {
+  if (passwordRecovery && !verifiedRecovery) {
+    return <View style={styles.loading}><BrandLogo inverse markSize={50} textSize={29}/><Text style={styles.message}>Recovery session has not been verified by the identity provider. Please request a fresh link once authentication is available.</Text><Pressable accessibilityRole="button" onPress={finishRecovery} style={styles.legalContact}><Text style={styles.legalContactText}>Return to sign in</Text></Pressable></View>
+  }
+  if (passwordRecovery && verifiedRecovery) {
     return <PasswordRecovery
       onComplete={finishRecovery}
       onCancel={finishRecovery}

@@ -28,6 +28,9 @@ test('source gates recovery UI before private workspace and never treats reset a
  assert.match(gate,/recoveryRef\.current/);
  assert.match(gate,/if \(signedIn && recoveryRef\.current\)/);
  assert.match(gate,/if \(passwordRecovery && authState\.status !== 'signed-in'\)/);
+ assert.match(gate,/if \(passwordRecovery && !verifiedRecovery\)/);
+ assert.match(gate,/if \(passwordRecovery && verifiedRecovery\)/);
+ assert.match(gate,/setVerifiedRecovery\(true\)/);
 });
 test('password update and sign-out are distinct statuses',()=>{
  const source=file('../components/PasswordRecovery.js');
