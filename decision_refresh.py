@@ -12,8 +12,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 
-from account_registry import list_active_accounts
-from auth_context import configured_identity
+from background_tenants import eligible_background_accounts
 from company_profile import load_profile
 from decision_log import ensure_decision_table
 from funnel_integration import persist_and_classify
@@ -175,7 +174,7 @@ def record_account_decisions(
             WHERE t.last_seen=? AND {actionable_predicate('lc', 't')}""",
         (run["finished_at"],),
     ).fetchall()
-    accounts = list_active_accounts(conn) or [configured_identity().account_id]
+    accounts = eligible_background_accounts(conn)
     recorded = 0
     pending_writes = 0
     refresh_limit = max(1, int(max_refresh_per_account))
