@@ -49,3 +49,33 @@ test('night palette and institutional typography span marketing, login, workspac
  assert.match(source('../index.js'),/backgroundColor: '#06111D'/);
  assert.match(source('../components/SecurityTrustBar.js'),/SECURITY & TRUST/);
 });
+
+
+test('cinematic sequence holds the official logo before dissolving the night overlay',async()=>{
+ const intro=source('../components/WebIntro.js');
+ const timings=await import('./intro-timeline.mjs');
+ assert.match(intro,/Animated\.sequence\(\[/);
+ assert.match(intro,/Animated\.delay\(INTRO_BRAND_HOLD_MS\)/);
+ assert.match(intro,/opacity:exitOpacity/);
+ assert.match(intro,/duration:INTRO_EXIT_MS/);
+ assert.match(intro,/setReduceMotion\(Boolean\(v\)\)/);
+ assert.match(intro,/if\(reduceMotion===null\)return undefined/);
+ assert.match(intro,/onPress=\{finish\}/);
+ assert.equal(timings.INTRO_TOTAL_MS,timings.INTRO_SCAN_MS+timings.INTRO_BRAND_HOLD_MS+timings.INTRO_EXIT_MS);
+ assert.ok(timings.INTRO_BRAND_HOLD_MS>=700);
+ assert.ok(timings.INTRO_EXIT_MS>=600);
+ assert.ok(timings.INTRO_WATCHDOG_MS>timings.INTRO_TOTAL_MS);
+});
+
+test('acquisition marker appears when the rotating scan reaches its approximate bearing',async()=>{
+ const t=await import('./intro-timeline.mjs');
+ const bearing=t.sweepDegreesAt(t.INTRO_SIGNAL_PROGRESS);
+ // Scan line in the SVG points approximately -58 degrees before rotation.
+ const beamHeading=-58+bearing;
+ // The abstract upper-right target is 19% to the right and 23% above centre.
+ const targetHeading=Math.atan2(-23,19)*180/Math.PI;
+ assert.ok(Math.abs(beamHeading-targetHeading)<9);
+ assert.ok(t.INTRO_SIGNAL_PROGRESS>=.38 && t.INTRO_SIGNAL_PROGRESS<=.48);
+ assert.equal(t.sweepDegreesAt(-2),t.INTRO_SWEEP_START_DEG);
+ assert.equal(t.sweepDegreesAt(2),t.INTRO_SWEEP_END_DEG);
+});
