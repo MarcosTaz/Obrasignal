@@ -3,7 +3,8 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, Text, TextIn
 import { StatusBar } from 'expo-status-bar';
 import AuthGate from './components/AuthGate';
 import BrandLogo from './components/BrandLogo';
-import {WorldAnalytics,WorldHero,WorldSidebar,WorldToolbar,WorldMarkets} from './components/WorldExperience';
+import {FONT_BODY,FONT_DISPLAY} from './src/typography.mjs';
+import {WorldAnalytics,WorldHero,WorldSidebar,WorldToolbar,WorldMarkets,WorldThemeProvider} from './components/WorldExperience';
 import OpportunityExplanation from './components/OpportunityExplanation';
 import ProfileOnboarding from './components/ProfileOnboarding';
 import { api } from './src/api';
@@ -12,7 +13,7 @@ import { DEFAULT_SETTINGS, storage } from './src/storage';
 import { THEMES, resolveTheme, createThemeColors } from './src/theme-system.mjs';
 import { syncUnreadOpportunityAlerts } from './src/notifications';
 
-const FONT = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const FONT = FONT_BODY;
 const PAGE_SIZE = 80;
 const ThemeContext = React.createContext(null);
 const STATES = [['NEW','Novo'],['REVIEWING','Em análise'],['PREPARING','A preparar'],['SUBMITTED','Proposta enviada'],['WON','Ganho'],['LOST','Perdido']];
@@ -40,6 +41,8 @@ function WebMain(){
   const [stats,setStats] = useState({});
   const [page,setPage] = useState({limit:PAGE_SIZE,offset:0,has_more:false,next_offset:null});
   const [settings,setSettings] = useState(DEFAULT_SETTINGS);
+  // Never render or overwrite a saved theme before AsyncStorage hydration finishes.
+  const [themeReady,setThemeReady] = useState(false);
   const themed = useMemo(() => { const C=createThemeColors(settings.theme); return {C,s:buildStyles(C),inverseBrand:resolveTheme(settings.theme).mode==='dark'}; },[settings.theme]);
   const {C,s}=themed;
   const [profile,setProfile] = useState(undefined);
@@ -69,7 +72,7 @@ function WebMain(){
       if(profileResult.status==='fulfilled'){
         setProfile(profileResult.value);
         if(profileResult.value)storage.setProfile(profileResult.value).catch(()=>{});
-      }else setProfileError(profileResult.reason?.message||'Unable to update o perfil.');
+      }else setProfileError(profileResult.reason?.message||'Unable to refresh company profile.');
       if(opResult.status==='fulfilled'){
         const nextItems=opResult.value?.items||[];
         const nextStats=statsResult.status==='fulfilled'?(statsResult.value||{}):stats;
@@ -78,7 +81,7 @@ function WebMain(){
         storage.setCache({items:nextItems,stats:nextStats}).catch(()=>{});
       }else{
         if(statsResult.status==='fulfilled')setStats(statsResult.value||{});
-        setRadarError(opResult.reason?.message||'Unable to update o Radar.');
+        setRadarError(opResult.reason?.message||'Unable to refresh the radar.');
       }
     }finally{
       if(mounted.current&&id===requestId.current){setLoading(false);setProfileLoading(false);}
@@ -112,15 +115,16 @@ function WebMain(){
       if(hydrated[0].status==='fulfilled'){savedSettings=hydrated[0].value;setSettings(savedSettings);}
       if(hydrated[1].status==='fulfilled'&&hydrated[1].value){setItems(hydrated[1].value.items||[]);setStats(hydrated[1].value.stats||{});setLoading(false);}
       if(hydrated[2].status==='fulfilled'&&hydrated[2].value)setProfile(hydrated[2].value);
+      setThemeReady(true);
       await load({criteria:savedSettings,query:''});
     })();
     return()=>{active=false;mounted.current=false;};
   },[]);
 
-  useEffect(()=>{storage.setSettings(settings).catch(()=>{});},[settings]);
+  useEffect(()=>{if(themeReady)storage.setSettings(settings).catch(()=>{});},[settings,themeReady]);
   useEffect(()=>{
     if(!settings.notifications){setNotice('');return;}
-    let active=true;(async()=>{try{const delivered=await syncUnreadOpportunityAlerts();if(active)setNotice(delivered>0?`${delivered} new alert(s).`:'Notifications ativadas.');}catch(_){if(active)setNotice('Web notifications enabled; push requires the native app.');}})();
+    let active=true;(async()=>{try{const delivered=await syncUnreadOpportunityAlerts();if(active)setNotice(delivered>0?`${delivered} new alert(s).`:'Notifications enabled.');}catch(_){if(active)setNotice('Web notifications enabled; push requires the native app.');}})();
     return()=>{active=false;};
   },[settings.notifications]);
 
@@ -134,12 +138,14 @@ function WebMain(){
     finally{setSaving(false);}
   };
 
+  if(!themeReady)return <View style={{minHeight:'100vh',backgroundColor:'#06111D'}} accessibilityLabel="Loading workspace appearance"/>;
   if(!profileLoading&&profile!==undefined&&(!profile?.name?.trim()||!profile?.activity?.trim()))return <ThemeContext.Provider value={themed}><View style={s.documentPage}><ProfileOnboarding initialProfile={profile||{}} onComplete={next=>{setProfile(next);load({criteria:settings,query:appliedSearch});}}/></View></ThemeContext.Provider>;
   if(selected)return <ThemeContext.Provider value={themed}><OpportunityDetail item={selected} compact={compact} onBack={()=>setSelected(null)} onChanged={next=>{setSelected(next);setItems(old=>old.map(item=>item.id===next.id?next:item));}}/></ThemeContext.Provider>;
 
   return <ThemeContext.Provider value={themed}><View style={s.documentPage}>
-    <StatusBar style="light"/>
-    <View style={{width:'100%',flexDirection:compact?'column':'row',minHeight:'100vh',backgroundColor:'#06111D'}}>
+    <StatusBar style={resolveTheme(settings.theme).mode==='dark'?'light':'dark'}/>
+    <View style={{width:'100%',flexDirection:compact?'column':'row',minHeight:'100vh',backgroundColor:C.bg}}>
+      <WorldThemeProvider theme={settings.theme}>
       <WorldSidebar tab={tab} onTab={setTab} compact={compact}/>
       <View style={{flex:1,minWidth:0,paddingHorizontal:compact?12:25,paddingBottom:58}}>
         <WorldToolbar tab={tab} onRefresh={()=>load({criteria:settings,query:appliedSearch})}/>
@@ -149,6 +155,7 @@ function WebMain(){
         {tab==='profile'?<ProfilePanel profile={profile} profileLoading={profileLoading} error={profileError} settings={settings} setSettings={setSettings} onOpenOnlyChange={value=>applyCriteria({openOnly:value})} onSave={saveProfile} saving={saving} notice={notice} onRetry={()=>load({criteria:settings,query:appliedSearch})}/>:null}
         {tab==='radar'||tab==='opportunities'?<RadarPanel compact={compact} hideOverview={true} items={items} stats={stats} settings={settings} search={search} setSearch={setSearch} appliedSearch={appliedSearch} loading={loading} loadingMore={loadingMore} page={page} error={radarError} notice={notice} onRefresh={()=>load({criteria:settings,query:appliedSearch})} onSearch={submitSearch} onClearSearch={clearSearch} onMinScore={value=>applyCriteria({minScore:value})} onLoadMore={loadMore} onOpen={setSelected}/>:null}
       </View>
+      </WorldThemeProvider>
     </View>
   </View></ThemeContext.Provider>;
 }

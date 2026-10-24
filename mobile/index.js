@@ -13,7 +13,7 @@ function RootApp() {
   const [intro, setIntro] = useState(Platform.OS === 'web');
   const finishIntro = useCallback(() => setIntro(false), []);
   if (Platform.OS !== 'web') return <App />;
-  return <View style={{ flex: 1, minHeight: 0, backgroundColor: BRAND.paper }}>
+  return <View style={{ flex: 1, minHeight: 0, backgroundColor: '#06111D' }}>
     <View style={{ flex: 1, minHeight: 0 }}><App /></View>
     <SecurityTrustBar />
     {intro ? <WebIntro onComplete={finishIntro} /> : null}

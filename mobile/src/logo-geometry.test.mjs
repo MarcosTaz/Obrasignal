@@ -43,8 +43,8 @@ test('brand is theme invariant and has no DOM mutations to coloured wordmark',()
 test('mobile intro switches to a smaller stacked lockup rather than overflowing on narrow screens',()=>{
  const intro=readFileSync(new URL('../components/WebIntro.js',import.meta.url),'utf8');
  assert.match(intro,/useWindowDimensions/);
- assert.match(intro,/width < 480/);
- assert.match(intro,/variant=\{narrow \? 'vertical' : 'horizontal'\}/);
- assert.match(intro,/markSize=\{narrow \? 58 : 65\}/);
- assert.match(intro,/brandWrapNarrow/);
+ assert.match(intro,/width<600/);
+ assert.match(intro,/variant=\{small\?'vertical':'horizontal'\}/);
+ assert.match(intro,/markSize=\{small\?105:150\}/);
+ assert.match(intro,/targetOpacity|scanCaptionOpacity/);
 });

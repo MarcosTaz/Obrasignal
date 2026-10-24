@@ -71,10 +71,43 @@ test('copper action contrast is accessible; copper must not be used as small tex
 test('browser emblem and opening use the central brand palette, never old electric blue',()=>{
   const mark=readFileSync(new URL('./webBranding.js',import.meta.url),'utf8');
   const intro=readFileSync(new URL('../components/WebIntro.js',import.meta.url),'utf8');
-  assert.match(mark,/BRAND\.slate/);
+  assert.match(mark,/#06111D/); // consistent dark theme-color, master SVG owns permanent geometry
   assert.match(mark,/brandMarkDataUri/);
   const geometry=readFileSync(new URL('./logo-geometry.mjs',import.meta.url),'utf8');
   assert.match(geometry,/BRAND\.copper/);
   assert.doesNotMatch(mark,/#0A58FF|ELECTRIC_BLUE/);
-  assert.match(intro,/BRAND\.copper/);
+  assert.match(intro,/copper:'#C87D55'/); // official copper retained in cinematic intro
+});
+
+test('all command centre surfaces follow the selected customer theme',async()=>{
+  const {createWorldPalette}=await import('./world-palette.mjs');
+  for(const theme of THEMES){
+    const C=createThemeColors(theme.id);
+    const P=createWorldPalette(theme.id);
+    assert.equal(P.bg,C.bg,theme.id+' shell');
+    assert.equal(P.sidebar,C.panel,theme.id+' sidebar');
+    assert.equal(P.panel,C.panel,theme.id+' cards');
+    assert.equal(P.radar,C.panel2,theme.id+' radar');
+    assert.equal(P.sidebarActive,C.navActive,theme.id+' active navigation');
+    assert.equal(P.light,C.text,theme.id+' text');
+    assert.equal(P.copper,BRAND.copper,theme.id+' official accent');
+    assert.equal(P.isDark,theme.mode==='dark');
+    assert.ok(contrast(P.light,P.panel)>=4.5,theme.id+' panel contrast');
+    assert.ok(contrast(P.accentLabel,P.panel)>=4.5,theme.id+' small labels');
+  }
+});
+
+test('saved appearance hydrates before either rendering the workspace or overwriting storage',()=>{
+  const shell=readFileSync(new URL('../App.web.js',import.meta.url),'utf8');
+  const scene=readFileSync(new URL('../components/WorldExperience.js',import.meta.url),'utf8');
+  assert.match(shell,/if\(!themeReady\)return <View/);
+  assert.match(shell,/if\(themeReady\)storage\.setSettings\(settings\)/);
+  assert.match(shell,/setThemeReady\(true\)/);
+  assert.match(shell,/<WorldThemeProvider theme=\{settings\.theme\}>/);
+  assert.match(shell,/backgroundColor:C\.bg/);
+  assert.match(scene,/createWorldPalette\(theme\)/);
+  assert.match(scene,/backgroundColor:P\.sidebar/);
+  assert.match(scene,/backgroundColor:P\.radar/);
+  assert.match(scene,/backgroundColor:P\.sidebarActive/);
+  assert.match(scene,/inverse=\{P\.isDark\}/);
 });
