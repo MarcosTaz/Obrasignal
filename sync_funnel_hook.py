@@ -9,16 +9,13 @@ def record_sync_decisions(conn, rows, account_id=None):
     Importing account-aware pipeline modules at module load time would import
     ``app`` too early and reintroduce that startup race.
     """
-    from account_registry import list_active_accounts
-    from auth_context import configured_identity
+    from background_tenants import eligible_background_accounts
     from company_profile import load_profile
     from decision_log import latest_decision
     from funnel_integration import persist_and_classify
     from opportunity_match_pipeline import evaluate_row
 
-    accounts = [account_id] if account_id else list_active_accounts(conn)
-    if not accounts:
-        accounts = [configured_identity().account_id]
+    accounts = [account_id] if account_id else eligible_background_accounts(conn)
 
     recorded = 0
     for current_account in accounts:
