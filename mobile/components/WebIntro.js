@@ -3,31 +3,43 @@ import {AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, useWin
 import Svg, {Circle, Defs, Line, LinearGradient, Path, RadialGradient, Rect, Stop} from 'react-native-svg';
 import BrandLogo from './BrandLogo';
 import {FONT_DISPLAY, FONT_BODY} from '../src/typography.mjs';
+import {INTRO_SCAN_MS,INTRO_BRAND_HOLD_MS,INTRO_EXIT_MS,INTRO_WATCHDOG_MS,INTRO_SWEEP_START_DEG,INTRO_SWEEP_END_DEG} from '../src/intro-timeline.mjs';
 
 // Purposefully abstract intelligence scan. Never represents a real tender or live geolocation.
 const COLORS={night:'#04101B',deep:'#081C2D',steel:'#78BEFB',copper:'#C87D55',soft:'#D8EAF6',line:'#2B5773'};
-const DURATION=6200;
+const DURATION=INTRO_SCAN_MS;
 export default function WebIntro({onComplete}) {
   const {width,height}=useWindowDimensions();
   const small=width<600;
   const diameter=Math.max(225,Math.min(width*(small?.78:.55),height*.59,570));
   const timeline=useRef(new Animated.Value(0)).current;
-  const [reduceMotion,setReduceMotion]=useState(false);
+  const exitOpacity=useRef(new Animated.Value(1)).current;
+  // Wait for the accessibility preference before starting motion.
+  // This also keeps the initial frame on the permanent night background.
+  const [reduceMotion,setReduceMotion]=useState(null);
+  const completed=useRef(false);
+  const finish=()=>{if(completed.current)return;completed.current=true;onComplete?.()};
   useEffect(()=>{
     let active=true;
-    AccessibilityInfo.isReduceMotionEnabled().then(v=>{if(active&&v)setReduceMotion(true)}).catch(()=>{});
-    return ()=>{active=false};
+    const fallback=setTimeout(()=>{if(active)setReduceMotion(v=>v===null?false:v)},900);
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(v=>{if(active)setReduceMotion(Boolean(v))})
+      .catch(()=>{if(active)setReduceMotion(false)});
+    return ()=>{active=false;clearTimeout(fallback)};
   },[]);
   useEffect(()=>{
-    if(reduceMotion){onComplete?.();return undefined}
-    let called=false;
-    const finish=()=>{if(!called){called=true;onComplete?.()}};
-    const animation=Animated.timing(timeline,{toValue:1,duration:DURATION,easing:Easing.linear,useNativeDriver:true});
-    const watchdog=setTimeout(finish,DURATION+1200);
+    if(reduceMotion===null)return undefined;
+    if(reduceMotion){finish();return undefined}
+    const animation=Animated.sequence([
+      Animated.timing(timeline,{toValue:1,duration:DURATION,easing:Easing.linear,useNativeDriver:true}),
+      Animated.delay(INTRO_BRAND_HOLD_MS),
+      Animated.timing(exitOpacity,{toValue:0,duration:INTRO_EXIT_MS,easing:Easing.inOut(Easing.cubic),useNativeDriver:true}),
+    ]);
+    const watchdog=setTimeout(finish,INTRO_WATCHDOG_MS);
     animation.start(({finished})=>{if(finished)finish()});
     return ()=>{clearTimeout(watchdog);animation.stop()};
-  },[timeline,onComplete,reduceMotion]);
-  const sweep=timeline.interpolate({inputRange:[0,1],outputRange:['-105deg','675deg']});
+  },[timeline,exitOpacity,onComplete,reduceMotion]);
+  const sweep=timeline.interpolate({inputRange:[0,1],outputRange:[INTRO_SWEEP_START_DEG+'deg',INTRO_SWEEP_END_DEG+'deg']});
   const radarOpacity=timeline.interpolate({inputRange:[0,.05,.48,.67,.81,1],outputRange:[0,1,1,1,0,0]});
   const targetOpacity=timeline.interpolate({inputRange:[0,.40,.50,.61,.70,1],outputRange:[0,0,1,1,0,0]});
   const targetScale=timeline.interpolate({inputRange:[0,.41,.48,.56,.61,1],outputRange:[.65,.65,1.26,1,1,1]});
@@ -35,7 +47,7 @@ export default function WebIntro({onComplete}) {
   const brandScale=timeline.interpolate({inputRange:[0,.61,.82,1],outputRange:[.92,.92,1,1]});
   const scanCaptionOpacity=timeline.interpolate({inputRange:[0,.07,.40,.54,1],outputRange:[0,1,1,0,0]});
   const foundCaptionOpacity=timeline.interpolate({inputRange:[0,.47,.54,.64,.72,1],outputRange:[0,0,1,1,0,0]});
-  return <View style={s.root} accessibilityLabel="ObraSignal introduction — scanning, signal found, brand reveal" accessibilityRole="summary">
+  return <Animated.View style={[s.root,{opacity:exitOpacity}]} accessibilityLabel="ObraSignal introduction — scanning, signal found, brand reveal" accessibilityRole="summary">
     <View pointerEvents="none" style={s.backdrop}>
       <Svg width="100%" height="100%" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
         <Defs><RadialGradient id="atmos"><Stop offset="0" stopColor="#20516A" stopOpacity=".38"/><Stop offset="1" stopColor="#04101B" stopOpacity="0"/></RadialGradient>
@@ -86,8 +98,8 @@ export default function WebIntro({onComplete}) {
         <Animated.Text style={[s.captionFound,{opacity:foundCaptionOpacity}]}>SIGNAL FOUND  /  OPPORTUNITY IDENTIFIED</Animated.Text>
       </View>
     </View>
-    <View style={s.bottom}><Text style={s.bottomText}>DISCOVER · EVALUATE · ACT</Text><Pressable accessibilityRole="button" accessibilityLabel="Skip introduction" onPress={onComplete} style={s.skip}><Text style={s.skipText}>SKIP INTRO  →</Text></Pressable></View>
-  </View>;
+    <View style={s.bottom}><Text style={s.bottomText}>DISCOVER · EVALUATE · ACT</Text><Pressable accessibilityRole="button" accessibilityLabel="Skip introduction" onPress={finish} style={s.skip}><Text style={s.skipText}>SKIP INTRO  →</Text></Pressable></View>
+  </Animated.View>;
 }
 const s=StyleSheet.create({
  root:{position:'absolute',top:0,left:0,right:0,bottom:0,zIndex:9999,backgroundColor:COLORS.night,justifyContent:'space-between',alignItems:'center',paddingHorizontal:22,paddingVertical:27,overflow:'hidden'},
