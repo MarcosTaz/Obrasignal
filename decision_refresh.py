@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 
+from account_registry import list_active_accounts
 from background_tenants import eligible_background_accounts
 from company_profile import load_profile
 from decision_log import ensure_decision_table
@@ -174,7 +175,7 @@ def record_account_decisions(
             WHERE t.last_seen=? AND {actionable_predicate('lc', 't')}""",
         (run["finished_at"],),
     ).fetchall()
-    accounts = eligible_background_accounts(conn)
+    accounts = eligible_background_accounts(conn, existing_accounts=list_active_accounts(conn))
     recorded = 0
     pending_writes = 0
     refresh_limit = max(1, int(max_refresh_per_account))
