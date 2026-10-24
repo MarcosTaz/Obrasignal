@@ -58,7 +58,7 @@ export default function PasswordRecovery({onComplete,onCancel}){
     {!passwordUpdated?<><Text style={s.label}>NEW PASSWORD</Text><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" placeholder="At least 8 characters" placeholderTextColor={C.muted} style={s.input}/>
     <Text style={s.label}>CONFIRM PASSWORD</Text><TextInput value={confirm} onChangeText={setConfirm} secureTextEntry autoComplete="new-password" placeholder="Repeat the new password" placeholderTextColor={C.muted} style={s.input}/></>:null}
     {error?<Text accessibilityRole="alert" style={s.error}>{error}</Text>:null}{success?<Text style={s.success}>{success}</Text>:null}
-    <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={[s.primary,busy&&s.disabled]}>{busy?<ActivityIndicator color={C.bg}/>:<Text style={s.primaryText}{passwordUpdated?'Retry secure sign-out':'Save new password'}</Text>}</Pressable>
+    <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={[s.primary,busy&&s.disabled]}>{busy?<ActivityIndicator color={C.bg}/>:<Text style={s.primaryText}>{passwordUpdated?'Retry secure sign-out':'Save new password'}</Text>}</Pressable>
     <Pressable accessibilityRole="button" disabled={busy} onPress={cancel} style={s.secondary}><Text style={s.secondaryText}>Cancel and sign out</Text></Pressable>
   </View></View>;
 }
