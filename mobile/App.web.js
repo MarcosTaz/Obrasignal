@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, Text, TextIn
 import { StatusBar } from 'expo-status-bar';
 import AuthGate from './components/AuthGate';
 import BrandLogo from './components/BrandLogo';
+import {FONT_BODY,FONT_DISPLAY} from './src/typography.mjs';
 import {WorldAnalytics,WorldHero,WorldSidebar,WorldToolbar,WorldMarkets} from './components/WorldExperience';
 import OpportunityExplanation from './components/OpportunityExplanation';
 import ProfileOnboarding from './components/ProfileOnboarding';
@@ -12,7 +13,7 @@ import { DEFAULT_SETTINGS, storage } from './src/storage';
 import { THEMES, resolveTheme, createThemeColors } from './src/theme-system.mjs';
 import { syncUnreadOpportunityAlerts } from './src/notifications';
 
-const FONT = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const FONT = FONT_BODY;
 const PAGE_SIZE = 80;
 const ThemeContext = React.createContext(null);
 const STATES = [['NEW','Novo'],['REVIEWING','Em análise'],['PREPARING','A preparar'],['SUBMITTED','Proposta enviada'],['WON','Ganho'],['LOST','Perdido']];

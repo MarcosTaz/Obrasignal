@@ -4,13 +4,18 @@ import { supabase } from '../lib/supabase';
 import { BRAND } from '../src/brand-palette.mjs';
 import BrandLogo from './BrandLogo';
 import {WorldLanding} from './WorldExperience';
+import {contactLink, getContact, CONTACT_UNVERIFIED_MESSAGE} from '../src/public-contacts.mjs';
+import {classifyAuthFailure} from '../src/auth-failure-feedback.mjs';
+import {FONT_BODY, FONT_DISPLAY} from '../src/typography.mjs';
+import {readAuthHealth, classifyAuthHealth} from '../src/auth-provider-health.mjs';
 
 const COLORS = {
   bg:BRAND.paper,bgSoft:BRAND.fog,panel:'#FFFFFF',panelSoft:BRAND.fog,
   line:BRAND.fog,text:BRAND.ink,muted:BRAND.mineral,blue:BRAND.slate,
   blueSoft:BRAND.fog,green:'#21674A',red:'#A33131',copper:BRAND.copper,
 };
-const CONTACT = 'obrasignal.pt@gmail.com';
+const CONTACT=getContact('support');
+const sendContact=(subject)=>{const url=contactLink('support',subject);if(url)Linking.openURL(url)};
 
 function Brand() {
   return <BrandLogo markSize={38} textSize={23}/>;
@@ -48,7 +53,7 @@ function Landing({ onLogin }: { onLogin: () => void }) {
   const { width } = useWindowDimensions();
   const wide = width >= 980;
   const medium = width >= 720;
-  const askSample = () => Linking.openURL(`mailto:${CONTACT}?subject=ObraSignal%20sample%20request`);
+  const askSample = () => sendContact('ObraSignal sample request');
   const proof = [
     ['01','Official sources','Trace each opportunity to its original publication.'],
     ['02','Explainable fit','Know why each opportunity matches your business.'],
@@ -69,7 +74,7 @@ function Landing({ onLogin }: { onLogin: () => void }) {
           <Text style={styles.eyebrow}>GLOBAL PROCUREMENT INTELLIGENCE</Text>
           <Text style={[styles.heroTitle, !medium && styles.heroTitleSmall]}>Find opportunities worth pursuing.</Text>
           <Text style={styles.heroBody}>ObraSignal helps organisations discover public tenders, understand their relevance and turn fragmented research into confident decisions.</Text>
-          <View style={[styles.heroActions, !medium && styles.actionsStack]}><Button onPress={askSample}>Request a sample</Button><Button secondary onPress={() => Linking.openURL(`mailto:${CONTACT}?subject=ObraSignal%20access%20request`)}>Request access</Button></View>
+          <View style={[styles.heroActions, !medium && styles.actionsStack]}><Button onPress={askSample}>Request a sample</Button><Button secondary onPress={() => sendContact('ObraSignal access request')}>Request access</Button></View>
           <Text style={styles.microcopy}>Official sources. Explainable relevance. Better decisions.</Text>
         </View>
         <View style={[styles.heroVisual, !wide && styles.fullWidth]}><ProductPreview/></View>
@@ -95,7 +100,7 @@ function Landing({ onLogin }: { onLogin: () => void }) {
       <View style={[styles.trustPanel, !wide && styles.stack]}><View style={styles.trustCopy}><Text style={styles.trustTitle}>ObraSignal advises. Official sources prevail.</Text><Text style={styles.trustBody}>Always confirm deadlines, requirements, documents and contacts against the official notice.</Text></View><View style={styles.checklist}>{['Source traceability','Visible deadlines','Fit rationale','Workflow status','Internal notes'].map(x=><View style={styles.checkRow} key={x}><Text style={styles.check}>✓</Text><Text style={styles.checkText}>{x}</Text></View>)}</View></View>
 
       <View style={[styles.finalCta, !wide && styles.stack]}><View style={styles.finalCopy}><Text style={styles.finalEyebrow}>DISCOVER WHAT MATTERS TO YOUR BUSINESS</Text><Text style={[styles.finalTitle, !medium && styles.sectionTitleSmall]}>Start with a focused sample. Decide with evidence.</Text></View><View style={[styles.finalActions, !medium && styles.fullWidth]}><Button onPress={askSample}>Request a sample</Button><Button secondary onPress={onLogin}>Existing customer</Button></View></View>
-      <View style={[styles.footer, !medium && styles.stack]}><Brand/><View style={styles.footerCopy}><Text style={styles.footerText}>International outlook · available markets depend on official sources</Text><Text style={styles.footerText}>After sign-in: private data export and privacy controls.</Text></View><Text style={styles.footerText}>{CONTACT}</Text></View>
+      <View style={[styles.footer, !medium && styles.stack]}><Brand/><View style={styles.footerCopy}><Text style={styles.footerText}>International outlook · available markets depend on official sources</Text><Text style={styles.footerText}>After sign-in: private data export and privacy controls.</Text></View><Text style={styles.footerText}>{CONTACT||CONTACT_UNVERIFIED_MESSAGE}</Text></View>
     </View>
   </ScrollView>;
 }
@@ -106,8 +111,17 @@ function AuthForm({ onBack }: { onBack: () => void }) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [recoveryMode,setRecoveryMode]=useState(false);
+  const [providerHealth,setProviderHealth]=useState({state:'checking',message:''});
+  const [healthRevision,setHealthRevision]=useState(0);
+  React.useEffect(()=>{
+    let current=true;
+    const controller=new AbortController();
+    readAuthHealth({signal:controller.signal}).then(value=>{if(current)setProviderHealth(value)});
+    return ()=>{current=false;controller.abort()};
+  },[healthRevision]);
   const [error, setError] = useState('');
-  const redirectTo = useMemo(() => Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin + window.location.pathname : undefined, []);
+  const redirectTo = useMemo(() => Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin + window.location.pathname + '?type=recovery' : undefined, []);
 
   const submit = async () => {
     setError(''); setMessage('');
@@ -119,7 +133,7 @@ function AuthForm({ onBack }: { onBack: () => void }) {
       const {error:authError}=await supabase.auth.signInWithPassword({email:normalizedEmail,password});
       if(authError) throw authError;
     } catch (error: any) {
-      setError('Sign-in was not completed. If the authentication service is unavailable, try again later.');
+      setError(classifyAuthFailure(error,'login').message);
     }
     finally { setBusy(false); }
   };
@@ -132,22 +146,22 @@ function AuthForm({ onBack }: { onBack: () => void }) {
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, redirectTo ? { redirectTo } : undefined);
       if (resetError) throw resetError;
-      setMessage('Recovery instructions requested. Check your email if the provider confirms delivery.');
-    } catch (e: any) { setError(e?.message || 'Password recovery is unavailable.'); }
+      setMessage('If this account exists, the provider has accepted the request. Check its inbox for a reset link.');
+    } catch (e: any) { setError(classifyAuthFailure(e,'recovery').message); }
     finally { setBusy(false); }
   };
 
   return <View style={styles.authPage}><View style={[styles.authShell, width < 560 && styles.authShellSmall]}>
     {Platform.OS === 'web' ? <Pressable accessibilityRole="button" onPress={onBack} style={styles.backButton}><Text style={styles.backText}>← Back to website</Text></Pressable> : null}
     <View style={styles.authBrand}><BrandLogo inverse markSize={38} textSize={23}/><View style={styles.accessPill}><Text style={styles.accessText}>PRIVATE ACCESS</Text></View></View>
-    <Text style={styles.authTitle}>Welcome back.</Text>
-    <Text style={styles.authSubtitle}>Sign in with an existing account. New accounts are invitation-only.</Text>
+    <Text style={styles.authTitle}>{recoveryMode?'Recover your access.':'Welcome back.'}</Text>
+    <Text style={styles.authSubtitle}>{recoveryMode?'Enter your account email. A verified provider will send a secure reset link if that account exists.':'Sign in to your private command centre. New accounts are invitation-only.'}</Text>
     <Text style={styles.fieldLabel}>EMAIL</Text><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="name@company.com" placeholderTextColor="#607590" style={styles.input}/>
-    <View style={styles.passwordRow}><Text style={styles.fieldLabel}>PASSWORD</Text><Pressable accessibilityRole="button" onPress={reset} disabled={busy}><Text style={styles.forgot}>Reset password</Text></Pressable></View>
-    <TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" placeholder="••••••••" placeholderTextColor="#607590" style={styles.input}/>
+    {!recoveryMode?<><View style={styles.passwordRow}><Text style={styles.fieldLabel}>PASSWORD</Text><Pressable accessibilityRole="button" onPress={()=>{setRecoveryMode(true);setError('');setMessage('')}} disabled={busy}><Text style={styles.forgot}>Forgot password?</Text></Pressable></View><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" placeholder="••••••••" placeholderTextColor="#607590" style={styles.input}/></>:null}
+    {providerHealth.state==='degraded'?<View style={styles.providerNotice}><Text accessibilityRole="alert" style={styles.error}>{providerHealth.message}</Text><Pressable accessibilityRole="button" onPress={()=>setHealthRevision(v=>v+1)}><Text style={styles.forgot}>Check again ↻</Text></Pressable></View>:null}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{message ? <Text style={styles.success}>{message}</Text> : null}
-    <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={({pressed})=>[styles.authPrimary, pressed&&styles.pressed, busy&&styles.disabled]}>{busy ? <ActivityIndicator color={COLORS.bg}/> : <Text style={styles.authPrimaryText}>Sign in</Text>}</Pressable>
-    <Pressable accessibilityRole="button" disabled={busy} onPress={()=>Linking.openURL(`mailto:${CONTACT}?subject=ObraSignal%20access%20request`)}><Text style={styles.switchText}>Need access? Request an invitation</Text></Pressable>
+    <Pressable accessibilityRole="button" disabled={busy} onPress={recoveryMode?reset:submit} style={({pressed})=>[styles.authPrimary, pressed&&styles.pressed, busy&&styles.disabled]}>{busy ? <ActivityIndicator color="#06111D"/> : <Text style={styles.authPrimaryText}>{recoveryMode?'Send recovery link':'Sign in securely'}</Text>}</Pressable>
+    {recoveryMode?<Pressable accessibilityRole="button" onPress={()=>{setRecoveryMode(false);setError('');setMessage('')}} disabled={busy}><Text style={styles.switchText}>← Back to sign in</Text></Pressable>:CONTACT?<Pressable accessibilityRole="button" disabled={busy} onPress={()=>sendContact('ObraSignal access request')}><Text style={styles.switchText}>Need access? Request an invitation</Text></Pressable>:<Text style={styles.authTrust}>{CONTACT_UNVERIFIED_MESSAGE}</Text>}
     <Text style={styles.authTrust}>Official tender documents remain authoritative. ObraSignal supports, but does not replace, your assessment.</Text>
   </View></View>;
 }
@@ -168,5 +182,6 @@ const styles = StyleSheet.create({
   featureRow:{flexDirection:'row',gap:14,alignItems:'stretch'},featureLarge:{flex:1.5,minWidth:0,backgroundColor:COLORS.bgSoft,borderWidth:1,borderColor:COLORS.line,borderRadius:18,padding:26},featureCard:{flex:1,minWidth:0,backgroundColor:COLORS.bgSoft,borderWidth:1,borderColor:COLORS.line,borderRadius:18,padding:26},cardKicker:{color:COLORS.muted,fontSize:10,fontWeight:'900',letterSpacing:1.3},featureTitle:{color:COLORS.text,fontSize:30,lineHeight:35,fontWeight:'900',letterSpacing:-.8,marginTop:24},featureTitleSmall:{color:COLORS.text,fontSize:22,lineHeight:28,fontWeight:'900',letterSpacing:-.4,marginTop:24},featureCopy:{color:COLORS.muted,fontSize:13,lineHeight:21,marginTop:14},miniRadar:{flexDirection:'row',justifyContent:'space-between',gap:10,borderWidth:1,borderColor:COLORS.line,backgroundColor:COLORS.panel,borderRadius:12,padding:15,marginTop:28},miniTitle:{color:COLORS.text,fontSize:11,fontWeight:'700',flex:1},goodScore:{color:COLORS.green,fontWeight:'900',fontSize:12},statuses:{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:28},status:{borderWidth:1,borderColor:COLORS.line,paddingHorizontal:9,paddingVertical:6,borderRadius:999},statusOn:{backgroundColor:COLORS.blueSoft,borderColor:COLORS.blue},statusText:{color:COLORS.muted,fontSize:9,fontWeight:'800'},
   trustPanel:{marginTop:96,flexDirection:'row',alignItems:'center',gap:48,backgroundColor:COLORS.bgSoft,borderWidth:1,borderColor:COLORS.line,borderRadius:20,padding:40},trustCopy:{flex:1},trustTitle:{color:COLORS.text,fontSize:32,lineHeight:38,fontWeight:'900',letterSpacing:-.8},trustBody:{color:COLORS.muted,fontSize:13,lineHeight:21,marginTop:17,maxWidth:640},checklist:{flex:1,gap:11},checkRow:{flexDirection:'row',alignItems:'center',gap:10},check:{color:COLORS.green,fontSize:14,fontWeight:'900'},checkText:{color:COLORS.text,fontSize:12,fontWeight:'700'},
   finalCta:{marginTop:96,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:40,borderTopWidth:1,borderBottomWidth:1,borderColor:COLORS.line,paddingVertical:58},finalCopy:{flex:1},finalEyebrow:{color:COLORS.muted,fontSize:10,fontWeight:'900',letterSpacing:1.2},finalTitle:{color:COLORS.text,fontSize:34,lineHeight:40,fontWeight:'900',letterSpacing:-.9,marginTop:14,maxWidth:660},finalActions:{gap:10,minWidth:210},footer:{minHeight:120,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:20},footerCopy:{flex:1,alignItems:'center',gap:4},footerText:{color:COLORS.muted,fontSize:10,lineHeight:15,textAlign:'center'},
-  authPage:{flex:1,minHeight:'100%',backgroundColor:'#06111D',alignItems:'center',justifyContent:'center',padding:24},authShell:{width:'100%',maxWidth:560,backgroundColor:'#0B1C2D',borderWidth:1,borderColor:'#2B4760',borderRadius:12,padding:36},authShellSmall:{padding:22},backButton:{alignSelf:'flex-start',marginBottom:28},backText:{color:COLORS.muted,fontSize:12,fontWeight:'700'},authBrand:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:14},accessPill:{borderWidth:1,borderColor:COLORS.line,backgroundColor:COLORS.bgSoft,borderRadius:999,paddingHorizontal:10,paddingVertical:6},accessText:{color:COLORS.muted,fontSize:9,fontWeight:'800'},authTitle:{color:'#F4F8FE',fontSize:34,lineHeight:40,fontWeight:'900',letterSpacing:-.8,marginTop:34},authSubtitle:{color:'#A4BFD5',fontSize:14,lineHeight:22,marginTop:11,marginBottom:30},fieldLabel:{color:'#F4F8FE',fontSize:10,fontWeight:'900',marginBottom:8,letterSpacing:.8},passwordRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},forgot:{color:'#78BEFB',fontSize:10,fontWeight:'700',marginBottom:8},input:{height:52,borderWidth:1,borderColor:'#36546F',backgroundColor:'#081725',borderRadius:11,paddingHorizontal:14,color:'#F4F8FE',marginBottom:16},error:{color:COLORS.red,fontSize:11,lineHeight:17,marginBottom:10},success:{color:COLORS.green,fontSize:11,lineHeight:17,marginBottom:10},authPrimary:{height:52,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:COLORS.copper,marginTop:4,marginBottom:18},authPrimaryText:{color:'#06111D',fontSize:14,fontWeight:'900'},switchText:{textAlign:'center',color:'#78BEFB',fontWeight:'700',fontSize:12},authTrust:{textAlign:'center',color:COLORS.muted,fontSize:10,lineHeight:16,marginTop:26},
+  providerNotice:{borderWidth:1,borderColor:'#8E6045',backgroundColor:'#24212A',padding:13,borderRadius:9,marginBottom:13,gap:5},
+  authPage:{flex:1,minHeight:'100%',backgroundColor:'#06111D',alignItems:'center',justifyContent:'center',padding:24},authShell:{width:'100%',maxWidth:650,backgroundColor:'#0B1C2D',borderWidth:1,borderColor:'#2B4760',borderRadius:12,padding:36},authShellSmall:{padding:22},backButton:{alignSelf:'flex-start',marginBottom:28},backText:{color:'#B3CDE0',fontFamily:FONT_BODY,fontSize:12,fontWeight:'700'},authBrand:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:14},accessPill:{borderWidth:1,borderColor:'#36546F',backgroundColor:'#12283B',borderRadius:999,paddingHorizontal:10,paddingVertical:6},accessText:{color:'#CEDCE8',fontFamily:FONT_BODY,fontSize:9,fontWeight:'800'},authTitle:{color:'#F4F8FE',fontFamily:FONT_DISPLAY,fontSize:34,lineHeight:40,fontWeight:'900',letterSpacing:-.8,marginTop:34},authSubtitle:{color:'#A4BFD5',fontFamily:FONT_BODY,fontSize:14,lineHeight:22,marginTop:11,marginBottom:30},fieldLabel:{color:'#F4F8FE',fontFamily:FONT_BODY,fontSize:10,fontWeight:'900',marginBottom:8,letterSpacing:.8},passwordRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},forgot:{color:'#78BEFB',fontFamily:FONT_BODY,fontSize:10,fontWeight:'700',marginBottom:8},input:{height:52,borderWidth:1,borderColor:'#36546F',backgroundColor:'#081725',borderRadius:11,paddingHorizontal:14,color:'#F4F8FE',marginBottom:16},error:{color:'#FFABB4',fontFamily:FONT_BODY,fontSize:11,lineHeight:17,marginBottom:10},success:{color:'#9CEBCB',fontFamily:FONT_BODY,fontSize:11,lineHeight:17,marginBottom:10},authPrimary:{height:52,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:COLORS.copper,marginTop:4,marginBottom:18},authPrimaryText:{color:'#06111D',fontFamily:FONT_BODY,fontSize:14,fontWeight:'900'},switchText:{textAlign:'center',color:'#78BEFB',fontWeight:'700',fontFamily:FONT_BODY,fontSize:12},authTrust:{textAlign:'center',color:'#A4BFD5',fontFamily:FONT_BODY,fontSize:10,lineHeight:16,marginTop:26},
 });

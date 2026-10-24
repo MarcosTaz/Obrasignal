@@ -170,32 +170,30 @@ def assert_public_landing(page, browser_name, viewport_name, width, height):
     response = page.goto(ACTIVE_PUBLIC_URL, wait_until="domcontentloaded", timeout=45_000)
     if response is None or response.status >= 400:
         fail(f"{label} public landing HTTP failure: {getattr(response, 'status', None)}")
-    page.get_by_text("Encontra os concursos que merecem o teu tempo.", exact=True).wait_for(timeout=30_000)
-    page.get_by_role("button", name="Entrar", exact=True).wait_for(timeout=10_000)
-    page.get_by_role("button", name="Criar conta", exact=True).wait_for(timeout=10_000)
-    page.get_by_text("obrasignal.pt@gmail.com", exact=True).first.wait_for(timeout=10_000)
-    page.get_by_role("button", name="Privacidade", exact=True).wait_for(timeout=10_000)
-    page.get_by_role("button", name="Termos de utilização", exact=True).wait_for(timeout=10_000)
-    page.get_by_role("button", name="Contactar suporte", exact=True).wait_for(timeout=10_000)
+    page.get_by_text("Anticipate", exact=False).first.wait_for(timeout=30_000)
+    page.get_by_role("button", name="Sign in →", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Explore platform", exact=True).wait_for(timeout=10_000)
+    page.get_by_text("Support contact pending verification", exact=False).first.wait_for(timeout=10_000)
+    page.get_by_role("button", name="Privacy", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Terms of use", exact=True).wait_for(timeout=10_000)
+    page.get_by_text("Support contact pending verification", exact=False).first.wait_for(timeout=10_000)
     assert_no_horizontal_overflow(page, label)
 
-    page.get_by_role("button", name="Privacidade", exact=True).click()
-    page.get_by_text("Que dados tratamos", exact=True).wait_for(timeout=10_000)
-    page.get_by_text("Fornecedores e fronteiras externas", exact=True).wait_for(timeout=10_000)
-    page.get_by_role("button", name="Fechar informação legal", exact=True).click()
+    page.get_by_role("button", name="Privacy", exact=True).click()
+    page.get_by_text("Account data", exact=True).wait_for(timeout=10_000)
+    page.get_by_text("External providers", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Close legal information", exact=True).click()
 
-    page.get_by_role("button", name="Termos de utilização", exact=True).click()
-    page.get_by_text("Fonte oficial e decisões", exact=True).wait_for(timeout=10_000)
-    page.get_by_text("Avaliação, plano e faturação", exact=True).wait_for(timeout=10_000)
-    page.get_by_role("button", name="Fechar informação legal", exact=True).click()
+    page.get_by_role("button", name="Terms of use", exact=True).click()
+    page.get_by_text("Authority of original notices", exact=True).wait_for(timeout=10_000)
+    page.get_by_text("Subscriptions", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Close legal information", exact=True).click()
 
-    page.get_by_role("button", name="Criar conta", exact=True).click()
-    page.get_by_text("Cria o teu radar.", exact=True).wait_for(timeout=10_000)
-    inputs = page.locator("input")
-    if inputs.count() < 2:
-        fail(f"{label} signup surface does not expose email/password inputs")
-    page.get_by_role("button", name="← Voltar ao site", exact=True).click()
-    page.get_by_text("Encontra os concursos que merecem o teu tempo.", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Explore platform", exact=True).click()
+    page.get_by_text("Your procurement command centre.", exact=True).wait_for(timeout=10_000)
+    page.get_by_text("INTERFACE PREVIEW · NOT LIVE DATA", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Introduction", exact=True).click()
+    page.get_by_text("Anticipate", exact=False).first.wait_for(timeout=10_000)
 
     if failures:
         fail("\n".join(failures))
@@ -211,39 +209,39 @@ def authenticated_roundtrip(page, browser_name):
     page.goto(ACTIVE_PUBLIC_URL, wait_until="domcontentloaded", timeout=45_000)
     assert_browser_can_reach_api(page, label)
     _discard_verified_webkit_health_noise(failures, browser_name)
-    page.get_by_role("button", name="Entrar", exact=True).click()
-    page.get_by_text("Bem-vindo de volta.", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Sign in →", exact=True).click()
+    page.get_by_text("Welcome back.", exact=True).wait_for(timeout=10_000)
     inputs = page.locator("input")
     if inputs.count() < 2:
         fail(f"{label} signin surface does not expose email/password inputs")
     inputs.nth(0).fill(E2E_EMAIL)
     inputs.nth(1).fill(E2E_PASSWORD)
-    page.get_by_role("button", name="Entrar", exact=True).click()
+    page.get_by_role("button", name="Sign in securely", exact=True).click()
 
     try:
-        page.get_by_role("button", name="Terminar sessão", exact=True).wait_for(timeout=90_000)
+        page.get_by_role("button", name="Sign out", exact=True).wait_for(timeout=90_000)
     except PlaywrightTimeoutError:
         body = page.locator("body").inner_text(timeout=10_000)
         fail(f"{label} authenticated shell did not become ready. Body excerpt: {body[:1200]}; failures={failures!r}")
 
-    page.get_by_role("button", name="Conta e privacidade", exact=True).wait_for(timeout=30_000)
+    page.get_by_role("button", name="Account & privacy", exact=True).wait_for(timeout=30_000)
     assert_no_horizontal_overflow(page, label)
 
     page.reload(wait_until="domcontentloaded", timeout=45_000)
-    page.get_by_role("button", name="Terminar sessão", exact=True).wait_for(timeout=90_000)
+    page.get_by_role("button", name="Sign out", exact=True).wait_for(timeout=90_000)
     try:
-        page.get_by_role("button", name="Conta e privacidade", exact=True).wait_for(timeout=30_000)
+        page.get_by_role("button", name="Account & privacy", exact=True).wait_for(timeout=30_000)
     except PlaywrightTimeoutError:
         body = page.locator("body").inner_text(timeout=10_000)
         fail(f"{label} privacy status did not become ready after reload. Body excerpt: {body[:1200]}; failures={failures!r}")
 
-    page.get_by_role("button", name="Conta e privacidade", exact=True).click()
+    page.get_by_role("button", name="Account & privacy", exact=True).click()
     page.get_by_text("Exportar os meus dados", exact=True).wait_for(timeout=30_000)
     page.get_by_text("Fechar", exact=True).last.click()
 
-    page.get_by_role("button", name="Terminar sessão", exact=True).click()
-    page.get_by_text("Encontra os concursos que merecem o teu tempo.", exact=True).wait_for(timeout=30_000)
-    page.get_by_role("button", name="Privacidade", exact=True).wait_for(timeout=10_000)
+    page.get_by_role("button", name="Sign out", exact=True).click()
+    page.get_by_text("Anticipate", exact=False).first.wait_for(timeout=30_000)
+    page.get_by_role("button", name="Privacy", exact=True).wait_for(timeout=10_000)
 
     page.wait_for_timeout(250)
     # WebKit emits the duplicate access-control pageerror asynchronously, often

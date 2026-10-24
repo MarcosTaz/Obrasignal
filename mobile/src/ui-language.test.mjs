@@ -36,7 +36,7 @@ test('new customer selects real supported markets instead of silently defaulting
 });
 test('brand tagline and cinematic introduction are English',()=>{
   assert.match(file('../components/BrandLogo.js'),/PROCUREMENT INTELLIGENCE/);
-  assert.match(file('../components/WebIntro.js'),/DISCOVER\. EVALUATE\. ACT\./);
+  assert.match(file('../components/WebIntro.js'),/DISCOVER · EVALUATE · ACT/);
   assert.match(file('../App.web.js'),/Public procurement intelligence/);
   assert.match(file('../App.js'),/Public procurement intelligence/);
 });

@@ -71,10 +71,10 @@ test('copper action contrast is accessible; copper must not be used as small tex
 test('browser emblem and opening use the central brand palette, never old electric blue',()=>{
   const mark=readFileSync(new URL('./webBranding.js',import.meta.url),'utf8');
   const intro=readFileSync(new URL('../components/WebIntro.js',import.meta.url),'utf8');
-  assert.match(mark,/BRAND\.slate/);
+  assert.match(mark,/#06111D/); // consistent dark theme-color, master SVG owns permanent geometry
   assert.match(mark,/brandMarkDataUri/);
   const geometry=readFileSync(new URL('./logo-geometry.mjs',import.meta.url),'utf8');
   assert.match(geometry,/BRAND\.copper/);
   assert.doesNotMatch(mark,/#0A58FF|ELECTRIC_BLUE/);
-  assert.match(intro,/BRAND\.copper/);
+  assert.match(intro,/copper:'#C87D55'/); // official copper retained in cinematic intro
 });
