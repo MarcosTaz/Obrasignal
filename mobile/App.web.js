@@ -41,6 +41,8 @@ function WebMain(){
   const [stats,setStats] = useState({});
   const [page,setPage] = useState({limit:PAGE_SIZE,offset:0,has_more:false,next_offset:null});
   const [settings,setSettings] = useState(DEFAULT_SETTINGS);
+  // Never render or overwrite a saved theme before AsyncStorage hydration finishes.
+  const [themeReady,setThemeReady] = useState(false);
   const themed = useMemo(() => { const C=createThemeColors(settings.theme); return {C,s:buildStyles(C),inverseBrand:resolveTheme(settings.theme).mode==='dark'}; },[settings.theme]);
   const {C,s}=themed;
   const [profile,setProfile] = useState(undefined);
@@ -113,12 +115,13 @@ function WebMain(){
       if(hydrated[0].status==='fulfilled'){savedSettings=hydrated[0].value;setSettings(savedSettings);}
       if(hydrated[1].status==='fulfilled'&&hydrated[1].value){setItems(hydrated[1].value.items||[]);setStats(hydrated[1].value.stats||{});setLoading(false);}
       if(hydrated[2].status==='fulfilled'&&hydrated[2].value)setProfile(hydrated[2].value);
+      setThemeReady(true);
       await load({criteria:savedSettings,query:''});
     })();
     return()=>{active=false;mounted.current=false;};
   },[]);
 
-  useEffect(()=>{storage.setSettings(settings).catch(()=>{});},[settings]);
+  useEffect(()=>{if(themeReady)storage.setSettings(settings).catch(()=>{});},[settings,themeReady]);
   useEffect(()=>{
     if(!settings.notifications){setNotice('');return;}
     let active=true;(async()=>{try{const delivered=await syncUnreadOpportunityAlerts();if(active)setNotice(delivered>0?`${delivered} new alert(s).`:'Notifications enabled.');}catch(_){if(active)setNotice('Web notifications enabled; push requires the native app.');}})();
@@ -135,6 +138,7 @@ function WebMain(){
     finally{setSaving(false);}
   };
 
+  if(!themeReady)return <View style={{minHeight:'100vh',backgroundColor:'#06111D'}} accessibilityLabel="Loading workspace appearance"/>;
   if(!profileLoading&&profile!==undefined&&(!profile?.name?.trim()||!profile?.activity?.trim()))return <ThemeContext.Provider value={themed}><View style={s.documentPage}><ProfileOnboarding initialProfile={profile||{}} onComplete={next=>{setProfile(next);load({criteria:settings,query:appliedSearch});}}/></View></ThemeContext.Provider>;
   if(selected)return <ThemeContext.Provider value={themed}><OpportunityDetail item={selected} compact={compact} onBack={()=>setSelected(null)} onChanged={next=>{setSelected(next);setItems(old=>old.map(item=>item.id===next.id?next:item));}}/></ThemeContext.Provider>;
 
