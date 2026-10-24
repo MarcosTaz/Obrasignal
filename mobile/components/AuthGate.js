@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import AccountPrivacyControls from './AccountPrivacyControls'
 import AuthScreen from './AuthScreen'
@@ -13,6 +13,7 @@ import { storage } from '../src/storage'
 import { BRAND } from '../src/brand-palette.mjs'
 import {contactLink,getContact,CONTACT_UNVERIFIED_MESSAGE} from '../src/public-contacts.mjs'
 import {FONT_BODY,FONT_DISPLAY} from '../src/typography.mjs'
+import {isRecoveryReturn} from '../src/auth-recovery-boundary.mjs'
 
 const TRANSLATE_ELEMENT_ID = 'obrasignal-google-translate'
 const TRANSLATE_SCRIPT_ID = 'obrasignal-google-translate-script'
@@ -173,7 +174,9 @@ function clearRecoveryUrl() {
 export default function AuthGate({ children }) {
   const [authState, setAuthState] = useState(authSession.getState())
   const [tenantStatus, setTenantStatus] = useState('loading')
-  const [passwordRecovery, setPasswordRecovery] = useState(() => Platform.OS === 'web' && typeof window !== 'undefined' && /(?:[?#&])type=recovery(?:[&#]|$)/.test(window.location.href))
+  const [passwordRecovery, setPasswordRecovery] = useState(() => Platform.OS === 'web' && typeof window !== 'undefined' && isRecoveryReturn(window.location.href))
+  const recoveryRef = useRef(passwordRecovery)
+  const finishRecovery = () => { recoveryRef.current=false; clearRecoveryUrl(); setPasswordRecovery(false) }
 
   useEffect(() => {
     let active = true
@@ -191,6 +194,15 @@ export default function AuthGate({ children }) {
           const signedIn = nextState.status === 'signed-in'
           const accountId = signedIn ? nextState.session?.user?.id : null
           if (signedIn && !accountId) throw new Error('Authenticated session is missing user.id')
+          // A recovery JWT is NOT a customer-workspace login. Quarantine all
+          // account-scoped caches and skip private tenant binding and backend reads.
+          if (signedIn && recoveryRef.current) {
+            await withTimeout(storage.bindPrivateTenant(null), PRIVATE_TENANT_BIND_TIMEOUT_MS, 'Recovery cache quarantine timed out')
+            if (!active || currentGeneration !== generation) return
+            setAuthState(nextState)
+            setTenantStatus('ready')
+            return
+          }
           await withTimeout(storage.bindPrivateTenant(accountId), PRIVATE_TENANT_BIND_TIMEOUT_MS, 'Private tenant binding timed out')
           if (!active || currentGeneration !== generation) return
           setAuthState(nextState)
@@ -226,7 +238,7 @@ export default function AuthGate({ children }) {
     // Keep this listener independent from the generic session coordinator so a
     // temporary recovery session never falls through into private product data.
     const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true)
+      if (event === 'PASSWORD_RECOVERY') { recoveryRef.current=true; setPasswordRecovery(true) }
     })
     return () => data?.subscription?.unsubscribe()
   }, [])
@@ -237,6 +249,13 @@ export default function AuthGate({ children }) {
   if (tenantStatus === 'error') {
     return <View style={styles.loading}><BrandLogo markSize={42} textSize={25}/><Text style={styles.error}>Unable to verify private session storage.</Text></View>
   }
+  if (passwordRecovery && authState.status !== 'signed-in') {
+    // Never offer updateUser without an actual provider-issued recovery session.
+    return <View style={styles.loading}><BrandLogo inverse markSize={50} textSize={29}/>
+      <Text style={styles.message}>This recovery link is expired, invalid or the identity provider is unavailable. No private workspace has been opened.</Text>
+      <Pressable accessibilityRole="button" onPress={finishRecovery} style={styles.legalContact}><Text style={styles.legalContactText}>Return to sign in</Text></Pressable>
+    </View>
+  }
   if (authState.status !== 'signed-in') {
     if (Platform.OS !== 'web') return <AuthScreen />
     return <View style={styles.publicShell}><View style={styles.publicContent}><AuthScreen /></View><PublicLegalBar /></View>
@@ -244,8 +263,8 @@ export default function AuthGate({ children }) {
 
   if (passwordRecovery) {
     return <PasswordRecovery
-      onComplete={() => { clearRecoveryUrl(); setPasswordRecovery(false) }}
-      onCancel={() => { clearRecoveryUrl(); setPasswordRecovery(false) }}
+      onComplete={finishRecovery}
+      onCancel={finishRecovery}
     />
   }
 

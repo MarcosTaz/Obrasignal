@@ -14,21 +14,34 @@ export default function PasswordRecovery({onComplete,onCancel}){
   const[busy,setBusy]=useState(false);
   const[error,setError]=useState('');
   const[success,setSuccess]=useState('');
+  const[passwordUpdated,setPasswordUpdated]=useState(false);
 
   const submit=async()=>{
     setError('');setSuccess('');
-    if(password.length<8){setError('Use a password with at least 8 characters.');return;}
-    if(password!==confirm){setError('The passwords do not match.');return;}
+    if(!passwordUpdated){
+      if(password.length<8){setError('Use a password with at least 8 characters.');return;}
+      if(password!==confirm){setError('The passwords do not match.');return;}
+    }
     setBusy(true);
     try{
-      const {error:updateError}=await supabase.auth.updateUser({password});
-      if(updateError)throw updateError;
+      if(!passwordUpdated){
+        const {error:updateError}=await supabase.auth.updateUser({password});
+        if(updateError)throw updateError;
+        setPasswordUpdated(true);
+        setPassword('');
+        setConfirm('');
+      }
       const {error:signOutError}=await supabase.auth.signOut();
-      if(signOutError)throw signOutError;
-      setSuccess('Password updated. Sign in again with your new password.');
+      if(signOutError){
+        setError('Password updated, but we could not end the recovery session. Retry sign-out or close this browser; do not continue to your workspace.');
+        return;
+      }
       onComplete?.();
-    }catch(e){setError(classifyAuthFailure(e,'recovery').message);}
-    finally{setBusy(false);}
+    }catch(e){
+      setError(passwordUpdated
+        ? 'Password was updated but sign-out failed. Please retry ending this recovery session.'
+        : classifyAuthFailure(e,'recovery').message);
+    }finally{setBusy(false);}
   };
 
   const cancel=async()=>{
@@ -42,10 +55,10 @@ export default function PasswordRecovery({onComplete,onCancel}){
     <Text style={s.eyebrow}>ACCOUNT RECOVERY</Text>
     <Text style={s.title}>Set a new password.</Text>
     <Text style={s.body}>Your recovery link has established a temporary identity session. Choose a new password to complete the reset.</Text>
-    <Text style={s.label}>NEW PASSWORD</Text><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" placeholder="At least 8 characters" placeholderTextColor={C.muted} style={s.input}/>
-    <Text style={s.label}>CONFIRM PASSWORD</Text><TextInput value={confirm} onChangeText={setConfirm} secureTextEntry autoComplete="new-password" placeholder="Repeat the new password" placeholderTextColor={C.muted} style={s.input}/>
+    {!passwordUpdated?<><Text style={s.label}>NEW PASSWORD</Text><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" placeholder="At least 8 characters" placeholderTextColor={C.muted} style={s.input}/>
+    <Text style={s.label}>CONFIRM PASSWORD</Text><TextInput value={confirm} onChangeText={setConfirm} secureTextEntry autoComplete="new-password" placeholder="Repeat the new password" placeholderTextColor={C.muted} style={s.input}/></>:null}
     {error?<Text accessibilityRole="alert" style={s.error}>{error}</Text>:null}{success?<Text style={s.success}>{success}</Text>:null}
-    <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={[s.primary,busy&&s.disabled]}>{busy?<ActivityIndicator color={C.bg}/>:<Text style={s.primaryText}>Save new password</Text>}</Pressable>
+    <Pressable accessibilityRole="button" disabled={busy} onPress={submit} style={[s.primary,busy&&s.disabled]}>{busy?<ActivityIndicator color={C.bg}/>:<Text style={s.primaryText}{passwordUpdated?'Retry secure sign-out':'Save new password'}</Text>}</Pressable>
     <Pressable accessibilityRole="button" disabled={busy} onPress={cancel} style={s.secondary}><Text style={s.secondaryText}>Cancel and sign out</Text></Pressable>
   </View></View>;
 }
