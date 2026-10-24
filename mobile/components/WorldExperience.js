@@ -4,12 +4,24 @@ import Svg,{Defs,LinearGradient,RadialGradient,Stop,Rect,Path,Circle,Line} from 
 import BrandLogo from './BrandLogo';
 import {FONT_BODY,FONT_DISPLAY} from '../src/typography.mjs';
 import {EUROPE_MARKETS} from '../src/markets';
+import {createWorldPalette} from '../src/world-palette.mjs';
+import {DEFAULT_THEME} from '../src/theme-system.mjs';
 
-const P={bg:'#06111D',panel:'#0B1C2D',line:'#2B4760',blue:'#78BEFB',copper:'#C87D55',light:'#F3F7FE',muted:'#A4BFD5',mint:'#6DDEB8'};
+const WorldThemeContext=React.createContext(null);
+const FALLBACK_PALETTE=createWorldPalette(DEFAULT_THEME);
+const FALLBACK_WORLD_THEME={P:FALLBACK_PALETTE,s:makeStyles(FALLBACK_PALETTE)};
+function useWorldTheme(){return React.useContext(WorldThemeContext)||FALLBACK_WORLD_THEME;}
+export function WorldThemeProvider({theme,children}){
+  const value=useMemo(()=>{
+    const P=createWorldPalette(theme);
+    return {P,s:makeStyles(P)};
+  },[theme]);
+  return <WorldThemeContext.Provider value={value}>{children}</WorldThemeContext.Provider>;
+}
 const T=(v)=>v===null||v===undefined?'—':String(v);
-const Eyebrow=({children})=><Text style={s.eyebrow}>{children}</Text>;
-const Tile=({children,style})=><View style={[s.tile,style]}>{children}</View>;
-const Btn=({children,onPress,secondary=false})=><Pressable accessibilityRole="button" onPress={onPress} style={[s.btn,secondary&&s.btnSec]}><Text style={[s.btnText,secondary&&s.btnSecText]}>{children}</Text></Pressable>;
+const Eyebrow=({children})=>{const {s}=useWorldTheme();return <Text style={s.eyebrow}>{children}</Text>;};
+const Tile=({children,style})=>{const {s}=useWorldTheme();return <View style={[s.tile,style]}>{children}</View>;};
+const Btn=({children,onPress,secondary=false})=>{const {s}=useWorldTheme();return <Pressable accessibilityRole="button" onPress={onPress} style={[s.btn,secondary&&s.btnSec]}><Text style={[s.btnText,secondary&&s.btnSecText]}>{children}</Text></Pressable>;};
 
 export function Skyline(){
 return <Svg viewBox="0 0 1440 540" preserveAspectRatio="xMidYMid slice" pointerEvents="none" style={StyleSheet.absoluteFillObject}>
@@ -33,8 +45,9 @@ return <Svg viewBox="0 0 1440 540" preserveAspectRatio="xMidYMid slice" pointerE
 <Circle cx="1180" cy="203" r="5" fill="#E8AA72"/><Circle cx="900" cy="252" r="5" fill="#E8AA72"/>
 </Svg>;
 }
-const PanelEmpty=({preview=false})=><View style={s.noData}><Text style={s.emptyIcon}>◇</Text><Text style={s.emptyTitle}>No verified results loaded</Text><Text style={s.emptySub}>{preview?'This is an interface preview, not live customer data.':'Your account-scoped results will appear once the authenticated radar responds.'}</Text></View>;
+const PanelEmpty=({preview=false})=>{const {s}=useWorldTheme();return <View style={s.noData}><Text style={s.emptyIcon}>◇</Text><Text style={s.emptyTitle}>No verified results loaded</Text><Text style={s.emptySub}>{preview?'This is an interface preview, not live customer data.':'Your account-scoped results will appear once the authenticated radar responds.'}</Text></View>;};
 export function WorldAnalytics({items=[],stats={},preview=false,compact=false,onOpen}){
+const {s,P}=useWorldTheme();
 const result=preview?[]:items;
 const scored=result.map(x=>Number(x.decision_score??x.score)).filter(Number.isFinite);
 const histogram=[0,0,0,0,0,0].map((_,i)=>scored.filter(v=>Math.min(5,Math.max(0,Math.floor(v/20)))===i).length);
@@ -70,16 +83,18 @@ return <View style={s.analytics}>
 }
 const nav=[['radar','◈','Overview'],['opportunities','▤','Opportunities'],['analytics','▥','Analytics'],['markets','◎','Markets'],['profile','▣','Company'],['settings','⚙','Settings']];
 export function WorldSidebar({tab,onTab,compact}){
-return <View style={[s.sidebar,compact&&s.sidebarCompact]}><View style={s.sidebarBrand}><BrandLogo inverse markSize={35} textSize={21}/></View>
+const {s,P}=useWorldTheme();
+return <View style={[s.sidebar,compact&&s.sidebarCompact]}><View style={s.sidebarBrand}><BrandLogo inverse={P.isDark} markSize={35} textSize={21}/></View>
  {!compact?<Eyebrow>COMMAND CENTRE</Eyebrow>:null}<View style={[s.sideLinks,compact&&s.sideLinksCompact]}>{nav.map(([key,glyph,name])=><Pressable accessibilityRole="button" accessibilityState={{selected:key===tab}} onPress={()=>onTab(key)} key={key} style={[s.sideLink,tab===key&&s.active]}><Text style={s.sideGlyph}>{glyph}</Text><Text style={[s.sideText,tab===key&&{color:P.light}]}>{name}</Text></Pressable>)}</View>
  {!compact?<View style={s.sideBottom}><Text style={s.sideBottomTitle}>Decisions today.</Text><Text style={s.sideBottomTitleBlue}>Built for tomorrow.</Text><Text style={s.hint}>Procurement intelligence, without the noise.</Text></View>:null}
 </View>;
 }
-export function WorldToolbar({onRefresh,tab}){return <View style={s.toolbar}><View><Eyebrow>OBRASIGNAL / INTELLIGENCE</Eyebrow><Text style={s.toolbarTitle}>{nav.find(x=>x[0]===tab)?.[2]||'Workspace'}</Text></View><Btn secondary onPress={onRefresh}>↻ Refresh</Btn></View>;}
-export function WorldHero({compact}){return <View style={s.workHero}><Skyline/><View style={s.heroVeil}/><View style={s.workHeroCopy}><Eyebrow>GLOBAL PROCUREMENT INTELLIGENCE</Eyebrow><Text style={[s.workHeroTitle,compact&&{fontSize:26,lineHeight:34}]}>Anticipate opportunities.{ '\n'}<Text style={{color:P.blue}}>Build what’s next.</Text></Text><Text style={s.heroBody}>Official sources, prioritised signals and clear commercial decisions.</Text></View></View>;}
-export function WorldMarkets(){return <View style={s.analytics}><Eyebrow>VERIFIED MARKET SCOPE</Eyebrow><Text style={s.largePanelTitle}>International ambition. Defined sources.</Text><Text style={s.hint}>Markets shown have European source definitions, not a promise of complete coverage.</Text><View style={s.markets}>{EUROPE_MARKETS.map(([code,name])=><Tile key={code} style={s.countryTile}><Text style={s.country}>{name}</Text><Text style={s.code}>{code}</Text></Tile>)}</View></View>;}
+export function WorldToolbar({onRefresh,tab}){const {s}=useWorldTheme();return <View style={s.toolbar}><View><Eyebrow>OBRASIGNAL / INTELLIGENCE</Eyebrow><Text style={s.toolbarTitle}>{nav.find(x=>x[0]===tab)?.[2]||'Workspace'}</Text></View><Btn secondary onPress={onRefresh}>↻ Refresh</Btn></View>;}
+export function WorldHero({compact}){const {s}=useWorldTheme();return <View style={s.workHero}><Skyline/><View style={s.heroVeil}/><View style={s.workHeroCopy}><Eyebrow>GLOBAL PROCUREMENT INTELLIGENCE</Eyebrow><Text style={[s.workHeroTitle,{color:'#F3F7FE'},compact&&{fontSize:26,lineHeight:34}]}>Anticipate opportunities.{ '\n'}<Text style={{color:'#78BEFB'}}>Build what’s next.</Text></Text><Text style={s.heroBody}>Official sources, prioritised signals and clear commercial decisions.</Text></View></View>;}
+export function WorldMarkets(){const {s}=useWorldTheme();return <View style={s.analytics}><Eyebrow>VERIFIED MARKET SCOPE</Eyebrow><Text style={s.largePanelTitle}>International ambition. Defined sources.</Text><Text style={s.hint}>Markets shown have European source definitions, not a promise of complete coverage.</Text><View style={s.markets}>{EUROPE_MARKETS.map(([code,name])=><Tile key={code} style={s.countryTile}><Text style={s.country}>{name}</Text><Text style={s.code}>{code}</Text></Tile>)}</View></View>;}
 
 export function WorldLanding({onLogin}){
+const {s,P}=useWorldTheme();
 const {width}=useWindowDimensions(),compact=width<760;
 const [preview,setPreview]=useState(false);
 return <ScrollView style={s.public} contentContainerStyle={s.publicContent}>
@@ -104,11 +119,11 @@ return <ScrollView style={s.public} contentContainerStyle={s.publicContent}>
  <View style={s.footer}><BrandLogo inverse markSize={25} textSize={17}/><Text style={s.footerText}>Global ambition · verified operational markets only · © 2026 ObraSignal</Text></View>
  </ScrollView>;
 }
-const s=StyleSheet.create({
+function makeStyles(P){return StyleSheet.create({
  public:{flex:1,backgroundColor:P.bg},publicContent:{backgroundColor:P.bg,minHeight:'100%'},
  publicNav:{minHeight:83,paddingVertical:14,paddingHorizontal:24,backgroundColor:'#04101A',flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10,borderBottomWidth:1,borderBottomColor:P.line,flexWrap:'wrap'},
  navActions:{flexDirection:'row',alignItems:'center',gap:9,flexWrap:'wrap'},btn:{minHeight:43,paddingHorizontal:19,paddingVertical:10,backgroundColor:P.copper,borderRadius:6,borderWidth:1,borderColor:'#E1A981',justifyContent:'center',alignItems:'center'},
- btnText:{color:'#071524',fontFamily:FONT_BODY,fontSize:12,fontWeight:'800',letterSpacing:.2},btnSec:{backgroundColor:'#092238',borderColor:'#3A6886'},btnSecText:{color:P.light},
+ btnText:{color:'#071524',fontFamily:FONT_BODY,fontSize:12,fontWeight:'800',letterSpacing:.2},btnSec:{backgroundColor:P.secondaryButton,borderColor:P.secondaryBorder},btnSecText:{color:P.light},
  publicHero:{minHeight:640,position:'relative',overflow:'hidden',justifyContent:'center'},heroVeil:{position:'absolute',left:0,right:0,top:0,bottom:0,backgroundColor:'rgba(3,11,22,.46)'},
  heroContent:{maxWidth:1540,width:'100%',marginHorizontal:'auto',paddingTop:100,paddingBottom:74,paddingHorizontal:62},
  eyebrow:{fontFamily:FONT_BODY,fontSize:9,color:P.blue,letterSpacing:2.3,fontWeight:'800'},
@@ -120,7 +135,7 @@ const s=StyleSheet.create({
  below:{maxWidth:1550,width:'100%',alignSelf:'center',paddingHorizontal:26,paddingVertical:78},
  belowTitle:{fontFamily:FONT_BODY,fontSize:36,color:P.light,fontWeight:'900',marginTop:12,marginBottom:27},
  valueGrid:{flexDirection:'row',gap:13},vertical:{flexDirection:'column'},tile:{borderRadius:10,borderWidth:1,borderColor:P.line,backgroundColor:P.panel,padding:16,overflow:'hidden'},
- valueTile:{flex:1,minHeight:210,padding:24,justifyContent:'space-between'},valueNum:{color:P.copper,fontFamily:FONT_BODY,fontSize:12,fontWeight:'900'},
+ valueTile:{flex:1,minHeight:210,padding:24,justifyContent:'space-between'},valueNum:{color:P.accentLabel,fontFamily:FONT_BODY,fontSize:12,fontWeight:'900'},
  valueTitle:{fontFamily:FONT_BODY,fontSize:23,color:P.light,fontWeight:'900'},valueDesc:{fontFamily:FONT_BODY,fontSize:13,lineHeight:21,color:P.muted},valueAccent:{height:3,width:36,backgroundColor:P.copper},
  bottomCta:{flexDirection:'row',gap:20,alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',paddingTop:50,marginTop:32,borderTopWidth:1,borderTopColor:P.line},
  ctaTitle:{color:P.light,fontFamily:FONT_BODY,fontSize:25,fontWeight:'800'},footer:{padding:24,borderTopWidth:1,borderTopColor:P.line,flexDirection:'row',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12},
@@ -132,7 +147,7 @@ const s=StyleSheet.create({
  statGrid:{flexDirection:'row',flexWrap:'wrap',gap:11},stat:{minHeight:116,flexBasis:210,flexGrow:1,justifyContent:'space-between'},
  statLabel:{fontFamily:FONT_BODY,fontSize:11,color:P.muted},statNumber:{fontFamily:FONT_BODY,fontSize:31,color:P.light,fontWeight:'900'},statBar:{width:'36%',height:3,backgroundColor:P.blue},
  mainPanels:{flexDirection:'row',gap:12},largePanel:{flex:1,minWidth:0,minHeight:375},panelHead:{flexDirection:'row',justifyContent:'space-between',gap:7,flexWrap:'wrap'},
- panelTag:{fontFamily:FONT_BODY,fontSize:9,color:P.copper,fontWeight:'800',letterSpacing:1},radar:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'#071627',borderRadius:7,marginVertical:12},
+ panelTag:{fontFamily:FONT_BODY,fontSize:9,color:P.accentLabel,fontWeight:'800',letterSpacing:1},radar:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:P.radar,borderRadius:7,marginVertical:12},
  hint:{fontFamily:FONT_BODY,fontSize:11,color:P.muted,lineHeight:18,marginTop:9},largePanelTitle:{fontFamily:FONT_BODY,fontSize:19,color:P.light,fontWeight:'800',marginTop:16},
  chart:{minHeight:209,flex:1,flexDirection:'row',alignItems:'flex-end',gap:9,paddingBottom:4,marginTop:13,borderBottomWidth:1,borderBottomColor:P.line},
  barSlot:{flex:1,alignItems:'center'},barTrack:{height:167,width:'100%',justifyContent:'flex-end',alignItems:'center'},bar:{width:'80%',borderTopLeftRadius:3,borderTopRightRadius:3},
@@ -144,16 +159,16 @@ const s=StyleSheet.create({
  lowerPanels:{flexDirection:'row',gap:12},lower:{flex:1,minWidth:0,minHeight:175},lowerTitle:{fontFamily:FONT_BODY,fontSize:17,color:P.light,fontWeight:'800',marginTop:10},
  sourceRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:9,gap:8},
  sourceText:{flex:1,color:P.muted,fontFamily:FONT_BODY,fontSize:11},mintText:{color:P.mint,fontFamily:FONT_BODY,fontSize:10},coverageValue:{fontFamily:FONT_BODY,fontSize:32,color:P.blue,fontWeight:'900',marginTop:15},
- coverageSub:{fontFamily:FONT_BODY,fontSize:10,color:P.muted,fontWeight:'600'},flowLabel:{fontFamily:FONT_BODY,fontSize:10,color:P.copper,fontWeight:'900',marginTop:24,letterSpacing:2},
- sidebar:{width:240,minHeight:600,backgroundColor:'#04101B',borderRightWidth:1,borderRightColor:P.line,padding:17},
+ coverageSub:{fontFamily:FONT_BODY,fontSize:10,color:P.muted,fontWeight:'600'},flowLabel:{fontFamily:FONT_BODY,fontSize:10,color:P.accentLabel,fontWeight:'900',marginTop:24,letterSpacing:2},
+ sidebar:{width:240,minHeight:600,backgroundColor:P.sidebar,borderRightWidth:1,borderRightColor:P.line,padding:17},
  sidebarCompact:{width:'100%',minHeight:0,borderRightWidth:0,borderBottomWidth:1,borderBottomColor:P.line},
  sidebarBrand:{paddingVertical:17,marginBottom:19},sideLinks:{gap:7,marginTop:16},sideLinksCompact:{flexDirection:'row',flexWrap:'wrap'},
  sideLink:{flexDirection:'row',alignItems:'center',gap:11,borderRadius:7,padding:12},
- active:{backgroundColor:'#123650',borderWidth:1,borderColor:'#4A8ABD'},sideGlyph:{fontFamily:FONT_BODY,fontSize:18,color:P.blue,width:22},
- sideText:{fontFamily:FONT_BODY,fontSize:12,color:P.muted,fontWeight:'700'},sideBottom:{marginTop:'auto',padding:15,backgroundColor:'#0C263C',borderRadius:8,borderWidth:1,borderColor:P.line},
+ active:{backgroundColor:P.sidebarActive,borderWidth:1,borderColor:P.blue},sideGlyph:{fontFamily:FONT_BODY,fontSize:18,color:P.blue,width:22},
+ sideText:{fontFamily:FONT_BODY,fontSize:12,color:P.muted,fontWeight:'700'},sideBottom:{marginTop:'auto',padding:15,backgroundColor:P.sidebarBottom,borderRadius:8,borderWidth:1,borderColor:P.line},
  sideBottomTitle:{fontFamily:FONT_BODY,fontSize:17,color:P.light,fontWeight:'900'},sideBottomTitleBlue:{fontFamily:FONT_BODY,fontSize:17,color:P.blue,fontWeight:'900'},
  toolbar:{minHeight:70,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'},
  toolbarTitle:{fontFamily:FONT_BODY,fontSize:21,color:P.light,fontWeight:'900',marginTop:4},
  markets:{flexDirection:'row',gap:10,flexWrap:'wrap'},countryTile:{flexBasis:170,flexGrow:1,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
- country:{fontFamily:FONT_BODY,fontSize:12,color:P.light},code:{color:P.copper,fontFamily:FONT_BODY,fontSize:10,fontWeight:'900'}
-});
+ country:{fontFamily:FONT_BODY,fontSize:12,color:P.light},code:{color:P.accentLabel,fontFamily:FONT_BODY,fontSize:10,fontWeight:'900'}
+});}
