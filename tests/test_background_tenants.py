@@ -27,6 +27,15 @@ def test_provider_uses_only_existing_active_accounts(monkeypatch):
     assert eligible_background_accounts(object()) == ["tenant-A", "tenant-B"]
 
 
+def test_provider_accepts_known_active_list_without_refetch(monkeypatch):
+    monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "provider")
+    monkeypatch.setattr(
+        account_registry, "list_active_accounts",
+        lambda conn: (_ for _ in ()).throw(AssertionError("unexpected second query")),
+    )
+    assert eligible_background_accounts(object(), existing_accounts=["active-A"]) == ["active-A"]
+
+
 def test_development_preserves_explicit_demo_fallback(monkeypatch):
     monkeypatch.setenv("OBRASIGNAL_AUTH_MODE", "development")
     monkeypatch.setattr(account_registry, "list_active_accounts", lambda conn: [])
