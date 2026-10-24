@@ -1,4 +1,5 @@
-const API_BASE=(process.env.EXPO_PUBLIC_API_URL||'https://obrasignal.onrender.com/api/v1').replace(/\\/$/,'');
+const configuredBase=process.env.EXPO_PUBLIC_API_URL||'https://obrasignal.onrender.com/api/v1';
+const API_BASE=configuredBase.endsWith('/')?configuredBase.slice(0,-1):configuredBase;
 export function classifyAuthHealth(payload){
   if(!payload || payload.ok!==true)return {state:'unknown',message:''};
   const auth=payload.auth||{};
