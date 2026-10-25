@@ -36,6 +36,35 @@ CREATE TABLE IF NOT EXISTS accounts (
 """
 PROTECTED_PATHS = ('/api/v1/opportunities', '/api/v1/stats', '/api/v1/alerts', '/api/v1/workflow')
 PRO_ENTITLEMENT = 'pro'
+BILLING_PRODUCT_ID = 'obrasignal_pro_monthly'
+PAID_WEBHOOK_EVENTS = frozenset({
+    'INITIAL_PURCHASE', 'RENEWAL', 'UNCANCELLATION', 'PRODUCT_CHANGE',
+    'SUBSCRIPTION_EXTENDED', 'TRIAL_STARTED', 'TRIAL_CONVERTED',
+    'SUBSCRIPTION_PAUSED', 'EXPIRATION', 'CANCELLATION', 'BILLING_ISSUE',
+})
+
+def _event_targets_pro(event):
+    """A signed webhook from another RevenueCat product must not grant Pro.
+
+    RevenueCat provides entitlement_ids for product-linked lifecycle events;
+    legacy/test payloads may omit the field and use the exact product ID.
+    An explicitly empty entitlement list is not a verified Pro purchase.
+    """
+    entitlements = event.get('entitlement_ids')
+    if entitlements is not None:
+        return isinstance(entitlements, list) and PRO_ENTITLEMENT in entitlements
+    return str(event.get('product_id') or '') == BILLING_PRODUCT_ID
+
+def _event_timestamp_ms(event):
+    try:
+        raw = event.get('event_timestamp_ms')
+        if raw is None:
+            return None
+        timestamp = int(raw)
+        return timestamp if timestamp > 0 else None
+    except (ValueError, TypeError, OverflowError):
+        return None
+
 
 # A zero-row projection is cheaper and safer on every authenticated request than
 # running CREATE TABLE IF NOT EXISTS / ALTER checks. Missing/legacy schemas fall
@@ -155,7 +184,11 @@ def subscription_state(account):
         "active", "trial", "grace_period", "paused", "cancelled"
     }:
         expires = account.get("entitlement_expires_at")
-        if not expires or _parse_iso(expires) > now:
+        # Cancellation, pause and payment grace periods never grant unbounded
+        # access when an expiry is missing. Perpetual Pro requires a verified
+        # active/trial entitlement, not a terminal lifecycle state.
+        bounded = account.get("subscription_status") in {"grace_period", "paused", "cancelled"}
+        if (expires and _parse_iso(expires) > now) or (not expires and not bounded):
             return {"plan": "pro", "active": True, "source": account.get("store"), "expires_at": expires}
     evaluation = evaluation_access_state(account, now=now)
     if evaluation is not None:
@@ -211,11 +244,22 @@ def _sync_revenuecat_if_due(conn, account_id, force=False):
 
 
 def _sync_account_from_webhook(conn, event):
+    if not isinstance(event, dict):
+        return False
+    event_type = str(event.get('type') or '').upper()
+    if event_type not in PAID_WEBHOOK_EVENTS or not _event_targets_pro(event):
+        return False
     app_user_id = event.get('app_user_id') or event.get('original_app_user_id')
-    if not app_user_id:
-        return
+    if not isinstance(app_user_id, str) or not app_user_id.strip():
+        return False
     ensure_account(conn, app_user_id)
-    event_type = (event.get('type') or '').upper()
+    # Webhooks can arrive out of order; do not allow an older expiration to
+    # overwrite a newer successful renewal, or the reverse.
+    conn.execute('CREATE TABLE IF NOT EXISTS billing_event_order (account_id TEXT PRIMARY KEY, event_timestamp_ms INTEGER NOT NULL)')
+    event_ms = _event_timestamp_ms(event)
+    latest = conn.execute('SELECT event_timestamp_ms FROM billing_event_order WHERE account_id=?', (app_user_id,)).fetchone()
+    if event_ms is not None and latest is not None and event_ms <= latest[0]:
+        return False
     expires_ms = event.get('expiration_at_ms')
     expires = datetime.fromtimestamp(int(expires_ms) / 1000, tz=timezone.utc).isoformat() if expires_ms else None
     store = str(event.get('store') or '').lower() or None
@@ -231,6 +275,10 @@ def _sync_account_from_webhook(conn, event):
         update_subscription(conn, app_user_id, plan='expired', subscription_status='expired', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
     elif event_type in {'CANCELLATION', 'BILLING_ISSUE'}:
         update_subscription(conn, app_user_id, plan='pro', subscription_status='cancelled' if event_type == 'CANCELLATION' else 'grace_period', entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
+    if event_ms is not None:
+        conn.execute('INSERT INTO billing_event_order(account_id,event_timestamp_ms) VALUES(?,?) ON CONFLICT(account_id) DO UPDATE SET event_timestamp_ms=excluded.event_timestamp_ms', (app_user_id, event_ms))
+        conn.commit()
+    return True
 
 
 def _verify_webhook(raw_body, signature):
