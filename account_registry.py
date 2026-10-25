@@ -88,10 +88,15 @@ def billing_provider_readiness():
     """
     subscriber_sync = bool((os.getenv('REVENUECAT_SECRET_API_KEY') or '').strip())
     webhook_hmac = bool((os.getenv('REVENUECAT_WEBHOOK_SECRET') or '').strip())
+    # Credentials alone do not prove a checkout, legal merchant identity or
+    # entitlement reconciliation. This must be enabled only after E2E proof
+    # and explicit operator approval to accept commercial payments.
+    launch_approved = (os.getenv('OBRASIGNAL_LIVE_BILLING_APPROVED') or '').strip().lower() == 'true'
     return {
         'subscriber_sync_configured': subscriber_sync,
         'webhook_hmac_configured': webhook_hmac,
-        'commercial_ready': subscriber_sync and webhook_hmac,
+        'launch_approved': launch_approved,
+        'commercial_ready': subscriber_sync and webhook_hmac and launch_approved,
     }
 
 
