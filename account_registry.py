@@ -258,7 +258,7 @@ def _sync_account_from_webhook(conn, event):
     conn.execute('CREATE TABLE IF NOT EXISTS billing_event_order (account_id TEXT PRIMARY KEY, event_timestamp_ms INTEGER NOT NULL)')
     event_ms = _event_timestamp_ms(event)
     latest = conn.execute('SELECT event_timestamp_ms FROM billing_event_order WHERE account_id=?', (app_user_id,)).fetchone()
-    if event_ms is not None and latest is not None and event_ms <= latest[0]:
+    if latest is not None and (event_ms is None or event_ms <= latest[0]):
         return False
     expires_ms = event.get('expiration_at_ms')
     expires = datetime.fromtimestamp(int(expires_ms) / 1000, tz=timezone.utc).isoformat() if expires_ms else None
