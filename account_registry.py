@@ -189,11 +189,10 @@ def subscription_state(account):
         "active", "trial", "grace_period", "paused", "cancelled"
     }:
         expires = account.get("entitlement_expires_at")
-        # Cancellation, pause and payment grace periods never grant unbounded
-        # access when an expiry is missing. Perpetual Pro requires a verified
-        # active/trial entitlement, not a terminal lifecycle state.
-        bounded = account.get("subscription_status") in {"grace_period", "paused", "cancelled"}
-        if (expires and _parse_iso(expires) > now) or (not expires and not bounded):
+        # ObraSignal Pro is a monthly recurring product. An active, trial,
+        # cancelled or grace-period record without an expiry cannot confer
+        # perpetual paid access.
+        if expires and _parse_iso(expires) > now:
             return {"plan": "pro", "active": True, "source": account.get("store"), "expires_at": expires}
     evaluation = evaluation_access_state(account, now=now)
     if evaluation is not None:
@@ -241,8 +240,8 @@ def _sync_revenuecat_if_due(conn, account_id, force=False):
         expires = entitlement.get('expires_date')
         active = _parse_iso(expires) > datetime.now(timezone.utc)
         update_subscription(conn, account_id, plan='pro' if active else 'expired', subscription_status='active' if active else 'expired', entitlement_expires_at=expires, store=entitlement.get('store') or subscriber.get('store'), product_id=entitlement.get('product_identifier'))
-    elif entitlement and entitlement.get('is_active') is True:
-        update_subscription(conn, account_id, plan='pro', subscription_status='active', entitlement_expires_at=None, store=entitlement.get('store'), product_id=entitlement.get('product_identifier'))
+    # An "active" monthly entitlement without expires_date cannot be verified.
+    # Do not manufacture a lifetime Pro subscription from an incomplete payload.
     else:
         conn.execute("UPDATE accounts SET billing_synced_at=? WHERE account_id=?", (datetime.now(timezone.utc).isoformat(), str(account_id)))
         conn.commit()
@@ -272,6 +271,8 @@ def _sync_account_from_webhook(conn, event):
     tx = event.get('original_transaction_id') or event.get('transaction_id')
     active_events = {'INITIAL_PURCHASE', 'RENEWAL', 'UNCANCELLATION', 'PRODUCT_CHANGE', 'SUBSCRIPTION_EXTENDED', 'TRIAL_STARTED', 'TRIAL_CONVERTED'}
     if event_type in active_events:
+        if expires is None:
+            return False
         status = 'trial' if event_type == 'TRIAL_STARTED' else 'active'
         update_subscription(conn, app_user_id, plan='pro', subscription_status=status, entitlement_expires_at=expires, store=store, product_id=product_id, original_transaction_id=tx)
     elif event_type == 'SUBSCRIPTION_PAUSED':
