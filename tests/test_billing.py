@@ -115,12 +115,14 @@ def test_revenuecat_paid_precedence_over_unexpired_evaluation_and_metrics_are_au
     assert metrics['estimated_value_event_count']==0
 
 
-def test_commercial_provider_readiness_requires_sync_and_hmac(monkeypatch):
+def test_commercial_provider_readiness_requires_sync_hmac_and_explicit_launch_approval(monkeypatch):
     monkeypatch.delenv('REVENUECAT_SECRET_API_KEY', raising=False)
     monkeypatch.delenv('REVENUECAT_WEBHOOK_SECRET', raising=False)
+    monkeypatch.delenv('OBRASIGNAL_LIVE_BILLING_APPROVED', raising=False)
     assert billing_provider_readiness() == {
         'subscriber_sync_configured': False,
         'webhook_hmac_configured': False,
+        'launch_approved': False,
         'commercial_ready': False,
     }
     monkeypatch.setenv('REVENUECAT_SECRET_API_KEY', 'secret')
@@ -129,8 +131,13 @@ def test_commercial_provider_readiness_requires_sync_and_hmac(monkeypatch):
     assert billing_provider_readiness() == {
         'subscriber_sync_configured': True,
         'webhook_hmac_configured': True,
-        'commercial_ready': True,
+        'launch_approved': False,
+        'commercial_ready': False,
     }
+    monkeypatch.setenv('OBRASIGNAL_LIVE_BILLING_APPROVED', 'true')
+    assert billing_provider_readiness()['commercial_ready'] is True
+    monkeypatch.delenv('REVENUECAT_WEBHOOK_SECRET')
+    assert billing_provider_readiness()['commercial_ready'] is False
 
 
 def test_paused_revenuecat_subscription_stays_authorized_until_expiry():
