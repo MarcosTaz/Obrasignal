@@ -209,3 +209,20 @@ def test_terminal_subscription_state_without_expiration_cannot_be_infinite(statu
     update_subscription(conn,'acct-bounded',plan='pro',subscription_status=status,
                         entitlement_expires_at=None,product_id='obrasignal_pro_monthly')
     assert subscription_state(get_account(conn,'acct-bounded'))['plan']!='pro'
+
+
+def test_monthly_pro_without_expiry_never_becomes_perpetual():
+    conn=db()
+    ensure_account(conn,'acct-no-expiry')
+    update_subscription(conn,'acct-no-expiry',plan='pro',subscription_status='active',
+                        entitlement_expires_at=None,product_id='obrasignal_pro_monthly')
+    assert subscription_state(get_account(conn,'acct-no-expiry'))['plan'] != 'pro'
+
+
+def test_incomplete_monthly_purchase_webhook_cannot_grant_pro():
+    conn=db()
+    event={'type':'INITIAL_PURCHASE','app_user_id':'acct-incomplete',
+           'entitlement_ids':['pro'],'product_id':'obrasignal_pro_monthly',
+           'event_timestamp_ms':18000}
+    assert _sync_account_from_webhook(conn,event) is False
+    assert subscription_state(get_account(conn,'acct-incomplete'))['plan'] != 'pro'
