@@ -115,12 +115,14 @@ def test_revenuecat_paid_precedence_over_unexpired_evaluation_and_metrics_are_au
     assert metrics['estimated_value_event_count']==0
 
 
-def test_commercial_provider_readiness_requires_sync_and_hmac(monkeypatch):
+def test_commercial_provider_readiness_requires_sync_hmac_and_explicit_launch_approval(monkeypatch):
     monkeypatch.delenv('REVENUECAT_SECRET_API_KEY', raising=False)
     monkeypatch.delenv('REVENUECAT_WEBHOOK_SECRET', raising=False)
+    monkeypatch.delenv('OBRASIGNAL_LIVE_BILLING_APPROVED', raising=False)
     assert billing_provider_readiness() == {
         'subscriber_sync_configured': False,
         'webhook_hmac_configured': False,
+        'launch_approved': False,
         'commercial_ready': False,
     }
     monkeypatch.setenv('REVENUECAT_SECRET_API_KEY', 'secret')
@@ -129,8 +131,13 @@ def test_commercial_provider_readiness_requires_sync_and_hmac(monkeypatch):
     assert billing_provider_readiness() == {
         'subscriber_sync_configured': True,
         'webhook_hmac_configured': True,
-        'commercial_ready': True,
+        'launch_approved': False,
+        'commercial_ready': False,
     }
+    monkeypatch.setenv('OBRASIGNAL_LIVE_BILLING_APPROVED', 'true')
+    assert billing_provider_readiness()['commercial_ready'] is True
+    monkeypatch.delenv('REVENUECAT_WEBHOOK_SECRET')
+    assert billing_provider_readiness()['commercial_ready'] is False
 
 
 def test_paused_revenuecat_subscription_stays_authorized_until_expiry():
@@ -149,3 +156,73 @@ def test_paused_revenuecat_subscription_stays_authorized_until_expiry():
     assert account['subscription_status']=='paused'
     state=subscription_state(account)
     assert state['active'] is True and state['plan']=='pro'
+
+
+def test_signed_but_unrelated_product_event_never_creates_pro_account():
+    conn=db()
+    other={'type':'INITIAL_PURCHASE','app_user_id':'acct-other',
+           'entitlement_ids':['another_entitlement'],
+           'product_id':'unrelated_product','event_timestamp_ms':1000}
+    assert _sync_account_from_webhook(conn, other) is False
+    assert get_account(conn,'acct-other') is None
+    assert _sync_account_from_webhook(conn,{**other,'type':'TEST','app_user_id':'acct-test'}) is False
+    assert get_account(conn,'acct-test') is None
+
+
+def test_explicit_empty_entitlements_deny_pro_even_when_product_id_is_present():
+    conn=db()
+    event={'type':'INITIAL_PURCHASE','app_user_id':'acct-empty',
+           'entitlement_ids':[],'product_id':'obrasignal_pro_monthly',
+           'event_timestamp_ms':1000}
+    assert _sync_account_from_webhook(conn,event) is False
+    assert get_account(conn,'acct-empty') is None
+
+
+def test_valid_pro_event_can_grant_paid_access_and_older_expiration_cannot_revoke_it():
+    conn=db()
+    expires=int((datetime.now(timezone.utc)+timedelta(days=30)).timestamp()*1000)
+    base={'app_user_id':'acct-order','entitlement_ids':['pro'],
+          'product_id':'price_stripe_pro','store':'stripe','expiration_at_ms':expires}
+    assert _sync_account_from_webhook(conn,{**base,'type':'INITIAL_PURCHASE','event_timestamp_ms':1000}) is True
+    assert _sync_account_from_webhook(conn,{**base,'type':'RENEWAL','event_timestamp_ms':3000}) is True
+    assert _sync_account_from_webhook(conn,{**base,'type':'EXPIRATION','event_timestamp_ms':2000}) is False
+    assert _sync_account_from_webhook(conn,{**base,'type':'EXPIRATION','event_timestamp_ms':3000}) is False
+    assert _sync_account_from_webhook(conn,{**base,'type':'EXPIRATION'}) is False
+    assert subscription_state(get_account(conn,'acct-order'))['plan']=='pro'
+
+
+def test_latest_expiration_revokes_pro_and_old_renewal_does_not_restore_it():
+    conn=db()
+    future=int((datetime.now(timezone.utc)+timedelta(days=2)).timestamp()*1000)
+    data={'app_user_id':'acct-expire','product_id':'obrasignal_pro_monthly',
+          'expiration_at_ms':future}
+    assert _sync_account_from_webhook(conn,{**data,'type':'RENEWAL','event_timestamp_ms':1000}) is True
+    assert _sync_account_from_webhook(conn,{**data,'type':'EXPIRATION','event_timestamp_ms':2000}) is True
+    assert _sync_account_from_webhook(conn,{**data,'type':'RENEWAL','event_timestamp_ms':1500}) is False
+    assert subscription_state(get_account(conn,'acct-expire'))['plan']!='pro'
+
+
+@pytest.mark.parametrize('status', ['cancelled','paused','grace_period'])
+def test_terminal_subscription_state_without_expiration_cannot_be_infinite(status):
+    conn=db()
+    ensure_account(conn,'acct-bounded')
+    update_subscription(conn,'acct-bounded',plan='pro',subscription_status=status,
+                        entitlement_expires_at=None,product_id='obrasignal_pro_monthly')
+    assert subscription_state(get_account(conn,'acct-bounded'))['plan']!='pro'
+
+
+def test_monthly_pro_without_expiry_never_becomes_perpetual():
+    conn=db()
+    ensure_account(conn,'acct-no-expiry')
+    update_subscription(conn,'acct-no-expiry',plan='pro',subscription_status='active',
+                        entitlement_expires_at=None,product_id='obrasignal_pro_monthly')
+    assert subscription_state(get_account(conn,'acct-no-expiry'))['plan'] != 'pro'
+
+
+def test_incomplete_monthly_purchase_webhook_cannot_grant_pro():
+    conn=db()
+    event={'type':'INITIAL_PURCHASE','app_user_id':'acct-incomplete',
+           'entitlement_ids':['pro'],'product_id':'obrasignal_pro_monthly',
+           'event_timestamp_ms':18000}
+    assert _sync_account_from_webhook(conn,event) is False
+    assert subscription_state(get_account(conn,'acct-incomplete'))['plan'] != 'pro'
