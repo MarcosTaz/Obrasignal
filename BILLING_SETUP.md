@@ -32,11 +32,12 @@ Do not silently reuse an unrelated Stripe merchant account. The intended ObraSig
 6. Set backend reconciliation credentials on Render:
    - `REVENUECAT_SECRET_API_KEY`
    - `REVENUECAT_WEBHOOK_SECRET`
-7. Configure the signed RevenueCat webhook endpoint:
+7. Keep `OBRASIGNAL_LIVE_BILLING_APPROVED` absent (or `false`) during setup. It is a **server-only** commercial release switch. Set it to `true` only after the exact sandbox checkout → signed webhook → backend → authenticated Pro flow, merchant/legal identity, user-facing prices and cancellation have been verified and explicit go-live approval is given. Never set it as an `EXPO_PUBLIC_` variable.
+8. Configure the signed RevenueCat webhook endpoint:
    - `https://obrasignal.onrender.com/api/v1/billing/webhook`
-8. Keep `obrasignal.com` as the canonical customer domain and do not mark the commercial release ready until that domain serves the exact released build.
+9. Keep `obrasignal.com` as the canonical customer domain and do not mark the commercial release ready until that domain serves the exact released build.
 
-The authenticated `/api/v1/billing/status` response publishes only Boolean provider-readiness flags. The Web client will not expose automatic checkout unless both backend subscriber sync and signed-webhook reconciliation are configured. Secrets are never returned to the client.
+The authenticated `/api/v1/billing/status` response publishes only Boolean provider-readiness flags. The Web client will not expose automatic checkout unless backend subscriber sync and signed-webhook reconciliation are configured **and** the explicit live-billing release switch is enabled. Secrets are never returned to the client.
 
 ### Web acceptance sequence
 
