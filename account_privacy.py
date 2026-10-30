@@ -15,7 +15,7 @@ from flask import Blueprint, jsonify, request
 from jwt import InvalidTokenError
 
 from auth_context import configured_identity
-from account_registry import ensure_account
+from account_registry import ensure_account, ACCOUNT_DELETION_LOCKED_STATUSES
 
 bp = Blueprint("account_privacy", __name__, url_prefix="/api/v1/account")
 
@@ -48,12 +48,7 @@ DEPENDENT_TABLES = (
     "push_preferences",
     "push_digest_deliveries",
 )
-DELETION_LOCKED_STATUSES = frozenset({
-    "deletion_pending",
-    "deletion_failed",
-    "deleted_pending_revocation",
-    "deleted",
-})
+DELETION_LOCKED_STATUSES = ACCOUNT_DELETION_LOCKED_STATUSES
 
 
 class AccountPrivacyContractError(RuntimeError):
