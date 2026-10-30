@@ -253,7 +253,8 @@ def alerts():
         where += " AND e.delivered_at IS NULL"
     params.append(limit)
     rows = c.execute(f"""SELECT e.id AS event_id, e.event_key, e.score, e.created_at, e.delivered_at,
-                   t.id, t.title, t.country, t.source, t.url, t.deadline, t.profile_reason, t.profile_score, t.external_id
+                   t.id, t.title, t.country, t.source, t.url, t.deadline,
+                   t.match_reason AS profile_reason, t.score AS profile_score, t.external_id
             FROM opportunity_events e LEFT JOIN tenders t ON t.id=e.tender_id
             LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
             LEFT JOIN opportunity_decisions d ON d.id=(
