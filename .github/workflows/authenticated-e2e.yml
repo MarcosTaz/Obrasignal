@@ -115,21 +115,8 @@ jobs:
           open('/tmp/tender_id','w',encoding='utf-8').write(str(items[0]['id']) if items else '')
           PY
 
-          cleanup() {
-            set +e
-            if test -s /tmp/workflow-original.json && test -s /tmp/tender_id; then
-              ID="$(cat /tmp/tender_id)"
-              python - <<'PY'
-          import json
-          w=json.load(open('/tmp/workflow-original.json', encoding='utf-8'))
-          json.dump({'status':w['status'],'note':w.get('note')}, open('/tmp/workflow-restore.json','w',encoding='utf-8'))
-          PY
-              curl --silent --show-error --max-time 30 -X POST "$API_URL/opportunities/$ID/workflow" \
-                -H "$AUTH" -H 'Content-Type: application/json' --data-binary @/tmp/workflow-restore.json >/tmp/workflow-restore-response.json
-            fi
-          }
-          trap cleanup EXIT
-
+          # Read-only detail and workflow contract. Never mutate customer state
+          # from the general production authentication gate.
           if test -s /tmp/tender_id; then
             ID="$(cat /tmp/tender_id)"
             curl --fail --silent --show-error --max-time 30 -H "$AUTH" "$API_URL/opportunities/$ID" > /tmp/detail.json
@@ -145,24 +132,6 @@ jobs:
           assert isinstance(workflow, dict)
           assert workflow.get('status') in allowed
           assert detail['workflow'].get('status') == workflow.get('status')
-          json.dump(workflow, open('/tmp/workflow-original.json','w',encoding='utf-8'))
-          next_status='REVIEWING' if workflow.get('status') != 'REVIEWING' else 'PREPARING'
-          json.dump({'status':next_status,'note':'__e2e_roundtrip__'}, open('/tmp/workflow-write.json','w',encoding='utf-8'))
-          PY
-            curl --fail --silent --show-error --max-time 30 -X POST "$API_URL/opportunities/$ID/workflow" \
-              -H "$AUTH" -H 'Content-Type: application/json' --data-binary @/tmp/workflow-write.json > /tmp/workflow-write-response.json
-            curl --fail --silent --show-error --max-time 30 -H "$AUTH" "$API_URL/opportunities/$ID/workflow" > /tmp/workflow-after-write.json
-            python - <<'PY'
-          import json
-          expected=json.load(open('/tmp/workflow-write.json', encoding='utf-8'))
-          write_envelope=json.load(open('/tmp/workflow-write-response.json', encoding='utf-8'))
-          read_envelope=json.load(open('/tmp/workflow-after-write.json', encoding='utf-8'))
-          written=write_envelope.get('workflow') or {}
-          actual=read_envelope.get('workflow') or {}
-          assert write_envelope.get('ok') is True
-          assert written.get('status') == expected['status']
-          assert actual.get('status') == expected['status']
-          assert actual.get('note') == expected['note']
           PY
           fi
 

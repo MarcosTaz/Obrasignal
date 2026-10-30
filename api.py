@@ -49,6 +49,11 @@ def _bounded_query_int(name, default, minimum, maximum, *, optional=False):
     return value
 
 
+def _literal_like(value):
+    """Escape SQLite LIKE wildcards so customer search is literal, not a pattern."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _cors_origin():
     origin = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
@@ -240,7 +245,10 @@ def profile():
 @bp.route("/alerts", methods=["GET"])
 def alerts():
     identity = request.obrasignal_identity
-    limit = max(1, min(50, int(request.args.get("limit", 20) or 20)))
+    try:
+        limit = _bounded_query_int("limit", 20, 1, 50)
+    except ValueError as exc:
+        return jsonify({"error": "invalid_query", "message": f"Parâmetro inválido: {exc.args[0]}"}), 400
     unread_only = request.args.get("unread", "0").lower() in ("1", "true", "yes")
     c = _db()
     ensure_lifecycle_table(c)
@@ -250,10 +258,24 @@ def alerts():
         where += " AND e.delivered_at IS NULL"
     params.append(limit)
     rows = c.execute(f"""SELECT e.id AS event_id, e.event_key, e.score, e.created_at, e.delivered_at,
-                   t.id, t.title, t.country, t.source, t.url, t.deadline, t.profile_reason, t.profile_score, t.external_id
+                   t.id, t.title, t.country, t.source, t.url, t.deadline,
+                   t.match_reason AS profile_reason, t.score AS profile_score, t.external_id
             FROM opportunity_events e LEFT JOIN tenders t ON t.id=e.tender_id
             LEFT JOIN opportunity_lifecycle lc ON lc.source=t.source AND lc.external_id=t.external_id
-            {where} ORDER BY e.created_at DESC LIMIT ?""", params).fetchall()
+            LEFT JOIN opportunity_decisions d ON d.id=(
+                SELECT MAX(d2.id) FROM opportunity_decisions d2
+                WHERE d2.account_id=e.account_id
+                  AND d2.source=t.source AND d2.external_id=t.external_id
+            )
+            {where}
+            ORDER BY
+              CASE d.decision
+                WHEN 'QUALIFIED' THEN 0 WHEN 'RELEVANT' THEN 0
+                WHEN 'REVIEW' THEN 1 WHEN 'REJECT' THEN 3
+                ELSE 2 END ASC,
+              COALESCE(d.score,e.score,0) DESC,
+              e.created_at DESC, e.id DESC
+            LIMIT ?""", params).fetchall()
     decisions = _latest_decisions(c, identity.account_id, [r["external_id"] for r in rows])
     items = []
     for r in rows:
@@ -261,8 +283,9 @@ def alerts():
         d.update({"event_id": r["event_id"], "event_key": r["event_key"], "score": r["score"], "created_at": r["created_at"], "delivered_at": r["delivered_at"], "delivery_state": "delivered" if r["delivered_at"] else "new"})
         items.append(d)
     c.close()
-    items.sort(key=lambda item: (_decision_priority(item.get("account_decision")), -(item.get("account_score") or item.get("score") or 0), item.get("created_at") or ""))
-    return jsonify({"items": items[:limit], "count": len(items[:limit]), "generated_at": _iso_now(), "account_id": identity.account_id})
+    # Ranking happens BEFORE LIMIT in SQL. Sorting a truncated recent-events
+    # slice would otherwise hide older but higher-priority account matches.
+    return jsonify({"items": items, "count": len(items), "generated_at": _iso_now(), "account_id": identity.account_id})
 
 
 @bp.route("/alerts/<int:event_id>/delivered", methods=["POST"])
@@ -347,6 +370,13 @@ def opportunities():
     q = (request.args.get("q") or "").strip().lower()
     source = (request.args.get("source") or "").strip().upper()
     open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
+    # Bound user-controlled filters before constructing a query or scanning text.
+    for name, value, max_len in (
+        ("q", q, 256), ("source", source, 64),
+        ("country", country, 8), ("market", market, 8),
+    ):
+        if len(value) > max_len:
+            return jsonify({"error": "invalid_query", "message": f"Parâmetro inválido: {name}"}), 400
     c = _db()
     ensure_lifecycle_table(c)
     where = [actionable_predicate("lc", "t")]
@@ -358,8 +388,8 @@ def opportunities():
         where.append("t.country=?")
         params.append(country)
     if q:
-        where.append("LOWER(COALESCE(t.title,'') || ' ' || COALESCE(t.description,'') || ' ' || COALESCE(t.buyer,'') || ' ' || COALESCE(t.cpv,'')) LIKE ?")
-        params.append(f"%{q}%")
+        where.append("LOWER(COALESCE(t.title,'') || ' ' || COALESCE(t.description,'') || ' ' || COALESCE(t.buyer,'') || ' ' || COALESCE(t.cpv,'')) LIKE ? ESCAPE '\\'")
+        params.append(f"%{_literal_like(q)}%")
     if source:
         where.append("UPPER(t.source)=?")
         params.append(source)
