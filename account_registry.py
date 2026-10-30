@@ -37,6 +37,12 @@ CREATE TABLE IF NOT EXISTS accounts (
 PROTECTED_PATHS = ('/api/v1/opportunities', '/api/v1/stats', '/api/v1/alerts', '/api/v1/workflow')
 PRO_ENTITLEMENT = 'pro'
 
+# A deletion tombstone is irrevocable by asynchronous billing events.
+# Shared with account_privacy and cors_app to prevent policy drift.
+ACCOUNT_DELETION_LOCKED_STATUSES = frozenset({
+    'deletion_pending', 'deletion_failed', 'deleted_pending_revocation', 'deleted',
+})
+
 # A zero-row projection is cheaper and safer on every authenticated request than
 # running CREATE TABLE IF NOT EXISTS / ALTER checks. Missing/legacy schemas fall
 # back to the migration path below, so fresh tests and old persisted databases
@@ -131,25 +137,35 @@ def update_subscription(conn, account_id, *, plan, subscription_status,
                         entitlement_expires_at=None, store=None, product_id=None,
                         original_transaction_id=None):
     ensure_account_table(conn)
-    conn.execute(
-        """UPDATE accounts SET plan=?, subscription_status=?,
+    # Atomically refuse to modify any account under deletion. Checking a row
+    # before UPDATE is insufficient: a concurrent deletion can race the read.
+    locked = tuple(sorted(ACCOUNT_DELETION_LOCKED_STATUSES))
+    placeholders = ','.join('?' for _ in locked)
+    changed = conn.execute(
+        f"""UPDATE accounts SET plan=?, subscription_status=?,
            entitlement_expires_at=COALESCE(?, entitlement_expires_at), billing_synced_at=?,
            store=COALESCE(?, store), product_id=COALESCE(?, product_id),
            original_transaction_id=COALESCE(?, original_transaction_id)
-           WHERE account_id=?""",
+           WHERE account_id=? AND status NOT IN ({placeholders})""",
         (plan, subscription_status, entitlement_expires_at, datetime.now(timezone.utc).isoformat(),
-         store, product_id, original_transaction_id, str(account_id)),
+         store, product_id, original_transaction_id, str(account_id), *locked),
     )
+    if changed.rowcount != 1:
+        return False
     if plan == 'pro' and subscription_status in {'active', 'trial', 'grace_period', 'cancelled'}:
         mark_evaluation_paid(conn, account_id)
     elif plan == 'expired' or subscription_status == 'expired':
         mark_post_conversion_churn(conn, account_id)
     conn.commit()
+    return True
 
 
 def subscription_state(account):
     if not account:
         return {"plan": "none", "active": False, "source": None, "expires_at": None}
+    # Signed provider state is not permission to revive a deleted customer.
+    if account.get('status') in ACCOUNT_DELETION_LOCKED_STATUSES:
+        return {"plan": "expired", "active": False, "source": None, "expires_at": None}
     now = datetime.now(timezone.utc)
     if account.get("plan") == "pro" and account.get("subscription_status") in {
         "active", "trial", "grace_period", "paused", "cancelled"
@@ -182,7 +198,7 @@ def _sync_revenuecat_if_due(conn, account_id, force=False):
         return
     row = conn.execute("SELECT * FROM accounts WHERE account_id=?", (str(account_id),)).fetchone()
     account = dict(row) if row else None
-    if not account:
+    if not account or account.get('status') in ACCOUNT_DELETION_LOCKED_STATUSES:
         return
     if not force and account.get('billing_synced_at'):
         age = (datetime.now(timezone.utc) - _parse_iso(account['billing_synced_at'])).total_seconds()
@@ -215,6 +231,13 @@ def _sync_account_from_webhook(conn, event):
     if not app_user_id:
         return
     ensure_account(conn, app_user_id)
+    # Old, valid webhook signatures may arrive after a deletion request.
+    # Acknowledging those events must not recreate billing/private state.
+    current = conn.execute(
+        "SELECT status FROM accounts WHERE account_id=?", (str(app_user_id),)
+    ).fetchone()
+    if current and current[0] in ACCOUNT_DELETION_LOCKED_STATUSES:
+        return
     event_type = (event.get('type') or '').upper()
     expires_ms = event.get('expiration_at_ms')
     expires = datetime.fromtimestamp(int(expires_ms) / 1000, tz=timezone.utc).isoformat() if expires_ms else None
