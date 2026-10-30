@@ -108,8 +108,9 @@ def test_tombstoned_account_cannot_recreate_profile_over_http(tmp_path, monkeypa
         (client.get, "/api/v1/sources", {}),
     ):
         response = method(endpoint, **kwargs)
-        assert response.status_code == 409, (endpoint, response.status_code, response.get_json())
-        assert response.get_json()["error"] == "account_deletion_in_progress"
+        # The existing global privacy guard correctly returns 423 Locked.
+        assert response.status_code == 423, (endpoint, response.status_code, response.get_json())
+        assert response.get_json()["error"] == "account_private_data_locked"
     conn = app.db()
     assert get_account(conn, "deleted-account")["status"] == "deleted_pending_revocation"
     conn.close()
