@@ -49,6 +49,11 @@ def _bounded_query_int(name, default, minimum, maximum, *, optional=False):
     return value
 
 
+def _literal_like(value):
+    """Escape SQLite LIKE wildcards so customer search is literal, not a pattern."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _cors_origin():
     origin = (os.getenv("OBRASIGNAL_CORS_ORIGIN") or "https://marcostaz.github.io").strip()
     auth_mode = (os.getenv("OBRASIGNAL_AUTH_MODE") or "development").strip().lower()
@@ -347,6 +352,13 @@ def opportunities():
     q = (request.args.get("q") or "").strip().lower()
     source = (request.args.get("source") or "").strip().upper()
     open_only = request.args.get("open", "0").lower() in ("1", "true", "yes")
+    # Bound user-controlled filters before constructing a query or scanning text.
+    for name, value, max_len in (
+        ("q", q, 256), ("source", source, 64),
+        ("country", country, 8), ("market", market, 8),
+    ):
+        if len(value) > max_len:
+            return jsonify({"error": "invalid_query", "message": f"Parâmetro inválido: {name}"}), 400
     c = _db()
     ensure_lifecycle_table(c)
     where = [actionable_predicate("lc", "t")]
@@ -358,8 +370,8 @@ def opportunities():
         where.append("t.country=?")
         params.append(country)
     if q:
-        where.append("LOWER(COALESCE(t.title,'') || ' ' || COALESCE(t.description,'') || ' ' || COALESCE(t.buyer,'') || ' ' || COALESCE(t.cpv,'')) LIKE ?")
-        params.append(f"%{q}%")
+        where.append("LOWER(COALESCE(t.title,'') || ' ' || COALESCE(t.description,'') || ' ' || COALESCE(t.buyer,'') || ' ' || COALESCE(t.cpv,'')) LIKE ? ESCAPE '\\'")
+        params.append(f"%{_literal_like(q)}%")
     if source:
         where.append("UPPER(t.source)=?")
         params.append(source)
